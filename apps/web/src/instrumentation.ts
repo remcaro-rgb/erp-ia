@@ -4,6 +4,8 @@
 // the shell retries it on the first request (lib/server/runtime.ts `registrySynced`).
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // A production build never reaches a database.
+  if (process.env.NEXT_PHASE === "phase-production-build") return;
   const { registrySynced } = await import("./lib/server/runtime");
   try {
     await registrySynced();

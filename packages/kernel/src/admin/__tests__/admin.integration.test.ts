@@ -183,6 +183,12 @@ describe("kernel admin: policies, seeds and registry sync", () => {
     const members = await withClaims(sql, admin.claims, (tx) => tx<{ user_id: string; role_ids: string[] }[]>`select user_id, role_ids from kernel.v_memberships`);
     expect(members.map((m) => m.user_id).sort()).toEqual([seed.users.both, seed.users.onlyA, seed.users.member!].sort());
     expect(await withClaims(sql, member.claims, (tx) => tx`select 1 from kernel.v_memberships`)).toHaveLength(0);
+    // The tenant check is not a function users can call (it would tell whether an account exists elsewhere).
+    for (const claims of [member.claims, admin.claims]) {
+      await expect(withClaims(sql, claims, (tx) => tx`select kernel.user_of_caller_tenant(${seed.users.member!})`)).rejects.toThrow(/permission denied/);
+    }
+    const [view] = await sql<{ options: string[] }[]>`select reloptions as options from pg_class where oid = 'kernel.v_memberships'::regclass`;
+    expect(view!.options).toContain("security_barrier=true");
   });
 
   it("the first registration of a module masks its confidential fields for every existing non-admin role", async () => {

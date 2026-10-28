@@ -366,8 +366,10 @@ as $$
     where m.user_id = p_user and c.tenant_id is distinct from kernel.current_tenant_id()
   );
 $$;
-revoke execute on function kernel.user_of_caller_tenant(uuid) from public, anon;
-grant execute on function kernel.user_of_caller_tenant(uuid) to authenticated, service_role;
+-- Not callable by users (it would tell whether any account belongs to another organization): only the owner-rights
+-- paths use it (kernel.member_mfa_enrolled); kernel.v_memberships inlines the same predicate.
+revoke execute on function kernel.user_of_caller_tenant(uuid) from public, anon, authenticated;
+grant execute on function kernel.user_of_caller_tenant(uuid) to service_role;
 
 -- Whether a member of the active company has a verified TOTP factor: for the company admin only (the users page's
 -- 2FA column) and users of the caller's organization only; null otherwise.
@@ -403,17 +405,24 @@ grant select on kernel.v_roles to authenticated;
 -- The members of the active company with their profiles, for its admin. Owner's rights (not security_invoker): it is
 -- the only reader of kernel.users.mobile / photo, which users have no column grant on, so its own predicates do the
 -- isolation: the active company the caller belongs to, its admin only, and the personal data of users of the
--- caller's organization only.
-create or replace view kernel.v_memberships as
+-- caller's organization only. A security barrier: a caller's own predicates never run before the view's.
+create or replace view kernel.v_memberships with (security_barrier = true) as
 select m.id, m.user_id, m.company_id, u.email, u.full_name,
-       case when kernel.user_of_caller_tenant(m.user_id) then u.mobile_cc end as mobile_cc,
-       case when kernel.user_of_caller_tenant(m.user_id) then u.mobile end as mobile,
-       case when kernel.user_of_caller_tenant(m.user_id) then u.photo end as photo,
+       case when own.only then u.mobile_cc end as mobile_cc,
+       case when own.only then u.mobile end as mobile,
+       case when own.only then u.photo end as photo,
        m.created_at,
        coalesce((select array_agg(mr.role_id order by mr.role_id) from kernel.membership_roles mr where mr.membership_id = m.id), '{}'::uuid[]) as role_ids,
        kernel.member_mfa_enrolled(m.user_id) as mfa_enrolled
 from kernel.memberships m
 join kernel.users u on u.id = m.user_id
+-- Same predicate as kernel.user_of_caller_tenant, inline (owner's rights): every membership in the caller's tenant.
+cross join lateral (
+  select not exists (
+    select 1 from kernel.memberships o join kernel.companies c on c.id = o.company_id
+    where o.user_id = m.user_id and c.tenant_id is distinct from (select kernel.current_tenant_id())
+  ) as only
+) own
 where m.company_id = (select kernel.current_company_id())
   and array[m.company_id] <@ (select kernel.current_company_ids())
   and (select kernel.is_company_admin());
