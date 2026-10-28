@@ -38,6 +38,7 @@ export const authCopy = {
     no_session: "Tu sesión terminó. Ingresa de nuevo.",
     no_factor: "No tienes un segundo paso activado.",
     mfa_required: "Primero verifica tu segundo paso para cambiarlo.",
+    too_many_attempts: "Demasiados intentos, espera unos minutos.",
     unavailable: "No pudimos conectar con el servicio de acceso. Inténtalo de nuevo.",
   } satisfies Record<LoginError, string>,
 } as const;

@@ -77,6 +77,7 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
     admin,
     async cleanup() {
       try {
+        await sql`delete from kernel.auth_attempts where key = any(${[`login:${email}`, `mfa:${userId}`, `stepup:${userId}`]}::text[])`;
         await sql`delete from kernel.step_up_verifications where user_id = ${userId}`;
         await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where user_id = ${userId})`;
         await sql`delete from kernel.memberships where user_id = ${userId}`;
@@ -92,10 +93,13 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
   };
 }
 
-/** The 6-digit code an authenticator app shows for `secret` (base32) `stepsAhead` 30-second windows from now. */
-export function totpCode(secret: string, stepsAhead = 0): string {
+/**
+ * The 6-digit code an authenticator app shows for `secret` (base32) right now. Auth accepts the window before and
+ * after as well, so a code made just before a 30-second boundary is still valid when it is checked.
+ */
+export function totpCode(secret: string): string {
   const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromBase32(secret), algorithm: "SHA1", digits: 6, period: 30 });
-  return totp.generate({ timestamp: Date.now() + stepsAhead * 30_000 });
+  return totp.generate({ timestamp: Date.now() });
 }
 
 /**

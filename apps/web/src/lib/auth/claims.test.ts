@@ -19,6 +19,7 @@ describe("sessionStateOf", () => {
   it("reads the kernel claims, the assurance level and the MFA flags the hook puts in the token", () => {
     expect(sessionStateOf(raw({ aal: "aal2", requires_mfa: true, mfa_enrolled: true }))).toEqual({
       claims: { sub: ids.user, tenant_id: ids.tenant, company_ids: [ids.company], active_company_id: ids.company, role_ids: [], locale: "es-419" },
+      userId: ids.user,
       aal: "aal2",
       requiresMfa: true,
       mfaEnrolled: true,
@@ -42,7 +43,7 @@ describe("sessionStateOf", () => {
 });
 
 describe("mfaStep", () => {
-  const state = (aal: "aal1" | "aal2", requiresMfa: boolean, mfaEnrolled: boolean) => ({ claims: null, aal, requiresMfa, mfaEnrolled });
+  const state = (aal: "aal1" | "aal2", requiresMfa: boolean, mfaEnrolled: boolean) => ({ userId: ids.user, claims: null, aal, requiresMfa, mfaEnrolled });
 
   it.each([
     ["enrolled and only password-verified", "aal1", false, true, "verify"],

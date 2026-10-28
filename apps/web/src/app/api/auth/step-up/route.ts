@@ -7,7 +7,7 @@ import { serverSupabase } from "@/lib/supabase/server";
 // (`Caller.stepUpToken`, valid 5 minutes, single use). The proxy leaves /api/auth/* open, so this handler
 // authenticates the session itself.
 
-const STATUS = { invalid_code: 401, no_factor: 409, unavailable: 503 } as const;
+const STATUS = { invalid_code: 401, no_factor: 409, too_many_attempts: 429, unavailable: 503 } as const;
 
 export async function POST(request: Request): Promise<Response> {
   const caller = await callerOrResponse();
@@ -22,7 +22,11 @@ export async function POST(request: Request): Promise<Response> {
   try {
     return Response.json({ token: await issueStepUp(await serverSupabase(), caller.claims, code) });
   } catch (error) {
-    if (error instanceof StepUpError) return Response.json({ code: error.code, details: null }, { status: STATUS[error.code] });
+    if (error instanceof StepUpError) {
+      // 429 tells the client to wait out the 5-minute window.
+      const headers = error.code === "too_many_attempts" ? { "Retry-After": "300" } : undefined;
+      return Response.json({ code: error.code, details: null }, { status: STATUS[error.code], headers });
+    }
     throw error;
   }
 }

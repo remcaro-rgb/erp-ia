@@ -3,7 +3,7 @@ import { seedAuthUser, type AuthFixture } from "../../../../test-support/auth-fi
 import { MemoryJar } from "../../../../test-support/memory-jar";
 
 const state = vi.hoisted(() => ({ jar: undefined as unknown }));
-vi.mock("next/headers", () => ({ cookies: async () => state.jar }));
+vi.mock("next/headers", () => ({ cookies: async () => state.jar, headers: async () => new Headers() }));
 
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { getCallerClaims } from "@/lib/auth/claims";

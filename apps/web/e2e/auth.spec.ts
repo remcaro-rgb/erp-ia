@@ -66,13 +66,13 @@ test.describe("admin with a second factor", () => {
     await page.getByLabel("Dígito 1").fill("000000");
     await expect(page.locator("p[role=alert]")).toContainText("El código no es correcto");
     await expect(page.getByLabel("Dígito 1")).toHaveValue("");
-    await page.getByLabel("Dígito 1").fill(totpCode(secret, 1));
+    await page.getByLabel("Dígito 1").fill(totpCode(secret));
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByTestId("home")).toBeVisible();
 
     const wrong = await page.request.post("/api/auth/step-up", { data: { code: "000000" } });
     expect(wrong.status()).toBe(401);
-    const right = await page.request.post("/api/auth/step-up", { data: { code: totpCode(secret, -1) } });
+    const right = await page.request.post("/api/auth/step-up", { data: { code: totpCode(secret) } });
     expect(right.status()).toBe(200);
     expect(((await right.json()) as { token: string }).token.length).toBeGreaterThan(20);
     const rows = await fixture.sql`select 1 from kernel.step_up_verifications where user_id = ${fixture.userId}`;

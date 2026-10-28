@@ -1,13 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../../../../test-support/auth-fixtures";
 import { MemoryJar } from "../../../../test-support/memory-jar";
 
 const state = vi.hoisted(() => ({ jar: undefined as unknown }));
-vi.mock("next/headers", () => ({ cookies: async () => state.jar }));
+vi.mock("next/headers", () => ({ cookies: async () => state.jar, headers: async () => new Headers() }));
 
 import { completeMfa, confirmEnrolment, loginWithPassword, startEnrolment } from "@/lib/auth/login";
 import { getCallerClaims, Unauthenticated } from "@/lib/auth/claims";
 import { createSupabase } from "@/lib/supabase/server";
+import { loginKey, MAX_ATTEMPTS, resetAttempts, takeAttempt } from "@/lib/auth/limiter";
 import { REMEMBER_COOKIE, REMEMBER_EMAIL_COOKIE, REMEMBER_MAX_AGE_SECONDS } from "@/lib/supabase/cookies";
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60;
@@ -19,6 +20,7 @@ const loginAudit = (fixture: AuthFixture) =>
     where process_id = 'auth.login' and row_id = ${fixture.userId} order by occurred_at`;
 
 describe("login of a member (no MFA required)", () => {
+  afterEach(() => vi.restoreAllMocks());
   let fixture: AuthFixture;
   beforeAll(async () => {
     fixture = await seedAuthUser({ role: "member" });
@@ -83,6 +85,35 @@ describe("login of a member (no MFA required)", () => {
     expect(jar.get(REMEMBER_EMAIL_COOKIE)).toBeUndefined();
   });
 
+  it("refuses the 11th attempt in the window as too_many_attempts without calling Auth, and a success clears the count", async () => {
+    const key = loginKey(fixture.email);
+    await resetAttempts(key);
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) await takeAttempt(key);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const jar = new MemoryJar();
+    expect(await loginWithPassword(jar, { email: fixture.email.toUpperCase(), password: fixture.password, remember: false })).toEqual({ ok: false, error: "too_many_attempts" });
+    expect(fetchSpy.mock.calls.filter(([input]) => String(input).includes("/auth/v1"))).toHaveLength(0);
+    expect(sessionCookies(jar)).toHaveLength(0);
+
+    // A later window, a wrong password counts, the right one clears.
+    await resetAttempts(key);
+    expect(await loginWithPassword(jar, { email: fixture.email, password: "wrong", remember: false })).toEqual({ ok: false, error: "invalid_credentials" });
+    const [counted] = await fixture.sql<{ count: number }[]>`select count from kernel.auth_attempts where key = ${key}`;
+    expect(counted!.count).toBe(1);
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+    expect(await fixture.sql`select 1 from kernel.auth_attempts where key = ${key}`).toHaveLength(0);
+  });
+
+  it("forwards the client IP to Auth on the sign-in call", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await loginWithPassword(new MemoryJar(), { email: fixture.email, password: fixture.password, remember: false, clientIp: "203.0.113.7" });
+    const signIn = fetchSpy.mock.calls.find(([input]) => String(input).includes("/auth/v1/token"));
+    const headers = new Headers((signIn![1] as RequestInit).headers);
+    expect(headers.get("x-forwarded-for")).toBe("203.0.113.7");
+    expect(headers.get("sb-forwarded-for")).toBe("203.0.113.7");
+  });
+
   it("gives the session no access to getCallerClaims once the cookies are gone", async () => {
     state.jar = new MemoryJar();
     await expect(getCallerClaims()).rejects.toBeInstanceOf(Unauthenticated);
@@ -127,7 +158,7 @@ describe("login of an admin (MFA required by role)", () => {
     await expect(getCallerClaims()).rejects.toMatchObject({ reason: "mfa_required" });
     expect(await completeMfa(jar, { code: "000000" })).toEqual({ ok: false, error: "invalid_code" });
     await expect(getCallerClaims()).rejects.toMatchObject({ reason: "mfa_required" });
-    expect(await completeMfa(jar, { code: totpCode(secret, 1) })).toEqual({ ok: true, next: "/" });
+    expect(await completeMfa(jar, { code: totpCode(secret) })).toEqual({ ok: true, next: "/" });
     expect((await getCallerClaims()).sub).toBe(fixture.userId);
   });
 
@@ -157,7 +188,7 @@ describe("a user who enrolled TOTP is asked for it whatever their role", () => {
     state.jar = jar;
     expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: true })).toEqual({ ok: true, next: "/mfa/verify" });
     expect(await loginAudit(fixture)).toHaveLength(0);
-    expect(await completeMfa(jar, { code: totpCode(secret, 1) })).toEqual({ ok: true, next: "/" });
+    expect(await completeMfa(jar, { code: totpCode(secret) })).toEqual({ ok: true, next: "/" });
     expect((await loginAudit(fixture)).at(-1)).toMatchObject({ origin: "ui", input: { remember: true, mfa: "totp" } });
     // The second step's session keeps the 30-day mode.
     for (const [, cookie] of sessionCookies(jar)) expect(cookie.options.maxAge).toBe(THIRTY_DAYS);

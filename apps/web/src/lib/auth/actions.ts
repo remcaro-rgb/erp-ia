@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { requestClientIp } from "@/lib/supabase/server";
 import { completeMfa, confirmEnrolment, loginWithPassword, logout, startEnrolment, type Enrolment, type LoginError, type StepResult } from "./login";
 
 // Server actions of the sign-in pages. The sequence lives in ./login (testable without Next); these only read
@@ -17,24 +18,24 @@ const fail = (error: LoginError): FormState => ({ error, nonce: Date.now() });
 const text = (form: FormData, name: string) => (typeof form.get(name) === "string" ? (form.get(name) as string) : "");
 
 export async function signIn(_previous: FormState, form: FormData): Promise<FormState> {
-  const result = await loginWithPassword(await cookies(), { email: text(form, "email"), password: text(form, "password"), remember: form.get("remember") === "on" });
+  const result = await loginWithPassword(await cookies(), { email: text(form, "email"), password: text(form, "password"), remember: form.get("remember") === "on", clientIp: await requestClientIp() });
   if (!result.ok) return fail(result.error);
   redirect(result.next);
 }
 
 export async function verifyTotp(_previous: FormState, form: FormData): Promise<FormState> {
-  const result = await completeMfa(await cookies(), { code: text(form, "code") });
+  const result = await completeMfa(await cookies(), { code: text(form, "code"), clientIp: await requestClientIp() });
   if (!result.ok) return fail(result.error);
   redirect(result.next);
 }
 
 /** Starts the enrolment and returns the QR and key for the page to show. */
 export async function beginEnrolment(): Promise<StepResult<Enrolment>> {
-  return startEnrolment(await cookies());
+  return startEnrolment(await cookies(), { clientIp: await requestClientIp() });
 }
 
 export async function finishEnrolment(_previous: FormState, form: FormData): Promise<FormState> {
-  const result = await confirmEnrolment(await cookies(), { factorId: text(form, "factorId"), code: text(form, "code") });
+  const result = await confirmEnrolment(await cookies(), { factorId: text(form, "factorId"), code: text(form, "code"), clientIp: await requestClientIp() });
   if (!result.ok) return fail(result.error);
   redirect(result.next);
 }

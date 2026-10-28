@@ -40,9 +40,10 @@ export function sessionCookieOptions(options: CookieOptions, remember: boolean):
   const rest = { ...options };
   delete rest.maxAge;
   delete rest.expires;
-  const secure = process.env.NODE_ENV === "production" ? { secure: true } : {};
-  if (options.maxAge === 0) return { ...rest, ...secure, maxAge: 0 };
-  return remember ? { ...rest, ...secure, maxAge: REMEMBER_MAX_AGE_SECONDS } : { ...rest, ...secure };
+  // httpOnly: the browser never reads the session (no browser Supabase client); only the server does.
+  const base = { ...rest, httpOnly: true, ...(process.env.NODE_ENV === "production" ? { secure: true } : {}) };
+  if (options.maxAge === 0) return { ...base, maxAge: 0 };
+  return remember ? { ...base, maxAge: REMEMBER_MAX_AGE_SECONDS } : base;
 }
 
 /** Options for the app's own remember cookies: server-only, 30 days. */

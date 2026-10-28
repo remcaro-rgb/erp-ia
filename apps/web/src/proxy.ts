@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mfaStep, readSession, redirectPathFor, type SessionState } from "@/lib/auth/claims";
 import { type CookieJar, type CookieOptions } from "@/lib/supabase/cookies";
-import { createSupabase } from "@/lib/supabase/server";
+import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 
 // Next.js 16 `proxy` (the former middleware, Node.js runtime): one gate in front of every route.
 //  1. Refreshes the Supabase session (`getClaims` renews an expired access token) and writes the renewed
@@ -40,7 +40,7 @@ function requestJar(request: NextRequest, pending: PendingCookie[]): CookieJar {
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const pending: PendingCookie[] = [];
-  const state = await readSession(createSupabase(requestJar(request, pending)));
+  const state = await readSession(createSupabase(requestJar(request, pending), { clientIp: clientIpOf(request.headers) }));
   const { pathname } = request.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
@@ -52,10 +52,18 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const redirectTo = (path: string) => finish(NextResponse.redirect(new URL(path, request.url)));
   const deny = (code: string) => finish(NextResponse.json({ code, details: null }, { status: 401 }));
 
+  // What the render sees: the request with the cookies the refresh just renewed (`request.cookies.set` rewrites
+  // its Cookie header) and, once the user is known, their locale.
+  const forward = () => {
+    const headers = new Headers(request.headers);
+    if (state?.claims) headers.set(LOCALE_HEADER, localeOf(state));
+    return NextResponse.next({ request: { headers } });
+  };
+
   if (isPublic(pathname)) {
     // A visitor who is fully signed in has no use for the sign-in page.
     if (pathname === "/login" && state?.claims && mfaStep(state) === null) return redirectTo("/");
-    return finish(NextResponse.next());
+    return finish(forward());
   }
 
   if (!state) return isApi ? deny("unauthenticated") : redirectTo(redirectPathFor("no_session"));
@@ -64,9 +72,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (step === "enroll") return isApi ? deny("mfa_enrollment_required") : redirectTo(redirectPathFor("mfa_enrollment_required"));
   if (!state.claims) return isApi ? deny("unauthenticated") : redirectTo(redirectPathFor("no_company"));
 
-  const headers = new Headers(request.headers);
-  headers.set(LOCALE_HEADER, localeOf(state));
-  return finish(NextResponse.next({ request: { headers } }));
+  return finish(forward());
 }
 
 const localeOf = (state: SessionState) => state.claims?.locale ?? DEFAULT_LOCALE;

@@ -1,3 +1,4 @@
+import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Caller, JwtClaims } from "@erp/kernel";
 import { serverSupabase } from "@/lib/supabase/server";
@@ -33,6 +34,8 @@ export function redirectPathFor(reason: UnauthenticatedReason): string {
 }
 
 export interface SessionState {
+  /** The authenticated user, also when they belong to no company. */
+  userId: string;
   /** The kernel claims, or null for a signed-in user who belongs to no company. */
   claims: JwtClaims | null;
   aal: "aal1" | "aal2";
@@ -50,6 +53,7 @@ export function sessionStateOf(raw: Record<string, unknown>): SessionState | nul
   if (typeof sub !== "string") return null;
   const hasCompany = typeof tenant_id === "string" && typeof active_company_id === "string" && strings(company_ids) && strings(role_ids);
   return {
+    userId: sub,
     claims: hasCompany
       ? { sub, tenant_id, company_ids, active_company_id, role_ids, locale: typeof locale === "string" ? locale : "es-419" }
       : null,

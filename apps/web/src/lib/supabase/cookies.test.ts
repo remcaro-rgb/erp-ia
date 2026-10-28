@@ -15,6 +15,12 @@ describe("sessionCookieOptions", () => {
     expect(REMEMBER_MAX_AGE_SECONDS).toBe(2_592_000);
   });
 
+  it("keeps the session cookies away from page scripts: they are only ever read on the server", () => {
+    expect(sessionCookieOptions(supabaseDefaults, false).httpOnly).toBe(true);
+    expect(sessionCookieOptions(supabaseDefaults, true).httpOnly).toBe(true);
+    expect(sessionCookieOptions({ ...supabaseDefaults, maxAge: 0 }, false).httpOnly).toBe(true);
+  });
+
   it("keeps a removal (Max-Age 0) a removal in both modes", () => {
     expect(sessionCookieOptions({ ...supabaseDefaults, maxAge: 0 }, false).maxAge).toBe(0);
     expect(sessionCookieOptions({ ...supabaseDefaults, maxAge: 0 }, true).maxAge).toBe(0);

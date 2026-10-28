@@ -1,3 +1,5 @@
+import "server-only";
+
 // Supabase connection settings from the environment (`apps/web/.env.example` lists them).
 
 function required(name: string): string {

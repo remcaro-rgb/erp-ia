@@ -4,7 +4,13 @@ import { defineConfig } from "vitest/config";
 // Integration tests run against the local Supabase stack (`supabase start`): real Auth (GoTrue), the real
 // access token hook and the real database. Only `next/headers` is replaced, by an in-memory cookie jar.
 export default defineConfig({
-  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // `server-only` throws outside a React server build; the tests run server code in plain Node.
+      "server-only": fileURLToPath(new URL("./test-support/server-only-stub.ts", import.meta.url)),
+    },
+  },
   test: {
     include: ["src/**/*.integration.test.ts"],
     passWithNoTests: true,
