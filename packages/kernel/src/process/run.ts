@@ -8,7 +8,7 @@ import { enqueueEvent } from "../events/outbox";
 import type { Registry } from "../registry";
 import type { ProcessDef, ProcessKind } from "../registry/types";
 import type { Caller, ProcessContext } from "./context";
-import { ProcessError } from "./errors";
+import { ProcessError, type ProcessErrorCode } from "./errors";
 
 export interface RunProcessDeps {
   sql: Sql;
@@ -24,12 +24,16 @@ type UntypedOutput = z.ZodType<any>;
 const ACTION: Record<ProcessKind, AuditAction> = { create: "insert", update: "update", delete: "delete", consult: "consult" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Refusals recorded in the audit log with action `denied` (design §5.4 step 2). */
+const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up_required"]);
+
 /**
  * Runs a registered process for `caller` (design §5.4). In order: resolve (`not_found`),
  * entitlements (`not_entitled`), permission (`forbidden`), step-up (`step_up_required`), input
  * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
- * error rolls all of it back and surfaces as `handler_failed`.
+ * error rolls all of it back and surfaces as `handler_failed`. A denial is audited (action `denied`)
+ * in its own committed transaction, on the attempt's chain.
  */
 export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
   deps: RunProcessDeps,
@@ -38,6 +42,30 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
   input: unknown,
 ): Promise<z.infer<O>> {
   const def = resolve(deps.registry, processId);
+  const chainId = caller.chainId ?? randomUUID();
+  try {
+    return await execute<O>(deps, caller, def, chainId, input);
+  } catch (error) {
+    if (error instanceof ProcessError && DENIALS.has(error.code)) {
+      await withClaims(deps.sql, caller.claims, (tx) =>
+        writeAudit(tx, {
+          ...auditDefaults(def, caller, chainId),
+          action: "denied",
+          input: { code: error.code, process_id: def.id },
+        }),
+      );
+    }
+    throw error;
+  }
+}
+
+async function execute<O extends z.ZodTypeAny>(
+  deps: RunProcessDeps,
+  caller: Caller,
+  def: ProcessDef,
+  chainId: string,
+  input: unknown,
+): Promise<z.infer<O>> {
   const { claims } = caller;
   const companyId = claims.active_company_id;
 
@@ -76,7 +104,6 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
     if (stored) return stored.result as z.infer<O>;
   }
 
-  const chainId = caller.chainId ?? randomUUID();
   try {
     return await withClaims(deps.sql, claims, async (tx) => {
       await setAuditContext(tx, {
@@ -163,7 +190,10 @@ function buildContext(tx: Tx, def: ProcessDef, caller: Caller, chainId: string):
       await enqueueEvent(tx, { companyId: claims.active_company_id, event, payload, chainId });
     },
     async audit(entry) {
-      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), ...entry });
+      // The handler may describe the entry, never change who did it or from where.
+      const defaults = auditDefaults(def, caller, chainId);
+      const { companyId, actorUserId, origin } = defaults;
+      await writeAudit(tx, { ...defaults, ...entry, companyId, actorUserId, origin });
     },
   };
 }

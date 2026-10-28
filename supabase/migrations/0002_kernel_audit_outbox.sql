@@ -18,7 +18,8 @@ create table kernel.audit_log (
   process_id      text,
   entity          text not null,
   row_id          uuid,
-  action          text not null check (action in ('insert', 'update', 'delete', 'consult')),
+  -- `denied`: a process run refused before its handler (not entitled, forbidden, step-up missing).
+  action          text not null check (action in ('insert', 'update', 'delete', 'consult', 'denied')),
   input           jsonb,
   diff            jsonb,
   chain_id        uuid not null,

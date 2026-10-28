@@ -172,6 +172,63 @@ describe("run-process", () => {
     expect(row!.n).toBe(0);
   });
 
+  it("a handler failure on a sensitive process leaves the verification unconsumed", async () => {
+    const token = await insertVerification(adminUserId, companyId, new Date());
+    await expect(
+      runProcess(deps, { ...callerWith(adminClaims), stepUpToken: token }, "test.probe.create", { name: "u", fail: true }),
+    ).rejects.toMatchObject({ code: "handler_failed" });
+    const [verification] = await sql`select consumed_at from kernel.step_up_verifications where token = ${token}`;
+    expect(verification!.consumed_at).toBeNull();
+    await expect(
+      runProcess(deps, { ...callerWith(adminClaims), stepUpToken: token }, "test.probe.create", { name: "u" }),
+    ).resolves.toBeDefined();
+  });
+
+  it("each denial writes exactly one committed audit row with action denied", async () => {
+    const refuse = async () => false;
+    const cases = [
+      { code: "not_entitled", run: (chainId: string) => runProcess({ ...deps, entitled: refuse }, { claims: adminClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" }) },
+      { code: "forbidden", run: (chainId: string) => runProcess(deps, { claims: cashierClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" }) },
+      // test.probe.create is sensitive since the step-up tests; no token is given.
+      { code: "step_up_required", run: (chainId: string) => runProcess(deps, { claims: adminClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" }) },
+    ];
+    for (const { code, run } of cases) {
+      const chainId = randomUUID();
+      await expect(run(chainId)).rejects.toMatchObject({ code });
+      const rows = await sql`select * from kernel.audit_log where chain_id = ${chainId}`;
+      expect(rows, code).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "denied",
+        origin: "agent",
+        process_id: "test.probe.create",
+        entity: "test.probe",
+        company_id: companyId,
+        input: { code, process_id: "test.probe.create" },
+      });
+    }
+  });
+
+  it("ctx.audit cannot override the caller's identity fields", async () => {
+    const audited = defineProcess({
+      id: "test.probe.audited",
+      module: "test",
+      kind: "update",
+      description: "audita un evento",
+      input: z.object({}),
+      output: z.object({}),
+      handler: async (ctx) => {
+        await ctx.audit({ entity: "test.extra", origin: "db", actorUserId: otherUserId, companyId: randomUUID() });
+        return {};
+      },
+    });
+    registry.registerProcess(audited);
+    await grant(adminRole, audited.id);
+    const chainId = randomUUID();
+    await runProcess(deps, { claims: adminClaims, origin: "api", chainId }, audited.id, {});
+    const [extra] = await sql`select * from kernel.audit_log where chain_id = ${chainId} and entity = 'test.extra'`;
+    expect(extra).toMatchObject({ origin: "api", actor_user_id: adminUserId, company_id: companyId, action: "update" });
+  });
+
   it("idempotency key replays the stored result without re-running", async () => {
     const p = defineProcess({ ...probe, id: "test.probe.idem", idempotencyKey: (i) => i.name });
     registry.registerProcess(p);
@@ -200,7 +257,7 @@ describe("run-process", () => {
     await grant(adminRole, list.id);
     const chainId = randomUUID();
     const out = await runProcess<typeof list.output>(deps, { claims: adminClaims, origin: "agent", chainId }, list.id, {});
-    expect(out.rows.map((r) => r.secret).sort()).toEqual(["ok", "s", "same"]);
+    expect(out.rows.map((r) => r.secret).sort()).toEqual(["ok", "s", "same", "u"]);
     const audits = await sql`select * from kernel.audit_log where chain_id = ${chainId}`;
     expect(audits).toHaveLength(1);
     expect(audits[0]).toMatchObject({
@@ -224,9 +281,13 @@ describe("run-process", () => {
     await expect(
       asCashier((tx) => tx`insert into kernel.sensitive_processes(company_id, process_id, mode) values (${companyId}, 'test.probe.list', 'self_2fa')`),
     ).rejects.toThrow(/row-level security/);
-    await expect(
-      asCashier((tx) => tx`insert into kernel.step_up_verifications(user_id, company_id, token) values (${adminUserId}, ${companyId}, ${randomUUID()})`),
-    ).rejects.toThrow(/row-level security/);
+    // Verifications are recorded only by the service role after the TOTP check: a user cannot mint
+    // one, not even for themselves.
+    for (const userId of [cashier, adminUserId]) {
+      await expect(
+        asCashier((tx) => tx`insert into kernel.step_up_verifications(user_id, company_id, token) values (${userId}, ${companyId}, ${randomUUID()})`),
+      ).rejects.toThrow(/permission denied/);
+    }
     // The admin grants the member role a process, and the member can then run it.
     await withClaims(sql, adminClaims, (tx) => tx`insert into kernel.process_permissions(company_id, role_id, process_id)
       values (${companyId}, ${seed.companies[0]!.memberRoleId}, 'test.probe.list')`);

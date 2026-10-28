@@ -4,7 +4,8 @@ import type { Tx } from "../db/client";
 /** Where a change came from (rule 16). `db` is a direct database edit caught by a row trigger. */
 export type Origin = "ui" | "agent" | "scheduler" | "event" | "api" | "db";
 
-export type AuditAction = "insert" | "update" | "delete" | "consult";
+/** `denied`: a process run refused before its handler (not entitled, forbidden, step-up missing). */
+export type AuditAction = "insert" | "update" | "delete" | "consult" | "denied";
 
 export interface AuditEntry {
   companyId: string;

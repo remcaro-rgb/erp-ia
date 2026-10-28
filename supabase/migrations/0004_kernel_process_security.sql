@@ -80,9 +80,9 @@ select kernel.enable_row_audit('kernel', 'sensitive_processes');
 -- Step-up verifications: one row per successful TOTP check. runProcess accepts a token only for
 -- the user who verified, in the company it was verified for, within 5 minutes, once
 -- (consumed_at is set in the process transaction).
--- A user reads only their own rows. The user may record a verification for themselves (verified_at
--- always defaults to now()) and may only mark an unconsumed row of their own as consumed; nothing
--- else is writable outside the service role.
+-- Rows are recorded only by the service role after it checks the TOTP code (rule 15): a user can
+-- never mint a verification. A user reads only their own rows and may only mark an unconsumed row
+-- of their own as consumed (runProcess does it in the process transaction).
 -- ---------------------------------------------------------------------------------------------
 create table kernel.step_up_verifications (
   id          uuid primary key default kernel.uuid_v7(),
@@ -96,19 +96,12 @@ create index step_up_verifications_user_id_idx on kernel.step_up_verifications (
 create index step_up_verifications_company_id_idx on kernel.step_up_verifications (company_id);
 
 grant select on kernel.step_up_verifications to authenticated;
-grant insert (user_id, company_id, token) on kernel.step_up_verifications to authenticated;
 grant update (consumed_at) on kernel.step_up_verifications to authenticated;
 grant all on kernel.step_up_verifications to service_role;
 
 alter table kernel.step_up_verifications enable row level security;
 create policy own_rows on kernel.step_up_verifications for select to authenticated
   using (user_id = (select kernel.current_user_id()));
-create policy own_insert on kernel.step_up_verifications for insert to authenticated
-  with check (
-    user_id = (select kernel.current_user_id())
-    and company_id = (select kernel.current_company_id())
-    and array[company_id] <@ (select kernel.current_company_ids())
-  );
 create policy own_consume on kernel.step_up_verifications for update to authenticated
   using (user_id = (select kernel.current_user_id()) and consumed_at is null)
   with check (user_id = (select kernel.current_user_id()) and consumed_at is not null);
