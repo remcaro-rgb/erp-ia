@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { mfaStep, readSession, redirectPathFor, type SessionState } from "@/lib/auth/claims";
+import { LOCALE_HEADER } from "@/i18n/constants";
 import { type CookieJar, type CookieOptions } from "@/lib/supabase/cookies";
 import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 
@@ -9,11 +10,11 @@ import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 //  2. Lets only the sign-in surface through without a session: /login, /mfa/*, /api/auth/* (assets are not matched).
 //  3. Holds a session back until its MFA is complete: a verified TOTP factor with aal1 goes to /mfa/verify; a
 //     role that requires MFA (hook claim) without a factor goes to /mfa/enroll.
-//  4. Hands the user's locale to the render as the `x-erp-locale` request header (the i18n layer reads it).
+//  4. Hands the user's locale to the render as the `x-erp-locale` request header (the i18n layer reads it);
+//     a header of that name sent by the client is always discarded, so only a verified claim can set it.
 // API paths answer 401 JSON instead of a redirect. Every handler and page still checks the session itself
 // (`requireCaller`): the proxy is the first gate, not the only one.
 
-export const LOCALE_HEADER = "x-erp-locale";
 const DEFAULT_LOCALE = "es-419";
 
 const isPublic = (path: string) => path === "/login" || path === "/mfa" || path.startsWith("/mfa/") || path.startsWith("/api/auth/");
@@ -56,6 +57,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // its Cookie header) and, once the user is known, their locale.
   const forward = () => {
     const headers = new Headers(request.headers);
+    headers.delete(LOCALE_HEADER);
     if (state?.claims) headers.set(LOCALE_HEADER, localeOf(state));
     return NextResponse.next({ request: { headers } });
   };

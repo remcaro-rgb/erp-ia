@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { authCopy } from "@/lib/auth/copy";
+import { useTranslations } from "next-intl";
 
 const LENGTH = 6;
 
@@ -11,6 +11,7 @@ const LENGTH = 6;
  * posted by the form as the hidden field `code`. Remount it (change `key`) to clear it after a failed try.
  */
 export function TotpInput({ onComplete }: { onComplete: (code: string) => void }) {
+  const t = useTranslations("auth");
   const [digits, setDigits] = useState<string[]>(() => Array<string>(LENGTH).fill(""));
   const boxes = useRef<(HTMLInputElement | null)[]>([]);
   const submitted = useRef(false);
@@ -45,7 +46,7 @@ export function TotpInput({ onComplete }: { onComplete: (code: string) => void }
           inputMode="numeric"
           autoComplete={index === 0 ? "one-time-code" : "off"}
           autoFocus={index === 0}
-          aria-label={authCopy.verify.digit(index + 1)}
+          aria-label={t("verify.digit", { n: index + 1 })}
           className="h-[52px] w-12 rounded-md border border-slate-300 bg-white text-center font-mono text-[22px] text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           onFocus={(event) => event.target.select()}
           onChange={(event) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { authCopy } from "@/lib/auth/copy";
+import { useTranslations } from "next-intl";
 import type { LoginError } from "@/lib/auth/login";
 
 export const fieldClass =
@@ -21,10 +21,11 @@ export function SubmitButton({ label, pendingLabel }: { label: string; pendingLa
 }
 
 export function FormError({ error }: { error: LoginError | null }) {
+  const t = useTranslations("auth");
   if (!error) return null;
   return (
     <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
-      {authCopy.errors[error]}
+      {t(`errors.${error}`)}
     </p>
   );
 }

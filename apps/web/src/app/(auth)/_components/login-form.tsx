@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { signIn, type FormState } from "@/lib/auth/actions";
-import { authCopy } from "@/lib/auth/copy";
+import { useTranslations } from "next-intl";
 import type { LoginError } from "@/lib/auth/login";
 import { fieldClass, FormError, SubmitButton } from "./form-parts";
 
@@ -27,6 +27,7 @@ function EyeIcon({ off }: { off: boolean }) {
 
 /** E-mail + password, the eye toggle and "Recordarme en este dispositivo por 30 días" (prototype step 1). */
 export function LoginForm({ defaultEmail, defaultRemember, initialError }: { defaultEmail: string; defaultRemember: boolean; initialError: LoginError | null }) {
+  const t = useTranslations("auth");
   const [state, action] = useActionState<FormState, FormData>(signIn, { error: initialError, nonce: 0 });
   const [shown, setShown] = useState(false);
 
@@ -35,13 +36,13 @@ export function LoginForm({ defaultEmail, defaultRemember, initialError }: { def
       <FormError error={state.error} />
       <div className="flex flex-col gap-1">
         <label htmlFor="email" className="text-sm font-medium">
-          {authCopy.login.email}
+          {t("login.email")}
         </label>
         <input id="email" name="email" type="email" required autoComplete="username" defaultValue={defaultEmail} autoFocus={defaultEmail === ""} className={fieldClass} />
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="password" className="text-sm font-medium">
-          {authCopy.login.password}
+          {t("login.password")}
         </label>
         <div className="relative flex">
           <input
@@ -55,7 +56,7 @@ export function LoginForm({ defaultEmail, defaultRemember, initialError }: { def
           />
           <button
             type="button"
-            aria-label={shown ? authCopy.login.hidePassword : authCopy.login.showPassword}
+            aria-label={shown ? t("login.hide_password") : t("login.show_password")}
             aria-pressed={shown}
             onClick={() => setShown((value) => !value)}
             className="absolute top-1/2 right-1 grid h-7 w-8 -translate-y-1/2 place-items-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-slate-100"
@@ -66,9 +67,9 @@ export function LoginForm({ defaultEmail, defaultRemember, initialError }: { def
       </div>
       <label className="flex cursor-pointer items-center gap-2 text-sm leading-none whitespace-nowrap">
         <input type="checkbox" name="remember" defaultChecked={defaultRemember} className="size-4 accent-blue-700" />
-        <span>{authCopy.login.remember}</span>
+        <span>{t("login.remember")}</span>
       </label>
-      <SubmitButton label={authCopy.login.submit} pendingLabel={authCopy.login.submitting} />
+      <SubmitButton label={t("login.submit")} pendingLabel={t("login.submitting")} />
     </form>
   );
 }
