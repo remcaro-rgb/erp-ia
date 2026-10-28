@@ -317,6 +317,8 @@ declare
   user_locale text;
   company_list uuid[];
   role_list  uuid[];
+  needs_mfa  boolean := false;
+  has_mfa    boolean := false;
   extra      jsonb;
 begin
   select u.locale into user_locale from kernel.users u where u.id = uid;
@@ -340,15 +342,33 @@ begin
     from kernel.memberships m
     join kernel.membership_roles mr on mr.membership_id = m.id
     where m.user_id = uid and m.company_id = active_id;
+
+    -- Roles that require two-step verification (phase 1: the system `admin` role). The web proxy reads this
+    -- claim, so the check needs no query per request.
+    select exists (
+      select 1
+      from kernel.memberships m
+      join kernel.membership_roles mr on mr.membership_id = m.id
+      join kernel.roles r on r.id = mr.role_id
+      where m.user_id = uid and m.company_id = active_id and r.is_system and r.name = 'admin'
+    ) into needs_mfa;
   else
     company_list := '{}'::uuid[];
     role_list := '{}'::uuid[];
   end if;
 
+  -- A verified TOTP factor, from the auth schema (not from the client-held user object), so the proxy can
+  -- demand the second step of a user who enrolled one, whatever their role.
+  select exists (
+    select 1 from auth.mfa_factors f where f.user_id = uid and f.factor_type = 'totp' and f.status = 'verified'
+  ) into has_mfa;
+
   extra := jsonb_build_object(
     'company_ids', to_jsonb(company_list),
     'role_ids', to_jsonb(role_list),
-    'locale', coalesce(user_locale, 'es-419')
+    'locale', coalesce(user_locale, 'es-419'),
+    'requires_mfa', needs_mfa,
+    'mfa_enrolled', has_mfa
   );
   if active_id is not null then
     extra := extra || jsonb_build_object('tenant_id', tenant, 'active_company_id', active_id);

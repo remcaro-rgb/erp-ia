@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@erp/infra": "workspace:*",
@@ -21,12 +23,15 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "otpauth": "^9.5.2",
+    "postgres": "^3.4.9",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.7"

@@ -1,5 +1,7 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
+import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { AttachmentsPanel, ContactsTab, ExtraDataTab, PhotosTab, RecordFrame, extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
 import { datosRows } from "@/lib/records/entities";
 import { loadRecord } from "@/lib/records/load";
@@ -10,6 +12,8 @@ import { loadRecord } from "@/lib/records/load";
 type Params = Promise<{ entity: string; id: string }>;
 
 async function RecordView({ params }: { params: Params }) {
+  // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
+  await connection();
   const { entity: entityId, id } = await params;
   // A malformed escape in the URL is a missing record, not a server error.
   let entityName: string;
@@ -18,9 +22,15 @@ async function RecordView({ params }: { params: Params }) {
   } catch {
     notFound();
   }
-  const loaded = await loadRecord(entityName, id);
-  // No session, no such record for this user, or no full page for the entity: all look the same. Task 10 sends
-  // an anonymous visitor to the sign-in page instead.
+  let loaded;
+  try {
+    loaded = await loadRecord(entityName, id);
+  } catch (error) {
+    // The proxy already sends a visitor without a complete session away; this covers an expired one.
+    if (error instanceof Unauthenticated) redirect(redirectPathFor(error.reason));
+    throw error;
+  }
+  // No such record for this user, or no full page for the entity: both look the same.
   if (!loaded) notFound();
   const { entity, record, defs, contacts } = loaded;
 

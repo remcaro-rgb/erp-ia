@@ -1,5 +1,5 @@
 import { ProcessError, runProcess, type Caller } from "@erp/kernel";
-import { sessionCaller } from "@/lib/auth/caller";
+import { requireCaller } from "@/lib/auth/claims";
 import { processDeps } from "@/lib/server/runtime";
 import { recordEntity, type RecordEntity } from "./entities";
 
@@ -30,14 +30,14 @@ async function orEmpty<T>(read: Promise<T[]>): Promise<T[]> {
 }
 
 /**
- * The record `/r/<entity>/<id>` shows, or null when there is no session, the entity has no full page, the
- * id is not a UUID, or the record does not exist for the caller (a hidden record looks like a missing one).
+ * The record `/r/<entity>/<id>` shows, or null when the entity has no full page, the id is not a UUID, or the
+ * record does not exist for the caller (a hidden record looks like a missing one). Throws `Unauthenticated`
+ * without a complete session; the page turns that into a redirect.
  */
 export async function loadRecord(entityId: string, id: string): Promise<LoadedRecord | null> {
   const entity = recordEntity(entityId);
   if (!entity || !UUID.test(id)) return null;
-  const caller = await sessionCaller();
-  if (!caller) return null;
+  const caller = await requireCaller();
   let record;
   try {
     record = await runProcess(processDeps(), caller, entity.consult, { id });

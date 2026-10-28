@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { getServiceDb, MAX_ATTACHMENT_BYTES, precheckAttachment, ProcessError, runProcess, type Caller } from "@erp/kernel";
+import { getServiceDb, MAX_ATTACHMENT_BYTES, precheckAttachment, ProcessError, runProcess } from "@erp/kernel";
 import { SIGNED_URL_TTL_SECONDS } from "@erp/infra";
-import { sessionCaller } from "@/lib/auth/caller";
+import { callerOrResponse } from "@/lib/auth/http";
 import { contentProblem } from "@/lib/attachments/sniff";
 import { fileStore, processDeps } from "@/lib/server/runtime";
 
@@ -39,8 +39,8 @@ const problem = (code: ProcessError["code"], detail: string) => Response.json({ 
 const storageName = (fileName: string) => fileName.normalize("NFKD").replace(/[^\w.-]+/g, "_");
 
 export async function POST(request: Request): Promise<Response> {
-  const caller = await sessionCaller();
-  if (!caller) return problem("forbidden", "No hay sesión");
+  const caller = await callerOrResponse();
+  if (caller instanceof Response) return caller;
 
   // Refuse an oversized body before reading it (the multipart envelope adds a little to the file).
   const declared = Number(request.headers.get("content-length"));
@@ -96,8 +96,8 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const caller: Caller | null = await sessionCaller();
-  if (!caller) return problem("forbidden", "No hay sesión");
+  const caller = await callerOrResponse();
+  if (caller instanceof Response) return caller;
   const params = new URL(request.url).searchParams;
   const id = params.get("id");
   const entity = params.get("entity");
@@ -126,8 +126,8 @@ export async function GET(request: Request): Promise<Response> {
 
 /** Soft delete: the row and the stored bytes stay for the audit. */
 export async function DELETE(request: Request): Promise<Response> {
-  const caller = await sessionCaller();
-  if (!caller) return problem("forbidden", "No hay sesión");
+  const caller = await callerOrResponse();
+  if (caller instanceof Response) return caller;
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return problem("invalid_input", "Falta el parámetro id");
   try {
