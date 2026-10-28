@@ -1097,6 +1097,9 @@ git commit -m "feat(ui): assistant drawer with streaming, confirmation and step-
 
 ## Task 19: Admin: companies, users and roles, permissions, field visibility, sensitive processes, modules, AI usage
 
+> **Controller ruling (2026-10-28):** the admin processes write kernel tables, so rule 3 places them in the kernel module as `kernel.admin.*` (feature `kernel.admin`, step-up by default, files `packages/kernel/src/admin/*`); `core.admin.custom_field.*` → `kernel.custom_field.*`, `core.admin.required_file.*` → `kernel.required_file.*`, `core.admin.verifier.set` → `kernel.verifier.set`; migration `0021_kernel_admin.sql`; new roles get baseline grants and `masked` rows for every `confidential` field through `kernel.seed_role_defaults`; test file `admin.integration.test.ts`. Read `core.admin.` below as `kernel.admin.`.
+
+
 **Files:**
 - Create: `packages/modules/core/src/processes/admin.ts` (processes below), `apps/web/src/app/(app)/admin/{companies,users,roles,permissions,fields,extra,required-files,sensitive,verifiers,modules,ai-usage}/page.tsx`
 - Additions decided 2026-10-27: `core.admin.role.create/update` take `{ name, description, partyScope }` and `core.admin.user_role.set` assigns from either side; `core.admin.user.create` takes `{ name, email, mobileCc, mobile, roleIds[], photo? }` (validated with `validateEmail`/`validatePhone`, at least one role) and sends the invitation; `core.admin.custom_field.set/remove` (spec §5.14), `core.admin.required_file.set/remove` (spec §5.13), `core.admin.verifier.set` (spec §5.16); the permission matrix page shows the entity name from `ENTITY_NAMES` beside each process id. Tests to add: `user.create without mobile → invalid_input`, `role.create with partyScope clientes hides suppliers from that role in core.v_parties`, `required_file.set then a party without that file has invoice_ready false`.
