@@ -416,7 +416,8 @@
       "document_sequence": "Secuencia de documentos"
     },
     "kernel": {
-      "import": "Importación"
+      "import": "Importación",
+      "export_job": "Exportación"
     }
   },
   "field": {
@@ -583,6 +584,19 @@
         "error": "Motivo del fallo",
         "created_at": "Creada",
         "updated_at": "Actualizada"
+      },
+      "export_job": {
+        "entity": "Entidad",
+        "format": "Formato",
+        "status": "Estado",
+        "row_count": "Filas",
+        "file_name": "Archivo",
+        "storage_path": "Ruta del archivo",
+        "error": "Motivo del fallo",
+        "user_id": "Usuario",
+        "finished_at": "Terminada",
+        "created_at": "Creada",
+        "updated_at": "Actualizada"
       }
     }
   },
@@ -598,7 +612,8 @@
       "verification": "Verificación de correo y teléfono",
       "user_prefs": "Preferencias del usuario",
       "saved_views": "Vistas guardadas",
-      "imports": "Importación masiva (Excel / CSV)"
+      "imports": "Importación masiva (Excel / CSV)",
+      "exports": "Exportación a PDF, Excel y CSV"
     }
   },
   "process": {
@@ -641,7 +656,14 @@
       "title": "Exportar",
       "pdf": "PDF",
       "excel": "Excel",
-      "csv": "CSV"
+      "csv": "CSV",
+      "working": "Generando {format}…",
+      "job": "Son muchas filas: se genera en segundo plano y la descarga empieza sola al terminar",
+      "ready": "Descarga lista: {file}",
+      "failed": "No se pudo exportar. {reason}",
+      "reasons": {
+        "pdf_too_large": "Un PDF admite hasta 20.000 filas. Para listados más grandes exporta a Excel o CSV."
+      }
     },
     "import": {
       "title": "Importar",
@@ -962,6 +984,7 @@
     "handler_failed": "No se pudo completar la acción. Inténtalo de nuevo.",
     "idempotent_replay": "Esta acción ya se había procesado.",
     "unknown": "Ocurrió un error inesperado.",
-    "network": "No hay conexión con el servidor."
+    "network": "No hay conexión con el servidor.",
+    "export_failed": "No se pudo generar la exportación. Inténtalo de nuevo."
   }
 }

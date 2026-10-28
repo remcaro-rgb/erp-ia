@@ -24,6 +24,23 @@ export async function fileStore(): Promise<FileStore> {
   return (globals[GLOBAL_KEY] ??= SupabaseFileStore.fromEnv());
 }
 
+// The generated exports live in their own bucket (`exports`, migration 0016), behind the same interface.
+const EXPORTS_KEY = Symbol.for("erp.kernel.exportsStore");
+const exportGlobals = globalThis as { [EXPORTS_KEY]?: FileStore };
+
+/** Installs the store the export workflow writes to and the download link is signed from; `undefined` goes back to the default. */
+export function setExportsStore(store: FileStore | undefined): void {
+  exportGlobals[EXPORTS_KEY] = store;
+}
+
+/** The installed exports store, or Supabase Storage's bucket `exports` from the server environment (service role). */
+export async function exportsStore(): Promise<FileStore> {
+  const installed = exportGlobals[EXPORTS_KEY];
+  if (installed) return installed;
+  const { SupabaseFileStore, EXPORTS_BUCKET } = await import("@erp/infra");
+  return (exportGlobals[EXPORTS_KEY] ??= SupabaseFileStore.fromEnv(process.env, EXPORTS_BUCKET));
+}
+
 /** An in-memory store for tests: same contract, nothing leaves the process. */
 export class MemoryFileStore implements FileStore {
   readonly files = new Map<string, { bytes: Uint8Array; contentType: string }>();

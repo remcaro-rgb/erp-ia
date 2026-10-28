@@ -416,7 +416,8 @@
       "document_sequence": "Document sequence"
     },
     "kernel": {
-      "import": "Import"
+      "import": "Import",
+      "export_job": "Export"
     }
   },
   "field": {
@@ -583,6 +584,19 @@
         "error": "Failure reason",
         "created_at": "Created",
         "updated_at": "Updated"
+      },
+      "export_job": {
+        "entity": "Entity",
+        "format": "Format",
+        "status": "Status",
+        "row_count": "Rows",
+        "file_name": "File",
+        "storage_path": "File path",
+        "error": "Failure reason",
+        "user_id": "User",
+        "finished_at": "Finished",
+        "created_at": "Created",
+        "updated_at": "Updated"
       }
     }
   },
@@ -598,7 +612,8 @@
       "verification": "E-mail and phone verification",
       "user_prefs": "User preferences",
       "saved_views": "Saved views",
-      "imports": "Bulk import (Excel / CSV)"
+      "imports": "Bulk import (Excel / CSV)",
+      "exports": "Export to PDF, Excel and CSV"
     }
   },
   "process": {
@@ -641,7 +656,14 @@
       "title": "Export",
       "pdf": "PDF",
       "excel": "Excel",
-      "csv": "CSV"
+      "csv": "CSV",
+      "working": "Generating {format}…",
+      "job": "That is a lot of rows: it is generated in the background and the download starts when it is done",
+      "ready": "Download ready: {file}",
+      "failed": "The export failed. {reason}",
+      "reasons": {
+        "pdf_too_large": "A PDF takes up to 20,000 rows. For larger lists export to Excel or CSV."
+      }
     },
     "import": {
       "title": "Import",
@@ -962,6 +984,7 @@
     "handler_failed": "The action could not be completed. Please try again.",
     "idempotent_replay": "This action was already processed.",
     "unknown": "An unexpected error occurred.",
-    "network": "There is no connection to the server."
+    "network": "There is no connection to the server.",
+    "export_failed": "The export could not be generated. Try again."
   }
 }

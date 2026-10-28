@@ -6,6 +6,9 @@ export const SIGNED_URL_TTL_SECONDS = 60;
 /** Bucket the attachments live in (migration 0007: private, readable only by the service role). */
 export const ATTACHMENTS_BUCKET = "attachments";
 
+/** Bucket the generated exports live in (migration 0016: private, readable only by the service role). */
+export const EXPORTS_BUCKET = "exports";
+
 /**
  * Where uploaded bytes live (rule 6): the cloud build uses Supabase Storage, the Docker build any
  * S3-compatible or on-disk implementation of the same interface. Business code depends on this
@@ -26,7 +29,7 @@ export interface FileStore {
 }
 
 /**
- * Supabase Storage implementation, bucket `attachments`. It needs the service-role client: the bucket
+ * Supabase Storage implementation, bucket `attachments` unless another is given (`exports`). It needs the service-role client: the bucket
  * has no policy for users, so it must only be created and used in route handlers and Workflows
  * (rule 12), never in the browser.
  */
@@ -37,11 +40,11 @@ export class SupabaseFileStore implements FileStore {
   ) {}
 
   /** From `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, the server-side environment. */
-  static fromEnv(env: Record<string, string | undefined> = process.env): SupabaseFileStore {
+  static fromEnv(env: Record<string, string | undefined> = process.env, bucket: string = ATTACHMENTS_BUCKET): SupabaseFileStore {
     const url = env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL;
     const key = env.SUPABASE_SERVICE_ROLE_KEY;
     if (!url || !key) throw new Error("SupabaseFileStore needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY");
-    return new SupabaseFileStore(createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }));
+    return new SupabaseFileStore(createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }), bucket);
   }
 
   async put(path: string, body: ReadableStream | Buffer, contentType: string): Promise<void> {

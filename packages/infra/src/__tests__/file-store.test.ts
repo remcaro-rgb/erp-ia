@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SupabaseFileStore, type FileStore } from "../file-store";
+import { EXPORTS_BUCKET, SupabaseFileStore, type FileStore } from "../file-store";
 
 type Call = [string, ...unknown[]];
 
@@ -20,6 +20,14 @@ function fakeClient(result: { error?: { message: string } | null; signedUrl?: st
 }
 
 describe("SupabaseFileStore", () => {
+  it("works on the bucket it is given (the exports bucket), signing with the download name", async () => {
+    const { client, calls } = fakeClient({ signedUrl: "https://signed" });
+    const store: FileStore = new SupabaseFileStore(client, EXPORTS_BUCKET);
+    expect(EXPORTS_BUCKET).toBe("exports");
+    expect(await store.signedUrl("c/j.csv", 600, "terceros.csv")).toBe("https://signed");
+    expect(calls).toEqual([["from", "exports"], ["createSignedUrl", "c/j.csv", 600, { download: "terceros.csv" }]]);
+  });
+
   it("stores bytes in the attachments bucket without overwriting, reading a stream whole", async () => {
     const { client, calls } = fakeClient();
     const store: FileStore = new SupabaseFileStore(client);

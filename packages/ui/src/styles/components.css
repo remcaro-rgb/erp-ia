@@ -50,6 +50,8 @@
   .erp-grid__hd { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
   .erp-grid__hd h2 { margin: 0; font-size: 16px; font-weight: 700; }
   .erp-grid__exports { display: inline-flex; gap: 8px; }
+  .erp-export-status { max-width: 420px; }
+  .erp-export-status.is-error { color: var(--danger); font-weight: 600; }
   .erp-grid__chips { padding: 6px 14px; border-bottom: 1px solid var(--line-2); }
   .erp-grid__error { padding: 8px 14px; background: var(--danger-bg); color: var(--danger); font-size: 13px; }
   .erp-grid__body { overflow: auto; flex-grow: 1; }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { JSONValue, Sql } from "postgres";
 import type { z } from "zod";
+import "../zod-locale";
 import { setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";

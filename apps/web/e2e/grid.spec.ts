@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
@@ -20,6 +21,7 @@ const PROCESSES = [
   "kernel.saved_view.save",
   "kernel.saved_view.list",
   "kernel.saved_view.delete",
+  "kernel.export.run",
 ];
 
 async function signIn(page: Page, fixture: AuthFixture) {
@@ -156,6 +158,45 @@ test.describe("universal grid", () => {
     // The grid's tab keeps its filter when we go back to it.
     await tabs.getByRole("button", { name: "Terceros", exact: true }).click();
     await expect(page).toHaveURL(/\/parties$/);
+  });
+
+  test("exports what the grid shows to CSV, Excel and PDF, all pages and only the filtered rows", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto("/parties");
+    const terceros = grid(page, "Terceros");
+    await expect(bodyRows(page)).toHaveCount(10);
+    const download = async (name: string) => {
+      const [file] = await Promise.all([page.waitForEvent("download"), terceros.getByRole("button", { name, exact: true }).click()]);
+      return { name: file.suggestedFilename(), bytes: await readFile((await file.path())!) };
+    };
+
+    // CSV: the page shows 10 of 12 rows, the file has all 12; the BOM, ; and the Spanish headers.
+    const csv = await download("CSV");
+    expect(csv.name).toMatch(/^terceros-\d{4}-\d{2}-\d{2}\.csv$/);
+    const text = csv.bytes.toString("utf8");
+    expect(text.startsWith("\uFEFF")).toBe(true);
+    const lines = text.slice(1).split("\r\n").filter(Boolean);
+    expect(lines).toHaveLength(13);
+    expect(lines[0]).toContain('"Razón social"');
+    expect(lines.join("\n")).toContain("Almacenes Éxito S.A.");
+    await expect(terceros.getByRole("status")).toHaveText(/Descarga lista: terceros-/);
+
+    // With a filter on screen, Excel and PDF carry that filter only.
+    await terceros.getByLabel("Filtrar Razón social").fill("norte");
+    await expect(bodyRows(page)).toHaveCount(1);
+    const xlsx = await download("Excel");
+    expect(xlsx.name).toMatch(/\.xlsx$/);
+    expect(xlsx.bytes.subarray(0, 2).toString("latin1")).toBe("PK");
+    const pdf = await download("PDF");
+    expect(pdf.name).toMatch(/\.pdf$/);
+    expect(pdf.bytes.subarray(0, 4).toString("latin1")).toBe("%PDF");
+
+    const filtered = await download("CSV");
+    expect(filtered.bytes.toString("utf8").slice(1).split("\r\n").filter(Boolean)).toHaveLength(2);
+    // Each export is an audited consult of the caller.
+    const audit = await fixture.sql`select action from kernel.audit_log where company_id = ${companyId} and process_id = 'kernel.export.run'`;
+    expect(audit).toHaveLength(4);
+    expect(audit.every((a) => a.action === "consult")).toBe(true);
   });
 
   test("advanced filter: two conditions joined by O, live results and chips", async ({ page }) => {

@@ -15,11 +15,39 @@ import { initialView, moneyColumns, selectionTotals, shownColumns, stateFilters 
 import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } from "./saved-views";
 import { SavedViewsMenu } from "./SavedViewsMenu";
 import { useGrid } from "./use-grid";
+import { useGridExport } from "./use-grid-export";
 import type { Condition, ExportFormat, GridColumn, GridFetcher, GridRow, GridStateInput, GridView } from "./types";
 
 type Filter = NonNullable<GridStateInput["filters"]>[number];
 
 const NO_ROWS: GridRow[] = [];
+
+const FORMAT_LABEL = { pdf: "pdf", xlsx: "excel", csv: "csv" } as const;
+
+/** Why an export failed: the server's own reason when the screen has words for it, else the error code's. */
+function failureText(t: ReturnType<typeof useTranslations>, status: { code: string; detail?: string }): string {
+  if (status.detail && t.has(`grid.export.reasons.${status.detail}`)) return t(`grid.export.reasons.${status.detail}`);
+  return t.has(`errors.${status.code}`) ? t(`errors.${status.code}`) : t("errors.unknown");
+}
+
+/** How the running export is going, for screen readers and eyes alike (role="status"). */
+function ExportStatusText({ status }: { status: ReturnType<typeof useGridExport>["status"] }) {
+  const t = useTranslations();
+  if (status.phase === "idle") return null;
+  const text =
+    status.phase === "working"
+      ? t("grid.export.working", { format: t(`grid.export.${FORMAT_LABEL[status.format]}`) })
+      : status.phase === "job"
+        ? t("grid.export.job")
+        : status.phase === "ready"
+          ? t("grid.export.ready", { file: status.fileName })
+          : t("grid.export.failed", { reason: failureText(t, status) });
+  return (
+    <span role="status" className={status.phase === "failed" ? "erp-small erp-export-status is-error" : "erp-small erp-muted erp-export-status"}>
+      {text}
+    </span>
+  );
+}
 
 export interface DataGridProps {
   /** Registry id of the entity (`core.party`). */
@@ -38,7 +66,12 @@ export interface DataGridProps {
   headerExtra?: ReactNode;
   /** Filters every request carries. */
   baseFilters?: Filter[];
-  /** Exports the current filter (all pages, visible columns); the buttons are disabled without it. */
+  /**
+   * Exports the current filter (all pages, visible columns). The grid runs the export itself (POST /api/export,
+   * `kernel.export.run`) unless a handler is given. The state carries the grid's filters and sort and the shown
+   * columns by field name (an admin-defined one as `extra.<key>`), on page 1 and without sums: the server exports
+   * every page of what the caller is allowed to see.
+   */
   onExport?: (format: ExportFormat, state: GridStateInput) => void;
   /** The user's saved views of the entity; "Guardar vista" shows when given. */
   savedViews?: {
@@ -46,6 +79,8 @@ export interface DataGridProps {
     onSave: (name: string, isDefault: boolean, state: SavedGridState) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
   };
+  /** Where the export is requested; POST /api/export by default. */
+  exportEndpoint?: string;
   debounceMs?: number;
 }
 
@@ -55,11 +90,12 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, toolbar, headerExtra, baseFilters, onExport, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, toolbar, headerExtra, baseFilters, onExport, exportEndpoint, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, debounceMs });
   const { view, data } = grid;
+  const exporter = useGridExport({ entity, title, endpoint: exportEndpoint });
   const shown = shownColumns(columns, view);
   const rows = data.page?.rows ?? NO_ROWS;
   const total = data.page?.total ?? 0;
@@ -94,6 +130,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       pageSize: 50,
       columns: [...new Set(["id", ...shown.map((c) => (c.field.startsWith("extra.") ? "extra" : c.field))])],
     });
+
+  const exportState = (): GridStateInput => ({ ...grid.state, aggregates: undefined, page: 1, columns: shown.map((c) => c.field) });
 
   const sums = moneyColumns(shown)
     .map((column) => ({ column, sum: data.page?.aggregates?.[`sum:${column.field}`] }))
@@ -137,7 +175,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           <Search aria-hidden="true" className="erp-icon" />
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
         </button>
-        <ExportButtons onExport={onExport ? (format) => onExport(format, { ...grid.state, page: 1 }) : undefined} />
+        <ExportButtons onExport={(format) => (onExport ? onExport(format, exportState()) : void exporter.run(format, exportState()))} busy={exporter.busy} />
+        <ExportStatusText status={exporter.status} />
         {dirty && (
           <button type="button" className="erp-btn erp-btn--ghost" onClick={grid.clear}>
             {t("grid.clear_filters")}

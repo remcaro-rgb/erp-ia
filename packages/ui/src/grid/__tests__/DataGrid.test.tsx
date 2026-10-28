@@ -165,4 +165,66 @@ describe("DataGrid", () => {
     expect(lastState(fetcher).filters).toEqual([{ field: "kind", op: "eq", value: "customer" }]);
     expect((await screen.findByRole("alert")).textContent).toContain("Un campo oculto o enmascarado para tu rol no se puede usar para filtrar ni ordenar.");
   });
+
+  it("hands the export the grid's filter, sort and shown columns (admin-defined ones by name), never its page or sums", async () => {
+    const onExport = vi.fn();
+    const withExtra: GridColumn[] = [
+      ...columns,
+      { field: "extra.ruta", label: "Ruta", type: "custom:text", kind: "text", mode: "visible", filterable: true, sortable: true, hiddenByDefault: true },
+    ];
+    setup({ onExport, columns: withExtra, initialState: { columns: ["legal_name", "extra.ruta", "balance", "credit_limit"], page: 3, pageSize: 25 } });
+    await screen.findByText("Almacenes Éxito S.A.");
+    fireEvent.change(screen.getByLabelText("Filtrar Razón social"), { target: { value: "éxito" } });
+    await waitFor(() => expect(screen.getByLabelText("Filtrar Razón social").className).toMatch(/is-on/));
+    fireEvent.click(screen.getByRole("button", { name: "Excel" }));
+    expect(onExport).toHaveBeenCalledTimes(1);
+    const [format, state] = onExport.mock.calls[0]!;
+    expect(format).toBe("xlsx");
+    expect(state).toMatchObject({ page: 1, filters: [{ field: "legal_name", op: "contains", value: "éxito" }] });
+    // The shown columns in the grid's order: a masked one stays (it exports as ••••••), a hidden one never was there.
+    expect(state.columns).toEqual(["legal_name", "extra.ruta", "balance", "credit_limit"]);
+    expect(state.aggregates).toBeUndefined();
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+    fireEvent.click(screen.getByRole("button", { name: "CSV" }));
+    expect(onExport.mock.calls.map((c) => c[0])).toEqual(["xlsx", "pdf", "csv"]);
+  });
+
+  it("runs the export itself when no handler is given: asks the server, saves the file, says so, and one at a time", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.assign(URL, { createObjectURL: () => "blob:test", revokeObjectURL: () => undefined });
+    let finish: (response: Response) => void = () => undefined;
+    const exportFetch = vi.fn(() => new Promise<Response>((resolve) => (finish = resolve)));
+    vi.stubGlobal("fetch", exportFetch);
+    try {
+      setup();
+      await screen.findByText("Almacenes Éxito S.A.");
+      fireEvent.click(screen.getByRole("button", { name: "CSV" }));
+      expect((await screen.findByRole("status")).textContent).toBe("Generando CSV…");
+      // One at a time: the buttons wait for the running export.
+      for (const name of ["PDF", "Excel", "CSV"]) expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+      expect(exportFetch).toHaveBeenCalledTimes(1);
+      const [url, init] = exportFetch.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe("/api/export");
+      expect(JSON.parse(init.body as string)).toMatchObject({ entity: "core.party", format: "csv", title: "Terceros", state: { page: 1 } });
+      finish(new Response("a;b", { status: 200, headers: { "content-disposition": 'attachment; filename="terceros-2026-10-28.csv"' } }));
+      await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Descarga lista: terceros-2026-10-28.csv"));
+      expect(click).toHaveBeenCalledTimes(1);
+      expect((screen.getByRole("button", { name: "Excel" }) as HTMLButtonElement).disabled).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+      click.mockRestore();
+    }
+  });
+
+  it("says why an export was refused, in Spanish", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ code: "forbidden", details: null }), { status: 403 })));
+    try {
+      setup();
+      await screen.findByText("Almacenes Éxito S.A.");
+      fireEvent.click(screen.getByRole("button", { name: "PDF" }));
+      await waitFor(() => expect(screen.getByRole("status").textContent).toBe("No se pudo exportar. No tienes permiso para hacer esto."));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

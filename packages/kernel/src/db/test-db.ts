@@ -115,6 +115,7 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       };
     },
     async cleanup() {
+      await sql`delete from kernel.export_jobs where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.imports where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.process_idempotency where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.attachments where company_id = any(${companyIds}::uuid[])`;

@@ -48,17 +48,19 @@ export function ImportIcon() {
 }
 
 export interface ExportButtonsProps {
-  /** Exports the grid's current filter, all pages, the visible columns (Task 14 wires the process). */
+  /** Exports the grid's current filter, all pages, the visible columns (`kernel.export.run`). */
   onExport?: (format: ExportFormat) => void;
+  /** An export is running: one at a time. */
+  busy?: boolean;
 }
 
-/** PDF / Excel / CSV buttons with their coloured icons (rule 20). Disabled until an export handler is given. */
-export function ExportButtons({ onExport }: ExportButtonsProps) {
+/** PDF / Excel / CSV buttons with their coloured icons (rule 20). Disabled until an export handler is given, and while one runs. */
+export function ExportButtons({ onExport, busy = false }: ExportButtonsProps) {
   const t = useTranslations();
   return (
     <span className="erp-grid__exports" role="group" aria-label={t("grid.export.title")}>
       {(["pdf", "xlsx", "csv"] as const).map((format) => (
-        <button key={format} type="button" className="erp-btn" disabled={!onExport} onClick={() => onExport?.(format)}>
+        <button key={format} type="button" className="erp-btn" disabled={!onExport || busy} onClick={() => onExport?.(format)}>
           <ExportIcon format={format} />
           {t(`grid.export.${LABEL[format]}`)}
         </button>

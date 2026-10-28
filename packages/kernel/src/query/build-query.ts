@@ -32,6 +32,11 @@ export interface BuildQueryOptions {
   extras?: Readonly<Record<string, CustomFieldType>>;
   /** IANA time zone of the company: a datetime is compared as the day it falls on there. */
   timeZone?: string;
+  /**
+   * Rows `offset`..`offset + limit` instead of the state's page: an export reads the whole filter in windows of its
+   * own, beyond the grid's page size. The state's `page` and `pageSize` are then ignored.
+   */
+  window?: { offset: number; limit: number };
 }
 
 export interface BuiltQuery {
@@ -309,9 +314,10 @@ export function buildQuery(
     return `${fn}(${expr}) as "${fn}:${t.name}"`;
   });
 
-  const offset = (state.page - 1) * state.pageSize;
+  const { offset, limit } = options.window ?? { offset: (state.page - 1) * state.pageSize, limit: state.pageSize };
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1) throw new QueryError("bad_value", "window", "offset and limit must be whole numbers");
   return {
-    sql: `select ${columns.map(quote).join(", ")} from ${view}${where} order by ${order.join(", ")} limit ${state.pageSize} offset ${offset}`,
+    sql: `select ${columns.map(quote).join(", ")} from ${view}${where} order by ${order.join(", ")} limit ${limit} offset ${offset}`,
     params,
     countSql: `select count(*)::int as total from ${view}${where}`,
     ...(aggregates.length > 0 ? { aggregateSql: `select ${aggregates.join(", ")} from ${view}${where}` } : {}),

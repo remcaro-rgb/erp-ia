@@ -35,4 +35,8 @@ export {
   toGridState,
 } from "./grid-model";
 export { useGrid } from "./use-grid";
+export { browserDownload, useGridExport } from "./use-grid-export";
+export type { ExportStatus, UseGridExportOptions } from "./use-grid-export";
+export { ExportRequestError, fileNameOf, requestExport } from "./export-client";
+export type { ExportOptions, ExportRequest, ExportResult } from "./export-client";
 export type * from "./types";

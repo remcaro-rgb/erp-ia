@@ -1,12 +1,13 @@
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
-import { gridPageAccess, ProcessError, runGridQuery, runnableProcesses, runProcess, type Caller, type ResolvedEntityDef } from "@erp/kernel";
+import { gridPageAccess, ProcessError, runnableProcesses, runProcess, type Caller, type ResolvedEntityDef } from "@erp/kernel";
 import type { GridColumn, PartyScope, SavedViewItem } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { recordEntity } from "@/lib/records/entities";
 import { gridTables } from "@/lib/records/tables";
 import { processDeps } from "@/lib/server/runtime";
 import { gridDenial, gridEntity, type GridDenial } from "./access";
+import { categoryOptions } from "./options";
 import { buildColumns, type CodeTables } from "./columns";
 import { presentationOf } from "./presentation";
 
@@ -34,15 +35,6 @@ export interface GridPageData {
 const IMPORT_PROCESS = "kernel.import.run";
 
 export type GridPageResult = { ok: true; data: GridPageData } | { ok: false; denial: GridDenial };
-
-/** The company's categories as options (id → name), read through the masked view like any grid. */
-async function categoryOptions(caller: Caller): Promise<{ value: string; label: string }[]> {
-  const deps = processDeps();
-  const categories = gridEntity(deps.registry, "core.product_category");
-  if (!categories || (await gridDenial(deps, caller.claims, categories))) return [];
-  const { rows } = await runGridQuery(deps.sql, caller.claims, categories, { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name"] });
-  return rows.map((r) => ({ value: String(r.id), label: String(r.name ?? r.id) }));
-}
 
 /** The user's saved views of the entity; none when their role may not list them. */
 async function savedViews(caller: Caller, entity: string): Promise<SavedViewItem[]> {

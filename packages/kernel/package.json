@@ -10,7 +10,8 @@
     "./validation": "./src/validation.ts",
     "./custom-fields": "./src/custom-fields/index.ts",
     "./query": "./src/query/index.ts",
-    "./import": "./src/import/index.ts"
+    "./import": "./src/import/index.ts",
+    "./exports": "./src/exports/index.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",
@@ -19,13 +20,16 @@
   },
   "dependencies": {
     "@erp/infra": "workspace:*",
+    "@react-pdf/renderer": "^4.9.0",
     "@workflow/world-postgres": "^5.0.5",
     "exceljs": "^4.4.0",
     "postgres": "^3.4.9",
+    "react": "19.3.0",
     "workflow": "^5.2.3",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/react": "^19.3.0",
     "@workflow/vitest": "^5.0.6"
   }
 }
