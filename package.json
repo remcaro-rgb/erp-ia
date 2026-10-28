@@ -16,9 +16,13 @@
     "typecheck": "turbo run typecheck",
     "check:rules": "tsx scripts/check-rules.ts",
     "db:reset": "supabase db reset",
-    "db:migrate:new": "tsx scripts/new-migration.ts"
+    "db:migrate:new": "tsx scripts/new-migration.ts",
+    "help:index": "tsx scripts/help-index.ts"
   },
   "devDependencies": {
+    "@erp/kernel": "workspace:*",
+    "@erp/module-core": "workspace:*",
+    "@erp/module-support": "workspace:*",
     "@eslint/js": "^9.39.5",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.4.3",

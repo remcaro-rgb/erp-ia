@@ -9,6 +9,7 @@ import { importEntity } from "../import/entity";
 import { IMPORT_PROCESSES } from "../import/processes";
 import { exportJobEntity } from "../exports/entity";
 import { EXPORT_PROCESSES } from "../exports/export.process";
+import { HELP_PROCESSES } from "../help/help.process";
 
 /**
  * The kernel as a module, so its processes are registered, audited and permissioned like any other.
@@ -19,7 +20,7 @@ export const kernelModule: ModuleDef = defineModule({
   version: "0.1.0",
   dependsOn: [],
   entities: [importEntity, exportJobEntity],
-  processes: [...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES],
+  processes: [...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES],
   features: [
     {
       id: "kernel.attachments",
@@ -62,6 +63,12 @@ export const kernelModule: ModuleDef = defineModule({
       label: "feature.kernel.exports",
       processes: EXPORT_PROCESSES.map((p) => p.id),
       entities: [exportJobEntity.id],
+    },
+    {
+      id: "kernel.help",
+      label: "feature.kernel.help",
+      processes: HELP_PROCESSES.map((p) => p.id),
+      entities: [],
     },
   ],
   events: { emits: [], consumes: {} },

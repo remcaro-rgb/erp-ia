@@ -1,3 +1,14 @@
+---
+title: Exportar un listado a PDF, Excel o CSV
+routes:
+  - /parties
+  - /products
+  - /categories
+  - /support
+processes:
+  - kernel.export.run
+---
+
 # Exportar un listado a PDF, Excel o CSV
 
 Cada listado (Terceros, Productos, Categorías…) tiene tres botones para llevarse lo que ves: **PDF** (rojo), **Excel** (verde) y **CSV** (gris). El archivo trae exactamente lo que muestra la pantalla: los mismos filtros, el mismo orden y las mismas columnas, **de todas las páginas**, no solo la que estás viendo.

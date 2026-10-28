@@ -52,3 +52,5 @@ export type { ImportColumn, ImportColumnType } from "./import/columns";
 export { exportsStore, fileStore, setExportsStore, setFileStore } from "./files/store";
 export { consultProcessesOf, entitlementKeyOf, gridEntity } from "./query/access";
 export { EXPORT_PROCESSES, exportJobEntity } from "./exports";
+export { buildHelpIndex, chunkGuide, DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, FakeEmbedder, GatewayEmbedder, guideProblems, HELP_PROCESSES, helpSearch, loadGuides, processChunks, searchHelp, setHelpEmbedder } from "./help";
+export type { Embedder, HelpIndexSummary } from "./help";

@@ -1,3 +1,14 @@
+---
+title: "Pedir ayuda: tickets de soporte"
+routes:
+  - /support
+processes:
+  - support.ticket.create
+  - support.ticket.reply
+  - support.ticket.close
+  - support.ticket.consult
+---
+
 # Pedir ayuda: tickets de soporte
 
 Si algo no funciona, tienes una duda o necesitas que cambien algo, abre un **ticket** en **Soporte**. El equipo de soporte lo responde ahí mismo y tú ves la respuesta en el ticket.

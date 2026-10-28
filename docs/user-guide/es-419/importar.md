@@ -1,3 +1,17 @@
+---
+title: Importar terceros, productos o categorías desde Excel o CSV
+routes:
+  - /import
+  - /parties
+  - /products
+  - /categories
+processes:
+  - kernel.import.template
+  - kernel.import.preview
+  - kernel.import.run
+  - kernel.import.list
+---
+
 # Importar terceros, productos o categorías desde Excel o CSV
 
 Carga muchos registros de una vez con una plantilla. La importación valida cada fila con las mismas reglas del formulario (incluidas las de la DIAN), crea solo las filas válidas y te devuelve las rechazadas con el motivo en `errores.csv`.

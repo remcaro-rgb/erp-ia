@@ -22,6 +22,7 @@
     "@erp/infra": "workspace:*",
     "@react-pdf/renderer": "^4.9.0",
     "@workflow/world-postgres": "^5.0.5",
+    "ai": "^7.0.155",
     "exceljs": "^4.4.0",
     "postgres": "^3.4.9",
     "react": "19.3.0",

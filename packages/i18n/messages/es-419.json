@@ -690,7 +690,8 @@
       "user_prefs": "Preferencias del usuario",
       "saved_views": "Vistas guardadas",
       "imports": "Importación masiva (Excel / CSV)",
-      "exports": "Exportación a PDF, Excel y CSV"
+      "exports": "Exportación a PDF, Excel y CSV",
+      "help": "Ayuda y guías de usuario"
     },
     "support": {
       "tickets": "Tickets de soporte"

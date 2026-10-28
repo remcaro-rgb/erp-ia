@@ -690,7 +690,8 @@
       "user_prefs": "User preferences",
       "saved_views": "Saved views",
       "imports": "Bulk import (Excel / CSV)",
-      "exports": "Export to PDF, Excel and CSV"
+      "exports": "Export to PDF, Excel and CSV",
+      "help": "Help and user guides"
     },
     "support": {
       "tickets": "Support tickets"
