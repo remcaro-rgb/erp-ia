@@ -47,7 +47,7 @@ test.describe("application shell", () => {
     await expect(bar).toBeVisible();
     await expect(bar).toHaveCSS("background-color", "rgb(30, 58, 138)");
     await expect(bar.getByRole("button", { name: /Auth company 0/ })).toBeVisible();
-    await expect(bar.getByRole("button", { name: "Módulos" })).toContainText("Núcleo");
+    await expect(bar.getByRole("button", { name: /^Núcleo/ })).toHaveAttribute("title", "Módulos");
     const items = bar.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button");
     await expect(items).toHaveText(["Inicio", "Terceros", "Productos", "Categorías"]);
     await expect(items.first()).toHaveAttribute("aria-current", "page");
@@ -74,7 +74,7 @@ test.describe("application shell", () => {
     await page.goto(`/r/core.party/${randomUUID()}`);
     await expect(tabs.getByRole("button", { name: "Registro", exact: true })).toHaveAttribute("aria-current", "page");
     await expect
-      .poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'tabs'`)[0]?.value?.tabs?.length ?? 0)
+      .poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'tabs'`)[0]?.value?.value?.tabs?.length ?? 0)
       .toBe(2);
     await page.goto("/");
     await expect(tabs.getByRole("button", { name: "Registro", exact: true })).toBeVisible();
@@ -82,7 +82,7 @@ test.describe("application shell", () => {
     await page.screenshot({ path: `${SCREENSHOTS}/shell-light.png` });
 
     // Theme: auto → light → dark, applied at once and saved for the user.
-    const toggle = page.getByRole("button", { name: "Cambiar tema" });
+    const toggle = page.getByRole("button", { name: /^Cambiar tema/ });
     await toggle.click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await toggle.click();
@@ -90,7 +90,7 @@ test.describe("application shell", () => {
     await expect(bar).toHaveCSS("background-color", "rgb(15, 30, 77)");
     await expect(tabs).toHaveCSS("background-color", "rgb(28, 39, 67)");
     await expect
-      .poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'theme'`)[0]?.value)
+      .poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'theme'`)[0]?.value?.value)
       .toBe("dark");
     // The server render carries the saved theme for <html> before the first paint.
     expect(await (await page.request.get("/")).text()).toContain(`setAttribute("data-theme","dark")`);
@@ -106,6 +106,12 @@ test.describe("application shell", () => {
     await confirm.getByRole("button", { name: "Cerrar todas" }).click();
     await expect(tabs.getByRole("button", { name: "Registro", exact: true })).toHaveCount(0);
     await expect(tabs.getByRole("button", { name: "Inicio", exact: true })).toHaveAttribute("aria-current", "page");
+
+    // Leaving the page at once (before the debounced save) still stores the change: the pagehide beacon.
+    await page.goto("/login");
+    await expect
+      .poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'tabs'`)[0]?.value?.value?.tabs?.length ?? 0)
+      .toBe(1);
 
     // No hydration mismatch or React warning on the way (the record page's own 404 is expected).
     expect(problems.filter((text) => !/404 \(Not Found\)/.test(text))).toEqual([]);

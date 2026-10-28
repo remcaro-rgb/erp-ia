@@ -5,26 +5,60 @@ import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
-import { saveShellPref } from "@/lib/prefs/actions";
+import { saveShellPrefAction } from "@/lib/prefs/actions";
 import type { ShellData } from "@/lib/shell/load";
 
 /** Tabs change in bursts (open, open, close): save the last state once things settle. */
 const SAVE_TABS_AFTER_MS = 800;
 
-/** The application shell wired to Next: the router navigates, server actions save the theme and the tabs. */
+type PendingSave = { key: "tabs"; value: TabsSnapshot; savedAt: number };
+
+/**
+ * The application shell wired to Next: the router navigates, a server action saves the theme and (debounced)
+ * the tabs. A tabs save still pending when the page goes away (`pagehide`) is sent with `navigator.sendBeacon`
+ * to POST /api/prefs; one pending at a company switch is saved before the switch.
+ */
 export function WebShell({ data, children }: { data: ShellData; children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef<PendingSave | null>(null);
 
   // The saved theme on <html> before the first paint of a server render; a client render applies it in the shell.
-  useServerInsertedHTML(() => <script dangerouslySetInnerHTML={{ __html: themeScript(data.theme) }} />);
+  useServerInsertedHTML(() => <script dangerouslySetInnerHTML={{ __html: themeScript(data.theme?.value ?? "auto") }} />);
 
-  const saveTabs = useCallback((snapshot: TabsSnapshot) => {
-    if (pending.current) clearTimeout(pending.current);
-    pending.current = setTimeout(() => void saveShellPref({ key: "tabs", value: snapshot }), SAVE_TABS_AFTER_MS);
+  /** Sends the pending save now through the action; resolves when it is stored. */
+  const flush = useCallback(async () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const save = pending.current;
+    pending.current = null;
+    if (save) await saveShellPrefAction(save);
   }, []);
-  useEffect(() => () => void (pending.current && clearTimeout(pending.current)), []);
+
+  const saveTabs = useCallback(
+    (snapshot: TabsSnapshot, savedAt: number) => {
+      pending.current = { key: "tabs", value: snapshot, savedAt };
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => void flush(), SAVE_TABS_AFTER_MS);
+    },
+    [flush],
+  );
+
+  useEffect(() => {
+    const onPageHide = () => {
+      const save = pending.current;
+      if (!save) return;
+      pending.current = null;
+      if (timer.current) clearTimeout(timer.current);
+      navigator.sendBeacon("/api/prefs", new Blob([JSON.stringify(save)], { type: "application/json" }));
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      onPageHide();
+    };
+  }, []);
 
   return (
     <AppShell
@@ -38,9 +72,11 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       initialTabs={data.tabs}
       currentHref={pathname}
       navigate={(href) => router.push(href)}
-      onThemeChange={(mode: ThemeMode) => void saveShellPref({ key: "theme", value: mode })}
+      onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}
       onTabsChange={saveTabs}
       onSwitchCompany={async (companyId) => {
+        // The pending tabs belong to the company being left: store them there before the claims change.
+        await flush();
         await setActiveCompany(companyId);
         router.refresh();
       }}

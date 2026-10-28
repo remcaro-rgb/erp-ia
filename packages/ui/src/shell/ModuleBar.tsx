@@ -36,8 +36,8 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
             aria-current={on ? "page" : undefined}
             onClick={() => onNavigate(entry)}
             className={cn(
-              "border-y-[3px] border-transparent bg-transparent px-[11px] text-[13px] whitespace-nowrap text-[#C9D6F0] hover:bg-bar-ctl hover:text-white",
-              on && "border-b-[#93C5FD] font-semibold text-white",
+              "border-y-[3px] border-transparent bg-transparent px-[11px] text-[13px] whitespace-nowrap text-bar-text hover:bg-bar-ctl hover:text-white",
+              on && "border-b-focus font-semibold text-white",
             )}
           >
             {entry.title}

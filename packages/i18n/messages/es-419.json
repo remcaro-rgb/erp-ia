@@ -168,7 +168,7 @@
       "module_menu": "Menú del módulo",
       "command_label": "Comando",
       "command_placeholder": "⌘K   ir a, crear…",
-      "theme_toggle": "Cambiar tema",
+      "theme_toggle": "Cambiar tema (actual: {mode})",
       "theme_title_auto": "Tema: automático (sigue al sistema) · clic para cambiar",
       "theme_title_light": "Tema: claro · clic para cambiar",
       "theme_title_dark": "Tema: oscuro · clic para cambiar",

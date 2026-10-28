@@ -2,7 +2,8 @@ import { z } from "zod";
 import { defineProcess } from "../process/define";
 
 // The user's own preferences (design §19a): theme, open tabs, home layout. Self-service: any member of the
-// active company sets and reads their own (`permission: "none"`), always through the audited pipeline.
+// active company sets their own (`permission: "none"`), always through the audited pipeline. Reading them is
+// `readUserPrefs` (./read.ts), a plain read under RLS.
 
 const FEATURE = "kernel.user_prefs";
 
@@ -34,21 +35,4 @@ export const userPrefSet = defineProcess({
   },
 });
 
-export const userPrefGet = defineProcess({
-  id: "kernel.user_prefs.get",
-  module: "kernel",
-  kind: "consult",
-  feature: FEATURE,
-  permission: "none",
-  description: "Consulta una preferencia del usuario en la empresa activa; null cuando no la ha guardado",
-  input: z.object({ key }),
-  output: z.object({ key: z.string(), value: z.json().nullable() }),
-  handler: async (ctx, input) => {
-    const [row] = await ctx.tx<{ value: unknown }[]>`
-      select value from kernel.user_prefs
-      where user_id = ${ctx.userId} and company_id = ${ctx.companyId} and key = ${input.key}`;
-    return { key: input.key, value: (row?.value ?? null) as z.infer<ReturnType<typeof z.json>> | null };
-  },
-});
-
-export const USER_PREF_PROCESSES = [userPrefSet, userPrefGet];
+export const USER_PREF_PROCESSES = [userPrefSet];

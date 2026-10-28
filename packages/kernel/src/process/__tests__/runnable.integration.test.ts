@@ -2,23 +2,23 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { z } from "zod";
 import { testDb, seedTenant } from "../../db/test-db";
 import { Registry } from "../../registry";
-import { defineProcess } from "../define";
+import type { ProcessDef } from "../../registry/types";
 import { runnableProcesses } from "../permissions";
 
 // What the shell may offer a caller (menus, ⌘K create commands): the processes one of their roles may run in
 // the active company, plus the self-service ones. The same rule runProcess applies, asked in one query.
 
-const proc = (id: string, permission?: "none") =>
-  defineProcess({
-    id,
-    module: "test",
-    kind: "consult",
-    ...(permission ? { permission } : {}),
-    description: "prueba",
-    input: z.object({}),
-    output: z.null(),
-    handler: async () => null,
-  });
+// Built directly: `defineProcess` reserves `permission: "none"` for kernel user prefs (define.test.ts).
+const proc = (id: string, permission?: "none"): ProcessDef => ({
+  id,
+  module: "test",
+  kind: "consult",
+  ...(permission ? { permission } : {}),
+  description: "prueba",
+  input: z.object({}),
+  output: z.null(),
+  handler: async () => null,
+});
 
 describe("runnableProcesses", () => {
   let sql: ReturnType<typeof testDb>;

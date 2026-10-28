@@ -1,7 +1,8 @@
 import "server-only";
 import { getTranslations } from "next-intl/server";
-import { callerProfile, entitled, ProcessError, runnableProcesses, runProcess, type Caller } from "@erp/kernel";
-import { isThemeMode, type CommandItem, type NavItem, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
+import { callerProfile, entitled, readUserPrefs, runnableProcesses, type Caller } from "@erp/kernel";
+import { isThemeMode, type CommandItem, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
+import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps } from "@/lib/server/runtime";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
@@ -15,34 +16,25 @@ export interface ShellData {
   modules: ShellModule[];
   nav: NavItem[];
   commands: CommandItem[];
-  theme: ThemeMode;
+  /** The saved theme in the active company, or null. */
+  theme: Saved<ThemeMode> | null;
   /** The saved tabs as stored (the shell repairs them), or null when the user has none yet. */
-  tabs: unknown;
-}
-
-/** A saved preference of the caller, or null; a preference never breaks the page. */
-async function pref(caller: Caller, key: string): Promise<unknown> {
-  try {
-    const out = await runProcess(processDeps(), caller, "kernel.user_prefs.get", { key });
-    return (out as { value: unknown }).value;
-  } catch (error) {
-    if (error instanceof ProcessError) return null;
-    throw error;
-  }
+  tabs: Saved<unknown> | null;
 }
 
 export async function loadShell(caller: Caller): Promise<ShellData> {
   const deps = processDeps();
   const { claims } = caller;
   const keys = shellAccessKeys(deps.registry);
-  const [profile, entitledKeys, runnable, theme, tabs, t] = await Promise.all([
+  const [profile, entitledKeys, runnable, prefs, t] = await Promise.all([
     callerProfile(deps.sql, claims),
     Promise.all(keys.entitlements.map(async (key) => ((await entitled(deps.sql, claims.active_company_id, key)) ? key : null))),
     runnableProcesses(deps.sql, deps.registry, claims, keys.processes),
-    pref(caller, "theme"),
-    pref(caller, "tabs"),
+    // A plain read under RLS, not a process: no audit row on every page load.
+    readUserPrefs(deps.sql, claims, ["theme", "tabs"]),
     getTranslations(),
   ]);
+  const theme = savedFrom(prefs.theme);
   const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable });
 
   const commands: CommandItem[] = shell.creates
@@ -57,7 +49,7 @@ export async function loadShell(caller: Caller): Promise<ShellData> {
     modules: shell.modules,
     nav: shell.nav,
     commands,
-    theme: isThemeMode(theme) ? theme : "auto",
-    tabs,
+    theme: theme && isThemeMode(theme.value) ? { value: theme.value, savedAt: theme.savedAt } : null,
+    tabs: savedFrom(prefs.tabs),
   };
 }

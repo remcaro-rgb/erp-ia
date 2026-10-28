@@ -65,7 +65,7 @@ export function TopBar(props: TopBarProps) {
   return (
     <header className="relative z-10 flex h-12 shrink-0 items-center gap-2.5 bg-bar px-4 text-bar-text">
       <div className="mr-1.5 flex items-center gap-2 text-[15px] font-bold whitespace-nowrap text-white">
-        <i aria-hidden="true" className="inline-block size-[22px] rounded-md bg-[#60A5FA]" />
+        <i aria-hidden="true" className="inline-block size-[22px] rounded-md bg-focus" />
         {s("brand")}
       </div>
 
@@ -94,7 +94,7 @@ export function TopBar(props: TopBarProps) {
       </DropdownMenu>
 
       <DropdownMenu>
-        <DropdownMenuTrigger className={cn(barButton, "border border-bar-line bg-transparent text-[#C9D6F0]")} aria-label={s("modules")}>
+        <DropdownMenuTrigger className={cn(barButton, "border border-bar-line bg-transparent text-bar-text")} title={s("modules")}>
           {active ? t(active.label) : s("modules")} ▾
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={menuClass}>
@@ -132,7 +132,7 @@ export function TopBar(props: TopBarProps) {
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") props.onOpenPalette();
         }}
-        className="w-[200px] cursor-pointer rounded-md border border-bar-line bg-bar-ctl px-3 py-[7px] text-[13px] whitespace-pre text-white placeholder:text-[#C9D6F0] focus-visible:outline-2 focus-visible:outline-focus"
+        className="w-[200px] cursor-pointer rounded-md border border-bar-line bg-bar-ctl px-3 py-[7px] text-[13px] whitespace-pre text-white placeholder:text-bar-text focus-visible:outline-2 focus-visible:outline-focus"
       />
 
       <ThemeToggle mode={props.theme} onChange={props.onThemeChange} />
@@ -140,7 +140,7 @@ export function TopBar(props: TopBarProps) {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={s("notifications")}
-          className="relative grid size-[34px] shrink-0 place-items-center rounded-md border border-bar-line bg-transparent text-[#E6E9ED] hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus"
+          className="relative grid size-[34px] shrink-0 place-items-center rounded-md border border-bar-line bg-transparent text-bar-text hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Bell aria-hidden="true" className="size-[18px]" />
           <span aria-hidden="true" className="absolute top-[5px] right-[5px] size-2 rounded-full bg-alert" />
@@ -153,14 +153,14 @@ export function TopBar(props: TopBarProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <button type="button" onClick={props.onToggleAssistant} className={cn(barButton, "bg-white font-semibold text-[#1E3A8A]")}>
+      <button type="button" onClick={props.onToggleAssistant} className={cn(barButton, "bg-white font-semibold text-bar")}>
         {s("assistant")}
       </button>
 
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={s("user_menu")}
-          className="grid size-[30px] shrink-0 place-items-center overflow-hidden rounded-full bg-[#93C5FD] text-xs font-bold text-[#1E3A8A] focus-visible:outline-2 focus-visible:outline-white"
+          className="grid size-[30px] shrink-0 place-items-center overflow-hidden rounded-full bg-focus text-xs font-bold text-bar focus-visible:outline-2 focus-visible:outline-white"
         >
           {initialsOf(user.name)}
         </DropdownMenuTrigger>

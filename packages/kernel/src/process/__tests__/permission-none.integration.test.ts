@@ -5,6 +5,7 @@ import { Registry } from "../../registry";
 import { defineProcess } from "../define";
 import { runProcess } from "../run";
 import type { Caller } from "../context";
+import type { ProcessDef } from "../../registry/types";
 
 // Self-service processes (a user's own preferences) opt out of the role permission matrix with
 // `permission: "none"`: any member of the company may run them, but they are still resolved, entitled,
@@ -12,7 +13,9 @@ import type { Caller } from "../context";
 
 let handlerRuns = 0;
 
-const selfService = defineProcess({
+// Built without `defineProcess`, which reserves the opt-out for kernel user prefs (define.test.ts): here the
+// point is what `runProcess` does with it, on a module whose entitlement can be refused.
+const selfService: ProcessDef = {
   id: "test.self.touch",
   module: "test",
   kind: "update",
@@ -20,11 +23,11 @@ const selfService = defineProcess({
   description: "proceso de autoservicio",
   input: z.object({ n: z.number() }),
   output: z.object({ n: z.number() }),
-  handler: async (_ctx, input) => {
+  handler: async (_ctx, input: { n: number }) => {
     handlerRuns += 1;
     return { n: input.n + 1 };
   },
-});
+};
 
 const guarded = defineProcess({
   id: "test.self.guarded",

@@ -1,24 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTabsStore, HOME_TAB_ID, loadCachedTabs, tabsStorageKey } from "../tabs-store";
+import { memoryStorage } from "./intl";
 
 const parties = { title: "Terceros", href: "/parties", kind: "grid" as const };
 const products = { title: "Productos", href: "/products", kind: "grid" as const };
 const categories = { title: "Categorías", href: "/categories", kind: "grid" as const };
-
-/** A Storage of our own: the Node global `localStorage` shadows jsdom's and is not usable here. */
-function memoryStorage(): Storage {
-  const data = new Map<string, string>();
-  return {
-    get length() {
-      return data.size;
-    },
-    clear: () => data.clear(),
-    getItem: (key) => data.get(key) ?? null,
-    key: (i) => [...data.keys()][i] ?? null,
-    removeItem: (key) => void data.delete(key),
-    setItem: (key, value) => void data.set(key, String(value)),
-  };
-}
 
 let localStorage: Storage;
 
@@ -79,15 +65,18 @@ describe("tabs store", () => {
     expect(store.getState().activeId).toBe(HOME_TAB_ID);
   });
 
-  it("persists per user in localStorage under erp.tabs.<userId> and reports every change", () => {
+  it("caches every change per user under erp.tabs.<userId> with its time and company, and reports it", () => {
     const onChange = vi.fn();
-    const store = createTabsStore({ userId: "u1", storage: localStorage, onChange });
+    const store = createTabsStore({ userId: "u1", companyId: "c1", storage: localStorage, onChange, now: () => 1000 });
     store.getState().open(parties);
-    expect(JSON.parse(localStorage.getItem(tabsStorageKey("u1"))!)).toMatchObject({ activeId: "/parties" });
-    expect(onChange).toHaveBeenLastCalledWith({ tabs: store.getState().tabs, activeId: "/parties" });
+    expect(JSON.parse(localStorage.getItem(tabsStorageKey("u1"))!)).toMatchObject({ companyId: "c1", savedAt: 1000, value: { activeId: "/parties" } });
+    expect(onChange).toHaveBeenLastCalledWith({ tabs: store.getState().tabs, activeId: "/parties" }, 1000);
 
-    expect(loadCachedTabs(localStorage, "u1")!.tabs.map((t) => t.href)).toEqual(["/", "/parties"]);
-    expect(loadCachedTabs(localStorage, "u2")).toBeNull();
+    expect(loadCachedTabs(localStorage, "u1", "c1")).toMatchObject({ savedAt: 1000 });
+    expect(loadCachedTabs(localStorage, "u1", "c1")!.value.tabs.map((t) => t.href)).toEqual(["/", "/parties"]);
+    expect(loadCachedTabs(localStorage, "u2", "c1")).toBeNull();
+    // Another company's tabs are not this company's.
+    expect(loadCachedTabs(localStorage, "u1", "c2")).toBeNull();
   });
 
   it("hydrate restores a saved state, always keeping home first and an existing tab active", () => {
@@ -104,9 +93,9 @@ describe("tabs store", () => {
     expect(store.getState().activeId).toBe(HOME_TAB_ID);
   });
 
-  it("an initial (server) state wins over the cache", () => {
-    localStorage.setItem(tabsStorageKey("u1"), JSON.stringify({ tabs: [{ id: "/x", title: "X", href: "/x", kind: "grid" }], activeId: "/x" }));
-    const store = createTabsStore({ userId: "u1", storage: localStorage, initial: { tabs: [{ id: "/parties", ...parties }], activeId: "/parties" } });
+  it("starts from the initial (server) state; the cache is consulted only by the shell, after mounting", () => {
+    localStorage.setItem(tabsStorageKey("u1"), JSON.stringify({ value: { tabs: [{ id: "/x", title: "X", href: "/x", kind: "grid" }], activeId: "/x" }, savedAt: 1, companyId: "c1" }));
+    const store = createTabsStore({ userId: "u1", companyId: "c1", storage: localStorage, initial: { tabs: [{ id: "/parties", ...parties }], activeId: "/parties" } });
     expect(store.getState().tabs.map((t) => t.href)).toEqual(["/", "/parties"]);
   });
 });

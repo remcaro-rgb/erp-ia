@@ -33,6 +33,6 @@ export { CUSTOM_FIELD_PROCESSES, customData, customFieldList, customFieldRemove,
 export type { CustomData, CustomFieldRow, CustomFieldView } from "./custom-fields/server";
 export { normalizeVerifyValue, registerVerifier, unregisterVerifier, verify, verifierAdapter, VERIFY_PROCESSES, verifyRequest, verifyStatus } from "./verify";
 export type { VerifierAdapter, VerifyContext, VerifyKind, VerifyOutcome, VerifyStatus } from "./verify";
-export { callerProfile, MAX_USER_PREF_BYTES, USER_PREF_KEY, USER_PREF_PROCESSES, userPrefGet, userPrefSet } from "./user-prefs";
-export type { CallerProfile } from "./user-prefs";
+export { callerProfile, MAX_USER_PREF_BYTES, readUserPrefs, USER_PREF_KEY, USER_PREF_PROCESSES, userPrefSet } from "./user-prefs";
+export type { CallerProfile, StoredUserPref } from "./user-prefs";
 export { runnableProcesses } from "./process/permissions";

@@ -35,12 +35,12 @@ export function ThemeToggle({ mode, defaultMode = "auto", onChange, className }:
   return (
     <button
       type="button"
-      aria-label={t("theme_toggle")}
+      aria-label={t("theme_toggle", { mode: t(`theme_${current}`).toLowerCase() })}
       title={t(`theme_title_${current}`)}
       data-mode={current}
       onClick={cycle}
       className={cn(
-        "relative grid size-[34px] shrink-0 place-items-center rounded-md border border-bar-line bg-transparent text-[#E6E9ED] hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus",
+        "relative grid size-[34px] shrink-0 place-items-center rounded-md border border-bar-line bg-transparent text-bar-text hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus",
         className,
       )}
     >

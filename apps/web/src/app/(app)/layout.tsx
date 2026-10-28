@@ -20,7 +20,12 @@ async function ShellView({ children }: { children: React.ReactNode }) {
     throw error;
   }
   const data = await loadShell(caller);
-  return <WebShell data={data}>{children}</WebShell>;
+  // Keyed by company: after a switch the shell (pending saves, tabs, theme) starts over from that company's prefs.
+  return (
+    <WebShell key={data.company.id} data={data}>
+      {children}
+    </WebShell>
+  );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

@@ -8,10 +8,11 @@ import { AssistantDrawer } from "./AssistantDrawer";
 import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
+import { newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
-import { applyTheme } from "./theme";
+import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
-import { moduleOf, type CommandItem, type NavItem, type ShellCompany, type ShellModule, type ShellUser, type TabKind, type TabsSnapshot, type ThemeMode } from "./types";
+import { moduleOf, type CommandItem, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type TabKind, type TabsSnapshot, type ThemeMode } from "./types";
 
 export interface AppShellProps {
   company: ShellCompany;
@@ -31,15 +32,18 @@ export interface AppShellProps {
   currentHref: string;
   /** Client-side navigation (the app's router). */
   navigate: (href: string) => void;
-  /** The user's saved theme (`kernel.user_prefs`, key `theme`). */
-  theme?: ThemeMode;
-  onThemeChange?: (mode: ThemeMode) => void;
-  /** The user's saved tabs (`kernel.user_prefs`, key `tabs`), or null: then the localStorage cache is used. */
-  initialTabs?: unknown;
-  /** Every change of the tabs, to save them (the shell already caches them in localStorage). */
-  onTabsChange?: (snapshot: TabsSnapshot) => void;
+  /** The user's saved theme in this company (`kernel.user_prefs`, key `theme`), or null. */
+  theme?: Saved<ThemeMode> | null;
+  /** A theme change with its time, to save it (the shell already caches it in localStorage). */
+  onThemeChange?: (mode: ThemeMode, savedAt: number) => void;
+  /** The user's saved tabs in this company (`kernel.user_prefs`, key `tabs`), or null. */
+  initialTabs?: Saved<unknown> | null;
+  /** Every change of the tabs with its time, to save them (the shell already caches them in localStorage). */
+  onTabsChange?: (snapshot: TabsSnapshot, savedAt: number) => void;
   onSwitchCompany?: (companyId: string) => void;
   signOutAction?: () => void | Promise<void>;
+  /** The preference cache; the browser's localStorage by default. */
+  storage?: Storage | null;
 }
 
 function browserStorage(): Storage | null {
@@ -53,11 +57,17 @@ function browserStorage(): Storage | null {
 /**
  * The application shell (design §19a, prototype v5): navy top bar with the module items, the tinted tabs row,
  * the page, the assistant drawer (400 px) and the ⌘K palette. Tabs follow the URL: opening a page opens or
- * activates its tab; activating or closing a tab navigates.
+ * activates its tab; activating or closing a tab navigates. Tabs and theme are per user and company: switching
+ * company mounts a fresh shell that starts from the new company's saved preferences.
  */
 export function AppShell(props: AppShellProps) {
+  return <ShellFrame key={`${props.user.id}:${props.company.id}`} {...props} />;
+}
+
+function ShellFrame(props: AppShellProps) {
   const { company, companies, user, modules, nav, commands = [], currentHref, navigate } = props;
   const t = useTranslations();
+  const [storage] = useState<Storage | null>(() => (props.storage === undefined ? browserStorage() : props.storage));
 
   // Callbacks change identity on every render of the parent; the store and effects read the latest.
   const latest = useRef(props);
@@ -68,18 +78,33 @@ export function AppShell(props: AppShellProps) {
   const [store] = useState<TabsStore>(() =>
     createTabsStore({
       userId: user.id,
-      storage: browserStorage(),
-      initial: props.initialTabs,
-      onChange: (snapshot) => latest.current.onTabsChange?.(snapshot),
+      companyId: company.id,
+      storage,
+      initial: props.initialTabs?.value,
+      onChange: (snapshot, savedAt) => latest.current.onTabsChange?.(snapshot, savedAt),
     }),
   );
 
-  // No server copy yet: fill the bar from this browser's cache once mounted (the server render had only Inicio).
+  const [theme, setTheme] = useState<ThemeMode>(props.theme?.value ?? "auto");
+  useEffect(() => applyTheme(theme), [theme]);
+  const changeTheme = useCallback(
+    (mode: ThemeMode, savedAt: number = Date.now()) => {
+      setTheme(mode);
+      writeCachedPref(storage, themeStorageKey(user.id), company.id, { value: mode, savedAt });
+      latest.current.onThemeChange?.(mode, savedAt);
+    },
+    [storage, user.id, company.id],
+  );
+
+  // Once mounted (the server render used the server's copies): this browser's cache wins when it is newer, e.g. a
+  // change made just before the page closed that never reached the server. The newer copy is then saved.
   useEffect(() => {
-    if (props.initialTabs != null) return;
-    const cached = loadCachedTabs(browserStorage(), user.id);
-    if (cached) store.getState().hydrate(cached);
-    // Once per store: the first render's `initialTabs` and user decide.
+    const tabs = newerSaved(props.initialTabs ?? null, loadCachedTabs(storage, user.id, company.id));
+    if (tabs && tabs !== props.initialTabs) store.getState().hydrate(tabs.value);
+    const cachedTheme = readCachedPref(storage, themeStorageKey(user.id), company.id);
+    const themeCopy = newerSaved(props.theme ?? null, cachedTheme && isThemeMode(cachedTheme.value) ? { value: cachedTheme.value, savedAt: cachedTheme.savedAt } : null);
+    if (themeCopy && themeCopy !== props.theme) changeTheme(themeCopy.value, themeCopy.savedAt);
+    // Once per mounted shell: the first render's saved copies decide.
   }, [store]);
 
   const itemsByModule = useMemo(() => {
@@ -112,13 +137,6 @@ export function AppShell(props: AppShellProps) {
     const title = item ? t(item.label) : kind === "record" ? t("nav.shell.record") : currentHref;
     store.getState().open({ title, href: currentHref, kind });
   }, [currentHref, nav, store, t]);
-
-  const [theme, setTheme] = useState<ThemeMode>(props.theme ?? "auto");
-  useEffect(() => applyTheme(theme), [theme]);
-  const changeTheme = useCallback((mode: ThemeMode) => {
-    setTheme(mode);
-    latest.current.onThemeChange?.(mode);
-  }, []);
 
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
   const hrefModule = nav.find((i) => isActiveHref(i.href, currentHref));
@@ -169,7 +187,7 @@ export function AppShell(props: AppShellProps) {
           activeHref={currentHref}
           onNavigate={(target) => navigate(target.href)}
           theme={theme}
-          onThemeChange={changeTheme}
+          onThemeChange={(mode) => changeTheme(mode)}
           onOpenPalette={() => setPaletteOpen(true)}
           onToggleAssistant={() => setAssistantOpen((open) => !open)}
           onSwitchCompany={props.onSwitchCompany}

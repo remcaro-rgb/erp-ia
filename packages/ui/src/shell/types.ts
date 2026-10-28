@@ -20,6 +20,12 @@ export interface TabsSnapshot {
   activeId: string;
 }
 
+/** A saved preference and when it was saved (ms since epoch, the browser's clock), to keep the newer copy. */
+export interface Saved<T> {
+  value: T;
+  savedAt: number;
+}
+
 /** `auto` follows `prefers-color-scheme`; the other two force a theme (`data-theme` on <html>). */
 export type ThemeMode = "auto" | "light" | "dark";
 

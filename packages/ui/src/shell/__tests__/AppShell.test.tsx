@@ -3,7 +3,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { AppShell } from "../AppShell";
 import type { NavItem } from "../types";
-import { renderEs, stubLayoutApis } from "./intl";
+import { tabsStorageKey } from "../tabs-store";
+import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
 afterEach(() => {
@@ -17,28 +18,40 @@ const nav: NavItem[] = [
   { id: "core.categories", label: "nav.core.categories", href: "/categories", icon: "tags" },
 ];
 
-function shell(currentHref: string, navigate = vi.fn(), extra: Partial<Parameters<typeof AppShell>[0]> = {}) {
-  const company = { id: "c1", name: "Café del Norte S.A.S.", taxId: "900373115" };
-  return renderEs(
+type ShellProps = Parameters<typeof AppShell>[0];
+const cafe = { id: "c1", name: "Café del Norte S.A.S.", taxId: "900373115" };
+const otra = { id: "c2", name: "Otra Empresa S.A.S.", taxId: "900000001" };
+
+function shellElement(currentHref: string, navigate = vi.fn(), extra: Partial<ShellProps> = {}) {
+  return (
     <AppShell
-      company={company}
-      companies={[company]}
+      company={cafe}
+      companies={[cafe, otra]}
       user={{ id: "u1", name: "Laura Martínez", email: "laura@demo.local", roles: ["admin"] }}
       modules={[{ id: "core", label: "nav.modules.core" }]}
       nav={nav}
       currentHref={currentHref}
       navigate={navigate}
+      storage={memoryStorage()}
       {...extra}
     >
       <p>contenido</p>
-    </AppShell>,
+    </AppShell>
   );
 }
+
+const shell = (currentHref: string, navigate = vi.fn(), extra: Partial<ShellProps> = {}) => renderEs(shellElement(currentHref, navigate, extra));
+/** Titles of the open tabs (the title buttons are the ones without an aria-label or a tooltip). */
+const tabNames = () =>
+  within(screen.getByRole("navigation", { name: "Pestañas abiertas" }))
+    .getAllByRole("button")
+    .filter((b) => !b.getAttribute("aria-label") && !b.getAttribute("title"))
+    .map((b) => b.textContent ?? "");
 
 describe("AppShell", () => {
   it("shows the active module's items next to the module button, the current one marked", () => {
     shell("/parties");
-    expect(screen.getByRole("button", { name: "Módulos" }).textContent).toContain("Núcleo");
+    expect(screen.getByRole("button", { name: /^Núcleo/ })).toBeTruthy();
     const items = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getAllByRole("button");
     expect(items.map((b) => b.textContent)).toEqual(["Inicio", "Terceros", "Productos", "Categorías"]);
     expect(items[1]!.getAttribute("aria-current")).toBe("page");
@@ -63,10 +76,10 @@ describe("AppShell", () => {
 
   it("applies the saved theme and reports a change", () => {
     const onThemeChange = vi.fn();
-    shell("/", vi.fn(), { theme: "dark", onThemeChange });
+    shell("/", vi.fn(), { theme: { value: "dark", savedAt: 1 }, onThemeChange });
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
-    fireEvent.click(screen.getByRole("button", { name: "Cambiar tema" }));
-    expect(onThemeChange).toHaveBeenCalledWith("auto");
+    fireEvent.click(screen.getByRole("button", { name: /Cambiar tema/ }));
+    expect(onThemeChange).toHaveBeenCalledWith("auto", expect.any(Number));
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   });
 
@@ -83,9 +96,72 @@ describe("AppShell", () => {
   });
 
   it("restores the server's tabs", () => {
-    shell("/", vi.fn(), { initialTabs: { tabs: [{ id: "/products", title: "Productos", href: "/products", kind: "grid" }], activeId: "/products" } });
+    shell("/", vi.fn(), { initialTabs: { value: { tabs: [{ id: "/products", title: "Productos", href: "/products", kind: "grid" }], activeId: "/products" }, savedAt: 1 } });
     const tabs = screen.getByRole("navigation", { name: "Pestañas abiertas" });
     expect(within(tabs).getByRole("button", { name: "Productos" })).toBeTruthy();
     expect(within(tabs).getByRole("button", { name: "Inicio" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("a newer browser cache beats an older server copy of the tabs and the theme, and is sent to the server", () => {
+    const storage = memoryStorage();
+    const products = { id: "/products", title: "Productos", href: "/products", kind: "grid" };
+    const categories = { id: "/categories", title: "Categorías", href: "/categories", kind: "grid" };
+    storage.setItem(tabsStorageKey("u1"), JSON.stringify({ value: { tabs: [categories], activeId: "home" }, savedAt: 200, companyId: "c1" }));
+    storage.setItem("erp.theme.u1", JSON.stringify({ value: "dark", savedAt: 200, companyId: "c1" }));
+    const onTabsChange = vi.fn();
+    const onThemeChange = vi.fn();
+    shell("/", vi.fn(), {
+      storage,
+      initialTabs: { value: { tabs: [products], activeId: "home" }, savedAt: 100 },
+      theme: { value: "light", savedAt: 100 },
+      onTabsChange,
+      onThemeChange,
+    });
+    expect(tabNames()).toContain("Categorías");
+    expect(tabNames()).not.toContain("Productos");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(onThemeChange).toHaveBeenCalledWith("dark", 200);
+    expect(onTabsChange).toHaveBeenCalled();
+  });
+
+  it("an older browser cache loses to the server copy", () => {
+    const storage = memoryStorage();
+    storage.setItem(tabsStorageKey("u1"), JSON.stringify({ value: { tabs: [{ id: "/categories", title: "Categorías", href: "/categories", kind: "grid" }], activeId: "home" }, savedAt: 50, companyId: "c1" }));
+    shell("/", vi.fn(), { storage, initialTabs: { value: { tabs: [{ id: "/products", title: "Productos", href: "/products", kind: "grid" }], activeId: "home" }, savedAt: 100 } });
+    expect(tabNames()).toContain("Productos");
+    expect(tabNames()).not.toContain("Categorías");
+  });
+
+  it("switching company starts over from the new company's saved tabs and theme", () => {
+    const storage = memoryStorage();
+    const view = shell("/", vi.fn(), {
+      storage,
+      initialTabs: { value: { tabs: [{ id: "/products", title: "Productos", href: "/products", kind: "grid" }], activeId: "home" }, savedAt: 1 },
+      theme: { value: "dark", savedAt: 1 },
+    });
+    expect(tabNames()).toContain("Productos");
+    view.rerender(
+      shellElement("/", vi.fn(), {
+        storage,
+        company: otra,
+        initialTabs: { value: { tabs: [{ id: "/parties", title: "Terceros", href: "/parties", kind: "grid" }], activeId: "home" }, savedAt: 2 },
+        theme: { value: "light", savedAt: 2 },
+      }),
+    );
+    expect(tabNames()).toContain("Terceros");
+    expect(tabNames()).not.toContain("Productos");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+  });
+
+  it("the Módulos menu lists modules only, never their items", () => {
+    shell("/parties");
+    const trigger = screen.getByRole("button", { name: /^Núcleo/ });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const menu = screen.getByRole("menu");
+    const entries = within(menu).getAllByRole("menuitem").map((item) => item.textContent ?? "");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toContain("Núcleo");
+    expect(entries[0]).toContain("3 opciones");
+    for (const item of ["Terceros", "Productos", "Categorías"]) expect(menu.textContent).not.toContain(item);
   });
 });

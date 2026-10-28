@@ -5,6 +5,7 @@ import { Registry } from "../../registry";
 import { loadModules } from "../../module/loader";
 import { kernelModule } from "../../module/kernel-module";
 import { runProcess } from "../../process/run";
+import { readUserPrefs } from "../read";
 import type { Caller } from "../../process/context";
 
 // Per-user preferences (design §19a: theme, open tabs, home layout) in kernel.user_prefs, migration
@@ -20,6 +21,8 @@ describe("user prefs", () => {
   let adminB: Caller;
   const run = (caller: Caller, id: string, input: unknown) => runProcess({ sql, registry }, caller, id, input);
   const companyIds = () => seed.companies.map((c) => c.id);
+  /** The stored value of `key` for the caller, read as the shell does (no process, no audit). */
+  const read = async (caller: Caller, key: string) => (await readUserPrefs(sql, caller.claims, [key]))[key]?.value ?? null;
 
   beforeAll(async () => {
     sql = testDb();
@@ -36,10 +39,10 @@ describe("user prefs", () => {
     await sql.end();
   });
 
-  it("a member with no permission rows sets and reads back their theme; the set is audited", async () => {
+  it("a member with no permission rows sets their theme and reads it back; the set is audited", async () => {
     const chainId = crypto.randomUUID();
     await run({ ...cashier, chainId }, "kernel.user_prefs.set", { key: "theme", value: "dark" });
-    await expect(run(cashier, "kernel.user_prefs.get", { key: "theme" })).resolves.toEqual({ key: "theme", value: "dark" });
+    expect(await read(cashier, "theme")).toEqual("dark");
     const audits = await sql`select process_id, action from kernel.audit_log where chain_id = ${chainId}`;
     expect(audits.map((a) => a.process_id)).toContain("kernel.user_prefs.set");
   });
@@ -48,14 +51,25 @@ describe("user prefs", () => {
     const tabs = [{ id: "home", title: "Inicio", href: "/", kind: "home", pinned: true }];
     await run(cashier, "kernel.user_prefs.set", { key: "tabs", value: { tabs, activeId: "home" } });
     await run(cashier, "kernel.user_prefs.set", { key: "tabs", value: { tabs: [], activeId: "home" } });
-    await expect(run(cashier, "kernel.user_prefs.get", { key: "tabs" })).resolves.toEqual({ key: "tabs", value: { tabs: [], activeId: "home" } });
+    expect(await read(cashier, "tabs")).toEqual({ tabs: [], activeId: "home" });
     const [row] = await sql<{ n: number }[]>`
       select count(*)::int as n from kernel.user_prefs where user_id = ${seed.users.cashier!} and key = 'tabs'`;
     expect(row!.n).toBe(1);
   });
 
+  it("reads several keys at once with their save time, writes no audit row, and there is no get process", async () => {
+    const before = await sql<{ n: number }[]>`select count(*)::int as n from kernel.audit_log where actor_user_id = ${seed.users.cashier!}`;
+    const prefs = await readUserPrefs(sql, cashier.claims, ["theme", "tabs", "home_layout"]);
+    expect(Object.keys(prefs).sort()).toEqual(["tabs", "theme"]);
+    expect(prefs.theme!.value).toBe("dark");
+    expect(prefs.theme!.updatedAt).toBeInstanceOf(Date);
+    const after = await sql<{ n: number }[]>`select count(*)::int as n from kernel.audit_log where actor_user_id = ${seed.users.cashier!}`;
+    expect(after[0]!.n).toBe(before[0]!.n);
+    await expect(run(cashier, "kernel.user_prefs.get", { key: "theme" })).rejects.toMatchObject({ code: "not_found" });
+  });
+
   it("an unknown key reads as null", async () => {
-    await expect(run(cashier, "kernel.user_prefs.get", { key: "home_layout" })).resolves.toEqual({ key: "home_layout", value: null });
+    expect(await read(cashier, "home_layout")).toEqual(null);
   });
 
   it("refuses malformed keys and oversized values", async () => {
@@ -65,8 +79,8 @@ describe("user prefs", () => {
 
   it("prefs are per company: the same user sees their company-A theme only in company A", async () => {
     await run(adminA, "kernel.user_prefs.set", { key: "theme", value: "light" });
-    await expect(run(adminA, "kernel.user_prefs.get", { key: "theme" })).resolves.toEqual({ key: "theme", value: "light" });
-    await expect(run(adminB, "kernel.user_prefs.get", { key: "theme" })).resolves.toEqual({ key: "theme", value: null });
+    expect(await read(adminA, "theme")).toEqual("light");
+    expect(await read(adminB, "theme")).toEqual(null);
   });
 
   it("RLS: a user never reads another user's prefs, even as the company admin", async () => {

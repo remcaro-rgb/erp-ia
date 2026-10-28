@@ -31,13 +31,16 @@ describe("ThemeToggle", () => {
   it("each click moves to the next mode, sets data-theme and reports it for saving", () => {
     const onChange = vi.fn();
     renderEs(<ThemeToggle defaultMode="auto" onChange={onChange} />);
-    const button = screen.getByRole("button", { name: "Cambiar tema" });
+    const button = screen.getByRole("button", { name: /Cambiar tema/ });
     expect(button.getAttribute("title")).toContain("automático");
+    // The current mode is part of the accessible name, not only of the icon and the tooltip.
+    expect(button.getAttribute("aria-label")).toBe("Cambiar tema (actual: automático)");
 
     fireEvent.click(button);
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     expect(onChange).toHaveBeenLastCalledWith("light");
     expect(button.getAttribute("title")).toContain("claro");
+    expect(button.getAttribute("aria-label")).toBe("Cambiar tema (actual: claro)");
 
     fireEvent.click(button);
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
@@ -50,8 +53,8 @@ describe("ThemeToggle", () => {
 
   it("follows a controlled mode", () => {
     const { rerender } = renderEs(<ThemeToggle mode="dark" onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Cambiar tema" }).getAttribute("title")).toContain("oscuro");
+    expect(screen.getByRole("button", { name: /Cambiar tema/ }).getAttribute("title")).toContain("oscuro");
     rerender(<ThemeToggle mode="light" onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Cambiar tema" }).getAttribute("title")).toContain("claro");
+    expect(screen.getByRole("button", { name: /Cambiar tema/ }).getAttribute("title")).toContain("claro");
   });
 });

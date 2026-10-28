@@ -1,4 +1,5 @@
-import type { Tab, TabKind, TabsSnapshot } from "./types";
+import { readCachedPref } from "./prefs-cache";
+import type { Saved, Tab, TabKind, TabsSnapshot } from "./types";
 
 // The pure part of the tabs (no React): constants, the repair of a saved state and the localStorage cache.
 // Server code (the save action) uses it too, so it carries no "use client".
@@ -32,13 +33,8 @@ export function sanitizeTabs(value: unknown): TabsSnapshot {
   return { tabs: trimmed, activeId };
 }
 
-/** The cached tabs of `userId`, or null when there are none (or the cache is unreadable). */
-export function loadCachedTabs(storage: Storage | null | undefined, userId: string): TabsSnapshot | null {
-  try {
-    const text = storage?.getItem(tabsStorageKey(userId));
-    return text ? sanitizeTabs(JSON.parse(text)) : null;
-  } catch {
-    return null;
-  }
+/** The cached tabs of `userId` in `companyId`, with when they were saved, or null (none, or unreadable). */
+export function loadCachedTabs(storage: Storage | null | undefined, userId: string, companyId: string): Saved<TabsSnapshot> | null {
+  const cached = readCachedPref(storage, tabsStorageKey(userId), companyId);
+  return cached ? { value: sanitizeTabs(cached.value), savedAt: cached.savedAt } : null;
 }
-

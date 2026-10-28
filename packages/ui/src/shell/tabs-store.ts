@@ -2,14 +2,16 @@
 
 import { createContext, createElement, useContext, type ReactNode } from "react";
 import { createStore, useStore, type StoreApi } from "zustand";
+import { writeCachedPref } from "./prefs-cache";
 import { HOME_TAB, HOME_TAB_ID, MAX_TABS, sanitizeTabs, tabsStorageKey } from "./tabs-model";
 import type { Tab, TabsSnapshot } from "./types";
 
 export { HOME_TAB_ID, loadCachedTabs, MAX_TABS, sanitizeTabs, tabsStorageKey } from "./tabs-model";
 
-// The open-screen tabs (design §19a, prototype `tabs`/`closeTab`/`closeAllTabs`). One store per signed-in user:
-// the server's copy in `kernel.user_prefs` is the truth; localStorage (`erp.tabs.<userId>`) is an optimistic
-// cache that fills the bar before the server answers and when the server has nothing yet.
+// The open-screen tabs (design §19a, prototype `tabs`/`closeTab`/`closeAllTabs`). One store per signed-in user
+// and company: it starts from the server's copy (`kernel.user_prefs`, key `tabs`); every change is cached in
+// localStorage (`erp.tabs.<userId>`, with its time and company) and reported for saving to the server. The shell
+// prefers the cache when it is newer than the server's copy (prefs-cache.ts).
 
 export interface TabsActions {
   /** Opens a tab, or activates the one already showing `href`. The id defaults to the href. */
@@ -27,17 +29,20 @@ export type TabsState = TabsSnapshot & TabsActions;
 export type TabsStore = StoreApi<TabsState>;
 
 export interface TabsStoreOptions {
-  /** Owner of the tabs; with `storage`, every change is cached under `erp.tabs.<userId>`. */
+  /** Owner of the tabs; with `storage` and `companyId`, every change is cached under `erp.tabs.<userId>`. */
   userId?: string;
+  companyId?: string;
   storage?: Storage | null;
+  /** Clock of `savedAt` (tests). */
+  now?: () => number;
   /** The server's copy (`kernel.user_prefs`, key `tabs`); wins over the cache. */
   initial?: unknown;
-  /** Called after every change, e.g. to save to `kernel.user_prefs`. */
-  onChange?: (snapshot: TabsSnapshot) => void;
+  /** Called after every change with its time, e.g. to save to `kernel.user_prefs`. */
+  onChange?: (snapshot: TabsSnapshot, savedAt: number) => void;
 }
 
 export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
-  const { userId, storage, onChange } = options;
+  const { userId, companyId, storage, onChange, now = Date.now } = options;
   const store = createStore<TabsState>()((set, get) => ({
     ...sanitizeTabs(options.initial),
     open(tab) {
@@ -78,14 +83,9 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
   store.subscribe((state, previous) => {
     if (state.tabs === previous.tabs && state.activeId === previous.activeId) return;
     const snapshot: TabsSnapshot = { tabs: state.tabs, activeId: state.activeId };
-    if (userId && storage) {
-      try {
-        storage.setItem(tabsStorageKey(userId), JSON.stringify(snapshot));
-      } catch {
-        // A full or blocked storage only loses the cache; the server copy remains.
-      }
-    }
-    onChange?.(snapshot);
+    const savedAt = now();
+    if (userId && companyId) writeCachedPref(storage, tabsStorageKey(userId), companyId, { value: snapshot, savedAt });
+    onChange?.(snapshot, savedAt);
   });
   return store;
 }
