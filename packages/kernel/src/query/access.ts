@@ -1,5 +1,7 @@
-import type { JwtClaims } from "../db/client";
+import type { JwtClaims, Tx } from "../db/client";
+import { getServiceDb } from "../db/service";
 import { entitled } from "../entitlements/resolver";
+import { ProcessError } from "../process/errors";
 import { runnableProcesses } from "../process/permissions";
 import type { RunProcessDeps } from "../process/run";
 import type { Registry } from "../registry";
@@ -63,4 +65,24 @@ export async function gridDenial(deps: RunProcessDeps, claims: JwtClaims, entity
   if (consults.length === 0) return "forbidden";
   const runnable = await runnableProcesses(sql, registry, claims, consults);
   return runnable.size > 0 ? null : "forbidden";
+}
+
+/**
+ * The grid's own gate inside a process (rule 13): the company is entitled to the entity's feature (or module) and a
+ * role of the caller may run the entity's consult process; else `not_entitled` / `forbidden`. Runs in the caller's
+ * transaction; the entitlement is resolved with the service connection, as `runProcess` does. The export and
+ * `kernel.data.query` read nothing a grid would refuse.
+ */
+export async function requireGridAccess(tx: Tx, registry: Registry, entity: ResolvedEntityDef): Promise<void> {
+  const [company] = await tx<{ id: string }[]>`select kernel.current_company_id() as id`;
+  const key = entitlementKeyOf(registry, entity);
+  if (key !== null && !(await entitled(getServiceDb(), company!.id, key))) {
+    throw new ProcessError("not_entitled", `${entity.id} is not entitled for company ${company!.id}`);
+  }
+  const consults = consultProcessesOf(registry, entity);
+  const [row] =
+    consults.length === 0
+      ? [{ allowed: false }]
+      : await tx<{ allowed: boolean }[]>`select coalesce(bool_or(kernel.can_run_process(p)), false) as allowed from unnest(${consults}::text[]) as p`;
+  if (!row?.allowed) throw new ProcessError("forbidden", `no role of the caller may consult ${entity.id}`);
 }

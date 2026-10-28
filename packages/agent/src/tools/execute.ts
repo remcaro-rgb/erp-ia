@@ -1,6 +1,7 @@
 import { ProcessError, runProcess, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
 import { createConfirmation } from "../runtime/confirm";
 import { isBuiltin, runBuiltin } from "./builtin";
+import { capResult } from "./cap";
 import { refusal } from "./descriptor";
 import { permittedProcesses, processIdOfTool } from "./from-registry";
 
@@ -22,11 +23,12 @@ function processOf(deps: RunProcessDeps, name: string): ProcessDef | undefined {
 
 export async function executeTool(deps: RunProcessDeps, caller: Caller, name: string, input: unknown): Promise<unknown> {
   const asAgent = agentCaller(caller);
-  if (isBuiltin(name)) return runBuiltin(deps, asAgent, name, input);
+  if (isBuiltin(name)) return runBuiltin(deps, name, input);
   const def = processOf(deps, name);
   if (!def) return refusal("not_found", { message: `unknown tool ${name}` });
   try {
-    if (def.kind === "consult") return await runProcess(deps, asAgent, def.id, input);
+    // A consult's answer is capped before the model reads it (rule 17).
+    if (def.kind === "consult") return capResult(await runProcess(deps, asAgent, def.id, input));
     // A card only for a process the caller may run now: the tool list was made at the start of the turn.
     const permitted = await permittedProcesses(deps, asAgent, deps.registry);
     if (!permitted.some((p) => p.id === def.id)) return refusal("forbidden");

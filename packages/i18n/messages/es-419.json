@@ -696,7 +696,8 @@
       "saved_views": "Vistas guardadas",
       "imports": "Importación masiva (Excel / CSV)",
       "exports": "Exportación a PDF, Excel y CSV",
-      "help": "Ayuda y guías de usuario"
+      "help": "Ayuda y guías de usuario",
+      "data": "Consultas de datos del asistente"
     },
     "support": {
       "tickets": "Tickets de soporte"

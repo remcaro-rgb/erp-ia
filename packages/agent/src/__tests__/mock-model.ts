@@ -5,7 +5,7 @@ import { convertArrayToReadableStream, MockLanguageModelV4 } from "ai/test";
 // tests: the n-th call of a turn (counted by the assistant messages already in the prompt) answers the n-th script
 // entry, either a text or a tool call. Every call is recorded with its options (system prompt, tools, messages).
 
-export type Scripted = { text: string } | { tool: string; input: unknown };
+export type Scripted = { text: string } | { tool: string; input: unknown } | { error: string };
 
 export const MOCK_USAGE = {
   inputTokens: { total: 50, noCache: 40, cacheRead: 10, cacheWrite: undefined },
@@ -28,6 +28,7 @@ export function scriptedModel(script: Scripted[], modelId = "mock/model"): Scrip
       const lastUser = options.prompt.map((m) => m.role).lastIndexOf("user");
       const index = Math.min(options.prompt.slice(lastUser + 1).filter((m) => m.role === "assistant").length, script.length - 1);
       const entry = script[index]!;
+      if ("error" in entry) throw new Error(entry.error);
       const head = [
         { type: "stream-start" as const, warnings: [] },
         { type: "response-metadata" as const, id: `r${index}`, modelId, timestamp: new Date(0) },

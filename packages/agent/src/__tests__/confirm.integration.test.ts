@@ -54,6 +54,30 @@ describe("decideConfirmation", () => {
     expect(await parties("800111222")).toBe(1);
   });
 
+  it("five confirmations at once all complete with the one result (no pool exhaustion)", async () => {
+    const token = await createPendingConfirmation("800111999");
+    const results = await Promise.all(Array.from({ length: 5 }, () => decideConfirmation(h.deps, h.admin, token, "confirm")));
+    expect(new Set(results.map((r) => JSON.stringify(r.result))).size).toBe(1);
+    expect(results.every((r) => r.status === "executed")).toBe(true);
+    expect(await parties("800111999")).toBe(1);
+  }, 30_000);
+
+  it("a card whose run committed but whose executed mark was lost answers the stored result, even past its expiry", async () => {
+    const token = await createPendingConfirmation("800222111");
+    const first = await decideConfirmation(h.deps, h.admin, token, "confirm");
+    await h.sql`update kernel.agent_confirmations set status = 'confirmed', result = null, expires_at = now() - interval '1 minute' where token = ${token}`;
+    expect(await decideConfirmation(h.deps, h.admin, token, "confirm")).toEqual(first);
+    expect(await card(token)).toMatchObject({ status: "executed", result: first.result });
+    expect(await parties("800222111")).toBe(1);
+  });
+
+  it("a card left confirmed by a crashed decision is taken over after a while, and still runs once", async () => {
+    const token = await createPendingConfirmation("800222333");
+    await h.sql`update kernel.agent_confirmations set status = 'confirmed', decided_at = now() - interval '10 minutes' where token = ${token}`;
+    expect(await decideConfirmation(h.deps, h.admin, token, "confirm")).toMatchObject({ status: "executed" });
+    expect(await parties("800222333")).toBe(1);
+  });
+
   it("tells the conversation what was decided, for the next turn", async () => {
     const token = await createPendingConfirmation("800111333");
     await decideConfirmation(h.deps, h.admin, token, "confirm");

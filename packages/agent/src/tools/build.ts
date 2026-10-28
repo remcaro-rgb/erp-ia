@@ -1,6 +1,5 @@
 import type { ToolSet } from "ai";
 import type { Caller, Registry, RunProcessDeps } from "@erp/kernel";
-import type { ScreenContext } from "../runtime/system-prompt";
 import { builtinToolDescriptors } from "./builtin";
 import type { ToolDescriptor } from "./descriptor";
 import { executeTool } from "./execute";
@@ -22,7 +21,7 @@ export async function toolDescriptors(deps: RunProcessDeps, caller: Caller, regi
  * The tools of `caller` (whose `conversationId` is where write proposals are stored), executing in-process: consults
  * run `runProcess` as the caller with origin `agent`, writes return a confirmation card.
  */
-export async function buildTools(deps: RunProcessDeps, caller: Caller, opts: { registry: Registry; screen?: ScreenContext }): Promise<ToolSet> {
+export async function buildTools(deps: RunProcessDeps, caller: Caller, opts: { registry: Registry }): Promise<ToolSet> {
   const scoped = { ...deps, registry: opts.registry };
   return toolSet(await toolDescriptors(scoped, caller, opts.registry), (name, input) => executeTool(scoped, caller, name, input));
 }

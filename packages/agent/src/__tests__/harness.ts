@@ -17,11 +17,12 @@ export const ADMIN_PROCESSES = [
   ...CUSTOM_FIELD_PROCESSES.map((p) => p.id),
   ...HELP_PROCESSES.map((p) => p.id),
   ...support.processes.map((p) => p.id),
+  "kernel.data.query",
   "kernel.export.run",
   "kernel.import.run",
   "kernel.import.preview",
 ];
-export const CASHIER_PROCESSES = ["core.party.consult"];
+export const CASHIER_PROCESSES = ["core.party.consult", "kernel.data.query"];
 
 export interface AgentHarness {
   sql: Db;

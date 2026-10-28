@@ -72,19 +72,22 @@ export function visibleIn(access: GridAccess): (field: string) => boolean {
  * or sort by.
  */
 export async function runGridQuery(sql: Sql, claims: JwtClaims, entity: EntityDef, state: GridState): Promise<GridResult & { access: GridAccess }> {
-  return withClaims(sql, claims, async (tx) => {
-    const access = await gridAccess(tx, entity);
-    const extras = Object.fromEntries(access.extras.map((e) => [e.key, e.type]));
-    const q = buildQuery(entity, state, visibleIn(access), { extras, timeZone: access.timeZone });
-    const rows = await tx.unsafe<Record<string, unknown>[]>(q.sql, q.params as never[]);
-    const [count] = await tx.unsafe<{ total: number }[]>(q.countSql, q.params as never[]);
-    const result: GridResult & { access: GridAccess } = { rows: [...rows], total: count?.total ?? 0, access };
-    if (q.aggregateSql) {
-      const [aggregates] = await tx.unsafe<Record<string, unknown>[]>(q.aggregateSql, q.params as never[]);
-      result.aggregates = { ...aggregates };
-    }
-    return result;
-  });
+  return withClaims(sql, claims, (tx) => gridQueryInTx(tx, entity, state));
+}
+
+/** One grid page read in `tx` (a transaction as the caller, e.g. a process's): see `runGridQuery`. */
+export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState): Promise<GridResult & { access: GridAccess }> {
+  const access = await gridAccess(tx, entity);
+  const extras = Object.fromEntries(access.extras.map((e) => [e.key, e.type]));
+  const q = buildQuery(entity, state, visibleIn(access), { extras, timeZone: access.timeZone });
+  const rows = await tx.unsafe<Record<string, unknown>[]>(q.sql, q.params as never[]);
+  const [count] = await tx.unsafe<{ total: number }[]>(q.countSql, q.params as never[]);
+  const result: GridResult & { access: GridAccess } = { rows: [...rows], total: count?.total ?? 0, access };
+  if (q.aggregateSql) {
+    const [aggregates] = await tx.unsafe<Record<string, unknown>[]>(q.aggregateSql, q.params as never[]);
+    result.aggregates = { ...aggregates };
+  }
+  return result;
 }
 
 /** A role's party scope (design §5.18): which parties the caller sees (`kernel.party_scope()`). */

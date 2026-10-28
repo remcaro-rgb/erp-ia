@@ -71,9 +71,12 @@ describe("0019_kernel_agent", () => {
     expect(await as(h.cashier, async (tx) => (await tx`select id from kernel.agent_messages where conversation_id = ${adminConversation}`).length)).toBe(0);
   });
 
-  it("the confirmation token is not published in the read view", async () => {
+  it("the confirmation token is not published in the read view, nor readable from the table", async () => {
     const [row] = await as(h.admin, (tx) => tx`select * from kernel.v_agent_confirmations limit 1`);
     expect(row).not.toHaveProperty("token");
+    await expect(as(h.cashier, (tx) => tx`select token from kernel.agent_confirmations`)).rejects.toThrow(/permission denied/);
+    await expect(as(h.cashier, (tx) => tx`select id from kernel.agent_confirmations where token = 'x'`)).rejects.toThrow(/permission denied/);
+    expect(await as(h.cashier, async (tx) => (await tx`select id, status from kernel.agent_confirmations`).length)).toBe(1);
   });
 
   it("nobody signed in writes conversations, messages or cards, nor usage outside a process", async () => {

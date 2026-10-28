@@ -31,14 +31,18 @@ export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
 export const DEFAULT_PRICE: ModelPrice = { input: 4, output: 20, cachedInput: 0.2 };
 const FREE: ModelPrice = { input: 0, output: 0, cachedInput: 0 };
 
-export function priceOf(model: string): ModelPrice {
+/**
+ * The price of `model`. A model the table does not list is priced as `priceAs` when given (the model the policy asked
+ * for, so a gateway id the table lacks is never billed at another model's rate), else at `DEFAULT_PRICE`.
+ */
+export function priceOf(model: string, priceAs?: string): ModelPrice {
   if (model.startsWith("fake/") || model.startsWith("mock/")) return FREE;
-  return MODEL_PRICES[model] ?? DEFAULT_PRICE;
+  return MODEL_PRICES[model] ?? (priceAs !== undefined && priceAs !== model ? priceOf(priceAs) : DEFAULT_PRICE);
 }
 
 /** The cost in USD of one call; `cachedTokens` are part of `inputTokens`. Rounded to the column's 6 decimals. */
-export function costUsd(model: string, tokens: { inputTokens: number; outputTokens: number; cachedTokens?: number }): number {
-  const price = priceOf(model);
+export function costUsd(model: string, tokens: { inputTokens: number; outputTokens: number; cachedTokens?: number }, priceAs?: string): number {
+  const price = priceOf(model, priceAs);
   const cached = Math.min(tokens.cachedTokens ?? 0, tokens.inputTokens);
   const usd = ((tokens.inputTokens - cached) * price.input + cached * price.cachedInput + tokens.outputTokens * price.output) / 1_000_000;
   return Math.round(usd * 1_000_000) / 1_000_000;
@@ -60,6 +64,8 @@ export interface LlmUsageRow {
   task: LlmTask;
   /** AI Gateway model id; the provider is its first segment. */
   model: string;
+  /** The model whose price applies when the table does not list `model` (the policy's requested model). */
+  priceAs?: string;
   inputTokens: number;
   outputTokens?: number;
   cachedTokens?: number;
@@ -80,7 +86,7 @@ export async function recordLlmUsage(db: Sql | Tx, row: LlmUsageRow): Promise<vo
   const inputTokens = Math.max(0, Math.round(row.inputTokens));
   const outputTokens = Math.max(0, Math.round(row.outputTokens ?? 0));
   const cachedTokens = Math.max(0, Math.round(row.cachedTokens ?? 0));
-  const cost = costUsd(row.model, { inputTokens, outputTokens, cachedTokens });
+  const cost = costUsd(row.model, { inputTokens, outputTokens, cachedTokens }, row.priceAs);
   await db`
     insert into kernel.llm_usage (scope, company_id, user_id, conversation_id, task, provider, model,
                                   input_tokens, output_tokens, cached_tokens, cost_usd, run_id, step_number)

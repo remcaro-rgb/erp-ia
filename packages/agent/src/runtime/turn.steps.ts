@@ -8,8 +8,9 @@ import { appendMessage, loadHistory, ownsConversation } from "./conversation";
 import { checkTokenBudget } from "./limits";
 import { resolveModel, type ModelChoice } from "./model-policy";
 import { catalogueOf, message } from "./preview";
-import type { StepTokens } from "./step-usage";
-import { buildSystemPrompt, loadPromptFacts, type ScreenContext } from "./system-prompt";
+import { scrubTokens } from "../tools/cap";
+import { attributeModel, type StepTokens } from "./step-usage";
+import { buildSystemPrompt, loadPromptFacts, sanitizeScreen, type ScreenContext } from "./system-prompt";
 import { recordUsage } from "./usage";
 
 // What the steps of the turn workflow do (turn.workflow.ts). Kept apart from the workflow file and free of top-level
@@ -63,7 +64,9 @@ export async function prepare(args: TurnArgs, runId: string): Promise<Prepared> 
   // The caller's tools: the processes they may run in an entitled company, then the built-ins (rule 17).
   const permitted = await permittedProcesses(deps(), caller, registry);
   const tools = [...permitted.map(processToolDescriptor), ...(await builtinToolDescriptors(deps(), caller, registry))];
-  const facts = await loadPromptFacts(sql, caller, { userText: args.userText, screen: args.screen, permitted, conversationId: args.conversationId, runId });
+  // Only a screen of the app and a registered record reach the prompt (the browser sent them).
+  const screen = sanitizeScreen(registry, args.screen);
+  const facts = await loadPromptFacts(sql, caller, { userText: args.userText, screen, permitted, conversationId: args.conversationId, runId });
   const history = await loadHistory(sql, args.conversationId, runId);
   return { kind: "ready", model, system: buildSystemPrompt(facts), tools, messages: [...history, { role: "user", content: args.userText }] };
 }
@@ -86,26 +89,36 @@ export async function storeReply(args: TurnArgs, runId: string, text: string): P
   });
 }
 
-/** Stores the turn's response messages and one usage row per model call. */
-export async function finish(args: TurnArgs, runId: string, response: ModelMessage[], usage: StepTokens[], error?: string): Promise<void> {
+/**
+ * Meters one model call of the turn, as it ends (rule 27): under the policy's model (or the fallback that answered),
+ * priced at the requested model's rate when the table lacks the answering one. Keyed by run and step: written once.
+ */
+export async function meterStep(args: TurnArgs, runId: string, stepNumber: number, tokens: StepTokens, policy: ModelChoice): Promise<void> {
+  const { claims } = args.caller;
+  await recordUsage(getServiceDb(), {
+    companyId: claims.active_company_id,
+    userId: claims.sub,
+    conversationId: args.conversationId,
+    task: "chat",
+    model: attributeModel(tokens.model, policy),
+    priceAs: policy.primary,
+    inputTokens: tokens.inputTokens,
+    outputTokens: tokens.outputTokens,
+    cachedTokens: tokens.cachedTokens,
+    runId,
+    stepNumber,
+  });
+}
+
+/**
+ * Stores the turn's answer: its response messages without any confirmation token (the card id stays), followed by
+ * the failure message when the turn ended with an error (also when it produced nothing).
+ */
+export async function finish(args: TurnArgs, runId: string, response: ModelMessage[], error?: string): Promise<void> {
   const sql = getServiceDb();
   const { claims } = args.caller;
-  for (const [stepNumber, step] of usage.entries()) {
-    await recordUsage(sql, {
-      companyId: claims.active_company_id,
-      userId: claims.sub,
-      conversationId: args.conversationId,
-      task: "chat",
-      model: step.model,
-      inputTokens: step.inputTokens,
-      outputTokens: step.outputTokens,
-      cachedTokens: step.cachedTokens,
-      runId,
-      stepNumber,
-    });
-  }
   if (error) console.error(`agent turn ${runId} ended with an error: ${error}`);
-  const failed = message(catalogueOf(claims.locale), "agent.failed") ?? "";
-  const parts: unknown[] = response.length > 0 ? response : [{ role: "assistant", content: [{ type: "text", text: failed }] }];
+  const failed = { role: "assistant", content: [{ type: "text", text: message(catalogueOf(claims.locale), "agent.failed") ?? "" }] };
+  const parts: unknown[] = [...scrubTokens(response), ...(error || response.length === 0 ? [failed] : [])];
   await appendMessage(sql, { companyId: claims.active_company_id, conversationId: args.conversationId, role: "assistant", parts, runId, userId: claims.sub });
 }

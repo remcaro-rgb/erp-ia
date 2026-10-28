@@ -4,6 +4,7 @@ import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { BUILTIN_TOOLS } from "../tools/builtin";
 import { toolSet } from "../tools/build";
+import { capResult, MAX_RESULT_BYTES, scrubTokens } from "../tools/cap";
 import { EXCLUDED_PROCESSES, inputJsonSchema, processIdOfTool, toolName } from "../tools/from-registry";
 import { buildPreview } from "../runtime/preview";
 import type { ToolDescriptor } from "../tools/descriptor";
@@ -28,7 +29,9 @@ describe("tool names", () => {
 
   it("built-in tools have names no process can take", () => {
     const names = BUILTIN_TOOLS.map((t) => t.name);
-    expect(names).toEqual(["data__query", "ui__navigate", "ui__open_record"]);
+    // data.query is the registered process kernel.data.query (rule 1); only the navigation tools are built in.
+    expect(names).toEqual(["ui__navigate", "ui__open_record"]);
+    expect(registry.process("kernel.data.query")).toMatchObject({ kind: "consult", module: "kernel", feature: "kernel.data" });
     for (const process of registry.processes()) expect(names).not.toContain(toolName(process.id));
   });
 });
@@ -97,5 +100,40 @@ describe("confirmation preview", () => {
     const preview = buildPreview(registry, def, { id: "0190d8b2-1c1e-7000-8000-000000000000", urgent: true }, { locale: "es-419", stepUp: true });
     expect(preview.stepUp).toBe(true);
     expect(preview.effects).toContainEqual({ label: "urgent", value: "Sí" });
+  });
+});
+
+describe("capResult (rule 17: consult results are capped)", () => {
+  it("keeps a small result as it is", () => {
+    expect(capResult({ id: "x", legal_name: "Éxito" })).toEqual({ id: "x", legal_name: "Éxito" });
+  });
+
+  it("cuts a rows result to 50 rows and to the byte budget, marking it truncated", () => {
+    const rows = Array.from({ length: 80 }, (_, i) => ({ i, text: "x".repeat(500) }));
+    const out = capResult({ entity: "core.party", rows, total: 80 }) as { rows: unknown[]; total: number; truncated: boolean };
+    expect(out.rows.length).toBeLessThanOrEqual(50);
+    expect(out.truncated).toBe(true);
+    expect(out.total).toBe(80);
+    expect(JSON.stringify(out).length).toBeLessThanOrEqual(MAX_RESULT_BYTES);
+  });
+
+  it("cuts any other large value to the byte budget with a marker", () => {
+    const out = capResult({ blob: "y".repeat(40_000) }) as { truncated: boolean; preview: string };
+    expect(out.truncated).toBe(true);
+    expect(JSON.stringify(out).length).toBeLessThanOrEqual(MAX_RESULT_BYTES + 200);
+    const list = capResult(Array.from({ length: 120 }, (_, i) => i)) as { truncated: boolean; items: number[] };
+    expect(list).toMatchObject({ truncated: true });
+    expect(list.items).toHaveLength(50);
+  });
+});
+
+describe("scrubTokens", () => {
+  it("removes the confirmation token from stored tool results, keeping the card id", () => {
+    const messages = [
+      { role: "tool", content: [{ type: "tool-result", toolCallId: "c", toolName: "core__party__create", output: { type: "json", value: { confirmationRequired: true, token: "secret-token", cardId: "card-1", preview: {} } } }] },
+    ];
+    const clean = scrubTokens(messages);
+    expect(JSON.stringify(clean)).not.toContain("secret-token");
+    expect(JSON.stringify(clean)).toContain("card-1");
   });
 });

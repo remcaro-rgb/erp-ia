@@ -1,11 +1,9 @@
 import type { Sql } from "postgres";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
-import { getServiceDb } from "../db/service";
-import { entitled } from "../entitlements/resolver";
 import { ProcessError } from "../process/errors";
 import { buildQuery } from "../query/build-query";
 import { EXTRA_PREFIX, type GridStateInput } from "../query/grid-state";
-import { consultProcessesOf, entitlementKeyOf, gridEntity } from "../query/access";
+import { gridEntity, requireGridAccess } from "../query/access";
 import { gridAccess, visibleIn, type GridAccess } from "../query/run";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
@@ -37,24 +35,6 @@ export interface ExportPlan {
 }
 
 /**
- * The grid's own gate (rule 13): the company is entitled to the entity's feature (or module) and a role of the caller
- * may run the entity's consult process. Exporting is no way around either. Runs in the caller's transaction.
- */
-async function requireEntityAccess(tx: Tx, registry: Registry, entity: ResolvedEntityDef): Promise<void> {
-  const [company] = await tx<{ id: string }[]>`select kernel.current_company_id() as id`;
-  const key = entitlementKeyOf(registry, entity);
-  if (key !== null && !(await entitled(getServiceDb(), company!.id, key))) {
-    throw new ProcessError("not_entitled", `${entity.id} is not entitled for company ${company!.id}`);
-  }
-  const consults = consultProcessesOf(registry, entity);
-  const [row] =
-    consults.length === 0
-      ? [{ allowed: false }]
-      : await tx<{ allowed: boolean }[]>`select coalesce(bool_or(kernel.can_run_process(p)), false) as allowed from unnest(${consults}::text[]) as p`;
-  if (!row?.allowed) throw new ProcessError("forbidden", `no role of the caller may consult ${entity.id}, which exporting it requires`);
-}
-
-/**
  * Resolves what the caller may export of `spec.entity` and counts the rows, in the caller's transaction. Throws
  * `ProcessError`: `invalid_input` for an unknown entity or no exportable column, `not_entitled` and `forbidden` as the
  * grid would; and `QueryError` for a state the grid would refuse (a hidden field filtered, an unknown column).
@@ -62,7 +42,7 @@ async function requireEntityAccess(tx: Tx, registry: Registry, entity: ResolvedE
 export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): Promise<ExportPlan> {
   const entity = gridEntity(registry, spec.entity);
   if (!entity) throw new ProcessError("invalid_input", `unknown entity ${spec.entity}`, { details: [`La entidad ${spec.entity} no existe`] });
-  await requireEntityAccess(tx, registry, entity);
+  await requireGridAccess(tx, registry, entity);
   const access = await gridAccess(tx, entity);
   const columns = exportColumns(entity, access, spec.state, spec);
   if (columns.length === 0) throw new ProcessError("invalid_input", `${spec.entity}: no exportable columns`, { details: ["No hay columnas visibles para exportar"] });

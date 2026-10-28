@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FakeEmbedder, GatewayEmbedder, chunkGuide, guideProblems, loadGuides } from "@erp/kernel";
-import { GUIDES_DIR, loadAppRegistry, pickEmbedder } from "../help-index";
+import { GUIDES_DIR, loadAppRegistry, pickEmbedder, policyEmbeddingModel } from "../help-index";
+import { MissingModelPolicy } from "@erp/agent";
 
 // `pnpm help:index` (Task 16): the user guides in docs/user-guide/es-419 against the modules the app loads
 // (apps/web/src/lib/server/runtime.ts). A guide that names a screen or process that does not exist, or a menu screen
@@ -37,5 +38,24 @@ describe("pickEmbedder", () => {
     const without = pickEmbedder({});
     expect(without.embedder).toBeInstanceOf(FakeEmbedder);
     expect(without.name).toMatch(/FakeEmbedder/);
+  });
+});
+
+describe("policyEmbeddingModel", () => {
+  it("embeds with the model the policy table names for embeddings (rule 26)", async () => {
+    const warnings: string[] = [];
+    expect(await policyEmbeddingModel(async () => ({ primary: "openai/text-embedding-3-small", fallbacks: ["x/y"] }), (m) => warnings.push(m))).toBe("openai/text-embedding-3-small");
+    expect(warnings).toEqual([]);
+    expect(pickEmbedder({ AI_GATEWAY_API_KEY: "key" }, "openai/text-embedding-3-small").name).toContain("openai/text-embedding-3-small");
+  });
+
+  it("falls back to the code default only when the policy table has no row, and says so", async () => {
+    const warnings: string[] = [];
+    const model = await policyEmbeddingModel(async () => {
+      throw new MissingModelPolicy("embeddings");
+    }, (m) => warnings.push(m));
+    expect(model).toBe("openai/text-embedding-3-small");
+    expect(warnings[0]).toMatch(/no model policy/);
+    await expect(policyEmbeddingModel(async () => { throw new Error("db down"); }, () => {})).rejects.toThrow("db down");
   });
 });

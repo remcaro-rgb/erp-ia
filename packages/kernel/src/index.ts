@@ -43,7 +43,8 @@ export type { CallerProfile, StoredUserPref } from "./user-prefs";
 export { runnableProcesses } from "./process/permissions";
 export { buildQuery, GridState, operatorsFor, QueryError } from "./query";
 export type { BuildQueryOptions, BuiltQuery, FilterOp, GridStateInput, QueryErrorCode } from "./query";
-export { gridAccess, gridPageAccess, runGridQuery, visibleIn } from "./query/run";
+export { gridAccess, gridPageAccess, gridQueryInTx, runGridQuery, visibleIn } from "./query/run";
+export { DATA_PROCESSES, DATA_QUERY_MAX_ROWS, dataQuery } from "./query/data-query.process";
 export type { FieldMode, GridAccess, GridExtraField, GridResult, PartyScope } from "./query/run";
 export { SAVED_VIEW_PROCESS_IDS, SAVED_VIEW_PROCESSES, SavedViewState } from "./saved-views";
 export type { SavedView } from "./saved-views";
@@ -53,7 +54,7 @@ export { importEntity } from "./import/entity";
 export { importColumns, importTarget } from "./import/columns";
 export type { ImportColumn, ImportColumnType } from "./import/columns";
 export { exportsStore, fileStore, setExportsStore, setFileStore } from "./files/store";
-export { consultProcessesOf, entitlementKeyOf, gridDenial, gridEntity } from "./query/access";
+export { consultProcessesOf, entitlementKeyOf, gridDenial, gridEntity, requireGridAccess } from "./query/access";
 export type { GridDenial } from "./query/access";
 export { EXPORT_PROCESSES, exportJobEntity } from "./exports";
 export {

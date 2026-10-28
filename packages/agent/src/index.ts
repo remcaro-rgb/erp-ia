@@ -3,7 +3,8 @@
 
 export const AGENT_VERSION = "0.1.0";
 
-export { BUILTIN_TOOLS, MAX_QUERY_ROWS } from "./tools/builtin";
+export { BUILTIN_TOOLS } from "./tools/builtin";
+export { capResult, MAX_RESULT_BYTES, MAX_RESULT_ROWS, scrubTokens } from "./tools/cap";
 export { buildTools, toolDescriptors, toolSet } from "./tools/build";
 export type { ToolDescriptor, ToolRefusal, ToolRunner } from "./tools/descriptor";
 export { executeTool } from "./tools/execute";

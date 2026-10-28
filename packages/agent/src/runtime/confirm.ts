@@ -7,14 +7,28 @@ import { buildPreview, type ConfirmationPreview } from "./preview";
 // Confirmation cards (design §6 "Agent", §7.1, rules 15 and 17, review focus 4): a write-kind tool never runs. It
 // validates the input with the process's schema, stores the proposal with a random token and returns the card; the
 // process runs when the conversation's user confirms it, through `runProcess` as that user with origin `agent`, the
-// conversation id and the token as idempotency key, so a card confirmed twice (double click, reconnect) runs once.
+// conversation id and the token as idempotency key.
+//
+// A decision holds no transaction: the card moves by compare-and-set (`pending` → `confirmed` → `executed`, or
+// `pending` → `rejected`), and the run in between is `runProcess`'s own. Two confirmations of one card (double click,
+// reconnect): the one that wins the `pending` → `confirmed` step runs the process; the other waits for it (polling the
+// card, up to `IN_FLIGHT_WAIT_MS`) and answers the same stored result, or `idempotent_replay` when the run is still
+// going. A `confirmed` card nobody finished within `STALE_CONFIRMED_MS` (a crash) is taken over; the idempotency key
+// keeps the process from running twice. The stored idempotency result is consulted before the card's expiry, so a
+// run that committed answers its result even if marking the card `executed` was lost.
 
 /** How long a card can be confirmed. */
 export const CONFIRMATION_TTL_MINUTES = 15;
+/** How long a second confirmation waits for the first one's run. */
+export const IN_FLIGHT_WAIT_MS = 10_000;
+/** A card `confirmed` this long ago without a result belongs to a decision that died: another may take it over. */
+export const STALE_CONFIRMED_MS = 2 * 60_000;
 
 export interface ConfirmationRequired {
   confirmationRequired: true;
+  /** The card's bearer secret, for the confirm route. Never stored in the conversation (the card id is). */
   token: string;
+  cardId: string;
   preview: ConfirmationPreview;
 }
 
@@ -46,16 +60,18 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
 
   const preview = buildPreview(deps.registry, def, parsed.data, { locale: claims.locale, stepUp: await needsStepUp(deps, claims.active_company_id, def) });
   const token = randomBytes(32).toString("base64url");
-  const inserted = await deps.sql`
+  const [inserted] = await deps.sql<{ id: string }[]>`
     insert into kernel.agent_confirmations (company_id, conversation_id, user_id, process_id, input, preview, token, expires_at, created_by)
     select c.company_id, c.id, c.user_id, ${def.id}, ${deps.sql.json(input as never)}, ${deps.sql.json(preview as never)}, ${token},
            now() + make_interval(mins => ${CONFIRMATION_TTL_MINUTES}), c.user_id
     from kernel.agent_conversations c
     where c.id = ${caller.conversationId} and c.user_id = ${claims.sub} and c.company_id = ${claims.active_company_id}
     returning id`;
-  if (inserted.length === 0) return refusal("not_found", { message: "conversation not found" });
-  return { confirmationRequired: true, token, preview };
+  if (!inserted) return refusal("not_found", { message: "conversation not found" });
+  return { confirmationRequired: true, token, cardId: inserted.id, preview };
 }
+
+type Status = "pending" | "confirmed" | "rejected" | "executed";
 
 interface Card {
   id: string;
@@ -63,67 +79,117 @@ interface Card {
   conversation_id: string;
   process_id: string;
   input: unknown;
-  status: "pending" | "confirmed" | "rejected" | "executed";
+  status: Status;
   result: unknown;
   expired: boolean;
+  stale: boolean;
 }
 
 const notFound = () => new ProcessError("not_found", "no such confirmation", { stage: "gate" });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Confirms or rejects the card `token` as `caller`. The card is read as the caller (company RLS) and must be theirs:
- * another user, a company admin included, gets `not_found`. Reject marks it `rejected`; a rejected card never runs.
- * Confirm runs the process under a lock on the card (`step_up_required` and other refusals leave the card pending and
- * are thrown); a card already executed answers its stored result without running again; a card past its 15 minutes
- * is `invalid_input`.
- * Every decision is told to the conversation (an `event` row) so the next turn knows it.
+ * Confirms or rejects the card `token` as `caller`. The card must be the caller's, in their active company: anyone
+ * else (a company admin included) gets `not_found`. Reject marks it `rejected`; a rejected card never runs. Confirm runs
+ * the process once (see the module comment); `step_up_required` and the process's other refusals put the card back to
+ * `pending` and are thrown; a card past its 15 minutes is `invalid_input` (`confirmation_expired`). Every decision is
+ * told to the conversation (an `event` row) so the next turn knows it.
  */
 export async function decideConfirmation(deps: RunProcessDeps, caller: Caller, token: string, decision: Decision, stepUpToken?: string): Promise<DecisionResult> {
   const { claims } = caller;
-  const [card] = await withClaims(deps.sql, claims, (tx) => tx<Card[]>`
-    select id, company_id, conversation_id, process_id, input, status, result, expires_at <= now() as expired
-    from kernel.agent_confirmations
-    where token = ${token} and user_id = ${claims.sub}`);
-  if (!card) throw notFound();
-
-  const tell = (part: Record<string, unknown>) =>
+  // The token column is not readable by signed-in users (0020): the card is found server-side, for this user only.
+  const load = async (): Promise<Card | undefined> =>
+    (
+      await deps.sql<Card[]>`
+        select id, company_id, conversation_id, process_id, input, status, result, expires_at <= now() as expired,
+               coalesce(decided_at < now() - make_interval(secs => ${STALE_CONFIRMED_MS / 1000}), false) as stale
+        from kernel.agent_confirmations
+        where token = ${token} and user_id = ${claims.sub} and company_id = ${claims.active_company_id}`
+    )[0];
+  /** The run's stored result, when the process already ran with this token (read as the caller, like runProcess). */
+  const stored = async (card: Card): Promise<{ result: unknown } | undefined> =>
+    (
+      await withClaims(deps.sql, claims, (tx) => tx<{ result: unknown }[]>`
+        select result from kernel.process_idempotency where company_id = ${card.company_id} and process_id = ${card.process_id} and key = ${token}`)
+    )[0];
+  const tell = (card: Card, part: Record<string, unknown>) =>
     appendMessage(deps.sql, { companyId: card.company_id, conversationId: card.conversation_id, role: "event", parts: [{ type: "confirmation", processId: card.process_id, ...part }], userId: claims.sub });
+  /** Marks the card executed with the run's result; true when this call did (so it alone tells the conversation). */
+  const markExecuted = async (card: Card, result: unknown): Promise<boolean> =>
+    (
+      await deps.sql`
+        update kernel.agent_confirmations set status = 'executed', result = ${deps.sql.json((result ?? null) as never)}, decided_at = now(), updated_by = ${claims.sub}
+        where id = ${card.id} and status <> 'executed' and status <> 'rejected' returning id`
+    ).length > 0;
 
-  if (card.status === "executed") return { status: "executed", result: card.result };
-  if (card.status === "rejected") return { status: "rejected" };
+  /** What the card already says, when it is decided; undefined while it is open. */
+  const settled = async (card: Card): Promise<DecisionResult | undefined> => {
+    if (card.status === "executed") return { status: "executed", result: card.result };
+    if (card.status === "rejected") return { status: "rejected" };
+    const previous = await stored(card);
+    if (previous) {
+      if (await markExecuted(card, previous.result)) await tell(card, { status: "executed", result: previous.result ?? null });
+      return { status: "executed", result: previous.result };
+    }
+    return undefined;
+  };
+
+  let card = await load();
+  if (!card) throw notFound();
+  const done = await settled(card);
+  if (done) return done;
 
   if (decision === "reject") {
     const rejected = await deps.sql`
       update kernel.agent_confirmations set status = 'rejected', decided_at = now(), updated_by = ${claims.sub}
       where id = ${card.id} and status = 'pending' returning id`;
-    if (rejected.length === 0) return decideConfirmation(deps, caller, token, decision, stepUpToken);
-    await tell({ status: "rejected" });
-    return { status: "rejected" };
+    if (rejected.length > 0) {
+      await tell(card, { status: "rejected" });
+      return { status: "rejected" };
+    }
+    // Someone confirmed it meanwhile: answer what that decision ends with.
+    return waitForOther(card.id);
   }
 
   if (card.expired) throw new ProcessError("invalid_input", "the confirmation expired", { details: ["confirmation_expired"], stage: "gate" });
 
-  // One decision at a time per card: a second confirmation (double click, reconnect) waits on the row lock, then finds
-  // the card executed and answers its stored result. The token is also the run's idempotency key (review focus 4).
-  // A refusal (step-up missing, the process's own rules) rolls the lock transaction back: the card stays pending.
-  const outcome = await deps.sql.begin(async (lock) => {
-    const [fresh] = await lock<{ status: Card["status"]; result: unknown }[]>`
-      select status, result from kernel.agent_confirmations where id = ${card.id} for update`;
-    if (fresh!.status === "executed") return { status: "executed" as const, result: fresh!.result, fresh: false };
-    if (fresh!.status === "rejected") return { status: "rejected" as const, fresh: false };
-    const result = await runProcess(
+  // pending → confirmed (or a dead decision's stale `confirmed`): the winner runs the process.
+  const claimed = await deps.sql`
+    update kernel.agent_confirmations set status = 'confirmed', decided_at = now(), updated_by = ${claims.sub}
+    where id = ${card.id}
+      and (status = 'pending' or (status = 'confirmed' and decided_at < now() - make_interval(secs => ${STALE_CONFIRMED_MS / 1000})))
+    returning id`;
+  if (claimed.length === 0) return waitForOther(card.id);
+
+  let result: unknown;
+  try {
+    result = await runProcess(
       deps,
       { claims, origin: "agent", conversationId: card.conversation_id, ...(stepUpToken ? { stepUpToken } : {}) },
       card.process_id,
       card.input,
       { idempotencyKey: token },
     );
-    await lock`
-      update kernel.agent_confirmations set status = 'executed', result = ${lock.json((result ?? null) as never)}, decided_at = now(), updated_by = ${claims.sub}
-      where id = ${card.id}`;
-    return { status: "executed" as const, result, fresh: true };
-  });
-  if (outcome.status === "rejected") return { status: "rejected" };
-  if (outcome.fresh) await tell({ status: "executed", result: outcome.result ?? null });
-  return { status: "executed", result: outcome.result };
+  } catch (error) {
+    // The user can try again (with the step-up code, or after fixing what the process refused).
+    await deps.sql`update kernel.agent_confirmations set status = 'pending', decided_at = null where id = ${card.id} and status = 'confirmed'`;
+    throw error;
+  }
+  if (await markExecuted(card, result)) await tell(card, { status: "executed", result: result ?? null });
+  return { status: "executed", result };
+
+  /** Another decision holds the card: wait for it to settle (or to give the card back), then answer. */
+  async function waitForOther(id: string): Promise<DecisionResult> {
+    const until = Date.now() + IN_FLIGHT_WAIT_MS;
+    while (Date.now() < until) {
+      await sleep(100);
+      card = await load();
+      if (!card || card.id !== id) throw notFound();
+      const answer = await settled(card);
+      if (answer) return answer;
+      // The other decision was refused (step-up, the process's rules) and gave the card back: decide it now.
+      if (card.status === "pending" || card.stale) return decideConfirmation(deps, caller, token, decision, stepUpToken);
+    }
+    throw new ProcessError("idempotent_replay", "the confirmation is being processed", { details: ["confirmation_in_progress"], stage: "gate" });
+  }
 }

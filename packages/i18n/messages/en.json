@@ -696,7 +696,8 @@
       "saved_views": "Saved views",
       "imports": "Bulk import (Excel / CSV)",
       "exports": "Export to PDF, Excel and CSV",
-      "help": "Help and user guides"
+      "help": "Help and user guides",
+      "data": "Assistant data queries"
     },
     "support": {
       "tickets": "Support tickets"

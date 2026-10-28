@@ -20,6 +20,7 @@
     "help:index": "tsx scripts/help-index.ts"
   },
   "devDependencies": {
+    "@erp/agent": "workspace:*",
     "@erp/kernel": "workspace:*",
     "@erp/module-core": "workspace:*",
     "@erp/module-support": "workspace:*",

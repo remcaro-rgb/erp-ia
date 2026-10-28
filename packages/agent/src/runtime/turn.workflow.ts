@@ -4,7 +4,8 @@ import { getWorkflowMetadata, getWritable } from "workflow";
 import { toolSet } from "../tools/tool-set";
 import { policyModel } from "./policy-model";
 import { stepUsage, type StepTokens } from "./step-usage";
-import { finish, prepare, runTool, storeReply, type Prepared, type TurnArgs } from "./turn.steps";
+import type { ModelChoice } from "./model-policy";
+import { finish, meterStep, prepare, runTool, storeReply, type Prepared, type TurnArgs } from "./turn.steps";
 
 export type { TurnArgs } from "./turn.steps";
 
@@ -37,13 +38,27 @@ export async function agentTurn(args: TurnArgs): Promise<void> {
     instructions: prepared.system,
     tools: toolSet(prepared.tools, (name, input) => runToolStep(args, name, input)),
   });
-  const result = await agent.stream({ messages: prepared.messages, writable, stopWhen: isStepCount(MAX_STEPS) });
-
-  // The turn's response: everything after the user's message (assistant text and tool calls, tool results).
-  const lastUser = result.messages.map((m) => m.role).lastIndexOf("user");
-  const response = result.messages.slice(lastUser + 1);
-  const usage = result.steps.map((step) => stepUsage(step));
-  await finishTurn(args, workflowRunId, response, usage, result.error === undefined ? undefined : String(result.error));
+  let stepNumber = 0;
+  try {
+    const result = await agent.stream({
+      messages: prepared.messages,
+      writable,
+      stopWhen: isStepCount(MAX_STEPS),
+      // Every model call is metered as it ends, so a turn that fails later still pays for what it used (rule 27).
+      onStepEnd: async (step) => {
+        await meterStepStep(args, workflowRunId, stepNumber++, stepUsage(step), prepared.model);
+      },
+    });
+    // The turn's response: everything after the user's message (assistant text and tool calls, tool results).
+    const lastUser = result.messages.map((m) => m.role).lastIndexOf("user");
+    const response = result.messages.slice(lastUser + 1);
+    await finishTurn(args, workflowRunId, response, "error" in result && result.error !== undefined ? String(result.error) : undefined);
+  } catch (error) {
+    // A step that kept failing (the gateway exhausted, a non-retryable error): the user still gets an answer stored.
+    await finishTurn(args, workflowRunId, [], error instanceof Error ? error.message : String(error));
+    await closeStream(writable);
+    throw error;
+  }
 }
 
 /** Checks the conversation, stores the user's message, checks the allowance and gathers the model's input. */
@@ -73,14 +88,20 @@ export async function replyWithoutModel(args: TurnArgs, runId: string, text: str
   await storeReply(args, runId, text);
 }
 
-/** Ends the run's stream with nothing in it. */
+/** Ends the run's stream (already closed: nothing to do). */
 export async function closeStream(writable: WritableStream<ModelCallStreamPart>): Promise<void> {
   "use step";
-  await writable.close();
+  await writable.close().catch(() => undefined);
 }
 
-/** Stores the turn's response messages and one usage row per model call. */
-export async function finishTurn(args: TurnArgs, runId: string, response: ModelMessage[], usage: StepTokens[], error?: string): Promise<void> {
+/** Meters one model call of the turn. */
+export async function meterStepStep(args: TurnArgs, runId: string, stepNumber: number, tokens: StepTokens, policy: ModelChoice): Promise<void> {
   "use step";
-  await finish(args, runId, response, usage, error);
+  await meterStep(args, runId, stepNumber, tokens, policy);
+}
+
+/** Stores the turn's answer (and the failure message when it ended with an error). */
+export async function finishTurn(args: TurnArgs, runId: string, response: ModelMessage[], error?: string): Promise<void> {
+  "use step";
+  await finish(args, runId, response, error);
 }

@@ -46,7 +46,8 @@ describe("buildTools", () => {
     expect(cashierTools).not.toContain("kernel__help__search");
 
     const adminTools = Object.keys(await buildTools(h.deps, admin, { registry: h.deps.registry }));
-    expect(adminTools).toEqual(expect.arrayContaining(["core__party__create", "core__party__consult", "kernel__help__search", "data__query", "ui__navigate", "ui__open_record"]));
+    expect(adminTools).toEqual(expect.arrayContaining(["core__party__create", "core__party__consult", "kernel__help__search", "kernel__data__query", "ui__navigate", "ui__open_record"]));
+    expect(adminTools).not.toContain("data__query");
     // Permitted but not entitled: the support module is not the company's.
     expect(adminTools).not.toContain("support__ticket__create");
     // Permitted and entitled, but never offered in a chat: they need a file or a job only the screen starts.
@@ -58,6 +59,7 @@ describe("buildTools", () => {
     const r = await run(admin, "core__party__create", exito);
     expect(r).toMatchObject({ confirmationRequired: true, preview: { title: expect.any(String), permission: "core.party.create", stepUp: false } });
     expect(typeof r.token).toBe("string");
+    expect(typeof r.cardId).toBe("string");
     expect((r.token as string).length).toBeGreaterThanOrEqual(43);
     expect((await h.sql`select count(*)::int as n from core.parties where legal_name = 'Éxito' and company_id = ${h.companyId}`)[0]!.n).toBe(0);
     const [card] = await h.sql`select status, process_id, user_id, conversation_id, input from kernel.agent_confirmations where token = ${r.token as string}`;
@@ -80,21 +82,37 @@ describe("buildTools", () => {
   });
 
   it("data.query applies field masks and refuses hidden fields", async () => {
-    const r = await run(cashier, "data__query", { entity: "core.party", sort: [{ field: "legal_name", dir: "asc" }], columns: ["legal_name", "document_number", "credit_limit"] });
+    const r = await run(cashier, "kernel__data__query", { entity: "core.party", sort: [{ field: "legal_name", dir: "asc" }], columns: ["legal_name", "document_number", "credit_limit"] });
     expect(r).toMatchObject({ entity: "core.party", total: 3 });
     const rows = r.rows as Record<string, unknown>[];
     expect(rows.map((row) => row.legal_name)).toEqual(["Cliente 1", "Cliente 2", "Cliente 3"]);
     expect(rows.every((row) => row.document_number === null && row.credit_limit === null)).toBe(true);
 
-    expect(await run(cashier, "data__query", { entity: "core.party", filters: [{ field: "credit_limit", op: "gt", value: 0 }] })).toMatchObject({ ok: false, error: { code: "field_hidden", field: "credit_limit" } });
-    expect(await run(cashier, "data__query", { entity: "core.party", sort: [{ field: "document_number", dir: "asc" }] })).toMatchObject({ ok: false, error: { code: "field_hidden" } });
+    expect(await run(cashier, "kernel__data__query", { entity: "core.party", filters: [{ field: "credit_limit", op: "gt", value: 0 }] })).toMatchObject({
+      ok: false,
+      error: { code: "forbidden", details: { reason: "field_hidden", field: "credit_limit" } },
+    });
+    expect(await run(cashier, "kernel__data__query", { entity: "core.party", sort: [{ field: "document_number", dir: "asc" }] })).toMatchObject({ ok: false, error: { code: "forbidden" } });
+  });
+
+  it("data.query is the registered process kernel.data.query: audited with the conversation, behind the role matrix", async () => {
+    await run(cashier, "kernel__data__query", { entity: "core.party", limit: 1 });
+    const [audit] = await h.sql`select origin, conversation_id, action from kernel.audit_log where process_id = 'kernel.data.query' and actor_user_id = ${cashier.claims.sub} order by occurred_at desc limit 1`;
+    expect(audit).toMatchObject({ origin: "agent", conversation_id: cashier.conversationId, action: "consult" });
+    await h.sql`delete from kernel.process_permissions where role_id = ${h.cashierRoleId} and process_id = 'kernel.data.query'`;
+    try {
+      expect(Object.keys(await buildTools(h.deps, cashier, { registry: h.deps.registry }))).not.toContain("kernel__data__query");
+    } finally {
+      await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${h.cashierRoleId}, 'kernel.data.query')`;
+    }
   });
 
   it("data.query caps the rows it returns and refuses an entity the caller may not consult", async () => {
-    const r = await run(admin, "data__query", { entity: "core.party", limit: 2 });
+    const r = await run(admin, "kernel__data__query", { entity: "core.party", limit: 2 });
     expect((r.rows as unknown[]).length).toBe(2);
     expect(r).toMatchObject({ total: 3, truncated: true });
-    expect(await run(cashier, "data__query", { entity: "core.product" })).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await run(admin, "kernel__data__query", { entity: "core.party", limit: 51 })).toMatchObject({ ok: false, error: { code: "invalid_input" } });
+    expect(await run(cashier, "kernel__data__query", { entity: "core.product" })).toMatchObject({ ok: false, error: { code: "forbidden" } });
   });
 
   it("ui tools only point at the app's own screens", async () => {
