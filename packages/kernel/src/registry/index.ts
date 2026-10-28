@@ -4,7 +4,7 @@ import type { ModuleDef, ProcessDef } from "./types";
 export { defineEntity } from "./entities";
 export type { EntityDef, ResolvedEntityDef } from "./entities";
 export type { FieldDef, FieldType, ResolvedFieldDef } from "./fields";
-export type { ModuleDef, ProcessDef } from "./types";
+export type { ModuleDef, ProcessDef, ProcessKind } from "./types";
 
 /** The catalogue every module declares its entities, processes and manifest in (design §5.3). */
 export class Registry {

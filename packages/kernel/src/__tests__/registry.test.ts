@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { z } from "zod";
+import { defineProcess } from "../process/define";
 import { defineEntity, registry, Registry, type EntityDef } from "../registry";
 import { maskedViewSql } from "../security/masked-views";
 
@@ -15,6 +17,9 @@ const party: EntityDef = {
     { name: "credit_limit", type: "money", label: "field.credit_limit", sensitivity: "confidential" },
   ],
 };
+
+const proc = (id: string, module: string) =>
+  defineProcess({ id, module, kind: "consult", description: "prueba", input: z.object({}), output: z.object({}), handler: async () => ({}) });
 
 describe("entity registry", () => {
   it("defineEntity validates fields and registers", () => {
@@ -107,12 +112,12 @@ describe("entity registry", () => {
     expect(r.entities("sales").map((e) => e.id)).toEqual(["sales.order"]);
     expect(() => r.entity("nope.nope")).toThrow(/unknown entity/);
 
-    r.registerProcess({ id: "core.party.create", module: "core" });
-    r.registerProcess({ id: "sales.order.confirm", module: "sales" });
+    r.registerProcess(proc("core.party.create", "core"));
+    r.registerProcess(proc("sales.order.confirm", "sales"));
     expect(r.process("sales.order.confirm").module).toBe("sales");
     expect(r.processes().map((p) => p.id)).toEqual(["core.party.create", "sales.order.confirm"]);
     expect(r.processes({ module: "core" }).map((p) => p.id)).toEqual(["core.party.create"]);
-    expect(() => r.registerProcess({ id: "core.party.create", module: "core" })).toThrow(/already registered/);
+    expect(() => r.registerProcess(proc("core.party.create", "core"))).toThrow(/already registered/);
     expect(() => r.process("nope")).toThrow(/unknown process/);
 
     r.registerModule({ id: "core" });

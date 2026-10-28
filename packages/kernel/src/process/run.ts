@@ -1,0 +1,188 @@
+import { randomUUID } from "node:crypto";
+import type { JSONValue, Sql } from "postgres";
+import type { z } from "zod";
+import { setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
+import { withClaims, type JwtClaims, type Tx } from "../db/client";
+import { entitled as entitledStub, type EntitledFn } from "../entitlements/stub";
+import { enqueueEvent } from "../events/outbox";
+import type { Registry } from "../registry";
+import type { ProcessDef, ProcessKind } from "../registry/types";
+import type { Caller, ProcessContext } from "./context";
+import { ProcessError } from "./errors";
+
+export interface RunProcessDeps {
+  sql: Sql;
+  registry: Registry;
+  /** Entitlement check; defaults to the stub until Task 6 injects `kernel.entitled`. */
+  entitled?: EntitledFn;
+}
+
+/** A process run by id has no static output type unless the caller names its output schema. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type UntypedOutput = z.ZodType<any>;
+
+const ACTION: Record<ProcessKind, AuditAction> = { create: "insert", update: "update", delete: "delete", consult: "consult" };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Runs a registered process for `caller` (design §5.4). In order: resolve (`not_found`),
+ * entitlements (`not_entitled`), permission (`forbidden`), step-up (`step_up_required`), input
+ * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
+ * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
+ * error rolls all of it back and surfaces as `handler_failed`.
+ */
+export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
+  deps: RunProcessDeps,
+  caller: Caller,
+  processId: string,
+  input: unknown,
+): Promise<z.infer<O>> {
+  const def = resolve(deps.registry, processId);
+  const { claims } = caller;
+  const companyId = claims.active_company_id;
+
+  const entitled = deps.entitled ?? entitledStub;
+  if (!(await entitled(deps.sql, companyId, `process:${def.id}`)) || !(await entitled(deps.sql, companyId, `module:${def.module}`))) {
+    throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`);
+  }
+
+  const stepUpToken = caller.stepUpToken ?? null;
+  const gate = await withClaims(deps.sql, claims, async (tx) => {
+    const [row] = await tx<{ allowed: boolean; sensitive: boolean; verified: boolean }[]>`
+      select
+        kernel.can_run_process(${def.id}) as allowed,
+        exists (
+          select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id}
+        ) as sensitive,
+        exists (
+          select 1 from kernel.step_up_verifications v
+          where v.token = ${stepUpToken} and v.user_id = ${claims.sub} and v.company_id = ${companyId}
+            and v.verified_at > now() - interval '5 minutes' and v.consumed_at is null
+        ) as verified`;
+    return row!;
+  });
+  if (!gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`);
+  const stepUp = gate.sensitive || def.sensitivity === "step-up";
+  if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`);
+
+  const parsed = def.input.safeParse(input);
+  if (!parsed.success) {
+    throw new ProcessError("invalid_input", `invalid input for ${def.id}`, { details: parsed.error.issues });
+  }
+
+  const key = def.idempotencyKey?.(parsed.data);
+  if (key !== undefined) {
+    const stored = await storedResult(deps.sql, claims, def.id, key);
+    if (stored) return stored.result as z.infer<O>;
+  }
+
+  const chainId = caller.chainId ?? randomUUID();
+  try {
+    return await withClaims(deps.sql, claims, async (tx) => {
+      await setAuditContext(tx, {
+        origin: caller.origin,
+        processId: def.id,
+        chainId,
+        actorUserId: claims.sub,
+        conversationId: caller.conversationId,
+      });
+      if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
+
+      const ctx = buildContext(tx, def, caller, chainId);
+      let output: unknown;
+      try {
+        output = await def.handler(ctx, parsed.data);
+      } catch (cause) {
+        throw new ProcessError("handler_failed", `process ${def.id} failed`, { cause });
+      }
+
+      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(output), input: parsed.data });
+
+      if (key !== undefined) {
+        const inserted = await tx`
+          insert into kernel.process_idempotency (company_id, process_id, key, result)
+          values (${companyId}, ${def.id}, ${key}, ${tx.json((output ?? null) as JSONValue)})
+          on conflict do nothing
+          returning key`;
+        // A concurrent run with the same key committed first: undo this one and replay that one.
+        if (inserted.length === 0) throw new ProcessError("idempotent_replay", `${def.id} already ran with key ${key}`);
+      }
+      return output as z.infer<O>;
+    });
+  } catch (error) {
+    if (key !== undefined && error instanceof ProcessError && error.code === "idempotent_replay") {
+      const stored = await storedResult(deps.sql, claims, def.id, key);
+      if (stored) return stored.result as z.infer<O>;
+    }
+    throw error;
+  }
+}
+
+function resolve(registry: Registry, processId: string): ProcessDef {
+  try {
+    return registry.process(processId);
+  } catch {
+    throw new ProcessError("not_found", `unknown process: ${processId}`);
+  }
+}
+
+async function storedResult(sql: Sql, claims: JwtClaims, processId: string, key: string) {
+  const [row] = await withClaims(
+    sql,
+    claims,
+    (tx) => tx<{ result: unknown }[]>`
+      select result from kernel.process_idempotency
+      where company_id = ${claims.active_company_id} and process_id = ${processId} and key = ${key}`,
+  );
+  return row;
+}
+
+/** Marks the caller's verification consumed; a concurrent run that consumed it first wins. */
+async function consumeStepUp(tx: Tx, processId: string, token: string, userId: string, companyId: string) {
+  const consumed = await tx`
+    update kernel.step_up_verifications set consumed_at = now()
+    where token = ${token} and user_id = ${userId} and company_id = ${companyId}
+      and verified_at > now() - interval '5 minutes' and consumed_at is null
+    returning id`;
+  if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`);
+}
+
+function buildContext(tx: Tx, def: ProcessDef, caller: Caller, chainId: string): ProcessContext {
+  const { claims } = caller;
+  return {
+    tx,
+    companyId: claims.active_company_id,
+    tenantId: claims.tenant_id,
+    userId: claims.sub,
+    roleIds: claims.role_ids,
+    locale: claims.locale,
+    origin: caller.origin,
+    chainId,
+    conversationId: caller.conversationId,
+    async emit(event, payload) {
+      await enqueueEvent(tx, { companyId: claims.active_company_id, event, payload, chainId });
+    },
+    async audit(entry) {
+      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), ...entry });
+    },
+  };
+}
+
+function auditDefaults(def: ProcessDef, caller: Caller, chainId: string) {
+  return {
+    companyId: caller.claims.active_company_id,
+    actorUserId: caller.claims.sub,
+    origin: caller.origin,
+    processId: def.id,
+    // `sales.order.confirm` acts on the entity `sales.order`.
+    entity: def.id.includes(".") ? def.id.slice(0, def.id.lastIndexOf(".")) : def.id,
+    action: ACTION[def.kind],
+    chainId,
+    conversationId: caller.conversationId,
+  };
+}
+
+function rowIdOf(output: unknown): string | undefined {
+  if (typeof output !== "object" || output === null || !("id" in output)) return undefined;
+  return typeof output.id === "string" && UUID.test(output.id) ? output.id : undefined;
+}
