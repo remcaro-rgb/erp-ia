@@ -115,6 +115,10 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       };
     },
     async cleanup() {
+      // The outbox is shared by every suite and drained across companies: a suite takes its rows with it (deliveries
+      // cascade), so the next suite that drains never dispatches them.
+      await sql`delete from kernel.outbox where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.outbox_dead_letter where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.export_jobs where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.recommendations where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from core.entity_sequences where company_id = any(${companyIds}::uuid[])`;

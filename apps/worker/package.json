@@ -1,0 +1,29 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "smoke": "tsx src/smoke.ts",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@erp/infra": "workspace:*",
+    "@erp/kernel": "workspace:*",
+    "@erp/module-core": "workspace:*",
+    "@erp/module-support": "workspace:*",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
+    "@workflow/world-postgres": "^5.0.5",
+    "postgres": "^3.4.9",
+    "tsx": "^4.23.15",
+    "workflow": "^5.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

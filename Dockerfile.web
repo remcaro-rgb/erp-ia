@@ -1,0 +1,39 @@
+# syntax=docker/dockerfile:1.7
+# The web app for the Docker target (design §21): Next.js `output: "standalone"` in a Node 22 container. Build
+# context: the repository root. The Workflow World is chosen at run time by WORKFLOW_TARGET_WORLD (compose: the
+# Postgres World); the image itself is the same for every target.
+
+ARG NODE_IMAGE=node:22-bookworm-slim
+
+FROM ${NODE_IMAGE} AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true NEXT_TELEMETRY_DISABLED=1
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
+WORKDIR /app
+
+# Packages from the lockfile only, so this layer survives source edits.
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch --frozen-lockfile
+
+FROM deps AS build
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline --frozen-lockfile --filter "web..."
+RUN pnpm --filter web build
+
+FROM ${NODE_IMAGE} AS runner
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+WORKDIR /app
+COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=build --chown=node:node /app/apps/web/public ./apps/web/public
+# The runtime requires the World package by name from the app root (WORKFLOW_TARGET_WORLD=@workflow/world-postgres);
+# the trace keeps it (an external in next.config.ts) in node_modules/.pnpm, so it gets its name next to the app.
+RUN mkdir -p apps/web/node_modules/@workflow \
+ && ln -s "$(cd node_modules/.pnpm/@workflow+world-postgres@*/node_modules/@workflow/world-postgres && pwd)" apps/web/node_modules/@workflow/world-postgres \
+ && node -e "require.resolve('@workflow/world-postgres', { paths: ['/app/apps/web'] })"
+USER node
+WORKDIR /app/apps/web
+EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=12 \
+  CMD node -e "fetch('http://127.0.0.1:3000/.well-known/workflow/v1/flow?__health',{method:'POST'}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+CMD ["node", "server.js"]

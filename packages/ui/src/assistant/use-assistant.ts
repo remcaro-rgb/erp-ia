@@ -2,18 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, getToolName, isToolUIPart, type UIMessage } from "ai";
+import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
+import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { asDirective, errorKeyOf, toolCardState, userTextOf, type CardState, type ScreenContext } from "./model";
 
-// The assistant's chat state (design §7.1). AI SDK `useChat` over a `DefaultChatTransport` to POST /api/agent/turn:
+// The assistant's chat state (design §7.1). AI SDK `useChat` over a `WorkflowChatTransport` to POST /api/agent/turn:
 // the route takes only `{ conversationId?, text, screen? }`, so `prepareSendMessagesRequest` sends the new text and the
 // screen the user is looking at (never the whole history, which the server keeps), and the conversation id comes back
 // in `x-conversation-id` and is reused. A stored conversation is restored from GET /api/agent/conversation with the
 // state of its cards; a card is decided through POST /api/agent/confirm by its id.
 //
-// Reconnecting to a turn that is still running after a reload (`x-workflow-run-id`): the SDK's `WorkflowChatTransport`
-// does it through GET `<api>/<runId>/stream`, an endpoint the turn route does not offer yet. The turn is durable, so
-// its answer is stored: reloading shows the stored conversation (history), not the live stream of a turn in flight.
+// A turn is a durable workflow run (`x-workflow-run-id`). When its response drops before the finish chunk (network,
+// function timeout), the transport reconnects through GET `<api>/<runId>/stream?startIndex=<chunks received>` with
+// the conversation id in `x-conversation-id` (the route serves only a turn of the caller's own conversation) and the
+// answer goes on where it stopped. After a page reload the drawer shows the stored conversation (history); the live
+// stream of a turn still in flight at that moment is not resumed (its answer is stored when it ends).
 
 export interface UseAssistantOptions {
   screen: ScreenContext;
@@ -57,7 +60,7 @@ export function useAssistant(options: UseAssistantOptions) {
 
   const transport = useMemo(
     () =>
-      new DefaultChatTransport<UIMessage>({
+      new WorkflowChatTransport<UIMessage>({
         api: endpoint,
         fetch: async (input, init) => {
           const response = await (latest.current.fetcher ?? fetch)(input, init);
@@ -69,6 +72,11 @@ export function useAssistant(options: UseAssistantOptions) {
           const { screen } = latest.current;
           const conversation = conversationRef.current;
           return { body: { ...(conversation ? { conversationId: conversation } : {}), text: userTextOf(messages), ...(screen.route || screen.record ? { screen } : {}) } };
+        },
+        prepareReconnectToStreamRequest: ({ api }) => {
+          const conversation = conversationRef.current;
+          const headers: Record<string, string> = conversation ? { "x-conversation-id": conversation } : {};
+          return { api, headers };
         },
       }),
     [endpoint, remember],

@@ -31,6 +31,21 @@ export async function ownsConversation(sql: Sql, claims: JwtClaims, conversation
   return row!.ok;
 }
 
+/**
+ * Whether `runId` is a turn of `conversationId` and the conversation is the caller's in their active company: the
+ * turn's first step stores the user's message with its run id, so a run that is not one of this conversation's turns
+ * (another user's, another conversation's, or not a turn at all) is not found.
+ */
+export async function ownsRun(sql: Sql, claims: JwtClaims, conversationId: string, runId: string): Promise<boolean> {
+  if (!(await ownsConversation(sql, claims, conversationId))) return false;
+  const [row] = await sql<{ ok: boolean }[]>`
+    select exists (
+      select 1 from kernel.agent_messages
+      where conversation_id = ${conversationId} and run_id = ${runId} and role = 'user'
+    ) as ok`;
+  return row!.ok;
+}
+
 /** Appends a row; with `runId`, a retried step writes the run's row for that role once. */
 export async function appendMessage(
   sql: Sql,

@@ -1,0 +1,30 @@
+# API gateway of the self-hosted Supabase stack (official docker compose, volumes/api/kong.yml), reduced to the
+# services this app uses: Auth, PostgREST and Storage under the same paths as Supabase cloud and `supabase start`.
+# The stack lives on the compose's private network; its published port is bound to 127.0.0.1 (docker-compose.yml).
+_format_version: "1.1"
+services:
+  - name: auth-v1-open
+    url: http://auth:9999/verify
+    routes:
+      - { name: auth-v1-open, strip_path: true, paths: [/auth/v1/verify] }
+    plugins: [{ name: cors }]
+  - name: auth-v1-open-callback
+    url: http://auth:9999/callback
+    routes:
+      - { name: auth-v1-open-callback, strip_path: true, paths: [/auth/v1/callback] }
+    plugins: [{ name: cors }]
+  - name: auth-v1
+    url: http://auth:9999/
+    routes:
+      - { name: auth-v1-all, strip_path: true, paths: [/auth/v1/] }
+    plugins: [{ name: cors }]
+  - name: rest-v1
+    url: http://rest:3000/
+    routes:
+      - { name: rest-v1-all, strip_path: true, paths: [/rest/v1/] }
+    plugins: [{ name: cors }]
+  - name: storage-v1
+    url: http://storage:5000/
+    routes:
+      - { name: storage-v1-all, strip_path: true, paths: [/storage/v1/] }
+    plugins: [{ name: cors }]

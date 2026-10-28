@@ -44,6 +44,33 @@ function server(handlers: { history?: () => Response; turn?: (body: Record<strin
 const setup = (options: Partial<UseAssistantOptions> & Pick<UseAssistantOptions, "fetcher">) => renderHook((props: Partial<UseAssistantOptions>) => useAssistant({ screen: { route: "/parties" }, ...options, ...props }), { initialProps: {} });
 
 describe("useAssistant", () => {
+  it("reconnects to the running turn when its response drops before the finish chunk, from the chunk it stopped at", async () => {
+    const all = answer("Hay 12 clientes.");
+    const reconnects: Call[] = [];
+    const s = server({ turn: () => sse(all.slice(0, 3), { "x-workflow-run-id": "wrun_01LIVE" }) });
+    const base = s.fetcher;
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("/api/agent/turn/")) {
+        reconnects.push({ url, ...(init ? { init } : {}) });
+        return sse(all.slice(3), { "x-workflow-run-id": "wrun_01LIVE" });
+      }
+      return base(input, init);
+    }) as typeof fetch;
+    const { result } = setup({ fetcher });
+    await waitFor(() => expect(result.current.ready).toBe(true));
+
+    await act(async () => void result.current.send("¿cuántos clientes hay?"));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    expect(reconnects.map((r) => r.url)).toEqual(["/api/agent/turn/wrun_01LIVE/stream?startIndex=3"]);
+    // The route checks the run is a turn of the caller's conversation: the drawer names it.
+    expect(new Headers(reconnects[0]!.init?.headers).get("x-conversation-id")).toBe(CONVERSATION);
+    const reply = result.current.messages.at(-1)!;
+    expect(reply.parts.filter((p) => p.type === "text").map((p) => (p as { text: string }).text).join("")).toBe("Hay 12 clientes.");
+    expect(result.current.errorKey).toBeNull();
+  });
+
   it("sends the text with screen.route on every turn, and the conversation id the first answer gave", async () => {
     const s = server({});
     const { result, rerender } = setup({ fetcher: s.fetcher });

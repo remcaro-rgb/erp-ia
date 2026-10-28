@@ -79,6 +79,9 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
       try {
         await sql`delete from kernel.auth_attempts where key = any(${[`login:${email}`, `mfa:${userId}`, `stepup:${userId}`]}::text[])`;
         await sql`delete from kernel.step_up_verifications where user_id = ${userId}`;
+        // The outbox is shared by every suite and drained across companies: take this fixture's rows with it.
+        await sql`delete from kernel.outbox where company_id = any(${companyIds}::uuid[])`;
+        await sql`delete from kernel.outbox_dead_letter where company_id = any(${companyIds}::uuid[])`;
         await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where user_id = ${userId})`;
         await sql`delete from kernel.memberships where user_id = ${userId}`;
         await sql`delete from kernel.roles where company_id = any(${companyIds}::uuid[])`;

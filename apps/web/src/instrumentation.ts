@@ -6,6 +6,9 @@ export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   // A production build never reaches a database.
   if (process.env.NEXT_PHASE === "phase-production-build") return;
+  // Docker: the Postgres World wiring is checked before anything starts a run (lib/server/world.ts).
+  const { checkWorkflowWorld } = await import("./lib/server/world");
+  await checkWorkflowWorld();
   const { registrySynced } = await import("./lib/server/runtime");
   try {
     await registrySynced();

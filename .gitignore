@@ -3,6 +3,7 @@ node_modules/
 .superpowers/
 .env*
 !.env.example
+!.env.docker.example
 coverage/
 dist/
 .turbo/

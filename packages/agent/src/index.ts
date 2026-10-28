@@ -11,7 +11,7 @@ export { executeTool } from "./tools/execute";
 export { EXCLUDED_PROCESSES, inputJsonSchema, permittedProcesses, processIdOfTool, toolName } from "./tools/from-registry";
 export { CONFIRMATION_TTL_MINUTES, createConfirmation, decideConfirmation } from "./runtime/confirm";
 export type { CardRef, ConfirmationRequired, Decision, DecisionResult } from "./runtime/confirm";
-export { createConversation, ownsConversation } from "./runtime/conversation";
+export { createConversation, ownsConversation, ownsRun } from "./runtime/conversation";
 export { PolicyEmbedder } from "./runtime/embedder";
 export { AI_TOKENS_LIMIT_KEY, checkTokenBudget, costUsd, MODEL_PRICES, overBudget } from "./runtime/limits";
 export type { TokenBudget } from "./runtime/limits";
@@ -24,6 +24,7 @@ export type { CardView, ConversationView, StoredMessageRow } from "./runtime/his
 export { buildPreview } from "./runtime/preview";
 export type { ConfirmationPreview } from "./runtime/preview";
 export { agentStreamResponse, toUIMessageStream } from "./runtime/stream";
+export type { StreamOptions } from "./runtime/stream";
 export { buildSystemPrompt } from "./runtime/system-prompt";
 export type { PromptFacts, ScreenContext } from "./runtime/system-prompt";
 export { agentTurn, MAX_STEPS } from "./runtime/turn.workflow";

@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1.7
+# The Workflow worker for the Docker target (design §21, apps/worker): a long-running Node 22 process that registers
+# the modules' manifests, starts the Workflow Postgres World (its graphile-worker queue) and ticks the outbox. Build
+# context: the repository root. The same image runs the World's schema bootstrap (compose `workflow-init`).
+
+ARG NODE_IMAGE=node:22-bookworm-slim
+
+FROM ${NODE_IMAGE} AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
+RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch --frozen-lockfile
+
+# The worker runs its TypeScript sources and the workspace packages' (kernel, core, support) with tsx: production
+# dependencies of the worker and of the packages it uses, nothing else.
+FROM deps AS runner
+ENV NODE_ENV=production
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline --frozen-lockfile --prod --filter "worker..."
+USER node
+WORKDIR /app/apps/worker
+HEALTHCHECK --interval=30s --timeout=45s --start-period=60s --retries=5 \
+  CMD ["./node_modules/.bin/workflow", "health", "--backend", "@workflow/world-postgres", "--timeout", "30000"]
+CMD ["./node_modules/.bin/tsx", "src/main.ts"]

@@ -1,0 +1,20 @@
+# Build context of Dockerfile.web / Dockerfile.worker: the sources and the lockfile, nothing built or secret.
+**/node_modules
+**/.next
+**/.turbo
+**/.swc
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+**/.workflow-data
+**/.workflow-vitest
+**/tsconfig.tsbuildinfo
+**/.DS_Store
+.git
+.github
+.superpowers
+docs
+**/.env*
+!**/.env.example
+!.env.docker.example

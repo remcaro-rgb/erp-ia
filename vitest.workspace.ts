@@ -10,5 +10,6 @@ export default defineWorkspace([
   "packages/modules/support/vitest.config.ts",
   "packages/localization/co/vitest.config.ts",
   "apps/web/vitest.config.ts",
+  "apps/worker/vitest.config.ts",
   "scripts/vitest.config.ts",
 ]);

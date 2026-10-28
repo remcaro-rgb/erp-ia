@@ -230,8 +230,11 @@ describe("export-route", () => {
     const refused = await post(exportBody("pdf"));
     expect(refused.status).toBe(400);
     expect(await refused.json()).toMatchObject({ code: "invalid_input", details: ["pdf_too_large"] });
-    expect((await post(exportBody("xlsx"))).status).toBe(202);
-  });
+    const xlsx = await post(exportBody("xlsx"));
+    expect(xlsx.status).toBe(202);
+    // The job renders in the background: wait for it, so its file write cannot land in a later test's store mock.
+    expect((await untilDone(((await xlsx.json()) as { jobId: string }).jobId)).status).toBe("done");
+  }, 120_000);
 
   it("a job is visible only to who started it: another member's job and an unknown id are 404, never the signed URL", async () => {
     const companyId = fixture.companyIds[0]!;

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { seedAuthUser, type AuthFixture } from "../../../../../test-support/auth-fixtures";
 import { MemoryJar } from "../../../../../test-support/memory-jar";
 
-const state = vi.hoisted(() => ({ jar: undefined as unknown, started: [] as { args: unknown[] }[] }));
+const state = vi.hoisted(() => ({ jar: undefined as unknown, started: [] as { args: unknown[] }[], read: [] as { runId: string; options: unknown }[] }));
 vi.mock("next/headers", () => ({ cookies: async () => state.jar, headers: async () => new Headers() }));
 // The workflow runtime is not under test here (packages/agent runs the turn under @workflow/vitest): `start` records
 // what the route started and hands back a run whose stream holds one text part.
@@ -20,12 +20,27 @@ vi.mock("workflow/api", () => ({
     });
     return { runId: "wrun_test", readable };
   }),
+  // A run being reconnected to: its durable stream, replayed from the start, holds one text part.
+  getRun: vi.fn((runId: string) => ({
+    getReadable: (options: unknown) => {
+      state.read.push({ runId, options });
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "text-start", id: "t" });
+          controller.enqueue({ type: "text-delta", id: "t", text: "Hola" });
+          controller.enqueue({ type: "text-end", id: "t" });
+          controller.close();
+        },
+      });
+    },
+  })),
 }));
 
 import { loginWithPassword } from "@/lib/auth/login";
 import { POST as confirm } from "../confirm/route";
 import { GET as conversation } from "../conversation/route";
 import { POST as turn } from "../turn/route";
+import { GET as stream } from "../turn/[runId]/stream/route";
 
 // POST /api/agent/turn and POST /api/agent/confirm (design §7.1, rules 12 and 17) against the real stack: the session's
 // user starts a turn in their own conversation only, and decides only their own confirmation cards.
@@ -95,6 +110,64 @@ describe("POST /api/agent/turn", () => {
     } finally {
       state.jar = jar;
     }
+  });
+});
+
+describe("GET /api/agent/turn/:runId/stream", () => {
+  /** A conversation of `owner` with a turn `runId` (the turn's first step stores the user's message with its run id). */
+  const turnOf = async (owner: AuthFixture, runId: string) => {
+    const [conversation] = await owner.sql<{ id: string }[]>`
+      insert into kernel.agent_conversations(company_id, user_id) values (${owner.companyIds[0]!}, ${owner.userId}) returning id`;
+    await owner.sql`insert into kernel.agent_messages(company_id, conversation_id, role, parts, run_id)
+                    values (${owner.companyIds[0]!}, ${conversation!.id}, 'user', '[{"type":"text","text":"hola"}]', ${runId})`;
+    return conversation!.id;
+  };
+  const get = (runId: string, query: string, headers: Record<string, string> = {}) =>
+    stream(new Request(`http://localhost/api/agent/turn/${runId}/stream${query}`, { headers }), { params: Promise.resolve({ runId }) });
+
+  it("replays the caller's running turn as UI message chunks, from the chunk the client stopped at", async () => {
+    const conversationId = await turnOf(fixture, "wrun_01RECONNECTOWN");
+    const response = await get("wrun_01RECONNECTOWN", "?startIndex=0", { "x-conversation-id": conversationId });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-workflow-run-id")).toBe("wrun_01RECONNECTOWN");
+    const all = await response.text();
+    expect(all).toContain('"type":"start"');
+    expect(all).toContain('"delta":"Hola"');
+    expect(all).toContain('"type":"finish"');
+    // The raw stream is always read from its start; the UI chunks the client has are skipped after conversion.
+    expect(state.read.at(-1)).toEqual({ runId: "wrun_01RECONNECTOWN", options: { startIndex: 0 } });
+
+    // start, start-step and text-start were received: the rest of the turn follows.
+    const resumed = await (await get("wrun_01RECONNECTOWN", "?startIndex=3", { "x-conversation-id": conversationId })).text();
+    expect(resumed).not.toContain('"type":"start"');
+    expect(resumed).not.toContain('"type":"text-start"');
+    expect(resumed).toContain('"delta":"Hola"');
+    expect(resumed).toContain('"type":"finish"');
+  });
+
+  it("is 404 for another user's run, for a run that is not a turn of the named conversation, and 400/401 otherwise", async () => {
+    const own = await turnOf(fixture, "wrun_01RECONNECTMINE");
+    const foreign = await turnOf(other, "wrun_01RECONNECTOTHER");
+    const reads = state.read.length;
+    // Another user's conversation and run.
+    expect((await get("wrun_01RECONNECTOTHER", "", { "x-conversation-id": foreign })).status).toBe(404);
+    // Another user's run under the caller's own conversation.
+    const notHers = await get("wrun_01RECONNECTOTHER", "", { "x-conversation-id": own });
+    expect(notHers.status).toBe(404);
+    expect(await notHers.json()).toMatchObject({ code: "not_found", details: ["run_not_found"] });
+    // No conversation named, a bad index, a malformed run id.
+    expect((await get("wrun_01RECONNECTMINE", "")).status).toBe(400);
+    expect((await get("wrun_01RECONNECTMINE", "?startIndex=-1", { "x-conversation-id": own })).status).toBe(400);
+    expect((await get("wrun_01RECONNECTMINE", "?startIndex=dos", { "x-conversation-id": own })).status).toBe(400);
+    expect((await get("../../etc", "", { "x-conversation-id": own })).status).toBe(400);
+    const jar = state.jar;
+    state.jar = new MemoryJar();
+    try {
+      expect((await get("wrun_01RECONNECTMINE", "", { "x-conversation-id": own })).status).toBe(401);
+    } finally {
+      state.jar = jar;
+    }
+    expect(state.read.length).toBe(reads);
   });
 });
 

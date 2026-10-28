@@ -80,6 +80,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 const localeOf = (state: SessionState) => state.claims?.locale ?? DEFAULT_LOCALE;
 
 export const config = {
-  // `.well-known/workflow/` carries the Workflow runtime's own requests (queue deliveries), never a user's.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // `.well-known/workflow/` carries the Workflow runtime's own requests (queue deliveries), never a user's; so does
+  // `api/internal/` (the outbox tick of Vercel Cron and the Docker worker), which checks its own secret.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|\\.well-known/workflow/|api/internal/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
