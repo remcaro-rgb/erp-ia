@@ -1,6 +1,6 @@
 import type { JSONSchema7 } from "@ai-sdk/provider";
 import { z } from "zod";
-import { entitled as resolveEntitled, runnableProcesses, type Caller, type ProcessDef, type Registry, type RunProcessDeps } from "@erp/kernel";
+import { consultProcessesOf, entitled as resolveEntitled, runnableProcesses, type Caller, type ProcessDef, type Registry, type RunProcessDeps } from "@erp/kernel";
 import type { ToolDescriptor } from "./descriptor";
 
 // The process tools (design §5.4 "the agent's tool list is generated from the registry", rules 1 and 17): one tool per
@@ -60,7 +60,30 @@ export async function permittedProcesses(deps: RunProcessDeps, caller: Caller, r
   return candidates.filter((_, i) => allowed[i]);
 }
 
-/** One descriptor per permitted process, in registry order. */
+/** The data query process, whose tool names the entities the caller may read with it. */
+export const DATA_QUERY_PROCESS = "kernel.data.query";
+
+/**
+ * One descriptor per permitted process, in registry order. The data query's tool lists the entities whose own
+ * consult process is among `permitted` (entitled and allowed to a role of the caller), in its description and as the
+ * enum of its `entity` field, so the model never guesses one.
+ */
+export function describeProcesses(registry: Registry, permitted: readonly ProcessDef[]): ToolDescriptor[] {
+  const allowed = new Set(permitted.map((p) => p.id));
+  return permitted.map((def) => {
+    const descriptor = processToolDescriptor(def);
+    if (def.id !== DATA_QUERY_PROCESS) return descriptor;
+    const entities = registry
+      .entities()
+      .filter((entity) => consultProcessesOf(registry, entity).some((id) => allowed.has(id)))
+      .map((entity) => entity.id);
+    const schema = descriptor.inputSchema as { properties?: Record<string, Record<string, unknown>> };
+    if (schema.properties?.entity && entities.length > 0) schema.properties.entity = { ...schema.properties.entity, enum: entities };
+    return { ...descriptor, description: `${descriptor.description}. Entidades que puedes consultar: ${entities.length > 0 ? entities.join(", ") : "ninguna"}` };
+  });
+}
+
+/** One descriptor per permitted process, in registry order (see `describeProcesses`). */
 export async function processToolDescriptors(deps: RunProcessDeps, caller: Caller, registry: Registry): Promise<ToolDescriptor[]> {
-  return (await permittedProcesses(deps, caller, registry)).map(processToolDescriptor);
+  return describeProcesses(registry, await permittedProcesses(deps, caller, registry));
 }

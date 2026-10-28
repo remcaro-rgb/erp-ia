@@ -10,7 +10,7 @@ export type { ToolDescriptor, ToolRefusal, ToolRunner } from "./tools/descriptor
 export { executeTool } from "./tools/execute";
 export { EXCLUDED_PROCESSES, inputJsonSchema, permittedProcesses, processIdOfTool, toolName } from "./tools/from-registry";
 export { CONFIRMATION_TTL_MINUTES, createConfirmation, decideConfirmation } from "./runtime/confirm";
-export type { ConfirmationRequired, Decision, DecisionResult } from "./runtime/confirm";
+export type { CardRef, ConfirmationRequired, Decision, DecisionResult } from "./runtime/confirm";
 export { createConversation, ownsConversation } from "./runtime/conversation";
 export { PolicyEmbedder } from "./runtime/embedder";
 export { AI_TOKENS_LIMIT_KEY, checkTokenBudget, costUsd, MODEL_PRICES, overBudget } from "./runtime/limits";

@@ -3,7 +3,7 @@ import { getServiceDb, registry, type Caller } from "@erp/kernel";
 import { builtinToolDescriptors } from "../tools/builtin";
 import type { ToolDescriptor } from "../tools/descriptor";
 import { executeTool } from "../tools/execute";
-import { permittedProcesses, processToolDescriptor } from "../tools/from-registry";
+import { describeProcesses, permittedProcesses } from "../tools/from-registry";
 import { appendMessage, loadHistory, ownsConversation } from "./conversation";
 import { checkTokenBudget } from "./limits";
 import { resolveModel, type ModelChoice } from "./model-policy";
@@ -63,7 +63,7 @@ export async function prepare(args: TurnArgs, runId: string): Promise<Prepared> 
   const model = await resolveModel(sql, claims.tenant_id, "chat");
   // The caller's tools: the processes they may run in an entitled company, then the built-ins (rule 17).
   const permitted = await permittedProcesses(deps(), caller, registry);
-  const tools = [...permitted.map(processToolDescriptor), ...(await builtinToolDescriptors(deps(), caller, registry))];
+  const tools = [...describeProcesses(registry, permitted), ...(await builtinToolDescriptors(deps(), caller, registry))];
   // Only a screen of the app and a registered record reach the prompt (the browser sent them).
   const screen = sanitizeScreen(registry, args.screen);
   const facts = await loadPromptFacts(sql, caller, { userText: args.userText, screen, permitted, conversationId: args.conversationId, runId });

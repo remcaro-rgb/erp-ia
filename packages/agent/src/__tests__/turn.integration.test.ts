@@ -134,7 +134,12 @@ describe("agentTurn", () => {
     const failed = (messages("es-419").agent as Record<string, string>).failed!;
     const rows = await h.sql<{ role: string; parts: unknown }[]>`select role, parts from kernel.agent_messages where conversation_id = ${conversationId} order by created_at`;
     expect(rows.map((r) => r.role)).toEqual(["user", "assistant"]);
-    expect(JSON.stringify(rows[1]!.parts)).toContain(failed);
+    // The step that succeeded (its tool call and result) is kept before the failure answer.
+    const stored = JSON.stringify(rows[1]!.parts);
+    expect(stored).toContain(failed);
+    expect(stored).toContain("kernel__data__query");
+    expect(stored).toContain("tool-result");
+    expect(stored.indexOf("tool-result")).toBeLessThan(stored.indexOf(failed));
   });
 
   it("only a known screen and a registered record reach the system prompt", async () => {

@@ -3,7 +3,7 @@ import { isStepCount, type ModelMessage } from "ai";
 import { getWorkflowMetadata, getWritable } from "workflow";
 import { toolSet } from "../tools/tool-set";
 import { policyModel } from "./policy-model";
-import { stepUsage, type StepTokens } from "./step-usage";
+import { stepMessages, stepUsage, type StepTokens } from "./step-usage";
 import type { ModelChoice } from "./model-policy";
 import { finish, meterStep, prepare, runTool, storeReply, type Prepared, type TurnArgs } from "./turn.steps";
 
@@ -14,9 +14,11 @@ export type { TurnArgs } from "./turn.steps";
 // model from the policy table (rule 26), lists the caller's tools (rule 17: only what their roles allow, generated from
 // the registry), assembles the Spanish system prompt, and runs the AI SDK's `WorkflowAgent` (the successor of the
 // Workflow DevKit's deprecated `DurableAgent`) for at most `MAX_STEPS` model calls, streaming its parts to the run's
-// stream. Every tool call is a workflow step that acts as the caller; the turn's messages and one usage row per model
-// call are stored at the end. The caller's claims travel as the workflow's arguments; the service connection writes
-// only the agent's own bookkeeping rows (conversation, messages, cards, usage).
+// stream. Every tool call is a workflow step that acts as the caller. Each model call is metered by its own step as it
+// ends (one usage row per call, also when the turn fails later); the turn's messages are stored at the end, and when
+// the turn fails, the steps that completed are stored before the failure answer. The caller's claims travel as the
+// workflow's arguments; the service connection writes only the agent's own bookkeeping rows (conversation, messages,
+// cards, usage).
 //
 // The sandbox side of this file imports only the AI SDK, the workflow runtime and kernel-free modules; everything that
 // touches the database is in turn.steps.ts, called from the steps below.
@@ -39,6 +41,7 @@ export async function agentTurn(args: TurnArgs): Promise<void> {
     tools: toolSet(prepared.tools, (name, input) => runToolStep(args, name, input)),
   });
   let stepNumber = 0;
+  const completed: ModelMessage[] = [];
   try {
     const result = await agent.stream({
       messages: prepared.messages,
@@ -46,6 +49,7 @@ export async function agentTurn(args: TurnArgs): Promise<void> {
       stopWhen: isStepCount(MAX_STEPS),
       // Every model call is metered as it ends, so a turn that fails later still pays for what it used (rule 27).
       onStepEnd: async (step) => {
+        completed.push(...stepMessages(step));
         await meterStepStep(args, workflowRunId, stepNumber++, stepUsage(step), prepared.model);
       },
     });
@@ -54,8 +58,9 @@ export async function agentTurn(args: TurnArgs): Promise<void> {
     const response = result.messages.slice(lastUser + 1);
     await finishTurn(args, workflowRunId, response, "error" in result && result.error !== undefined ? String(result.error) : undefined);
   } catch (error) {
-    // A step that kept failing (the gateway exhausted, a non-retryable error): the user still gets an answer stored.
-    await finishTurn(args, workflowRunId, [], error instanceof Error ? error.message : String(error));
+    // A step that kept failing (the gateway exhausted, a non-retryable error): what the completed steps did is stored,
+    // then the failure answer.
+    await finishTurn(args, workflowRunId, completed, error instanceof Error ? error.message : String(error));
     await closeStream(writable);
     throw error;
   }

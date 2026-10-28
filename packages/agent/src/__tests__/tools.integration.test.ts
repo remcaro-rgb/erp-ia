@@ -107,6 +107,14 @@ describe("buildTools", () => {
     }
   });
 
+  it("data.query's tool names the entities the caller may consult, so the model does not guess", async () => {
+    const cashierTools = await buildTools(h.deps, cashier, { registry: h.deps.registry });
+    expect(cashierTools.kernel__data__query!.description).toContain("core.party");
+    expect(cashierTools.kernel__data__query!.description).not.toContain("core.product");
+    const adminTools = await buildTools(h.deps, admin, { registry: h.deps.registry });
+    expect(adminTools.kernel__data__query!.description).toContain("core.product");
+  });
+
   it("data.query caps the rows it returns and refuses an entity the caller may not consult", async () => {
     const r = await run(admin, "kernel__data__query", { entity: "core.party", limit: 2 });
     expect((r.rows as unknown[]).length).toBe(2);

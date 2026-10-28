@@ -107,6 +107,38 @@ describe("decideConfirmation", () => {
     await h.sql`update kernel.agent_confirmations set expires_at = now() - interval '1 second' where token = ${token}`;
     await expect(decideConfirmation(h.deps, h.admin, token, "confirm")).rejects.toMatchObject({ code: "invalid_input" });
     expect(await parties("800111666")).toBe(0);
+    // It ends rejected (the expiry is the reason), and says so from then on.
+    expect(await card(token)).toMatchObject({ status: "rejected", result: { reason: "confirmation_expired" } });
+    expect(await decideConfirmation(h.deps, h.admin, token, "confirm")).toEqual({ status: "rejected", reason: "confirmation_expired" });
+  });
+
+  it("rejecting a card left confirmed by a crashed decision answers rejected at once", async () => {
+    const token = await createPendingConfirmation("800333111");
+    await h.sql`update kernel.agent_confirmations set status = 'confirmed', decided_at = now() - interval '10 minutes' where token = ${token}`;
+    const started = Date.now();
+    expect(await decideConfirmation(h.deps, h.admin, token, "reject")).toEqual({ status: "rejected" });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await parties("800333111")).toBe(0);
+  });
+
+  it("a stale confirmed card past its expiry ends rejected instead of answering invalid_input forever", async () => {
+    const token = await createPendingConfirmation("800333222");
+    await h.sql`update kernel.agent_confirmations set status = 'confirmed', decided_at = now() - interval '10 minutes', expires_at = now() - interval '1 minute' where token = ${token}`;
+    await expect(decideConfirmation(h.deps, h.admin, token, "confirm")).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await card(token)).toMatchObject({ status: "rejected" });
+    expect(await decideConfirmation(h.deps, h.admin, token, "confirm")).toEqual({ status: "rejected", reason: "confirmation_expired" });
+    expect(await parties("800333222")).toBe(0);
+  });
+
+  it("the owning user may decide a card by its id instead of its token; anyone else gets not_found", async () => {
+    const token = await createPendingConfirmation("800333333");
+    const [row] = await h.sql<{ id: string }[]>`select id from kernel.agent_confirmations where token = ${token}`;
+    await expect(decideConfirmation(h.deps, h.otherAdmin, { cardId: row!.id }, "confirm")).rejects.toMatchObject({ code: "not_found" });
+    await expect(decideConfirmation(h.deps, h.cashier, { cardId: row!.id }, "reject")).rejects.toMatchObject({ code: "not_found" });
+    const a = await decideConfirmation(h.deps, h.admin, { cardId: row!.id }, "confirm");
+    expect(a).toMatchObject({ status: "executed" });
+    expect(await decideConfirmation(h.deps, h.admin, token, "confirm")).toEqual(a);
+    expect(await parties("800333333")).toBe(1);
   });
 
   it("a step-up process confirmation without a step-up token returns step_up_required, and runs with a fresh one", async () => {

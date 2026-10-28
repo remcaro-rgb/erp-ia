@@ -108,6 +108,15 @@ describe("POST /api/agent/confirm", () => {
   };
   const exito = { kind: ["customer"], personType: "1", documentType: "31", documentNumber: "900373115", legalName: "Éxito", taxResponsibilities: ["R-99-PN"], taxScheme: "ZZ", countryCode: "CO" };
 
+  it("the user's own card can be decided by its id (the drawer's card has no token)", async () => {
+    const token = await card(fixture, { ...exito, documentNumber: "800111333" });
+    const [row] = await fixture.sql<{ id: string }[]>`select id from kernel.agent_confirmations where token = ${token}`;
+    const response = await post(confirm, "/api/agent/confirm", { cardId: row!.id, decision: "reject" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "rejected" });
+    expect((await post(confirm, "/api/agent/confirm", { cardId: row!.id, token, decision: "reject" })).status).toBe(400);
+  });
+
   it("confirming the user's own card runs the process once and answers its result", async () => {
     const token = await card(fixture, exito);
     const first = await post(confirm, "/api/agent/confirm", { token, decision: "confirm" });
@@ -125,6 +134,8 @@ describe("POST /api/agent/confirm", () => {
     expect(response.status).toBe(404);
     expect(await response.json()).toMatchObject({ code: "not_found" });
     expect((await post(confirm, "/api/agent/confirm", { token: foreign, decision: "maybe" })).status).toBe(400);
+    const [foreignCard] = await other.sql<{ id: string }[]>`select id from kernel.agent_confirmations where token = ${foreign}`;
+    expect((await post(confirm, "/api/agent/confirm", { cardId: foreignCard!.id, decision: "confirm" })).status).toBe(404);
     const own = await card(fixture, { ...exito, documentNumber: "800111222" });
     expect(await (await post(confirm, "/api/agent/confirm", { token: own, decision: "reject" })).json()).toEqual({ status: "rejected" });
   });
