@@ -5,6 +5,7 @@ import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
+import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import { installCapture, noteRoute } from "@/lib/support/capture";
 import type { ShellData } from "@/lib/shell/load";
@@ -73,6 +74,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       modules={data.modules}
       nav={data.nav}
       commands={data.commands}
+      assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity] }}
       theme={data.theme}
       initialTabs={data.tabs}
       currentHref={pathname}

@@ -413,7 +413,7 @@
       },
       "drawer": {
         "context": "Contexto: {context}",
-        "placeholder": "El asistente estará disponible muy pronto. Mientras tanto, usa ⌘K para ir a cualquier pantalla.",
+        "placeholder": "Pregúntame por tus datos, pídeme una acción o escribe “¿cómo hago…?”.",
         "input": "Pregunta, pide una acción o “¿cómo hago…?”",
         "input_label": "Escribe",
         "send": "Enviar",
@@ -1033,7 +1033,51 @@
     },
     "step_up_code": "Código de verificación",
     "capped": "Alcanzaste el tope de uso de IA; por ahora solo respondo consultas.",
-    "failed": "No pude responder. Inténtalo de nuevo."
+    "failed": "No pude responder. Inténtalo de nuevo.",
+    "ui": {
+      "welcome": "Pregúntame por tus datos, pídeme una acción o escribe “¿cómo hago…?”.",
+      "new_conversation": "Nueva conversación",
+      "stop": "Detener",
+      "loading": "Cargando la conversación…",
+      "tool_running": "Consultando {process}…",
+      "open_link": "Abrir",
+      "card": {
+        "permission": "Permiso",
+        "with_step_up": "requiere verificación",
+        "without_step_up": "sin verificación",
+        "confirm": "Confirmar",
+        "processing": "Procesando…",
+        "edit": "Editar",
+        "cancel": "Cancelar",
+        "send_changes": "Enviar cambios",
+        "back": "Volver",
+        "change": "Cambia {field} a {value}",
+        "done": "Listo · la acción se ejecutó",
+        "rejected": "Cancelada · nada cambió"
+      },
+      "stepup": {
+        "verify": "Verificar",
+        "verified": "Verificado",
+        "invalid_code": "Código incorrecto. Revisa tu app de autenticación.",
+        "too_many_attempts": "Demasiados intentos. Espera unos minutos.",
+        "no_factor": "No tienes un segundo paso configurado.",
+        "failed": "No se pudo verificar el código. Inténtalo de nuevo."
+      },
+      "result": {
+        "count": "{shown} de {total}",
+        "truncated": "Resultado truncado a 50 filas: afina los filtros para ver el resto.",
+        "empty": "Sin resultados",
+        "open_grid": "Abrir como grid",
+        "excel": "Excel",
+        "exporting": "Exportando…",
+        "save_report": "Guardar reporte",
+        "phase5": "Fase 5"
+      },
+      "errors": {
+        "message_too_long": "El mensaje es demasiado largo. Acórtalo e inténtalo de nuevo.",
+        "conversation_not_found": "Esa conversación ya no existe. Empieza una nueva."
+      }
+    }
   },
   "auth": {
     "brand": "ERP-IA",

@@ -1,0 +1,72 @@
+---
+title: "El asistente: preguntar, pedir acciones y confirmar"
+routes:
+  - /
+processes:
+  - kernel.data.query
+  - kernel.help.search
+---
+
+# El asistente: preguntar, pedir acciones y confirmar
+
+El **Asistente** es el panel de la derecha. Le escribes en español, como le hablarías a un compañero, y él consulta datos, te explica cómo se hace algo, te lleva a una pantalla o prepara una acción para que tú la confirmes. Trabaja **con tus permisos**: solo ve y puede proponer lo que tu rol ya puede hacer en la aplicación.
+
+## Abrir el panel y preguntar
+
+1. Pulsa **Asistente** en la barra superior (el panel mide 400 px y puedes cerrarlo con el mismo botón sin perder la conversación).
+2. Escribe en la caja de abajo y pulsa **Enter** o la flecha **↑**. También puedes escribir una frase en **⌘K** y elegir **Preguntar al asistente**: el panel se abre y la frase se envía.
+3. Mientras responde ves «Pensando…» y el texto va apareciendo. El botón **■** detiene la respuesta.
+
+El asistente sabe en qué pantalla estás (arriba del panel dice «Contexto: …») y, si estás en un registro, cuál es. Por eso puedes preguntar «¿cuál es su saldo?» estando en la ficha de un tercero.
+
+Ejemplos:
+
+- «¿Cuántos clientes hay en Medellín?»
+- «Muéstrame los productos sin existencias.»
+- «¿Cómo importo terceros desde Excel?» (busca en estas guías y te da los pasos y un enlace)
+- «Llévame a productos.» o «Abre la ficha de Café del Norte.» (el asistente abre la pantalla en una pestaña)
+- «Reporta un error: la exportación no baja el NIT como texto.» (propone un ticket de soporte)
+
+Las respuestas muestran negrita, listas y enlaces **solo a pantallas de la aplicación**. El asistente nunca carga imágenes ni abre páginas externas.
+
+## Consultas: la tabla de resultados
+
+Cuando preguntas por datos (`kernel.data.query`), el asistente responde con una tabla con los mismos formatos de los listados: dinero como `$ 1.234.567,00`, fechas y horas en la zona horaria de tu empresa, «Sí» y «No». Los campos que tu rol no puede ver no aparecen, y los enmascarados se muestran como ••••••.
+
+- Una consulta trae **hasta 50 filas**. Si hay más, la tabla lo dice («Resultado truncado a 50 filas») y verás «50 de 312»: afina la pregunta para ver el resto.
+- **Abrir como grid**: abre el listado de ese tipo de registro en su pestaña, con los mismos filtros y orden de la consulta, para trabajar con todos los registros. Solo aparece para los registros que tienen listado.
+- **Excel**: descarga la consulta a un archivo Excel con las mismas condiciones, como en [Exportar un listado](exportar.md).
+- **Guardar reporte**: aparece desactivado («Fase 5»). Guardar reportes llega en una fase posterior.
+
+## Pedir una acción: la tarjeta de confirmación
+
+El asistente **nunca cambia nada por su cuenta**. Si le pides crear, modificar o eliminar algo, te muestra una **tarjeta de confirmación** con un encabezado azul claro, lo que va a hacer línea por línea y el permiso con el que se ejecuta:
+
+- **Confirmar**: ejecuta la acción, una sola vez aunque pulses dos veces, y queda registrada en la auditoría con el origen «asistente».
+- **Editar**: los valores de la tarjeta se vuelven campos. Cambia los que quieras y pulsa **Enviar cambios**: el asistente recibe «Cambia Ciudad a Medellín» como un mensaje nuevo y te prepara una tarjeta nueva. Editar no ejecuta nada, y la tarjeta anterior queda cancelada. **Volver** cierra la edición sin cambios.
+- **Cancelar**: descarta la tarjeta; no cambia nada.
+
+Una tarjeta decidida queda en la conversación con su resultado («Listo · la acción se ejecutó» o «Cancelada · nada cambió»). Una tarjeta **vence a los 15 minutos**; entonces dice que venció y debes pedir la acción otra vez. Si la acción no se puede hacer (por ejemplo, falta un permiso o un dato), la tarjeta muestra el motivo y sigue pendiente para que lo corrijas o la canceles.
+
+### Acciones sensibles: el código de verificación
+
+Algunas acciones (las que el administrador marcó como sensibles, como cambiar un cupo de crédito) piden **verificación en dos pasos**. Su tarjeta lleva una zona «Verificación requerida» y **Confirmar** está desactivado hasta que:
+
+1. Escribes el **código de 6 dígitos** de tu app de autenticación (el mismo de [Ingresar y verificación en dos pasos](ingreso-y-2fa.md)).
+2. Pulsas **Verificar**. Aparece «Verificado» y Confirmar se activa.
+3. Pulsas **Confirmar**. El código sirve para esa sola confirmación y vale 5 minutos; para otra acción sensible se pide uno nuevo.
+
+Si el código es incorrecto verás «Código incorrecto». Tras varios intentos fallidos debes esperar unos minutos.
+
+## La conversación
+
+- El panel recuerda tu última conversación: si recargas la página la verás de nuevo, con las tarjetas pendientes todavía confirmables (mientras no hayan vencido) y las decididas con su resultado.
+- **Nueva conversación** empieza de cero.
+- Si recargas la página mientras el asistente responde, la respuesta no se pierde: se guarda al terminar. Recarga de nuevo unos segundos después para verla (la respuesta en vivo no se retoma).
+- Cada mensaje puede tener hasta 4.000 caracteres.
+
+## Límites y avisos
+
+- Cada empresa tiene un tope mensual de uso de IA. Al alcanzarlo, el asistente avisa y deja de responder hasta que el administrador lo amplíe; el resto de la aplicación sigue funcionando.
+- Si no tienes permiso para algo, el asistente no lo ofrece y te lo explica. Pídele al administrador de tu empresa el permiso o crea un [ticket de soporte](soporte.md).
+- Una respuesta del asistente puede equivocarse: revisa siempre la tarjeta antes de confirmar.

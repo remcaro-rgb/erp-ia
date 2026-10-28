@@ -10,8 +10,6 @@ export { ThemeToggle } from "./ThemeToggle";
 export type { ThemeToggleProps } from "./ThemeToggle";
 export { CommandPalette, fold, paletteMatches } from "./CommandPalette";
 export type { CommandPaletteProps } from "./CommandPalette";
-export { AssistantDrawer } from "./AssistantDrawer";
-export type { AssistantDrawerProps } from "./AssistantDrawer";
 export { createTabsStore, TabsProvider, useTabs, useTabsStore } from "./tabs-store";
 export { HOME_TAB_ID, loadCachedTabs, MAX_TABS, sanitizeTabs, tabsStorageKey } from "./tabs-model";
 export type { TabsActions, TabsState, TabsStore, TabsStoreOptions } from "./tabs-store";

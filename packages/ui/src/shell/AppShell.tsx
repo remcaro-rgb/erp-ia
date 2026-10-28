@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslations } from "next-intl";
 import { useStore } from "zustand";
 import { Toaster } from "@erp/ui/components/ui/sonner";
-import { AssistantDrawer } from "./AssistantDrawer";
+import { AssistantDrawer, screenOf, type ResultColumn } from "../assistant";
+import { encodeGridQuery } from "../grid/query-link";
+import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
@@ -13,6 +15,15 @@ import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from ".
 import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
 import { moduleOf, type CommandItem, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type TabKind, type TabsSnapshot, type ThemeMode } from "./types";
+
+export interface AssistantOptions {
+  /** The grid screen of an entity (`core.party` → `/parties`), when it has one: "Abrir como grid" opens it with the query. */
+  gridHref?: (entity: string) => string | undefined;
+  /** Labels and types of an entity's fields, for the result tables. */
+  columnsOf?: (entity: string) => ResultColumn[] | undefined;
+  /** The company's time zone, for dates in result tables. */
+  timeZone?: string;
+}
 
 export interface AppShellProps {
   company: ShellCompany;
@@ -25,8 +36,8 @@ export interface AppShellProps {
   nav: NavItem[];
   /** Create processes the caller may run, for ⌘K (translated). */
   commands?: CommandItem[];
-  /** The assistant (Task 17); a placeholder conversation until then. */
-  assistant?: ReactNode;
+  /** What the app tells the assistant drawer about its screens. */
+  assistantOptions?: AssistantOptions;
   children: ReactNode;
   /** Path of the page being shown (no query). */
   currentHref: string;
@@ -152,11 +163,16 @@ function ShellFrame(props: AppShellProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(true);
-  const [questions, setQuestions] = useState<string[]>([]);
+  const [asked, setAsked] = useState<{ text: string; nonce: number } | undefined>(undefined);
   const ask = (text: string) => {
     if (!text) return;
     setAssistantOpen(true);
-    setQuestions((q) => [...q, text]);
+    setAsked((previous) => ({ text, nonce: (previous?.nonce ?? 0) + 1 }));
+  };
+  const { gridHref } = props.assistantOptions ?? {};
+  const openGrid = (entity: string, state: GridStateInput) => {
+    const href = gridHref?.(entity);
+    if (href) navigate(`${href}?q=${encodeGridQuery(state)}`);
   };
 
   const paletteItems = useMemo<CommandItem[]>(
@@ -199,11 +215,14 @@ function ShellFrame(props: AppShellProps) {
           <AssistantDrawer
             open={assistantOpen}
             context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
-            questions={questions}
-            onAsk={ask}
-          >
-            {props.assistant}
-          </AssistantDrawer>
+            screen={screenOf(currentHref)}
+            {...(asked ? { ask: asked } : {})}
+            onNavigate={navigate}
+            onOpenGrid={openGrid}
+            canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
+            {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
+            {...(props.assistantOptions?.timeZone ? { timeZone: props.assistantOptions.timeZone } : {})}
+          />
         </div>
         <CommandPalette
           items={paletteItems}

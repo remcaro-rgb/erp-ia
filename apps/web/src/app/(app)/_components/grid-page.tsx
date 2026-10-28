@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { DataGrid, defaultView, ImportDialog, ImportIcon, partyKindFilters, PartyScopeSwitches, useTabs, viewFromSaved, type GridRow, type PartySwitches, type SavedGridState } from "@erp/ui";
+import { DataGrid, decodeGridQuery, defaultView, ImportDialog, ImportIcon, partyKindFilters, PartyScopeSwitches, useTabs, viewFromSaved, type GridRow, type PartySwitches, type SavedGridState } from "@erp/ui";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { deleteViewAction, saveViewAction } from "@/lib/grid/actions";
 import type { GridPageData } from "@/lib/grid/load";
@@ -22,11 +22,17 @@ export function GridPage({ data }: { data: GridPageData }) {
   const [switches, setSwitches] = useState<PartySwitches>({ customers: true, suppliers: true });
   const [importing, setImporting] = useState(false);
   const baseFilters = useMemo(() => (data.partyScope ? partyKindFilters(data.partyScope, switches) : []), [data.partyScope, switches]);
-  // The user's default view, as the grid starts.
-  const [initialState] = useState(() => {
+  // The assistant's "Abrir como grid" lands here with ?q=<the query>: the grid starts from it (what the caller may not
+  // filter or sort on is dropped by viewFromSaved); otherwise from the user's default view.
+  const query = searchParams.get("q");
+  const initialState = useMemo(() => {
+    const asked = decodeGridQuery(query);
+    if (asked) return viewFromSaved(data.columns, asked);
     const view = defaultView(data.views);
     return view ? viewFromSaved(data.columns, view.state) : undefined;
-  });
+    // The saved views change while the grid is open (the user saves one); the grid only starts from them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, data.columns]);
 
   const openNew = () => open({ title: data.newTitle, href: `/r/${data.entity}/${NEW_RECORD_ID}`, kind: "record" });
   const openRow = (row: GridRow) => open({ title: String(row[data.titleField] ?? t("nav.shell.record")), href: `/r/${data.entity}/${row.id}`, kind: "record" });
@@ -49,6 +55,7 @@ export function GridPage({ data }: { data: GridPageData }) {
   return (
     <>
       <DataGrid
+        key={query ?? ""}
         entity={data.entity}
         title={data.title}
         columns={data.columns}

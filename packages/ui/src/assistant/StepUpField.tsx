@@ -1,0 +1,87 @@
+"use client";
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+
+export interface StepUpFieldProps {
+  /** The one-time token once the code is verified; `null` when the code changes or the attempt fails. */
+  onToken: (token: string | null) => void;
+  /** `fetch`, injected by tests. */
+  fetcher?: typeof fetch;
+  endpoint?: string;
+  disabled?: boolean;
+}
+
+const FAILURES: Record<string, string> = { invalid_code: "invalid_code", too_many_attempts: "too_many_attempts", no_factor: "no_factor" };
+
+/**
+ * The step-up code in the chat (rule 15, prototype v5): a sensitive process asks for the 6-digit TOTP code inside its
+ * card. The code is exchanged at POST /api/auth/step-up for a one-time token (bound to the user, 5 minutes) that the
+ * card sends with its confirmation; the card's Confirmar stays disabled until there is one.
+ */
+export function StepUpField({ onToken, fetcher, endpoint = "/api/auth/step-up", disabled }: StepUpFieldProps) {
+  const t = useTranslations();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const ready = /^\d{6}$/.test(code);
+
+  const verify = async () => {
+    if (!ready || busy || verified) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      const response = await (fetcher ?? fetch)(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
+      const body = (await response.json().catch(() => null)) as { token?: unknown; code?: string } | null;
+      if (response.ok && typeof body?.token === "string") {
+        setVerified(true);
+        onToken(body.token);
+      } else {
+        setFailure(FAILURES[body?.code ?? ""] ?? "failed");
+        onToken(null);
+      }
+    } catch {
+      setFailure("failed");
+      onToken(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="erp-confirm__stepup" role="group" aria-label={t("process.step_up.title")}>
+      <span className="erp-small erp-muted">{t("process.step_up.hint")}</span>
+      <div className="erp-row">
+        <input
+          aria-label={t("agent.step_up_code")}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          className="erp-mono"
+          value={code}
+          disabled={disabled}
+          onChange={(event) => {
+            setCode(event.target.value.replace(/\D/g, ""));
+            if (verified) {
+              setVerified(false);
+              onToken(null);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void verify();
+          }}
+        />
+        <button type="button" className="erp-btn erp-btn--sm" disabled={!ready || busy || verified || disabled} onClick={() => void verify()}>
+          {t("agent.ui.stepup.verify")}
+        </button>
+        {verified && <span className="erp-pill erp-pill--ok">{t("agent.ui.stepup.verified")}</span>}
+      </div>
+      {failure && (
+        <span role="alert" className="erp-field__error">
+          {t(`agent.ui.stepup.${failure}`)}
+        </span>
+      )}
+    </div>
+  );
+}

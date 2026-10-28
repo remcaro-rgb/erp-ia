@@ -1,7 +1,8 @@
 import "server-only";
 import { getTranslations } from "next-intl/server";
 import { callerProfile, entitled, readUserPrefs, runnableProcesses, type Caller } from "@erp/kernel";
-import { isThemeMode, type CommandItem, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
+import { isThemeMode, type CommandItem, type ResultColumn, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
+import { gridEntities } from "@/lib/grid/hrefs";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps } from "@/lib/server/runtime";
 import { buildShellNav, shellAccessKeys } from "./nav";
@@ -18,6 +19,8 @@ export interface ShellData {
   commands: CommandItem[];
   /** The saved theme in the active company, or null. */
   theme: Saved<ThemeMode> | null;
+  /** Labels and types of the fields of each entity with a grid, for the assistant's result tables. */
+  assistantColumns: Record<string, ResultColumn[]>;
   /** The saved tabs as stored (the shell repairs them), or null when the user has none yet. */
   tabs: Saved<unknown> | null;
 }
@@ -41,6 +44,14 @@ export async function loadShell(caller: Caller): Promise<ShellData> {
     .filter((create) => t.has(create.labelKey))
     .map((create) => ({ id: `create:${create.processId}`, label: t("nav.shell.palette.create", { entity: t(create.labelKey) }), kind: "create", href: create.href }));
 
+  // Metadata only (names and types of registered fields): what a result shows is decided by the query's own masking.
+  const assistantColumns = Object.fromEntries(
+    gridEntities().flatMap((id) => {
+      const entity = deps.registry.entities().find((e) => e.id === id);
+      return entity ? [[id, entity.fields.map((field): ResultColumn => ({ field: field.name, label: t.has(field.label) ? t(field.label) : field.name, type: field.type }))]] : [];
+    }),
+  );
+
   const company = profile.companies.find((c) => c.id === claims.active_company_id) ?? { id: claims.active_company_id, name: "", taxId: null };
   return {
     company,
@@ -49,6 +60,7 @@ export async function loadShell(caller: Caller): Promise<ShellData> {
     modules: shell.modules,
     nav: shell.nav,
     commands,
+    assistantColumns,
     theme: theme && isThemeMode(theme.value) ? { value: theme.value, savedAt: theme.savedAt } : null,
     tabs: savedFrom(prefs.tabs),
   };

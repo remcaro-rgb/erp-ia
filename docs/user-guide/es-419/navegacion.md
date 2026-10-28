@@ -48,7 +48,7 @@ Pulsa **⌘K** (en Windows y Linux, **Ctrl+K**) o haz clic en la caja de la barr
 2. Verás dos tipos de resultados: **Ir a …** (abre esa pantalla) y **Crear …** (abre la pantalla con el formulario de un registro nuevo; solo aparece para lo que tu rol puede crear: tercero, producto, categoría de producto, ticket de soporte).
 3. Muévete con **↑ ↓**, ejecuta con **Enter** y cierra con **Esc**.
 
-Si lo que escribes no coincide con nada, o es una frase de tres palabras o más, el primer resultado es **Preguntar al asistente: «…»**. Por ahora el asistente avisa que estará disponible muy pronto.
+Si lo que escribes no coincide con nada, o es una frase de tres palabras o más, el primer resultado es **Preguntar al asistente: «…»**. Al elegirlo se abre el panel del asistente y tu frase se le envía como pregunta (ver [El asistente](asistente.md)).
 
 ## El tema: claro, oscuro o automático
 
@@ -56,4 +56,4 @@ El botón de tema de la barra (y la opción **Tema** del menú de tu usuario) va
 
 ## El panel del asistente
 
-El botón **Asistente** abre un panel a la derecha. Por ahora solo muestra el contexto de la pantalla en que estás y un aviso de que el asistente estará disponible muy pronto. Para ir a cualquier pantalla, usa **⌘K**.
+El botón **Asistente** abre o cierra un panel a la derecha. Muestra el contexto de la pantalla en que estás y la conversación con el asistente; cerrarlo no la pierde. Cómo usarlo está en [El asistente](asistente.md).

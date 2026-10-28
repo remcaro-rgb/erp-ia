@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { AppShell } from "../AppShell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
@@ -83,16 +83,28 @@ describe("AppShell", () => {
     expect(document.documentElement.hasAttribute("data-theme")).toBe(false);
   });
 
-  it("the Asistente button toggles the 400 px drawer, ⌘K text opens it with the question", () => {
-    shell("/");
-    expect(screen.getByRole("complementary", { name: "Asistente" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Asistente" }));
-    expect(screen.queryByRole("complementary", { name: "Asistente" })).toBeNull();
-    fireEvent.click(screen.getByLabelText("Comando"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "ventas de la semana por vendedor" } });
-    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
-    const drawer = screen.getByRole("complementary", { name: "Asistente" });
-    expect(drawer.textContent).toContain("ventas de la semana por vendedor");
+  it("the Asistente button toggles the 400 px drawer, ⌘K text opens it and sends the question with the screen", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).startsWith("/api/agent/conversation")
+        ? new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 })
+        : new Response('data: {"type":"start"}\n\ndata: {"type":"finish"}\n\ndata: [DONE]\n\n', { status: 200, headers: { "x-conversation-id": "0197a1b2-0000-7000-8000-0000000000c1" } }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      shell("/");
+      expect(screen.getByRole("complementary", { name: "Asistente" })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Asistente" }));
+      expect(screen.queryByRole("complementary", { name: "Asistente" })).toBeNull();
+      fireEvent.click(screen.getByLabelText("Comando"));
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "ventas de la semana por vendedor" } });
+      fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+      const drawer = screen.getByRole("complementary", { name: "Asistente" });
+      await waitFor(() => expect(drawer.textContent).toContain("ventas de la semana por vendedor"));
+      const turn = fetcher.mock.calls.find((c) => String(c[0]) === "/api/agent/turn") as unknown as [string, RequestInit];
+      expect(JSON.parse(turn[1].body as string)).toEqual({ text: "ventas de la semana por vendedor", screen: { route: "/" } });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("restores the server's tabs", () => {

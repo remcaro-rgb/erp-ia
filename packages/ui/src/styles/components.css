@@ -232,4 +232,43 @@
   .erp-support__message--note { background: var(--warn-bg); border-color: transparent; }
   .erp-support__who { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 13px; }
   .erp-support__reply { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line-2); padding-top: 12px; }
+
+  /* The assistant drawer (prototype v5 `.a-log`, `.msg`, `.confirm`): bubbles, the confirmation card and result tables. */
+  .erp-chat__log { flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px; font-size: 14px; line-height: 1.5; }
+  .erp-msg { max-width: 96%; min-width: 0; overflow-wrap: anywhere; }
+  .erp-msg--user { align-self: flex-end; max-width: 88%; background: var(--primary); color: #fff; padding: 10px 12px; border-radius: 10px 10px 2px 10px; white-space: pre-wrap; }
+  .erp-msg--assistant { background: var(--head); padding: 10px 12px; border-radius: 10px 10px 10px 2px; display: flex; flex-direction: column; gap: 8px; }
+  .erp-msg p { margin: 0; white-space: pre-wrap; }
+  .erp-msg ul { margin: 0; padding-left: 18px; }
+  .erp-msg code { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; background: var(--line-2); padding: 1px 4px; border-radius: 3px; }
+  .erp-msg a { color: var(--primary); text-decoration: underline; }
+  .erp-msg--user a { color: #fff; }
+  .erp-chat__tool { font-size: 12px; color: var(--text-muted); }
+  .erp-chat__error { margin: 0 16px 8px; padding: 8px 10px; border-radius: 6px; background: var(--danger-bg); color: var(--danger); font-size: 13px; }
+  .erp-chat__input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line-2); }
+  .erp-typing { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+  .erp-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); animation: erp-blink 1s infinite; }
+  .erp-typing i:nth-child(2) { animation-delay: .2s; } .erp-typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes erp-blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+  .erp-confirm { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  .erp-confirm__head { padding: 9px 12px; background: var(--accent); border-bottom: 1px solid var(--accent-line); font-weight: 600; font-size: 13px; }
+  .erp-confirm--warn .erp-confirm__head { background: var(--warn-bg); border-color: var(--warn-bg); color: var(--warn); }
+  .erp-confirm--done .erp-confirm__head { background: var(--ok-bg); border-color: var(--ok-bg); color: var(--ok); }
+  .erp-confirm--rejected .erp-confirm__head { background: var(--line-2); border-color: var(--line-2); color: var(--text-muted); }
+  .erp-confirm__body { padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--line-2); color: var(--text-muted); margin: 0; }
+  .erp-confirm__body > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .erp-confirm__body dt { margin: 0; }
+  .erp-confirm__body dd { margin: 0; text-align: right; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+  .erp-confirm__body input { width: 60%; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+  .erp-confirm__foot { padding: 10px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .erp-confirm__note { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
+  .erp-confirm__stepup { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line-2); }
+  .erp-confirm__stepup input { width: 130px; letter-spacing: 3px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
+  .erp-result { display: flex; flex-direction: column; gap: 6px; }
+  .erp-result__scroll { max-height: 280px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); }
+  .erp-result table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .erp-result th { position: sticky; top: 0; background: var(--head); text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .erp-result td { height: 30px; padding: 4px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+  .erp-result th.erp-num, .erp-result td.erp-num { text-align: right; }
+  .erp-result__actions { display: flex; gap: 6px; flex-wrap: wrap; }
 }

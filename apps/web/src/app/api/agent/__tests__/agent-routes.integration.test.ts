@@ -24,6 +24,7 @@ vi.mock("workflow/api", () => ({
 
 import { loginWithPassword } from "@/lib/auth/login";
 import { POST as confirm } from "../confirm/route";
+import { GET as conversation } from "../conversation/route";
 import { POST as turn } from "../turn/route";
 
 // POST /api/agent/turn and POST /api/agent/confirm (design §7.1, rules 12 and 17) against the real stack: the session's
@@ -138,5 +139,71 @@ describe("POST /api/agent/confirm", () => {
     expect((await post(confirm, "/api/agent/confirm", { cardId: foreignCard!.id, decision: "confirm" })).status).toBe(404);
     const own = await card(fixture, { ...exito, documentNumber: "800111222" });
     expect(await (await post(confirm, "/api/agent/confirm", { token: own, decision: "reject" })).json()).toEqual({ status: "rejected" });
+  });
+});
+
+describe("GET /api/agent/conversation", () => {
+  const get = (query = "") => conversation(new Request(`http://localhost/api/agent/conversation${query}`));
+  const cardPreview = { title: "Crea un tercero", effects: [{ label: "NIT", value: "900373115" }], permission: "core.party.create", stepUp: false };
+
+  it("answers an empty conversation when the user has none yet", async () => {
+    const fresh = await seedAuthUser({ role: "member" });
+    const jar = state.jar;
+    state.jar = new MemoryJar();
+    try {
+      await loginWithPassword(state.jar as MemoryJar, { email: fresh.email, password: fresh.password, remember: false });
+      const response = await get();
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ conversationId: null, messages: [], cards: {} });
+    } finally {
+      state.jar = jar;
+      await fresh.sql`delete from kernel.agent_conversations where company_id = any(${fresh.companyIds}::uuid[])`;
+      await fresh.cleanup();
+    }
+  });
+
+  it("restores the latest conversation with its messages and the state of its cards, for its own user only", async () => {
+    const { sql } = fixture;
+    const companyId = fixture.companyIds[0]!;
+    const [c] = await sql<{ id: string }[]>`insert into kernel.agent_conversations(company_id, user_id, title) values (${companyId}, ${fixture.userId}, 'crea') returning id`;
+    const token = randomBytes(32).toString("base64url");
+    const [cardRow] = await sql<{ id: string }[]>`
+      insert into kernel.agent_confirmations(company_id, conversation_id, user_id, process_id, input, preview, token)
+      values (${companyId}, ${c!.id}, ${fixture.userId}, 'core.party.create', ${sql.json({})}, ${sql.json(cardPreview)}, ${token}) returning id`;
+    const parts = [
+      { role: "assistant", content: [{ type: "tool-call", toolCallId: "c1", toolName: "core__party__create", input: {} }] },
+      { role: "tool", content: [{ type: "tool-result", toolCallId: "c1", toolName: "core__party__create", output: { type: "json", value: { confirmationRequired: true, cardId: cardRow!.id, preview: cardPreview } } }] },
+    ];
+    await sql`insert into kernel.agent_messages(company_id, conversation_id, role, parts) values (${companyId}, ${c!.id}, 'user', ${sql.json([{ type: "text", text: "crea un tercero" }])})`;
+    await sql`insert into kernel.agent_messages(company_id, conversation_id, role, parts) values (${companyId}, ${c!.id}, 'assistant', ${sql.json(parts as never)})`;
+    await sql`update kernel.agent_conversations set updated_at = now() + interval '1 minute' where id = ${c!.id}`;
+
+    const latest = await get();
+    expect(latest.status).toBe(200);
+    const body = (await latest.json()) as { conversationId: string; messages: { role: string; parts: { type: string; output?: unknown }[] }[]; cards: Record<string, unknown> };
+    expect(body.conversationId).toBe(c!.id);
+    expect(body.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(body.messages[1]!.parts[0]).toMatchObject({ type: "tool-core__party__create", state: "output-available", output: { cardId: cardRow!.id } });
+    expect(body.cards).toEqual({ [cardRow!.id]: { status: "pending" } });
+    expect(JSON.stringify(body)).not.toContain(token);
+
+    // After the card is rejected, the same call says so.
+    await post(confirm, "/api/agent/confirm", { cardId: cardRow!.id, decision: "reject" });
+    expect(((await (await get(`?id=${c!.id}`)).json()) as { cards: unknown }).cards).toEqual({ [cardRow!.id]: { status: "rejected" } });
+  });
+
+  it("refuses another user's conversation, a bad id and a request without a session", async () => {
+    const [foreign] = await other.sql<{ id: string }[]>`insert into kernel.agent_conversations(company_id, user_id) values (${other.companyIds[0]!}, ${other.userId}) returning id`;
+    const refused = await get(`?id=${foreign!.id}`);
+    expect(refused.status).toBe(404);
+    expect(await refused.json()).toMatchObject({ code: "not_found" });
+    expect((await get("?id=nope")).status).toBe(400);
+    const jar = state.jar;
+    state.jar = new MemoryJar();
+    try {
+      expect((await get()).status).toBe(401);
+    } finally {
+      state.jar = jar;
+    }
   });
 });

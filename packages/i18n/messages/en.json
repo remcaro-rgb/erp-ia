@@ -413,7 +413,7 @@
       },
       "drawer": {
         "context": "Context: {context}",
-        "placeholder": "The assistant is coming very soon. Meanwhile, use ⌘K to go to any screen.",
+        "placeholder": "Ask about your data, request an action or type “how do I…?”.",
         "input": "Ask, request an action or “how do I…?”",
         "input_label": "Type",
         "send": "Send",
@@ -1033,7 +1033,51 @@
     },
     "step_up_code": "Verification code",
     "capped": "The AI usage cap has been reached; for now I can only answer queries.",
-    "failed": "I could not answer. Please try again."
+    "failed": "I could not answer. Please try again.",
+    "ui": {
+      "welcome": "Ask about your data, request an action or type “how do I…?”.",
+      "new_conversation": "New conversation",
+      "stop": "Stop",
+      "loading": "Loading the conversation…",
+      "tool_running": "Looking up {process}…",
+      "open_link": "Open",
+      "card": {
+        "permission": "Permission",
+        "with_step_up": "needs verification",
+        "without_step_up": "no verification",
+        "confirm": "Confirm",
+        "processing": "Processing…",
+        "edit": "Edit",
+        "cancel": "Cancel",
+        "send_changes": "Send changes",
+        "back": "Back",
+        "change": "Change {field} to {value}",
+        "done": "Done · the action ran",
+        "rejected": "Cancelled · nothing changed"
+      },
+      "stepup": {
+        "verify": "Verify",
+        "verified": "Verified",
+        "invalid_code": "Wrong code. Check your authenticator app.",
+        "too_many_attempts": "Too many attempts. Wait a few minutes.",
+        "no_factor": "You have no second step set up.",
+        "failed": "The code could not be verified. Please try again."
+      },
+      "result": {
+        "count": "{shown} of {total}",
+        "truncated": "Result truncated to 50 rows: refine the filters to see the rest.",
+        "empty": "No results",
+        "open_grid": "Open as grid",
+        "excel": "Excel",
+        "exporting": "Exporting…",
+        "save_report": "Save report",
+        "phase5": "Phase 5"
+      },
+      "errors": {
+        "message_too_long": "The message is too long. Shorten it and try again.",
+        "conversation_not_found": "That conversation no longer exists. Start a new one."
+      }
+    }
   },
   "auth": {
     "brand": "ERP-IA",
