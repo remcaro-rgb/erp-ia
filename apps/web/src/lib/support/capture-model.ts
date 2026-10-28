@@ -49,6 +49,7 @@ const SECRET_KEY = /token|secret|password|authorization|cookie/i;
 /** `key=value` / `key: value` text whose key looks like a secret (an optional `Bearer ` is part of the value). */
 const SECRET_TEXT = /\b([\w-]*(?:token|secret|password|authorization|cookie)[\w-]*)(\s*[:=]\s*)(?:Bearer\s+)?[^\s,;&"']+/gi;
 const REDACTED = "[redacted]";
+const UNSERIALIZABLE = "[unserializable]";
 const MAX_DEPTH = 3;
 const MAX_ENTRIES = 20;
 
@@ -75,9 +76,14 @@ function render(value: unknown, depth: number): string {
 export function describeError(args: readonly unknown[]): string {
   return args
     .map((arg) => {
-      if (typeof arg === "string") return redactText(arg.slice(0, MAX_ERROR_LENGTH));
-      if (arg instanceof Error) return redactText(`${arg.name}: ${arg.message}`.slice(0, MAX_ERROR_LENGTH));
-      return render(arg, 0).slice(0, MAX_ERROR_LENGTH);
+      // This runs inside the page's own console.error: a throwing getter or a cross-origin proxy must not break it.
+      try {
+        if (typeof arg === "string") return redactText(arg.slice(0, MAX_ERROR_LENGTH));
+        if (arg instanceof Error) return redactText(`${arg.name}: ${arg.message}`.slice(0, MAX_ERROR_LENGTH));
+        return render(arg, 0).slice(0, MAX_ERROR_LENGTH);
+      } catch {
+        return UNSERIALIZABLE;
+      }
     })
     .join(" ")
     .slice(0, MAX_ERROR_LENGTH);

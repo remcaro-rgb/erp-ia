@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@erp/ui/components/ui/dialog";
 import { captureContext } from "@/lib/support/capture";
 import type { CapturedContext } from "@/lib/support/capture-model";
+import { failureText } from "@/lib/support/failure";
 import { createTicketAction } from "@/lib/support/actions";
 
 const KINDS = ["bug", "question", "request"] as const;
@@ -60,7 +61,7 @@ function NewTicketForm({ onOpenChange, onCreated }: NewTicketDialogProps) {
         onCreated(result.id);
         return;
       }
-      setProblem(result.details.length > 0 ? result.details.join(" · ") : t.has(`errors.${result.code}`) ? t(`errors.${result.code}`) : t("errors.unknown"));
+      setProblem(failureText(result, t.has, t));
     } catch {
       setProblem(t("errors.network"));
     } finally {

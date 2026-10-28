@@ -52,6 +52,20 @@ describe("ticket context capture", () => {
     expect(describeError([new Error("e".repeat(5000))]).length).toBeLessThanOrEqual(MAX_ERROR_LENGTH);
   });
 
+  it("never throws from the page's own console.error: a throwing getter or a hostile proxy is described as unserializable", () => {
+    const getter = {
+      get boom(): string {
+        throw new Error("getter");
+      },
+    };
+    const proxy = new Proxy({}, { ownKeys: () => { throw new Error("cross-origin"); } });
+    expect(() => describeError([getter, proxy, "ok"])).not.toThrow();
+    expect(describeError([getter])).toContain("[unserializable]");
+    expect(describeError([proxy, "ok"])).toBe("[unserializable] ok");
+    const nested = { fine: 1, inner: { get bad(): string { throw new Error("x"); } } };
+    expect(describeError([nested])).toContain("[unserializable]");
+  });
+
   it("redacts the values of keys that look like secrets, in objects and in key=value text", () => {
     const text = describeError([{ user: "ana", token: "abc123", nested: { Password: "p4ss", ok: 1 }, headers: { Authorization: "Bearer xyz", cookie: "sid=1" }, client_secret: "s" }]);
     for (const leaked of ["abc123", "p4ss", "Bearer xyz", "sid=1", '"s"']) expect(text).not.toContain(leaked);

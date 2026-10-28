@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "@erp/ui/components/ui/sonner";
 import { AttachmentsPanel, ExtraDataTab, extraTabCounts, recordHref, RecordFrame, type RecordTab } from "@erp/ui";
+import { failureText } from "@/lib/support/failure";
 import { closeTicketAction, loadTicketAction, replyTicketAction, type ActionResult, type TicketDetail } from "@/lib/support/actions";
 import { Conversation } from "./conversation";
 
@@ -72,7 +73,7 @@ export function TicketView({ id, onChanged }: { id: string; onChanged?: () => vo
           onChanged?.();
         } else {
           // The closing failed (not an agent any more, already closed…): say so, the ticket stays as it is.
-          toast.error(result.details[0] ?? (t.has(`errors.${result.code}`) ? t(`errors.${result.code}`) : t("errors.unknown")));
+          toast.error(failureText(result, t.has, t));
         }
       }}
     />

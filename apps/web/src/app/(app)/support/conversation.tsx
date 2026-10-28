@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
+import { failureText } from "@/lib/support/failure";
 import type { ActionResult, TicketDetail } from "@/lib/support/actions";
 
 export interface ConversationProps {
@@ -33,7 +34,7 @@ export function Conversation({ ticket, onReply }: ConversationProps) {
         setBody("");
         setInternal(false);
       } else {
-        setProblem(result.details.length > 0 ? result.details.join(" · ") : t.has(`errors.${result.code}`) ? t(`errors.${result.code}`) : t("errors.unknown"));
+        setProblem(failureText(result, t.has, t));
       }
     } catch {
       setProblem(t("errors.network"));
