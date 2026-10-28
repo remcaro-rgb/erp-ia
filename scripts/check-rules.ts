@@ -4,6 +4,7 @@
  *  - rule 34: migration files are named NNNN_<module>_<topic>.sql
  *  - rule 24: no Spanish copy in apps/web .tsx outside packages/i18n catalogues
  *  - rule 3:  module processes only write to their own schema (reads of published views are allowed)
+ *  - rule 14: apps/web and packages/agent read module tables only through their masked views `<schema>.v_<table>`
  *  - CLAUDE.md and AGENTS.md at the root are byte-identical
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -11,7 +12,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "agents-claude-identical";
+export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "agents-claude-identical";
 
 export interface Violation {
   rule: RuleId;
@@ -111,6 +112,39 @@ function checkCrossSchemaWrites(root: string): Violation[] {
   return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
 }
 
+// `from <schema>.<table>` / `join <schema>.<table>` in a select. Platform schemas (kernel, auth…) hold no registry
+// entities and have no masked views; module schemas do, and grids, exports and the assistant must read those.
+const TABLE_READ = /\b(from|join)\s+([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\b/gi;
+const PLATFORM_SCHEMAS = new Set(["kernel", "auth", "storage", "extensions", "public", "pg_catalog", "information_schema", "realtime", "vault", "cron"]);
+const isTestFile = (path: string) => /\.test\.tsx?$/.test(path) || /(^|\/)(__tests__|e2e|test-support)\//.test(path);
+/** Blanks comments, keeping line breaks so line numbers stay right. */
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, " "));
+
+function checkMaskedViewReads(root: string): Violation[] {
+  const violations: Violation[] = [];
+  for (const dir of [join(root, "apps", "web"), join(root, "packages", "agent")]) {
+    for (const file of walk(dir).filter((f) => /\.tsx?$/.test(f))) {
+      const path = rel(root, file);
+      if (isTestFile(path)) continue;
+      const text = withoutComments(readFileSync(file, "utf8"));
+      for (const m of text.matchAll(TABLE_READ)) {
+        const [, verb, schema, table] = m as unknown as [string, string, string, string];
+        if (PLATFORM_SCHEMAS.has(schema.toLowerCase()) || table.toLowerCase().startsWith("v_")) continue;
+        const before = text.slice(Math.max(0, m.index - 500), m.index);
+        if (verb.toLowerCase() === "from" && /\bdelete\s+$/i.test(before)) continue;
+        if (!/\bselect\b/i.test(before)) continue;
+        violations.push({
+          rule: "masked-view-read",
+          file: path,
+          line: text.slice(0, m.index).split("\n").length,
+          message: `reads ${schema}.${table} directly; read ${schema}.v_${table} so field visibility applies (rule 14)`,
+        });
+      }
+    }
+  }
+  return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
+}
+
 function checkInstructionFiles(root: string): Violation[] {
   const claude = join(root, "CLAUDE.md");
   const agents = join(root, "AGENTS.md");
@@ -126,7 +160,7 @@ function checkInstructionFiles(root: string): Violation[] {
 }
 
 export function checkRules(root: string): Violation[] {
-  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkInstructionFiles(root)];
+  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkInstructionFiles(root)];
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -15,6 +15,7 @@
     "@erp/i18n": "workspace:*",
     "@erp/infra": "workspace:*",
     "@erp/kernel": "workspace:*",
+    "@erp/loc-co": "workspace:*",
     "@erp/module-core": "workspace:*",
     "@erp/ui": "workspace:*",
     "@supabase/ssr": "^0.12.7",

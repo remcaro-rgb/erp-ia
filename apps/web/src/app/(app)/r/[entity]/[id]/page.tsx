@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { AttachmentsPanel, ContactsTab, ExtraDataTab, PhotosTab, RecordFrame, extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
-import { datosRows } from "@/lib/records/entities";
 import { loadRecord } from "@/lib/records/load";
+import { RecordForm } from "./record-form";
 
-// Full-page record (design §5.16): /r/<entity>/<id> renders the same frame as the modal, so the open-in-a-new-tab
-// button of any record lands here. Tasks 12-13 put the real forms in the Datos tab; the other tabs are wired already.
+// Full-page record (design §5.16): /r/<entity>/<id> renders the record frame with the entity's Datos form (party,
+// product, category) and the Contactos, Fotos, Datos adicionales and Archivos tabs; /r/<entity>/new is the empty form.
 
 type Params = Promise<{ entity: string; id: string }>;
 
@@ -32,43 +33,61 @@ async function RecordView({ params }: { params: Params }) {
   }
   // No such record for this user, or no full page for the entity: both look the same.
   if (!loaded) notFound();
-  const { entity, record, defs, contacts } = loaded;
+  const { entity, record, defs, contacts, modes, canSave, form } = loaded;
+  const t = await getTranslations();
+
+  const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
+  if (!record) {
+    // A record that does not exist yet has only its data; files, contacts and extra data need its id.
+    return (
+      <div className="mx-auto w-full max-w-6xl">
+        <RecordFrame title={t("grid.record_title.new", { entity: t(entity.nounKey) })} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} />
+      </div>
+    );
+  }
 
   const extra = (record.extra as Record<string, unknown> | null) ?? {};
   const extraFree = (record.extra_free as { name: string; value: string }[] | null) ?? [];
   const counts = extraTabCounts(defs, extra, extraFree);
-
   const content: Record<string, Omit<RecordTab, "id">> = {
-    datos: {
-      content: (
-        <dl className="erp-record__facts">
-          {datosRows(record).map(([name, value]) => (
-            <div key={name}>
-              <dt>{name}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      ),
-    },
+    datos,
     contactos: { count: contacts.length, content: <ContactsTab contacts={contacts} readOnly /> },
-    fotos: { content: <PhotosTab entity={entity.id} recordId={id} /> },
+    fotos: { content: <PhotosTab entity={entity.id} recordId={record.id} /> },
     extra: { ...counts, content: <ExtraDataTab defs={defs} extra={extra} extraFree={extraFree} readOnly /> },
-    archivos: { content: <AttachmentsPanel entity={entity.id} recordId={id} /> },
+    archivos: { content: <AttachmentsPanel entity={entity.id} recordId={record.id} /> },
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div className="mx-auto w-full max-w-6xl">
       <RecordFrame
-        title={String(record[entity.titleField] ?? id)}
+        title={String(record[entity.titleField] ?? record.id)}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
-        uuid={id}
-        deepLinkHref={recordHref(entity.id, id)}
+        uuid={record.id}
+        deepLinkHref={recordHref(entity.id, record.id)}
         tabs={recordTabIds(entity.id).map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
-        status={typeof record.dian_status === "string" ? <span>{record.dian_status}</span> : undefined}
+        labels={recordLabels(t)}
+        status={typeof record.dian_status === "string" ? <span className="erp-mono">{record.dian_status}</span> : undefined}
       />
     </div>
   );
+}
+
+/** The frame's copy from the catalogue. */
+function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
+  return {
+    tabs: {
+      datos: t("common.record.tabs.datos"),
+      contactos: t("common.record.tabs.contactos"),
+      fotos: t("common.record.tabs.fotos"),
+      extra: t("common.record.tabs.extra"),
+      archivos: t("common.record.tabs.archivos"),
+    },
+    number: t("common.record.number"),
+    uuid: t("common.record.uuid"),
+    assignedOnCreate: t("common.record.assigned_on_create"),
+    openInNewTab: t("common.record.open_in_new_tab"),
+    pending: t("common.record.pending"),
+  };
 }
 
 export default function RecordPage({ params }: { params: Params }) {

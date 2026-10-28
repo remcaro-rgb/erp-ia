@@ -5,32 +5,30 @@ export interface RecordEntity {
   id: string;
   /** The consult process that returns the record as the caller may see it. */
   consult: string;
+  /** The processes the Datos form saves through (rule 1). */
+  create: string;
+  update: string;
   /** Column of the consult row that names the record in the frame's title. */
   titleField: string;
+  /** i18n key of the entity's noun for "Crear <entity>" (`nav.create.*`). */
+  nounKey: string;
 }
 
 const RECORD_ENTITIES: readonly RecordEntity[] = [
-  { id: "core.party", consult: "core.party.consult", titleField: "legal_name" },
-  { id: "core.product", consult: "core.product.consult", titleField: "description" },
+  { id: "core.party", consult: "core.party.consult", create: "core.party.create", update: "core.party.update", titleField: "legal_name", nounKey: "nav.create.core.party" },
+  { id: "core.product", consult: "core.product.consult", create: "core.product.create", update: "core.product.update", titleField: "description", nounKey: "nav.create.core.product" },
+  {
+    id: "core.product_category",
+    consult: "core.category.consult",
+    create: "core.category.create",
+    update: "core.category.update",
+    titleField: "name",
+    nounKey: "nav.create.core.category",
+  },
 ];
+
+/** The id of a record not created yet: `/r/<entity>/new` opens the empty form. */
+export const NEW_RECORD_ID = "new";
 
 /** The entity config, or null for an entity that has no full page (also for inherited object keys). */
 export const recordEntity = (id: string): RecordEntity | null => RECORD_ENTITIES.find((e) => e.id === id) ?? null;
-
-const HIDDEN = new Set(["id", "extra", "extra_free"]);
-
-/**
- * The scalar columns of a consult row as name / text pairs: the placeholder of the Datos tab until the real
- * forms of Tasks 12-13. Extra data has its own tab; empty values are left out.
- */
-export function datosRows(record: Record<string, unknown>): [string, string][] {
-  const rows: [string, string][] = [];
-  for (const [name, value] of Object.entries(record)) {
-    if (HIDDEN.has(name) || value === null || value === undefined) continue;
-    if (value instanceof Date) rows.push([name, value.toISOString()]);
-    else if (Array.isArray(value)) rows.push([name, value.join(", ")]);
-    else if (typeof value === "object") continue;
-    else rows.push([name, String(value)]);
-  }
-  return rows;
-}

@@ -41,11 +41,32 @@ describe("auth copy", () => {
 
   it("defines every auth key the pages and components use", () => {
     const used = sources(appDir)
-      .flatMap((file) => [...readFileSync(file, "utf8").matchAll(/\bt\(\s*"([a-z0-9_.]+)"/g)].map((m) => m[1]!))
+      .filter((file) => namespaceOf(file) === "auth")
+      .flatMap(keysOf)
       .sort();
     expect(used.length).toBeGreaterThan(15);
     for (const locale of ["es-419", "en"] as const) {
       expect(used.filter((key) => at(messages(locale), `auth.${key}`) === undefined), locale).toEqual([]);
     }
   });
+
+  it("defines every key the other pages and components use, in the namespace their translator reads", () => {
+    const used = sources(appDir)
+      .filter((file) => namespaceOf(file) !== "auth")
+      .flatMap((file) => keysOf(file).map((key) => [namespaceOf(file), key].filter(Boolean).join(".")))
+      .sort();
+    expect(used.length).toBeGreaterThan(5);
+    for (const locale of ["es-419", "en"] as const) {
+      expect(used.filter((key) => at(messages(locale), key) === undefined), locale).toEqual([]);
+    }
+  });
 });
+
+/** The namespace a file's translator reads (`useTranslations("auth")`), or "" for the whole catalogue. */
+function namespaceOf(file: string): string {
+  const m = /\b(?:use|get)Translations\(\s*(?:"([a-z0-9_.]+)")?\s*\)/.exec(readFileSync(file, "utf8"));
+  return m?.[1] ?? "";
+}
+
+/** The literal keys a file asks its translator for. */
+const keysOf = (file: string): string[] => [...readFileSync(file, "utf8").matchAll(/\bt\(\s*"([a-z0-9_.]+)"/g)].map((m) => m[1]!);

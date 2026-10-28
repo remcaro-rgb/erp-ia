@@ -47,6 +47,9 @@ importers:
       '@erp/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@erp/loc-co':
+        specifier: workspace:*
+        version: link:../../packages/localization/co
       '@erp/module-core':
         specifier: workspace:*
         version: link:../../packages/modules/core
@@ -175,6 +178,9 @@ importers:
       '@erp/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@erp/loc-co':
+        specifier: workspace:*
+        version: link:../localization/co
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

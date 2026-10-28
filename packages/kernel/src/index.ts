@@ -36,3 +36,9 @@ export type { VerifierAdapter, VerifyContext, VerifyKind, VerifyOutcome, VerifyS
 export { callerProfile, MAX_USER_PREF_BYTES, readUserPrefs, USER_PREF_KEY, USER_PREF_PROCESSES, userPrefSet } from "./user-prefs";
 export type { CallerProfile, StoredUserPref } from "./user-prefs";
 export { runnableProcesses } from "./process/permissions";
+export { buildQuery, GridState, operatorsFor, QueryError } from "./query";
+export type { BuildQueryOptions, BuiltQuery, FilterOp, GridStateInput, QueryErrorCode } from "./query";
+export { gridAccess, gridPageAccess, runGridQuery, visibleIn } from "./query/run";
+export type { FieldMode, GridAccess, GridExtraField, GridResult, PartyScope } from "./query/run";
+export { SAVED_VIEW_PROCESS_IDS, SAVED_VIEW_PROCESSES, SavedViewState } from "./saved-views";
+export type { SavedView } from "./saved-views";

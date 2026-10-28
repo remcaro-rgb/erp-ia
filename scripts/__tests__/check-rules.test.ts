@@ -149,6 +149,41 @@ describe("check-rules: cross-schema writes in module processes (rule 3)", () => 
   });
 });
 
+describe("check-rules: reads through masked views in apps/web and packages/agent (rule 14)", () => {
+  it("flags a select from a module table instead of its v_ view", () => {
+    put("apps/web/src/lib/grid/read.ts", "export const q = (tx) => tx`select id, legal_name from core.parties where id = ${1}`;\n");
+    put(
+      "packages/agent/src/tools/products.ts",
+      ["const rows = await tx`", "  select p.sku", "  from core.v_products v", "  join core.products p on p.id = v.id`;"].join("\n"),
+    );
+    const violations = checkRules(root);
+    expect(violations.map((v) => [v.rule, v.file, v.line])).toEqual([
+      ["masked-view-read", "packages/agent/src/tools/products.ts", 4],
+      ["masked-view-read", "apps/web/src/lib/grid/read.ts", 1],
+    ].sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
+    expect(violations[0]!.message).toMatch(/core\.parties directly; read core\.v_parties/);
+    expect(violations[1]!.message).toMatch(/core\.products/);
+  });
+
+  it("accepts masked views, platform schemas, writes, tests and code outside the two packages", () => {
+    put(
+      "apps/web/src/lib/ok.ts",
+      [
+        "tx`select * from core.v_parties where id = ${1}`;",
+        "tx`select storage_path from kernel.attachments where id = ${1}`;",
+        "tx`select raw_app_meta_data from auth.users`;",
+        "tx`delete from core.parties where id = ${1}`;",
+        "// select legal_name from core.parties (a comment)",
+      ].join("\n"),
+    );
+    put("apps/web/src/app/api/grid/__tests__/x.integration.test.ts", "sql`select * from core.parties`;\n");
+    put("apps/web/e2e/grid.spec.ts", "sql`select * from core.parties`;\n");
+    put("apps/web/test-support/fixtures.ts", "sql`select * from core.parties`;\n");
+    put("packages/modules/core/src/processes/party.ts", "tx`select * from core.parties where id = ${1}`;\n");
+    expect(checkRules(root)).toEqual([]);
+  });
+});
+
 describe("check-rules: CLAUDE.md and AGENTS.md (project instructions)", () => {
   it("passes when the two files are byte-identical", () => {
     put("CLAUDE.md", "# rules\n");

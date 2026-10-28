@@ -1,0 +1,79 @@
+import type { FilterKind, FilterOp, GridStateInput } from "@erp/kernel/query";
+
+export type { FilterKind, FilterOp, GridStateInput } from "@erp/kernel/query";
+
+/** How a field reaches the caller (rule 14): masked fields show `••••••` and never filter or sort; hidden ones are left out. */
+export type FieldMode = "visible" | "masked" | "hidden";
+
+/** Colour of a pill (prototype `.pill.ok`…). */
+export type PillTone = "ok" | "warn" | "danger" | "info" | "gray";
+
+/**
+ * One field of an entity as a grid, its filter row and its advanced filter offer it (design §9). The page builds the
+ * list from the registry and the caller's field modes; labels arrive translated (admin-defined fields carry the
+ * admin's own label).
+ */
+export interface GridColumn {
+  /** Registry field, or `extra.<key>` for an admin-defined field. */
+  field: string;
+  label: string;
+  /** Registry type (`money`, `enum`…) or `custom:<type>` for an admin-defined field. */
+  type: string;
+  /** The operator family (`@erp/kernel/query`). */
+  kind: FilterKind;
+  mode: FieldMode;
+  filterable: boolean;
+  sortable: boolean;
+  /** Values of an enum, a boolean or a reference, with their labels (also how the cell shows them). */
+  options?: { value: string; label: string }[];
+  /** Pill colour per raw value (`true`, `complete`…). */
+  pills?: Record<string, PillTone>;
+  /** `mono`: codes and ids; `dian`: a DIAN status pill (`complete`, `missing: n`, `errors`). */
+  display?: "mono" | "dian";
+  /** Offered by the column chooser and the advanced filter, but not shown until chosen. */
+  hiddenByDefault?: boolean;
+  /** Only in the advanced filter (stored fields not shown in the grid, admin-defined extra data). */
+  filterOnly?: boolean;
+}
+
+export type GridRow = Record<string, unknown> & { id: string };
+
+/** One page as POST /api/grid/:entity answers it. */
+export interface GridPage {
+  rows: GridRow[];
+  total: number;
+  aggregates?: Record<string, unknown>;
+}
+
+/** Reads a page of the grid's entity for a state (the grid passes an AbortSignal to drop stale requests). */
+export type GridFetcher = (state: GridStateInput, signal?: AbortSignal) => Promise<GridPage>;
+
+/** A condition of the advanced filter: `field · rule · value(s)`, joined to the previous one with Y / O. */
+export interface Condition {
+  field: string;
+  op: FilterOp;
+  value?: unknown;
+  value2?: unknown;
+  join?: "and" | "or";
+}
+
+/** What the filter row holds per column: the typed text, the chosen option, or a date range. */
+export type ColumnFilterValue = string | { from: string; to: string };
+
+export interface SortEntry {
+  field: string;
+  dir: "asc" | "desc";
+}
+
+/** Everything the user changed in a grid: what a saved view keeps (but the page). */
+export interface GridView {
+  columnFilters: Record<string, ColumnFilterValue>;
+  conditions: Condition[];
+  sort: SortEntry[];
+  page: number;
+  pageSize: number;
+  /** Fields shown, in order. */
+  columns: string[];
+}
+
+export type ExportFormat = "pdf" | "xlsx" | "csv";

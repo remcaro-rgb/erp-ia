@@ -1,0 +1,194 @@
+/*
+ * Component classes of ERP-IA (prototype v5 `.btn`, `.pill`, `.grid`, `.adv`, `.lk`, `.sec`, `.field`, `.dian`…), on the
+ * §19a tokens so light and dark both follow. Components keep their markup lean with these `erp-*` classes.
+ */
+@layer components {
+  .erp-mono { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; }
+  .erp-num { font-variant-numeric: tabular-nums; }
+  .erp-muted { color: var(--text-muted); }
+  .erp-small { font-size: 12px; }
+  .erp-hint { font-weight: 400; color: var(--text-muted); font-size: 11px; text-transform: none; letter-spacing: 0; }
+  .erp-grow { flex-grow: 1; }
+  .erp-row { display: flex; align-items: center; gap: 8px; }
+  .erp-row--top { align-items: flex-start; }
+  .erp-stack { display: flex; flex-direction: column; gap: 12px; }
+  .erp-icon { width: 16px; height: 16px; flex: 0 0 auto; }
+  .erp-icon--pdf { color: #D93025; }
+  .erp-icon--xlsx { color: #1E8E3E; }
+  .erp-icon--csv { color: #5F6B7A; }
+  :root[data-theme="dark"] .erp-icon--pdf { color: #F28B82; }
+  :root[data-theme="dark"] .erp-icon--xlsx { color: #6BCB8B; }
+  :root[data-theme="dark"] .erp-icon--csv { color: #B0BAC8; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .erp-icon--pdf { color: #F28B82; }
+    :root:not([data-theme="light"]) .erp-icon--xlsx { color: #6BCB8B; }
+    :root:not([data-theme="light"]) .erp-icon--csv { color: #B0BAC8; }
+  }
+  .erp-link { border: 0; background: transparent; padding: 0; color: var(--primary); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; text-decoration: underline; }
+
+  /* buttons */
+  .erp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; line-height: 1.2; white-space: nowrap; }
+  .erp-btn:hover:not(:disabled) { background: var(--head); }
+  .erp-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .erp-btn--primary { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+  .erp-btn--primary:hover:not(:disabled) { background: var(--primary-h); }
+  .erp-btn--ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
+  .erp-btn--sm { padding: 5px 9px; font-size: 12px; }
+
+  /* pills */
+  .erp-pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; margin-right: 4px; }
+  .erp-pill--ok { background: var(--ok-bg); color: var(--ok); }
+  .erp-pill--warn { background: var(--warn-bg); color: var(--warn); }
+  .erp-pill--danger { background: var(--danger-bg); color: var(--danger); }
+  .erp-pill--info { background: var(--info-bg); color: var(--info); }
+  .erp-pill--gray { background: var(--line-2); color: var(--text-muted); }
+  .erp-masked { color: var(--text-muted); letter-spacing: 1px; }
+
+  /* the grid */
+  .erp-grid { display: flex; flex-direction: column; min-height: 0; flex-grow: 1; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  .erp-grid__hd { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
+  .erp-grid__hd h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .erp-grid__exports { display: inline-flex; gap: 8px; }
+  .erp-grid__chips { padding: 6px 14px; border-bottom: 1px solid var(--line-2); }
+  .erp-grid__error { padding: 8px 14px; background: var(--danger-bg); color: var(--danger); font-size: 13px; }
+  .erp-grid__body { overflow: auto; flex-grow: 1; }
+  .erp-grid table, .erp-adv__table table { border-collapse: collapse; width: 100%; }
+  .erp-grid th, .erp-grid td, .erp-adv__table th, .erp-adv__table td { padding: 0 12px; height: 36px; text-align: left; border-bottom: 1px solid var(--line-2); font-size: 14px; white-space: nowrap; }
+  .erp-grid th, .erp-adv__table th { font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
+  .erp-grid th.text-right, .erp-grid td.text-right { text-align: right; }
+  .erp-grid__filters th { top: 36px; }
+  .erp-grid__filters input, .erp-grid__filters select { width: 100%; min-width: 72px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); font-weight: 400; }
+  .erp-grid__filters .is-on { border-color: var(--primary); background: var(--accent); }
+  .erp-grid__range { display: flex; gap: 4px; }
+  .erp-grid__sort { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; white-space: nowrap; }
+  .erp-grid__sort:hover { color: var(--text); }
+  .erp-grid__unsorted { opacity: .3; }
+  .erp-grid__check { width: 36px; padding-right: 0 !important; }
+  .erp-grid__check input { accent-color: var(--primary); }
+  .erp-grid__empty { height: 80px !important; text-align: center !important; }
+  .erp-row-link { cursor: pointer; }
+  .erp-row-link:hover td { background: var(--hover); }
+  .erp-row-link.is-selected td { background: var(--accent); }
+  .erp-row-link.is-blocked { opacity: .55; cursor: not-allowed; }
+  .erp-grid__ft { display: flex; align-items: center; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
+  .erp-grid__ft b { color: var(--text); }
+  .erp-grid__selection { display: inline-flex; gap: 12px; }
+  .erp-pager { display: inline-flex; align-items: center; gap: 4px; }
+  .erp-pager button { min-width: 28px; height: 26px; padding: 0 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; font-size: 12px; color: var(--text); }
+  .erp-pager button.is-on { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .erp-pager button:disabled { opacity: .5; cursor: not-allowed; }
+  .erp-pager select { height: 26px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 12px; color: var(--text); }
+
+  /* popovers (columns, saved views) */
+  .erp-pop { position: relative; }
+  .erp-pop__panel { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 220px; max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); font-size: 13px; }
+  .erp-pop__panel--wide { min-width: 300px; }
+  .erp-pop__head { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+  .erp-pop__check { display: flex; gap: 8px; align-items: center; }
+  .erp-pop__check input { accent-color: var(--primary); }
+  .erp-pop__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+
+  /* chips of the advanced conditions */
+  .erp-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .erp-chips__item { display: inline-flex; align-items: center; gap: 6px; }
+  .erp-chips__join { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+  .erp-chip { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; background: var(--accent); color: var(--text); border: 1px solid var(--accent-line); padding: 2px 8px; border-radius: 4px; }
+  .erp-chip b { font-weight: 600; }
+  .erp-chip button { border: 0; background: transparent; color: var(--text-muted); padding: 0 2px; }
+
+  /* dialogs (advanced filter) */
+  .erp-dialog { padding: 0 !important; gap: 0 !important; background: var(--surface) !important; color: var(--text); border-color: var(--line) !important; max-height: 88vh; display: flex !important; flex-direction: column; overflow: hidden; }
+  .erp-adv-dialog { max-width: min(960px, calc(100% - 2rem)) !important; }
+  .erp-dialog__head { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); }
+  .erp-dialog__title { flex-grow: 1; font-weight: 700; font-size: 15px; }
+  .erp-dialog__body { padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+  .erp-dialog__foot { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--line-2); background: var(--head); }
+  .erp-adv { display: flex; flex-direction: column; gap: 6px; }
+  .erp-adv__cond { display: grid; grid-template-columns: 72px 200px 160px 1fr auto; gap: 6px; align-items: center; }
+  .erp-adv__cond--two { grid-template-columns: 72px 200px 160px 1fr 1fr auto; }
+  .erp-adv__join { font-size: 12px; font-weight: 700; text-align: center; color: var(--text-muted); }
+  select.erp-adv__join { color: var(--primary); }
+  .erp-adv select, .erp-adv input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); width: 100%; }
+  .erp-adv__or { height: 1px; background: var(--line); margin: 4px 0; }
+  .erp-adv__results h3 { margin: 0 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+  .erp-adv__table { max-height: 280px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; }
+
+  /* entity lookup */
+  .erp-lk { position: relative; }
+  .erp-lk__input { width: 100%; padding: 8px 64px 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); }
+  .erp-lk__input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-lk__mag, .erp-lk__clear { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); display: grid; place-items: center; }
+  .erp-lk__mag { right: 4px; }
+  .erp-lk__clear { right: 32px; }
+  .erp-lk__mag:hover, .erp-lk__clear:hover { background: var(--head); color: var(--primary); }
+  .erp-lk__mag.is-on { color: var(--primary); background: var(--accent); }
+  .erp-lk__dd { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 320px; overflow: auto; }
+  .erp-lk__dd ul { list-style: none; margin: 0; padding: 0; }
+  .erp-lk__item { padding: 8px 10px; cursor: pointer; display: flex; gap: 10px; align-items: center; font-size: 13px; }
+  .erp-lk__item:hover, .erp-lk__item.is-on { background: var(--accent); }
+  .erp-lk__item.is-blocked { opacity: .55; cursor: not-allowed; }
+  .erp-lk__label, .erp-lk__sub { display: block; }
+  .erp-lk__ft { padding: 6px 10px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--text-muted); display: flex; gap: 8px; align-items: center; }
+  .erp-lk__chips { padding: 6px 10px; border-top: 1px solid var(--line-2); }
+
+  /* party switches */
+  .erp-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  .erp-toggle { position: relative; width: 38px; height: 22px; border-radius: 11px; background: var(--line); border: 0; transition: background .15s; flex: 0 0 auto; }
+  .erp-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .erp-toggle.is-on { background: var(--primary); }
+  .erp-toggle.is-on::after { left: 19px; }
+
+  /* forms */
+  .erp-form { display: flex; flex-direction: column; gap: 12px; }
+  .erp-sec { display: flex; flex-direction: column; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--line-2); }
+  .erp-sec h3 { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .erp-form2, .erp-form3, .erp-form4 { display: grid; gap: 12px; }
+  .erp-form2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .erp-form3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .erp-form4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .erp-span2 { grid-column: span 2; }
+  .erp-span3 { grid-column: span 3; }
+  .erp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; border: 0; margin: 0; padding: 0; }
+  .erp-field > label, .erp-field > legend, .erp-field__label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 0; }
+  .erp-field input:not([type="checkbox"]), .erp-field select, .erp-field textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); min-width: 0; width: 100%; }
+  .erp-field input:focus, .erp-field select:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-field input:disabled, .erp-field select:disabled { background: var(--head); color: var(--text-muted); }
+  .erp-field .erp-input--bad, .erp-input--bad { border-color: var(--danger) !important; background: var(--danger-bg) !important; }
+  .erp-field__hint { font-weight: 400; color: var(--text-muted); font-size: 11px; }
+  .erp-field__error { font-size: 11px; color: var(--danger); font-weight: 600; }
+  .erp-field__ok { font-size: 11px; color: var(--ok); }
+  .erp-field--dv { width: 64px; flex: 0 0 auto; }
+  .erp-field--dv input { text-align: center; }
+  .erp-phone { display: flex; gap: 6px; }
+  .erp-phone select { width: 92px !important; flex: 0 0 auto; }
+  .erp-phone input { flex: 1 1 auto; }
+  .erp-checks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .erp-checks--row { flex-direction: row; flex-wrap: wrap; gap: 6px 16px; }
+  .erp-checks label, .erp-check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text); font-weight: 400; min-height: 26px; }
+  .erp-checks input, .erp-check input { accent-color: var(--primary); }
+  .erp-rut { font-size: 12px; line-height: 1.7; padding: 8px 10px; background: var(--head); border: 1px solid var(--line-2); border-radius: 6px; }
+  .erp-dian { padding: 10px 12px; border-radius: 6px; font-size: 13px; }
+  .erp-dian ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; }
+  .erp-dian--ok { background: var(--ok-bg); color: var(--ok); }
+  .erp-dian--warn { background: var(--warn-bg); color: var(--warn); }
+  .erp-dian--bad { background: var(--danger-bg); color: var(--danger); }
+  .erp-dian--info { background: var(--info-bg); color: var(--info); }
+  .erp-form__actions { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 0 0; background: var(--surface); border-top: 1px solid var(--line-2); }
+  .erp-stepup { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
+  .erp-stepup input { width: 120px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); letter-spacing: 3px; }
+
+  /* the record frame (design §5.16) */
+  .erp-record { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  .erp-record__header { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); }
+  .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1; }
+  .erp-record__ids { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); }
+  .erp-record__open { font-size: 12px; color: var(--primary); }
+  .erp-record__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; }
+  .erp-record__tab { padding: 10px 12px; border: 0; background: transparent; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; }
+  .erp-record__tab--on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .erp-record__count { font-size: 11px; background: var(--line-2); color: var(--text-muted); padding: 0 6px; border-radius: 8px; }
+  .erp-record__count--warn { background: var(--warn-bg); color: var(--warn); }
+  .erp-record__panel { padding: 18px; }
+  .erp-record__footer { display: flex; gap: 8px; justify-content: space-between; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 12px; color: var(--text-muted); border-radius: 0 0 8px 8px; }
+}
