@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
-import { loginKey, MAX_ATTEMPTS, resetAttempts, takeAttempt } from "@/lib/auth/limiter";
+import { loginKey, MAX_ATTEMPTS, resetAttempts, storedKey, takeAttempt } from "@/lib/auth/limiter";
 
 const keys: string[] = [];
 const freshKey = () => {
@@ -11,7 +11,7 @@ const freshKey = () => {
 };
 
 afterAll(async () => {
-  await getServiceDb()`delete from kernel.auth_attempts where key = any(${keys}::text[])`;
+  await getServiceDb()`delete from kernel.auth_attempts where key = any(${keys.map(storedKey)}::text[])`;
 });
 
 describe("per-account attempt limiter", () => {
@@ -33,9 +33,9 @@ describe("per-account attempt limiter", () => {
     const key = freshKey();
     for (let attempt = 0; attempt <= MAX_ATTEMPTS; attempt++) await takeAttempt(key);
     expect(await takeAttempt(key)).toBe(false);
-    await getServiceDb()`update kernel.auth_attempts set window_start = now() - interval '6 minutes' where key = ${key}`;
+    await getServiceDb()`update kernel.auth_attempts set window_start = now() - interval '6 minutes' where key = ${storedKey(key)}`;
     expect(await takeAttempt(key)).toBe(true);
-    const [row] = await getServiceDb()<{ count: number }[]>`select count from kernel.auth_attempts where key = ${key}`;
+    const [row] = await getServiceDb()<{ count: number }[]>`select count from kernel.auth_attempts where key = ${storedKey(key)}`;
     expect(row!.count).toBe(1);
   });
 
@@ -44,12 +44,30 @@ describe("per-account attempt limiter", () => {
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) await takeAttempt(key);
     await resetAttempts(key);
     expect(await takeAttempt(key)).toBe(true);
-    const [row] = await getServiceDb()<{ count: number }[]>`select count from kernel.auth_attempts where key = ${key}`;
+    const [row] = await getServiceDb()<{ count: number }[]>`select count from kernel.auth_attempts where key = ${storedKey(key)}`;
     expect(row!.count).toBe(1);
   });
 
   it("keys sign-ins by the lower-cased e-mail", () => {
     expect(loginKey("  Laura@Demo.LOCAL ")).toBe("login:laura@demo.local");
+  });
+
+  it("stores the hash of the key, not the e-mail (final review I2)", async () => {
+    const key = freshKey();
+    await takeAttempt(key.toUpperCase());
+    const rows = await getServiceDb()<{ key: string }[]>`select key from kernel.auth_attempts where key in (${key}, ${storedKey(key)})`;
+    expect(rows).toEqual([{ key: storedKey(key) }]);
+  });
+
+  it("each attempt purges windows that ended more than an hour ago, and keeps the others", async () => {
+    const [stale, recent, blocked] = [freshKey(), freshKey(), freshKey()];
+    for (const key of [stale, recent, blocked]) await takeAttempt(key);
+    const sql = getServiceDb();
+    await sql`update kernel.auth_attempts set window_start = now() - interval '66 minutes' where key = ${storedKey(stale)}`;
+    await sql`update kernel.auth_attempts set window_start = now() - interval '64 minutes' where key = ${storedKey(recent)}`;
+    await takeAttempt(freshKey());
+    const left = await sql<{ key: string }[]>`select key from kernel.auth_attempts where key = any(${[stale, recent, blocked].map(storedKey)}::text[])`;
+    expect(left.map((r) => r.key).sort()).toEqual([storedKey(recent), storedKey(blocked)].sort());
   });
 
   it("is invisible and unwritable to the signed-in role", async () => {

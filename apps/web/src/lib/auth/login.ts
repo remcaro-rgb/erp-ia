@@ -4,7 +4,7 @@ import { createSupabase } from "@/lib/supabase/server";
 import { recordLogin } from "./audit";
 import { mfaStep, readSession } from "./claims";
 import { authFailureOf } from "./errors";
-import { loginKey, mfaKey, resetAttempts, takeAttempt } from "./limiter";
+import { isAcceptableEmail, loginKey, mfaKey, resetAttempts, takeAttempt } from "./limiter";
 
 // The sign-in sequence (design §6): e-mail + password, then the TOTP step the account demands. Each step
 // answers where the browser goes next; the server actions only turn that into a redirect. Every attempt is
@@ -30,6 +30,9 @@ function failure(error: { status?: number; code?: string } | null, refused: Logi
 /** E-mail + password. A session is created at once; whether it is complete depends on the account's MFA. */
 export async function loginWithPassword(jar: CookieJar, input: { email: string; password: string; remember: boolean } & Origin): Promise<StepResult<{ next: Next }>> {
   const email = input.email.trim().toLowerCase();
+  // Longer than any address: not an account. The same answer as a wrong password (no enumeration), and nothing is
+  // counted or stored for it (final review I2).
+  if (!isAcceptableEmail(email)) return { ok: false, error: "invalid_credentials" };
   if (!(await takeAttempt(loginKey(email)))) return { ok: false, error: "too_many_attempts" };
 
   const supabase = createSupabase(jar, { remember: input.remember, clientIp: input.clientIp });

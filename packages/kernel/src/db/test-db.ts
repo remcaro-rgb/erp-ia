@@ -38,6 +38,11 @@ export interface SeededTenant {
   /** `both` belongs to every company, `onlyA` to company 0, plus the extra users by name. */
   users: Record<string, string> & { both: string; onlyA: string };
   claimsFor: (userId: string, activeCompanyId: string) => JwtClaims;
+  /**
+   * Gives `userId` the roles `roleIds` in `companyId` too (kept with the ones it holds). `kernel.current_role_ids()` (0024)
+   * counts only the claim's roles the user holds, so a test that puts a role in the claims first makes the user hold it.
+   */
+  holdRoles: (userId: string, companyId: string, roleIds: string[]) => Promise<void>;
   /** Deletes everything this seed created. */
   cleanup: () => Promise<void>;
 }
@@ -113,6 +118,12 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
           .map((c) => (member?.role === "member" ? c.memberRoleId : c.adminRoleId)),
         locale: "es-419",
       };
+    },
+    async holdRoles(userId, companyId, roleIds) {
+      await sql`insert into kernel.membership_roles(membership_id, role_id)
+        select m.id, r.id from kernel.memberships m cross join unnest(${roleIds}::uuid[]) as r(id)
+        where m.user_id = ${userId} and m.company_id = ${companyId}
+        on conflict do nothing`;
     },
     async cleanup() {
       // The outbox is shared by every suite and drained across companies: a suite takes its rows with it (deliveries

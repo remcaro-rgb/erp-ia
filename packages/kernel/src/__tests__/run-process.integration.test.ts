@@ -160,6 +160,31 @@ describe("run-process", () => {
     expect(await count(sql`select count(*)::int as n from kernel.outbox where chain_id = ${chainId}`)).toBe(0);
   });
 
+  it("a SQL refusal raised with the erp:invalid_input: prefix (SQLSTATE P0001) becomes a typed invalid_input (final review M9)", async () => {
+    const raising = defineProcess({
+      ...probe,
+      id: "test.probe.raise",
+      input: z.object({ name: z.string(), errcode: z.string() }),
+      handler: async (ctx, input) => {
+        await ctx.tx`insert into kernel.role_probe(company_id, secret) values (${ctx.companyId}, ${input.name})`;
+        await ctx.tx.unsafe(`do $$ begin raise exception '${input.name}' using errcode = '${input.errcode}'; end $$`);
+        return { id: "" };
+      },
+    });
+    registry.registerProcess(raising);
+    await grant(adminRole, raising.id);
+    const run = (name: string, errcode = "P0001") => runProcess(deps, callerWith(adminClaims), raising.id, { name, errcode }).catch((e: unknown) => e);
+
+    const typed = await run("erp:invalid_input:El ticket está cerrado");
+    expect(typed).toBeInstanceOf(ProcessError);
+    expect(typed).toMatchObject({ code: "invalid_input", stage: "handler", message: "El ticket está cerrado", details: ["El ticket está cerrado"] });
+    // Without the prefix, or with another SQLSTATE, it stays an untyped failure.
+    expect(await run("a plain exception")).toMatchObject({ code: "handler_failed" });
+    expect(await run("erp:invalid_input:wrong state", "23514")).toMatchObject({ code: "handler_failed" });
+    const [left] = await sql<{ n: number }[]>`select count(*)::int as n from kernel.role_probe where company_id = ${companyId} and secret like 'erp:%'`;
+    expect(left!.n).toBe(0);
+  });
+
   it("step-up: sensitive process requires a fresh verification by the same user", async () => {
     await sql`insert into kernel.sensitive_processes values (${companyId}, 'test.probe.create', 'self_2fa')`;
     await expect(runProcess(deps, callerWith(adminClaims), "test.probe.create", { name: "s" })).rejects.toMatchObject({

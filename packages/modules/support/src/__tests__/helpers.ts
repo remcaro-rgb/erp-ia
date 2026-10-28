@@ -61,6 +61,12 @@ export async function supportHarness(): Promise<SupportHarness> {
     agent: await role(company!.id, "support_agent", AGENT_PROCESSES),
     agentOther: await role(other!.id, "support_agent", AGENT_PROCESSES),
   };
+  // Each user holds the role its claims name (0024: kernel.current_role_ids() counts only the roles the user holds).
+  await seed.holdRoles(seed.users.reporterA!, company!.id, [roles.reporter]);
+  await seed.holdRoles(seed.users.reporterB!, company!.id, [roles.reporter]);
+  await seed.holdRoles(seed.users.plain!, company!.id, [roles.plain]);
+  await seed.holdRoles(seed.users.agent!, company!.id, [roles.agent]);
+  await seed.holdRoles(seed.users.agent!, other!.id, [roles.agentOther]);
   const caller = (user: string, companyId: string, roleId: string): Caller => ({
     claims: { ...seed.claimsFor(seed.users[user]!, companyId), role_ids: [roleId] },
     origin: "ui",

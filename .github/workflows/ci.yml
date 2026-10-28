@@ -47,15 +47,13 @@ jobs:
         if: always()
 
   # End to end (rule 31, design §21, Task 22): every Playwright spec against `next dev` on the CLI stack with the demo
-  # company (`supabase start` applies the migrations and supabase/seed.sql, then `pnpm db:seed` and the help index), the
-  # phase 1 smoke included. The assistant runs on the AI SDK mock model (AGENT_MODEL=mock, playwright.config.ts) unless
-  # the repository provides AI_GATEWAY_API_KEY.
+  # company (`supabase start` applies the migrations and supabase/seed.sql, then `DEMO_SEED=1 pnpm db:seed`, set
+  # job-wide below, and the help index), the phase 1 smoke included. The assistant runs on the AI SDK mock model
+  # (AGENT_MODEL=mock, playwright.config.ts) unless the repository provides AI_GATEWAY_API_KEY.
   e2e:
     runs-on: ubuntu-latest
     needs: [unit, integration]
     env:
-      # One value for the help index and the app: both use the gateway, or both the deterministic embedder and the mock.
-      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       DEMO_SEED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -71,8 +69,14 @@ jobs:
       - run: pnpm -F web exec playwright install --with-deps chromium
       - run: supabase start
       - run: pnpm db:seed
+      # The gateway key reaches only the two steps that use it (not `pnpm install` and its lifecycle scripts), with one
+      # value for both: the help index and the app use the gateway, or the deterministic embedder and the mock model.
       - run: pnpm help:index
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       - run: pnpm -F web e2e
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

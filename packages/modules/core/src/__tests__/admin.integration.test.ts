@@ -26,8 +26,11 @@ describe("admin", () => {
     return { ...caller, stepUpToken };
   };
   const run = async <T = unknown>(caller: Caller, processId: string, input: unknown): Promise<T> => runProcess(deps, await stepUp(caller), processId, input);
-  /** A caller of company 0 holding exactly `roleIds`. */
-  const asRoles = (user: string, roleIds: string[]): Caller => ({ claims: { ...h.seed.claimsFor(user, h.companyId), role_ids: roleIds }, origin: "ui" });
+  /** A caller of company 0 whose claims name exactly `roleIds`, which the user holds (0024 counts only held roles). */
+  const asRoles = async (user: string, roleIds: string[]): Promise<Caller> => {
+    await h.seed.holdRoles(user, h.companyId, roleIds);
+    return { claims: { ...h.seed.claimsFor(user, h.companyId), role_ids: roleIds }, origin: "ui" };
+  };
 
   beforeAll(async () => {
     h = await coreHarness({
@@ -152,14 +155,14 @@ describe("admin", () => {
     // Applied in the masked view: the new role reads parties without the credit limit; the admin still sees it.
     const party = await runProcess<never>(deps, admin, "core.party.create", { ...exito, documentNumber: String(nextDocument++), creditLimit: 2_000_000 });
     const { id } = party as { id: string };
-    const [asRole] = await withClaims(sql, asRoles(h.seed.users.buyer!, [roleId]).claims, (tx) => tx`select credit_limit from core.v_parties where id = ${id}`);
+    const [asRole] = await withClaims(sql, (await asRoles(h.seed.users.buyer!, [roleId])).claims, (tx) => tx`select credit_limit from core.v_parties where id = ${id}`);
     expect(asRole!.credit_limit).toBeNull();
     const [asAdmin] = await withClaims(sql, admin.claims, (tx) => tx`select credit_limit from core.v_parties where id = ${id}`);
     expect(Number(asAdmin!.credit_limit)).toBe(2_000_000);
 
     // The admin may make it visible again for that role.
     await run(admin, "kernel.admin.field_permission.set", { roleId, entity: "core.party", field: "credit_limit", mode: "visible" });
-    const [visible] = await withClaims(sql, asRoles(h.seed.users.buyer!, [roleId]).claims, (tx) => tx`select credit_limit from core.v_parties where id = ${id}`);
+    const [visible] = await withClaims(sql, (await asRoles(h.seed.users.buyer!, [roleId])).claims, (tx) => tx`select credit_limit from core.v_parties where id = ${id}`);
     expect(Number(visible!.credit_limit)).toBe(2_000_000);
   });
 
@@ -173,7 +176,7 @@ describe("admin", () => {
       where m.user_id = ${h.seed.users.buyer!} and m.company_id = ${h.companyId}`;
     expect(roles.map((r) => r.role_id)).toEqual([roleId]);
 
-    const seen = await withClaims(sql, asRoles(h.seed.users.buyer!, [roleId]).claims, (tx) => tx<{ id: string }[]>`
+    const seen = await withClaims(sql, (await asRoles(h.seed.users.buyer!, [roleId])).claims, (tx) => tx<{ id: string }[]>`
       select id from core.v_parties where id = any(${[customer.id, vendor.id]}::uuid[])`);
     expect(seen.map((r) => r.id)).toEqual([customer.id]);
 
@@ -344,12 +347,15 @@ describe("admin: tenants, companies and the admin's own reach", () => {
     expect(can).toEqual({ ok: true, other: true });
     // A second role that masks the credit limit does not hide it from the admin.
     const { id } = (await runProcess(deps, admin, "core.party.create", { ...exito, documentNumber: "931000001", creditLimit: 3_000_000 })) as { id: string };
+    await h.seed.holdRoles(admin.claims.sub, h.companyId, [memberRole]);
     const twoRoles = { ...admin.claims, role_ids: [adminRole, memberRole] };
     await sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode) values (${h.companyId}, ${memberRole}, 'core.party', 'credit_limit', 'masked')
               on conflict (company_id, role_id, entity, field) do update set mode = 'masked'`;
     const [row] = await withClaims(sql, twoRoles, (tx) => tx`select credit_limit, kernel.field_mode('core.party', 'credit_limit') as mode from core.v_parties where id = ${id}`);
     expect(row).toMatchObject({ mode: "visible" });
     expect(Number(row!.credit_limit)).toBe(3_000_000);
+    await sql`delete from kernel.membership_roles where role_id = ${memberRole}
+              and membership_id = (select id from kernel.memberships where user_id = ${admin.claims.sub} and company_id = ${h.companyId})`;
   });
 
   it("required_file.set refuses a tag the entity already requires, on create and on update", async () => {

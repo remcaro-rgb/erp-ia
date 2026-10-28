@@ -78,6 +78,7 @@ describe("core products", () => {
     await h.grantAll(company.id, company.memberRoleId, ["core.product.consult"]);
     await sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode)
               values (${company.id}, ${company.memberRoleId}, 'core.product', 'standard_cost', 'masked')`;
+    await h.seed.holdRoles(admin.claims.sub, company.id, [company.memberRoleId]);
     const reader: Caller = { claims: { ...admin.claims, role_ids: [company.memberRoleId] }, origin: "ui" };
     const seen = await runProcess(deps, reader, "core.product.consult", { id: out.id });
     expect(seen).toMatchObject({ id: out.id, sku: "CAF-2000", standard_cost: null });

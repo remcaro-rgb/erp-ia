@@ -3,7 +3,14 @@
 import * as React from "react"
 import { cn } from "@erp/ui/lib/utils"
 import { XIcon } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Dialog as SheetPrimitive } from "radix-ui"
+
+/** The close button's name from the catalogue (rule 24), read only where a close button is drawn. */
+function CloseLabel() {
+  const t = useTranslations("common")
+  return <>{t("close")}</>
+}
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -76,7 +83,9 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary">
             <XIcon className="size-4" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">
+              <CloseLabel />
+            </span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Content>

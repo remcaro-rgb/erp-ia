@@ -190,6 +190,7 @@ describe("mass import into core", () => {
         insert into kernel.roles(company_id, name, is_system, party_scope) values (${h.companyId}, ${name}, false, ${partyScope}) returning id`;
       await h.grantAll(h.companyId, role!.id, processes);
       const userId = h.seed.users.clerk!;
+      await h.seed.holdRoles(userId, h.companyId, [role!.id]);
       return { ...h.seed.claimsFor(userId, h.companyId), role_ids: [role!.id] };
     };
     const IMPORTER = ["core.party.create", "kernel.attachment.add", "kernel.attachment.list", ...IMPORT_PROCESSES.map((p) => p.id)];
@@ -212,6 +213,7 @@ describe("mass import into core", () => {
       // Another member of the company (user `onlyA` under a reader role) sees nothing of it.
       const [readerRole] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${h.companyId}, 'lector', false) returning id`;
       await h.grantAll(h.companyId, readerRole!.id, ["kernel.attachment.list", "kernel.attachment.remove", "kernel.import.list"]);
+      await h.seed.holdRoles(h.seed.users.onlyA, h.companyId, [readerRole!.id]);
       const other = { ...h.seed.claimsFor(h.seed.users.onlyA, h.companyId), role_ids: [readerRole!.id] };
       const otherCaller = { claims: other, origin: "ui" as const };
       expect((await runProcess(deps, otherCaller, "kernel.import.list", {})).map((i: { id: string }) => i.id)).not.toContain(ids.importId);
@@ -223,6 +225,7 @@ describe("mass import into core", () => {
       // remove a file of an import they neither started nor administer: the record is not visible to them.
       const [importerRole] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${h.companyId}, 'lector_importador', false) returning id`;
       await h.grantAll(h.companyId, importerRole!.id, ["kernel.attachment.remove", "kernel.import.run"]);
+      await h.seed.holdRoles(h.seed.users.onlyA, h.companyId, [importerRole!.id]);
       const otherImporter = { claims: { ...other, role_ids: [importerRole!.id] }, origin: "ui" as const };
       await expect(runProcess(deps, otherImporter, "kernel.attachment.remove", { id: source!.id })).rejects.toMatchObject({ code: "not_found" });
       expect((await h.sql`select removed_at from kernel.attachments where id = ${source!.id}`)[0]!.removed_at).toBeNull();

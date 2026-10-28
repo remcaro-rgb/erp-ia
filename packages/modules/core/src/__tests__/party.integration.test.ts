@@ -193,6 +193,8 @@ describe("core parties", () => {
       insert into kernel.roles(company_id, name, party_scope) values (${company.id}, 'compras', 'proveedores') returning id`;
     const [none] = await sql<{ id: string }[]>`
       insert into kernel.roles(company_id, name, party_scope) values (${company.id}, 'caja', 'ninguno') returning id`;
+    // The vendedor holds the three roles; each claim names the ones under test (0024 counts only held roles).
+    await h.seed.holdRoles(vendedor.claims.sub, company.id, [buyer!.id, none!.id]);
     const claims = (roleIds: string[]) => ({ ...vendedor.claims, role_ids: roleIds });
     const scopeOf = async (roleIds: string[]) =>
       (await withClaims(sql, claims(roleIds), (tx) => tx<{ s: string }[]>`select kernel.party_scope() as s`))[0]!.s;
@@ -203,6 +205,7 @@ describe("core parties", () => {
     expect(await scopeOf([])).toBe("ninguno");
     const rows = await withClaims(sql, claims([none!.id]), (tx) => tx`select id from core.v_parties`);
     expect(rows).toHaveLength(0);
+    await sql`delete from kernel.membership_roles where role_id = any(${[buyer!.id, none!.id]}::uuid[])`;
     await sql`delete from kernel.roles where id = any(${[buyer!.id, none!.id]}::uuid[])`;
   });
 

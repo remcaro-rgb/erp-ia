@@ -74,6 +74,7 @@ describe("core party contacts", () => {
     await runProcess(deps, admin, "core.contact.create", { partyId, name: "Cartera" });
     const company = h.seed.companies[0]!;
     await sql`update kernel.roles set party_scope = 'clientes' where id = ${company.memberRoleId}`;
+    await h.seed.holdRoles(admin.claims.sub, company.id, [company.memberRoleId]);
     const claims = { ...admin.claims, role_ids: [company.memberRoleId] };
     const names = await withClaims(sql, claims, (tx) => tx<{ name: string }[]>`select name from core.v_party_contacts order by name`);
     expect(names.map((n) => n.name)).toEqual(["Cartera"]);

@@ -93,6 +93,8 @@ Elige la **Entidad** (Tercero, Producto…) y, para cada campo y cada rol, si se
 
 Aplica igual en los listados, los formularios, las exportaciones y las respuestas del asistente. Un campo enmascarado u oculto no se puede usar para ordenar ni filtrar. Los campos marcados **confidencial** empiezan enmascarados en cada rol nuevo y en los roles que ya existían cuando el campo apareció. El rol admin ve todos los campos, aunque tenga además otro rol que los enmascare.
 
+Con varios roles, en la visibilidad de un campo gana el modo más restrictivo (oculto antes que enmascarado, enmascarado antes que visible), mientras que los permisos de procesos se suman: darle a alguien un rol más puede ocultarle un campo que antes veía.
+
 ## Procesos sensibles
 
 Activa el interruptor de un proceso para que pida la **verificación en dos pasos** cada vez que alguien lo ejecute en esta empresa (por ejemplo, desactivar un tercero o un producto). Los procesos de administración que cambian algo siempre la piden y no se pueden apagar; las consultas de administración (matriz de permisos, uso de IA) no la piden.

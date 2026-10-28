@@ -1,6 +1,6 @@
 // Scheduling (rule 6, design §5.10). Phase 1 has one scheduled job, the outbox tick; the `kernel.scheduled_tasks`
 // table and its claim loop arrive in phase 3 behind this same interface. The tick itself is the same on both targets;
-// what drives it differs: Vercel Cron calls GET /api/internal/outbox/tick every minute (vercel.json), the Docker
+// what drives it differs: Vercel Cron calls GET /api/internal/outbox/tick every minute (apps/web/vercel.json), the Docker
 // worker calls POST /api/internal/outbox/tick every 30 s.
 
 export interface TickResult {

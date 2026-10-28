@@ -233,8 +233,8 @@ describe("support tickets", () => {
         sizeBytes: 100,
         storagePath: `${h.seed.tenantId}/${h.companyId}/support.ticket/${ticketB}/0192a1b2-tarde.png`,
       });
-      // The hook raises inside the kernel's handler, which reports an untyped failure (a typed invalid_input needs a kernel change).
-      await expect(add).rejects.toMatchObject({ code: "handler_failed" });
+      // The hook raises with the erp:invalid_input: prefix (final review M9): a typed refusal the UI shows.
+      await expect(add).rejects.toMatchObject({ code: "invalid_input", stage: "handler", details: ["El ticket está cerrado: sus archivos ya no pueden cambiar"] });
       expect(await h.sql`select 1 from kernel.attachments where record_id = ${ticketB}`).toHaveLength(0);
     });
 

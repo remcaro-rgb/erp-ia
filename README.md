@@ -10,7 +10,7 @@ Read first: [`CLAUDE.md`](CLAUDE.md) (instructions for every contributor), [`doc
 the [roadmap](docs/roadmap.md) and the user guides in [`docs/user-guide/es-419`](docs/user-guide/es-419/README.md).
 
 Stack: pnpm monorepo, Next.js 16 (App Router), Supabase (Postgres, Auth, Storage), Vercel AI SDK + Workflow DevKit,
-shadcn + Tailwind v4, TanStack Table, Vitest and Playwright. Node 22 or later, pnpm 10, Docker, Supabase CLI 2.117.
+shadcn + Tailwind v4, TanStack Table, Vitest and Playwright. Node 22.2 or later, pnpm 10, Docker, Supabase CLI 2.117.
 
 ## Run locally
 
@@ -67,6 +67,21 @@ pnpm docker:down      # stop and drop the volumes
 
 `pnpm docker:up` starts the production stack: no published test ports, no demo, the gateway for the assistant (set
 `AI_GATEWAY_API_KEY` in `.env.docker`; `AGENT_MODEL=mock` makes the web app refuse to start there).
+
+### Producción con Docker (fase 6)
+
+El compose de producción arranca, pero todavía no se puede operar por sí solo: ningún camino crea el primer tenant, su
+empresa y su administrador (no hay bootstrap del primer tenant); los enlaces de invitación y las URL de la API apuntan a
+`API_EXTERNAL_URL`, que solo publica la capa de prueba (`docker-compose.test.yml`); y las URL firmadas de descarga llevan
+el host interno (`kong:8000`). Úsalo para probar el arranque, no para atender usuarios. La entrega on-premise (bootstrap,
+registro cerrado, URL externas detrás del edge) es la fase 6 del [roadmap](docs/roadmap.md).
+
+## Deploy on Vercel
+
+The Vercel project's root directory is `apps/web` (the Next app). Its `vercel.json` lives there and registers the cron
+that drains the outbox every minute (`GET /api/internal/outbox/tick`, authorized with `CRON_SECRET`); a `vercel.json` at
+the repository root would not be read, and the outbox would never drain. `src/lib/vercel-cron.test.ts` checks that every
+cron path is a GET route of the app.
 
 ## Run the tests
 

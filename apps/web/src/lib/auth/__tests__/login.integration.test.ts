@@ -8,7 +8,7 @@ vi.mock("next/headers", () => ({ cookies: async () => state.jar, headers: async 
 import { completeMfa, confirmEnrolment, loginWithPassword, startEnrolment } from "@/lib/auth/login";
 import { getCallerClaims, Unauthenticated } from "@/lib/auth/claims";
 import { createSupabase } from "@/lib/supabase/server";
-import { loginKey, MAX_ATTEMPTS, resetAttempts, takeAttempt } from "@/lib/auth/limiter";
+import { loginKey, MAX_ATTEMPTS, resetAttempts, storedKey, takeAttempt } from "@/lib/auth/limiter";
 import { REMEMBER_COOKIE, REMEMBER_EMAIL_COOKIE, REMEMBER_MAX_AGE_SECONDS } from "@/lib/supabase/cookies";
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60;
@@ -99,10 +99,10 @@ describe("login of a member (no MFA required)", () => {
     // A later window, a wrong password counts, the right one clears.
     await resetAttempts(key);
     expect(await loginWithPassword(jar, { email: fixture.email, password: "wrong", remember: false })).toEqual({ ok: false, error: "invalid_credentials" });
-    const [counted] = await fixture.sql<{ count: number }[]>`select count from kernel.auth_attempts where key = ${key}`;
+    const [counted] = await fixture.sql<{ count: number }[]>`select count from kernel.auth_attempts where key = ${storedKey(key)}`;
     expect(counted!.count).toBe(1);
     expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
-    expect(await fixture.sql`select 1 from kernel.auth_attempts where key = ${key}`).toHaveLength(0);
+    expect(await fixture.sql`select 1 from kernel.auth_attempts where key = ${storedKey(key)}`).toHaveLength(0);
   });
 
   it("forwards the client IP to Auth on the sign-in call", async () => {

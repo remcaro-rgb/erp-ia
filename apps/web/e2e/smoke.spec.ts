@@ -5,8 +5,8 @@ import { DEMO_COMPANY_ID, LAURA, MARCELA, type DemoAccount } from "../../../scri
 import { totpCode } from "../test-support/auth-fixtures";
 import { testEnv } from "../test-support/env";
 
-// The phase 1 smoke (Task 22) on the demo company the seed leaves (`pnpm db:reset && pnpm db:seed`): nothing here creates
-// users, roles or permissions; it signs in with the seeded accounts and walks the screens.
+// The phase 1 smoke (Task 22) on the demo company the seed leaves (`pnpm db:reset && DEMO_SEED=1 pnpm db:seed`):
+// nothing here creates users, roles or permissions; it signs in with the seeded accounts and walks the screens.
 //
 //  1. Laura (admin + gerente comercial, TOTP): Terceros from the module bar, the name filter, the Excel export, a consult
 //     through the assistant, a party created through the assistant's confirmation card, and the audit viewer showing that

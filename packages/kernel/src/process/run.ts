@@ -50,6 +50,27 @@ class DryRunRollback {
 /** Refusals the pipeline raises itself carry `stage: "gate"`; the handler's own keep the default `handler`. */
 const GATE = { stage: "gate" } as const;
 
+/**
+ * SQL refusals (final review M9). A trigger, hook or function a handler reaches may refuse the change in a way the
+ * user can act on by raising with the default SQLSTATE `P0001` and a message that starts with SQL_INVALID_INPUT:
+ *
+ *   raise exception 'erp:invalid_input:El ticket está cerrado: sus archivos ya no pueden cambiar';
+ *
+ * `runProcess` turns it into `ProcessError("invalid_input")` (stage `handler`) whose message and single detail are the
+ * text after the prefix, so it must be the user's copy (Spanish, like every handler's `invalid_input` details). Any
+ * other database error stays `handler_failed`. Example: `support.attachments_changed` (0017).
+ */
+export const SQL_INVALID_INPUT = "erp:invalid_input:";
+
+/** The typed refusal a SQL error carries, if it follows the SQL_INVALID_INPUT convention. */
+function sqlRefusal(cause: unknown): ProcessError | undefined {
+  if (typeof cause !== "object" || cause === null) return undefined;
+  const { code, message } = cause as { code?: unknown; message?: unknown };
+  if (code !== "P0001" || typeof message !== "string" || !message.startsWith(SQL_INVALID_INPUT)) return undefined;
+  const text = message.slice(SQL_INVALID_INPUT.length).trim();
+  return new ProcessError("invalid_input", text, { details: [text], cause, stage: "handler" });
+}
+
 /** Refusals recorded in the audit log with action `denied` (design §5.4 step 2). */
 const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up_required"]);
 
@@ -59,7 +80,8 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
  * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
  * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
- * throws itself, which keeps its code (a denial code is then audited like any other denial). A denial is audited (action `denied`)
+ * throws itself, which keeps its code (a denial code is then audited like any other denial), and a SQL refusal raised
+ * with the `SQL_INVALID_INPUT` prefix, which becomes `invalid_input`. A denial is audited (action `denied`)
  * in its own committed transaction, on the attempt's chain. With `options.dryRun` the transaction is always
  * rolled back after the handler (see `RunProcessOptions`).
  */
@@ -156,9 +178,10 @@ async function execute<O extends z.ZodTypeAny>(
       try {
         output = await def.handler(ctx, parsed.data);
       } catch (cause) {
-        // A handler refuses with a typed error (e.g. invalid_input from a country-pack validator): keep it.
+        // A handler refuses with a typed error (e.g. invalid_input from a country-pack validator): keep it. So does a
+        // SQL refusal raised with the SQL_INVALID_INPUT prefix.
         if (cause instanceof ProcessError) throw cause;
-        throw new ProcessError("handler_failed", `process ${def.id} failed`, { cause });
+        throw sqlRefusal(cause) ?? new ProcessError("handler_failed", `process ${def.id} failed`, { cause });
       }
       // A dry run ends here: everything the handler wrote (and the step-up consumption) is rolled back.
       if (dryRun) throw new DryRunRollback(output);

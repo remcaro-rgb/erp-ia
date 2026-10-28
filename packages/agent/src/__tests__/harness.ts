@@ -69,6 +69,8 @@ export async function agentHarness(options: { entitlements?: string[] } = {}): P
   for (const id of CASHIER_PROCESSES) {
     await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${company.id}, ${cashierRole!.id}, ${id})`;
   }
+  // The cashier holds the cashier role (0024: kernel.current_role_ids() counts only the claim's roles the user holds).
+  await seed.holdRoles(seed.users.cashier!, company.id, [cashierRole!.id]);
   const caller = (user: string, roleId?: string): Caller => {
     const claims = seed.claimsFor(seed.users[user]!, company.id);
     return { claims: roleId ? { ...claims, role_ids: [roleId] } : claims, origin: "ui" };

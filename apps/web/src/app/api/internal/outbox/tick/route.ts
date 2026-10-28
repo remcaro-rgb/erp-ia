@@ -6,7 +6,7 @@ import { processDeps } from "@/lib/server/runtime";
 // The outbox tick (design §5.5, §5.10, §21): claims the undispatched outbox rows and starts one `dispatchOutboxRow`
 // workflow run per row, through the service connection (rule 12: route handler). Machine to machine, never a user's:
 //   POST with `x-internal-token: <INTERNAL_TOKEN>` — the Docker worker, every 30 s (apps/worker);
-//   GET  with `Authorization: Bearer <CRON_SECRET>` — Vercel Cron, every minute (vercel.json), which sends only GET
+//   GET  with `Authorization: Bearer <CRON_SECRET>` — Vercel Cron, every minute (apps/web/vercel.json), which sends only GET
 //        requests with that header.
 // Both answer `{ dispatched: n }`. Without the right secret: 401 and nothing is drained. The proxy does not gate
 // /api/internal/* (no session); this handler is the gate.

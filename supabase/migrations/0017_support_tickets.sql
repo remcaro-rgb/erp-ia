@@ -137,7 +137,9 @@ begin
   -- files of the entity, record null, concerns no ticket.)
   if p_entity = 'support.ticket' and p_record_id is not null
      and exists (select 1 from support.tickets t where t.id = p_record_id and t.company_id = p_company and t.status = 'closed') then
-    raise exception 'ticket % is closed: its files can no longer change', p_record_id using errcode = '23514';
+    -- The erp:invalid_input: prefix with the default SQLSTATE P0001 makes runProcess answer a typed invalid_input
+    -- with the text after it (packages/kernel/src/process/run.ts, SQL_INVALID_INPUT).
+    raise exception 'erp:invalid_input:El ticket está cerrado: sus archivos ya no pueden cambiar';
   end if;
 end;
 $$;

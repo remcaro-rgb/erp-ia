@@ -50,7 +50,8 @@ export interface OutboxEnvelope {
  * What a consumer of `row` receives. `runProcess` runs a registered process with origin `event`, on
  * the event's chain, as the system user holding the company's system admin role (the claims are read
  * with the service connection, on first use). The audit actor equals the claims' `sub`, so the
- * `actor_is_caller` policy holds.
+ * `actor_is_caller` policy holds. The system user holds no membership: `kernel.current_role_ids()` (0024) keeps its
+ * claimed role as it is, on a service connection only.
  */
 export function buildConsumerContext(sql: Sql, row: OutboxEnvelope, registry: Registry = defaultRegistry): ConsumerContext {
   let claims: Promise<JwtClaims> | undefined;

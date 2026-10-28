@@ -45,6 +45,7 @@ describe("field-level masking", () => {
   afterAll(async () => {
     await sql`delete from kernel.role_probe where company_id = any(${companyIds()}::uuid[])`;
     // Deleting the roles cascades to their field permissions.
+    await sql`delete from kernel.membership_roles where role_id = ${extraRoleId}`;
     await sql`delete from kernel.roles where id = ${extraRoleId}`;
     await seed.cleanup();
     await sql.end();
@@ -73,6 +74,8 @@ describe("field-level masking", () => {
   });
 
   it("with two roles the most restrictive mode wins", async () => {
+    // The cashier holds both roles (0024 counts only the claim's roles the user holds).
+    await seed.holdRoles(seed.users.cashier!, company(0).id, [extraRoleId]);
     const claims = { ...cashierClaims(), role_ids: [company(0).memberRoleId, extraRoleId] };
     await setMode(0, company(0).memberRoleId, "hidden");
     await setMode(0, extraRoleId, "visible");
@@ -85,6 +88,7 @@ describe("field-level masking", () => {
     expect(await modeAs(claims)).toBe("masked");
     await setMode(0, extraRoleId, "hidden");
     expect(await modeAs(claims)).toBe("hidden");
+    await sql`delete from kernel.membership_roles where role_id = ${extraRoleId}`;
   });
 
   it("another company's permission row does not affect this company", async () => {
