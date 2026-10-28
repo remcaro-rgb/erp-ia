@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { runProcess, type Caller } from "@erp/kernel";
 import { withClaims } from "@erp/kernel/testing";
@@ -58,8 +59,17 @@ describe("custom fields", () => {
     await sql`delete from kernel.custom_fields where company_id = ${h.companyId}`;
   });
 
-  const define = (caller: Caller, over: Record<string, unknown> = {}) =>
-    runProcess(deps, caller, "kernel.custom_field.set", {
+  /** The caller with a fresh step-up verification (rule 15): the admin processes consume one per run. */
+  const stepUp = async (caller: Caller): Promise<Caller> => {
+    const stepUpToken = randomUUID();
+    await sql`insert into kernel.step_up_verifications(user_id, company_id, token)
+              values (${caller.claims.sub}, ${caller.claims.active_company_id}, ${stepUpToken})`;
+    return { ...caller, stepUpToken };
+  };
+  const remove = async (caller: Caller, entity: string, key: string) =>
+    runProcess(deps, await stepUp(caller), "kernel.custom_field.remove", { entity, key });
+  const define = async (caller: Caller, over: Record<string, unknown> = {}) =>
+    runProcess(deps, await stepUp(caller), "kernel.custom_field.set", {
       entity: "core.party",
       key: "canal",
       label: "Canal comercial",
@@ -96,10 +106,10 @@ describe("custom fields", () => {
     const forAdmin = await runProcess(deps, admin, "kernel.custom_field.list", { entity: "core.party" });
     expect(forAdmin[0]).toMatchObject({ canEnter: true, canEdit: true, rolesEnter: [adminRole], rolesView: [adminRole, memberRole] });
 
-    await expect(runProcess(deps, seller, "kernel.custom_field.remove", { entity: "core.party", key: "canal" })).rejects.toMatchObject({ code: "forbidden" });
-    await runProcess(deps, admin, "kernel.custom_field.remove", { entity: "core.party", key: "canal" });
+    await expect(remove(seller, "core.party", "canal")).rejects.toMatchObject({ code: "forbidden" });
+    await remove(admin, "core.party", "canal");
     expect(await runProcess(deps, admin, "kernel.custom_field.list", { entity: "core.party" })).toEqual([]);
-    await expect(runProcess(deps, admin, "kernel.custom_field.remove", { entity: "core.party", key: "canal" })).rejects.toMatchObject({ code: "not_found" });
+    await expect(remove(admin, "core.party", "canal")).rejects.toMatchObject({ code: "not_found" });
     const audit = await sql`select 1 from kernel.audit_log where process_id = 'kernel.custom_field.set' and row_id = ${created.id}`;
     expect(audit.length).toBeGreaterThan(0);
   });
@@ -174,9 +184,54 @@ describe("custom fields", () => {
     await runProcess(deps, seller, "core.party.update", { id: partyId, extra: { canal: "HORECA" } });
     expect((await party(partyId)).extra).toEqual({ canal: "HORECA", dia_pago: "15" });
     // Removing the definition hides the orphan value from everybody.
-    await runProcess(deps, admin, "kernel.custom_field.remove", { entity: "core.party", key: "dia_pago" });
+    await remove(admin, "core.party", "dia_pago");
     expect((await runProcess(deps, admin, "core.party.consult", { id: partyId })).extra).toEqual({ canal: "HORECA" });
     expect((await party(partyId)).extra).toMatchObject({ dia_pago: "15" });
+  });
+
+  it("defining and removing fields are step-up processes (rule 15): refused without a fresh verification, which is consumed", async () => {
+    expect(deps.registry.process("kernel.custom_field.set").sensitivity).toBe("step-up");
+    expect(deps.registry.process("kernel.custom_field.remove").sensitivity).toBe("step-up");
+    const input = {
+      entity: "core.party", key: "canal", label: "Canal", type: "text", rolesEnter: [adminRole], rolesEdit: [adminRole], rolesView: [adminRole],
+    };
+    await expect(runProcess(deps, admin, "kernel.custom_field.set", input)).rejects.toMatchObject({ code: "step_up_required" });
+    await expect(runProcess(deps, admin, "kernel.custom_field.remove", { entity: "core.party", key: "canal" })).rejects.toMatchObject({ code: "step_up_required" });
+    expect(await runProcess(deps, admin, "kernel.custom_field.list", { entity: "core.party" })).toEqual([]);
+    const verified = await stepUp(admin);
+    await runProcess(deps, verified, "kernel.custom_field.set", input);
+    // One verification, one run.
+    await expect(runProcess(deps, verified, "kernel.custom_field.remove", { entity: "core.party", key: "canal" })).rejects.toMatchObject({ code: "step_up_required" });
+  });
+
+  it("a role not in roles_view does not receive the key from the masked views (grids, exports and the assistant read them)", async () => {
+    await define(admin, { key: "sitio", label: "Sitio web", type: "url", options: undefined });
+    await define(admin, { key: "dia_pago", label: "Día de pago habitual", type: "number", options: undefined, rolesView: [adminRole], rolesEnter: [adminRole], rolesEdit: [adminRole] });
+    await define(admin, { entity: "core.product", key: "costo_origen", label: "Costo en origen", type: "number", options: undefined, rolesView: [adminRole], rolesEnter: [adminRole], rolesEdit: [adminRole] });
+    await define(admin, { entity: "core.party_contact", key: "cumple", label: "Cumpleaños", type: "date", options: undefined, rolesView: [adminRole], rolesEnter: [adminRole], rolesEdit: [adminRole] });
+    await define(admin, { entity: "core.product_category", key: "linea", label: "Línea", type: "text", options: undefined, rolesView: [adminRole], rolesEnter: [adminRole], rolesEdit: [adminRole] });
+    const partyId = await newParty({ extra: { sitio: "https://a.co", dia_pago: "15" } });
+    const productId = await newProduct({ extra: { costo_origen: "9000" } });
+    const categoryId = (await runProcess(deps, admin, "core.category.create", { name: "Café", ivaRate: "5", extra: { linea: "Premium" } })).id as string;
+    const contactId = (await runProcess(deps, admin, "core.contact.create", { partyId, name: "Ana", email: "ana@exito.com", extra: { cumple: "1990-02-14" } })).id as string;
+    // A value whose definition was removed is hidden from everybody.
+    await sql`update core.parties set extra = extra || '{"huerfano": "x"}'::jsonb where id = ${partyId}`;
+
+    const read = (caller: Caller, view: string, id: string) =>
+      withClaims(sql, caller.claims, async (tx) => (await tx`select extra from ${tx(view)} where id = ${id}`)[0]?.extra as Record<string, unknown>);
+    // The seller's role is in roles_view of "Sitio web" only.
+    expect(await read(seller, "core.v_parties", partyId)).toEqual({ sitio: "https://a.co" });
+    expect(await read(admin, "core.v_parties", partyId)).toEqual({ sitio: "https://a.co", dia_pago: "15" });
+    expect(await read(seller, "core.v_products", productId)).toEqual({});
+    expect(await read(admin, "core.v_products", productId)).toEqual({ costo_origen: "9000" });
+    expect(await read(seller, "core.v_product_categories", categoryId)).toEqual({});
+    expect(await read(admin, "core.v_product_categories", categoryId)).toEqual({ linea: "Premium" });
+    expect(await read(seller, "core.v_party_contacts", contactId)).toEqual({});
+    expect(await read(admin, "core.v_party_contacts", contactId)).toEqual({ cumple: "1990-02-14" });
+    // Another company's admin does not see this company's rows, and its roles never match these definitions.
+    expect(await read(otherCompanyAdmin, "core.v_parties", partyId)).toBeUndefined();
+    // The table underneath still holds everything: only the view masks.
+    expect((await party(partyId)).extra).toMatchObject({ dia_pago: "15", huerfano: "x" });
   });
 
   it("extra_free takes name / value texts of at most 200 characters", async () => {
@@ -233,12 +288,12 @@ describe("custom fields", () => {
     await define(admin, { entity: "core.product", key: "origen", label: "Origen del café", type: "text", options: undefined, required: false });
     expect(await product(productId)).toMatchObject({ dian_status: "complete", dian_missing: [], invoice_ready: true });
     expect(await product(gtinless)).toMatchObject({ dian_status: "missing: 1", dian_missing: ["Código GTIN"] });
-    await runProcess(deps, admin, "kernel.custom_field.remove", { entity: "core.party", key: "canal" });
+    await remove(admin, "core.party", "canal");
     expect(await party(supplierBoth)).toMatchObject({ dian_status: "missing: 1", dian_missing: ["Correo para enviar documentos al proveedor"] });
   });
 
   it("a required field of another company does not mark this company's records", async () => {
-    await runProcess(deps, otherCompanyAdmin, "kernel.custom_field.set", {
+    await runProcess(deps, await stepUp(otherCompanyAdmin), "kernel.custom_field.set", {
       entity: "core.party",
       key: "canal",
       label: "Canal comercial",

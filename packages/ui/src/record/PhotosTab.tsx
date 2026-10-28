@@ -20,6 +20,11 @@ export interface PhotosTabProps {
   recordId?: string | null;
   /** Hides the drop zone, the removal and the AI button. */
   readOnly?: boolean;
+  /**
+   * Makes a photo the principal one: called with the photo ids in their new order (the chosen one first). The
+   * tab shows the new order once it resolves. The "Hacer principal" button shows only when this is given.
+   */
+  onReorder?: (orderedIds: string[]) => Promise<void> | void;
   /** Runs `ai.image.suggest` for the record; the tab reloads the photos afterwards. The button shows only when this is given. */
   onSuggest?: () => Promise<void>;
   /** Route handler of the attachments API. */
@@ -43,7 +48,7 @@ async function reasonOf(response: Response): Promise<string> {
  * "Sugerir foto con IA" button. The first photo is the principal one. Files are attachments tagged `Foto`
  * handled by /api/attachments (25 MB, signed 60 s links), so they also show in the Archivos tab.
  */
-export function PhotosTab({ entity, recordId, readOnly = false, onSuggest, endpoint = "/api/attachments", labels: overrides, className, fetcher: injected }: PhotosTabProps) {
+export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSuggest, endpoint = "/api/attachments", labels: overrides, className, fetcher: injected }: PhotosTabProps) {
   const labels: PhotosLabels = { ...DEFAULT_PHOTOS_LABELS, ...overrides };
   const fetcherRef = useRef<typeof fetch>(injected ?? ((...args) => fetch(...args)));
   fetcherRef.current = injected ?? ((...args) => fetch(...args));
@@ -154,6 +159,19 @@ export function PhotosTab({ entity, recordId, readOnly = false, onSuggest, endpo
     }
   };
 
+  const makePrincipal = async () => {
+    const photo = photos[index];
+    if (!photo || index === 0) return;
+    const reordered = [photo, ...photos.filter((p) => p.id !== photo.id)];
+    try {
+      await onReorder?.(reordered.map((p) => p.id));
+      setPhotos(reordered);
+      setIndex(0);
+    } catch (error) {
+      setMessage(labels.actionFailed(error instanceof Error ? error.message : String(error)));
+    }
+  };
+
   const suggest = async () => {
     if (!onSuggest) return;
     setSuggesting(true);
@@ -207,6 +225,11 @@ export function PhotosTab({ entity, recordId, readOnly = false, onSuggest, endpo
             </button>
           ))}
         </div>
+        {current && !readOnly && onReorder && index > 0 && (
+          <button type="button" onClick={() => void makePrincipal()}>
+            {labels.makePrincipal}
+          </button>
+        )}
         {current && !readOnly &&
           (confirming ? (
             <span role="alertdialog" aria-label={labels.confirmRemove}>

@@ -11,7 +11,14 @@ type Params = Promise<{ entity: string; id: string }>;
 
 async function RecordView({ params }: { params: Params }) {
   const { entity: entityId, id } = await params;
-  const loaded = await loadRecord(decodeURIComponent(entityId), id);
+  // A malformed escape in the URL is a missing record, not a server error.
+  let entityName: string;
+  try {
+    entityName = decodeURIComponent(entityId);
+  } catch {
+    notFound();
+  }
+  const loaded = await loadRecord(entityName, id);
   // No session, no such record for this user, or no full page for the entity: all look the same. Task 10 sends
   // an anonymous visitor to the sign-in page instead.
   if (!loaded) notFound();

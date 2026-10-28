@@ -25,6 +25,7 @@ export interface PhotosLabels {
   principal: string;
   uploaded: string;
   aiSuggested: string;
+  makePrincipal: string;
   remove: string;
   confirmRemove: string;
   confirmYes: string;
@@ -52,6 +53,7 @@ export const DEFAULT_PHOTOS_LABELS: PhotosLabels = {
   principal: "principal",
   uploaded: "subida",
   aiSuggested: "sugerida por IA",
+  makePrincipal: "Hacer principal",
   remove: "Quitar",
   confirmRemove: "¿Quitar esta foto?",
   confirmYes: "Sí",

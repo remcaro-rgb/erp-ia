@@ -20,16 +20,20 @@ export const UNMASKED_COLUMNS: ReadonlySet<string> = new Set([
  * the base table too, so masking holds only for readers that select from `v_<table>`: every
  * reader (grid, export, assistant) must use the masked view and never the base table.
  * The visibility call is wrapped in `(select ...)` so Postgres evaluates it once per statement
- * (an InitPlan) instead of once per row per masked column.
+ * (an InitPlan) instead of once per row per masked column. The `extra` column is passed through
+ * `kernel.mask_extra`, which depends on the row's value and so runs per row; it returns at once for
+ * an empty document and otherwise does one indexed lookup per key.
  */
 export function maskedViewSql(entity: ResolvedEntityDef): string {
   const columns = [`  "id"`, `  "company_id"`];
   for (const field of entity.fields) {
     if (field.name === "id" || field.name === "company_id") continue;
+    // `extra` also loses the keys of custom fields the caller's roles may not view (roles_view, design §5.14).
+    const shown = field.name === "extra" ? `kernel.mask_extra('${entity.id}', "extra")` : `"${field.name}"`;
     columns.push(
       UNMASKED_COLUMNS.has(field.name)
         ? `  "${field.name}"`
-        : `  case when (select kernel.field_visible('${entity.id}', '${field.name}')) then "${field.name}" else null end as "${field.name}"`,
+        : `  case when (select kernel.field_visible('${entity.id}', '${field.name}')) then ${shown} else null end as "${field.name}"`,
     );
   }
   const view = `${entity.schema}.v_${entity.table}`;

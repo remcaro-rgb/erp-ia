@@ -69,6 +69,12 @@ describe("ContactsTab", () => {
     expect(onUpdate).toHaveBeenCalledWith("c1", { name: "Ana Gómez", jobTitle: "Gerente financiera", email: "ana@exito.com", phoneCc: "57", phone: "6015550000", ext: "123", mobileCc: "57", mobile: "3001234567" });
   });
 
+  it("opens a contact from the keyboard through the button on its name", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Ana Gómez" }));
+    expect((screen.getByLabelText("Nombre") as HTMLInputElement).value).toBe("Ana Gómez");
+  });
+
   it("asks for confirmation before removing, and No keeps the contact", async () => {
     const { onRemove } = setup();
     fireEvent.click(screen.getByRole("button", { name: "Quitar a Ana Gómez" }));

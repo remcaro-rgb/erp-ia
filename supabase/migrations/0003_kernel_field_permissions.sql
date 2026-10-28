@@ -80,3 +80,43 @@ $$;
 
 revoke execute on function kernel.field_mode(text, text), kernel.field_visible(text, text) from public;
 grant execute on function kernel.field_mode(text, text), kernel.field_visible(text, text) to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- Masking of the admin-defined extra data (design §5.14, rule 14). Returns `p_extra` without the keys
+-- whose kernel.custom_fields definition (0008) does not list a role of the caller in roles_view; a key
+-- nobody defined (its definition was removed) is stripped too, so removing a field never exposes the
+-- data it protected. The masked views call it for the `extra` column, so grids, exports, the assistant
+-- and the consults see the same thing. It lives with the other masking functions and is plpgsql so
+-- kernel.custom_fields is resolved when it runs (the table is created by 0008, after the views of 0006
+-- that call this function). Security definer: the caller needs no grant on the definitions.
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.mask_extra(p_entity text, p_extra jsonb) returns jsonb
+language plpgsql stable security definer parallel safe
+set search_path = ''
+as $$
+begin
+  if p_extra is null or p_extra = '{}'::jsonb then
+    return p_extra;
+  end if;
+  if jsonb_typeof(p_extra) <> 'object' or not array[kernel.current_company_id()] <@ kernel.current_company_ids() then
+    return '{}'::jsonb;
+  end if;
+  return coalesce(
+    (
+      select jsonb_object_agg(e.key, e.value)
+      from jsonb_each(p_extra) as e
+      where exists (
+        select 1
+        from kernel.custom_fields cf
+        where cf.company_id = kernel.current_company_id()
+          and cf.entity = p_entity
+          and cf.key = e.key
+          and cf.roles_view && kernel.current_role_ids()
+      )
+    ),
+    '{}'::jsonb
+  );
+end;
+$$;
+revoke execute on function kernel.mask_extra(text, jsonb) from public, anon;
+grant execute on function kernel.mask_extra(text, jsonb) to authenticated, service_role;

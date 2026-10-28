@@ -1,8 +1,8 @@
-import { defineModule } from "../module/define";
+import { ATTACHMENT_PROCESSES } from "../attachments/processes";
+import { defineModule } from "./define";
 import type { ModuleDef } from "../registry/types";
 import { CUSTOM_FIELD_PROCESSES } from "../custom-fields/processes";
 import { VERIFY_PROCESSES } from "../verify";
-import { ATTACHMENT_PROCESSES } from "./processes";
 
 /**
  * The kernel as a module, so its processes are registered, audited and permissioned like any other.

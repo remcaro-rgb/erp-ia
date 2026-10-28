@@ -3,7 +3,7 @@ import { testDb, seedTenant, ensureRoleProbe, ROLE_PROBE } from "../db/test-db";
 import { withClaims } from "../db/client";
 import { Registry } from "../registry";
 import { loadModules } from "../module/loader";
-import { kernelModule } from "../attachments/module";
+import { kernelModule } from "../module/kernel-module";
 import { runProcess } from "../process/run";
 import { registerVerifier, unregisterVerifier } from "../verify";
 import type { Caller } from "../process/context";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { EmailField } from "../fields/EmailField";
 import { PhoneField } from "../fields/PhoneField";
 import { digitsOnly, formatPhone, phoneValue, type VerifyKind, type VerifyStatus } from "../fields/field-model";
@@ -37,6 +37,7 @@ const reason = (error: unknown) => (error instanceof Error ? error.message : Str
  */
 export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, onRemove, verify, labels: overrides, className }: ContactsTabProps) {
   const labels: ContactsLabels = { ...DEFAULT_CONTACTS_LABELS, ...overrides };
+  const base = useId();
   const [form, setForm] = useState<{ id: string | null; draft: ContactDraft } | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -79,12 +80,12 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
           <h3>{form.id ? labels.editTitle : labels.newTitle}</h3>
           <div className="erp-contacts__fields">
             <div className="erp-field">
-              <label htmlFor="erp-contact-name">{labels.name}</label>
-              <input id="erp-contact-name" type="text" maxLength={200} value={form.draft.name} onChange={(event) => patch({ name: event.target.value })} />
+              <label htmlFor={`${base}-name`}>{labels.name}</label>
+              <input id={`${base}-name`} type="text" maxLength={200} value={form.draft.name} onChange={(event) => patch({ name: event.target.value })} />
             </div>
             <div className="erp-field">
-              <label htmlFor="erp-contact-job">{labels.jobTitle}</label>
-              <input id="erp-contact-job" type="text" maxLength={100} value={form.draft.jobTitle} onChange={(event) => patch({ jobTitle: event.target.value })} />
+              <label htmlFor={`${base}-job`}>{labels.jobTitle}</label>
+              <input id={`${base}-job`} type="text" maxLength={100} value={form.draft.jobTitle} onChange={(event) => patch({ jobTitle: event.target.value })} />
             </div>
             <EmailField
               label={labels.email}
@@ -100,8 +101,8 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
               verify={phoneVerify(form.draft.phoneCc, form.draft.phone)}
             />
             <div className="erp-field">
-              <label htmlFor="erp-contact-ext">{labels.ext}</label>
-              <input id="erp-contact-ext" type="text" inputMode="numeric" maxLength={6} value={form.draft.ext} onChange={(event) => patch({ ext: digitsOnly(event.target.value) })} />
+              <label htmlFor={`${base}-ext`}>{labels.ext}</label>
+              <input id={`${base}-ext`} type="text" inputMode="numeric" maxLength={6} value={form.draft.ext} onChange={(event) => patch({ ext: digitsOnly(event.target.value) })} />
             </div>
             <PhoneField
               label={labels.mobile}
@@ -176,7 +177,16 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
                   </tr>
                 ) : (
                   <tr key={contact.id} onClick={readOnly ? undefined : () => setForm({ id: contact.id, draft: draftOf(contact) })} className={readOnly ? undefined : "erp-contacts__row--clickable"}>
-                    <td>{contact.name}</td>
+                    <td>
+                      {readOnly ? (
+                        contact.name
+                      ) : (
+                        // The keyboard route into the form; clicking anywhere on the row does the same for the mouse.
+                        <button type="button" className="erp-contacts__edit" onClick={() => setForm({ id: contact.id, draft: draftOf(contact) })}>
+                          {contact.name}
+                        </button>
+                      )}
+                    </td>
                     <td>{contact.jobTitle}</td>
                     <td>{contact.email}</td>
                     <td>{formatPhone(contact.phoneCc, contact.phone)}</td>

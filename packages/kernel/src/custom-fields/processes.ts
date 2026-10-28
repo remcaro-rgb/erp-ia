@@ -21,6 +21,8 @@ export const customFieldSet = defineProcess({
   module: "kernel",
   kind: "update",
   feature: FEATURE,
+  // Admin processes are sensitive by default (rule 15).
+  sensitivity: "step-up",
   description: "Define o cambia un dato adicional de una entidad (tipo, longitud, obligatorio, lista y roles que pueden ingresar, editar y ver)",
   input: setInput,
   output: idOutput,
@@ -53,6 +55,7 @@ export const customFieldRemove = defineProcess({
   module: "kernel",
   kind: "delete",
   feature: FEATURE,
+  sensitivity: "step-up",
   description: "Quita la definición de un dato adicional; los valores ya guardados se conservan pero nadie los ve",
   input: removeInput,
   output: idOutput,

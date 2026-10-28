@@ -1575,7 +1575,7 @@ select
   case when (select kernel.field_visible('core.party', 'dian_missing')) then "dian_missing" else null end as "dian_missing",
   case when (select kernel.field_visible('core.party', 'invoice_ready')) then "invoice_ready" else null end as "invoice_ready",
   case when (select kernel.field_visible('core.party', 'is_active')) then "is_active" else null end as "is_active",
-  case when (select kernel.field_visible('core.party', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.party', 'extra')) then kernel.mask_extra('core.party', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.party', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"
@@ -1597,7 +1597,7 @@ select
   case when (select kernel.field_visible('core.party_contact', 'ext')) then "ext" else null end as "ext",
   case when (select kernel.field_visible('core.party_contact', 'mobile_cc')) then "mobile_cc" else null end as "mobile_cc",
   case when (select kernel.field_visible('core.party_contact', 'mobile')) then "mobile" else null end as "mobile",
-  case when (select kernel.field_visible('core.party_contact', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.party_contact', 'extra')) then kernel.mask_extra('core.party_contact', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.party_contact', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"
@@ -1620,7 +1620,7 @@ select
   case when (select kernel.field_visible('core.product_category', 'default_uom')) then "default_uom" else null end as "default_uom",
   case when (select kernel.field_visible('core.product_category', 'income_account')) then "income_account" else null end as "income_account",
   case when (select kernel.field_visible('core.product_category', 'status')) then "status" else null end as "status",
-  case when (select kernel.field_visible('core.product_category', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.product_category', 'extra')) then kernel.mask_extra('core.product_category', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.product_category', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"
@@ -1657,7 +1657,7 @@ select
   case when (select kernel.field_visible('core.product', 'dian_missing')) then "dian_missing" else null end as "dian_missing",
   case when (select kernel.field_visible('core.product', 'invoice_ready')) then "invoice_ready" else null end as "invoice_ready",
   case when (select kernel.field_visible('core.product', 'is_active')) then "is_active" else null end as "is_active",
-  case when (select kernel.field_visible('core.product', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.product', 'extra')) then kernel.mask_extra('core.product', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.product', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"
@@ -1671,7 +1671,7 @@ select
   case when (select kernel.field_visible('core.price_list', 'seq')) then "seq" else null end as "seq",
   case when (select kernel.field_visible('core.price_list', 'name')) then "name" else null end as "name",
   case when (select kernel.field_visible('core.price_list', 'currency_code')) then "currency_code" else null end as "currency_code",
-  case when (select kernel.field_visible('core.price_list', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.price_list', 'extra')) then kernel.mask_extra('core.price_list', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.price_list', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"
@@ -1686,7 +1686,7 @@ select
   case when (select kernel.field_visible('core.price_list_item', 'price_list_id')) then "price_list_id" else null end as "price_list_id",
   case when (select kernel.field_visible('core.price_list_item', 'product_id')) then "product_id" else null end as "product_id",
   case when (select kernel.field_visible('core.price_list_item', 'price')) then "price" else null end as "price",
-  case when (select kernel.field_visible('core.price_list_item', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.price_list_item', 'extra')) then kernel.mask_extra('core.price_list_item', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.price_list_item', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"
@@ -1703,7 +1703,7 @@ select
   case when (select kernel.field_visible('core.document_sequence', 'next_number')) then "next_number" else null end as "next_number",
   case when (select kernel.field_visible('core.document_sequence', 'padding')) then "padding" else null end as "padding",
   case when (select kernel.field_visible('core.document_sequence', 'resolution')) then "resolution" else null end as "resolution",
-  case when (select kernel.field_visible('core.document_sequence', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.document_sequence', 'extra')) then kernel.mask_extra('core.document_sequence', "extra") else null end as "extra",
   case when (select kernel.field_visible('core.document_sequence', 'extra_free')) then "extra_free" else null end as "extra_free",
   "created_at",
   "updated_at"

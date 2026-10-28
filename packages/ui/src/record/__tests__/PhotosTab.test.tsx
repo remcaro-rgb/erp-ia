@@ -112,6 +112,32 @@ describe("PhotosTab", () => {
     await waitFor(() => expect(screen.getByText(/sugerida por IA ·/)).toBeTruthy());
   });
 
+  it("Hacer principal moves the chosen photo first through onReorder", async () => {
+    const { fetcher } = api([item("a", "Foto"), item("b", "Foto"), item("c", "Foto")]);
+    const onReorder = vi.fn(async () => {});
+    render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} onReorder={onReorder} />);
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    // The principal photo has nothing to promote.
+    expect(screen.queryByRole("button", { name: "Hacer principal" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hacer principal" }));
+    await waitFor(() => expect(onReorder).toHaveBeenCalledWith(["c", "a", "b"]));
+    await waitFor(() => expect(screen.getByText(/principal · subida/)).toBeTruthy());
+    expect(photo("files.test/c")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Hacer principal" })).toBeNull();
+  });
+
+  it("keeps the order and says why when onReorder fails", async () => {
+    const { fetcher } = api([item("a", "Foto"), item("b", "Foto")]);
+    render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} onReorder={async () => { throw new Error("sin permiso"); }} />);
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hacer principal" }));
+    expect((await screen.findByRole("status")).textContent).toBe("No se pudo completar la acción: sin permiso");
+    expect(screen.getByRole("button", { name: "Hacer principal" })).toBeTruthy();
+  });
+
   it("has no suggest button without onSuggest, and no upload or removal when read-only", async () => {
     const { fetcher } = api([item("a", "Foto")]);
     render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} readOnly onSuggest={async () => {}} />);
