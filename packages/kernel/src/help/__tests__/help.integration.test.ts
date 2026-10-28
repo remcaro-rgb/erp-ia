@@ -14,7 +14,7 @@ import { runProcess } from "../../process/run";
 import { Registry } from "../../registry";
 import { EMBEDDING_DIMENSIONS, FakeEmbedder, type Embedder } from "../embedder";
 import { buildHelpIndex } from "../index-builder";
-import { setHelpEmbedder } from "../search";
+import { searchHelp, setHelpEmbedder } from "../search";
 
 // The help knowledge index (design §7, rule 35), migration 0018_kernel_help_index: guide chunks and one chunk per
 // registered process, built with the service role, searched through kernel.help.search as the caller (platform
@@ -22,6 +22,8 @@ import { setHelpEmbedder } from "../search";
 
 // A locale of its own: the suite never touches the developer's real es-419 index.
 const LOCALE = "xx-test";
+// A second test locale, for company notes.
+const OTHER_LOCALE = "xx-other";
 
 const GUIDES: Record<string, string> = {
   "exportar.md": `---
@@ -58,6 +60,17 @@ routes:
 # Ingreso y verificación en dos pasos
 
 Activa la verificación en dos pasos con una app de autenticación y el código de seis dígitos.
+`,
+  // Only in this fixture, never in the real index: lets the locale tests tell the two apart.
+  "solo-pruebas.md": `---
+title: Guía solo de pruebas
+routes:
+  - /login
+---
+
+# Guía solo de pruebas
+
+Zarzaparrilla cuántica del laboratorio de pruebas.
 `,
 };
 
@@ -127,7 +140,7 @@ describe("help knowledge index", () => {
   });
   afterAll(async () => {
     setHelpEmbedder(undefined);
-    await sql`delete from kernel.help_chunks where locale = ${LOCALE} or source = 'test:fallback'`;
+    await sql`delete from kernel.help_chunks where locale in (${LOCALE}, ${OTHER_LOCALE})`;
     await sql`delete from kernel.process_permissions where company_id = any(${companyIds()}::uuid[])`;
     await seed.cleanup();
     rmSync(guidesDir, { recursive: true, force: true });
@@ -136,8 +149,8 @@ describe("help knowledge index", () => {
 
   it("indexes the guide chunks and one chunk per registered process, all platform scope with a 1536-dimension embedding", async () => {
     const guides = await sql<{ source: string; href: string | null }[]>`select source, href from kernel.help_chunks where scope = 'platform' and locale = ${LOCALE} and source like 'guide:%'`;
-    expect(new Set(guides.map((g) => g.source))).toEqual(new Set(["guide:exportar.md", "guide:inicio.md", "guide:seguridad.md"]));
-    expect(Object.fromEntries(guides.map((g) => [g.source, g.href]))).toEqual({ "guide:exportar.md": "/parties", "guide:inicio.md": "/", "guide:seguridad.md": "/login" });
+    expect(new Set(guides.map((g) => g.source))).toEqual(new Set(["guide:exportar.md", "guide:inicio.md", "guide:seguridad.md", "guide:solo-pruebas.md"]));
+    expect(Object.fromEntries(guides.map((g) => [g.source, g.href]))).toEqual({ "guide:exportar.md": "/parties", "guide:inicio.md": "/", "guide:seguridad.md": "/login", "guide:solo-pruebas.md": "/login" });
     const processes = await sql<{ source: string }[]>`select source from kernel.help_chunks where scope = 'platform' and locale = ${LOCALE} and source like 'process:%'`;
     expect(processes.map((p) => p.source).sort()).toEqual(registry.processes().map((p) => `process:${p.id}`).sort());
     const [dims] = await sql<{ dims: number; companies: number }[]>`select min(vector_dims(embedding))::int as dims, count(company_id)::int as companies from kernel.help_chunks where locale = ${LOCALE}`;
@@ -211,15 +224,26 @@ describe("help knowledge index", () => {
     expect((await run(outsider, query)).results.length).toBeGreaterThan(0);
   });
 
-  it("a caller whose locale has no index falls back to the es-419 chunks", async () => {
-    const [vector] = await embedder.embed(["texto de respaldo en español latinoamericano"]);
+  const probe = (locale: string, company: number) => {
+    const caller = (company === 0 ? member : memberB).claims;
+    return withClaims(sql, { ...caller, locale }, (tx) =>
+      searchHelp(tx, embedder, { query: "zarzaparrilla cuántica del laboratorio", limit: 10, companyId: caller.active_company_id, locale, fallbackLocale: LOCALE }),
+    );
+  };
+
+  it("a caller whose locale has no platform index falls back to the fallback locale's chunks", async () => {
+    expect((await probe("xx-none", 0)).map((r) => r.source)).toContain("guide:solo-pruebas.md");
+  });
+
+  it("a company note in the caller's locale never changes the help language: only platform chunks decide it", async () => {
+    const [vector] = await embedder.embed(["nota interna de la sucursal"]);
     await sql`
-      insert into kernel.help_chunks (scope, source, title, body, embedding, locale)
-      values ('platform', 'test:fallback', 'Respaldo', 'texto de respaldo en español latinoamericano', ${`[${vector!.join(",")}]`}::extensions.vector, 'es-419')`;
-    const other = { ...member, claims: { ...member.claims, locale: "xx-none" } };
-    expect((await run(other, { query: "texto de respaldo en español latinoamericano", limit: 10 })).results.map((r) => r.source)).toContain("test:fallback");
-    // A locale that has an index is searched alone: the es-419 chunk stays out.
-    expect((await run(member, { query: "texto de respaldo en español latinoamericano", limit: 10 })).results.map((r) => r.source)).not.toContain("test:fallback");
+      insert into kernel.help_chunks (scope, company_id, source, title, body, embedding, locale)
+      values ('company', ${seed.companies[0]!.id}, 'company:nota', 'Nota', 'nota interna de la sucursal', ${`[${vector!.join(",")}]`}::extensions.vector, ${OTHER_LOCALE})`;
+    // The user belongs to that company, has no platform index in xx-other, and still gets the platform guides.
+    const sources = (await probe(OTHER_LOCALE, 0)).map((r) => r.source);
+    expect(sources).toContain("guide:solo-pruebas.md");
+    expect(sources).not.toContain("company:nota");
   });
 
   it("authenticated users read the index but cannot write it", async () => {

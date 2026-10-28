@@ -23,7 +23,7 @@ export const MAX_RESULTS = 10;
 export const DEFAULT_RESULTS = 5;
 export const SNIPPET_CHARS = 300;
 /** The locale searched when the caller's own has no index yet. */
-const FALLBACK_LOCALE = "es-419";
+const DEFAULT_FALLBACK_LOCALE = "es-419";
 
 /** One line of plain text, at most `SNIPPET_CHARS` long and cut at a word, with `…` when something was dropped. */
 export function snippetOf(text: string): string {
@@ -50,6 +50,8 @@ export interface SearchHelpOptions {
   /** The active company: its own chunks are searched along with the platform's. */
   companyId: string;
   locale: string;
+  /** The locale searched when `locale` has no platform index; default `es-419`. */
+  fallbackLocale?: string;
 }
 
 /** The nearest chunks to `query`, as the caller (RLS applies) in `tx`: platform chunks and the active company's. */
@@ -60,7 +62,7 @@ export async function searchHelp(tx: Tx, embedder: Embedder, options: SearchHelp
   const rows = await tx<{ title: string; body: string; source: string; href: string | null }[]>`
     select title, body, source, href
     from kernel.help_chunks
-    where locale = case when exists (select 1 from kernel.help_chunks where locale = ${options.locale}) then ${options.locale} else ${FALLBACK_LOCALE} end
+    where locale = case when exists (select 1 from kernel.help_chunks where scope = 'platform' and locale = ${options.locale}) then ${options.locale} else ${options.fallbackLocale ?? DEFAULT_FALLBACK_LOCALE} end
       and (scope = 'platform' or company_id = ${options.companyId})
     order by embedding operator(extensions.<=>) ${vector}::extensions.vector
     limit ${Math.min(options.limit, MAX_RESULTS)}`;
