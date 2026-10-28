@@ -1,22 +1,25 @@
 /**
- * The demo company: `pnpm db:seed` (Task 22). LOCAL USE ONLY: it refuses a Supabase or database URL that is not a
- * local stack (the CLI stack, or the Docker stack from its own network or its published ports).
+ * The demo company: `DEMO_SEED=1 pnpm db:seed` (Task 22). LOCAL USE ONLY: it runs only with DEMO_SEED=1 and against a
+ * local stack (the CLI stack, or the Docker test stack from its own network or its published ports); the production
+ * docker-compose.yml has no seed job, docker-compose.test.yml adds it.
  *
- * Run it after `pnpm db:reset` (which applied the migrations and supabase/seed.sql) on the CLI stack; the compose
- * `seed` job runs it on the Docker stack. Idempotent: what exists is kept, what is missing is created. In order:
+ * Run it after `pnpm db:reset` (which applied the migrations and supabase/seed.sql) on the CLI stack. Idempotent: what
+ * exists is kept, what is missing is created. In order:
  *
  *  1. supabase/seed.sql again (idempotent): tenant, company, roles, required files, the starter plan's entitlements.
  *  2. The manifests of the modules the app loads registered in SQL (`syncRegistry`, what the app does at boot) and the
  *     modules core and support enabled for the company (`enableModule`).
  *  3. The Auth users laura@demo.local and marcela@demo.local through the Auth Admin API (never an insert into
- *     auth.users), their profiles and memberships with their roles; Laura's TOTP factor with the documented secret.
+ *     auth.users); Laura's bootstrap as the company's admin (her profile, membership and admin role: the only direct
+ *     SQL, somebody must be admin before an admin process can run) and her TOTP factor with the documented secret.
  *  4. The company's defaults (`kernel.seed_company_defaults`: every process to admin, the baseline and the consults to
  *     the other roles, confidential fields masked, admin processes sensitive).
  *  5. As Laura, signed in with her password and TOTP code, through the kernel.admin.* processes, each with a fresh
- *     step-up (rules 1, 15): the gerente comercial's writes, credit_limit hidden for the cajero, core.party.deactivate
- *     sensitive.
+ *     step-up (rules 1, 15): her gerente comercial role, Marcela as a member with the cajero role, the gerente
+ *     comercial's writes, credit_limit hidden for the cajero, core.party.deactivate sensitive.
  *  6. As Laura, through core.category.create, core.party.create and core.product.create: 6 categories, 40 parties and
- *     25 products (scripts/demo/data.ts), so audit, outbox and consecutive numbers are real.
+ *     25 products (scripts/demo/data.ts), so audit, outbox and consecutive numbers are real; then the required files
+ *     (placeholder PDFs) of 6 parties through kernel.attachment.add, so they are invoice-ready.
  *  7. Two recommendations for Laura, with the evidence computed in SQL (rule 29).
  *
  * The help index is built apart: `pnpm help:index` (the compose `help-index` job).
@@ -31,8 +34,23 @@ import type { Sql } from "postgres";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
-import { enableModule, getServiceDb, kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncRegistry, type Caller, type JwtClaims, type RunProcessDeps } from "@erp/kernel";
-import { CATEGORIES, PARTIES, PRODUCTS } from "./demo/data";
+import { SupabaseAuthAdmin, SupabaseFileStore, type FileStore } from "@erp/infra";
+import {
+  enableModule,
+  getServiceDb,
+  kernelModule,
+  loadModules,
+  precheckAttachment,
+  registerCountryPack,
+  Registry,
+  runProcess,
+  setAuthAdmin,
+  syncRegistry,
+  type Caller,
+  type JwtClaims,
+  type RunProcessDeps,
+} from "@erp/kernel";
+import { CATEGORIES, INVOICE_READY_PARTIES, PARTIES, PRODUCTS } from "./demo/data";
 import { DEMO_ACCOUNTS, DEMO_COMPANY_ID, DEMO_ROLE_IDS, LAURA, MARCELA, type DemoAccount } from "./demo/accounts";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
@@ -72,8 +90,14 @@ export function seedEnv(env: Record<string, string | undefined>): SeedEnv {
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]", "kong", "db"]);
 const isLocalHost = (host: string) => LOCAL_HOSTS.has(host) || host.endsWith(".localhost");
 
-/** Throws unless both the Supabase API and the database are a local stack: the demo accounts have public passwords. */
-export function assertLocalTarget(target: SeedTarget): void {
+/**
+ * Throws unless the run asked for the demo explicitly (DEMO_SEED=1) and both the Supabase API and the database are a
+ * local stack: the demo accounts have public passwords and must never reach a stack anyone else uses.
+ */
+export function assertSeedAllowed(target: SeedTarget, env: Record<string, string | undefined>): void {
+  if (env.DEMO_SEED !== "1") {
+    throw new Error("db:seed creates demo accounts with public passwords: run it only on a local or test stack, with DEMO_SEED=1");
+  }
   for (const [what, url] of [["Supabase URL", target.supabaseUrl], ["database URL", target.databaseUrl]] as const) {
     let host: string;
     try {
@@ -109,8 +133,8 @@ export const GERENTE_PROCESSES = [
 
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } } as const;
 
-/** The Auth user of `account` (created through the Admin API when missing, its documented password set) and its profile. */
-async function ensureAccount(sql: Sql, admin: SupabaseClient, account: DemoAccount): Promise<string> {
+/** The Auth user of `account`, created through the Admin API when missing; its documented password is set. */
+async function ensureAuthUser(sql: Sql, admin: SupabaseClient, account: DemoAccount): Promise<string> {
   const [found] = await sql<{ id: string }[]>`select id from auth.users where lower(email) = lower(${account.email})`;
   let userId = found?.id;
   if (userId) {
@@ -121,13 +145,25 @@ async function ensureAccount(sql: Sql, admin: SupabaseClient, account: DemoAccou
     if (error || !data.user) throw new Error(`db:seed: could not create ${account.email}: ${error?.message}`);
     userId = data.user.id;
   }
+  return userId;
+}
+
+/**
+ * The company's first admin: profile, membership and the system admin role, written directly (the bootstrap: the admin
+ * processes need an admin to run). Everything else about people goes through kernel.admin.* as this admin.
+ */
+async function bootstrapAdmin(sql: Sql, userId: string, account: DemoAccount): Promise<void> {
   await sql`insert into kernel.users (id, email, full_name) values (${userId}, ${account.email}, ${account.fullName}) on conflict (id) do nothing`;
   await sql`insert into kernel.memberships (user_id, company_id) values (${userId}, ${DEMO_COMPANY_ID}) on conflict (user_id, company_id) do nothing`;
   const [membership] = await sql<{ id: string }[]>`select id from kernel.memberships where user_id = ${userId} and company_id = ${DEMO_COMPANY_ID}`;
-  for (const role of account.roles) {
-    await sql`insert into kernel.membership_roles (membership_id, role_id) values (${membership!.id}, ${DEMO_ROLE_IDS[role]}) on conflict do nothing`;
-  }
-  return userId;
+  await sql`insert into kernel.membership_roles (membership_id, role_id) values (${membership!.id}, ${DEMO_ROLE_IDS.admin}) on conflict do nothing`;
+}
+
+/** The role ids `userId` holds in the demo company (none when not a member). */
+async function rolesOf(sql: Sql, userId: string): Promise<string[] | null> {
+  const [membership] = await sql<{ id: string }[]>`select id from kernel.memberships where user_id = ${userId} and company_id = ${DEMO_COMPANY_ID}`;
+  if (!membership) return null;
+  return (await sql<{ role_id: string }[]>`select role_id from kernel.membership_roles where membership_id = ${membership.id}`).map((r) => r.role_id);
 }
 
 /**
@@ -195,13 +231,25 @@ async function signIn(sql: Sql, env: SeedEnv, account: DemoAccount): Promise<Ses
   };
 }
 
-/** The permissions the brief asks for, each through its admin process when it is not in place yet. */
-async function seedPermissions(sql: Sql, deps: RunProcessDeps, laura: Session): Promise<number> {
+/** People and permissions, each through its admin process as Laura when it is not in place yet. */
+async function seedPermissions(sql: Sql, deps: RunProcessDeps, laura: Session, ids: Map<string, string>): Promise<number> {
   let runs = 0;
   const admin = async (processId: string, input: unknown) => {
     runs++;
     await runProcess(deps, await laura.stepUp(), processId, input);
   };
+  // Every account holds exactly its documented roles; Marcela becomes a member through kernel.admin.user.create (her
+  // Auth user exists, so no invitation goes out).
+  for (const account of DEMO_ACCOUNTS) {
+    const userId = ids.get(account.email)!;
+    const wanted = account.roles.map((role) => DEMO_ROLE_IDS[role]);
+    const held = await rolesOf(sql, userId);
+    if (held === null) {
+      await admin("kernel.admin.user.create", { name: account.fullName, email: account.email, mobileCc: "57", mobile: account.mobile, roleIds: wanted });
+    } else if (wanted.some((role) => !held.includes(role))) {
+      await admin("kernel.admin.user_role.set", { userId, roleIds: [...new Set([...held, ...wanted])] });
+    }
+  }
   for (const processId of GERENTE_PROCESSES) {
     const [granted] = await sql`
       select 1 from kernel.process_permissions where company_id = ${DEMO_COMPANY_ID} and role_id = ${DEMO_ROLE_IDS.gerente_comercial} and process_id = ${processId} and allowed`;
@@ -247,6 +295,57 @@ async function seedMasterData(sql: Sql, deps: RunProcessDeps, caller: Caller): P
   return created;
 }
 
+/** A one-page PDF that says it stands in for the document (the required files need a real PDF). */
+function placeholderPdf(title: string): Buffer {
+  const text = title.replace(/[()\\]/g, "");
+  const stream = `BT /F1 14 Tf 72 720 Td (${text} - documento de demostracion) Tj ET`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, i) => {
+    offsets.push(body.length);
+    body += `${i + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body, "latin1");
+}
+
+/**
+ * The required files of the INVOICE_READY_PARTIES (RUT, and Cámara de Comercio for a company), as Laura, the way the
+ * Archivos tab adds them (POST /api/attachments): precheck, the bytes in the store, then kernel.attachment.add. A tag
+ * the party already has is skipped.
+ */
+async function seedRequiredFiles(sql: Sql, deps: RunProcessDeps, caller: Caller, store: FileStore): Promise<number> {
+  let added = 0;
+  for (const document of INVOICE_READY_PARTIES) {
+    const party = PARTIES.find((p) => p.documentNumber === document)!;
+    const [row] = await sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${document}`;
+    const tags = party.personType === "1" ? ["RUT", "Cámara de Comercio"] : ["RUT"];
+    for (const tag of tags) {
+      const [present] = await sql`
+        select 1 from kernel.attachments where company_id = ${DEMO_COMPANY_ID} and entity = 'core.party' and record_id = ${row!.id} and tag = ${tag} and removed_at is null`;
+      if (present) continue;
+      const bytes = placeholderPdf(`${tag} ${party.legalName ?? `${party.firstName} ${party.firstSurname}`}`);
+      const fileName = `${tag === "RUT" ? "rut" : "camara-de-comercio"}-${document}.pdf`;
+      const target = { entity: "core.party", recordId: row!.id, tag, fileName, mimeType: "application/pdf", sizeBytes: bytes.length };
+      await precheckAttachment(deps, caller, target);
+      const storagePath = `${caller.claims.tenant_id}/${DEMO_COMPANY_ID}/core.party/${row!.id}/${randomBytes(8).toString("hex")}-${fileName}`;
+      await store.put(storagePath, bytes, "application/pdf");
+      await runProcess(deps, caller, "kernel.attachment.add", { ...target, storagePath });
+      added++;
+    }
+  }
+  return added;
+}
+
 /** Two recommendations for Laura (Task 20's inbox), from numbers computed in SQL; once each, by title. */
 async function seedRecommendations(sql: Sql, lauraId: string, marcelaId: string): Promise<number> {
   const [parties] = await sql<{ total: number; not_ready: number; dian_complete: number }[]>`
@@ -260,7 +359,12 @@ async function seedRecommendations(sql: Sql, lauraId: string, marcelaId: string)
       user_id: null,
       title: "Terceros que no se pueden facturar",
       body: `${parties!.not_ready} de ${parties!.total} terceros todavía no se pueden usar en facturas: ${parties!.dian_complete} tienen sus datos DIAN completos pero les falta el RUT o la Cámara de Comercio en Archivos. Cárgalos desde la ficha de cada tercero.`,
-      evidence: { parties: parties!.total, not_invoice_ready: parties!.not_ready, dian_complete_missing_files: parties!.dian_complete },
+      evidence: {
+        parties: parties!.total,
+        invoice_ready: parties!.total - parties!.not_ready,
+        not_invoice_ready: parties!.not_ready,
+        dian_complete_missing_files: parties!.dian_complete,
+      },
       suggested_actions: [{ label: "Ver terceros", href: "/parties" }],
       confidence: 0.9,
     },
@@ -287,8 +391,8 @@ async function seedRecommendations(sql: Sql, lauraId: string, marcelaId: string)
   return inserted;
 }
 
-export async function seed(env: SeedEnv): Promise<void> {
-  assertLocalTarget(env);
+export async function seed(env: SeedEnv, flags: Record<string, string | undefined> = process.env): Promise<void> {
+  assertSeedAllowed(env, flags);
   process.env.DATABASE_URL = env.databaseUrl;
   const sql = getServiceDb();
   try {
@@ -301,21 +405,25 @@ export async function seed(env: SeedEnv): Promise<void> {
     for (const moduleId of ["core", "support"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
 
     const admin = createClient(env.supabaseUrl, env.serviceKey, noSession);
+    // kernel.admin.user.create looks people up through the AuthAdmin adapter: this stack's.
+    setAuthAdmin(new SupabaseAuthAdmin(admin));
     const ids = new Map<string, string>();
-    for (const account of DEMO_ACCOUNTS) ids.set(account.email, await ensureAccount(sql, admin, account));
+    for (const account of DEMO_ACCOUNTS) ids.set(account.email, await ensureAuthUser(sql, admin, account));
+    await bootstrapAdmin(sql, ids.get(LAURA.email)!, LAURA);
     await ensureTotp(sql, env, admin, LAURA, ids.get(LAURA.email)!);
 
     await sql`select kernel.seed_company_defaults(${DEMO_COMPANY_ID})`;
 
     const deps: RunProcessDeps = { sql, registry };
     const laura = await signIn(sql, env, LAURA);
-    const adminRuns = await seedPermissions(sql, deps, laura);
+    const adminRuns = await seedPermissions(sql, deps, laura, ids);
     const created = await seedMasterData(sql, deps, laura.caller);
+    const files = await seedRequiredFiles(sql, deps, laura.caller, new SupabaseFileStore(admin));
     const recommendations = await seedRecommendations(sql, ids.get(LAURA.email)!, ids.get(MARCELA.email)!);
 
     console.log(
       `db:seed done: Café del Norte S.A.S. · ${adminRuns} admin change(s), ${created.categories} categories, ${created.parties} parties, ` +
-        `${created.products} products and ${recommendations} recommendation(s) created (existing ones kept).`,
+        `${created.products} products, ${files} required file(s) and ${recommendations} recommendation(s) created (existing ones kept).`,
     );
     console.log("Demo accounts (LOCAL USE ONLY):");
     console.log(`  ${LAURA.email} / ${LAURA.password} · admin + gerente comercial · TOTP secret ${LAURA.totpSecret}`);

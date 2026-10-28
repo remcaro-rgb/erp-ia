@@ -11,6 +11,9 @@ importers:
       '@erp/agent':
         specifier: workspace:*
         version: link:packages/agent
+      '@erp/infra':
+        specifier: workspace:*
+        version: link:packages/infra
       '@erp/kernel':
         specifier: workspace:*
         version: link:packages/kernel

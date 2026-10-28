@@ -12,6 +12,7 @@ import { scrubTokens } from "../tools/cap";
 import { attributeModel, type StepTokens } from "./step-usage";
 import { buildSystemPrompt, loadPromptFacts, sanitizeScreen, type ScreenContext } from "./system-prompt";
 import { recordUsage } from "./usage";
+import { isMockAgentModelInstalled, MOCK_AGENT_MODEL } from "./mock-agent-model";
 
 // What the steps of the turn workflow do (turn.workflow.ts). Kept apart from the workflow file and free of top-level
 // effects: the workflow sandbox bundle drops this module (step bodies are replaced there), so the kernel, the database
@@ -100,8 +101,8 @@ export async function meterStep(args: TurnArgs, runId: string, stepNumber: numbe
     userId: claims.sub,
     conversationId: args.conversationId,
     task: "chat",
-    model: attributeModel(tokens.model, policy),
-    priceAs: policy.primary,
+    // The mock (AGENT_MODEL=mock) is metered as itself: provider `mock`, no cost, never as a model that was not called.
+    ...(isMockAgentModelInstalled() ? { model: MOCK_AGENT_MODEL } : { model: attributeModel(tokens.model, policy), priceAs: policy.primary }),
     inputTokens: tokens.inputTokens,
     outputTokens: tokens.outputTokens,
     cachedTokens: tokens.cachedTokens,

@@ -26,6 +26,11 @@ export function setAgentModelFactory(factory: ModelFactory | undefined): void {
   globals[FACTORY_KEY] = factory;
 }
 
+/** The factory installed with `setAgentModelFactory`, if any. */
+export function installedAgentModelFactory(): ModelFactory | undefined {
+  return globals[FACTORY_KEY];
+}
+
 const languageModel = (modelId: string): LanguageModelV4 => (globals[FACTORY_KEY] ?? ((id: string) => gateway.languageModel(id)))(modelId);
 
 export class PolicyModel implements LanguageModelV4 {

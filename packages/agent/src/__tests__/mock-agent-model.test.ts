@@ -1,13 +1,16 @@
 import type { LanguageModelV4CallOptions, LanguageModelV4Prompt, LanguageModelV4StreamPart } from "@ai-sdk/provider";
-import { describe, expect, it } from "vitest";
-import { agentModelFactory, mockAgentModel } from "../runtime/mock-agent-model";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { registerCountryPack } from "@erp/kernel";
+import { co } from "@erp/loc-co";
+import { agentModelFactory, isMockAgentModelInstalled, MOCK_AGENT_MODEL, mockAgentModel } from "../runtime/mock-agent-model";
+import { setAgentModelFactory } from "../runtime/policy-model";
 
 // `AGENT_MODEL=mock` (Task 22): the model the app uses for the end-to-end tests and a local stack without a gateway key.
 // It is the AI SDK mock model with a scripted answer chosen from the user's words and the tools the turn offers: it
 // calls a tool only when the turn offers it (rule 17: the caller's tools are exactly what their roles allow), and says
 // so in the user's language when it is not offered.
 
-const SYSTEM = "Eres el asistente del ERP de Café del Norte S.A.S.\n\n## Usuario\n- Nombre: Laura\n- Idioma: es-419";
+const SYSTEM = "Eres el asistente del ERP de Café del Norte S.A.S.\n\n## Empresa\n- País: CO · Moneda: COP · Zona horaria: America/Bogota\n\n## Usuario\n- Nombre: Laura\n- Idioma: es-419";
 const tool = (name: string) => ({ type: "function" as const, name, description: name, inputSchema: { type: "object" as const, properties: {} } });
 
 function options(prompt: LanguageModelV4Prompt, tools: string[]): LanguageModelV4CallOptions {
@@ -30,6 +33,9 @@ async function parts(call: LanguageModelV4CallOptions): Promise<LanguageModelV4S
 }
 const textOf = (out: LanguageModelV4StreamPart[]) => out.flatMap((p) => (p.type === "text-delta" ? [p.delta] : [])).join("");
 const callOf = (out: LanguageModelV4StreamPart[]) => out.find((p) => p.type === "tool-call") as { toolName: string; input: string } | undefined;
+
+beforeAll(() => registerCountryPack(co));
+afterEach(() => setAgentModelFactory(undefined));
 
 describe("the mock agent model", () => {
   it("creates a party with the core.party.create input shape when the turn offers the tool", async () => {
@@ -81,5 +87,29 @@ describe("the mock agent model", () => {
     expect(agentModelFactory({ AGENT_MODEL: "mock", AI_GATEWAY_API_KEY: "key" })).toBeDefined();
     expect(agentModelFactory({ AI_GATEWAY_API_KEY: "key" })).toBeUndefined();
     expect(agentModelFactory({})).toBeUndefined();
+  });
+
+  it("checks a typed DV with the company's country pack: a mismatch is refused in its words, a match is dropped", async () => {
+    const wrong = await parts(options(user("crea el cliente Panadería La Espiga, NIT 800197268-9"), ["core__party__create"]));
+    expect(callOf(wrong)).toBeUndefined();
+    expect(textOf(wrong)).toMatch(/El dígito de verificación no coincide \(para 800197268 es 4\)/);
+    const right = await parts(options(user("crea el cliente Panadería La Espiga, NIT 800.197.268-4"), ["core__party__create"]));
+    expect(JSON.parse(callOf(right)!.input)).toMatchObject({ documentNumber: "800197268" });
+  });
+
+  it("is refused in production unless ALLOW_MOCK_MODEL=1 says so", () => {
+    expect(() => agentModelFactory({ AGENT_MODEL: "mock", NODE_ENV: "production" })).toThrow(/ALLOW_MOCK_MODEL=1/);
+    expect(agentModelFactory({ AGENT_MODEL: "mock", NODE_ENV: "production", ALLOW_MOCK_MODEL: "1" })).toBeDefined();
+    expect(agentModelFactory({ AGENT_MODEL: "mock", NODE_ENV: "development" })).toBeDefined();
+    expect(agentModelFactory({ NODE_ENV: "production" })).toBeUndefined();
+  });
+
+  it("says when it is the installed model, so its calls are metered as the free mock model", () => {
+    expect(MOCK_AGENT_MODEL).toBe("mock/agent");
+    expect(isMockAgentModelInstalled()).toBe(false);
+    setAgentModelFactory(agentModelFactory({ AGENT_MODEL: "mock" }));
+    expect(isMockAgentModelInstalled()).toBe(true);
+    setAgentModelFactory((id) => mockAgentModel(id));
+    expect(isMockAgentModelInstalled()).toBe(false);
   });
 });

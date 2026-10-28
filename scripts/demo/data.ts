@@ -2,8 +2,9 @@
 // and hotels, and buys green coffee, packaging and services. `pnpm db:seed` creates every record through its process
 // (core.category.create, core.party.create, core.product.create) as Laura, so the audit, the outbox and the consecutive
 // numbers are the real ones. Every party carries the full DIAN data (design §5.8a, rule 10): its `dian_status` is
-// complete; it is not invoice-ready until its RUT (and Cámara de Comercio for a company) is attached, which the first
-// recommendation points out. Fictitious companies and people, except where a well-known name helps the demo.
+// complete; it is invoice-ready once its RUT (and Cámara de Comercio for a company) is attached: the seed attaches them
+// to the parties of INVOICE_READY_PARTIES, and the first recommendation points out the rest. Fictitious companies and
+// people, except where a well-known name helps the demo.
 
 export interface DemoCategory {
   name: string;
@@ -50,6 +51,23 @@ export interface DemoParty {
   contactName?: string;
 }
 
+/**
+ * The landline indicative of a department (Colombia's fixed numbers since 2021: 60 + one regional digit + 7 digits):
+ * 601 Bogotá and Cundinamarca, 602 Valle, Cauca and Nariño, 604 Antioquia, Córdoba and Chocó, 605 the Caribbean coast,
+ * 606 the coffee region, 607 the Santanderes and Arauca, 608 the rest.
+ */
+export function landlineIndicative(departmentCode: string): string {
+  const regions: Record<string, string[]> = {
+    "601": ["11", "25"],
+    "602": ["76", "19", "52"],
+    "604": ["05", "23", "27"],
+    "605": ["08", "13", "20", "44", "47", "70"],
+    "606": ["17", "63", "66"],
+    "607": ["54", "68", "81"],
+  };
+  return Object.entries(regions).find(([, departments]) => departments.includes(departmentCode))?.[0] ?? "608";
+}
+
 const company = (
   kind: DemoParty["kind"],
   documentNumber: string,
@@ -79,7 +97,7 @@ const company = (
     ...(kind.includes("customer") ? { invoiceEmail: `facturacion@${slug}.co` } : {}),
     ...(kind.includes("supplier") ? { supplierEmail: `ventas@${slug}.co` } : {}),
     phoneCc: "57",
-    phone: `60${documentNumber.slice(1, 9)}`,
+    phone: `${landlineIndicative(place[0])}${documentNumber.slice(-7)}`,
     ...extra,
   };
 };
@@ -116,7 +134,7 @@ const CALI = ["76", "76001"] as const;
 
 /** 40 parties: 28 customers, 10 suppliers and 2 that are both. */
 export const PARTIES: DemoParty[] = [
-  company(["customer"], "890903938", "Almacenes Éxito S.A.", ["05", "05266", "Carrera 48 # 32B Sur-139", "055422"], {
+  company(["customer"], "890900608", "Almacenes Éxito S.A.", ["05", "05266", "Carrera 48 # 32B Sur-139", "055422"], {
     tradeName: "Éxito",
     taxResponsibilities: ["O-13", "O-23"],
     ciiu: "4711",
@@ -166,6 +184,13 @@ export const PARTIES: DemoParty[] = [
   company(["customer", "supplier"], "900531642", "Café del Bosque S.A.S.", [...MEDELLIN, "Carrera 37 # 8A-32", "050021"], { ciiu: "1062", creditLimit: 22_000_000 }),
   company(["customer", "supplier"], "901642753", "Distribuciones Andinas del Café S.A.S.", [...BOGOTA, "Avenida Carrera 68 # 13-45", "111611"], { ciiu: "4631", creditLimit: 55_000_000 }),
 ];
+
+/**
+ * Parties (by document number) the seed gives their required files (RUT, and Cámara de Comercio for a company) through
+ * kernel.attachment.add, so they are invoice-ready: Éxito first, two more customers, a supplier, a party that is both,
+ * and a natural person (RUT only).
+ */
+export const INVOICE_READY_PARTIES = ["890900608", "900456781", "860512347", "890801234", "900531642", "71654321"];
 
 /** The input of core.product.create, with the category and the main supplier named instead of their ids. */
 export interface DemoProduct {

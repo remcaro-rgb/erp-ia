@@ -16,8 +16,8 @@ export function processDeps(): RunProcessDeps {
   registerCountryPack(co);
   installAgentModel();
   // The help search embeds questions with the model the policy table names for `embeddings` (rule 26), unless
-  // something (a test) installed its own embedder. With the mock model there is no gateway: the deterministic embedder
-  // `pnpm help:index` uses without a key.
+  // something (a test) installed its own embedder. With the mock model (same opt-in, same production guard) there is no
+  // gateway: the deterministic embedder `pnpm help:index` uses without a key.
   if (!installedHelpEmbedder()) setHelpEmbedder(agentModelFactory(process.env) ? new FakeEmbedder() : new PolicyEmbedder(getServiceDb()));
   return { sql: getServiceDb(), registry };
 }
@@ -27,17 +27,19 @@ const modelGlobals = globalThis as { [MODEL_KEY]?: boolean };
 
 /**
  * The assistant's model (design §7.4): `AGENT_MODEL=mock` installs the AI SDK mock model (end-to-end tests, a local stack
- * without a gateway key); otherwise the turn's model resolves through the AI Gateway (AI_GATEWAY_API_KEY). Once per
+ * without a gateway key; in production only with ALLOW_MOCK_MODEL=1, the Docker test stack); otherwise the turn's model resolves through the AI Gateway (AI_GATEWAY_API_KEY). Once per
  * server process, at boot (instrumentation) and before any turn; the factory lives on globalThis, where the workflow's
  * model step reads it.
  */
 export function installAgentModel(): void {
   if (modelGlobals[MODEL_KEY]) return;
-  modelGlobals[MODEL_KEY] = true;
+  // Throws on a production server with AGENT_MODEL=mock and no ALLOW_MOCK_MODEL=1: at boot (instrumentation) and on
+  // every request after, never silently falling back to another model.
   const factory = agentModelFactory(process.env);
+  modelGlobals[MODEL_KEY] = true;
   if (!factory) return;
   setAgentModelFactory(factory);
-  console.warn("assistant: AGENT_MODEL=mock, the turns run with the AI SDK mock model (no gateway)");
+  console.warn("assistant: AGENT_MODEL=mock, the turns run with the AI SDK mock model (no gateway, metered as mock/agent)");
 }
 
 // The manifests registered in SQL once per server process (design §5.2: at boot): the role seeds and the admin

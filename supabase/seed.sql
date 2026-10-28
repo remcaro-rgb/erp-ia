@@ -2,14 +2,16 @@
 --
 -- Two halves, so that `supabase db reset` (and the Docker init job) can load what needs no registry, and the rest goes
 -- through the real processes:
---   1. This file (applied after the migrations by `supabase db reset`, by the compose `db-init` job, and again, it is
---      idempotent, by `pnpm db:seed`): the tenant "Demo", the company Café del Norte S.A.S. (NIT 900373115-3), its roles
+--   1. This file (applied after the migrations by `supabase db reset`, by the `db-init` job of the Docker TEST stack
+--      (docker-compose.test.yml mounts it; the production compose file does not), and again, it is idempotent, by
+--      `pnpm db:seed`): the tenant "Demo", the company Café del Norte S.A.S. (NIT 900373115-3), its roles
 --      admin, gerente_comercial, contador and cajero, the Colombian required files, and the starter plan's entitlements
 --      (module:core, module:support, limit:ai_tokens_month = 2000000).
---   2. `pnpm db:seed` (scripts/seed.ts, the compose `seed` job): registers the modules' manifests, enables the modules,
---      creates the Auth users laura@demo.local (admin + gerente comercial, TOTP) and marcela@demo.local (cajero) through
---      the Auth Admin API, seeds the company's role defaults, sets the permissions through the kernel.admin.* processes
---      as Laura with her step-up, creates 6 categories, 40 parties and 25 products through their processes, and offers
+--   2. `DEMO_SEED=1 pnpm db:seed` (scripts/seed.ts, the test stack's `seed` job): registers the modules' manifests,
+--      enables the modules, creates the Auth users laura@demo.local (admin + gerente comercial, TOTP) and
+--      marcela@demo.local (cajero) through the Auth Admin API, seeds the company's role defaults, then as Laura with her
+--      step-up adds Marcela and sets roles and permissions through the kernel.admin.* processes, creates 6 categories,
+--      40 parties and 25 products and the required files of 6 parties through their processes, and offers
 --      2 recommendations. The accounts are in README.md.
 --
 -- The ids are fixed (scripts/demo/accounts.ts) so both halves and the smoke test name the same rows. Users, memberships

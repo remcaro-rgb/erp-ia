@@ -17,9 +17,9 @@ export { AI_TOKENS_LIMIT_KEY, checkTokenBudget, costUsd, MODEL_PRICES, overBudge
 export type { TokenBudget } from "./runtime/limits";
 export { MissingModelPolicy, resolveModel } from "./runtime/model-policy";
 export type { AgentTask, ModelChoice } from "./runtime/model-policy";
-export { PolicyModel, policyModel, setAgentModelFactory } from "./runtime/policy-model";
+export { installedAgentModelFactory, PolicyModel, policyModel, setAgentModelFactory } from "./runtime/policy-model";
 export type { ModelFactory } from "./runtime/policy-model";
-export { agentModelFactory, mockAgentModel } from "./runtime/mock-agent-model";
+export { agentModelFactory, isMockAgentModelInstalled, MOCK_AGENT_MODEL, mockAgentModel } from "./runtime/mock-agent-model";
 export { HISTORY_VIEW_ROWS, loadConversationView, uiMessagesFromRows } from "./runtime/history";
 export type { CardView, ConversationView, StoredMessageRow } from "./runtime/history";
 export { buildPreview } from "./runtime/preview";

@@ -1,7 +1,9 @@
-# Host-side test access to the Docker stack (CI `docker-integration`, `pnpm docker:test:up`, the smoke checks): publishes
-# the database, the Supabase API and Mailpit on 127.0.0.1, which the plain stack keeps on its private network, and runs
-# the assistant on the AI SDK mock model (the end-to-end smoke needs no provider) unless AGENT_MODEL says otherwise. Not
-# for a deployment.
+# The Docker TEST stack (CI `docker-integration`, `pnpm docker:test:up`, the smoke checks), never a deployment:
+#  * publishes the database, the Supabase API and Mailpit on 127.0.0.1, which the plain stack keeps on its network;
+#  * loads the demo company: supabase/seed.sql in the `db-init` job and the `seed` job (`pnpm db:seed` with DEMO_SEED=1:
+#    laura@demo.local and marcela@demo.local, public passwords, README.md), which the web app waits for;
+#  * runs the assistant on the AI SDK mock model (the smoke needs no provider), allowed on this production build by
+#    ALLOW_MOCK_MODEL=1, unless AGENT_MODEL says otherwise.
 services:
   db:
     ports:
@@ -12,6 +14,31 @@ services:
   mail:
     ports:
       - "127.0.0.1:${MAIL_HOST_PORT:-56324}:8025"
+  db-init:
+    volumes:
+      - ./supabase/seed.sql:/supabase/seed.sql:ro
+  # One-shot: the demo company (`pnpm db:seed`, scripts/seed.ts, Task 22) once the migrations, supabase/seed.sql and Auth
+  # are in: the registry synced, the modules enabled, the Auth users created through the Admin API (kong), people and
+  # permissions through the admin processes, 6 categories, 40 parties and 25 products through theirs. Idempotent.
+  seed:
+    # The tools image the help-index job builds.
+    image: erp-ia/tools:local
+    command: ["pnpm", "db:seed"]
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+      kong: { condition: service_healthy }
+      storage: { condition: service_healthy }
+    environment:
+      DEMO_SEED: "1"
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      SUPABASE_URL: http://kong:8000
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+    restart: "no"
+    networks: [internal]
   web:
+    depends_on:
+      seed: { condition: service_completed_successfully }
     environment:
       AGENT_MODEL: ${AGENT_MODEL:-mock}
+      ALLOW_MOCK_MODEL: "1"

@@ -17,7 +17,8 @@ import { testEnv } from "../test-support/env";
 // The assistant runs for real (workflow, tools, confirmation, process). Its model is the AI SDK mock (`AGENT_MODEL=mock`,
 // set by playwright.config.ts unless AI_GATEWAY_API_KEY is set): the exact wording of its answers is checked only then.
 
-const SCREENSHOTS = "e2e/__screenshots__";
+// Screenshots of a run, for a look at the result: not committed (test-results/ is ignored).
+const SCREENSHOTS = "test-results/smoke";
 const MOCKED = process.env.AGENT_MODEL === "mock" || !process.env.AI_GATEWAY_API_KEY;
 const ESPIGA = { name: "Panadería La Espiga", nit: "800197268", dv: "4" };
 const TRIGAL = { name: "Panadería El Trigal", nit: "860002964", dv: "4" };
@@ -86,6 +87,13 @@ test.describe("phase 1 smoke on the demo company", () => {
   test("login, grid, export, agent consult, agent confirmed write, audit", async ({ page }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1600, height: 900 });
+    const started = new Date();
+    // The seed made six parties invoice-ready through their required files (RUT, Cámara de Comercio), Éxito among them.
+    const [ready] = await sql<{ n: number; exito: boolean }[]>`
+      select count(*) filter (where invoice_ready)::int as n, bool_or(invoice_ready and document_number = '890900608') as exito
+      from core.parties where company_id = ${DEMO_COMPANY_ID}`;
+    expect(ready!.n).toBeGreaterThanOrEqual(6);
+    expect(ready!.exito).toBe(true);
     await login(page, LAURA);
     await expect(page.locator("header").first().getByRole("button", { name: /Café del Norte/ })).toBeVisible();
 
@@ -140,8 +148,22 @@ test.describe("phase 1 smoke on the demo company", () => {
     await audit.getByLabel("Filtrar Proceso").fill("core.party.create");
     await expect(audit.getByRole("row", { name: /kernel\.user_prefs|kernel\.data\.query/ })).toHaveCount(0);
     await expect(audit.getByRole("row", { name: /agent.*core\.party\.create.*laura@demo\.local/ }).first()).toBeVisible();
-    await expect(audit.getByRole("button", { name: "CSV", exact: true })).toBeVisible();
     await page.screenshot({ path: `${SCREENSHOTS}/smoke-audit.png` });
+    // Its export carries the entries' columns only: nothing of what the process received or changed (input, diff).
+    const [auditFile] = await Promise.all([page.waitForEvent("download"), audit.getByRole("button", { name: "CSV", exact: true }).click()]);
+    const auditCsv = (await readFile((await auditFile.path())!)).toString("utf8");
+    expect(auditCsv.slice(1).split("\r\n")[0]).toMatch(/^"?Fecha"?;"?Origen"?;"?Proceso"?;"?Entidad"?;"?Registro"?;"?Acción"?;"?Actor"?;"?Cadena"?$/);
+    expect(auditCsv).toContain("core.party.create");
+    for (const leaked of [ESPIGA.name, "R-99-PN", "taxResponsibilities", "credit_limit", "legal_name"]) expect(auditCsv).not.toContain(leaked);
+
+    // The mock's turns were metered as the mock: provider `mock`, no cost (AI usage never shows a model that was not called).
+    if (MOCKED) {
+      const usage = await sql<{ provider: string; model: string; cost: string }[]>`
+        select provider, model, cost_usd::text as cost from kernel.llm_usage
+        where company_id = ${DEMO_COMPANY_ID} and task = 'chat' and created_at >= ${started}`;
+      expect(usage.length).toBeGreaterThan(0);
+      expect(usage.every((u) => u.provider === "mock" && u.model === "mock/agent" && Number(u.cost) === 0)).toBe(true);
+    }
   });
 
   test("cajero never sees credit_limit and cannot run party.create through the agent", async ({ page }) => {

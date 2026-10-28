@@ -52,7 +52,11 @@ jobs:
   # the repository provides AI_GATEWAY_API_KEY.
   e2e:
     runs-on: ubuntu-latest
-    needs: unit
+    needs: [unit, integration]
+    env:
+      # One value for the help index and the app: both use the gateway, or both the deterministic embedder and the mock.
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      DEMO_SEED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -69,8 +73,6 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm help:index
       - run: pnpm -F web e2e
-        env:
-          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

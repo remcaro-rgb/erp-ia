@@ -16,10 +16,10 @@ shadcn + Tailwind v4, TanStack Table, Vitest and Playwright. Node 22 or later, p
 
 ```bash
 pnpm install
-cp apps/web/.env.example apps/web/.env.local   # the CLI stack's public demo keys, AGENT_MODEL=mock
+cp apps/web/.env.example apps/web/.env.local   # the CLI stack's public demo keys; set a gateway key or AGENT_MODEL=mock
 supabase start        # the local stack: API on 127.0.0.1:55321, database on 127.0.0.1:54322
 pnpm db:reset         # migrations + supabase/seed.sql (tenant, company, roles, entitlements)
-pnpm db:seed          # the demo company: Auth users, permissions, 40 parties, 25 products, recommendations
+DEMO_SEED=1 pnpm db:seed   # the demo company: Auth users, people and permissions, 40 parties, 25 products, files
 pnpm help:index       # the assistant's help index (deterministic embeddings without AI_GATEWAY_API_KEY)
 pnpm dev              # http://localhost:3000
 ```
@@ -27,13 +27,15 @@ pnpm dev              # http://localhost:3000
 The seed has two halves. `supabase/seed.sql` holds what needs no registry and runs with every `supabase db reset` (and
 in the Docker init job). `pnpm db:seed` (`scripts/seed.ts`) does the rest the way the app would: it registers the
 modules' manifests, enables the modules, creates the Auth users through the Auth Admin API, and sets the permissions and
-creates the master data through the registered processes, signed in as Laura with her TOTP code, so the audit, the
-outbox and the consecutive numbers are real. It is idempotent and refuses any stack that is not local.
+creates the master data and the required files through the registered processes, signed in as Laura with her TOTP code,
+so the audit, the outbox and the consecutive numbers are real (only Laura's first admin membership is written directly).
+It is idempotent, runs only with `DEMO_SEED=1` and refuses any stack that is not local.
 
-The assistant's model: `AGENT_MODEL=mock` runs every turn with the AI SDK mock model (no provider, no key). It answers
-«busca el cliente Éxito» and «crea el cliente Panadería La Espiga, NIT 800197268-4», and refuses what the user's role
-may not do. Leave `AGENT_MODEL` unset and set `AI_GATEWAY_API_KEY` to use the AI Gateway with the models of
-`kernel.model_policies`.
+The assistant's model: set `AI_GATEWAY_API_KEY` to use the AI Gateway with the models of `kernel.model_policies`, or
+`AGENT_MODEL=mock` to run every turn with the AI SDK mock model (a test double, no provider). The mock answers «busca el
+cliente Éxito» and «crea el cliente Panadería La Espiga, NIT 800197268-4» (a wrong DV is refused by the country pack),
+refuses what the user's role may not do, and is metered as `mock/agent` at no cost. A production server refuses it
+unless `ALLOW_MOCK_MODEL=1` (only the Docker test stack sets it).
 
 ### Demo accounts (local use only)
 
@@ -44,24 +46,27 @@ may not do. Leave `AGENT_MODEL` unset and set `AI_GATEWAY_API_KEY` to use the AI
 
 Company: Café del Norte S.A.S., NIT 900373115-3 (country pack `co`, COP, America/Bogota). Add Laura's secret to an
 authenticator app as a manual key (TOTP, SHA1, 6 digits, 30 s). Marcela sees customers only, never the credit limit
-(hidden for the cajero role), and has no write tool in the assistant. These passwords and the secret are public: never
-seed them into a stack anyone else can reach (`pnpm db:seed` only accepts local hosts).
+(hidden for the cajero role), and has no write tool in the assistant. Six parties (Éxito among them) have their RUT and
+Cámara de Comercio and are invoice-ready. These passwords and the secret are public: never seed them into a stack
+anyone else can reach (`pnpm db:seed` needs `DEMO_SEED=1` and only accepts local hosts; the production compose file has
+no seed job).
 
 ## Run in Docker
 
 The Docker target (design §21) runs the self-hosted Supabase services, the web app behind an nginx edge, the Workflow
-worker and the init jobs (migrations + `supabase/seed.sql`, the demo seed, the Workflow schema, the help index).
+worker and the init jobs (migrations, the Workflow schema, the help index). `docker-compose.yml` alone (`pnpm
+docker:up`) brings up a stack with no demo data. `docker-compose.test.yml` (`pnpm docker:test:up`) adds the test pieces:
+the published ports, `supabase/seed.sql` and the `seed` job (the demo company and accounts) and the mock model.
 
 ```bash
 pnpm docker:env       # once: .env.docker with fresh local-only secrets (never commit it)
-pnpm docker:test:up   # build, start and wait; publishes the database (56322), the API (56321) and Mailpit (56324)
+pnpm docker:test:up   # the test stack: demo company, mock model, database (56322), API (56321), Mailpit (56324)
 # the app: http://127.0.0.1:56300 (the edge, the only port docker:up publishes), demo accounts as above
 pnpm docker:down      # stop and drop the volumes
 ```
 
-`pnpm docker:up` starts the same stack without the published test ports. `docker-compose.test.yml` runs the assistant on
-the mock model (`AGENT_MODEL=mock`); in `.env.docker` leave `AGENT_MODEL` empty and set `AI_GATEWAY_API_KEY` for a
-gateway.
+`pnpm docker:up` starts the production stack: no published test ports, no demo, the gateway for the assistant (set
+`AI_GATEWAY_API_KEY` in `.env.docker`; `AGENT_MODEL=mock` makes the web app refuse to start there).
 
 ## Run the tests
 
@@ -69,7 +74,7 @@ gateway.
 pnpm lint && pnpm typecheck && pnpm check:rules   # lint, types, the mechanical rules (docs/project-rules.md)
 pnpm test                                        # unit tests (Vitest)
 pnpm test:integration                            # against the CLI stack, one package at a time
-pnpm db:reset && pnpm db:seed && pnpm -F web e2e # Playwright, every spec, on `next dev` (port 3217)
+pnpm db:reset && DEMO_SEED=1 pnpm db:seed && pnpm -F web e2e   # Playwright, every spec, `next dev` on 3217
 pnpm -F web build                                # the production build
 ```
 

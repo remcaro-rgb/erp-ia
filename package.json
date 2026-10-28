@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@erp/agent": "workspace:*",
+    "@erp/infra": "workspace:*",
     "@erp/kernel": "workspace:*",
     "@erp/loc-co": "workspace:*",
     "@erp/module-core": "workspace:*",
