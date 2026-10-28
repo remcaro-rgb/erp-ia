@@ -63,4 +63,9 @@ export class Registry {
   }
 }
 
-export const registry = new Registry();
+// Kept on globalThis: the Workflow bundler loads this module a second time into the step bundle, and
+// the consumers it runs must see the modules the app registered.
+const GLOBAL_KEY = Symbol.for("erp.kernel.registry");
+const globals = globalThis as { [GLOBAL_KEY]?: Registry };
+
+export const registry: Registry = (globals[GLOBAL_KEY] ??= new Registry());

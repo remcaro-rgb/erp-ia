@@ -56,7 +56,7 @@ export interface FeatureDef {
   nav?: NavItem[];
 }
 
-/** What an event consumer receives; Task 7 implements the dispatcher that builds it. */
+/** What an event consumer receives; `buildConsumerContext` (events/consumers.ts) builds it for the dispatch workflow. */
 export interface ConsumerContext {
   sql: Sql;
   companyId: string;

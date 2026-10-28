@@ -1,4 +1,5 @@
 import { defineEntity } from "../registry/entities";
+import { consumers } from "../events/consumers";
 import type { Registry } from "../registry";
 import type { ModuleDef } from "../registry/types";
 
@@ -6,7 +7,8 @@ import type { ModuleDef } from "../registry/types";
  * Registers `modules` (their entities, processes and manifests) in dependency order: a module is
  * registered after everything in its `dependsOn`, which must be among `modules` or already in the
  * registry. Throws `module dependency cycle: a -> b -> a`, `missing dependency: <id>` or
- * `duplicate module <id>` before registering anything.
+ * `duplicate module <id>` before registering anything. Each entry of a module's `events.consumes` is
+ * registered as that module's consumer of the event (design §5.5).
  */
 export function loadModules(registry: Registry, modules: ModuleDef[]): void {
   const byId = new Map<string, ModuleDef>();
@@ -40,5 +42,6 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     for (const entity of module.entities) registry.registerEntity(defineEntity(entity));
     for (const process of module.processes) registry.registerProcess(process);
     registry.registerModule(module);
+    for (const [event, fn] of Object.entries(module.events.consumes)) consumers.register(module.id, event, fn);
   }
 }

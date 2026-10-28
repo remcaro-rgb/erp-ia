@@ -7,3 +7,5 @@ coverage/
 dist/
 .turbo/
 .DS_Store
+.workflow-data/
+.workflow-vitest/
