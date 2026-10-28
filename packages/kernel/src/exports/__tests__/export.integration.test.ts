@@ -120,6 +120,19 @@ describe("kernel.export.run and the export job", () => {
     expect(sheet.getRow(1).getCell(1).value).toBe("Secreto");
     expect(sheet.getRow(10_501).getCell(1).value).toBe("fila 010500");
 
+    // One audit entry per change of the job (created, running, done), none twice; the workflow's updates name the
+    // job's user as `updated_by`; the consult's audit input leaves the screen's headers and value lists out.
+    const changes = await sql<{ action: string; entity: string }[]>`select action, entity from kernel.audit_log where row_id = ${out.jobId} order by occurred_at`;
+    expect(changes).toEqual([
+      { action: "insert", entity: "kernel.export_jobs" },
+      { action: "update", entity: "kernel.export_jobs" },
+      { action: "update", entity: "kernel.export_jobs" },
+    ]);
+    const [row] = await sql<{ updated_by: string }[]>`select updated_by from kernel.export_jobs where id = ${out.jobId}`;
+    expect(row!.updated_by).toBe(seed.users.both);
+    const [consult] = await sql<{ input: Record<string, unknown> }[]>`select input from kernel.audit_log where chain_id = ${chainId} and action = 'consult'`;
+    expect(Object.keys(consult!.input).sort()).toEqual(["entity", "format", "state", "title"]);
+
     const status = await exportJobStatus(sql, caller.claims, out.jobId);
     expect(status).toMatchObject({ status: "done", rowCount: 10_500, error: null, fileName: expect.stringMatching(/^probes-.*\.xlsx$/) });
     expect(status!.url).toBe(`memory://${path}?ttl=600`);
@@ -159,9 +172,19 @@ describe("kernel.export.run and the export job", () => {
     const refused = await runProcess(deps, as("both"), "kernel.export.run", request({ format: "docx" })).catch((e: ProcessError) => e);
     expect(JSON.stringify((refused as ProcessError).details)).toMatch(/Opción inválida/);
 
-    // A PDF is laid out in memory: past 20,000 rows it is refused, with the reason the screen translates.
-    await fill(20_001);
+    // A PDF is laid out in memory: a request renders up to 2,000 rows, a job up to 10,000, and beyond that it is refused
+    // with the reason the screen translates. CSV and Excel keep the 10,000-row threshold and have no ceiling.
+    await fill(2_000);
+    expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "pdf" }))).toMatchObject({ mode: "inline", contentType: "application/pdf" });
+    await fill(2_001);
+    expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "pdf" }))).toMatchObject({ mode: "job" });
+    expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "csv" }))).toMatchObject({ mode: "inline" });
+    expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "xlsx" }))).toMatchObject({ mode: "inline" });
+    await fill(10_000);
+    expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "pdf" }))).toMatchObject({ mode: "job" });
+    await fill(10_001);
     await expect(runProcess(deps, as("both"), "kernel.export.run", request({ format: "pdf" }))).rejects.toMatchObject({ code: "invalid_input", details: ["pdf_too_large"] });
+    expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "csv" }))).toMatchObject({ mode: "job" });
     expect(await runProcess(deps, as("both"), "kernel.export.run", request({ format: "xlsx" }))).toMatchObject({ mode: "job" });
 
     await sql`delete from kernel.tenant_entitlements where tenant_id = ${seed.tenantId}`;

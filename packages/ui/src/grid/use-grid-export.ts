@@ -29,7 +29,7 @@ export function browserDownload(result: ExportResult): void {
   if (result.kind === "file") setTimeout(() => URL.revokeObjectURL(link.href), 30_000);
 }
 
-export interface UseGridExportOptions extends Pick<ExportOptions, "endpoint" | "fetcher" | "pollMs"> {
+export interface UseGridExportOptions extends Pick<ExportOptions, "endpoint" | "fetcher" | "pollMs" | "maxWaitMs"> {
   entity: string;
   /** The screen's name: the exported file and its sheet are named after it. */
   title?: string;
@@ -37,7 +37,7 @@ export interface UseGridExportOptions extends Pick<ExportOptions, "endpoint" | "
 }
 
 /** Runs the PDF / Excel / CSV export of a grid and tells how it is going (one at a time). */
-export function useGridExport({ entity, title, endpoint, fetcher, pollMs, download = browserDownload }: UseGridExportOptions) {
+export function useGridExport({ entity, title, endpoint, fetcher, pollMs, maxWaitMs, download = browserDownload }: UseGridExportOptions) {
   const [status, setStatus] = useState<ExportStatus>({ phase: "idle" });
   const running = useRef<AbortController | null>(null);
   useEffect(() => () => running.current?.abort(), []);
@@ -51,7 +51,7 @@ export function useGridExport({ entity, title, endpoint, fetcher, pollMs, downlo
       try {
         const result = await requestExport(
           { entity, format, state, ...(title ? { title } : {}) },
-          { endpoint, fetcher, pollMs, signal: controller.signal, onJob: () => setStatus({ phase: "job", format }) },
+          { endpoint, fetcher, pollMs, maxWaitMs, signal: controller.signal, onJob: () => setStatus({ phase: "job", format }) },
         );
         download(result);
         setStatus({ phase: "ready", fileName: result.fileName ?? `${entity}.${format}` });
@@ -64,7 +64,7 @@ export function useGridExport({ entity, title, endpoint, fetcher, pollMs, downlo
         running.current = null;
       }
     },
-    [entity, title, endpoint, fetcher, pollMs, download],
+    [entity, title, endpoint, fetcher, pollMs, maxWaitMs, download],
   );
 
   return { status, run, busy: status.phase === "working" || status.phase === "job" };

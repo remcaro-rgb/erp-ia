@@ -226,6 +226,13 @@ describe("export-route", () => {
     expect(changes.map((c) => c.origin)).toEqual(["ui", "api", "api"]);
   }, 120_000);
 
+  it("a PDF over 10,000 rows is refused with a reason the screen translates; Excel and CSV are not", async () => {
+    const refused = await post(exportBody("pdf"));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toMatchObject({ code: "invalid_input", details: ["pdf_too_large"] });
+    expect((await post(exportBody("xlsx"))).status).toBe(202);
+  });
+
   it("a job is visible only to who started it: another member's job and an unknown id are 404, never the signed URL", async () => {
     const companyId = fixture.companyIds[0]!;
     const [foreign] = await fixture.sql<{ id: string }[]>`
@@ -235,6 +242,9 @@ describe("export-route", () => {
     expect((await poll(foreign!.id)).status).toBe(404);
     expect((await poll("00000000-0000-7000-8000-000000000000")).status).toBe(404);
     expect((await poll("not-a-uuid")).status).toBe(404);
+    // A malformed percent escape is a bad id like any other, not a server error.
+    expect((await poll("%E0%A4%A")).status).toBe(404);
+    expect((await poll("%")).status).toBe(404);
   });
 
   it("a job whose file cannot be stored ends failed with a user message, and 401 without a session", async () => {

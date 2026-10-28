@@ -163,7 +163,7 @@ async function execute<O extends z.ZodTypeAny>(
       // A dry run ends here: everything the handler wrote (and the step-up consumption) is rolled back.
       if (dryRun) throw new DryRunRollback(output);
 
-      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(output), input: parsed.data });
+      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(output), input: def.auditInput ? def.auditInput(parsed.data) : parsed.data });
 
       if (key !== undefined) {
         const inserted = await tx`

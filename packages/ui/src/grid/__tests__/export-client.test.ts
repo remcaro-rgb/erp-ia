@@ -38,6 +38,13 @@ describe("requestExport", () => {
     await expect(requestExport({ entity: "core.party", format: "csv", state }, { fetcher: async () => { throw new TypeError("offline"); } })).rejects.toMatchObject({ code: "network" });
   });
 
+  it("gives up on a job that takes longer than its budget, with its own code", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => (String(input) === "/api/export" ? json({ mode: "job", jobId: "j1" }, 202) : json({ status: "running" })));
+    await expect(requestExport({ entity: "core.party", format: "csv", state }, { fetcher, pollMs: 5, maxWaitMs: 30 })).rejects.toMatchObject({ code: "export_timeout" });
+    expect(fetcher.mock.calls.length).toBeGreaterThan(2);
+    expect(fetcher.mock.calls.length).toBeLessThan(12);
+  });
+
   it("stops polling when aborted", async () => {
     const controller = new AbortController();
     let polls = 0;

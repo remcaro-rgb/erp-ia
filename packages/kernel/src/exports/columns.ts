@@ -79,7 +79,7 @@ export function exportColumns(entity: EntityDef, access: GridAccess, state: { co
       });
   };
 
-  const names = state.columns ?? [...entity.fields.map((f) => f.name).filter((n) => !RAW_JSON.has(n)), "extra"];
+  const names = state.columns ?? [...entity.fields.map((f) => f.name).filter((n) => !RAW_JSON.has(n)), ...(fields.has("extra") ? ["extra"] : [])];
   const out: ExportColumn[] = [];
   const seen = new Set<string>();
   const add = (column: ExportColumn | null) => {

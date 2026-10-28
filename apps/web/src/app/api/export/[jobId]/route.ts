@@ -13,10 +13,17 @@ type Context = { params: Promise<{ jobId: string }> };
 export async function GET(_request: Request, context: Context): Promise<Response> {
   const caller = await callerOrResponse();
   if (caller instanceof Response) return caller;
-  const { jobId } = await context.params;
+  const notFound = () => Response.json({ code: "not_found", details: null }, { status: 404 });
+  let jobId: string;
   try {
-    const status = await exportJobStatus(processDeps().sql, caller.claims, decodeURIComponent(jobId));
-    if (!status) return Response.json({ code: "not_found", details: null }, { status: 404 });
+    jobId = decodeURIComponent((await context.params).jobId);
+  } catch {
+    // A malformed percent escape is a bad id like any other.
+    return notFound();
+  }
+  try {
+    const status = await exportJobStatus(processDeps().sql, caller.claims, jobId);
+    if (!status) return notFound();
     const { rowCount, fileName, error, url, ...rest } = status;
     return Response.json(
       { ...rest, ...(rowCount !== null ? { rowCount } : {}), ...(fileName ? { fileName } : {}), ...(error ? { error } : {}), ...(url ? { url } : {}) },

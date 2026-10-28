@@ -97,6 +97,16 @@ const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 export const isoDay = (d: Date) => `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 const clock = (d: Date) => `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 
+/** ISO 8601 with the offset of `timeZone` at that instant (`2026-10-28T10:30:00-05:00`); `+00:00` without a zone. */
+export function isoWithOffset(instant: Date, timeZone: string | undefined): string {
+  const wall = wallClock(instant, timeZone);
+  const minutes = Math.round((wall.getTime() - instant.getTime()) / 60_000);
+  const sign = minutes < 0 ? "-" : "+";
+  const abs = Math.abs(minutes);
+  const stamp = wall.toISOString().slice(0, 19);
+  return `${stamp}${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
 /** `1.234.567,50` (es-CO) of an amount with two decimals. */
 function grouped(amount: number): string {
   const cents = Math.round(Math.abs(amount) * 100);
@@ -133,7 +143,7 @@ export function cellText(column: ExportColumn, value: unknown, options: WriterOp
     case "datetime":
       return options.paper
         ? `${pad(cell.wall.getUTCDate())}/${pad(cell.wall.getUTCMonth() + 1)}/${cell.wall.getUTCFullYear()} ${clock(cell.wall)}`
-        : cell.at.toISOString();
+        : isoWithOffset(cell.at, options.timeZone);
   }
 }
 

@@ -22,12 +22,14 @@ export interface ExportOptions {
   fetcher?: typeof fetch;
   /** Milliseconds between two looks at a job. */
   pollMs?: number;
+  /** How long to wait for a job before giving up (`export_timeout`); 10 minutes by default. The job itself carries on. */
+  maxWaitMs?: number;
   /** Called once when the server turned the export into a background job. */
   onJob?: () => void;
   signal?: AbortSignal;
 }
 
-/** A refusal or failure of an export: the server's code (`forbidden`, `not_entitled`…), `export_failed`, `network` or `aborted`. */
+/** A refusal or failure of an export: the server's code (`forbidden`, `not_entitled`…), `export_failed`, `export_timeout`, `network` or `aborted`. */
 export class ExportRequestError extends Error {
   readonly code: string;
   readonly status: number;
@@ -57,7 +59,7 @@ const wait = (ms: number, signal?: AbortSignal) =>
 
 /** Asks for the export and waits for it: the file, or the link of the job's file. Throws `ExportRequestError`. */
 export async function requestExport(request: ExportRequest, options: ExportOptions = {}): Promise<ExportResult> {
-  const { endpoint = "/api/export", fetcher = (...args: Parameters<typeof fetch>) => fetch(...args), pollMs = 2000, onJob, signal } = options;
+  const { endpoint = "/api/export", fetcher = (...args: Parameters<typeof fetch>) => fetch(...args), pollMs = 2000, maxWaitMs = 600_000, onJob, signal } = options;
   const call = async (url: string, init?: RequestInit): Promise<Response> => {
     try {
       return await fetcher(url, { ...init, signal });
@@ -79,7 +81,9 @@ export async function requestExport(request: ExportRequest, options: ExportOptio
 
   const { jobId } = (await started.json()) as { jobId: string };
   onJob?.();
+  const giveUpAt = Date.now() + maxWaitMs;
   for (;;) {
+    if (Date.now() >= giveUpAt) throw new ExportRequestError("export_timeout");
     await wait(pollMs, signal);
     const polled = await call(`${endpoint}/${encodeURIComponent(jobId)}`);
     if (!polled.ok) throw await failure(polled);

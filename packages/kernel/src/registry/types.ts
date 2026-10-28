@@ -30,6 +30,8 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
    * checked and audited like any other process. Default `role`.
    */
   permission?: "role" | "none";
+  /** What the audit entry of a run records as its input, when less than the whole input (default: the whole input). */
+  auditInput?(input: z.infer<I>): unknown;
   /** Runs with the same key in the same company return the first run's stored result. */
   idempotencyKey?(input: z.infer<I>): string;
   /** Runs in the process transaction, as the caller, under RLS. */

@@ -61,12 +61,7 @@ export async function renderExportJob(args: ExportJobArgs): Promise<number> {
     const store = await exportsStore();
     await store.remove(path).catch(() => undefined);
     await store.put(path, rendered.body, rendered.contentType);
-    await recordExport(
-      sql,
-      args,
-      { status: "done", storage_path: path, file_name: rendered.fileName, row_count: rendered.rowCount(), finished_at: new Date() },
-      { summary: `${job.format} · ${rendered.rowCount()} filas · ${rendered.plan.columns.length} columnas`, entity: job.entity },
-    );
+    await recordExport(sql, args, { status: "done", storage_path: path, file_name: rendered.fileName, row_count: rendered.rowCount(), finished_at: new Date() });
     return rendered.rowCount();
   } catch (error) {
     console.error(`export job ${args.jobId} failed`, error);

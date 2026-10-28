@@ -1,5 +1,5 @@
 import type { Sql } from "postgres";
-import { setAuditContext, writeAudit } from "../audit/audit";
+import { setAuditContext } from "../audit/audit";
 import { withClaims, type JwtClaims } from "../db/client";
 import { exportsStore } from "../files/store";
 import type { ExportFormat } from "./types";
@@ -40,30 +40,22 @@ export async function loadExportJob(sql: Sql, jobId: string): Promise<ExportJobR
   return row ? { id: row.id, companyId: row.company_id, userId: row.user_id, entity: row.entity, format: row.format, status: row.status, state: row.state } : null;
 }
 
-/** Writes the job's change (and its audit entry) in one service transaction, on the job's chain. */
-export async function recordExport(sql: Sql, args: ExportJobArgs, change: Record<string, unknown>, audit?: Record<string, unknown>): Promise<void> {
+/**
+ * Writes the job's change in one service transaction, on the job's chain. The row trigger writes the audit entry (one per
+ * change, origin `api`, process `kernel.export.run`); the user the job belongs to is recorded as the one who updated it.
+ */
+export async function recordExport(sql: Sql, args: ExportJobArgs, change: Record<string, unknown>): Promise<void> {
   await sql.begin(async (tx) => {
     await setAuditContext(tx, { origin: "api", processId: RUN_PROCESS, chainId: args.chainId, actorUserId: args.claims.sub });
+    // `kernel.touch_updated` stamps `updated_by` from the request claims, which a service connection has none of.
+    await tx`select set_config('request.jwt.claims', ${JSON.stringify({ sub: args.claims.sub })}, true)`;
     await tx`update kernel.export_jobs set ${tx(change)} where id = ${args.jobId}`;
-    if (audit) {
-      await writeAudit(tx, {
-        companyId: args.claims.active_company_id,
-        actorUserId: args.claims.sub,
-        origin: "api",
-        processId: RUN_PROCESS,
-        entity: "kernel.export_job",
-        rowId: args.jobId,
-        action: "update",
-        input: audit,
-        chainId: args.chainId,
-      });
-    }
   });
 }
 
 /** Records the job as failed with the plain message (the cause is the caller's to log). */
 export async function markExportFailed(sql: Sql, args: ExportJobArgs): Promise<void> {
-  await recordExport(sql, args, { status: "failed", error: EXPORT_FAILED_MESSAGE, finished_at: new Date() }, { summary: "fallida" });
+  await recordExport(sql, args, { status: "failed", error: EXPORT_FAILED_MESSAGE, finished_at: new Date() });
 }
 
 export interface ExportJobStatus {

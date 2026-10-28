@@ -39,7 +39,10 @@ export const EXPORT_PAGE_SIZE = 1000;
 export const EXPORT_INLINE_LIMIT = 10_000;
 
 /**
- * A PDF is laid out in memory, page by page: beyond this many rows it is refused (Excel and CSV take any size) rather
- * than exhausting the worker. The refusal's detail is `pdf_too_large`.
+ * A PDF is laid out in memory (about 150 MB of heap per 1,000 rows): beyond this many rows a request does not render it
+ * itself but starts a job (CSV and Excel keep `EXPORT_INLINE_LIMIT`, they are streamed).
  */
-export const EXPORT_PDF_MAX_ROWS = 20_000;
+export const EXPORT_PDF_INLINE_LIMIT = 2_000;
+
+/** Beyond this many rows a PDF is refused (`pdf_too_large`: Excel and CSV take any size). */
+export const EXPORT_PDF_MAX_ROWS = 10_000;

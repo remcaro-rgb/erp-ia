@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { exportColumns } from "../exports/columns";
 import { writeCsv } from "../exports/csv";
-import { cellText, MASK } from "../exports/format";
+import { cellText, isoWithOffset, MASK } from "../exports/format";
 import { pdfTable, writePdf } from "../exports/pdf";
 import type { ExportColumn } from "../exports/types";
 import { writeXlsx } from "../exports/xlsx";
@@ -67,13 +67,21 @@ describe("writeCsv", () => {
   it("writes dates in ISO, money and numbers bare with the locale's decimal mark, booleans and enums as labels", async () => {
     const [header, first, second, third] = (await text(writeCsv(columns, rows, { locale: "es-419" }))).text.slice(1).split("\r\n");
     expect(header).toBeDefined();
-    expect(first).toBe('1;"Café ""del Norte""; S.A.S.";"••••••";1234567,50;2026-10-28T15:30:00.000Z;2026-03-05;"Sí";"Cliente, Proveedor"');
+    expect(first).toBe('1;"Café ""del Norte""; S.A.S.";"••••••";1234567,50;2026-10-28T15:30:00+00:00;2026-03-05;"Sí";"Cliente, Proveedor"');
     expect(second!.startsWith("2;")).toBe(true);
     expect(second).toContain(';-50,00;;;"No";"Proveedor"');
-    expect(third).toContain(";0,00;2026-01-02T05:00:00.000Z;2026-01-02;");
+    expect(third).toContain(";0,00;2026-01-02T05:00:00+00:00;2026-01-02;");
     const en = (await text(writeCsv(columns, rows, { locale: "en" }))).text.split("\r\n")[1];
     expect(en).toContain(",1234567.50,");
     expect(en).toContain('"Yes"');
+  });
+
+  it("writes a datetime in ISO with the company's zone offset (rule 8), and the same instant in UTC without a zone", async () => {
+    const bogota = (await text(writeCsv([columns[4]!], rows, { locale: "es-419", timeZone: "America/Bogota" }))).text.slice(1).split("\r\n");
+    expect(bogota.slice(1, 4)).toEqual(["2026-10-28T10:30:00-05:00", "", "2026-01-02T00:00:00-05:00"]);
+    const kolkata = (await text(writeCsv([columns[4]!], rows, { locale: "es-419", timeZone: "Asia/Kolkata" }))).text.slice(1).split("\r\n");
+    expect(kolkata[1]).toBe("2026-10-28T21:00:00+05:30");
+    expect(isoWithOffset(new Date("2026-10-28T15:30:00Z"), undefined)).toBe("2026-10-28T15:30:00+00:00");
   });
 
   it("prints a masked column as •••••• on every row, whatever the row holds", async () => {
@@ -258,6 +266,12 @@ describe("exportColumns", () => {
 
   it("without a column list, exports every visible field of the entity (no id, no raw extra) and the viewable extras", () => {
     expect(names(exportColumns(entity, access, state(), {}))).toEqual(["seq", "legal_name", "document_number", "kind", "extra.ruta", "extra.peso"]);
+  });
+
+  it("an entity without an `extra` field gets no extra column by default and refuses the name", () => {
+    const plain = defineEntity({ ...entity, id: "core.plain", fields: entity.fields.filter((f) => f.name !== "extra") });
+    expect(names(exportColumns(plain, { ...access, extras: [] }, state(), {}))).toEqual(["seq", "legal_name", "document_number", "kind"]);
+    expect(() => exportColumns(plain, access, state(["extra"]), {})).toThrow(/extra/);
   });
 
   it("refuses a column the entity does not have", () => {

@@ -662,7 +662,7 @@
       "ready": "Descarga lista: {file}",
       "failed": "No se pudo exportar. {reason}",
       "reasons": {
-        "pdf_too_large": "Un PDF admite hasta 20.000 filas. Para listados más grandes exporta a Excel o CSV."
+        "pdf_too_large": "Un PDF admite hasta 10.000 filas. Para listados más grandes exporta a Excel o CSV."
       }
     },
     "import": {
@@ -985,6 +985,7 @@
     "idempotent_replay": "Esta acción ya se había procesado.",
     "unknown": "Ocurrió un error inesperado.",
     "network": "No hay conexión con el servidor.",
-    "export_failed": "No se pudo generar la exportación. Inténtalo de nuevo."
+    "export_failed": "No se pudo generar la exportación. Inténtalo de nuevo.",
+    "export_timeout": "La exportación tarda más de lo esperado. Sigue en segundo plano; inténtalo de nuevo en unos minutos."
   }
 }

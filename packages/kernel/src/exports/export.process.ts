@@ -7,7 +7,7 @@ import { QueryError } from "../query/errors";
 import { GridState } from "../query/grid-state";
 import { CONTENT_TYPE, exportFileName } from "./file";
 import { planExport, type ExportSpec } from "./plan";
-import { EXPORT_FORMATS, EXPORT_INLINE_LIMIT, EXPORT_PDF_MAX_ROWS } from "./types";
+import { EXPORT_FORMATS, EXPORT_INLINE_LIMIT, EXPORT_PDF_INLINE_LIMIT, EXPORT_PDF_MAX_ROWS } from "./types";
 
 // `kernel.export.run` (design §9, rule 20): the consult process behind the PDF / Excel / CSV buttons of every grid.
 // It checks what the grid checks (`planExport`: the company is entitled to the entity, a role of the caller may
@@ -60,6 +60,8 @@ export const exportRun = defineProcess({
     "Exporta a PDF, Excel o CSV lo que muestra un grid (filtros, orden y columnas visibles, todas las páginas); desde 10.000 filas se genera en segundo plano",
   input: exportInput,
   output: exportOutput,
+  // The audit row says what was exported (entity, format, state), not the screen's headers and value lists.
+  auditInput: (input) => ({ entity: input.entity, format: input.format, state: input.state, title: input.title }),
   handler: async (ctx, input): Promise<ExportOutput> => {
     const entity = gridEntity(ctx.registry, input.entity);
     if (!entity) throw new ProcessError("invalid_input", `unknown entity ${input.entity}`, { details: [`La entidad ${input.entity} no existe`] });
@@ -72,7 +74,9 @@ export const exportRun = defineProcess({
       throw new ProcessError("invalid_input", `a PDF takes up to ${EXPORT_PDF_MAX_ROWS} rows, this export has ${plan.total}`, { details: ["pdf_too_large"] });
     }
     const filename = exportFileName(input.title, input.entity, input.format, plan.access.timeZone);
-    if (plan.total < EXPORT_INLINE_LIMIT) return { mode: "inline", filename, contentType: CONTENT_TYPE[input.format] };
+    // A PDF is laid out in memory: a request renders up to 2,000 rows, a job up to 10,000 (CSV and Excel stream).
+    const inlineLimit = input.format === "pdf" ? EXPORT_PDF_INLINE_LIMIT + 1 : EXPORT_INLINE_LIMIT;
+    if (plan.total < inlineLimit) return { mode: "inline", filename, contentType: CONTENT_TYPE[input.format] };
 
     // Too many rows for a request: a job the workflow renders into storage as this caller. The rows' status and
     // counts are kept by the workflow (service role); the grid state it was asked for is kept with the job.

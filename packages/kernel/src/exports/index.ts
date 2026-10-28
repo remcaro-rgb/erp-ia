@@ -14,6 +14,6 @@ export type { ExportPlan, ExportSpec } from "./plan";
 export { CONTENT_TYPE, exportFileName } from "./file";
 export { openExport, renderExport } from "./render";
 export type { RenderedExport } from "./render";
-export { EXPORT_FORMATS, EXPORT_INLINE_LIMIT, EXPORT_PAGE_SIZE, EXPORT_PDF_MAX_ROWS } from "./types";
+export { EXPORT_FORMATS, EXPORT_INLINE_LIMIT, EXPORT_PAGE_SIZE, EXPORT_PDF_INLINE_LIMIT, EXPORT_PDF_MAX_ROWS } from "./types";
 export type { ExportColumn, ExportFormat, ExportRow, ExportType, WriterOptions } from "./types";
 export { writeXlsx } from "./xlsx";
