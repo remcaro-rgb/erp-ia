@@ -9,6 +9,7 @@ export { consumers, ConsumerRegistry, SYSTEM_USER_ID } from "./events/consumers"
 export { drainOutbox } from "./events/drain";
 export { dispatchOutboxRow } from "./events/dispatch.workflow";
 export type { JwtClaims, Tx } from "./db/client";
+export { withClaims } from "./db/client";
 export { getServiceDb } from "./db/service";
 export { defineEntity, Registry, registry } from "./registry";
 export type { ConsumerContext, EntityDef, EventConsumer, FeatureDef, FieldDef, FieldType, ModuleDef, NavItem, ProcessDef, ProcessKind, ResolvedEntityDef, ResolvedFieldDef } from "./registry";
@@ -52,7 +53,31 @@ export { importEntity } from "./import/entity";
 export { importColumns, importTarget } from "./import/columns";
 export type { ImportColumn, ImportColumnType } from "./import/columns";
 export { exportsStore, fileStore, setExportsStore, setFileStore } from "./files/store";
-export { consultProcessesOf, entitlementKeyOf, gridEntity } from "./query/access";
+export { consultProcessesOf, entitlementKeyOf, gridDenial, gridEntity } from "./query/access";
+export type { GridDenial } from "./query/access";
 export { EXPORT_PROCESSES, exportJobEntity } from "./exports";
-export { buildHelpIndex, chunkGuide, DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, FakeEmbedder, GatewayEmbedder, guideProblems, HELP_PROCESSES, helpSearch, loadGuides, processChunks, searchHelp, setHelpEmbedder } from "./help";
-export type { Embedder, HelpIndexSummary } from "./help";
+export {
+  buildHelpIndex,
+  chunkGuide,
+  DEFAULT_EMBEDDING_MODEL,
+  EMBEDDING_DIMENSIONS,
+  embedQuery,
+  FakeEmbedder,
+  GatewayEmbedder,
+  guideProblems,
+  HELP_EMBED_TIMEOUT_MS,
+  HELP_PROCESSES,
+  helpEmbedder,
+  helpSearch,
+  installedHelpEmbedder,
+  knownRoutes,
+  loadGuides,
+  processChunks,
+  processHref,
+  searchHelp,
+  searchHelpByEmbedding,
+  setHelpEmbedder,
+} from "./help";
+export type { EmbedOptions, Embedder, HelpIndexSummary, HelpResult } from "./help";
+export { costUsd, DEFAULT_PRICE, MODEL_PRICES, priceOf, providerOfModel, recordLlmUsage } from "./ai/usage";
+export type { EmbeddingUsage, LlmTask, LlmUsageRow, ModelPrice } from "./ai/usage";

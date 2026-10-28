@@ -1,5 +1,5 @@
 import type { Tx } from "../db/client";
-import { GatewayEmbedder, vectorText, type Embedder } from "./embedder";
+import { GatewayEmbedder, vectorText, type EmbedOptions, type Embedder } from "./embedder";
 
 // Searching the help index (design §7): the question is embedded and the nearest chunks by cosine distance come back
 // with a short snippet and the screen to open.
@@ -14,9 +14,17 @@ export function setHelpEmbedder(embedder: Embedder | undefined): void {
   globals[GLOBAL_KEY] = embedder;
 }
 
-/** The installed embedder, or the AI Gateway's default embeddings model (task 17 resolves the model from the policy table). */
+/**
+ * The installed embedder, or the AI Gateway's default embeddings model. The web app installs one that reads the model
+ * from `kernel.model_policies` (task `embeddings`, the platform row the index was built with).
+ */
 export function helpEmbedder(): Embedder {
   return (globals[GLOBAL_KEY] ??= new GatewayEmbedder());
+}
+
+/** The embedder an app installed with `setHelpEmbedder`, if any (the default is not installed until first use). */
+export function installedHelpEmbedder(): Embedder | undefined {
+  return globals[GLOBAL_KEY];
 }
 
 export const MAX_RESULTS = 10;
@@ -52,12 +60,27 @@ export interface SearchHelpOptions {
   locale: string;
   /** The locale searched when `locale` has no platform index; default `es-419`. */
   fallbackLocale?: string;
+  /** How the query's embedding call is aborted and metered. */
+  embed?: EmbedOptions;
+}
+
+/** The embedding of a search query, alone (outside any transaction when the caller wants it so). */
+export async function embedQuery(embedder: Embedder, query: string, options: EmbedOptions = {}): Promise<number[]> {
+  const [embedding] = await embedder.embed([query], options);
+  if (!embedding) throw new Error("embedder returned no vector for the query");
+  return embedding;
 }
 
 /** The nearest chunks to `query`, as the caller (RLS applies) in `tx`: platform chunks and the active company's. */
 export async function searchHelp(tx: Tx, embedder: Embedder, options: SearchHelpOptions): Promise<HelpResult[]> {
-  const [embedding] = await embedder.embed([options.query]);
-  if (!embedding) throw new Error("embedder returned no vector for the query");
+  return searchHelpByEmbedding(tx, await embedQuery(embedder, options.query, options.embed), options);
+}
+
+/**
+ * The nearest chunks to an embedding already computed (`embedQuery`), as the caller in `tx`. The assistant embeds the
+ * user's text before it opens the transaction, so a slow model call never holds one open.
+ */
+export async function searchHelpByEmbedding(tx: Tx, embedding: number[], options: Omit<SearchHelpOptions, "query" | "embed">): Promise<HelpResult[]> {
   const vector = vectorText(embedding);
   const rows = await tx<{ title: string; body: string; source: string; href: string | null }[]>`
     select title, body, source, href

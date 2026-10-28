@@ -141,6 +141,8 @@ describe("help knowledge index", () => {
   afterAll(async () => {
     setHelpEmbedder(undefined);
     await sql`delete from kernel.help_chunks where locale in (${LOCALE}, ${OTHER_LOCALE})`;
+    await sql`delete from kernel.llm_usage where scope = 'platform' and model = 'fake/hash-embedder'`;
+    await sql`delete from kernel.llm_usage where company_id = any(${companyIds()}::uuid[])`;
     await sql`delete from kernel.process_permissions where company_id = any(${companyIds()}::uuid[])`;
     await seed.cleanup();
     rmSync(guidesDir, { recursive: true, force: true });
@@ -257,6 +259,43 @@ describe("help knowledge index", () => {
     await expect(
       attempt((tx) => tx`insert into kernel.help_chunks (scope, source, title, body, embedding) values ('platform', 'x', 'x', 'x', ${`[${new Array(EMBEDDING_DIMENSIONS).fill(0).join(",")}]`}::extensions.vector)`),
     ).rejects.toThrow();
+  });
+
+  it("meters the question's embedding: one usage row of task embeddings for the caller, in the process transaction", async () => {
+    const usage = () => sql<{ n: number; tokens: number }[]>`
+      select count(*)::int as n, coalesce(sum(input_tokens), 0)::int as tokens from kernel.llm_usage
+      where company_id = ${seed.companies[0]!.id} and user_id = ${seed.users.member!} and task = 'embeddings'`;
+    const [before] = await usage();
+    await run(member, { query: "cómo exporto a excel" });
+    const [after] = await usage();
+    expect(after!.n).toBe(before!.n + 1);
+    expect(after!.tokens).toBeGreaterThan(before!.tokens);
+    const [row] = await sql`select scope, provider, model, output_tokens, run_id from kernel.llm_usage
+      where company_id = ${seed.companies[0]!.id} and user_id = ${seed.users.member!} order by created_at desc limit 1`;
+    expect(row).toMatchObject({ scope: "company", provider: "fake", model: "fake/hash-embedder", output_tokens: 0, run_id: null });
+  });
+
+  it("an embedder that never answers is aborted: the search fails instead of holding the transaction open", async () => {
+    const hanging: Embedder = {
+      embed: (_texts, options) =>
+        new Promise((_resolve, reject) => options?.signal?.addEventListener("abort", () => reject(options.signal!.reason), { once: true })),
+    };
+    setHelpEmbedder(hanging);
+    try {
+      await expect(run(member, { query: "exportar" })).rejects.toMatchObject({ code: "handler_failed" });
+    } finally {
+      setHelpEmbedder(embedder);
+    }
+  }, 20_000);
+
+  it("meters a rebuild of the index as one platform usage row", async () => {
+    const platform = async () => (await sql<{ n: number }[]>`select count(*)::int as n from kernel.llm_usage where scope = 'platform' and model = 'fake/hash-embedder'`)[0]!.n;
+    const before = await platform();
+    await buildHelpIndex(sql, embedder, { guidesDir, registry, locale: LOCALE });
+    expect(await platform()).toBe(before + 1);
+    const [row] = await sql`select company_id, user_id, task, input_tokens from kernel.llm_usage where scope = 'platform' order by created_at desc limit 1`;
+    expect(row).toMatchObject({ company_id: null, user_id: null, task: "embeddings" });
+    expect(row!.input_tokens).toBeGreaterThan(0);
   });
 
   it("keeps a platform chunk free of a company and a company chunk tied to one", async () => {

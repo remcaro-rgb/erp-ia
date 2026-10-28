@@ -1,4 +1,5 @@
 import { embedMany } from "ai";
+import type { EmbeddingUsage } from "../ai/usage";
 
 /** Dimensions of the `kernel.help_chunks.embedding` column (migration 0018): `openai/text-embedding-3-small`. */
 export const EMBEDDING_DIMENSIONS = 1536;
@@ -9,9 +10,17 @@ export const DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 /** The pgvector text form of an embedding (`[0.1,0.2,…]`), to cast with `::extensions.vector`. */
 export const vectorText = (embedding: number[]): string => `[${embedding.join(",")}]`;
 
+/** How one embedding call is run and metered. */
+export interface EmbedOptions {
+  /** Aborts the call (a timeout, so a slow provider never holds a database transaction open). */
+  signal?: AbortSignal;
+  /** Receives the call's model and token count once it answered (rule 27: every call is metered). */
+  onUsage?: (usage: EmbeddingUsage) => void | Promise<void>;
+}
+
 /** Turns texts into vectors of `EMBEDDING_DIMENSIONS`, one per text and in the same order. */
 export interface Embedder {
-  embed(texts: string[]): Promise<number[][]>;
+  embed(texts: string[], options?: EmbedOptions): Promise<number[][]>;
 }
 
 /**
@@ -21,11 +30,12 @@ export interface Embedder {
 export class GatewayEmbedder implements Embedder {
   constructor(readonly modelId: string = DEFAULT_EMBEDDING_MODEL) {}
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], options: EmbedOptions = {}): Promise<number[][]> {
     if (texts.length === 0) return [];
     // A string model id resolves through the gateway (AI_GATEWAY_API_KEY, or OIDC on Vercel); embedMany splits
-    // the values into as many calls as the model allows.
-    const { embeddings } = await embedMany({ model: this.modelId, values: texts });
+    // the values into as many calls as the model allows and sums their usage.
+    const { embeddings, usage } = await embedMany({ model: this.modelId, values: texts, abortSignal: options.signal });
+    await options.onUsage?.({ model: this.modelId, tokens: usage.tokens });
     return embeddings;
   }
 }
@@ -52,7 +62,13 @@ function hash(text: string): number {
  * share words are close in cosine distance; it knows nothing about meaning, so it never ships to a real search.
  */
 export class FakeEmbedder implements Embedder {
-  async embed(texts: string[]): Promise<number[][]> {
+  /** The model id its usage is metered under; priced at zero. */
+  static readonly MODEL = "fake/hash-embedder";
+
+  async embed(texts: string[], options: EmbedOptions = {}): Promise<number[][]> {
+    options.signal?.throwIfAborted();
+    // One token per indexable word (at least one per text), so metering is exercised like a real call.
+    await options.onUsage?.({ model: FakeEmbedder.MODEL, tokens: texts.reduce((sum, text) => sum + Math.max(1, words(text).length), 0) });
     return texts.map((text) => {
       const vector = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
       for (const word of words(text)) {

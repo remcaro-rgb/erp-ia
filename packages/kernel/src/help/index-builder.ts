@@ -1,4 +1,5 @@
 import type { Sql } from "postgres";
+import { recordLlmUsage, type EmbeddingUsage } from "../ai/usage";
 import type { Registry } from "../registry";
 import { vectorText, type Embedder } from "./embedder";
 import { chunkGuide, loadGuides } from "./guides";
@@ -48,8 +49,14 @@ export async function buildHelpIndex(sql: Sql, embedder: Embedder, options: Buil
     rows.push({ source: chunk.source, href: chunk.href ?? null, title: chunk.title, body: chunk.body });
   }
 
-  // The title leads the embedded text: it carries the topic the body assumes.
-  const embeddings = await embedder.embed(rows.map((row) => `${row.title}\n${row.body}`));
+  // The title leads the embedded text: it carries the topic the body assumes. Every call is metered (rule 27) as
+  // platform usage: the index belongs to no company.
+  const usages: EmbeddingUsage[] = [];
+  const embeddings = await embedder.embed(
+    rows.map((row) => `${row.title}\n${row.body}`),
+    { onUsage: (usage) => void usages.push(usage) },
+  );
+  for (const usage of usages) await recordLlmUsage(sql, { companyId: null, task: "embeddings", model: usage.model, inputTokens: usage.tokens });
   if (embeddings.length !== rows.length) throw new Error(`embedder returned ${embeddings.length} vectors for ${rows.length} texts`);
 
   await sql.begin(async (tx) => {

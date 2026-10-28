@@ -1,7 +1,8 @@
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { co } from "@erp/loc-co";
-import { getServiceDb, kernelModule, loadModules, registerCountryPack, registry, type RunProcessDeps } from "@erp/kernel";
+import { PolicyEmbedder } from "@erp/agent";
+import { getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCountryPack, registry, setHelpEmbedder, type RunProcessDeps } from "@erp/kernel";
 import { SupabaseFileStore, type FileStore } from "@erp/infra";
 
 // Server-side wiring for route handlers: the process registry with the modules this app ships, the
@@ -13,6 +14,9 @@ export function processDeps(): RunProcessDeps {
   // The core processes validate parties and products with the company's pack (rule 5). Registered on every call:
   // the registry lives on globalThis, the pack table in its module, which a bundle may load more than once.
   registerCountryPack(co);
+  // The help search embeds questions with the model the policy table names for `embeddings` (rule 26), unless
+  // something (a test) installed its own embedder.
+  if (!installedHelpEmbedder()) setHelpEmbedder(new PolicyEmbedder(getServiceDb()));
   return { sql: getServiceDb(), registry };
 }
 

@@ -1,11 +1,11 @@
 export { DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, FakeEmbedder, GatewayEmbedder } from "./embedder";
-export type { Embedder } from "./embedder";
+export type { EmbedOptions, Embedder } from "./embedder";
 export { chunkGuide, guideProblems, knownRoutes, loadGuides, parseGuide } from "./guides";
 export type { Guide, GuideChunk } from "./guides";
 export { processChunks, processHref } from "./process-chunks";
 export type { ProcessChunk } from "./process-chunks";
 export { buildHelpIndex } from "./index-builder";
 export type { BuildHelpIndexOptions, HelpIndexSummary } from "./index-builder";
-export { helpEmbedder, searchHelp, setHelpEmbedder, snippetOf } from "./search";
+export { embedQuery, helpEmbedder, installedHelpEmbedder, searchHelp, searchHelpByEmbedding, setHelpEmbedder, snippetOf } from "./search";
 export type { HelpResult } from "./search";
-export { HELP_PROCESSES, helpSearch } from "./help.process";
+export { HELP_EMBED_TIMEOUT_MS, HELP_PROCESSES, helpSearch } from "./help.process";

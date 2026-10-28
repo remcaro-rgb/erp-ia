@@ -1,3 +1,7 @@
+import type { JwtClaims } from "../db/client";
+import { entitled } from "../entitlements/resolver";
+import { runnableProcesses } from "../process/permissions";
+import type { RunProcessDeps } from "../process/run";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
 
@@ -40,4 +44,23 @@ export function entitlementKeyOf(registry: Registry, entity: ResolvedEntityDef):
   if (entity.module === "kernel") return null;
   const feature = registry.module(entity.module).features.find((f) => f.entities.includes(entity.id));
   return feature ? `feature:${feature.id}` : `module:${entity.module}`;
+}
+
+export type GridDenial = "not_found" | "not_entitled" | "forbidden";
+
+/**
+ * Null when the caller may read the entity's grid in the active company, else why not: the entity's module is not
+ * loaded (`not_found`), the company is not entitled to its feature (`not_entitled`), or no role of the caller may run
+ * its own consult process (`forbidden`; also when it has none). The grid route, the export and the assistant's
+ * `data.query` ask the same question. The read itself runs under the caller's claims over the masked view.
+ */
+export async function gridDenial(deps: RunProcessDeps, claims: JwtClaims, entity: ResolvedEntityDef): Promise<GridDenial | null> {
+  const { registry, sql } = deps;
+  if (!registry.hasModule(entity.module)) return "not_found";
+  const key = entitlementKeyOf(registry, entity);
+  if (key !== null && !(await (deps.entitled ?? entitled)(sql, claims.active_company_id, key))) return "not_entitled";
+  const consults = consultProcessesOf(registry, entity);
+  if (consults.length === 0) return "forbidden";
+  const runnable = await runnableProcesses(sql, registry, claims, consults);
+  return runnable.size > 0 ? null : "forbidden";
 }

@@ -1,8 +1,12 @@
 import { z } from "zod";
+import { recordLlmUsage } from "../ai/usage";
 import { defineProcess } from "../process/define";
 import { DEFAULT_RESULTS, helpEmbedder, MAX_RESULTS, searchHelp } from "./search";
 
 const FEATURE = "kernel.help";
+
+/** The query's embedding call runs inside the process transaction: it is aborted after this long (Task 16 review). */
+export const HELP_EMBED_TIMEOUT_MS = 8_000;
 
 /**
  * `kernel.help.search` (design §7): the assistant's and the help box's way to answer "how do I…". A consult over the
@@ -22,7 +26,25 @@ export const helpSearch = defineProcess({
     results: z.array(z.object({ title: z.string(), snippet: z.string(), source: z.string(), href: z.string().optional() })),
   }),
   handler: async (ctx, input) => ({
-    results: await searchHelp(ctx.tx, helpEmbedder(), { query: input.query, limit: input.limit, companyId: ctx.companyId, locale: ctx.locale }),
+    results: await searchHelp(ctx.tx, helpEmbedder(), {
+      query: input.query,
+      limit: input.limit,
+      companyId: ctx.companyId,
+      locale: ctx.locale,
+      embed: {
+        signal: AbortSignal.timeout(HELP_EMBED_TIMEOUT_MS),
+        // Metered in the process transaction, as the caller (rule 27; the row policy admits it inside a process run).
+        onUsage: (usage) =>
+          recordLlmUsage(ctx.tx, {
+            companyId: ctx.companyId,
+            userId: ctx.userId,
+            conversationId: ctx.conversationId ?? null,
+            task: "embeddings",
+            model: usage.model,
+            inputTokens: usage.tokens,
+          }),
+      },
+    }),
   }),
 });
 

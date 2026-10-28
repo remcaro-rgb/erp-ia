@@ -1087,6 +1087,8 @@
     "unknown": "An unexpected error occurred.",
     "network": "There is no connection to the server.",
     "export_failed": "The export could not be generated. Try again.",
-    "export_timeout": "The export is taking longer than expected. It carries on in the background; try again in a few minutes."
+    "export_timeout": "The export is taking longer than expected. It carries on in the background; try again in a few minutes.",
+    "ai_budget_exceeded": "Your company reached its monthly AI usage limit. Ask your administrator to raise it; meanwhile you can keep working in the app.",
+    "confirmation_expired": "The confirmation card expired. Ask the assistant for the action again."
   }
 }
