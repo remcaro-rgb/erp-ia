@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
+import type { ProcessContext } from "../process/context";
+import { registeredVerifiers } from "../verify/adapters";
 import { ADMIN_FEATURE, invalid, requireAdmin } from "./common";
 
 // The company's own settings the admin keeps (design §5.13, §5.16, §6): its names and time zone, the files each entity
@@ -46,6 +48,14 @@ export const companyUpdate = defineProcess({
 
 const CONDITION = z.enum(["co", "co-juridica", "proveedor", "cliente"]).nullable();
 
+/** Refuses a tag (trimmed, any case) the entity already requires, other than the definition `exceptId` itself. */
+async function refuseDuplicateTag(ctx: ProcessContext, entity: string, tag: string, exceptId?: string): Promise<void> {
+  const [row] = await ctx.tx`
+    select 1 from kernel.required_attachments
+    where company_id = ${ctx.companyId} and entity = ${entity} and lower(btrim(tag)) = lower(btrim(${tag})) and id is distinct from ${exceptId ?? null}`;
+  if (row) throw invalid(`${entity} already requires ${tag}`, `Ya existe un archivo con la etiqueta ${tag.trim()} en esta entidad`);
+}
+
 export const requiredFileSet = defineProcess({
   id: "kernel.required_file.set",
   module: "kernel",
@@ -66,6 +76,7 @@ export const requiredFileSet = defineProcess({
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
     if (!ctx.registry.entities().some((e) => e.id === input.entity)) throw invalid(`unknown entity ${input.entity}`, `La entidad ${input.entity} no existe`);
+    await refuseDuplicateTag(ctx, input.entity, input.tag, input.id);
     if (input.id) {
       const rows = await ctx.tx<{ id: string }[]>`
         update kernel.required_attachments set entity = ${input.entity}, tag = ${input.tag}, kind = ${input.kind}, required = ${input.required},
@@ -78,8 +89,6 @@ export const requiredFileSet = defineProcess({
     const [row] = await ctx.tx<{ id: string }[]>`
       insert into kernel.required_attachments (company_id, entity, tag, kind, required, condition, description)
       values (${ctx.companyId}, ${input.entity}, ${input.tag}, ${input.kind}, ${input.required}, ${input.condition}, ${input.description})
-      on conflict (company_id, entity, lower(btrim(tag))) do update set
-        tag = excluded.tag, kind = excluded.kind, required = excluded.required, condition = excluded.condition, description = excluded.description
       returning id`;
     return { id: row!.id };
   },
@@ -118,6 +127,10 @@ export const verifierSet = defineProcess({
   output: z.object({ kind: z.string(), provider: z.string().nullable() }),
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
+    // A provider can be chosen once its adapter is registered (registerVerifier at start-up, design §5.16).
+    if (input.provider !== null && !registeredVerifiers().includes(input.provider)) {
+      throw invalid(`no verifier adapter ${input.provider}`, `El proveedor ${input.provider} no está disponible`);
+    }
     await ctx.tx`
       insert into kernel.verifiers (company_id, kind, provider, config)
       values (${ctx.companyId}, ${input.kind}, ${input.provider}, ${ctx.tx.json(input.config)})

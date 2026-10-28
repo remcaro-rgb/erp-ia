@@ -42,7 +42,7 @@ Solo la ve quien tiene el rol **admin** de la empresa. Ábrela desde el menú **
 
 Todos los cambios de administración son **acciones sensibles**: al guardar, el sistema te pide el **código de 6 dígitos** de tu app de autenticación (guía **Ingresar y verificación en dos pasos**). Cada código vale para una sola acción, durante 5 minutos, y solo para ti. Todos los cambios quedan en la **auditoría** con quién, cuándo y qué cambió.
 
-Consultar las pantallas no pide código: solo cambiar.
+Consultar las pantallas no pide código: solo cambiar. Tampoco lo piden la matriz de permisos ni el informe de uso de IA cuando se los pides al asistente.
 
 ## Roles
 
@@ -67,7 +67,10 @@ En **Usuarios** ves a las personas de la empresa con su correo, celular, roles y
 3. Marca **al menos un rol**. La **foto** es opcional (PNG, JPEG o WebP de hasta 300 KB).
 4. Pulsa **Crear e invitar** e ingresa tu código.
 
-La persona recibe una **invitación por correo**: con el enlace define su contraseña y luego activa la verificación en dos pasos en su perfil. Si el correo ya tenía cuenta en ERP-IA (por ejemplo en otra empresa), no se le crea otra: se le agrega a esta empresa con los roles elegidos.
+La persona recibe una **invitación por correo**: con el enlace define su contraseña y luego activa la verificación en dos pasos en su perfil.
+
+- Si la persona ya es usuaria de **otra empresa de tu misma organización**, no se le envía otra invitación: se le agrega a esta empresa con los roles elegidos y conserva sus datos (nombre, celular, foto).
+- Si el correo ya pertenece a **otra organización**, el sistema no lo agrega y responde «Ese correo ya pertenece a otra organización». Cada cuenta pertenece a una sola organización.
 
 Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuario conserva siempre al menos un rol, y nadie puede quitarse su propio rol admin. Los cambios de rol aplican la próxima vez que la persona inicia sesión.
 
@@ -77,7 +80,7 @@ Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuari
 
 Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**, e ingresa tu código. El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
 
-La columna del rol **admin** no se edita: el administrador tiene todos los permisos. Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
+La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: no se pueden dar a otro rol. Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
 
 ## Visibilidad de campos
 
@@ -86,11 +89,11 @@ Elige la **Entidad** (Tercero, Producto…) y, para cada campo y cada rol, si se
 - **Enmascarado**: el campo aparece pero sin su valor.
 - **Oculto**: el campo no aparece.
 
-Aplica igual en los listados, los formularios, las exportaciones y las respuestas del asistente. Un campo enmascarado u oculto no se puede usar para ordenar ni filtrar. Los campos marcados **confidencial** empiezan enmascarados en cada rol nuevo. El rol admin ve todos los campos.
+Aplica igual en los listados, los formularios, las exportaciones y las respuestas del asistente. Un campo enmascarado u oculto no se puede usar para ordenar ni filtrar. Los campos marcados **confidencial** empiezan enmascarados en cada rol nuevo y en los roles que ya existían cuando el campo apareció. El rol admin ve todos los campos, aunque tenga además otro rol que los enmascare.
 
 ## Procesos sensibles
 
-Activa el interruptor de un proceso para que pida la **verificación en dos pasos** cada vez que alguien lo ejecute en esta empresa (por ejemplo, desactivar un tercero o un producto). Los procesos de administración siempre la piden y no se pueden apagar.
+Activa el interruptor de un proceso para que pida la **verificación en dos pasos** cada vez que alguien lo ejecute en esta empresa (por ejemplo, desactivar un tercero o un producto). Los procesos de administración que cambian algo siempre la piden y no se pueden apagar; las consultas de administración (matriz de permisos, uso de IA) no la piden.
 
 ## Módulos
 
@@ -99,10 +102,11 @@ Cada tarjeta muestra un módulo, si está **activo**, su menú, de qué módulos
 - Un módulo desactivado desaparece del menú, de las exportaciones y de las herramientas del asistente. **Sus datos se conservan** y vuelven al activarlo.
 - No puedes desactivar un módulo del que depende otro activo: por ejemplo, **Núcleo** no se apaga mientras **Soporte** esté activo. Desactiva primero el que depende.
 - Solo se activan los módulos que tu empresa tiene **contratados**.
+- Al activar un módulo, todos los roles reciben permiso de **consultar** sus registros; los demás permisos se dan en **Permisos**.
 
 ## Archivos obligatorios
 
-Para cada entidad defines los archivos que sus registros deben tener: la **etiqueta** (por ejemplo «RUT»), el **tipo** (PDF, imagen o cualquiera), si es **obligatorio** y **cuándo aplica** (siempre, tercero de Colombia, persona jurídica de Colombia, proveedor o cliente). Pulsa **Guardar** en la fila e ingresa tu código.
+Para cada entidad defines los archivos que sus registros deben tener: la **etiqueta** (por ejemplo «RUT»), el **tipo** (PDF, imagen o cualquiera), si es **obligatorio** y **cuándo aplica** (siempre, tercero de Colombia, persona jurídica de Colombia, proveedor o cliente). Pulsa **Guardar** en la fila e ingresa tu código. Cada etiqueta se usa una sola vez por entidad (sin importar mayúsculas ni espacios).
 
 Un registro al que le falta un archivo obligatorio queda como **no facturable** hasta que lo cargues con esa etiqueta y ese tipo (guía **Archivos adjuntos**). El cambio aplica de inmediato a los registros que ya existen. **Quitar** deja de exigir el archivo; los archivos ya cargados se conservan.
 
@@ -112,7 +116,7 @@ Por entidad, defines campos propios de la empresa con su tipo, longitud, si son 
 
 ## Verificadores
 
-Para cada tipo de dato (correo, teléfono, número de identificación) eliges el **proveedor** de verificación externa. Mientras no haya proveedor, el botón **Verificar** de los formularios deja las solicitudes **en cola**.
+Para cada tipo de dato (correo, teléfono, número de identificación) eliges el **proveedor** de verificación externa entre los **conectados** a ERP-IA (los demás candidatos aparecen como referencia). Mientras no haya proveedor, el botón **Verificar** de los formularios deja las solicitudes **en cola**.
 
 ## Empresa
 

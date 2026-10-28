@@ -34,12 +34,17 @@ export const moduleEnable = defineProcess({
       values (${ctx.companyId}, ${moduleId}, true, now())
       on conflict (company_id, module_id)
       do update set enabled = true, enabled_at = case when kernel.company_modules.enabled then kernel.company_modules.enabled_at else now() end`;
-    // The company's admin roles may run what the module brings (the admin role holds every process).
+    // The admin role runs everything by definition (kernel.can_run_process); every other role gets the module's
+    // consults, the baseline a role created while the module was on would have (kernel.seed_role_defaults).
+    const consults = ctx.registry
+      .processes({ module: moduleId })
+      .filter((p) => p.kind === "consult")
+      .map((p) => p.id);
     await ctx.tx`
       insert into kernel.process_permissions (company_id, role_id, process_id)
       select r.company_id, r.id, p.id
-      from kernel.roles r cross join unnest(${ctx.registry.processes({ module: moduleId }).map((p) => p.id)}::text[]) as p(id)
-      where r.company_id = ${ctx.companyId} and r.is_system and r.name = 'admin'
+      from kernel.roles r cross join unnest(${consults}::text[]) as p(id)
+      where r.company_id = ${ctx.companyId} and not (r.is_system and r.name = 'admin')
       on conflict (company_id, role_id, process_id) do nothing`;
     return { moduleId, enabled: true };
   },

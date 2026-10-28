@@ -36,7 +36,7 @@ export { CUSTOM_MISSING_PREFIX, stripInvisible, validateCustomFields, validateCu
 export type { CustomFieldCaller, CustomFieldDef, CustomFieldsResult, CustomFieldType, ExtraData } from "./custom-fields";
 export { CUSTOM_FIELD_PROCESSES, customData, customFieldList, customFieldRemove, customFieldSet, extraFree, loadCustomFields, visibleExtra } from "./custom-fields/server";
 export type { CustomData, CustomFieldRow, CustomFieldView } from "./custom-fields/server";
-export { normalizeVerifyValue, registerVerifier, unregisterVerifier, verify, verifierAdapter, VERIFY_PROCESSES, verifyRequest, verifyStatus } from "./verify";
+export { normalizeVerifyValue, registeredVerifiers, registerVerifier, unregisterVerifier, verify, verifierAdapter, VERIFY_PROCESSES, verifyRequest, verifyStatus } from "./verify";
 export type { VerifierAdapter, VerifyContext, VerifyKind, VerifyOutcome, VerifyStatus } from "./verify";
 export { callerProfile, MAX_USER_PREF_BYTES, readUserPrefs, USER_PREF_KEY, USER_PREF_PROCESSES, userPrefSet } from "./user-prefs";
 export type { CallerProfile, StoredUserPref } from "./user-prefs";

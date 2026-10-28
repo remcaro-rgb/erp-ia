@@ -23,8 +23,11 @@ export const permissionSet = defineProcess({
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
     refuseSystemAdmin(await companyRole(ctx, input.roleId));
-    if (!ctx.registry.processes().some((p) => p.id === input.processId)) {
-      throw invalid(`unknown process ${input.processId}`, `El proceso ${input.processId} no existe`);
+    const process = ctx.registry.processes().find((p) => p.id === input.processId);
+    if (!process) throw invalid(`unknown process ${input.processId}`, `El proceso ${input.processId} no existe`);
+    // Administration stays with the admin role: it is never granted to another role (the handlers check it too).
+    if (input.allowed && process.feature === ADMIN_FEATURE) {
+      throw invalid(`${input.processId} is an administration process`, "Los procesos de administración son solo del rol admin");
     }
     await ctx.tx`
       insert into kernel.process_permissions (company_id, role_id, process_id, allowed)
@@ -53,9 +56,9 @@ export async function readPermissionMatrix(tx: Tx, registry: Registry, companyId
   const usable = new Set((await moduleStates(tx, registry)).filter((m) => m.enabled).map((m) => m.id));
   const roles = await tx<{ id: string; name: string; description: string; system_admin: boolean; party_scope: string }[]>`
     select id, name, description, is_system and name = 'admin' as system_admin, party_scope
-    from kernel.roles where company_id = ${companyId} order by is_system desc, created_at, id`;
+    from kernel.v_roles where company_id = ${companyId} order by is_system desc, created_at, id`;
   const rows = await tx<{ role_id: string; process_id: string }[]>`
-    select role_id, process_id from kernel.process_permissions where company_id = ${companyId} and allowed`;
+    select role_id, process_id from kernel.v_process_permissions where company_id = ${companyId} and allowed`;
   const grants: Record<string, string[]> = Object.fromEntries(roles.map((r) => [r.id, [] as string[]]));
   for (const row of rows) grants[row.role_id]?.push(row.process_id);
   const processes: MatrixProcess[] = matrixProcesses(registry, usable);
@@ -71,7 +74,7 @@ export const permissionMatrix = defineProcess({
   module: "kernel",
   kind: "consult",
   feature: ADMIN_FEATURE,
-  sensitivity: "step-up",
+  // Reading the matrix changes nothing: no step-up (ruling 2026-10-28); the changes ask for it.
   description: "Consulta la matriz de permisos: procesos de los módulos activos por rol, con la entidad de cada proceso",
   input: z.object({}),
   output: matrixOutput,

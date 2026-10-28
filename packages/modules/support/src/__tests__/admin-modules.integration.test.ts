@@ -48,9 +48,14 @@ describe("admin: modules", () => {
     // With support off, core may go too; core cannot come back after support… support needs core first.
     await run("kernel.admin.module.disable", { moduleId: "core" });
     await expect(run("kernel.admin.module.enable", { moduleId: "support" })).rejects.toMatchObject({ code: "invalid_input" });
+    // A role created while support was off gets support's consults when support comes back.
+    const [fresh] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${h.companyId}, 'nuevo') returning id`;
     await run("kernel.admin.module.enable", { moduleId: "core" });
     await run("kernel.admin.module.enable", { moduleId: "support" });
     expect(await isOn("support")).toBe(true);
+    const grants = await h.sql<{ process_id: string }[]>`select process_id from kernel.process_permissions where role_id = ${fresh!.id} order by process_id`;
+    expect(grants.map((g) => g.process_id)).toEqual(expect.arrayContaining(["support.ticket.consult", "support.ticket_message.consult"]));
+    expect(grants.map((g) => g.process_id)).not.toContain("support.ticket.create");
     expect(await isOn("core")).toBe(true);
   });
 

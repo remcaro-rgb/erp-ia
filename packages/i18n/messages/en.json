@@ -519,7 +519,7 @@
       },
       "verifiers": {
         "title": "External data verification",
-        "hint": "The Verify button is already on e-mails, phones and identifications; until a provider is set, requests are queued.",
+        "hint": "The Verify button is already on e-mails, phones and identifications. Only connected providers can be chosen; until one is set, requests are queued.",
         "kind": {
           "email": "E-mail",
           "phone": "Phone / mobile",

@@ -24,6 +24,11 @@ alter table kernel.users
   add column mobile    text check (mobile is null or mobile ~ '^\d{6,14}$'),
   add column photo     text check (photo is null or (photo ~ '^data:image/(png|jpeg|webp);base64,' and length(photo) <= 400000));
 
+-- The mobile and the photo are personal data: users read them only through the admin view kernel.v_memberships (its
+-- company's admin, users of the caller's organization only). The other columns stay readable as before (0001).
+revoke select on kernel.users from authenticated;
+grant select (id, email, full_name, locale, created_at) on kernel.users to authenticated;
+
 -- ---------------------------------------------------------------------------------------------
 -- The registry in SQL. Global (not per tenant), written by syncModuleManifest as the service role when a module's
 -- manifest is registered at boot; everybody reads it.
@@ -154,12 +159,15 @@ create policy admin_update on kernel.companies for update to authenticated
 -- Who may run a seed: the service role (no user claims: the seed scripts, syncModuleManifest, the company creation),
 -- or the company's admin inside an admin process of that company. Raises otherwise.
 -- ---------------------------------------------------------------------------------------------
+-- The service path is told by the session's role (`SET ROLE`, which a security definer function does not change), never
+-- by a claim: the service connection runs with no role set (not through PostgREST's `authenticator`), PostgREST's
+-- service key runs as `service_role`; users run as `authenticated` whatever their claims say.
 create or replace function kernel.assert_admin_write(p_company uuid) returns void
 language plpgsql stable security definer
 set search_path = ''
 as $$
 begin
-  if coalesce(kernel.jwt_claims() ->> 'role', '') in ('', 'service_role') then
+  if (current_setting('role') = 'none' and session_user <> 'authenticator') or current_setting('role') = 'service_role' then
     return;
   end if;
   if not (
@@ -225,9 +233,10 @@ $$;
 revoke execute on function kernel.seed_role_defaults(uuid, uuid) from public, anon;
 grant execute on function kernel.seed_role_defaults(uuid, uuid) to authenticated, service_role;
 
--- Every admin process (feature kernel.admin: kernel.admin.*, kernel.required_file.*, kernel.verifier.set) needs the
--- step-up in every company, or in `p_company` only (rule 15: admin processes are sensitive by default). Their
--- definitions ask for it anyway; the rows make the admin's list of sensitive processes say so. Service role only.
+-- Every admin process that changes something (feature kernel.admin, kind other than consult: kernel.admin.*,
+-- kernel.required_file.*, kernel.verifier.set) needs the step-up in every company, or in `p_company` only (rule 15:
+-- admin processes are sensitive by default). Their definitions ask for it anyway; the rows make the admin's list of
+-- sensitive processes say so. The admin consults (matrix, AI usage) are not sensitive (ruling 2026-10-28). Service only.
 create or replace function kernel.sync_sensitive_defaults(p_company uuid default null) returns void
 language sql security definer
 set search_path = ''
@@ -237,6 +246,7 @@ as $$
   from kernel.companies c
   cross join kernel.registered_processes rp
   where rp.feature_id = 'kernel.admin'
+    and rp.kind <> 'consult'
     and (p_company is null or c.id = p_company)
   on conflict (company_id, process_id) do nothing;
 $$;
@@ -263,10 +273,30 @@ revoke execute on function kernel.seed_company_defaults(uuid) from public, anon,
 grant execute on function kernel.seed_company_defaults(uuid) to service_role;
 
 -- ---------------------------------------------------------------------------------------------
--- Users created by the admin (kernel.admin.user.create). kernel.users has no write grant for users (0001): this
--- function records the invited Auth user, only inside that process and for the company admin. An existing profile
--- keeps its name; a missing mobile or photo is filled in.
+-- Users created by the admin (kernel.admin.user.create). A user account belongs to one organization (tenant) in
+-- phase 1 (ruling 2026-10-28): an e-mail already used in another tenant is refused, and nothing of that person is
+-- read or written. kernel.users has no write grant for users (0001): kernel.admin_register_user records the invited
+-- Auth user, only inside that process and for the company admin; an existing profile is never changed.
 -- ---------------------------------------------------------------------------------------------
+-- True when the user has a membership in a company of another tenant than the caller's. For the company admin inside
+-- kernel.admin.user.create only (it answers whether an account exists elsewhere, nothing more).
+create or replace function kernel.user_in_other_tenant(p_user uuid) returns boolean
+language plpgsql stable security definer
+set search_path = ''
+as $$
+begin
+  if not (kernel.is_company_admin() and coalesce(current_setting('erp.audit_process_id', true), '') = 'kernel.admin.user.create') then
+    raise exception 'only the company admin, inside kernel.admin.user.create, may ask' using errcode = '42501';
+  end if;
+  return exists (
+    select 1 from kernel.memberships m join kernel.companies c on c.id = m.company_id
+    where m.user_id = p_user and c.tenant_id is distinct from kernel.current_tenant_id()
+  );
+end;
+$$;
+revoke execute on function kernel.user_in_other_tenant(uuid) from public, anon;
+grant execute on function kernel.user_in_other_tenant(uuid) to authenticated, service_role;
+
 create or replace function kernel.admin_register_user(
   p_id uuid, p_email text, p_full_name text, p_mobile_cc text, p_mobile text, p_photo text
 ) returns void
@@ -280,12 +310,15 @@ begin
   if not exists (select 1 from auth.users u where u.id = p_id and lower(u.email) = lower(p_email)) then
     raise exception 'no Auth user % with e-mail %', p_id, p_email using errcode = '22023';
   end if;
+  if exists (
+    select 1 from kernel.memberships m join kernel.companies c on c.id = m.company_id
+    where m.user_id = p_id and c.tenant_id is distinct from kernel.current_tenant_id()
+  ) then
+    raise exception 'user % belongs to another organization', p_id using errcode = '42501';
+  end if;
   insert into kernel.users (id, email, full_name, mobile_cc, mobile, photo)
   values (p_id, lower(p_email), p_full_name, p_mobile_cc, p_mobile, p_photo)
-  on conflict (id) do update set
-    mobile_cc = coalesce(kernel.users.mobile_cc, excluded.mobile_cc),
-    mobile    = coalesce(kernel.users.mobile, excluded.mobile),
-    photo     = coalesce(kernel.users.photo, excluded.photo);
+  on conflict (id) do nothing;
 end;
 $$;
 revoke execute on function kernel.admin_register_user(uuid, text, text, text, text, text) from public, anon;
@@ -321,16 +354,31 @@ $$;
 revoke execute on function kernel.company_limit(text) from public, anon;
 grant execute on function kernel.company_limit(text) to authenticated, service_role;
 
+-- Whether every membership of the user is in the caller's tenant (a user of the caller's organization only). The admin
+-- view shows a person's mobile, photo and 2FA state only then: a profile shared with another organization (data from
+-- before the one-tenant rule) is not this organization's to read.
+create or replace function kernel.user_of_caller_tenant(p_user uuid) returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select not exists (
+    select 1 from kernel.memberships m join kernel.companies c on c.id = m.company_id
+    where m.user_id = p_user and c.tenant_id is distinct from kernel.current_tenant_id()
+  );
+$$;
+revoke execute on function kernel.user_of_caller_tenant(uuid) from public, anon;
+grant execute on function kernel.user_of_caller_tenant(uuid) to authenticated, service_role;
+
 -- Whether a member of the active company has a verified TOTP factor: for the company admin only (the users page's
--- 2FA column); null for anyone else or a user outside the company.
+-- 2FA column) and users of the caller's organization only; null otherwise.
 create or replace function kernel.member_mfa_enrolled(p_user uuid) returns boolean
 language sql stable security definer
 set search_path = ''
 as $$
   select case
-    when kernel.is_company_admin() and exists (
-      select 1 from kernel.memberships m where m.user_id = p_user and m.company_id = kernel.current_company_id()
-    )
+    when kernel.is_company_admin()
+      and kernel.user_of_caller_tenant(p_user)
+      and exists (select 1 from kernel.memberships m where m.user_id = p_user and m.company_id = kernel.current_company_id())
     then exists (select 1 from auth.mfa_factors f where f.user_id = p_user and f.factor_type = 'totp' and f.status = 'verified')
   end;
 $$;
@@ -352,13 +400,24 @@ select id, company_id, name, description, is_system, party_scope, created_at
 from kernel.roles;
 grant select on kernel.v_roles to authenticated;
 
-create or replace view kernel.v_memberships with (security_invoker = true) as
-select m.id, m.user_id, m.company_id, u.email, u.full_name, u.mobile_cc, u.mobile, u.photo, m.created_at,
+-- The members of the active company with their profiles, for its admin. Owner's rights (not security_invoker): it is
+-- the only reader of kernel.users.mobile / photo, which users have no column grant on, so its own predicates do the
+-- isolation: the active company the caller belongs to, its admin only, and the personal data of users of the
+-- caller's organization only.
+create or replace view kernel.v_memberships as
+select m.id, m.user_id, m.company_id, u.email, u.full_name,
+       case when kernel.user_of_caller_tenant(m.user_id) then u.mobile_cc end as mobile_cc,
+       case when kernel.user_of_caller_tenant(m.user_id) then u.mobile end as mobile,
+       case when kernel.user_of_caller_tenant(m.user_id) then u.photo end as photo,
+       m.created_at,
        coalesce((select array_agg(mr.role_id order by mr.role_id) from kernel.membership_roles mr where mr.membership_id = m.id), '{}'::uuid[]) as role_ids,
        kernel.member_mfa_enrolled(m.user_id) as mfa_enrolled
 from kernel.memberships m
 join kernel.users u on u.id = m.user_id
-where (select kernel.is_company_admin());
+where m.company_id = (select kernel.current_company_id())
+  and array[m.company_id] <@ (select kernel.current_company_ids())
+  and (select kernel.is_company_admin());
+revoke all on kernel.v_memberships from anon;
 grant select on kernel.v_memberships to authenticated;
 
 create or replace view kernel.v_process_permissions with (security_invoker = true) as
@@ -385,3 +444,45 @@ create or replace view kernel.v_company_modules with (security_invoker = true) a
 select company_id, module_id, enabled, enabled_at
 from kernel.company_modules;
 grant select on kernel.v_company_modules to authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- The system admin role holds every process and sees every field by definition (ruling 2026-10-28): the company admin
+-- runs a process registered after their role was seeded, and a second, more restricted role of theirs never masks a
+-- field from them. Same signatures as 0003 / 0004.
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.can_run_process(process_id text) returns boolean
+language sql stable security definer parallel safe
+set search_path = ''
+as $$
+  select kernel.is_company_admin() or exists (
+    select 1
+    from kernel.process_permissions pp
+    where pp.process_id = can_run_process.process_id
+      and pp.company_id = kernel.current_company_id()
+      and array[pp.company_id] <@ kernel.current_company_ids()
+      and pp.role_id = any (kernel.current_role_ids())
+      and pp.allowed
+  );
+$$;
+
+create or replace function kernel.field_mode(entity text, field text) returns text
+language sql stable security definer parallel safe
+set search_path = ''
+as $$
+  select case when kernel.is_company_admin() then 'visible' else coalesce(
+    (
+      select case max(case fp.mode when 'hidden' then 3 when 'masked' then 2 else 1 end)
+               when 3 then 'hidden'
+               when 2 then 'masked'
+               else 'visible'
+             end
+      from kernel.field_permissions fp
+      where fp.company_id = kernel.current_company_id()
+        and array[fp.company_id] <@ kernel.current_company_ids()
+        and fp.role_id = any (kernel.current_role_ids())
+        and fp.entity = field_mode.entity
+        and fp.field = field_mode.field
+    ),
+    'visible'
+  ) end;
+$$;

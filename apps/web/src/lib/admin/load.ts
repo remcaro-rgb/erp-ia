@@ -5,6 +5,7 @@ import {
   moduleStates,
   readAiUsage,
   readPermissionMatrix,
+  registeredVerifiers,
   withClaims,
   type AiUsage,
   type Caller,
@@ -196,12 +197,14 @@ export const loadSensitive = (): Promise<SensitiveData | null> =>
 
 export interface VerifiersData {
   providers: Record<string, string | null>;
+  /** The providers with a registered adapter: the only ones kernel.verifier.set accepts. */
+  available: string[];
 }
 
 export const loadVerifiers = (): Promise<VerifiersData | null> =>
   asAdmin(async (tx) => {
     const rows = await tx<{ kind: string; provider: string | null }[]>`select kind, provider from kernel.v_verifiers where company_id = kernel.current_company_id()`;
-    return { providers: Object.fromEntries(rows.map((r) => [r.kind, r.provider])) };
+    return { providers: Object.fromEntries(rows.map((r) => [r.kind, r.provider])), available: registeredVerifiers() };
   });
 
 export interface ModulesData {

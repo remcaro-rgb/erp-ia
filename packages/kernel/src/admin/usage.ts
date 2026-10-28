@@ -32,7 +32,7 @@ export type AiUsage = z.infer<typeof usageOutput>;
 export async function readAiUsage(tx: Tx, companyId: string, month?: string): Promise<AiUsage> {
   // The month's bounds in the company's time zone; the current month by default.
   const [bounds] = await tx<{ month: string; starts: Date; ends: Date }[]>`
-    with c as (select timezone from kernel.companies where id = ${companyId}),
+    with c as (select timezone from kernel.v_companies where id = ${companyId}),
     m as (
       select coalesce(to_date(${month ?? null}, 'YYYY-MM'), date_trunc('month', now() at time zone c.timezone)::date) as first, c.timezone
       from c
@@ -45,14 +45,14 @@ export async function readAiUsage(tx: Tx, companyId: string, month?: string): Pr
   const users = await tx<{ user_id: string | null; name: string | null; email: string | null; tokens: string; calls: string; cost: string }[]>`
     select u.user_id, p.full_name as name, p.email,
            sum(u.input_tokens + u.output_tokens) as tokens, count(*) as calls, sum(u.cost_usd) as cost
-    from kernel.llm_usage u
-    left join kernel.users p on p.id = u.user_id
+    from kernel.v_llm_usage u
+    left join kernel.v_memberships p on p.user_id = u.user_id and p.company_id = u.company_id
     where u.company_id = ${companyId} and u.created_at >= ${starts} and u.created_at < ${ends}
     group by u.user_id, p.full_name, p.email
     order by sum(u.input_tokens + u.output_tokens) desc, p.full_name`;
   const models = await tx<{ task: string; model: string; tokens: string; calls: string; cost: string }[]>`
     select task, model, sum(input_tokens + output_tokens) as tokens, count(*) as calls, sum(cost_usd) as cost
-    from kernel.llm_usage
+    from kernel.v_llm_usage
     where company_id = ${companyId} and created_at >= ${starts} and created_at < ${ends}
     group by task, model
     order by sum(input_tokens + output_tokens) desc`;
@@ -74,7 +74,7 @@ export const aiUsageConsult = defineProcess({
   module: "kernel",
   kind: "consult",
   feature: ADMIN_FEATURE,
-  sensitivity: "step-up",
+  // A report: no step-up (ruling 2026-10-28).
   description: "Consulta el uso de IA del mes de la empresa: tokens y costo por usuario y por modelo frente al tope mensual",
   input: z.object({ month: MONTH.optional() }),
   output: usageOutput,

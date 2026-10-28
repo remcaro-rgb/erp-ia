@@ -124,7 +124,7 @@ describe("help knowledge index", () => {
       users: [
         { name: "member", companies: [0, 1], role: "member" },
         { name: "outsider", companies: [1], role: "member" },
-        { name: "nogrant", companies: [0], role: "admin" },
+        { name: "nogrant", companies: [0], role: "member" },
       ],
     });
     for (const company of seed.companies) {
@@ -134,7 +134,9 @@ describe("help knowledge index", () => {
     member = claims("member", 0);
     memberB = claims("member", 1);
     outsider = claims("outsider", 1);
-    noGrant = claims("nogrant", 0);
+    // A role of the company with no grant at all (the company admin runs every process by definition, 0021).
+    const [bare] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${seed.companies[0]!.id}, 'sin_permisos') returning id`;
+    noGrant = { ...claims("nogrant", 0), claims: { ...claims("nogrant", 0).claims, role_ids: [bare!.id] } };
     setHelpEmbedder(embedder);
     await buildHelpIndex(sql, embedder, { guidesDir, registry, locale: LOCALE });
   });

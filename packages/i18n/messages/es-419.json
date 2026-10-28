@@ -519,7 +519,7 @@
       },
       "verifiers": {
         "title": "Verificación externa de datos",
-        "hint": "El botón Verificar ya está en correos, teléfonos e identificaciones; mientras no haya proveedor, las solicitudes quedan en cola.",
+        "hint": "El botón Verificar ya está en correos, teléfonos e identificaciones. Solo se eligen los proveedores conectados; mientras no haya uno, las solicitudes quedan en cola.",
         "kind": {
           "email": "Correo electrónico",
           "phone": "Teléfono / celular",

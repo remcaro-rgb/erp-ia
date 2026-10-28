@@ -10,7 +10,8 @@ const KINDS = ["email", "phone", "document"] as const;
 export function VerifiersScreen({ data }: { data: VerifiersData }) {
   const t = useTranslations();
   const { perform, prompt, status, busy } = useAdminAction();
-  // The candidates the design names per kind (§5.16), from the catalogue: "A|B|C".
+  // The candidates the design names per kind (§5.16), from the catalogue ("A|B|C"), shown as a hint; the select offers
+  // the providers whose adapter is registered (kernel.verifier.set accepts only those).
   const candidates = (kind: (typeof KINDS)[number]) => t(`common.admin.verifiers.providers.${kind}`).split("|");
   return (
     <section className="erp-card">
@@ -32,7 +33,7 @@ export function VerifiersScreen({ data }: { data: VerifiersData }) {
             onChange={(e) => void perform("kernel.verifier.set", { kind, provider: e.target.value || null })}
           >
             <option value="">{t("common.admin.verifiers.none")}</option>
-            {[...new Set([...candidates(kind), ...(data.providers[kind] ? [data.providers[kind]!] : [])])].map((provider) => (
+            {[...new Set([...data.available, ...(data.providers[kind] ? [data.providers[kind]!] : [])])].map((provider) => (
               <option key={provider} value={provider}>
                 {provider}
               </option>

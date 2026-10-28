@@ -12,17 +12,18 @@ import { runProcess } from "../../process/run";
 import type { Caller } from "../../process/context";
 import { syncModuleManifest } from "../../entitlements/resolver";
 import { syncRegistry } from "../sync";
+import { registerVerifier, unregisterVerifier } from "../../verify/adapters";
 
 // Migration 0021 (rule 34) and the registry sync it relies on: the admin-written kernel tables accept writes only inside
 // the kernel.admin.* (and required_file / verifier) processes, even from the company admin; the manifests' processes and
 // fields reach SQL through syncModuleManifest, so a new role and a field that becomes confidential start masked; the
 // company and verifier settings and the sensitive list go through their processes.
 
-const thing = (confidential: string[]) =>
+const thing = (confidential: string[], module = "probe") =>
   defineEntity({
-    id: "probe.thing",
-    module: "probe",
-    schema: "probe",
+    id: `${module}.thing`,
+    module,
+    schema: module,
     table: "thing",
     label: "entity.probe.thing",
     displayField: "name",
@@ -38,14 +39,14 @@ const look = defineProcess({
   output: z.object({}),
   handler: async () => ({}),
 });
-const probeModule = (confidential: string[]) =>
+const probeModule = (confidential: string[], id = "probe") =>
   defineModule({
-    id: "probe",
+    id,
     version: "0.0.1",
     dependsOn: [],
-    entities: [thing(confidential)],
-    processes: [look],
-    features: [{ id: "probe.things", label: "feature.probe.things", processes: [look.id], entities: ["probe.thing"] }],
+    entities: [thing(confidential, id)],
+    processes: id === "probe" ? [look] : [],
+    features: id === "probe" ? [{ id: "probe.things", label: "feature.probe.things", processes: [look.id], entities: ["probe.thing"] }] : [],
     events: { emits: [], consumes: {} },
     navigation: [],
   });
@@ -77,8 +78,9 @@ describe("kernel admin: policies, seeds and registry sync", () => {
     await sql`select kernel.seed_company_defaults(${companyId})`;
   });
   afterAll(async () => {
-    await sql`delete from kernel.field_permissions where entity like 'probe.%'`;
-    await sql`delete from kernel.entity_fields where module_id = 'probe'`;
+    await sql`delete from kernel.field_permissions where entity like 'probe%'`;
+    await sql`delete from kernel.entity_fields where module_id in ('probe', 'probe_late')`;
+    unregisterVerifier("Twilio Lookup");
     await sql`delete from kernel.registered_processes where module_id = 'probe'`;
     await sql`delete from kernel.module_features where module_id = 'probe'`;
     await seed.cleanup();
@@ -164,7 +166,12 @@ describe("kernel admin: policies, seeds and registry sync", () => {
     expect(company).toEqual({ legal_name: "Café del Norte S.A.S.", trade_name: "Café del Norte", timezone: "America/Lima" });
     await expect(run("kernel.admin.company.update", { timezone: "Marte/Olympus" })).rejects.toMatchObject({ code: "invalid_input" });
 
+    // Only a provider whose adapter is registered (registerVerifier) can be chosen.
+    await expect(run("kernel.verifier.set", { kind: "phone", provider: "Twilio Lookup" })).rejects.toMatchObject({ code: "invalid_input" });
+    registerVerifier("Twilio Lookup", { verify: async () => ({ ok: true }) });
     await run("kernel.verifier.set", { kind: "phone", provider: "Twilio Lookup" });
+    const [chosen] = await sql`select provider from kernel.verifiers where company_id = ${companyId} and kind = 'phone'`;
+    expect(chosen!.provider).toBe("Twilio Lookup");
     await run("kernel.verifier.set", { kind: "phone", provider: null });
     const [verifier] = await sql`select provider from kernel.verifiers where company_id = ${companyId} and kind = 'phone'`;
     expect(verifier!.provider).toBeNull();
@@ -176,5 +183,46 @@ describe("kernel admin: policies, seeds and registry sync", () => {
     const members = await withClaims(sql, admin.claims, (tx) => tx<{ user_id: string; role_ids: string[] }[]>`select user_id, role_ids from kernel.v_memberships`);
     expect(members.map((m) => m.user_id).sort()).toEqual([seed.users.both, seed.users.onlyA, seed.users.member!].sort());
     expect(await withClaims(sql, member.claims, (tx) => tx`select 1 from kernel.v_memberships`)).toHaveLength(0);
+  });
+
+  it("the first registration of a module masks its confidential fields for every existing non-admin role", async () => {
+    await syncModuleManifest(sql, probeModule(["secret"], "probe_late"));
+    const masks = await sql`select role_id, field, mode from kernel.field_permissions where company_id = ${companyId} and entity = 'probe_late.thing'`;
+    expect(masks).toEqual([{ role_id: seed.companies[0]!.memberRoleId, field: "secret", mode: "masked" }]);
+  });
+
+  it("the company admin runs a process nobody granted; a member does not", async () => {
+    await sql`delete from kernel.process_permissions where company_id = ${companyId} and process_id = 'probe.thing.consult'`;
+    await expect(runProcess({ sql, registry }, admin, "probe.thing.consult", {})).resolves.toEqual({});
+    await expect(runProcess({ sql, registry }, member, "probe.thing.consult", {})).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("a user's mobile and photo are read only through the admin view, and only for users of the caller's organization", async () => {
+    await expect(withClaims(sql, admin.claims, (tx) => tx`select mobile from kernel.users`)).rejects.toThrow(/permission denied/);
+    await expect(withClaims(sql, admin.claims, (tx) => tx`select photo from kernel.users`)).rejects.toThrow(/permission denied/);
+    expect(await withClaims(sql, admin.claims, (tx) => tx`select id, email, full_name from kernel.users`)).not.toHaveLength(0);
+    const memberId = seed.users.member!;
+    await sql`update kernel.users set mobile_cc = '57', mobile = '3001234567' where id = ${memberId}`;
+    const seen = async () => (await withClaims(sql, admin.claims, (tx) => tx<{ mobile: string | null }[]>`select mobile from kernel.v_memberships where user_id = ${memberId}`))[0]!.mobile;
+    expect(await seen()).toBe("3001234567");
+    // The same person also belongs to another organization (data from before the one-tenant rule): their profile is not shown.
+    const other = await seedTenant(sql, { companies: 1, entitlements: [] });
+    try {
+      await sql`insert into kernel.memberships(user_id, company_id) values (${memberId}, ${other.companies[0]!.id})`;
+      expect(await seen()).toBeNull();
+    } finally {
+      await sql`delete from kernel.memberships where user_id = ${memberId} and company_id = ${other.companies[0]!.id}`;
+      await other.cleanup();
+    }
+  });
+
+  it("an authenticated session without claims is not the service role for the seeds", async () => {
+    await expect(
+      sql.begin(async (tx) => {
+        await tx`select set_config('request.jwt.claims', '', true)`;
+        await tx`set local role authenticated`;
+        await tx`select kernel.seed_role_defaults(${companyId}, ${seed.companies[0]!.memberRoleId})`;
+      }),
+    ).rejects.toThrow(/admin/);
   });
 });

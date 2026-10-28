@@ -45,7 +45,8 @@ describe("runnableProcesses", () => {
   });
 
   it("a grant in another company does not count", async () => {
-    const claims = seed.claimsFor(seed.users.both, seed.companies[1]!.id);
+    // The member role of company 1 (company 0's member role holds the grant); not the admin, who runs everything (0021).
+    const claims = { ...seed.claimsFor(seed.users.both, seed.companies[1]!.id), role_ids: [seed.companies[1]!.memberRoleId] };
     expect([...(await runnableProcesses(sql, registry, claims, ["test.a.list"]))]).toEqual([]);
   });
 

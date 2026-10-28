@@ -84,7 +84,7 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
                           <input
                             type="checkbox"
                             aria-label={`${role.name} ${process.id}`}
-                            checked={granted(role.id, process.id)}
+                            checked={role.isSystemAdmin || granted(role.id, process.id)}
                             disabled={role.isSystemAdmin}
                             onChange={(event) => void toggle(role.id, process.id, event.target.checked)}
                           />

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ADMIN_PROCESSES, runProcess, setAuthAdmin, syncRegistry, type Caller } from "@erp/kernel";
-import { DbAuthAdmin, withClaims } from "@erp/kernel/testing";
+import { DbAuthAdmin, seedTenant, withClaims } from "@erp/kernel/testing";
 import { attachFile, coreHarness, exito, supplier, type CoreHarness } from "./helpers";
 
 // Administration (design §6, §5.12–§5.18, rules 13–15): the kernel.admin.* processes against the real core module.
@@ -30,7 +30,15 @@ describe("admin", () => {
   const asRoles = (user: string, roleIds: string[]): Caller => ({ claims: { ...h.seed.claimsFor(user, h.companyId), role_ids: roleIds }, origin: "ui" });
 
   beforeAll(async () => {
-    h = await coreHarness({ users: [{ name: "clerk", companies: [0], role: "member" }, { name: "buyer", companies: [0], role: "member" }] });
+    h = await coreHarness({
+      companies: 2,
+      users: [
+        { name: "clerk", companies: [0], role: "member" },
+        { name: "buyer", companies: [0], role: "member" },
+        // Same tenant, another company: may be added to company 0 without a new invitation.
+        { name: "neighbor", companies: [1], role: "member" },
+      ],
+    });
     ({ sql, deps, admin } = h);
     memberRole = h.seed.companies[0]!.memberRoleId;
     clerk = { claims: h.seed.claimsFor(h.seed.users.clerk!, h.companyId), origin: "ui" };
@@ -84,12 +92,18 @@ describe("admin", () => {
     });
   });
 
-  it("every admin process is listed in sensitive_processes after the seed", async () => {
+  it("every admin process that changes something is listed in sensitive_processes after the seed; the consults are not", async () => {
     const rows = await sql<{ process_id: string }[]>`select process_id from kernel.sensitive_processes where company_id = ${h.companyId}`;
     const sensitive = new Set(rows.map((r) => r.process_id));
-    const missing = ADMIN_PROCESSES.map((p) => p.id).filter((id) => !sensitive.has(id));
-    expect(missing).toEqual([]);
-    expect(ADMIN_PROCESSES.every((p) => p.sensitivity === "step-up")).toBe(true);
+    const writes = ADMIN_PROCESSES.filter((p) => p.kind !== "consult");
+    const consults = ADMIN_PROCESSES.filter((p) => p.kind === "consult").map((p) => p.id);
+    expect(writes.map((p) => p.id).filter((id) => !sensitive.has(id))).toEqual([]);
+    expect(writes.every((p) => p.sensitivity === "step-up")).toBe(true);
+    expect(consults.sort()).toEqual(["kernel.admin.ai_usage.consult", "kernel.admin.permission.matrix"]);
+    expect(consults.filter((id) => sensitive.has(id))).toEqual([]);
+    expect(ADMIN_PROCESSES.filter((p) => p.kind === "consult").every((p) => p.sensitivity !== "step-up")).toBe(true);
+    // The consults run without a code.
+    await expect(runProcess(deps, admin, "kernel.admin.permission.matrix", {})).resolves.toMatchObject({ roles: expect.any(Array) });
   });
 
   it("ai_usage.consult sums the month's llm_usage per user against the company allowance", async () => {
@@ -227,5 +241,126 @@ describe("admin", () => {
     await expect(run(admin, "kernel.admin.user.create", { name: "Otra vez", email, mobileCc: "57", mobile: "3105551234", roleIds: [memberRole] })).rejects.toMatchObject({
       code: "invalid_input",
     });
+  });
+});
+
+describe("admin: tenants, companies and the admin's own reach", () => {
+  let h: CoreHarness;
+  let sql: CoreHarness["sql"];
+  let deps: CoreHarness["deps"];
+  let admin: Caller;
+  let memberRole: string;
+  let otherCompanyRole: string;
+  let auth: DbAuthAdmin;
+  let stranger: Awaited<ReturnType<typeof seedTenant>>;
+
+  const run = async <T = unknown>(caller: Caller, processId: string, input: unknown): Promise<T> => {
+    const stepUpToken = randomUUID();
+    await sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${caller.claims.sub}, ${caller.claims.active_company_id}, ${stepUpToken})`;
+    return runProcess(deps, { ...caller, stepUpToken }, processId, input);
+  };
+  const membersOf = async (userId: string) =>
+    (await sql<{ company_id: string }[]>`select company_id from kernel.memberships where user_id = ${userId} order by company_id`).map((r) => r.company_id);
+
+  beforeAll(async () => {
+    h = await coreHarness({ companies: 2, users: [{ name: "neighbor", companies: [1], role: "member" }] });
+    ({ sql, deps, admin } = h);
+    memberRole = h.seed.companies[0]!.memberRoleId;
+    otherCompanyRole = h.seed.companies[1]!.memberRoleId;
+    await syncRegistry(sql, deps.registry);
+    await sql`select kernel.seed_company_defaults(${h.companyId})`;
+    // Another organization, with a user whose profile carries a mobile.
+    stranger = await seedTenant(sql, { companies: 1, entitlements: [], users: [{ name: "stranger", companies: [0], role: "member" }] });
+    await sql`update kernel.users set mobile_cc = '57', mobile = '3001112222' where id = ${stranger.users.stranger!}`;
+    auth = new DbAuthAdmin(sql);
+    setAuthAdmin(auth);
+  });
+  afterAll(async () => {
+    setAuthAdmin(undefined);
+    await auth.cleanup();
+    await stranger.cleanup();
+    await h.cleanup();
+  });
+
+  it("user.create refuses an e-mail that belongs to another organization and touches nothing of it", async () => {
+    const strangerId = stranger.users.stranger!;
+    const [before] = await sql`select email, full_name, mobile_cc, mobile, photo from kernel.users where id = ${strangerId}`;
+    const error = await run(admin, "kernel.admin.user.create", {
+      name: "Otro Nombre",
+      email: before!.email,
+      mobileCc: "57",
+      mobile: "3109998877",
+      roleIds: [memberRole],
+    }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "invalid_input", details: ["Ese correo ya pertenece a otra organización"] });
+    expect(await membersOf(strangerId)).toEqual([stranger.companies[0]!.id]);
+    const [after] = await sql`select email, full_name, mobile_cc, mobile, photo from kernel.users where id = ${strangerId}`;
+    expect(after).toEqual(before);
+    expect(auth.invited).toEqual([]);
+  });
+
+  it("user.create adds a user of the same organization without a new invitation", async () => {
+    const neighbor = h.seed.users.neighbor!;
+    const [profile] = await sql`select email, full_name from kernel.users where id = ${neighbor}`;
+    const out = await run<{ userId: string; invited: boolean }>(admin, "kernel.admin.user.create", {
+      name: "Nombre Distinto",
+      email: profile!.email,
+      mobileCc: "57",
+      mobile: "3105551234",
+      roleIds: [memberRole],
+    });
+    expect(out).toMatchObject({ userId: neighbor, invited: false });
+    expect(auth.invited).toEqual([]);
+    expect((await membersOf(neighbor)).sort()).toEqual([h.companyId, h.seed.companies[1]!.id].sort());
+    const [after] = await sql`select full_name from kernel.users where id = ${neighbor}`;
+    expect(after!.full_name).toBe(profile!.full_name);
+  });
+
+  it("refuses roles and users of another company", async () => {
+    await expect(run(admin, "kernel.admin.role.update", { roleId: otherCompanyRole, description: "x" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(run(admin, "kernel.admin.permission.set", { roleId: otherCompanyRole, processId: "core.party.create", allowed: true })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(run(admin, "kernel.admin.field_permission.set", { roleId: otherCompanyRole, entity: "core.party", field: "credit_limit", mode: "hidden" })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    await expect(run(admin, "kernel.admin.user_role.set", { roleId: otherCompanyRole, userIds: [h.seed.users.both] })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(run(admin, "kernel.admin.user_role.set", { userId: h.seed.users.both, roleIds: [otherCompanyRole] })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(
+      run(admin, "kernel.admin.user.create", { name: "X", email: `x-${randomUUID().slice(0, 6)}@test.local`, mobileCc: "57", mobile: "3105551234", roleIds: [otherCompanyRole] }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    const [untouched] = await sql`select description from kernel.roles where id = ${otherCompanyRole}`;
+    expect(untouched!.description).toBe("");
+  });
+
+  it("permission.set never gives an administration process to a non-admin role", async () => {
+    for (const processId of ["kernel.admin.permission.set", "kernel.admin.user.create", "kernel.verifier.set"]) {
+      await expect(run(admin, "kernel.admin.permission.set", { roleId: memberRole, processId, allowed: true })).rejects.toMatchObject({ code: "invalid_input" });
+    }
+  });
+
+  it("the company admin runs every process and sees every field, whatever other role they hold", async () => {
+    const adminRole = h.seed.companies[0]!.adminRoleId;
+    await sql`delete from kernel.process_permissions where role_id = ${adminRole} and process_id = 'core.party.deactivate'`;
+    const [can] = await withClaims(sql, admin.claims, (tx) => tx`select kernel.can_run_process('core.party.deactivate') as ok, kernel.can_run_process('core.never.registered') as other`);
+    expect(can).toEqual({ ok: true, other: true });
+    // A second role that masks the credit limit does not hide it from the admin.
+    const { id } = (await runProcess(deps, admin, "core.party.create", { ...exito, documentNumber: "931000001", creditLimit: 3_000_000 })) as { id: string };
+    const twoRoles = { ...admin.claims, role_ids: [adminRole, memberRole] };
+    await sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode) values (${h.companyId}, ${memberRole}, 'core.party', 'credit_limit', 'masked')
+              on conflict (company_id, role_id, entity, field) do update set mode = 'masked'`;
+    const [row] = await withClaims(sql, twoRoles, (tx) => tx`select credit_limit, kernel.field_mode('core.party', 'credit_limit') as mode from core.v_parties where id = ${id}`);
+    expect(row).toMatchObject({ mode: "visible" });
+    expect(Number(row!.credit_limit)).toBe(3_000_000);
+  });
+
+  it("required_file.set refuses a tag the entity already requires, on create and on update", async () => {
+    const first = await run<{ id: string }>(admin, "kernel.required_file.set", { entity: "core.product", tag: "Registro INVIMA", kind: "pdf", required: false });
+    await expect(run(admin, "kernel.required_file.set", { entity: "core.product", tag: " registro invima ", kind: "any", required: true })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    const second = await run<{ id: string }>(admin, "kernel.required_file.set", { entity: "core.product", tag: "Ficha de seguridad", kind: "pdf", required: false });
+    await expect(run(admin, "kernel.required_file.set", { id: second.id, entity: "core.product", tag: "Registro INVIMA", kind: "pdf", required: false })).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    for (const id of [first.id, second.id]) await run(admin, "kernel.required_file.remove", { id });
   });
 });

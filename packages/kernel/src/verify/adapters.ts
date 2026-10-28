@@ -22,3 +22,6 @@ export function unregisterVerifier(provider: string): void {
 }
 
 export const verifierAdapter = (provider: string): VerifierAdapter | undefined => adapters.get(provider);
+
+/** The providers with a registered adapter, the ones the admin can choose (kernel.verifier.set). */
+export const registeredVerifiers = (): string[] => [...adapters.keys()].sort();

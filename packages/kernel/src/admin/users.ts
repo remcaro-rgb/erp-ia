@@ -9,6 +9,10 @@ import { ADMIN_FEATURE, companyRole, invalid, requireAdmin } from "./common";
 // invitation by e-mail; 2FA activated by the user"). The person is invited through the AuthAdmin adapter (Supabase Auth
 // with the service role) and becomes a member of the company with the chosen roles.
 //
+// One account belongs to one organization (tenant) in phase 1: an e-mail already used in another tenant is refused;
+// a person of the same tenant (a member of another of its companies) is added without a new invitation and keeps
+// their profile.
+//
 // Order: the Auth user is looked up or invited first (the identity provider is outside the database), then the profile,
 // the membership and its roles are written in the process transaction. When that transaction fails after the
 // invitation went out, the invited Auth user stays without a membership: inviting the same e-mail again finds that
@@ -54,6 +58,9 @@ export const userCreate = defineProcess({
     const adapter = await authAdmin();
     const existing = await adapter.getUserByEmail(input.email);
     if (existing) {
+      // One organization per account (phase 1): an e-mail of another tenant is refused before anything of it is read.
+      const [other] = await ctx.tx<{ other: boolean }[]>`select kernel.user_in_other_tenant(${existing.id}) as other`;
+      if (other!.other) throw invalid(`${input.email} belongs to another tenant`, "Ese correo ya pertenece a otra organización");
       const [member] = await ctx.tx`select 1 from kernel.memberships where company_id = ${ctx.companyId} and user_id = ${existing.id}`;
       if (member) throw invalid(`${input.email} is already a member`, "Ya existe un usuario con ese correo en la empresa");
     }

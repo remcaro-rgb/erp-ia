@@ -74,9 +74,12 @@ describe("core products", () => {
   it("consult reads the masked view", async () => {
     const out = await runProcess(deps, admin, "core.product.create", { ...cafe, sku: "CAF-2000" });
     const company = h.seed.companies[0]!;
+    // A plain role (the company admin sees every field, 0021).
+    await h.grantAll(company.id, company.memberRoleId, ["core.product.consult"]);
     await sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode)
-              values (${company.id}, ${company.adminRoleId}, 'core.product', 'standard_cost', 'masked')`;
-    const seen = await runProcess(deps, admin, "core.product.consult", { id: out.id });
+              values (${company.id}, ${company.memberRoleId}, 'core.product', 'standard_cost', 'masked')`;
+    const reader: Caller = { claims: { ...admin.claims, role_ids: [company.memberRoleId] }, origin: "ui" };
+    const seen = await runProcess(deps, reader, "core.product.consult", { id: out.id });
     expect(seen).toMatchObject({ id: out.id, sku: "CAF-2000", standard_cost: null });
     await sql`delete from kernel.field_permissions where company_id = ${company.id}`;
     await expect(runProcess(deps, admin, "core.product.consult", { id: "00000000-0000-7000-8000-000000000000" })).rejects.toMatchObject({ code: "not_found" });

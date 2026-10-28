@@ -30,10 +30,9 @@ export async function entitlementLimit(sql: Sql, companyId: string, key: string)
  *  - `kernel.module_features`: the feature -> process / entity map, so SQL resolves `process:x.y.z` through its feature;
  *  - `kernel.registered_processes`: every process with its feature, kind and step-up, for the role seeds and the
  *    sensitive defaults;
- *  - `kernel.entity_fields`: every field with its sensitivity. A field that becomes `confidential` in a later sync of
- *    the module starts `masked` for every non-admin role of every company (rule 14; an existing row, an admin's own
- *    choice, is kept). The first sync of a module only records its fields: roles created afterwards are masked by
- *    `kernel.seed_role_defaults`.
+ *  - `kernel.entity_fields`: every field with its sensitivity. A `confidential` field the module registers for the
+ *    first time (its first sync included) starts `masked` for every existing non-admin role of every company (rule 14;
+ *    an existing row, an admin's own choice, is kept); roles created afterwards are masked by `kernel.seed_role_defaults`.
  * Rows the manifest no longer declares are dropped. The sensitive defaults of a company are written by
  * `kernel.seed_company_defaults` (the admin processes ask for the step-up in their definitions anyway).
  */
@@ -72,7 +71,7 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
         values (${f.entity}, ${f.field}, ${module.id}, ${f.sensitivity})
         on conflict (entity, field) do update set module_id = excluded.module_id, sensitivity = excluded.sensitivity, updated_at = now()`;
     }
-    const newlyConfidential = known.length === 0 ? [] : fields.filter((f) => f.sensitivity === "confidential" && !wasConfidential.has(`${f.entity}.${f.field}`));
+    const newlyConfidential = fields.filter((f) => f.sensitivity === "confidential" && !wasConfidential.has(`${f.entity}.${f.field}`));
     if (newlyConfidential.length > 0) {
       await tx`
         insert into kernel.field_permissions (company_id, role_id, entity, field, mode)
