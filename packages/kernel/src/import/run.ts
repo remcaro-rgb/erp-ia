@@ -16,7 +16,8 @@ import { resolveReferences, runRecords } from "./validate";
 // every row with the entity's create process in a dry run, creates the valid rows for real in batches of 500 (one
 // step each, in file order, so a document repeated in the file is refused on its second occurrence by the process's
 // own uniqueness), writes errores.csv when a row was refused, and records the counts with the final audit entry
-// ("3 creadas · 1 rechazada"). Every process runs as the caller who imported, origin `api`, on one chain.
+// ("3 creadas · 1 rechazada"). Every process runs as the caller who imported, origin `api`, on one chain. The counts
+// are recorded after every batch; a denial of the caller (step-up, permission) stops the import at its first row.
 
 export interface RunImportArgs {
   importId: string;
@@ -45,19 +46,22 @@ export async function runImport(args: RunImportArgs): Promise<ImportSummary> {
     const failed: Failure[] = [];
     const valid: number[] = [];
     for (let from = 0; from < begun.total; from += IMPORT_BATCH) {
-      const batch = await validateBatch(args, from);
+      const batch = await validateBatch(args, from, failed.length);
+      if (batch.stoppedBy) return await abandonImport(args, `row_${batch.stoppedBy}`);
       valid.push(...batch.valid);
       failed.push(...batch.failed);
     }
     let created = 0;
     for (let at = 0; at < valid.length; at += IMPORT_BATCH) {
-      const batch = await createBatch(args, valid.slice(at, at + IMPORT_BATCH));
+      const batch = await createBatch(args, valid.slice(at, at + IMPORT_BATCH), { created, failed: failed.length });
       created += batch.created;
       failed.push(...batch.failed);
+      if (batch.stoppedBy) return await abandonImport(args, `row_${batch.stoppedBy}`);
     }
     return await finishImport(args, { total: begun.total, created, failed });
   } catch (error) {
-    // A step that kept failing after its retries: the import stops, recorded as failed (rows already created stay).
+    // A step that kept failing after its retries: the import stops, recorded as failed with the counts it reached
+    // (rows already created stay).
     return await abandonImport(args, error instanceof Error ? error.message : String(error));
   }
 }
@@ -65,8 +69,11 @@ export async function runImport(args: RunImportArgs): Promise<ImportSummary> {
 const callerOf = (args: RunImportArgs): Caller => ({ claims: args.claims, origin: "api", chainId: args.chainId });
 const deps = () => ({ sql: getServiceDb(), registry });
 
+/** The idempotency key of a row's creation: a retried batch replays the rows it already created. */
+export const importRowKey = (importId: string, index: number) => `import:${importId}:${index}`;
+
 /** Reads and maps the file, marks the import running with its row count; a file that cannot be read ends it. */
-async function beginImport(args: RunImportArgs): Promise<{ ok: true; total: number } | { ok: false; reason: string }> {
+export async function beginImport(args: RunImportArgs): Promise<{ ok: true; total: number } | { ok: false; reason: string }> {
   "use step";
   // A worker without the app's modules cannot resolve the entity: fail the step (it is retried) rather than the import.
   if (registry.modules().length === 0) throw new Error("import: no modules loaded in worker");
@@ -82,37 +89,53 @@ async function beginImport(args: RunImportArgs): Promise<{ ok: true; total: numb
   }
 }
 
-/** Dry-runs rows `from`..`from + IMPORT_BATCH` of the file: which are valid, and why the others are not. */
-async function validateBatch(args: RunImportArgs, from: number): Promise<{ valid: number[]; failed: Failure[] }> {
+/**
+ * Dry-runs rows `from`..`from + IMPORT_BATCH` of the file: which are valid, and why the others are not. Records the
+ * refused rows so far (`failedBefore` plus this batch's) on the import, so the counts survive a later failure.
+ */
+export async function validateBatch(args: RunImportArgs, from: number, failedBefore: number): Promise<{ valid: number[]; failed: Failure[]; stoppedBy?: string }> {
   "use step";
-  const job = await loadJob(getServiceDb(), args.importId, args.labels);
+  const sql = getServiceDb();
+  const job = await loadJob(sql, args.importId, args.labels);
   const slice = job.sheet.records.slice(from, from + IMPORT_BATCH).map((record, i) => ({ index: from + i, record }));
   await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels);
-  const outcomes = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: true, labels: args.labels });
-  return {
-    valid: outcomes.filter((o) => o.ok).map((o) => o.index),
-    failed: outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors })),
-  };
+  const run = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: true, labels: args.labels });
+  const failed = run.outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors }));
+  await recordImport(sql, args, { rows_failed: failedBefore + failed.length });
+  return { valid: run.outcomes.filter((o) => o.ok).map((o) => o.index), failed, ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}) };
 }
 
-/** Creates the valid rows at `indexes` for real, in order; a row the process refuses now (a duplicate) is a failure. */
-async function createBatch(args: RunImportArgs, indexes: number[]): Promise<{ created: number; failed: Failure[] }> {
+/**
+ * Creates the valid rows at `indexes` for real, in order, each keyed `import:<id>:<row index>` so a retry of this step
+ * replays the rows it already created. A row the process refuses now (a duplicate) is a failure. Records the counts
+ * so far (`before` plus this batch) on the import.
+ */
+export async function createBatch(
+  args: RunImportArgs,
+  indexes: number[],
+  before: { created: number; failed: number },
+): Promise<{ created: number; failed: Failure[]; stoppedBy?: string }> {
   "use step";
-  const job = await loadJob(getServiceDb(), args.importId, args.labels);
+  const sql = getServiceDb();
+  const job = await loadJob(sql, args.importId, args.labels);
   const slice = indexes.map((index) => ({ index, record: job.sheet.records[index]! }));
   await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels);
-  const outcomes = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: false, labels: args.labels });
-  return {
-    created: outcomes.filter((o) => o.ok).length,
-    failed: outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors })),
-  };
+  const run = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, {
+    dryRun: false,
+    labels: args.labels,
+    keyOf: (index) => importRowKey(args.importId, index),
+  });
+  const created = run.outcomes.filter((o) => o.ok).length;
+  const failed = run.outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors }));
+  await recordImport(sql, args, { rows_ok: before.created + created, rows_failed: before.failed + failed.length });
+  return { created, failed, ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}) };
 }
 
 /**
  * Attaches errores.csv when a row was refused (once: a retried step reuses the stored file), then records the
  * counts, the status `done` and the summary audit entry.
  */
-async function finishImport(args: RunImportArgs, result: { total: number; created: number; failed: Failure[] }): Promise<ImportSummary> {
+export async function finishImport(args: RunImportArgs, result: { total: number; created: number; failed: Failure[] }): Promise<ImportSummary> {
   "use step";
   const sql = getServiceDb();
   const job = await loadJob(sql, args.importId, args.labels);
@@ -165,8 +188,8 @@ async function attachErrors(args: RunImportArgs, bytes: Uint8Array): Promise<str
   }
 }
 
-/** Records the import as failed as a whole. */
-async function abandonImport(args: RunImportArgs, reason: string): Promise<ImportSummary> {
+/** Records the import as failed as a whole, keeping the counts it reached. */
+export async function abandonImport(args: RunImportArgs, reason: string): Promise<ImportSummary> {
   "use step";
   return failImport(getServiceDb(), args, reason);
 }

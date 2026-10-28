@@ -8,8 +8,8 @@ import { ProcessError } from "../process/errors";
 import { defineEntity, Registry } from "../registry";
 import { importColumns, importTarget } from "../import/columns";
 import { describeFailure, errorsCsv } from "../import/errors-csv";
-import { mapSheet } from "../import/map";
-import { decodeText, ImportFileError, MAX_IMPORT_ROWS, parseCsv, parseImportFile } from "../import/parse";
+import { mapSheet, markInFileDuplicates } from "../import/map";
+import { checkXlsxSize, decodeText, ImportFileError, MAX_IMPORT_ROWS, MAX_XLSX_UNCOMPRESSED_BYTES, parseCsv, parseImportFile } from "../import/parse";
 import { buildTemplate } from "../import/template";
 
 // Mass import (Task 13b), the pure parts: the columns a create process accepts, the template built from them,
@@ -92,6 +92,37 @@ function gadgetRegistry(): Registry {
 
 const LABELS = { name: "Nombre", kind: "Tamaño", tags: "Etiquetas", price: "Precio", active: "Activo", makerId: "Fabricante", note: "Nota" };
 const bytes = (text: string) => new TextEncoder().encode(text);
+/** A zip with one stored part whose central directory declares `uncompressed` bytes (nothing is unpacked to check it). */
+function zipDeclaring(uncompressed: number): Uint8Array {
+  const name = new TextEncoder().encode("xl/workbook.xml");
+  const local = new Uint8Array(30 + name.length + 1);
+  const lv = new DataView(local.buffer);
+  lv.setUint32(0, 0x04034b50, true);
+  lv.setUint32(18, 1, true);
+  lv.setUint32(22, uncompressed, true);
+  lv.setUint16(26, name.length, true);
+  local.set(name, 30);
+  const central = new Uint8Array(46 + name.length);
+  const cv = new DataView(central.buffer);
+  cv.setUint32(0, 0x02014b50, true);
+  cv.setUint32(20, 1, true);
+  cv.setUint32(24, uncompressed, true);
+  cv.setUint16(28, name.length, true);
+  central.set(name, 46);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, 1, true);
+  ev.setUint16(10, 1, true);
+  ev.setUint32(12, central.length, true);
+  ev.setUint32(16, local.length, true);
+  const zip = new Uint8Array(local.length + central.length + end.length);
+  zip.set(local, 0);
+  zip.set(central, local.length);
+  zip.set(end, local.length + central.length);
+  return zip;
+}
+
 /** Decodes keeping a BOM, so the tests can see it. */
 const text = (data: Uint8Array) => new TextDecoder("utf-8", { ignoreBOM: true }).decode(data);
 
@@ -198,6 +229,20 @@ describe("import parsing", () => {
     const big = "name\n" + "x\n".repeat(MAX_IMPORT_ROWS + 1);
     await expect(parseImportFile(bytes(big), "datos.csv")).rejects.toThrow(/50.000/);
   });
+
+  it("refuses an XLSX whose parts declare more than 64 MB unpacked, before opening it", async () => {
+    const bomb = zipDeclaring(MAX_XLSX_UNCOMPRESSED_BYTES + 1);
+    expect(() => checkXlsxSize(bomb)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
+    await expect(parseImportFile(bomb, "bomba.xlsx")).rejects.toBeInstanceOf(ImportFileError);
+    expect(() => checkXlsxSize(zipDeclaring(1024))).not.toThrow();
+  });
+
+  it("refuses a file wider than 256 columns, CSV or XLSX", async () => {
+    await expect(parseImportFile(bytes(`${Array.from({ length: 257 }, (_, i) => `c${i}`).join(";")}\n1\n`), "ancho.csv")).rejects.toThrow("más de 256 columnas");
+    const book = new ExcelJS.Workbook();
+    book.addWorksheet("Hoja").getCell(2, 300).value = 1;
+    await expect(parseImportFile(new Uint8Array(await book.xlsx.writeBuffer()), "ancho.xlsx")).rejects.toThrow("más de 256 columnas");
+  });
 });
 
 describe("import mapping", () => {
@@ -245,6 +290,15 @@ describe("import mapping", () => {
   });
 });
 
+describe("in-file duplicates", () => {
+  it("refuse the second and later rows that repeat the key, naming the first row; blank keys are left to the process", () => {
+    const columns = importColumns(gadgetRegistry(), "gadgets.gadget");
+    const mapped = mapSheet(columns, { headers: ["Nombre", "Tamaño"], rows: [["Uno", "small"], [" uno ", "large"], ["", "small"], ["", "small"], ["UNO", "small"]].map((cells, i) => ({ rowNo: i + 2, cells })) }, LABELS);
+    markInFileDuplicates(columns, mapped.records, ["name"], LABELS);
+    expect(mapped.records.map((r) => r.errors)).toEqual([[], ["Nombre: repetido en el archivo (igual a la fila 2)"], [], [], ["Nombre: repetido en el archivo (igual a la fila 2)"]]);
+  });
+});
+
 describe("import failures", () => {
   const columns = () => importColumns(gadgetRegistry(), "gadgets.gadget");
 
@@ -262,5 +316,10 @@ describe("import failures", () => {
     const csv = text(errorsCsv(["Nombre", "Precio"], [{ rowNo: 3, errors: ["Precio: «abc» no es un número", "otro; motivo"], raw: { Nombre: 'Dos "B"', Precio: "abc" } }]));
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv.slice(1).split("\r\n")).toEqual(["fila;error;Nombre;Precio", '3;"Precio: «abc» no es un número · otro; motivo";"Dos ""B""";abc', ""]);
+  });
+
+  it("errores.csv keeps cells that start like a formula as text", () => {
+    const csv = text(errorsCsv(["Nombre", "Nota"], [{ rowNo: 2, errors: ["x"], raw: { Nombre: "=HYPERLINK(\"http://x\")", Nota: "@SUM(A1)" } }, { rowNo: 3, errors: ["-1"], raw: { Nombre: "+57", Nota: "ok" } }]));
+    expect(csv.slice(1).split("\r\n").slice(1, 3)).toEqual(['2;x;"\'=HYPERLINK(""http://x"")";\'@SUM(A1)', "3;'-1;'+57;ok"]);
   });
 });

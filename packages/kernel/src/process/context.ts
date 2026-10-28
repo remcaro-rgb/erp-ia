@@ -26,6 +26,12 @@ export interface ProcessContext {
   origin: Origin;
   chainId: string;
   conversationId?: string;
+  /**
+   * True in a dry run (`runProcess(…, { dryRun: true })`): the transaction is rolled back after the handler, so every
+   * effect of the handler must stay inside `tx`. A handler that would reach outside the database (a provider call,
+   * a stored file, an e-mail) must skip it when this is set.
+   */
+  dryRun: boolean;
   /** Writes a domain event to the outbox in the process transaction, on the process chain. */
   emit(event: string, payload: unknown): Promise<void>;
   /** Writes an extra audit entry in the process transaction; unset fields default to the process's. */

@@ -13,6 +13,8 @@ import type { Caller } from "../context";
 // denial is still audited.
 
 const ids = { create: "dryrun.probe.create", refuse: "dryrun.probe.refuse", keyed: "dryrun.probe.keyed", sensitive: "dryrun.probe.sensitive" };
+/** What each run's handler saw in ctx.dryRun, by probe name. */
+const seenDryRun = new Map<string, boolean>();
 
 const insertProbe = (name: string) =>
   defineProcess({
@@ -25,6 +27,7 @@ const insertProbe = (name: string) =>
     idempotencyKey: name === ids.keyed ? (input) => input.name : undefined,
     sensitivity: name === ids.sensitive ? "step-up" : undefined,
     handler: async (ctx, input) => {
+      seenDryRun.set(input.name, ctx.dryRun);
       const [row] = await ctx.tx<{ id: string }[]>`insert into kernel.role_probe(company_id, secret) values (${ctx.companyId}, ${input.name}) returning id`;
       await ctx.emit("dryrun.probe.created", { id: row!.id });
       await ctx.audit({ action: "update", input: { note: "extra entry" } });
@@ -91,6 +94,21 @@ describe("runProcess dry run", () => {
     expect(await probes("dry-1")).toBe(0);
     expect(await audits(chainId)).toBe(0);
     expect(await outbox(chainId)).toBe(0);
+    // The handler knows it is a dry run (to skip effects outside the database); a real run says so too.
+    expect(seenDryRun.get("dry-1")).toBe(true);
+    await runProcess(deps(), as(admin), ids.create, { name: "real-1" });
+    expect(seenDryRun.get("real-1")).toBe(false);
+  });
+
+  it("a caller-given idempotency key replays the first run instead of running again", async () => {
+    const first = await runProcess(deps(), as(admin), ids.create, { name: "keyed-1" }, { idempotencyKey: "import:x:0" });
+    const again = await runProcess(deps(), as(admin), ids.create, { name: "keyed-1" }, { idempotencyKey: "import:x:0" });
+    expect(again).toEqual(first);
+    expect(await probes("keyed-1")).toBe(1);
+    // A dry run never records the key: the first real run with it still runs.
+    await runProcess(deps(), as(admin), ids.create, { name: "keyed-2" }, { dryRun: true, idempotencyKey: "import:x:1" });
+    await runProcess(deps(), as(admin), ids.create, { name: "keyed-2" }, { idempotencyKey: "import:x:1" });
+    expect(await probes("keyed-2")).toBe(1);
   });
 
   it("an invalid input is refused with invalid_input and its paths, as in a real run", async () => {

@@ -76,7 +76,7 @@ describe("import workflow", () => {
     const stepUpToken = randomUUID();
     await sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${seed.users.both}, ${companyId}, ${stepUpToken})`;
     const bytes = new TextEncoder().encode("Secreto\nuno\nx\ndos\n");
-    const ids = await submitImport({ sql, registry }, { claims, origin: "ui", stepUpToken }, { entity: probe.id, fileName: "probes.csv", mimeType: "text/csv", bytes });
+    const ids = await submitImport({ sql, registry }, { claims, origin: "ui", stepUpToken }, { entity: probe.id, fileName: "probes.csv", bytes });
 
     const run = await start(runImport, [{ ...ids, claims, labels: { secret: "Secreto" } }]);
     const summary = await run.returnValue;

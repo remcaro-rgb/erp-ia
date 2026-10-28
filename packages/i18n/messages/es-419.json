@@ -700,6 +700,11 @@
         "running": "en curso",
         "done": "terminada",
         "failed": "fallida"
+      },
+      "failure": {
+        "row_step_up_required": "Crear estos registros exige verificación en dos pasos en cada uno; la importación se detuvo sin crearlos.",
+        "row_forbidden": "Tu rol no puede crear estos registros; la importación se detuvo.",
+        "row_not_entitled": "Tu empresa no tiene habilitada la creación de estos registros; la importación se detuvo."
       }
     },
     "views": {

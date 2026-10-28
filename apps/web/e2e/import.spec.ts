@@ -51,6 +51,7 @@ test.describe("mass import", () => {
     const { sql } = fixture;
     for (const table of ["parties", "entity_sequences"]) await sql`delete from ${sql(`core.${table}`)} where company_id = ${companyId}`;
     await sql`delete from kernel.imports where company_id = ${companyId}`;
+    await sql`delete from kernel.process_idempotency where company_id = ${companyId}`;
     await sql`delete from kernel.attachments where company_id = ${companyId}`;
     await sql`delete from kernel.outbox where company_id = ${companyId}`;
     await sql`delete from kernel.process_permissions where company_id = ${companyId}`;

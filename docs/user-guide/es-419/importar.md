@@ -23,8 +23,10 @@ Necesitas el permiso **Importar datos** (`kernel.import.run`) y el permiso de cr
 
 ## Resultado
 
-En **Importar datos › Historial** ves cada importación con su estado (en cola, en curso, terminada, fallida), cuántas filas se crearon y cuántas se rechazaron. Si hubo rechazos, el enlace **errores.csv** descarga las filas rechazadas con la columna `error` y sus datos originales: corrígelas y vuelve a importar solo ese archivo.
+En **Importar datos › Historial** ves tus importaciones (el administrador de la empresa ve las de todos), cada una con su estado (en cola, en curso, terminada, fallida), cuántas filas se crearon y cuántas se rechazaron. Si hubo rechazos, el enlace **errores.csv** descarga las filas rechazadas con la columna `error` y sus datos originales: corrígelas y vuelve a importar solo ese archivo.
 
 - Un documento repetido dentro del archivo se rechaza en su segunda aparición; uno que ya existe en el sistema también se rechaza.
 - Los registros con datos DIAN pendientes se crean, pero no se pueden facturar hasta completarlos.
+- Si crear registros de esa entidad exige verificación en dos pasos en cada uno, la importación se detiene en la primera fila sin crear nada y el historial lo explica.
+- Las celdas de `errores.csv` que empiezan por `=`, `+`, `-` o `@` llevan un apóstrofo delante para que Excel no las ejecute como fórmulas.
 - Cada importación queda en la auditoría como «N creadas · M rechazadas», con el archivo original adjunto a la importación.

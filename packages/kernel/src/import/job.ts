@@ -4,7 +4,7 @@ import type { JwtClaims } from "../db/client";
 import { fileStore } from "../files/store";
 import { registry } from "../registry";
 import { importColumns, importTarget, type ImportColumn } from "./columns";
-import { mapSheet, type ImportLabels, type MappedSheet } from "./map";
+import { mapSheet, markInFileDuplicates, type ImportLabels, type MappedSheet } from "./map";
 import { ImportFileError, parseImportFile } from "./parse";
 
 // The server-side state of one import, shared by the submit helper and the workflow steps: the record's source
@@ -71,9 +71,11 @@ export function loadJob(sql: Sql, importId: string, labels: ImportLabels = {}): 
       if (!source.storage_path || !source.file_name) throw new ImportFileError("La importación no tiene el archivo original");
       const bytes = await (await fileStore()).get(source.storage_path);
       const parsed = await parseImportFile(bytes, source.file_name);
-      const { createProcess } = importTarget(registry, source.entity);
+      const { entity, createProcess } = importTarget(registry, source.entity);
       const columns = importColumns(registry, source.entity);
-      return { importId, entity: source.entity, fileName: source.file_name, createProcess: createProcess.id, columns, sheet: mapSheet(columns, parsed, labels) };
+      const sheet = mapSheet(columns, parsed, labels);
+      markInFileDuplicates(columns, sheet.records, entity.importKey, labels);
+      return { importId, entity: source.entity, fileName: source.file_name, createProcess: createProcess.id, columns, sheet };
     })();
     cache.set(importId, job);
     // A failed read is not kept: a retried step reads again.
@@ -84,16 +86,26 @@ export function loadJob(sql: Sql, importId: string, labels: ImportLabels = {}): 
 
 export const forgetJob = (importId: string) => void cache.delete(importId);
 
-/** Writes the import row's change and its audit entry in one service transaction, under the import's chain. */
+export interface ImportCounts {
+  total: number;
+  created: number;
+  rejected: number;
+}
+
+/**
+ * Writes the import row's change (and its audit entry) in one service transaction, under the import's chain; returns
+ * the counts the row holds afterwards.
+ */
 export async function recordImport(
   sql: Sql,
   args: { importId: string; claims: JwtClaims; chainId: string },
   change: Record<string, unknown>,
   audit?: Record<string, unknown>,
-): Promise<void> {
-  await sql.begin(async (tx) => {
+): Promise<ImportCounts> {
+  return sql.begin(async (tx) => {
     await setAuditContext(tx, { origin: "api", processId: RUN_PROCESS, chainId: args.chainId, actorUserId: args.claims.sub });
-    await tx`update kernel.imports set ${tx(change)} where id = ${args.importId}`;
+    const [row] = await tx<{ rows_total: number; rows_ok: number; rows_failed: number }[]>`
+      update kernel.imports set ${tx(change)} where id = ${args.importId} returning rows_total, rows_ok, rows_failed`;
     if (audit) {
       await writeAudit(tx, {
         companyId: args.claims.active_company_id,
@@ -107,12 +119,16 @@ export async function recordImport(
         chainId: args.chainId,
       });
     }
-  });
+    return { total: row?.rows_total ?? 0, created: row?.rows_ok ?? 0, rejected: row?.rows_failed ?? 0 };
+  }) as Promise<ImportCounts>;
 }
 
-/** Marks the import failed as a whole with `reason`, audited. */
+/**
+ * Marks the import failed as a whole with `reason` (a user message, or a `row_<code>` the UI translates), audited.
+ * The counts recorded so far stay: rows already created are not undone.
+ */
 export async function failImport(sql: Sql, args: { importId: string; claims: JwtClaims; chainId: string }, reason: string): Promise<ImportSummary> {
   forgetJob(args.importId);
-  await recordImport(sql, args, { status: "failed", error: reason, finished_at: new Date() }, { summary: `fallida: ${reason}` });
-  return { importId: args.importId, status: "failed", total: 0, created: 0, rejected: 0, summary: reason };
+  const counts = await recordImport(sql, args, { status: "failed", error: reason, finished_at: new Date() }, { summary: `fallida: ${reason}` });
+  return { importId: args.importId, status: "failed", ...counts, summary: reason };
 }

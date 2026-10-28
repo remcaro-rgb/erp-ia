@@ -5,7 +5,8 @@ import { ProcessError } from "../process/errors";
 import { runProcess, type RunProcessDeps } from "../process/run";
 import type { ImportColumn } from "./columns";
 import { failImport, SOURCE_TAG } from "./job";
-import { columnLabel, mapSheet, type ImportLabels } from "./map";
+import { columnLabel, mapSheet, markInFileDuplicates, type ImportLabels } from "./map";
+import { importFormatOf, type ImportFormat } from "./format";
 import { ImportFileError, parseImportFile } from "./parse";
 import { resolveReferences, runRecords } from "./validate";
 
@@ -13,12 +14,23 @@ import { resolveReferences, runRecords } from "./validate";
 // `previewImport` checks it without writing anything; `submitImport` creates the import record and attaches the
 // file, after which the caller starts the `runImport` workflow with the returned id and chain.
 
+/** An uploaded file. Its type is not taken from the client: it follows from the file's format (`importMimeType`). */
 export interface ImportUpload {
   entity: string;
   fileName: string;
-  mimeType: string;
   bytes: Uint8Array;
 }
+
+/** The stored type of an import file, from its format: the client's declared type is never trusted. */
+export const importMimeType = (format: ImportFormat) => (format === "xlsx" ? XLSX_MIME : "text/csv");
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** What a denial of the caller on the rows means for the user (the import cannot create them at all). */
+const STOP_DETAILS: Record<string, string> = {
+  step_up_required: "Crear estos registros exige verificación en dos pasos en cada uno: la importación no puede crearlos",
+  forbidden: "No tienes permiso para crear estos registros",
+  not_entitled: "Tu empresa no tiene habilitada la creación de estos registros",
+};
 
 /** Rows the preview validates (the import itself validates every row). */
 export const PREVIEW_ROWS = 200;
@@ -60,9 +72,12 @@ export async function previewImport(deps: RunProcessDeps, caller: Caller, upload
     throw error;
   }
   const mapped = mapSheet(columns, sheet, labels);
+  markInFileDuplicates(columns, mapped.records, deps.registry.entity(upload.entity).importKey, labels);
   const shown = mapped.records.slice(0, PREVIEW_ROWS);
   await resolveReferences(deps, caller, columns, shown, labels);
-  const outcomes = await runRecords(deps, caller, createProcess, columns, shown.map((record, index) => ({ index, record })), { dryRun: true, labels });
+  const run = await runRecords(deps, caller, createProcess, columns, shown.map((record, index) => ({ index, record })), { dryRun: true, labels });
+  // A denial of the caller on the rows is the same for every row: one refusal for the whole file.
+  if (run.stoppedBy) throw new ProcessError("invalid_input", `import rows refused: ${run.stoppedBy}`, { details: [STOP_DETAILS[run.stoppedBy] ?? run.stoppedBy] });
   const byKey = new Map(columns.map((c) => [c.key, c]));
   return {
     entity: upload.entity,
@@ -72,23 +87,35 @@ export async function previewImport(deps: RunProcessDeps, caller: Caller, upload
     unknownHeaders: mapped.unknownHeaders,
     missingColumns: mapped.missingColumns.map((key) => columnLabel(byKey.get(key)!, labels)),
     total: mapped.records.length,
-    rows: outcomes.map((o) => ({ rowNo: o.rowNo, ok: o.ok, errors: o.errors, cells: mapped.headers.map((h) => shown[o.index]!.raw[h] ?? "") })),
+    rows: run.outcomes.map((o) => ({ rowNo: o.rowNo, ok: o.ok, errors: o.errors, cells: mapped.headers.map((h) => shown[o.index]!.raw[h] ?? "") })),
   };
 }
 
 /**
- * Starts an import as the caller: runs `kernel.import.run` (step-up, permission, the import record), stores the file
- * and attaches it to the record as its source. Returns the import id and the chain to start `runImport` with. When
- * the file cannot be attached the import is recorded as failed and the refusal is thrown.
+ * Starts an import as the caller: runs `kernel.import.run` (step-up, permission, the import record), reads the file
+ * (a file that cannot be read is refused before anything is stored), stores it with the type its format implies and
+ * attaches it to the record as its source. Returns the import id and the chain to start `runImport` with. When the
+ * file is refused or cannot be attached, the import is recorded as failed and the refusal is thrown.
  */
 export async function submitImport(deps: RunProcessDeps, caller: Caller, upload: ImportUpload): Promise<{ importId: string; chainId: string }> {
   const chainId = caller.chainId ?? randomUUID();
+  // The process refuses a name that is neither .xlsx nor .csv; the format then fixes the stored type.
+  const mimeType = importMimeType(importFormatOf(upload.fileName) ?? "csv");
   const { importId } = (await runProcess(deps, { ...caller, chainId }, "kernel.import.run", {
     entity: upload.entity,
     fileName: upload.fileName,
-    mimeType: upload.mimeType,
+    mimeType,
     sizeBytes: upload.bytes.byteLength,
   })) as { importId: string };
+  const record = { importId, claims: caller.claims, chainId };
+
+  try {
+    await parseImportFile(upload.bytes, upload.fileName);
+  } catch (error) {
+    if (!(error instanceof ImportFileError)) throw error;
+    await failImport(deps.sql, record, error.message);
+    throw fileRefusal(error);
+  }
 
   const { tenant_id: tenantId, active_company_id: companyId } = caller.claims;
   const storagePath = `${tenantId}/${companyId}/kernel.import/${importId}/${randomUUID()}-${storageName(upload.fileName)}`;
@@ -97,19 +124,19 @@ export async function submitImport(deps: RunProcessDeps, caller: Caller, upload:
   const { stepUpToken: _spent, ...plain } = caller;
   void _spent;
   try {
-    await store.put(storagePath, Buffer.from(upload.bytes), upload.mimeType);
+    await store.put(storagePath, Buffer.from(upload.bytes), mimeType);
     await runProcess(deps, { ...plain, chainId }, "kernel.attachment.add", {
       entity: "kernel.import",
       recordId: importId,
       tag: SOURCE_TAG,
       fileName: upload.fileName,
-      mimeType: upload.mimeType,
+      mimeType,
       sizeBytes: upload.bytes.byteLength,
       storagePath,
     });
   } catch (error) {
     await store.remove(storagePath).catch(() => undefined);
-    await failImport(deps.sql, { importId, claims: caller.claims, chainId }, "No se pudo guardar el archivo original");
+    await failImport(deps.sql, record, "No se pudo guardar el archivo original");
     throw error;
   }
   return { importId, chainId };

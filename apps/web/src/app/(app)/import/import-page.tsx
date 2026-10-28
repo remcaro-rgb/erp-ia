@@ -40,6 +40,9 @@ export function ImportPage({ data }: { data: ImportPageData }) {
     window.open(body.url, "_blank", "noopener,noreferrer");
   };
 
+  // A whole-import failure is a known code (`row_step_up_required`…) or the file's own message.
+  const failureText = (error: string) => (t.has(`grid.import.failure.${error}`) ? t(`grid.import.failure.${error}`) : error);
+
   const screen = data.screens.find((s) => s.entity === open);
   return (
     <div className="erp-stack" data-testid="import-page">
@@ -115,8 +118,9 @@ export function ImportPage({ data }: { data: ImportPageData }) {
                   <td>{item.entity ? (data.titles[item.entity] ?? item.entity) : ""}</td>
                   <td>{item.fileName}</td>
                   <td>{item.startedByName}</td>
-                  <td title={item.error ?? undefined}>
+                  <td>
                     <span className={`erp-pill erp-pill--${STATUS_TONE[item.status ?? ""] ?? "gray"}`}>{item.status ? t(`grid.import.status.${item.status}`) : ""}</span>
+                    {item.error && <div className="erp-small erp-muted">{failureText(item.error)}</div>}
                   </td>
                   <td className="erp-num">{item.rowsOk}</td>
                   <td className="erp-num">{item.rowsFailed}</td>

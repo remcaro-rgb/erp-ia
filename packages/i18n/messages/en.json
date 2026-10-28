@@ -700,6 +700,11 @@
         "running": "running",
         "done": "done",
         "failed": "failed"
+      },
+      "failure": {
+        "row_step_up_required": "Creating these records requires two-step verification for each one; the import stopped without creating them.",
+        "row_forbidden": "Your role cannot create these records; the import stopped.",
+        "row_not_entitled": "Your company does not have creating these records enabled; the import stopped."
       }
     },
     "views": {

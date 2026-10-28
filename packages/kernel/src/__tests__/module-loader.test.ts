@@ -108,4 +108,15 @@ describe("loadModules", () => {
   it("rejects a duplicate module id", () => {
     expect(() => loadModules(new Registry(), [manifest("a"), manifest("a")])).toThrow(/duplicate module a/);
   });
+
+  it("rejects an entity whose declared create or attach process no module declares, registering nothing", () => {
+    const withIds = (processIds: { create?: string; attach?: string }) =>
+      manifest("a", [], { entities: [{ ...entity("a", "thing"), processIds }] });
+    const registry = new Registry();
+    expect(() => loadModules(registry, [withIds({ create: "a.thing.add" })])).toThrow("entity a.thing: unknown create process a.thing.add");
+    expect(() => loadModules(registry, [withIds({ attach: "b.thing.run" })])).toThrow("entity a.thing: unknown attach process b.thing.run");
+    expect(registry.modules()).toEqual([]);
+    loadModules(registry, [withIds({ create: "a.thing.list" })]);
+    expect(registry.entity("a.thing").processIds).toEqual({ create: "a.thing.list" });
+  });
 });

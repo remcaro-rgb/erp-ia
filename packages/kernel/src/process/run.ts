@@ -29,9 +29,16 @@ export interface RunProcessOptions {
    * Runs the whole pipeline (resolve, entitlement, permission, step-up, input, handler) in a transaction that is
    * always rolled back: the handler's output (or its refusal) comes back, and no record, audit, outbox or
    * idempotency row is written. A denial is still audited; an idempotency key already stored answers its stored
-   * result, as a real run would. The importer validates rows this way (Task 13b).
+   * result, as a real run would. The importer validates rows this way (Task 13b). Only what the handler does in
+   * `ctx.tx` is undone: handlers read `ctx.dryRun` and skip any effect outside the database.
    */
   dryRun?: boolean;
+  /**
+   * Idempotency key of this run when the process declares none (or instead of its own): a second run with the same
+   * key in the company answers the first run's stored result without running again. The importer keys each row by
+   * `import:<importId>:<rowIndex>`, so a retried batch replays instead of creating twice.
+   */
+  idempotencyKey?: string;
 }
 
 /** Thrown inside a dry run's transaction to roll it back while carrying the handler's output out. */
@@ -62,7 +69,7 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
   const def = resolve(deps.registry, processId);
   const chainId = caller.chainId ?? randomUUID();
   try {
-    return await execute<O>(deps, caller, def, chainId, input, options.dryRun === true);
+    return await execute<O>(deps, caller, def, chainId, input, options);
   } catch (error) {
     if (error instanceof ProcessError && DENIALS.has(error.code)) {
       await withClaims(deps.sql, caller.claims, (tx) =>
@@ -83,9 +90,10 @@ async function execute<O extends z.ZodTypeAny>(
   def: ProcessDef,
   chainId: string,
   input: unknown,
-  dryRun: boolean,
+  options: RunProcessOptions,
 ): Promise<z.infer<O>> {
   const { claims } = caller;
+  const dryRun = options.dryRun === true;
   const companyId = claims.active_company_id;
 
   const entitled = deps.entitled ?? resolveEntitled;
@@ -122,7 +130,7 @@ async function execute<O extends z.ZodTypeAny>(
     throw new ProcessError("invalid_input", `invalid input for ${def.id}`, { details: parsed.error.issues });
   }
 
-  const key = def.idempotencyKey?.(parsed.data);
+  const key = options.idempotencyKey ?? def.idempotencyKey?.(parsed.data);
   if (key !== undefined) {
     const stored = await storedResult(deps.sql, claims, def.id, key);
     if (stored) return stored.result as z.infer<O>;
@@ -139,7 +147,7 @@ async function execute<O extends z.ZodTypeAny>(
       });
       if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
 
-      const ctx = buildContext(tx, deps.registry, def, caller, chainId);
+      const ctx = buildContext(tx, deps.registry, def, caller, chainId, dryRun);
       let output: unknown;
       try {
         output = await def.handler(ctx, parsed.data);
@@ -203,7 +211,7 @@ async function consumeStepUp(tx: Tx, processId: string, token: string, userId: s
   if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`);
 }
 
-function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string): ProcessContext {
+function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean): ProcessContext {
   const { claims } = caller;
   return {
     tx,
@@ -216,6 +224,7 @@ function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Calle
     origin: caller.origin,
     chainId,
     conversationId: caller.conversationId,
+    dryRun,
     async emit(event, payload) {
       await enqueueEvent(tx, { companyId: claims.active_company_id, event, payload, chainId });
     },

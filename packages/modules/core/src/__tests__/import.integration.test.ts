@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { IMPORT_PROCESSES, importColumns, kernelModule, loadModules, registry, runProcess, setFileStore, type Caller, type RunProcessDeps } from "@erp/kernel";
-import { buildTemplate, previewImport, runImport, submitImport } from "@erp/kernel/import";
+import ExcelJS from "exceljs";
+import { abandonImport, beginImport, buildTemplate, createBatch, previewImport, runImport, submitImport, validateBatch } from "@erp/kernel/import";
 import { MemoryFileStore } from "@erp/kernel/testing";
 import { core } from "../index";
 import { coreHarness, type CoreHarness } from "./helpers";
@@ -44,7 +45,7 @@ describe("mass import into core", () => {
   const partiesWith = async (documentNumber: string) =>
     (await h.sql<{ n: number }[]>`select count(*)::int as n from core.parties where company_id = ${h.companyId} and document_number = ${documentNumber}`)[0]!.n;
   const runFile = async (fileName: string, bytes: Uint8Array) => {
-    const ids = await submitImport(deps, await adminCaller(), { entity: "core.party", fileName, mimeType: "text/csv", bytes });
+    const ids = await submitImport(deps, await adminCaller(), { entity: "core.party", fileName, bytes });
     return { ...ids, summary: await runImport({ ...ids, claims: h.admin.claims }) };
   };
 
@@ -78,7 +79,7 @@ describe("mass import into core", () => {
     const file = csv(HEADER, partyLine("900373115"), partyLine("800197268"), partyLine("860002964"), partyLine("800ABC123", "Mal Dato Ltda."));
 
     // The preview validates every row in a dry run and writes nothing.
-    const preview = await previewImport(deps, h.admin, { entity: "core.party", fileName: "terceros.csv", mimeType: "text/csv", bytes: file });
+    const preview = await previewImport(deps, h.admin, { entity: "core.party", fileName: "terceros.csv", bytes: file });
     expect(preview).toMatchObject({ total: 4, missingColumns: [], unknownHeaders: [] });
     expect(preview.rows.map((r) => r.ok)).toEqual([true, true, true, false]);
     expect(preview.rows[3]!.errors.join(" ")).toContain("31: solo dígitos");
@@ -132,8 +133,16 @@ describe("mass import into core", () => {
     expect(await partiesWith("901000003")).toBe(1);
     const [, inTable, inFile] = await errorsFile((await importRow(importId)).errors_attachment_id);
     expect(inTable).toMatch(/^2;Ya existe un tercero con documento 31 901000001;/);
-    expect(inFile).toMatch(/^4;Ya existe un tercero con documento 31 901000002;/);
+    // The second occurrence in the file is refused before any creation, naming the row it repeats.
+    expect(inFile).toMatch(/^4;documentType, documentNumber: repetido en el archivo \(igual a la fila 3\);/);
     expect(inFile).toContain("Repetido S.A.S.");
+  });
+
+  it("the preview refuses an in-file duplicate document like the run does", async () => {
+    const file = csv(HEADER, partyLine("903000001"), partyLine("903000001", "Otra Vez S.A.S."));
+    const preview = await previewImport(deps, h.admin, { entity: "core.party", fileName: "dup.csv", bytes: file });
+    expect(preview.rows.map((r) => r.ok)).toEqual([true, false]);
+    expect(preview.rows[1]!.errors).toEqual(["documentType, documentNumber: repetido en el archivo (igual a la fila 2)"]);
   });
 
   it("a header missing a required column refuses every row with the reason and creates nothing", async () => {
@@ -149,7 +158,7 @@ describe("mass import into core", () => {
   it("a reference column takes the target's name: products import into the category the caller sees", async () => {
     await runProcess(deps, h.admin, "core.category.create", { name: "Café", ivaRate: "5", otherTaxes: [], defaultUom: "KGM", status: "active" });
     const file = csv("sku;description;kind;categoryId;listPrice;trackStock", "IMP-1;Café molido;good;café;31.000;sí", "IMP-2;Té verde;good;Té;9000;no");
-    const ids = await submitImport(deps, await adminCaller(), { entity: "core.product", fileName: "productos.csv", mimeType: "text/csv", bytes: file });
+    const ids = await submitImport(deps, await adminCaller(), { entity: "core.product", fileName: "productos.csv", bytes: file });
     const summary = await runImport({ ...ids, claims: h.admin.claims });
     expect(summary).toMatchObject({ created: 1, rejected: 1 });
     const [product] = await h.sql`select p.list_price, c.name as category from core.products p join core.product_categories c on c.id = p.category_id where p.company_id = ${h.companyId} and p.sku = 'IMP-1'`;
@@ -166,11 +175,122 @@ describe("mass import into core", () => {
     await h.grantAll(h.companyId, h.seed.companies[0]!.memberRoleId, ["core.party.create", "kernel.attachment.add", "kernel.import.template", "kernel.import.preview"]);
     const chainId = randomUUID();
     await expect(
-      submitImport(deps, { ...clerk, chainId }, { entity: "core.party", fileName: "terceros.csv", mimeType: "text/csv", bytes: csv(HEADER, partyLine("902000001")) }),
+      submitImport(deps, { ...clerk, chainId }, { entity: "core.party", fileName: "terceros.csv", bytes: csv(HEADER, partyLine("902000001")) }),
     ).rejects.toMatchObject({ code: "forbidden" });
     expect((await h.sql`select 1 from kernel.imports where company_id = ${h.companyId} and started_by = ${clerkId}`).length).toBe(0);
     const [denied] = await h.sql`select action, process_id from kernel.audit_log where chain_id = ${chainId}`;
     expect(denied).toMatchObject({ action: "denied", process_id: "kernel.import.run" });
     expect(await partiesWith("902000001")).toBe(0);
+  });
+
+  describe("visibility, counts and refusals (review round 1)", () => {
+    /** A user of company 0 holding only `roleId` (a role made for the test, so grants do not leak to other members). */
+    const userWithRole = async (name: string, processes: string[]) => {
+      const [role] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${h.companyId}, ${name}, false) returning id`;
+      await h.grantAll(h.companyId, role!.id, processes);
+      const userId = h.seed.users.clerk!;
+      return { ...h.seed.claimsFor(userId, h.companyId), role_ids: [role!.id] };
+    };
+    const IMPORTER = ["core.party.create", "kernel.attachment.add", "kernel.attachment.list", ...IMPORT_PROCESSES.map((p) => p.id)];
+    const stepUp = async (userId: string) => {
+      const token = randomUUID();
+      await h.sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${userId}, ${h.companyId}, ${token})`;
+      return token;
+    };
+
+    it("an import and its files are visible only to the user who started it and to company admins", async () => {
+      // The clerk imports under an "importador" role (made for the test, so the grant does not reach other members).
+      const importer = await userWithRole("importador", IMPORTER);
+      const ids = await submitImport(deps, { claims: importer, origin: "ui", stepUpToken: await stepUp(importer.sub) }, { entity: "core.party", fileName: "mios.csv", bytes: csv(HEADER, partyLine("904000001")) });
+      await runImport({ ...ids, claims: importer });
+      const own = await runProcess(deps, { claims: importer, origin: "ui" }, "kernel.import.list", {});
+      expect(own.map((i: { id: string }) => i.id)).toContain(ids.importId);
+      const ownFiles = await runProcess(deps, { claims: importer, origin: "ui" }, "kernel.attachment.list", { entity: "kernel.import", recordId: ids.importId });
+      expect(ownFiles.map((f: { fileName: string; mimeType: string }) => [f.fileName, f.mimeType])).toEqual([["mios.csv", "text/csv"]]);
+
+      // Another member of the company (user `onlyA` under a reader role) sees nothing of it.
+      const [readerRole] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${h.companyId}, 'lector', false) returning id`;
+      await h.grantAll(h.companyId, readerRole!.id, ["kernel.attachment.list", "kernel.attachment.remove", "kernel.import.list"]);
+      const other = { ...h.seed.claimsFor(h.seed.users.onlyA, h.companyId), role_ids: [readerRole!.id] };
+      const otherCaller = { claims: other, origin: "ui" as const };
+      expect((await runProcess(deps, otherCaller, "kernel.import.list", {})).map((i: { id: string }) => i.id)).not.toContain(ids.importId);
+      await expect(runProcess(deps, otherCaller, "kernel.attachment.list", { entity: "kernel.import", recordId: ids.importId })).rejects.toMatchObject({ code: "not_found" });
+      const [source] = await h.sql<{ id: string }[]>`select id from kernel.attachments where entity = 'kernel.import' and record_id = ${ids.importId}`;
+      // The signed download (GET /api/attachments?id=) is granted only through kernel.attachment.list: refused above.
+      await expect(runProcess(deps, otherCaller, "kernel.attachment.remove", { id: source!.id })).rejects.toMatchObject({ code: "forbidden" });
+      const viaView = await h.sql.begin(async (tx) => {
+        await tx`select set_config('request.jwt.claims', ${JSON.stringify({ role: "authenticated", ...other })}, true)`;
+        await tx`set local role authenticated`;
+        return tx`select id from kernel.imports where id = ${ids.importId} union all select id from kernel.v_imports where id = ${ids.importId}`;
+      });
+      expect(viaView).toHaveLength(0);
+
+      // The company admin sees it and its files.
+      expect((await runProcess(deps, h.admin, "kernel.import.list", {})).map((i: { id: string }) => i.id)).toContain(ids.importId);
+      expect(await runProcess(deps, h.admin, "kernel.attachment.list", { entity: "kernel.import", recordId: ids.importId })).toHaveLength(1);
+    });
+
+    it("a caller with kernel.import.run but not the entity's create process is refused", async () => {
+      const claims = await userWithRole("solo_importa", ["kernel.attachment.add", ...IMPORT_PROCESSES.map((p) => p.id)]);
+      await expect(
+        submitImport(deps, { claims, origin: "ui", stepUpToken: await stepUp(claims.sub) }, { entity: "core.party", fileName: "x.csv", bytes: csv(HEADER, partyLine("905000001")) }),
+      ).rejects.toMatchObject({ code: "forbidden" });
+      await expect(previewImport(deps, { claims, origin: "ui" }, { entity: "core.party", fileName: "x.csv", bytes: csv(HEADER, partyLine("905000001")) })).rejects.toMatchObject({ code: "forbidden" });
+      expect(await partiesWith("905000001")).toBe(0);
+    });
+
+    it("a retried creation batch replays its rows instead of duplicating them, and an abandon keeps the counts", async () => {
+      const ids = await submitImport(deps, await adminCaller(), { entity: "core.party", fileName: "lote.csv", bytes: csv(HEADER, partyLine("906000001"), partyLine("906000002"), partyLine("906ABC")) });
+      const args = { ...ids, claims: h.admin.claims };
+      expect(await beginImport(args)).toEqual({ ok: true, total: 3 });
+      const validated = await validateBatch(args, 0, 0);
+      expect(validated.valid).toEqual([0, 1]);
+      expect((await importRow(ids.importId)).rows_failed).toBe(1);
+      const first = await createBatch(args, validated.valid, { created: 0, failed: 1 });
+      // The step runs again (a retry after a crash): the rows replay their stored results.
+      const again = await createBatch(args, validated.valid, { created: 0, failed: 1 });
+      expect(first).toEqual({ created: 2, failed: [] });
+      expect(again).toEqual({ created: 2, failed: [] });
+      expect(await partiesWith("906000001")).toBe(1);
+      expect(await partiesWith("906000002")).toBe(1);
+      expect(await importRow(ids.importId)).toMatchObject({ rows_ok: 2, rows_failed: 1, status: "running" });
+
+      // The workflow gives up before finishing: the import fails with the counts it reached.
+      const abandoned = await abandonImport(args, "Se perdió la conexión");
+      expect(abandoned).toMatchObject({ status: "failed", total: 3, created: 2, rejected: 1 });
+      expect(await importRow(ids.importId)).toMatchObject({ status: "failed", rows_ok: 2, rows_failed: 1, error: "Se perdió la conexión" });
+    });
+
+    it("rows whose create process needs a step-up stop the import at the first one, with one denial", async () => {
+      await h.sql`insert into kernel.sensitive_processes(company_id, process_id, mode) values (${h.companyId}, 'core.party.create', 'self_2fa')`;
+      try {
+        const file = csv(HEADER, partyLine("907000001"), partyLine("907000002"));
+        await expect(previewImport(deps, h.admin, { entity: "core.party", fileName: "s.csv", bytes: file })).rejects.toMatchObject({ code: "invalid_input" });
+        const { importId, chainId, summary } = await runFile("sensibles.csv", file);
+        expect(summary).toMatchObject({ status: "failed", created: 0, summary: "row_step_up_required" });
+        expect(await importRow(importId)).toMatchObject({ status: "failed", error: "row_step_up_required" });
+        const denials = await h.sql`select 1 from kernel.audit_log where chain_id = ${chainId} and action = 'denied' and process_id = 'core.party.create'`;
+        expect(denials).toHaveLength(1);
+        expect(await partiesWith("907000001")).toBe(0);
+      } finally {
+        await h.sql`delete from kernel.sensitive_processes where company_id = ${h.companyId}`;
+      }
+    });
+
+    it("an unreadable or oversized file is refused before it is stored, and a wide workbook is refused in the preview", async () => {
+      const refused = await submitImport(deps, await adminCaller(), { entity: "core.party", fileName: "roto.xlsx", bytes: new TextEncoder().encode("no es un zip") }).catch((e: unknown) => e);
+      expect(refused).toMatchObject({ code: "invalid_input", details: ["El archivo no es un libro de Excel (.xlsx) válido"] });
+      const [row] = await h.sql`select id, status from kernel.imports i where company_id = ${h.companyId} and status = 'failed' and error = 'El archivo no es un libro de Excel (.xlsx) válido'`;
+      expect(row).toBeDefined();
+      expect(await h.sql`select 1 from kernel.attachments where entity = 'kernel.import' and record_id = ${row!.id}`).toHaveLength(0);
+
+      const book = new ExcelJS.Workbook();
+      book.addWorksheet("Datos").getCell(1, 300).value = "x";
+      const wide = new Uint8Array(await book.xlsx.writeBuffer());
+      await expect(previewImport(deps, h.admin, { entity: "core.party", fileName: "ancho.xlsx", bytes: wide })).rejects.toMatchObject({
+        code: "invalid_input",
+        details: ["El archivo tiene más de 256 columnas"],
+      });
+    });
   });
 });

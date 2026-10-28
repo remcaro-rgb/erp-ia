@@ -36,7 +36,8 @@ export async function POST(request: Request): Promise<Response> {
   if (file.size > MAX_ATTACHMENT_BYTES) return processProblem("invalid_input", "El archivo supera los 25 MB");
 
   const deps = processDeps();
-  const upload = { entity, fileName: file.name.trim(), mimeType: file.type || "application/octet-stream", bytes: new Uint8Array(await file.arrayBuffer()) };
+  // The client's declared type is ignored: the stored type follows from the file's format (submitImport).
+  const upload = { entity, fileName: file.name.trim(), bytes: new Uint8Array(await file.arrayBuffer()) };
   try {
     const labels = await importLabels(deps.registry, entity);
     if (mode === "preview") return Response.json(await previewImport(deps, caller, upload, labels));

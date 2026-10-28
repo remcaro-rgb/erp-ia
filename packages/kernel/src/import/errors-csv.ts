@@ -70,9 +70,18 @@ export interface FailedRow {
   raw: Record<string, string>;
 }
 
-const csvField = (value: string) => (/[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+/** A value a spreadsheet would run as a formula (`=`, `+`, `-`, `@`, or a tab / carriage return first) is kept as text. */
+const inert = (value: string) => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value);
 
-/** errores.csv: UTF-8 with BOM, ";", CRLF; `fila;error;<the file's headers>` then one line per refused row. */
+const csvField = (raw: string) => {
+  const value = inert(raw);
+  return /[";\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+};
+
+/**
+ * errores.csv: UTF-8 with BOM, ";", CRLF; `fila;error;<the file's headers>` then one line per refused row. Every
+ * cell that starts like a formula is prefixed with `'` (CSV injection: the file is opened in Excel).
+ */
 export function errorsCsv(headers: string[], failed: FailedRow[]): Uint8Array {
   const lines = [["fila", "error", ...headers].map(csvField).join(";")];
   for (const row of failed) {

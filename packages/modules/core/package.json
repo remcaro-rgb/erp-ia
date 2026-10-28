@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -14,6 +16,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@erp/loc-co": "workspace:*"
+    "@erp/loc-co": "workspace:*",
+    "exceljs": "^4.4.0"
   }
 }

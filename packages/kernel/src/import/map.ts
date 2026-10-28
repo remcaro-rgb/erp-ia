@@ -138,3 +138,23 @@ export function mapSheet(columns: ImportColumn[], sheet: ParsedSheet, labels: Im
   });
   return { headers: sheet.headers, mapping, unknownHeaders, missingColumns, records };
 }
+
+/**
+ * Refuses, on its second and later occurrences, a row that repeats an earlier row of the file on the entity's
+ * `importKey` fields (case and surrounding spaces ignored). Rows missing a key value are left to the process.
+ */
+export function markInFileDuplicates(columns: ImportColumn[], records: ImportRecord[], importKey: readonly string[] | undefined, labels: ImportLabels = {}): void {
+  if (!importKey?.length) return;
+  const keyColumns = importKey.map((field) => columns.find((c) => c.field === field));
+  if (keyColumns.some((c) => c === undefined)) return;
+  const names = keyColumns.map((c) => columnLabel(c!, labels)).join(", ");
+  const first = new Map<string, number>();
+  for (const record of records) {
+    const parts = keyColumns.map((c) => record.input[c!.key]);
+    if (parts.some((p) => p === undefined || p === null || String(p).trim() === "")) continue;
+    const key = JSON.stringify(parts.map((p) => String(p).trim().toLowerCase()));
+    const seen = first.get(key);
+    if (seen === undefined) first.set(key, record.rowNo);
+    else record.errors.push(`${names}: repetido en el archivo (igual a la fila ${seen})`);
+  }
+}

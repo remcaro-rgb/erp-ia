@@ -7,7 +7,7 @@ import type { ModuleDef } from "../registry/types";
  * Registers `modules` (their entities, processes and manifests) in dependency order: a module is
  * registered after everything in its `dependsOn`, which must be among `modules` or already in the
  * registry. Throws `module dependency cycle: a -> b -> a`, `missing dependency: <id>` or
- * `duplicate module <id>` before registering anything. Each entry of a module's `events.consumes` is
+ * `duplicate module <id>` or `entity <id>: unknown <create|attach> process <id>` before registering anything. Each entry of a module's `events.consumes` is
  * registered as that module's consumer of the event (design §5.5).
  */
 export function loadModules(registry: Registry, modules: ModuleDef[]): void {
@@ -37,6 +37,16 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     ordered.push(module);
   };
   for (const module of modules) visit(module);
+
+  // An entity's declared processes (`processIds.create` / `.attach`) must exist once these modules are in.
+  const processIds = new Set([...registry.processes().map((p) => p.id), ...modules.flatMap((m) => m.processes.map((p) => p.id))]);
+  for (const module of modules) {
+    for (const entity of module.entities) {
+      for (const [role, id] of Object.entries(entity.processIds ?? {})) {
+        if (id !== undefined && !processIds.has(id)) throw new Error(`entity ${entity.id}: unknown ${role} process ${id}`);
+      }
+    }
+  }
 
   for (const module of ordered) {
     for (const entity of module.entities) registry.registerEntity(defineEntity(entity));

@@ -18,6 +18,11 @@ export interface EntityDef {
    * able to run to attach files to a record (default `<entity id>.update`).
    */
   processIds?: { create?: string; attach?: string };
+  /**
+   * Fields that identify a record among the company's (its unique key): an import refuses a row that repeats an
+   * earlier row of the same file on them, in the preview as in the run.
+   */
+  importKey?: string[];
 }
 
 export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFieldDef[] };
@@ -39,6 +44,9 @@ export function defineEntity(def: EntityDef): ResolvedEntityDef {
     names.add(field.name);
   }
   if (!names.has(def.displayField)) throw new Error(`entity ${def.id}: displayField ${def.displayField} is not a field`);
+  for (const key of def.importKey ?? []) {
+    if (!names.has(key)) throw new Error(`entity ${def.id}: importKey ${key} is not a field`);
+  }
   if (!names.has(def.defaultSort.field)) {
     throw new Error(`entity ${def.id}: defaultSort.field ${def.defaultSort.field} is not a field`);
   }

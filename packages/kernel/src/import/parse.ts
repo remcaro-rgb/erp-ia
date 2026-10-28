@@ -17,6 +17,12 @@ export interface ParsedSheet {
 
 /** Rows one file may carry (prototype: "hasta 50.000 filas por archivo"). */
 export const MAX_IMPORT_ROWS = 50_000;
+/** Columns one file may carry. */
+export const MAX_IMPORT_COLUMNS = 256;
+/** What an XLSX may unpack to, all its parts together, before it is opened (a 25 MB upload can hide far more). */
+export const MAX_XLSX_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
+/** Parts an XLSX may have. */
+const MAX_XLSX_ENTRIES = 1_000;
 
 const FILE_ERROR = Symbol.for("erp.kernel.ImportFileError");
 
@@ -101,15 +107,19 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
+const tooWide = () => new ImportFileError(`El archivo tiene más de ${MAX_IMPORT_COLUMNS} columnas`);
+const tooLong = () => new ImportFileError("El archivo tiene más de 50.000 filas");
+
 const blank = (cells: Cell[]) => cells.every((c) => c === null || (typeof c === "string" && c.trim() === ""));
 
 function sheetOf(lines: Cell[][]): ParsedSheet {
+  if (lines.some((cells) => cells.length > MAX_IMPORT_COLUMNS && cells.slice(MAX_IMPORT_COLUMNS).some((c) => !blank([c])))) throw tooWide();
   const [header = [], ...data] = lines;
   const headers = header.map((h) => (h === null ? "" : String(h).trim()));
   // Trailing unnamed header cells are not columns.
   while (headers.length > 0 && headers[headers.length - 1] === "") headers.pop();
   const rows = data.map((cells, i) => ({ rowNo: i + 2, cells })).filter((r) => !blank(r.cells));
-  if (rows.length > MAX_IMPORT_ROWS) throw new ImportFileError(`El archivo tiene ${rows.length} filas; el máximo es 50.000`);
+  if (rows.length > MAX_IMPORT_ROWS) throw tooLong();
   return { headers, rows };
 }
 
@@ -127,7 +137,42 @@ function xlsxCell(value: ExcelJS.CellValue): Cell {
   return String(value);
 }
 
+/**
+ * Reads the zip's central directory (without unpacking anything) and refuses a workbook whose parts declare more
+ * than `MAX_XLSX_UNCOMPRESSED_BYTES` together or more than `MAX_XLSX_ENTRIES` parts, and a ZIP64 archive (an XLSX of
+ * this size never needs one). A file that is not a zip is not a workbook.
+ */
+export function checkXlsxSize(bytes: Uint8Array): void {
+  const notWorkbook = () => new ImportFileError("El archivo no es un libro de Excel (.xlsx) válido");
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // End of central directory: 22 bytes plus a comment of up to 65535.
+  let eocd = -1;
+  for (let i = bytes.byteLength - 22; i >= Math.max(0, bytes.byteLength - 22 - 0xffff); i--) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw notWorkbook();
+  const entries = view.getUint16(eocd + 10, true);
+  const directoryOffset = view.getUint32(eocd + 16, true);
+  const tooBig = () => new ImportFileError("El libro de Excel es demasiado grande al descomprimirlo");
+  if (entries === 0xffff || directoryOffset === 0xffffffff) throw tooBig();
+  if (entries > MAX_XLSX_ENTRIES) throw tooBig();
+  let at = directoryOffset;
+  let total = 0;
+  for (let n = 0; n < entries; n++) {
+    if (at + 46 > bytes.byteLength || view.getUint32(at, true) !== 0x02014b50) throw notWorkbook();
+    const uncompressed = view.getUint32(at + 24, true);
+    if (uncompressed === 0xffffffff) throw tooBig();
+    total += uncompressed;
+    if (total > MAX_XLSX_UNCOMPRESSED_BYTES) throw tooBig();
+    at += 46 + view.getUint16(at + 28, true) + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+  }
+}
+
 async function readXlsx(bytes: Uint8Array): Promise<Cell[][]> {
+  checkXlsxSize(bytes);
   const book = new ExcelJS.Workbook();
   try {
     await book.xlsx.load(bytes as unknown as ArrayBuffer);
@@ -136,6 +181,9 @@ async function readXlsx(bytes: Uint8Array): Promise<Cell[][]> {
   }
   const sheet = book.worksheets[0];
   if (!sheet) return [];
+  // Only the first sheet is read; its extent is checked before a cell is copied.
+  if (sheet.columnCount > MAX_IMPORT_COLUMNS) throw tooWide();
+  if (sheet.rowCount > MAX_IMPORT_ROWS + 1) throw tooLong();
   const lines: Cell[][] = [];
   sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
     const values = row.values as ExcelJS.CellValue[];
@@ -143,7 +191,6 @@ async function readXlsx(bytes: Uint8Array): Promise<Cell[][]> {
     lines[rowNumber - 1] = values.slice(1).map(xlsxCell);
   });
   for (let i = 0; i < lines.length; i++) lines[i] ??= [];
-  if (lines.length - 1 > MAX_IMPORT_ROWS * 2) throw new ImportFileError(`El archivo tiene más de 50.000 filas`);
   return lines;
 }
 
