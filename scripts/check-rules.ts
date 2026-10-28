@@ -3,14 +3,15 @@
  *
  *  - rule 34: migration files are named NNNN_<module>_<topic>.sql
  *  - rule 24: no Spanish copy in apps/web .tsx outside packages/i18n catalogues
- *  - rule 3:  module processes only write to their own schema
+ *  - rule 3:  module processes only write to their own schema (reads of published views are allowed)
+ *  - CLAUDE.md and AGENTS.md at the root are byte-identical
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write";
+export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "agents-claude-identical";
 
 export interface Violation {
   rule: RuleId;
@@ -19,7 +20,7 @@ export interface Violation {
   message: string;
 }
 
-export const MIGRATION_NAME = /^\d{4}[a-z]?_[a-z]+_[a-z0-9_]+\.sql$/;
+export const MIGRATION_NAME = /^\d{4}_[a-z]+_[a-z0-9_]+\.sql$/;
 const SPANISH_CHARS = /[áéíóúüñÁÉÍÓÚÜÑ¿¡]/;
 const SKIPPED_DIRS = new Set(["node_modules", ".next", ".git", ".turbo", "dist", "coverage"]);
 
@@ -79,42 +80,53 @@ function checkSpanishLiterals(root: string): Violation[] {
   return violations;
 }
 
+// Write verbs followed by `<schema>.`: insert into / update / delete from / truncate / alter table / create ...
+const SQL_WRITE =
+  /\b(?:insert\s+into|update|delete\s+from|truncate(?:\s+table)?|alter\s+table(?:\s+if\s+exists)?(?:\s+only)?|create\s+(?:or\s+replace\s+)?(?:table|view|function|trigger|index|policy))\s+"?([a-z_][a-z0-9_]*)\./gi;
+// supabase-js style: from("<schema>.<table>") followed by a write call.
+const CLIENT_WRITE = /\bfrom\s*\(\s*["'`]([a-z_][a-z0-9_]*)\.[^"'`]*["'`]\s*\)\s*\.(?:insert|update|upsert|delete)\b/gi;
+
 function checkCrossSchemaWrites(root: string): Violation[] {
   const violations: Violation[] = [];
   const modulesDir = join(root, "packages", "modules");
   if (!existsSync(modulesDir)) return violations;
   for (const mod of readdirSync(modulesDir).sort()) {
     const processesDir = join(modulesDir, mod, "src", "processes");
-    // Raw SQL writes, and supabase-js style `from("<schema>.<table>")`.
-    const writesTo = (schema: string) =>
-      new RegExp(
-        `(?:\\binsert\\s+into|\\bupdate|\\bdelete\\s+from|\\btruncate(?:\\s+table)?|\\bfrom\\s*\\(?\\s*)\\s*["'\`]?${schema}\\.`,
-        "i",
-      );
     for (const file of walk(processesDir).filter((f) => /\.(ts|tsx|sql)$/.test(f))) {
-      readFileSync(file, "utf8")
-        .split("\n")
-        .forEach((text, index) => {
-          const match = /\b([a-z_][a-z0-9_]*)\.[a-z_]/gi;
-          for (const m of text.matchAll(match)) {
-            const schema = m[1]!.toLowerCase();
-            if (schema === mod || !writesTo(schema).test(text)) continue;
-            violations.push({
-              rule: "cross-schema-write",
-              file: rel(root, file),
-              line: index + 1,
-              message: `module "${mod}" writes to schema "${schema}"; use a published process or an outbox event`,
-            });
-            break;
-          }
-        });
+      const text = readFileSync(file, "utf8");
+      for (const pattern of [SQL_WRITE, CLIENT_WRITE]) {
+        for (const m of text.matchAll(pattern)) {
+          const schema = m[1]!.toLowerCase();
+          if (schema === mod) continue;
+          violations.push({
+            rule: "cross-schema-write",
+            file: rel(root, file),
+            line: text.slice(0, m.index).split("\n").length,
+            message: `module "${mod}" writes to schema "${schema}"; use a published process or an outbox event`,
+          });
+        }
+      }
     }
   }
-  return violations;
+  return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
+}
+
+function checkInstructionFiles(root: string): Violation[] {
+  const claude = join(root, "CLAUDE.md");
+  const agents = join(root, "AGENTS.md");
+  if (!existsSync(claude) || !existsSync(agents)) return [];
+  if (readFileSync(claude).equals(readFileSync(agents))) return [];
+  return [
+    {
+      rule: "agents-claude-identical",
+      file: "AGENTS.md",
+      message: "AGENTS.md must be byte-identical to CLAUDE.md",
+    },
+  ];
 }
 
 export function checkRules(root: string): Violation[] {
-  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root)];
+  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkInstructionFiles(root)];
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

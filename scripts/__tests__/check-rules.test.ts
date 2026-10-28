@@ -20,10 +20,10 @@ afterEach(() => {
 });
 
 describe("check-rules: migration names (rule 34)", () => {
-  it("accepts NNNN_module_topic.sql and NNNNx_module_topic.sql", () => {
+  it("accepts NNNN_module_topic.sql", () => {
     put("supabase/migrations/.keep");
     put("supabase/migrations/0001_kernel_tenancy.sql");
-    put("supabase/migrations/0006b_kernel_attachments.sql");
+    put("supabase/migrations/0006_kernel_attachments.sql");
     expect(checkRules(root)).toEqual([]);
   });
 
@@ -37,10 +37,15 @@ describe("check-rules: migration names (rule 34)", () => {
     });
   });
 
-  it("flags a migration with a timestamp-style or uppercase name", () => {
+  it("flags a migration with a timestamp-style, letter-suffixed or uppercase name", () => {
     put("supabase/migrations/20261028010101_init.sql");
     put("supabase/migrations/0002_Kernel_audit.sql");
-    expect(checkRules(root).map((v) => v.rule)).toEqual(["migration-name", "migration-name"]);
+    put("supabase/migrations/0006b_kernel_attachments.sql");
+    expect(checkRules(root).map((v) => v.rule)).toEqual([
+      "migration-name",
+      "migration-name",
+      "migration-name",
+    ]);
   });
 });
 
@@ -98,6 +103,42 @@ describe("check-rules: cross-schema writes in module processes (rule 3)", () => 
     expect(checkRules(root).map((v) => v.line)).toEqual([1, 2, 3]);
   });
 
+  it("flags a statement split across lines", () => {
+    put(
+      "packages/modules/sales/src/processes/multi.ts",
+      "const a = 1;\ntx`insert into\n  core.parties(id)\n  values (${1})`;\n",
+    );
+    const violations = checkRules(root);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ rule: "cross-schema-write", line: 2 });
+  });
+
+  it("flags a supabase-js write whose call is split across lines", () => {
+    put(
+      "packages/modules/sales/src/processes/multi2.ts",
+      'await db\n  .from("core.parties")\n  .upsert({});\n',
+    );
+    expect(checkRules(root).map((v) => v.rule)).toEqual(["cross-schema-write"]);
+  });
+
+  it("allows reading another schema (published views)", () => {
+    put(
+      "packages/modules/sales/src/processes/read.ts",
+      [
+        "tx`select * from core.v_parties where id = ${1}`;",
+        'await db.from("core.v_parties").select();',
+        "tx`insert into sales.orders(party_id) select id from core.v_parties`;",
+        "tx`insert into sales.orders(id) values (1)`; tx`select 1 from kernel.v_x`;",
+      ].join("\n"),
+    );
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("flags DDL on another schema", () => {
+    put("packages/modules/sales/src/processes/ddl.ts", "tx`alter table core.parties add column x int`;\n");
+    expect(checkRules(root).map((v) => v.rule)).toEqual(["cross-schema-write"]);
+  });
+
   it("accepts writes to the module's own schema and writes outside processes/", () => {
     put(
       "packages/modules/core/src/processes/ok.ts",
@@ -105,5 +146,21 @@ describe("check-rules: cross-schema writes in module processes (rule 3)", () => 
     );
     put("packages/modules/core/src/other.ts", "tx`insert into kernel.x(id) values (1)`;\n");
     expect(checkRules(root)).toEqual([]);
+  });
+});
+
+describe("check-rules: CLAUDE.md and AGENTS.md (project instructions)", () => {
+  it("passes when the two files are byte-identical", () => {
+    put("CLAUDE.md", "# rules\n");
+    put("AGENTS.md", "# rules\n");
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("flags files that differ", () => {
+    put("CLAUDE.md", "# rules\n");
+    put("AGENTS.md", "# rules (copy)\n");
+    const violations = checkRules(root);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ rule: "agents-claude-identical", file: "AGENTS.md" });
   });
 });

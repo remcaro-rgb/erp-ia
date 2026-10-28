@@ -16,7 +16,7 @@
     "typecheck": "turbo run typecheck",
     "check:rules": "tsx scripts/check-rules.ts",
     "db:reset": "supabase db reset",
-    "db:migrate:new": "supabase migration new"
+    "db:migrate:new": "tsx scripts/new-migration.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

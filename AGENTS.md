@@ -1,4 +1,4 @@
-# ERP-IA · instructions for every agent and session (same content as CLAUDE.md; keep both in sync)
+# ERP-IA · instructions for every agent and session
 
 These instructions apply to every task in this repository, whichever model or tool runs it (Claude Code sessions, subagents, workflows, other coding agents reading `AGENTS.md`). They are the owner's standing orders.
 
