@@ -7,7 +7,7 @@ import { runProcess } from "../process/run";
 import { registry } from "../registry";
 import { errorsCsv } from "./errors-csv";
 import { ERRORS_FILE_NAME, ERRORS_TAG, failImport, forgetJob, importSummaryText, loadJob, recordImport, sourceOf, type ImportSummary } from "./job";
-import type { ImportLabels } from "./map";
+import { inFileDuplicates, type ImportLabels } from "./map";
 import { ImportFileError } from "./parse";
 import { resolveReferences, runRecords } from "./validate";
 
@@ -51,6 +51,10 @@ export async function runImport(args: RunImportArgs): Promise<ImportSummary> {
       valid.push(...batch.valid);
       failed.push(...batch.failed);
     }
+    // In-file duplicates are judged among the valid rows of the whole file, before anything is created.
+    const screened = await screenDuplicates(args, valid, failed.length);
+    failed.push(...screened.failed);
+    valid.splice(0, valid.length, ...screened.valid);
     let created = 0;
     for (let at = 0; at < valid.length; at += IMPORT_BATCH) {
       const batch = await createBatch(args, valid.slice(at, at + IMPORT_BATCH), { created, failed: failed.length });
@@ -103,6 +107,21 @@ export async function validateBatch(args: RunImportArgs, from: number, failedBef
   const failed = run.outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors }));
   await recordImport(sql, args, { rows_failed: failedBefore + failed.length });
   return { valid: run.outcomes.filter((o) => o.ok).map((o) => o.index), failed, ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}) };
+}
+
+/**
+ * Refuses the valid rows that repeat an earlier valid row of the file on the entity's unique key (in file order), so
+ * the second occurrence never reaches the create process. Records the refused rows so far on the import.
+ */
+export async function screenDuplicates(args: RunImportArgs, valid: number[], failedBefore: number): Promise<{ valid: number[]; failed: Failure[] }> {
+  "use step";
+  const sql = getServiceDb();
+  const job = await loadJob(sql, args.importId, args.labels);
+  const duplicates = inFileDuplicates(job.columns, valid.map((index) => ({ index, record: job.sheet.records[index]! })), job.importKey, args.labels);
+  if (duplicates.size === 0) return { valid, failed: [] };
+  const failed = [...duplicates].map(([index, error]) => ({ index, errors: [error] }));
+  await recordImport(sql, args, { rows_failed: failedBefore + failed.length });
+  return { valid: valid.filter((index) => !duplicates.has(index)), failed };
 }
 
 /**

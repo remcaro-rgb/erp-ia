@@ -113,21 +113,22 @@ describe("runProcess dry run", () => {
 
   it("an invalid input is refused with invalid_input and its paths, as in a real run", async () => {
     const error = await runProcess(deps(), as(admin), ids.create, { name: "" }, { dryRun: true }).catch((e: unknown) => e);
-    expect(error).toMatchObject({ code: "invalid_input" });
+    expect(error).toMatchObject({ code: "invalid_input", stage: "gate" });
     expect((error as { details: { path: string[] }[] }).details[0]!.path).toEqual(["name"]);
   });
 
   it("a handler refusal keeps its code and details and its writes are rolled back", async () => {
     const chainId = randomUUID();
     const error = await runProcess(deps(), as(admin, { chainId }), ids.refuse, { name: "dry-refused" }, { dryRun: true }).catch((e: unknown) => e);
-    expect(error).toMatchObject({ code: "invalid_input", details: ["El nombre ya existe"] });
+    // Thrown by the handler, not by the pipeline's own checks.
+    expect(error).toMatchObject({ code: "invalid_input", details: ["El nombre ya existe"], stage: "handler" });
     expect(await probes("dry-refused")).toBe(0);
     expect(await audits(chainId)).toBe(0);
   });
 
   it("a forbidden dry run is refused and the denial is audited", async () => {
     const chainId = randomUUID();
-    await expect(runProcess(deps(), as(member, { chainId }), ids.create, { name: "dry-member" }, { dryRun: true })).rejects.toMatchObject({ code: "forbidden" });
+    await expect(runProcess(deps(), as(member, { chainId }), ids.create, { name: "dry-member" }, { dryRun: true })).rejects.toMatchObject({ code: "forbidden", stage: "gate" });
     const [denied] = await sql`select action, process_id from kernel.audit_log where chain_id = ${chainId}`;
     expect(denied).toMatchObject({ action: "denied", process_id: ids.create });
   });

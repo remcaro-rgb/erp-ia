@@ -15,7 +15,7 @@ export { defineProcess } from "./process/define";
 export { runProcess } from "./process/run";
 export type { RunProcessDeps, RunProcessOptions } from "./process/run";
 export { ProcessError } from "./process/errors";
-export type { ProcessErrorCode } from "./process/errors";
+export type { ProcessErrorCode, ProcessErrorStage } from "./process/errors";
 export type { Caller, ProcessContext } from "./process/context";
 export { defineModule } from "./module/define";
 export { loadModules } from "./module/loader";

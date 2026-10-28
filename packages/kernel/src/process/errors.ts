@@ -7,6 +7,13 @@ export type ProcessErrorCode =
   | "handler_failed"
   | "idempotent_replay";
 
+/**
+ * Where a refusal comes from: `gate` when the pipeline of `runProcess` refuses before or around the handler (unknown
+ * process, entitlement, permission, step-up, input schema), `handler` when the process's own handler throws (its
+ * rules about the record: a country-pack error, a party scope the record's kind falls outside of).
+ */
+export type ProcessErrorStage = "gate" | "handler";
+
 /** Marks every ProcessError, whichever copy of this module created it. */
 const BRAND = Symbol.for("erp.kernel.ProcessError");
 
@@ -21,12 +28,15 @@ const BRAND = Symbol.for("erp.kernel.ProcessError");
 export class ProcessError extends Error {
   readonly code: ProcessErrorCode;
   readonly details?: unknown;
+  /** `handler` unless `runProcess` raised it from its own checks (`gate`). */
+  readonly stage: ProcessErrorStage;
   readonly [BRAND] = true;
 
-  constructor(code: ProcessErrorCode, message: string, options: { details?: unknown; cause?: unknown } = {}) {
+  constructor(code: ProcessErrorCode, message: string, options: { details?: unknown; cause?: unknown; stage?: ProcessErrorStage } = {}) {
     super(message, "cause" in options ? { cause: options.cause } : undefined);
     this.name = "ProcessError";
     this.code = code;
+    this.stage = options.stage ?? "handler";
     if (options.details !== undefined) this.details = options.details;
   }
 

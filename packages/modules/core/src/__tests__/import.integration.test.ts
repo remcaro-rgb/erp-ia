@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { IMPORT_PROCESSES, importColumns, kernelModule, loadModules, registry, runProcess, setFileStore, type Caller, type RunProcessDeps } from "@erp/kernel";
 import ExcelJS from "exceljs";
-import { abandonImport, beginImport, buildTemplate, createBatch, previewImport, runImport, submitImport, validateBatch } from "@erp/kernel/import";
-import { MemoryFileStore } from "@erp/kernel/testing";
+import { abandonImport, beginImport, buildTemplate, createBatch, MAX_XLSX_UNCOMPRESSED_BYTES, previewImport, runImport, submitImport, validateBatch } from "@erp/kernel/import";
+import { deflatedZeros, forgedZip, MemoryFileStore } from "@erp/kernel/testing";
 import { core } from "../index";
 import { coreHarness, type CoreHarness } from "./helpers";
 
@@ -185,8 +185,9 @@ describe("mass import into core", () => {
 
   describe("visibility, counts and refusals (review round 1)", () => {
     /** A user of company 0 holding only `roleId` (a role made for the test, so grants do not leak to other members). */
-    const userWithRole = async (name: string, processes: string[]) => {
-      const [role] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${h.companyId}, ${name}, false) returning id`;
+    const userWithRole = async (name: string, processes: string[], partyScope = "ambos") => {
+      const [role] = await h.sql<{ id: string }[]>`
+        insert into kernel.roles(company_id, name, is_system, party_scope) values (${h.companyId}, ${name}, false, ${partyScope}) returning id`;
       await h.grantAll(h.companyId, role!.id, processes);
       const userId = h.seed.users.clerk!;
       return { ...h.seed.claimsFor(userId, h.companyId), role_ids: [role!.id] };
@@ -218,6 +219,13 @@ describe("mass import into core", () => {
       const [source] = await h.sql<{ id: string }[]>`select id from kernel.attachments where entity = 'kernel.import' and record_id = ${ids.importId}`;
       // The signed download (GET /api/attachments?id=) is granted only through kernel.attachment.list: refused above.
       await expect(runProcess(deps, otherCaller, "kernel.attachment.remove", { id: source!.id })).rejects.toMatchObject({ code: "forbidden" });
+      // A reader who may run kernel.import.run (so attaching files to imports is allowed in general) still cannot
+      // remove a file of an import they neither started nor administer: the record is not visible to them.
+      const [importerRole] = await h.sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${h.companyId}, 'lector_importador', false) returning id`;
+      await h.grantAll(h.companyId, importerRole!.id, ["kernel.attachment.remove", "kernel.import.run"]);
+      const otherImporter = { claims: { ...other, role_ids: [importerRole!.id] }, origin: "ui" as const };
+      await expect(runProcess(deps, otherImporter, "kernel.attachment.remove", { id: source!.id })).rejects.toMatchObject({ code: "not_found" });
+      expect((await h.sql`select removed_at from kernel.attachments where id = ${source!.id}`)[0]!.removed_at).toBeNull();
       const viaView = await h.sql.begin(async (tx) => {
         await tx`select set_config('request.jwt.claims', ${JSON.stringify({ role: "authenticated", ...other })}, true)`;
         await tx`set local role authenticated`;
@@ -291,6 +299,42 @@ describe("mass import into core", () => {
         code: "invalid_input",
         details: ["El archivo tiene más de 256 columnas"],
       });
+    });
+
+    it("a party outside the role's scope refuses that row only, in the preview and the run (review round 2)", async () => {
+      const claims = await userWithRole("solo_clientes", IMPORTER, "clientes");
+      const supplierRow = partyLine("909000003", "Proveedor Fuera S.A.S.").replace(/^customer;/, "supplier;");
+      const file = csv(HEADER, partyLine("909000001"), supplierRow, partyLine("909000002"));
+      const preview = await previewImport(deps, { claims, origin: "ui" }, { entity: "core.party", fileName: "alcance.csv", bytes: file });
+      expect(preview.rows.map((r) => r.ok)).toEqual([true, false, true]);
+      expect(preview.rows[1]!.errors).toEqual(["El alcance de tu rol no cubre terceros de tipo proveedor"]);
+      const ids = await submitImport(deps, { claims, origin: "ui", stepUpToken: await stepUp(claims.sub) }, { entity: "core.party", fileName: "alcance.csv", bytes: file });
+      const summary = await runImport({ ...ids, claims });
+      expect(summary).toMatchObject({ status: "done", created: 2, rejected: 1 });
+      expect(await partiesWith("909000001")).toBe(1);
+      expect(await partiesWith("909000003")).toBe(0);
+      const [, refused] = await errorsFile((await importRow(ids.importId)).errors_attachment_id);
+      expect(refused).toMatch(/^3;El alcance de tu rol no cubre terceros de tipo proveedor;/);
+    });
+
+    it("a corrected copy of a refused row is not an in-file duplicate", async () => {
+      const bad = partyLine("910000001", "Correo Malo S.A.S.").replace("fe@empresa.co", "correo-malo").replace(/fe@cliente\d+\.co$/, "correo-malo");
+      const file = csv(HEADER, bad, partyLine("910000001", "Correo Bueno S.A.S."));
+      const preview = await previewImport(deps, h.admin, { entity: "core.party", fileName: "corregido.csv", bytes: file });
+      expect(preview.rows.map((r) => r.ok)).toEqual([false, true]);
+      expect(preview.rows[0]!.errors.join(" ")).toContain("Correo de facturas");
+      const { summary } = await runFile("corregido.csv", file);
+      expect(summary).toMatchObject({ created: 1, rejected: 1 });
+      expect(await partiesWith("910000001")).toBe(1);
+    });
+
+    it("a workbook part that lies about its size is refused as invalid_input without being inflated whole", async () => {
+      const bomb = forgedZip({ data: await deflatedZeros(2 * MAX_XLSX_UNCOMPRESSED_BYTES), method: 8, declaredSize: 1024 });
+      await expect(previewImport(deps, h.admin, { entity: "core.party", fileName: "bomba.xlsx", bytes: bomb })).rejects.toMatchObject({
+        code: "invalid_input",
+        details: ["El libro de Excel es demasiado grande al descomprimirlo"],
+      });
+      await expect(submitImport(deps, await adminCaller(), { entity: "core.party", fileName: "bomba.xlsx", bytes: bomb })).rejects.toMatchObject({ code: "invalid_input" });
     });
   });
 });

@@ -62,8 +62,15 @@ export async function writableParty(ctx: ProcessContext, partyId: string): Promi
 /** Throws `forbidden` when a party with these kinds may not be written under the caller's party scope. */
 export async function assertScopeCovers(ctx: ProcessContext, kind: readonly string[]): Promise<void> {
   const [row] = await ctx.tx<{ ok: boolean }[]>`select core.party_scope_covers(kernel.party_scope(), ${kind as string[]}::text[]) as ok`;
-  if (!row?.ok) throw new ProcessError("forbidden", `the caller's party scope does not cover ${kind.join(", ")}`);
+  if (!row?.ok) {
+    throw new ProcessError("forbidden", `the caller's party scope does not cover ${kind.join(", ")}`, {
+      details: [`El alcance de tu rol no cubre terceros de tipo ${kind.map((k) => KIND_NAMES[k] ?? k).join(" y ")}`],
+    });
+  }
 }
+
+/** The party kinds as the user reads them, for refusals. */
+const KIND_NAMES: Record<string, string> = { customer: "cliente", supplier: "proveedor", employee: "empleado" };
 
 /**
  * Copies `input` without the keys whose value is undefined: what a partial update actually sets,

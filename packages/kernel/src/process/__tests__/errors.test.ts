@@ -14,4 +14,9 @@ describe("ProcessError", () => {
     expect(foreign).toBeInstanceOf(ProcessError);
     expect(new ProcessError("not_found", "z")).toBeInstanceOf(copy.ProcessError);
   });
+
+  it("is a handler refusal unless the pipeline says it is a gate one", () => {
+    expect(new ProcessError("forbidden", "x").stage).toBe("handler");
+    expect(new ProcessError("forbidden", "x", { stage: "gate" }).stage).toBe("gate");
+  });
 });

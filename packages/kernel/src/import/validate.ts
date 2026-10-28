@@ -57,7 +57,11 @@ export async function resolveReferences(
   });
 }
 
-/** Refusals that are about the caller, not the row: the first one stops the run (one denial, not one per row). */
+/**
+ * Refusals of the caller by the pipeline (`stage: "gate"`): the same for every row, so the first one stops the run
+ * (one denial, not one per row). The same codes thrown by the handler are about the row (a party kind outside the
+ * caller's scope) and only refuse that row.
+ */
 const STOPS = new Set(["step_up_required", "forbidden", "not_entitled"]);
 
 export interface RecordsRun {
@@ -90,7 +94,7 @@ export async function runRecords(
       await runProcess(deps, caller, processId, record.input, { dryRun: options.dryRun, idempotencyKey: options.keyOf?.(index) });
       outcomes.push({ index, rowNo: record.rowNo, ok: true, errors: [] });
     } catch (error) {
-      if (error instanceof ProcessError && STOPS.has(error.code)) return { outcomes, stoppedBy: error.code };
+      if (error instanceof ProcessError && error.stage === "gate" && STOPS.has(error.code)) return { outcomes, stoppedBy: error.code };
       outcomes.push({ index, rowNo: record.rowNo, ok: false, errors: describeFailure(error, columns, options.labels, record.input) });
     }
   }

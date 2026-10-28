@@ -8,9 +8,10 @@ import { ProcessError } from "../process/errors";
 import { defineEntity, Registry } from "../registry";
 import { importColumns, importTarget } from "../import/columns";
 import { describeFailure, errorsCsv } from "../import/errors-csv";
-import { mapSheet, markInFileDuplicates } from "../import/map";
+import { inFileDuplicates, mapSheet } from "../import/map";
 import { checkXlsxSize, decodeText, ImportFileError, MAX_IMPORT_ROWS, MAX_XLSX_UNCOMPRESSED_BYTES, parseCsv, parseImportFile } from "../import/parse";
 import { buildTemplate } from "../import/template";
+import { deflatedZeros, forgedZip } from "../import/zip-fixtures";
 
 // Mass import (Task 13b), the pure parts: the columns a create process accepts, the template built from them,
 // the CSV / XLSX reader, the header mapping with typed coercion and errores.csv.
@@ -92,37 +93,6 @@ function gadgetRegistry(): Registry {
 
 const LABELS = { name: "Nombre", kind: "Tamaño", tags: "Etiquetas", price: "Precio", active: "Activo", makerId: "Fabricante", note: "Nota" };
 const bytes = (text: string) => new TextEncoder().encode(text);
-/** A zip with one stored part whose central directory declares `uncompressed` bytes (nothing is unpacked to check it). */
-function zipDeclaring(uncompressed: number): Uint8Array {
-  const name = new TextEncoder().encode("xl/workbook.xml");
-  const local = new Uint8Array(30 + name.length + 1);
-  const lv = new DataView(local.buffer);
-  lv.setUint32(0, 0x04034b50, true);
-  lv.setUint32(18, 1, true);
-  lv.setUint32(22, uncompressed, true);
-  lv.setUint16(26, name.length, true);
-  local.set(name, 30);
-  const central = new Uint8Array(46 + name.length);
-  const cv = new DataView(central.buffer);
-  cv.setUint32(0, 0x02014b50, true);
-  cv.setUint32(20, 1, true);
-  cv.setUint32(24, uncompressed, true);
-  cv.setUint16(28, name.length, true);
-  central.set(name, 46);
-  const end = new Uint8Array(22);
-  const ev = new DataView(end.buffer);
-  ev.setUint32(0, 0x06054b50, true);
-  ev.setUint16(8, 1, true);
-  ev.setUint16(10, 1, true);
-  ev.setUint32(12, central.length, true);
-  ev.setUint32(16, local.length, true);
-  const zip = new Uint8Array(local.length + central.length + end.length);
-  zip.set(local, 0);
-  zip.set(central, local.length);
-  zip.set(end, local.length + central.length);
-  return zip;
-}
-
 /** Decodes keeping a BOM, so the tests can see it. */
 const text = (data: Uint8Array) => new TextDecoder("utf-8", { ignoreBOM: true }).decode(data);
 
@@ -231,10 +201,24 @@ describe("import parsing", () => {
   });
 
   it("refuses an XLSX whose parts declare more than 64 MB unpacked, before opening it", async () => {
-    const bomb = zipDeclaring(MAX_XLSX_UNCOMPRESSED_BYTES + 1);
+    const declared = forgedZip({ data: new Uint8Array([1]), method: 0, declaredSize: MAX_XLSX_UNCOMPRESSED_BYTES + 1 });
+    expect(() => checkXlsxSize(declared)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
+    await expect(parseImportFile(declared, "bomba.xlsx")).rejects.toBeInstanceOf(ImportFileError);
+  });
+
+  it("refuses an XLSX part that declares 1 KB but really inflates past the cap, without inflating it whole", async () => {
+    // 256 MB of zeros deflate to ~260 KB; the zip claims 1 KB. The check inflates at most the 64 MB cap, then stops.
+    const real = 4 * MAX_XLSX_UNCOMPRESSED_BYTES;
+    const bomb = forgedZip({ data: await deflatedZeros(real), method: 8, declaredSize: 1024 });
+    expect(bomb.byteLength).toBeLessThan(1024 * 1024);
+    const before = process.memoryUsage().arrayBuffers;
     expect(() => checkXlsxSize(bomb)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
-    await expect(parseImportFile(bomb, "bomba.xlsx")).rejects.toBeInstanceOf(ImportFileError);
-    expect(() => checkXlsxSize(zipDeclaring(1024))).not.toThrow();
+    // What the inflater held is bounded by the cap (plus slack), never the real inflated size.
+    expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(MAX_XLSX_UNCOMPRESSED_BYTES + 8 * 1024 * 1024);
+    await expect(parseImportFile(bomb, "bomba.xlsx")).rejects.toThrow("demasiado grande");
+    // A small honest part passes.
+    const honest = forgedZip({ data: await deflatedZeros(4096), method: 8, declaredSize: 4096 });
+    expect(() => checkXlsxSize(honest)).not.toThrow();
   });
 
   it("refuses a file wider than 256 columns, CSV or XLSX", async () => {
@@ -257,6 +241,12 @@ describe("import mapping", () => {
     expect(mapped.mapping).toEqual(["name", "kind", "tags", "makerId", "active", null]);
     expect(mapped.unknownHeaders).toEqual(["Color"]);
     expect(mapped.missingColumns).toEqual([]);
+  });
+
+  it("drops the quote errores.csv puts before a formula-like value, so a corrected errores.csv imports as the original", () => {
+    const mapped = mapSheet(columns(), sheet(["Nombre", "Precio", "Nota"], ["'+57 300", "'-12,5", "'hola"]), LABELS);
+    expect(mapped.records[0]!.input).toMatchObject({ name: "+57 300", price: -12.5, note: "'hola" });
+    expect(mapped.records[0]!.raw).toMatchObject({ Nombre: "+57 300", Precio: "-12,5" });
   });
 
   it("lists the required columns the header lacks", () => {
@@ -291,11 +281,23 @@ describe("import mapping", () => {
 });
 
 describe("in-file duplicates", () => {
-  it("refuse the second and later rows that repeat the key, naming the first row; blank keys are left to the process", () => {
-    const columns = importColumns(gadgetRegistry(), "gadgets.gadget");
-    const mapped = mapSheet(columns, { headers: ["Nombre", "Tamaño"], rows: [["Uno", "small"], [" uno ", "large"], ["", "small"], ["", "small"], ["UNO", "small"]].map((cells, i) => ({ rowNo: i + 2, cells })) }, LABELS);
-    markInFileDuplicates(columns, mapped.records, ["name"], LABELS);
-    expect(mapped.records.map((r) => r.errors)).toEqual([[], ["Nombre: repetido en el archivo (igual a la fila 2)"], [], [], ["Nombre: repetido en el archivo (igual a la fila 2)"]]);
+  const columns = () => importColumns(gadgetRegistry(), "gadgets.gadget");
+  const rows = (...names: string[]) =>
+    mapSheet(columns(), { headers: ["Nombre"], rows: names.map((name, i) => ({ rowNo: i + 2, cells: [name] })) }, LABELS).records.map((record, index) => ({ index, record }));
+
+  it("refuse the second and later valid rows that repeat the key, naming the first row; blank keys are left to the process", () => {
+    const all = rows("Uno", " uno ", "", "", "UNO");
+    const found = inFileDuplicates(columns(), all, ["name"], LABELS);
+    expect([...found]).toEqual([
+      [1, "Nombre: repetido en el archivo (igual a la fila 2)"],
+      [4, "Nombre: repetido en el archivo (igual a la fila 2)"],
+    ]);
+  });
+
+  it("count only the rows given (the valid ones): a corrected copy of a refused row is not a duplicate", () => {
+    const all = rows("Uno", "Uno");
+    // Row 2 was refused by the dry run; only row 3 is valid.
+    expect(inFileDuplicates(columns(), [all[1]!], ["name"], LABELS).size).toBe(0);
   });
 });
 

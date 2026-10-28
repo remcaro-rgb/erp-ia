@@ -46,6 +46,9 @@ class DryRunRollback {
   constructor(readonly output: unknown) {}
 }
 
+/** Refusals the pipeline raises itself carry `stage: "gate"`; the handler's own keep the default `handler`. */
+const GATE = { stage: "gate" } as const;
+
 /** Refusals recorded in the audit log with action `denied` (design §5.4 step 2). */
 const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up_required"]);
 
@@ -100,7 +103,7 @@ async function execute<O extends z.ZodTypeAny>(
   // The process key already resolves through its feature and module (and a module the company disabled).
   // The kernel is the platform, not something a tenant buys: its processes are always entitled.
   if (def.module !== "kernel" && !(await entitled(deps.sql, companyId, `process:${def.id}`))) {
-    throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`);
+    throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`, GATE);
   }
 
   const stepUpToken = caller.stepUpToken ?? null;
@@ -121,13 +124,13 @@ async function execute<O extends z.ZodTypeAny>(
   });
   // A self-service process (`permission: "none"`) needs no row in the role matrix, only membership of the
   // active company; everything else needs a role that allows it.
-  if (def.permission === "none" ? !gate.member : !gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`);
+  if (def.permission === "none" ? !gate.member : !gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`, GATE);
   const stepUp = gate.sensitive || def.sensitivity === "step-up";
-  if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`);
+  if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`, GATE);
 
   const parsed = def.input.safeParse(input);
   if (!parsed.success) {
-    throw new ProcessError("invalid_input", `invalid input for ${def.id}`, { details: parsed.error.issues });
+    throw new ProcessError("invalid_input", `invalid input for ${def.id}`, { details: parsed.error.issues, stage: "gate" });
   }
 
   const key = options.idempotencyKey ?? def.idempotencyKey?.(parsed.data);
@@ -168,7 +171,7 @@ async function execute<O extends z.ZodTypeAny>(
           on conflict do nothing
           returning key`;
         // A concurrent run with the same key committed first: undo this one and replay that one.
-        if (inserted.length === 0) throw new ProcessError("idempotent_replay", `${def.id} already ran with key ${key}`);
+        if (inserted.length === 0) throw new ProcessError("idempotent_replay", `${def.id} already ran with key ${key}`, GATE);
       }
       return output as z.infer<O>;
     });
@@ -186,7 +189,7 @@ function resolve(registry: Registry, processId: string): ProcessDef {
   try {
     return registry.process(processId);
   } catch {
-    throw new ProcessError("not_found", `unknown process: ${processId}`);
+    throw new ProcessError("not_found", `unknown process: ${processId}`, GATE);
   }
 }
 
@@ -208,7 +211,7 @@ async function consumeStepUp(tx: Tx, processId: string, token: string, userId: s
     where token = ${token} and user_id = ${userId} and company_id = ${companyId}
       and verified_at > now() - interval '5 minutes' and consumed_at is null
     returning id`;
-  if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`);
+  if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`, GATE);
 }
 
 function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean): ProcessContext {

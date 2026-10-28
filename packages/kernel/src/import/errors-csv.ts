@@ -60,6 +60,9 @@ export function describeFailure(error: unknown, columns: ImportColumn[], labels:
       typeof detail === "string" ? detail : issueText((detail ?? {}) as Issue, columns, labels, input),
     );
   }
+  // A refusal that explains itself (the handler's message for the user) is kept.
+  const own = Array.isArray(error.details) ? error.details.filter((d): d is string => typeof d === "string") : [];
+  if (own.length > 0) return own;
   return [DENIED[error.code] ?? "No se pudo crear el registro"];
 }
 

@@ -4,7 +4,7 @@ import type { JwtClaims } from "../db/client";
 import { fileStore } from "../files/store";
 import { registry } from "../registry";
 import { importColumns, importTarget, type ImportColumn } from "./columns";
-import { mapSheet, markInFileDuplicates, type ImportLabels, type MappedSheet } from "./map";
+import { mapSheet, type ImportLabels, type MappedSheet } from "./map";
 import { ImportFileError, parseImportFile } from "./parse";
 
 // The server-side state of one import, shared by the submit helper and the workflow steps: the record's source
@@ -22,6 +22,8 @@ const RUN_PROCESS = "kernel.import.run";
 export interface ImportJob {
   importId: string;
   entity: string;
+  /** The entity's unique key fields, for the in-file duplicates. */
+  importKey?: string[];
   fileName: string;
   createProcess: string;
   columns: ImportColumn[];
@@ -73,9 +75,7 @@ export function loadJob(sql: Sql, importId: string, labels: ImportLabels = {}): 
       const parsed = await parseImportFile(bytes, source.file_name);
       const { entity, createProcess } = importTarget(registry, source.entity);
       const columns = importColumns(registry, source.entity);
-      const sheet = mapSheet(columns, parsed, labels);
-      markInFileDuplicates(columns, sheet.records, entity.importKey, labels);
-      return { importId, entity: source.entity, fileName: source.file_name, createProcess: createProcess.id, columns, sheet };
+      return { importId, entity: source.entity, importKey: entity.importKey, fileName: source.file_name, createProcess: createProcess.id, columns, sheet: mapSheet(columns, parsed, labels) };
     })();
     cache.set(importId, job);
     // A failed read is not kept: a retried step reads again.

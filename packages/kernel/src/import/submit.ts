@@ -5,7 +5,7 @@ import { ProcessError } from "../process/errors";
 import { runProcess, type RunProcessDeps } from "../process/run";
 import type { ImportColumn } from "./columns";
 import { failImport, SOURCE_TAG } from "./job";
-import { columnLabel, mapSheet, markInFileDuplicates, type ImportLabels } from "./map";
+import { columnLabel, inFileDuplicates, mapSheet, type ImportLabels } from "./map";
 import { importFormatOf, type ImportFormat } from "./format";
 import { ImportFileError, parseImportFile } from "./parse";
 import { resolveReferences, runRecords } from "./validate";
@@ -72,12 +72,14 @@ export async function previewImport(deps: RunProcessDeps, caller: Caller, upload
     throw error;
   }
   const mapped = mapSheet(columns, sheet, labels);
-  markInFileDuplicates(columns, mapped.records, deps.registry.entity(upload.entity).importKey, labels);
   const shown = mapped.records.slice(0, PREVIEW_ROWS);
   await resolveReferences(deps, caller, columns, shown, labels);
   const run = await runRecords(deps, caller, createProcess, columns, shown.map((record, index) => ({ index, record })), { dryRun: true, labels });
   // A denial of the caller on the rows is the same for every row: one refusal for the whole file.
   if (run.stoppedBy) throw new ProcessError("invalid_input", `import rows refused: ${run.stoppedBy}`, { details: [STOP_DETAILS[run.stoppedBy] ?? run.stoppedBy] });
+  // Among the valid rows, a repeat of an earlier one is refused as the run refuses it.
+  const duplicates = inFileDuplicates(columns, run.outcomes.filter((o) => o.ok).map((o) => ({ index: o.index, record: shown[o.index]! })), deps.registry.entity(upload.entity).importKey, labels);
+  const outcomes = run.outcomes.map((o) => (duplicates.has(o.index) ? { ...o, ok: false, errors: [duplicates.get(o.index)!] } : o));
   const byKey = new Map(columns.map((c) => [c.key, c]));
   return {
     entity: upload.entity,
@@ -87,7 +89,7 @@ export async function previewImport(deps: RunProcessDeps, caller: Caller, upload
     unknownHeaders: mapped.unknownHeaders,
     missingColumns: mapped.missingColumns.map((key) => columnLabel(byKey.get(key)!, labels)),
     total: mapped.records.length,
-    rows: run.outcomes.map((o) => ({ rowNo: o.rowNo, ok: o.ok, errors: o.errors, cells: mapped.headers.map((h) => shown[o.index]!.raw[h] ?? "") })),
+    rows: outcomes.map((o) => ({ rowNo: o.rowNo, ok: o.ok, errors: o.errors, cells: mapped.headers.map((h) => shown[o.index]!.raw[h] ?? "") })),
   };
 }
 
