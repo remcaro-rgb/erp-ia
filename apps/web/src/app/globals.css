@@ -1,26 +1,4 @@
-@import "tailwindcss";
+/* The ERP-IA stylesheet: Tailwind v4 with the §19a tokens (light, dark, automatic) from @erp/ui. */
+@import "@erp/ui/globals.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* This app's own sources are scanned automatically; the auth pages and the shell share the same tokens. */

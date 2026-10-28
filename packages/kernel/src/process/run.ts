@@ -29,7 +29,7 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
 
 /**
  * Runs a registered process for `caller` (design §5.4). In order: resolve (`not_found`),
- * entitlements (`not_entitled`), permission (`forbidden`), step-up (`step_up_required`), input
+ * entitlements (`not_entitled`), permission (`forbidden`, skipped for `permission: "none"`), step-up (`step_up_required`), input
  * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
  * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
@@ -79,9 +79,10 @@ async function execute<O extends z.ZodTypeAny>(
 
   const stepUpToken = caller.stepUpToken ?? null;
   const gate = await withClaims(deps.sql, claims, async (tx) => {
-    const [row] = await tx<{ allowed: boolean; sensitive: boolean; verified: boolean }[]>`
+    const [row] = await tx<{ allowed: boolean; member: boolean; sensitive: boolean; verified: boolean }[]>`
       select
         kernel.can_run_process(${def.id}) as allowed,
+        coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
         exists (
           select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id}
         ) as sensitive,
@@ -92,7 +93,9 @@ async function execute<O extends z.ZodTypeAny>(
         ) as verified`;
     return row!;
   });
-  if (!gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`);
+  // A self-service process (`permission: "none"`) needs no row in the role matrix, only membership of the
+  // active company; everything else needs a role that allows it.
+  if (def.permission === "none" ? !gate.member : !gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`);
   const stepUp = gate.sensitive || def.sensitivity === "step-up";
   if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`);
 

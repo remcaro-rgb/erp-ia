@@ -157,12 +157,79 @@
       "theme_dark": "Oscuro",
       "theme_auto": "Automático",
       "sign_out": "Salir",
-      "home": "Inicio"
+      "home": "Inicio",
+      "brand": "ERP-IA",
+      "active_company": "Empresa activa",
+      "tax_id": "NIT {id}",
+      "add_company": "Agregar empresa",
+      "add_company_later": "fase 3",
+      "modules_title": "Módulos contratados",
+      "module_options": "{count, plural, one {# opción} other {# opciones}}",
+      "module_menu": "Menú del módulo",
+      "command_label": "Comando",
+      "command_placeholder": "⌘K   ir a, crear…",
+      "theme_toggle": "Cambiar tema",
+      "theme_title_auto": "Tema: automático (sigue al sistema) · clic para cambiar",
+      "theme_title_light": "Tema: claro · clic para cambiar",
+      "theme_title_dark": "Tema: oscuro · clic para cambiar",
+      "theme_menu": "Tema: {mode}",
+      "theme_change": "cambiar",
+      "notifications": "Notificaciones",
+      "notifications_empty": "Sin novedades",
+      "user_menu": "Menú de usuario",
+      "record": "Registro",
+      "tabs": {
+        "label": "Pestañas abiertas",
+        "new": "Nueva pestaña",
+        "close": "Cerrar {title}",
+        "close_all": "Cerrar todas",
+        "close_all_hint": "Cierra todas las pestañas menos Inicio",
+        "close_all_title": "Cerrar todas las pestañas",
+        "close_all_body": "Se cerrarán {count, plural, one {# pestaña} other {# pestañas}} ({titles}). Inicio permanece abierta. Los formularios sin guardar se perderían.",
+        "closed": "{count, plural, one {# pestaña cerrada} other {# pestañas cerradas}}"
+      },
+      "palette": {
+        "title": "Paleta de comandos",
+        "placeholder": "Ir a, crear, exportar o preguntar…",
+        "hint": "↑↓ navegar · Enter ejecutar · Esc cerrar · Escribe una frase para enviarla al asistente",
+        "ask": "Preguntar al asistente: “{text}”",
+        "empty": "Sin resultados",
+        "go": "Ir a {label}",
+        "create": "Crear {entity}",
+        "kind_go": "ir",
+        "kind_create": "crear",
+        "kind_ask": "asistente"
+      },
+      "drawer": {
+        "context": "Contexto: {context}",
+        "placeholder": "El asistente estará disponible muy pronto. Mientras tanto, usa ⌘K para ir a cualquier pantalla.",
+        "input": "Pregunta, pide una acción o “¿cómo hago…?”",
+        "input_label": "Escribe",
+        "send": "Enviar",
+        "close": "Cerrar asistente"
+      }
     },
     "core": {
       "parties": "Terceros",
       "products": "Productos",
       "categories": "Categorías"
+    },
+    "modules": {
+      "core": "Núcleo"
+    },
+    "keywords": {
+      "core": {
+        "parties": "clientes proveedores terceros nit empresas personas",
+        "products": "productos servicios artículos referencias inventario",
+        "categories": "categorías familias grupos impuestos iva"
+      }
+    },
+    "create": {
+      "core": {
+        "party": "tercero",
+        "product": "producto",
+        "category": "categoría de producto"
+      }
     }
   },
   "entity": {
@@ -337,7 +404,8 @@
     "kernel": {
       "attachments": "Archivos adjuntos",
       "custom_fields": "Datos adicionales",
-      "verification": "Verificación de correo y teléfono"
+      "verification": "Verificación de correo y teléfono",
+      "user_prefs": "Preferencias del usuario"
     }
   },
   "process": {

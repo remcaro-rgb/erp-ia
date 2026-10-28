@@ -1,0 +1,59 @@
+/*
+ * Design tokens of ERP-IA (design §19a, prototype v5): one table, two themes. Light is the default; dark
+ * applies when the system prefers it and the user has not forced light (`data-theme="light"`), or when the
+ * user forced it (`data-theme="dark"` on <html>). The top bar stays navy in both.
+ * Names follow the prototype; its text colour `--muted` is `--text-muted` here because shadcn reserves
+ * `--muted` for a background. The shadcn variables at the end are derived from these, never set apart.
+ */
+:root {
+  --bar: #1E3A8A; --bar-ctl: #2A4A9E; --bar-line: #4A6AC2; --bar-text: #DBE4F5; --bar-dim: #9DB0DC;
+  --primary: #1D4ED8; --primary-h: #1E40AF; --accent: #DBEAFE; --accent-line: #BFDBFE; --focus: #93C5FD;
+  --bg: #EEF0F2; --surface: #FFFFFF; --head: #F7F8FA; --hover: #F3F6FC; --modbar: #F7F8FA;
+  --tabrow: #D6E0F5; --tabrow-line: #B5C4E6; --tabrow-text: #2B3F75; --tabrow-hover: #C6D4F0;
+  --text: #1A1D21; --text-muted: #3F4752; --line: #D7DBE0; --line-2: #E2E5E9;
+  --ok-bg: #DDF1EB; --ok: #0A5446; --warn-bg: #FBEBD2; --warn: #7A3E05; --danger-bg: #FBE3E0; --danger: #8C1D17; --info-bg: #E3ECF8; --info: #1D4F91; --alert: #E9A23B;
+  --toast-bg: #111827; --toast-text: #fff; --shadow: rgba(0,0,0,.15); --overlay: rgba(15,23,42,.45);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bar: #0F1E4D; --bar-ctl: #1B2D6B; --bar-line: #35508F; --bar-text: #C9D6F0; --bar-dim: #7E93C4;
+  --primary: #3B82F6; --primary-h: #2563EB; --accent: #1E3A8A; --accent-line: #2B4CA8; --focus: #60A5FA;
+  --bg: #12151A; --surface: #1B1F26; --head: #20252E; --hover: #242A34; --modbar: #171B22;
+  --tabrow: #1C2743; --tabrow-line: #34467A; --tabrow-text: #AFC0E8; --tabrow-hover: #253357;
+  --text: #E6E9EF; --text-muted: #A4ADBA; --line: #2E3542; --line-2: #262C37;
+  --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+  --toast-bg: #E6E9EF; --toast-text: #12151A; --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6);
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bar: #0F1E4D; --bar-ctl: #1B2D6B; --bar-line: #35508F; --bar-text: #C9D6F0; --bar-dim: #7E93C4;
+  --primary: #3B82F6; --primary-h: #2563EB; --accent: #1E3A8A; --accent-line: #2B4CA8; --focus: #60A5FA;
+  --bg: #12151A; --surface: #1B1F26; --head: #20252E; --hover: #242A34; --modbar: #171B22;
+  --tabrow: #1C2743; --tabrow-line: #34467A; --tabrow-text: #AFC0E8; --tabrow-hover: #253357;
+  --text: #E6E9EF; --text-muted: #A4ADBA; --line: #2E3542; --line-2: #262C37;
+  --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+  --toast-bg: #E6E9EF; --toast-text: #12151A; --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+/* shadcn's semantic variables, derived from the table above so both themes follow it. */
+:root {
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--head);
+  --secondary-foreground: var(--text);
+  --muted: var(--head);
+  --muted-foreground: var(--text-muted);
+  --accent-foreground: var(--text);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--focus);
+  /* radius: 6px controls, 8px cards, 4px pills */
+  --radius: 6px;
+}

@@ -58,7 +58,7 @@ async function RecordView({ params }: { params: Params }) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-4xl p-4">
+    <div className="mx-auto w-full max-w-4xl">
       <RecordFrame
         title={String(record[entity.titleField] ?? id)}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
@@ -67,7 +67,7 @@ async function RecordView({ params }: { params: Params }) {
         tabs={recordTabIds(entity.id).map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
         status={typeof record.dian_status === "string" ? <span>{record.dian_status}</span> : undefined}
       />
-    </main>
+    </div>
   );
 }
 

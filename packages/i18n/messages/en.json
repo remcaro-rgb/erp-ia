@@ -157,12 +157,79 @@
       "theme_dark": "Dark",
       "theme_auto": "Automatic",
       "sign_out": "Sign out",
-      "home": "Home"
+      "home": "Home",
+      "brand": "ERP-IA",
+      "active_company": "Active company",
+      "tax_id": "Tax ID {id}",
+      "add_company": "Add company",
+      "add_company_later": "phase 3",
+      "modules_title": "Subscribed modules",
+      "module_options": "{count, plural, one {# option} other {# options}}",
+      "module_menu": "Module menu",
+      "command_label": "Command",
+      "command_placeholder": "⌘K   go to, create…",
+      "theme_toggle": "Change theme",
+      "theme_title_auto": "Theme: automatic (follows the system) · click to change",
+      "theme_title_light": "Theme: light · click to change",
+      "theme_title_dark": "Theme: dark · click to change",
+      "theme_menu": "Theme: {mode}",
+      "theme_change": "change",
+      "notifications": "Notifications",
+      "notifications_empty": "Nothing new",
+      "user_menu": "User menu",
+      "record": "Record",
+      "tabs": {
+        "label": "Open tabs",
+        "new": "New tab",
+        "close": "Close {title}",
+        "close_all": "Close all",
+        "close_all_hint": "Closes every tab except Home",
+        "close_all_title": "Close all tabs",
+        "close_all_body": "{count, plural, one {# tab} other {# tabs}} will close ({titles}). Home stays open. Unsaved forms would be lost.",
+        "closed": "{count, plural, one {# tab closed} other {# tabs closed}}"
+      },
+      "palette": {
+        "title": "Command palette",
+        "placeholder": "Go to, create, export or ask…",
+        "hint": "↑↓ move · Enter run · Esc close · Type a sentence to send it to the assistant",
+        "ask": "Ask the assistant: “{text}”",
+        "empty": "No results",
+        "go": "Go to {label}",
+        "create": "Create {entity}",
+        "kind_go": "go",
+        "kind_create": "create",
+        "kind_ask": "assistant"
+      },
+      "drawer": {
+        "context": "Context: {context}",
+        "placeholder": "The assistant is coming very soon. Meanwhile, use ⌘K to go to any screen.",
+        "input": "Ask, request an action or “how do I…?”",
+        "input_label": "Type",
+        "send": "Send",
+        "close": "Close assistant"
+      }
     },
     "core": {
       "parties": "Parties",
       "products": "Products",
       "categories": "Categories"
+    },
+    "modules": {
+      "core": "Core"
+    },
+    "keywords": {
+      "core": {
+        "parties": "customers suppliers parties tax id companies people",
+        "products": "products services items references inventory",
+        "categories": "categories families groups taxes vat"
+      }
+    },
+    "create": {
+      "core": {
+        "party": "party",
+        "product": "product",
+        "category": "product category"
+      }
     }
   },
   "entity": {
@@ -337,7 +404,8 @@
     "kernel": {
       "attachments": "Attachments",
       "custom_fields": "Additional data",
-      "verification": "E-mail and phone verification"
+      "verification": "E-mail and phone verification",
+      "user_prefs": "User preferences"
     }
   },
   "process": {

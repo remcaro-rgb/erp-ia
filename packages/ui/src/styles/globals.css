@@ -1,0 +1,104 @@
+/*
+ * The stylesheet of every ERP-IA app: Tailwind v4, the shadcn animations and the §19a tokens exposed as
+ * Tailwind colours, fonts and radii (`bg-bar`, `text-tabrow-text`, `border-line`, `rounded-md`…).
+ * Apps import it once (`@import "@erp/ui/globals.css"`) and add nothing to the palette.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./tokens.css";
+
+/* The components of this package use utilities too. */
+@source "../";
+
+/* `dark:` follows the same rule as the tokens: system dark unless forced light, or forced dark. */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-source-sans), "Source Sans 3", "Segoe UI", Arial, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace;
+
+  --color-bar: var(--bar);
+  --color-bar-ctl: var(--bar-ctl);
+  --color-bar-line: var(--bar-line);
+  --color-bar-text: var(--bar-text);
+  --color-bar-dim: var(--bar-dim);
+  --color-primary-h: var(--primary-h);
+  --color-accent-line: var(--accent-line);
+  --color-focus: var(--focus);
+  --color-page: var(--bg);
+  --color-surface: var(--surface);
+  --color-head: var(--head);
+  --color-hover: var(--hover);
+  --color-modbar: var(--modbar);
+  --color-tabrow: var(--tabrow);
+  --color-tabrow-line: var(--tabrow-line);
+  --color-tabrow-text: var(--tabrow-text);
+  --color-tabrow-hover: var(--tabrow-hover);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-alert: var(--alert);
+  --color-toast: var(--toast-bg);
+  --color-toast-text: var(--toast-text);
+  --color-overlay: var(--overlay);
+  --color-shadow: var(--shadow);
+
+  /* shadcn */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

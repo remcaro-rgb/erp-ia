@@ -24,6 +24,12 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
    * through `kernel.sensitive_processes` (admins raise sensitivity, never lower it).
    */
   sensitivity?: "normal" | "step-up";
+  /**
+   * `none` opts a self-service process (a user's own preferences) out of the per-role permission matrix:
+   * any member of the active company may run it. It is still resolved, entitled, validated, step-up
+   * checked and audited like any other process. Default `role`.
+   */
+  permission?: "role" | "none";
   /** Runs with the same key in the same company return the first run's stored result. */
   idempotencyKey?(input: z.infer<I>): string;
   /** Runs in the process transaction, as the caller, under RLS. */
