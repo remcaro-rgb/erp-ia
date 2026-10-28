@@ -960,6 +960,7 @@
       "exports": "Export to PDF, Excel and CSV",
       "help": "Help and user guides",
       "data": "Assistant data queries",
+      "home": "Home screen: indicators, recommendations and recent records",
       "admin": "Administration"
     },
     "support": {
@@ -1282,6 +1283,104 @@
       "not_entitled": "Your company does not have this list enabled.",
       "forbidden": "Your role may not consult this list.",
       "not_found": "This list does not exist."
+    }
+  },
+  "home": {
+    "greeting": {
+      "morning": "Good morning, {name}",
+      "afternoon": "Good afternoon, {name}",
+      "evening": "Good evening, {name}"
+    },
+    "dashboard": {
+      "reset": "Reset cards",
+      "hint": "Drag a card by its header to move it; drag the bottom-right corner to resize it. The layout is saved per user.",
+      "resize": "Resize {title}",
+      "move": "Move {title}",
+      "move_hint": "Drag to move. Also: Alt + arrow keys",
+      "size": "{columns}/4 · {height} px",
+      "reset_done": "Cards reset"
+    },
+    "widgets": {
+      "kpis": "Indicators",
+      "recommendations": "Recommendations for you",
+      "recent": "Recent records",
+      "help": "Quick help"
+    },
+    "kpi": {
+      "empty": "There are no indicators to show with your permissions.",
+      "core_parties": {
+        "label": "Active parties",
+        "label_total": "Parties",
+        "detail": "{total_text} in total · {not_ready, plural, other {# not invoiceable}}",
+        "detail_total": "{total_text} in total"
+      },
+      "core_products": {
+        "label": "Products",
+        "detail": "{not_ready, plural, =0 {All ready to invoice} other {# not invoiceable}}"
+      },
+      "support_tickets": {
+        "label": "Support tickets",
+        "detail": "open · {total_text} in total"
+      },
+      "kernel_ai_tokens": {
+        "label": "AI usage this month",
+        "company": "{used_text} of {limit_text} included tokens",
+        "own": "tokens you have used this month",
+        "no_cap": "tokens used this month · no cap set"
+      }
+    },
+    "recommendations": {
+      "subtitle": "Suggestions for your role. Nothing runs without your confirmation.",
+      "empty": "No pending recommendations.",
+      "dismiss": "Dismiss",
+      "confidence": "Confidence {percent, number} %",
+      "failed": "Your decision could not be saved. Try again.",
+      "agents": {
+        "help": "Help agent",
+        "seed": "ERP-IA suggestion",
+        "other": "Agent: {name}"
+      }
+    },
+    "assistant": {
+      "run": "Run {process} with {input}",
+      "run_plain": "Run {process}"
+    },
+    "recent": {
+      "empty": "You have not created or changed any records yet.",
+      "columns": {
+        "record": "Record",
+        "kind": "Type",
+        "action": "Action",
+        "when": "When"
+      },
+      "insert": "Created",
+      "update": "Changed",
+      "untitled": "—",
+      "open": "Open {title}"
+    },
+    "help": {
+      "subtitle": "Ask the assistant how to do it.",
+      "ask": "Ask",
+      "parties": {
+        "label": "Create or find a party",
+        "question": "How do I create a party?"
+      },
+      "products": {
+        "label": "Create a product with its taxes",
+        "question": "How do I create a product?"
+      },
+      "listings": {
+        "label": "Filter and export a list",
+        "question": "How do I filter and export a list?"
+      },
+      "import": {
+        "label": "Load records from Excel",
+        "question": "How do I import data from Excel?"
+      },
+      "two_factor": {
+        "label": "Turn on two-step verification",
+        "question": "How do I turn on two-step verification?"
+      }
     }
   },
   "agent": {

@@ -1,7 +1,7 @@
 import { ENTITY_ID } from "../registry/fields";
 import type { ModuleDef } from "../registry/types";
 
-export type { ConsumerContext, EventConsumer, FeatureDef, ModuleDef, NavItem } from "../registry/types";
+export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem } from "../registry/types";
 
 /** Module ids are Postgres schema names, so they follow the same lowercase identifier shape. */
 const MODULE_ID = /^[a-z][a-z0-9_]*$/;
@@ -37,6 +37,14 @@ export function defineModule(def: ModuleDef): ModuleDef {
     for (const id of feature.entities) {
       if (!entityIds.has(id)) throw new Error(`feature ${feature.id} lists entity ${id}, which module ${def.id} does not declare`);
     }
+  }
+
+  const providerIds = new Set<string>();
+  for (const provider of def.homeKpis ?? []) {
+    if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`KPI provider ${provider.id} must be named "${def.id}.<name>"`);
+    if (providerIds.has(provider.id)) throw new Error(`duplicate KPI provider ${provider.id} in module ${def.id}`);
+    providerIds.add(provider.id);
+    if (!featureIds.has(provider.feature)) throw new Error(`KPI provider ${provider.id} names feature ${provider.feature}, which module ${def.id} does not declare`);
   }
   return def;
 }

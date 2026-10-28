@@ -12,7 +12,7 @@ export type { JwtClaims, Tx } from "./db/client";
 export { withClaims } from "./db/client";
 export { getServiceDb } from "./db/service";
 export { defineEntity, Registry, registry } from "./registry";
-export type { ConsumerContext, EntityDef, EventConsumer, FeatureDef, FieldDef, FieldType, ModuleDef, NavItem, ProcessDef, ProcessKind, ResolvedEntityDef, ResolvedFieldDef } from "./registry";
+export type { ConsumerContext, EntityDef, EventConsumer, FeatureDef, FieldDef, FieldType, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind, ResolvedEntityDef, ResolvedFieldDef } from "./registry";
 export { maskedViewSql } from "./security/masked-views";
 export { defineProcess } from "./process/define";
 export { runProcess } from "./process/run";
@@ -85,3 +85,6 @@ export type { EmbeddingUsage, LlmTask, LlmUsageRow, ModelPrice } from "./ai/usag
 export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcesses, moduleStates, readAiUsage, readPermissionMatrix, setAuthAdmin, syncRegistry } from "./admin";
 export type { AiUsage, MatrixProcess, ModuleState, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
+
+export { aiTokensKpi, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiSchema, recommendationDecide, recommendationList, suggestedAction } from "./home";
+export type { SuggestedAction } from "./home";

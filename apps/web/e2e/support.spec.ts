@@ -72,7 +72,9 @@ test.describe("support tickets", () => {
   test("files a ticket with the captured context, an agent answers, the reporter sees the answer", async ({ browser }) => {
     // --- The reporter selects text on Inicio and files a ticket from ⌘K; the context is the screen they came from.
     const mine = await signedInPage(browser, reporter.email, reporter.password);
-    const heading = mine.getByTestId("home").getByRole("heading", { name: "Inicio" });
+    // The greeting is the home's heading (the user's name is part of it).
+    const heading = mine.getByTestId("home").getByRole("heading", { level: 1 });
+    const greeting = (await heading.textContent())!.trim();
     await heading.evaluate((element) => {
       const range = document.createRange();
       range.selectNodeContents(element);
@@ -81,7 +83,7 @@ test.describe("support tickets", () => {
       selection.addRange(range);
     });
     // The browser reports a selection change a moment after it happens; opening ⌘K moves focus and clears it.
-    await expect.poll(() => mine.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("Inicio");
+    await expect.poll(() => mine.evaluate(() => window.getSelection()?.toString() ?? "")).toBe(greeting);
     await mine.waitForTimeout(300);
     // A console error the page raised travels with the ticket, with the secret in it redacted.
     await mine.evaluate(() => console.error("falló la llamada token=abc123 para Ana"));
@@ -111,7 +113,7 @@ test.describe("support tickets", () => {
     expect(ticket!.status).toBe("open");
     expect(ticket!.reporter_user_id).toBe(reporter.userId);
     expect(ticket!.context.route).toBe("/");
-    expect(ticket!.context.selection).toContain("Inicio");
+    expect(ticket!.context.selection).toContain(greeting);
     expect(ticket!.context.lastAuditIds).toEqual([]);
     expect(ticket!.context.consoleErrors).toContain("falló la llamada token=[redacted] para Ana");
     expect(JSON.stringify(ticket!.context)).not.toContain("abc123");

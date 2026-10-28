@@ -36,7 +36,7 @@ describe("locales", () => {
   });
 
   it("has the namespaces of the design in every catalogue", () => {
-    const namespaces = ["agent", "auth", "common", "entity", "errors", "feature", "field", "grid", "nav", "process"];
+    const namespaces = ["agent", "auth", "common", "entity", "errors", "feature", "field", "grid", "home", "nav", "process"];
     expect(Object.keys(es).sort()).toEqual(namespaces);
     expect(Object.keys(en).sort()).toEqual(namespaces);
   });
@@ -62,6 +62,16 @@ describe("catalogue shape", () => {
   it("a message uses the same arguments in both locales", () => {
     const mismatched = leaves(es).filter((key) => argumentsOf(valueAt(es, key)!).join() !== argumentsOf(valueAt(en, key)!).join());
     expect(mismatched).toEqual([]);
+  });
+});
+
+describe("home screen", () => {
+  it("has the card texts of every KPI provider the loaded modules register", () => {
+    const providers = registry.kpiProviders();
+    expect(providers.map((p) => p.id)).toEqual(expect.arrayContaining(["core.parties", "core.products", "support.tickets", "kernel.ai_tokens"]));
+    for (const locale of [es, en]) {
+      for (const provider of providers) expect(valueAt(locale, `home.kpi.${provider.id.replace(".", "_")}.label`), provider.id).toBeTruthy();
+    }
   });
 });
 

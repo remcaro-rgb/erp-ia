@@ -960,6 +960,7 @@
       "exports": "Exportación a PDF, Excel y CSV",
       "help": "Ayuda y guías de usuario",
       "data": "Consultas de datos del asistente",
+      "home": "Pantalla de inicio: indicadores, recomendaciones y registros recientes",
       "admin": "Administración"
     },
     "support": {
@@ -1282,6 +1283,104 @@
       "not_entitled": "Tu empresa no tiene habilitado este listado.",
       "forbidden": "Tu rol no puede consultar este listado.",
       "not_found": "Este listado no existe."
+    }
+  },
+  "home": {
+    "greeting": {
+      "morning": "Buenos días, {name}",
+      "afternoon": "Buenas tardes, {name}",
+      "evening": "Buenas noches, {name}"
+    },
+    "dashboard": {
+      "reset": "Restablecer tarjetas",
+      "hint": "Arrastra una tarjeta por su encabezado para moverla; arrastra la esquina inferior derecha para cambiar su tamaño. La disposición se guarda por usuario.",
+      "resize": "Cambiar tamaño de {title}",
+      "move": "Mover {title}",
+      "move_hint": "Arrastra para mover. También: Alt + flechas",
+      "size": "{columns}/4 · {height} px",
+      "reset_done": "Tarjetas restablecidas"
+    },
+    "widgets": {
+      "kpis": "Indicadores",
+      "recommendations": "Recomendaciones para ti",
+      "recent": "Registros recientes",
+      "help": "Ayuda rápida"
+    },
+    "kpi": {
+      "empty": "No hay indicadores para mostrar con tus permisos.",
+      "core_parties": {
+        "label": "Terceros activos",
+        "label_total": "Terceros",
+        "detail": "{total_text} en total · {not_ready, plural, one {# no facturable} other {# no facturables}}",
+        "detail_total": "{total_text} en total"
+      },
+      "core_products": {
+        "label": "Productos",
+        "detail": "{not_ready, plural, =0 {Todos listos para facturar} one {# no facturable} other {# no facturables}}"
+      },
+      "support_tickets": {
+        "label": "Tickets de soporte",
+        "detail": "abiertos · {total_text} en total"
+      },
+      "kernel_ai_tokens": {
+        "label": "Uso de IA del mes",
+        "company": "{used_text} de {limit_text} tokens incluidos",
+        "own": "tokens que has usado este mes",
+        "no_cap": "tokens usados este mes · sin tope definido"
+      }
+    },
+    "recommendations": {
+      "subtitle": "Sugerencias para tu rol. Nada se ejecuta sin tu confirmación.",
+      "empty": "Sin recomendaciones pendientes.",
+      "dismiss": "Descartar",
+      "confidence": "Confianza {percent, number} %",
+      "failed": "No se pudo guardar tu decisión. Inténtalo de nuevo.",
+      "agents": {
+        "help": "Agente de ayuda",
+        "seed": "Sugerencia de ERP-IA",
+        "other": "Agente: {name}"
+      }
+    },
+    "assistant": {
+      "run": "Ejecuta {process} con {input}",
+      "run_plain": "Ejecuta {process}"
+    },
+    "recent": {
+      "empty": "Aún no has creado ni modificado registros.",
+      "columns": {
+        "record": "Registro",
+        "kind": "Tipo",
+        "action": "Acción",
+        "when": "Cuándo"
+      },
+      "insert": "Creado",
+      "update": "Modificado",
+      "untitled": "—",
+      "open": "Abrir {title}"
+    },
+    "help": {
+      "subtitle": "Pregúntale al asistente cómo hacerlo.",
+      "ask": "Preguntar",
+      "parties": {
+        "label": "Crear o buscar un tercero",
+        "question": "¿Cómo creo un tercero?"
+      },
+      "products": {
+        "label": "Crear un producto con sus impuestos",
+        "question": "¿Cómo creo un producto?"
+      },
+      "listings": {
+        "label": "Filtrar y exportar un listado",
+        "question": "¿Cómo filtro y exporto un listado?"
+      },
+      "import": {
+        "label": "Cargar registros desde Excel",
+        "question": "¿Cómo importo datos desde Excel?"
+      },
+      "two_factor": {
+        "label": "Activar la verificación en dos pasos",
+        "question": "¿Cómo activo la verificación en dos pasos?"
+      }
     }
   },
   "agent": {

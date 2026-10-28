@@ -1,32 +1,27 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { getTranslations } from "next-intl/server";
 import { getCallerClaims, redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
-import { signOut } from "@/lib/auth/actions";
+import { loadHome } from "@/lib/home/load";
+import { loadShellOnce } from "@/lib/shell/load";
+import { HomeScreen } from "./_components/home-screen";
 
-// "/" after sign-in, inside the application shell. Placeholder until the home dashboard (Task 20) fills it.
+// "/" after sign-in, inside the application shell: the greeting and the widget dashboard (design §19a). The data is read as
+// the caller through registered processes; the dashboard itself is a client component.
 
 async function HomeView() {
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
+  let claims;
+  let data;
   try {
-    await getCallerClaims();
+    claims = await getCallerClaims();
+    data = await loadHome(await loadShellOnce(), { claims, origin: "ui" });
   } catch (error) {
     if (error instanceof Unauthenticated) redirect(redirectPathFor(error.reason));
     throw error;
   }
-  const t = await getTranslations("auth");
-  return (
-    <section className="flex w-full max-w-3xl flex-col gap-4" data-testid="home">
-      <h1 className="text-2xl font-semibold">{t("home.title")}</h1>
-      <form action={signOut}>
-        <button type="submit" className="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800">
-          {t("home.sign_out")}
-        </button>
-      </form>
-    </section>
-  );
+  return <HomeScreen data={data} userId={claims.sub} companyId={claims.active_company_id} />;
 }
 
 export default function HomePage() {

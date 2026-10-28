@@ -3,7 +3,7 @@ import en from "../messages/en.json";
 import es419 from "../messages/es-419.json";
 
 // The catalogues of the application (rule 24): Spanish (Latam) is the source of truth, `en` mirrors its keys.
-// Namespaces: common, nav, entity, field, feature, process, grid, agent, auth, errors. Keys are lowercase
+// Namespaces: common, nav, entity, field, feature, process, grid, home, agent, auth, errors. Keys are lowercase
 // snake_case segments joined by dots; the registry's labels (`EntityDef.label`, `FieldDef.label`,
 // `NavItem.label`, `FeatureDef.label`) are keys of `entity.*`, `field.*`, `nav.*` and `feature.*`;
 // `ProcessError.code` is `errors.<code>`.

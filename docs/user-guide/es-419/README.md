@@ -3,7 +3,7 @@
 
 Guías para quien usa ERP-IA todos los días, en español latinoamericano. El asistente de ayuda las lee para responder preguntas y llevarte a la pantalla correcta.
 
-- [Primeros pasos en ERP-IA](inicio.md): qué es el sistema y cómo empezar.
+- [Primeros pasos en ERP-IA](inicio.md): qué es el sistema, cómo empezar y la pantalla de Inicio (indicadores, recomendaciones, tarjetas que se mueven y cambian de tamaño).
 - [Ingresar y verificación en dos pasos](ingreso-y-2fa.md): ingresar, recordar el dispositivo, activar el código de 6 dígitos y confirmar acciones sensibles.
 - [Moverse por el sistema](navegacion.md): empresa, módulos, pestañas, ⌘K y tema claro u oscuro.
 - [Terceros: clientes, proveedores y empleados](terceros.md): datos DIAN, correos, teléfono y «Listo para facturar».

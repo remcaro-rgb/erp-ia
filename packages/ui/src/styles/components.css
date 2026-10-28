@@ -300,4 +300,40 @@
   .erp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; }
   .erp-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .erp-avatar--lg { width: 72px; height: 72px; font-size: 22px; }
+
+  /* home dashboard (design §19a, prototype `.dash` / `.wg`): widgets dragged by their header, resized from the corner */
+  .erp-home__top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .erp-home__top h1 { margin: 0; font-size: 24px; font-weight: 700; }
+  .erp-home__hint { font-size: 12px; color: var(--text-muted); }
+  .erp-dash { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; grid-auto-flow: dense; }
+  .erp-wg { position: relative; min-width: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+  .erp-wg__hd { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; color: var(--text-muted); border-bottom: 1px dashed var(--line-2); cursor: grab; user-select: none; }
+  .erp-wg__hd:active { cursor: grabbing; }
+  .erp-wg__hd:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .erp-wg__grip { letter-spacing: -2px; font-size: 14px; opacity: .6; }
+  .erp-wg__title { font-weight: 600; color: var(--text); font-size: 12px; }
+  .erp-wg__bd { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+  .erp-wg__rs { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; padding: 0; border: 0; cursor: nwse-resize; touch-action: none; background: linear-gradient(135deg, transparent 50%, var(--line) 50%, var(--line) 60%, transparent 60%, transparent 75%, var(--line) 75%); border-radius: 0 0 6px 0; opacity: .8; }
+  .erp-wg__rs:hover, .erp-wg__rs:focus-visible { opacity: 1; outline: 0; background: linear-gradient(135deg, transparent 50%, var(--primary) 50%, var(--primary) 60%, transparent 60%, transparent 75%, var(--primary) 75%); }
+  .erp-wg[data-dragging="true"] { opacity: .4; }
+  .erp-wg[data-over="true"] { outline: 2px dashed var(--primary); outline-offset: 2px; }
+  .erp-wg[data-resizing="true"] { outline: 2px solid var(--primary); }
+  .erp-home-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; flex-grow: 1; }
+  .erp-home-kpi { padding: 14px 16px; min-width: 0; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; }
+  .erp-home-kpi:last-child { border-right: 0; }
+  .erp-home-kpi__label { font-size: 12px; color: var(--text-muted); }
+  .erp-home-kpi__value { font-size: 26px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .erp-home-kpi__value[data-tone="warn"] { color: var(--warn); }
+  .erp-home-kpi__detail { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  .erp-home-recs { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .erp-home-recs__list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .erp-rec { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .erp-rec__who { font-size: 11px; color: var(--text-muted); font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; }
+  .erp-rec__title { font-size: 15px; font-weight: 600; }
+  .erp-rec__body { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  .erp-rec__chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .erp-home-list { padding: 4px 0; display: flex; flex-direction: column; }
+  .erp-home-help { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .erp-home-help button { text-align: left; }
 }
+

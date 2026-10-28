@@ -8,6 +8,15 @@ interface CachedPref<T> extends Saved<T> {
   companyId: string;
 }
 
+/** The browser's localStorage, or null on the server and where the browser refuses access (private mode, blocked data). */
+export function browserStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 export const themeStorageKey = (userId: string): string => `erp.theme.${userId}`;
 
 /** The cached value under `key` for `companyId`, or null (missing, another company's, unreadable). */

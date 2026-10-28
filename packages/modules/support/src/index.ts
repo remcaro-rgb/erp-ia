@@ -1,6 +1,7 @@
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { SUPPORT_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
+import { HOME_KPIS } from "./home";
 import { TICKET_PROCESSES } from "./processes/ticket";
 
 /** The support module (design §8): tickets filed with the context the client captured, and their conversation. */
@@ -14,6 +15,7 @@ export const support: ModuleDef = defineModule({
   features: FEATURES,
   events: { emits: ["support.ticket.created"], consumes: {} },
   navigation: NAVIGATION,
+  homeKpis: HOME_KPIS,
 });
 
 export { SUPPORT_ENTITIES } from "./entities";

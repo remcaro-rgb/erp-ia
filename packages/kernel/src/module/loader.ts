@@ -52,6 +52,7 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     for (const entity of module.entities) registry.registerEntity(defineEntity(entity));
     for (const process of module.processes) registry.registerProcess(process);
     registry.registerModule(module);
+    for (const provider of module.homeKpis ?? []) registry.registerKpiProvider(provider);
     for (const [event, fn] of Object.entries(module.events.consumes)) consumers.register(module.id, event, fn);
   }
 }

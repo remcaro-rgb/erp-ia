@@ -2,7 +2,12 @@
 title: Primeros pasos en ERP-IA
 routes:
   - /
-processes: []
+processes:
+  - kernel.home.kpis
+  - kernel.home.recent
+  - kernel.recommendation.list
+  - kernel.recommendation.decide
+  - kernel.user_prefs.set
 ---
 
 # Primeros pasos en ERP-IA
@@ -18,7 +23,7 @@ ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite m
 
 1. Abre ERP-IA en el navegador e ingresa con tu correo y contraseña. Si es tu computador de siempre, marca **Recordarme en este dispositivo por 30 días**.
 2. Si tu rol lo exige, escribe el código de 6 dígitos de tu app de autenticación.
-3. Llegas a **Inicio**, la primera pestaña. Por ahora Inicio muestra solo su título; el panel de inicio con tus indicadores llegará más adelante.
+3. Llegas a **Inicio**, la primera pestaña: tu panel con los indicadores de tu empresa, las recomendaciones para ti, los últimos registros que tocaste y atajos de ayuda. Más abajo, en **La pantalla de Inicio**, se explica cada tarjeta y cómo acomodarlas a tu gusto.
 4. Abre el menú **Módulos** (arriba, junto al nombre de la empresa) y elige **Núcleo** o **Soporte**. Al lado aparecen las opciones del módulo: **Terceros**, **Productos**, **Categorías** e **Importar datos** en Núcleo; **Soporte** en el módulo de soporte.
 5. Pulsa **Terceros** para ver el listado. Para crear uno, pulsa **Nuevo**.
 
@@ -31,10 +36,55 @@ ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite m
 
 La guía **Moverse por el sistema** explica cada parte con detalle.
 
+## La pantalla de Inicio
+
+Inicio te saluda por tu nombre y reúne tus tarjetas en un tablero de cuatro columnas. Cada persona ve solo lo que su rol permite: si una tarjeta no aparece, tu rol no tiene acceso a esa información.
+
+### Indicadores
+
+La tarjeta **Indicadores** muestra los números del momento, calculados con tus permisos:
+
+- **Terceros activos**: cuántos terceros hay activos y cuántos de ellos todavía no se pueden facturar (les faltan datos de la DIAN o archivos). Si tu rol solo ve clientes o solo proveedores, el número cuenta solo los que tú ves.
+- **Productos**: cuántos hay y cuántos no se pueden facturar todavía.
+- **Tickets de soporte**: los que siguen abiertos. Si no eres agente de soporte, cuenta solo los tuyos.
+- **Uso de IA del mes**: si eres administrador, el porcentaje de los tokens incluidos que tu empresa ya usó este mes; si no, los tokens que tú has usado. Pasa a color de advertencia al llegar al 80 %.
+
+Los indicadores de otros módulos aparecen aquí cuando tu empresa los contrata.
+
+### Recomendaciones para ti
+
+Son sugerencias que el sistema o un agente prepara para tu rol, con la explicación de por qué. **Nada se ejecuta solo.**
+
+1. Lee la recomendación y pulsa el botón de la acción que propone, por ejemplo **Crear con el asistente**.
+2. Si la acción es una pantalla, se abre. Si es una operación, se abre el **Asistente** con la petición ya escrita («Ejecuta … con …») y te muestra la **tarjeta de confirmación** con lo que va a pasar.
+3. Revisa la tarjeta y pulsa **Confirmar** (o escribe el código de verificación si la operación lo exige). Mientras no confirmes, no cambia nada.
+4. Si no te sirve, pulsa **Descartar**: la recomendación sale de tu lista.
+
+Una recomendación que aceptas o descartas deja de mostrarse para todas las personas de tu rol, y queda registrada en la auditoría.
+
+### Registros recientes
+
+Los últimos 10 registros que creaste o modificaste, con su tipo, la acción y cuándo. Pulsa el nombre para abrirlo. No aparece lo que ya no tienes permiso de ver.
+
+### Ayuda rápida
+
+Atajos para preguntarle al asistente cómo hacer algo (crear un tercero, importar desde Excel, activar la verificación en dos pasos…). Al pulsar uno, el asistente recibe la pregunta y te responde con los pasos.
+
+### Mover y cambiar el tamaño de las tarjetas
+
+Inicio es tuyo: cada cambio se guarda para tu usuario y tu empresa, y nadie lo mueve por ti.
+
+- **Mover**: arrastra una tarjeta por su encabezado (la barra con los puntos ⋮⋮) y suéltala sobre otra; toma su lugar. Con el teclado, enfoca el encabezado y pulsa **Alt + flecha izquierda o derecha**.
+- **Cambiar el tamaño**: arrastra la esquina inferior derecha de la tarjeta. El ancho se ajusta a 1, 2, 3 o 4 columnas y el alto es libre (mínimo 160 px). El encabezado muestra el tamaño actual, por ejemplo «2/4 · 300 px». Con el teclado, enfoca la esquina y usa las **flechas**: izquierda y derecha cambian las columnas, arriba y abajo el alto.
+- **Restablecer tarjetas** (arriba a la derecha) devuelve todas las tarjetas a su orden y tamaño originales.
+
+Tu disposición vuelve igual la próxima vez que entres, también desde otro computador.
+
 ## ¿Qué quieres hacer?
 
 | Quiero… | Lee la guía |
 | --- | --- |
+| Entender las tarjetas de Inicio, moverlas o cambiarles el tamaño | Primeros pasos (La pantalla de Inicio) |
 | Ingresar, activar la verificación en dos pasos o confirmar una acción sensible | Ingresar y verificación en dos pasos |
 | Cambiar de empresa, abrir pestañas, usar ⌘K o cambiar el tema | Moverse por el sistema |
 | Crear o buscar un cliente o proveedor | Terceros |
@@ -50,4 +100,4 @@ La guía **Moverse por el sistema** explica cada parte con detalle.
 
 ## Si algo no aparece
 
-Cada empresa contrata los módulos que necesita y cada rol tiene sus permisos. Si no ves una opción del menú, un botón (por ejemplo **Nuevo** o **Importar**) o una pestaña, es porque tu empresa no tiene esa función habilitada o tu rol no la puede usar. Pídele al administrador de tu empresa que revise tus permisos, o abre un ticket en **Soporte**.
+Cada empresa contrata los módulos que necesita y cada rol tiene sus permisos. Si no ves una opción del menú, un botón (por ejemplo **Nuevo** o **Importar**), una pestaña, un indicador o una tarjeta de Inicio, es porque tu empresa no tiene esa función habilitada o tu rol no la puede usar. Pídele al administrador de tu empresa que revise tus permisos, o abre un ticket en **Soporte**.

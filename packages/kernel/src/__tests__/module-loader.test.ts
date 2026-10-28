@@ -119,4 +119,29 @@ describe("loadModules", () => {
     loadModules(registry, [withIds({ create: "a.thing.list" })]);
     expect(registry.entity("a.thing").processIds).toEqual({ create: "a.thing.list" });
   });
+
+  describe("home KPI providers", () => {
+    const provider = (id: string, feature: string) => ({ id, feature, compute: async () => [] });
+
+    it("registers each module's providers in the registry, in load order", () => {
+      const registry = new Registry();
+      loadModules(registry, [
+        manifest("b", ["a"], { homeKpis: [provider("b.count", "b.things")] }),
+        manifest("a", [], { homeKpis: [provider("a.first", "a.things"), provider("a.second", "a.things")] }),
+      ]);
+      expect(registry.kpiProviders().map((p) => p.id)).toEqual(["a.first", "a.second", "b.count"]);
+    });
+
+    it("rejects a provider id outside the module's namespace, or a feature the module does not declare", () => {
+      expect(() => defineModule(manifest("a", [], { homeKpis: [provider("b.count", "a.things")] }))).toThrow(/KPI provider b\.count.*"a\.<name>"/);
+      expect(() => defineModule(manifest("a", [], { homeKpis: [provider("a.count", "a.nope")] }))).toThrow(/KPI provider a\.count.*feature a\.nope/);
+      expect(() => defineModule(manifest("a", [], { homeKpis: [provider("a.count", "a.things"), provider("a.count", "a.things")] }))).toThrow(/duplicate KPI provider a\.count/);
+    });
+
+    it("refuses two providers with the same id in one registry", () => {
+      const registry = new Registry();
+      registry.registerKpiProvider(provider("a.count", "a.things"));
+      expect(() => registry.registerKpiProvider(provider("a.count", "a.things"))).toThrow(/already registered/);
+    });
+  });
 });

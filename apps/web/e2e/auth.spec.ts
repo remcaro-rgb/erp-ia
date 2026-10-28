@@ -126,7 +126,9 @@ test.describe("member", () => {
     await expect(page).toHaveURL(/\/$/);
 
     // Sign out; the device is remembered: e-mail filled in, box ticked.
-    await page.getByRole("button", { name: "Salir" }).click();
+    // (the shell's user menu: the home page no longer carries a sign-out button of its own)
+    await page.getByRole("button", { name: "Menú de usuario" }).click();
+    await page.getByRole("menuitem", { name: "Salir" }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByLabel("Correo")).toHaveValue(fixture.email);
     await expect(page.getByLabel("Recordarme en este dispositivo por 30 días")).toBeChecked();

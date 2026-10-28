@@ -1,6 +1,7 @@
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { CORE_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
+import { HOME_KPIS } from "./home";
 import { CATEGORY_PROCESSES } from "./processes/category";
 import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
@@ -27,6 +28,7 @@ export const core: ModuleDef = defineModule({
   features: FEATURES,
   events: { emits: ["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"], consumes: {} },
   navigation: NAVIGATION,
+  homeKpis: HOME_KPIS,
 });
 
 export { CORE_ENTITIES } from "./entities";

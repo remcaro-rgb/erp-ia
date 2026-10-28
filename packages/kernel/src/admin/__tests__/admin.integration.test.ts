@@ -103,7 +103,7 @@ describe("kernel admin: policies, seeds and registry sync", () => {
     const adminGrants = await grants(seed.companies[0]!.adminRoleId);
     expect(adminGrants).toEqual(expect.arrayContaining(["kernel.admin.permission.set", "probe.thing.consult", "kernel.help.search"]));
     const memberGrants = await grants(seed.companies[0]!.memberRoleId);
-    expect(memberGrants).toEqual(expect.arrayContaining(["probe.thing.consult", "kernel.help.search", "kernel.data.query", "kernel.saved_view.save", "kernel.export.run", "kernel.verify.status"]));
+    expect(memberGrants).toEqual(expect.arrayContaining(["probe.thing.consult", "kernel.help.search", "kernel.data.query", "kernel.saved_view.save", "kernel.export.run", "kernel.verify.status", "kernel.home.kpis", "kernel.home.recent", "kernel.recommendation.list", "kernel.recommendation.decide"]));
     expect(memberGrants.filter((id) => id.startsWith("kernel.admin."))).toEqual([]);
     const masks = await sql`select role_id, field, mode from kernel.field_permissions where company_id = ${companyId} and entity = 'probe.thing'`;
     expect(masks).toEqual([{ role_id: seed.companies[0]!.memberRoleId, field: "secret", mode: "masked" }]);

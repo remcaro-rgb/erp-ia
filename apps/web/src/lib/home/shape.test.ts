@@ -1,0 +1,24 @@
+import { describe, expect, it } from "vitest";
+import { helpShortcuts, recentHref } from "./shape";
+
+// Pure rules of the home page: where a recent record opens, and which help shortcuts the screens the caller has make sense.
+
+describe("recentHref", () => {
+  it("opens a record that has a full page, else the entity's grid, else nothing", () => {
+    expect(recentHref("core.party", "p1")).toBe("/r/core.party/p1");
+    expect(recentHref("core.product_category", "c1")).toBe("/r/core.product_category/c1");
+    expect(recentHref("kernel.export_job", "j1")).toBeNull();
+  });
+});
+
+describe("helpShortcuts", () => {
+  it("offers only the guides of screens the caller can open, always the two-step one", () => {
+    expect(helpShortcuts(["/parties", "/products"]).map((s) => s.id)).toEqual(["parties", "products", "listings", "two_factor"]);
+    expect(helpShortcuts(["/import"]).map((s) => s.id)).toEqual(["import", "two_factor"]);
+    expect(helpShortcuts([]).map((s) => s.id)).toEqual(["two_factor"]);
+  });
+
+  it("carries the i18n key of the question each shortcut asks the assistant", () => {
+    expect(helpShortcuts(["/parties"])[0]).toEqual({ id: "parties", questionKey: "home.help.parties.question", labelKey: "home.help.parties.label" });
+  });
+});

@@ -1,16 +1,17 @@
 import type { ResolvedEntityDef } from "./entities";
-import type { ModuleDef, ProcessDef } from "./types";
+import type { HomeKpiProvider, ModuleDef, ProcessDef } from "./types";
 
 export { defineEntity } from "./entities";
 export type { EntityDef, ResolvedEntityDef } from "./entities";
 export type { FieldDef, FieldType, ResolvedFieldDef } from "./fields";
-export type { ConsumerContext, EventConsumer, FeatureDef, ModuleDef, NavItem, ProcessDef, ProcessKind } from "./types";
+export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind } from "./types";
 
 /** The catalogue every module declares its entities, processes and manifest in (design §5.3). */
 export class Registry {
   private readonly entityMap = new Map<string, ResolvedEntityDef>();
   private readonly processMap = new Map<string, ProcessDef>();
   private readonly moduleMap = new Map<string, ModuleDef>();
+  private readonly kpiMap = new Map<string, HomeKpiProvider>();
 
   registerEntity(entity: ResolvedEntityDef): void {
     if (this.entityMap.has(entity.id)) throw new Error(`entity already registered: ${entity.id}`);
@@ -40,6 +41,17 @@ export class Registry {
 
   processes(filter?: { module?: string }): ProcessDef[] {
     return [...this.processMap.values()].filter((p) => filter?.module === undefined || p.module === filter.module);
+  }
+
+  /** Adds a provider of home screen KPIs (`kernel.home.kpis` runs the ones the company is entitled to). */
+  registerKpiProvider(provider: HomeKpiProvider): void {
+    if (this.kpiMap.has(provider.id)) throw new Error(`KPI provider already registered: ${provider.id}`);
+    this.kpiMap.set(provider.id, provider);
+  }
+
+  /** The registered providers in registration order (modules load dependencies first). */
+  kpiProviders(): HomeKpiProvider[] {
+    return [...this.kpiMap.values()];
   }
 
   registerModule(module: ModuleDef): void {

@@ -10,3 +10,4 @@ export * from "./grid";
 export * from "./lookup";
 export * from "./forms";
 export * from "./import";
+export * from "./home";

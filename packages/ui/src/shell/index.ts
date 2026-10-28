@@ -15,4 +15,5 @@ export { HOME_TAB_ID, loadCachedTabs, MAX_TABS, sanitizeTabs, tabsStorageKey } f
 export type { TabsActions, TabsState, TabsStore, TabsStoreOptions } from "./tabs-store";
 export { applyTheme, isThemeMode, nextTheme, THEME_MODES, themeScript } from "./theme";
 export * from "./types";
-export { newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+export { browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+export { AskAssistantProvider, useAskAssistant } from "./ask-assistant";

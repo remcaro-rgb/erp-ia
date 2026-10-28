@@ -21,13 +21,32 @@ describe("parseShellPref", () => {
   });
 
   it("refuses other keys, bad themes and missing or absurd times", () => {
-    expect(parseShellPref({ key: "home_layout", value: {}, savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "grid.core_party.columns", value: {}, savedAt: now }, now)).toBeNull();
     expect(parseShellPref({ key: "theme", value: "pink", savedAt: now }, now)).toBeNull();
     expect(parseShellPref({ key: "theme", value: "dark" }, now)).toBeNull();
     expect(parseShellPref({ key: "theme", value: "dark", savedAt: -1 }, now)).toBeNull();
     expect(parseShellPref({ key: "theme", value: "dark", savedAt: now + 2 * 86_400_000 }, now)).toBeNull();
     expect(parseShellPref(null, now)).toBeNull();
     expect(parseShellPref("theme", now)).toBeNull();
+  });
+});
+
+describe("parseShellPref, the home layout", () => {
+  const layout = [{ id: "kpis", w: 4, h: 200 }, { id: "recent", w: 2, h: 360 }];
+
+  it("accepts a layout of known widgets with its save time", () => {
+    expect(parseShellPref({ key: "home_layout", value: layout, savedAt: now }, now)).toEqual({ key: "home_layout", stored: { value: layout, savedAt: now } });
+  });
+
+  it("stores the repaired layout, never what the browser sent (spans and heights are clamped)", () => {
+    const parsed = parseShellPref({ key: "home_layout", value: [{ id: "kpis", w: 9, h: 5, extra: "x" }], savedAt: now }, now);
+    expect(parsed?.stored.value).toEqual([{ id: "kpis", w: 4, h: 160 }]);
+  });
+
+  it("refuses an unknown widget, a repeated one and something that is not a list", () => {
+    expect(parseShellPref({ key: "home_layout", value: [{ id: "ghost", w: 1, h: 200 }], savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout", value: [layout[0], layout[0]], savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout", value: {}, savedAt: now }, now)).toBeNull();
   });
 });
 

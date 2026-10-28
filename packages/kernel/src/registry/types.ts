@@ -77,6 +77,41 @@ export interface ConsumerContext {
 
 export type EventConsumer = (ctx: ConsumerContext, payload: unknown) => Promise<void>;
 
+/**
+ * One number on the home screen (design §19a). Language-neutral: `label` and `detail.key` are i18n keys the screen
+ * translates, `params` the numbers the detail line shows; money-like formatting is the screen's.
+ */
+export interface Kpi {
+  /** `<module>.<name>`; unique among the KPIs of a response. */
+  id: string;
+  /** i18n key of the card's title. */
+  label: string;
+  value: number;
+  /** `percent` shows `38 %`, `tokens` a compact count (`1,9 M`), `count` a whole number. */
+  unit: "count" | "percent" | "tokens";
+  /** 0–1: fills the small bar under the number. */
+  progress?: number;
+  /** `warn` tints the number (something wants attention). */
+  tone?: "default" | "warn";
+  /** The line under the number: an i18n key and the values it shows. */
+  detail?: { key: string; params: Record<string, string | number> };
+}
+
+/**
+ * What a module registers to put KPIs on the home screen (design §19a, Task 20). `kernel.home.kpis` runs the providers
+ * whose `feature` the company is entitled to, as the caller (the process transaction, RLS and masked views apply), and
+ * only for a caller whose roles may run `consult` when the provider names one (rule 13).
+ */
+export interface HomeKpiProvider {
+  /** `<module>.<name>`, in the namespace of the module that ships it. */
+  id: string;
+  /** Feature id (`core.parties`) the company must be entitled to; in the provider's module namespace. */
+  feature: string;
+  /** Process id a role of the caller must be allowed to run for the KPIs to show (a consult over the same data). */
+  consult?: string;
+  compute(ctx: ProcessContext): Promise<Kpi[]>;
+}
+
 /** The manifest every module ships (design §5.2). */
 export interface ModuleDef {
   /** Lowercase identifier; also the Postgres schema and the first segment of its process and feature ids. */
@@ -89,5 +124,7 @@ export interface ModuleDef {
   features: FeatureDef[];
   events: { emits: string[]; consumes: Record<string, EventConsumer> };
   navigation: NavItem[];
+  /** KPIs the module contributes to the home screen. */
+  homeKpis?: HomeKpiProvider[];
   migrationsDir?: string;
 }

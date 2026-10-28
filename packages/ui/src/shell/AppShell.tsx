@@ -11,7 +11,8 @@ import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
-import { newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+import { AskAssistantProvider } from "./ask-assistant";
+import { browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
@@ -56,14 +57,6 @@ export interface AppShellProps {
   signOutAction?: () => void | Promise<void>;
   /** The preference cache; the browser's localStorage by default. */
   storage?: Storage | null;
-}
-
-function browserStorage(): Storage | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -165,11 +158,11 @@ function ShellFrame(props: AppShellProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(true);
   const [asked, setAsked] = useState<{ text: string; nonce: number } | undefined>(undefined);
-  const ask = (text: string) => {
+  const ask = useCallback((text: string) => {
     if (!text) return;
     setAssistantOpen(true);
     setAsked((previous) => ({ text, nonce: (previous?.nonce ?? 0) + 1 }));
-  };
+  }, []);
   const { gridHref } = props.assistantOptions ?? {};
   const openGrid = (entity: string, state: GridStateInput) => {
     const href = gridHref?.(entity);
@@ -215,7 +208,9 @@ function ShellFrame(props: AppShellProps) {
           />
           <TabsBar onNew={() => setPaletteOpen(true)} />
           <div className="flex min-h-0 flex-1">
-            <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">{props.children}</main>
+            <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">
+              <AskAssistantProvider ask={ask}>{props.children}</AskAssistantProvider>
+            </main>
             <AssistantDrawer
               open={assistantOpen}
               context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
