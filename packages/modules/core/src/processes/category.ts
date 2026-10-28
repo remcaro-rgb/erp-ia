@@ -1,10 +1,11 @@
 import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { defined } from "./common";
+import { blank, defined, idInput, idOutput, jsonb, refuseDuplicate } from "./common";
 import { clearable, extra, id, incRate, ivaRate, otherTaxes, uomCode } from "./schemas";
 
 // Product categories (design §5.18): a master whose taxes a product copies when it is assigned.
-// Changing a category never rewrites the products that already use it.
+// Changing a category never rewrites the products that already use it. Names are unique per company
+// without regard to case (unique index on lower(name)).
 
 const fields = {
   name: z.string().trim().min(1).max(100),
@@ -18,10 +19,10 @@ const fields = {
 };
 type CategoryFields = Partial<z.output<z.ZodObject<typeof fields>>>;
 
-const idOutput = z.object({ id: z.string() });
+/** Unique index on (company_id, lower(name)). */
+const NAME_KEY = "product_categories_company_name_key";
 
 function columns(ctx: ProcessContext, input: CategoryFields) {
-  const blank = (v: string | undefined) => (v === "" ? null : v);
   return {
     name: input.name,
     iva_rate: input.ivaRate,
@@ -30,12 +31,11 @@ function columns(ctx: ProcessContext, input: CategoryFields) {
     default_uom: blank(input.defaultUom),
     income_account: blank(input.incomeAccount),
     status: input.status,
-    extra: input.extra === undefined ? undefined : ctx.tx.json(input.extra as Parameters<typeof ctx.tx.json>[0]),
+    extra: jsonb(ctx, input.extra),
   };
 }
 
-const duplicate = (processId: string, name: string) =>
-  new ProcessError("invalid_input", `duplicate category in ${processId}`, { details: [`Ya existe una categoría llamada ${name}`] });
+const duplicateDetail = (name: string) => `Ya existe una categoría llamada ${name}`;
 
 export const categoryCreate = defineProcess({
   id: "core.category.create",
@@ -46,12 +46,15 @@ export const categoryCreate = defineProcess({
   input: z.object({ ...fields, otherTaxes: fields.otherTaxes.default([]), status: fields.status.default("active") }),
   output: idOutput,
   handler: async (ctx, input) => {
-    const [inserted] = await ctx.tx<{ id: string }[]>`
-      insert into core.product_categories ${ctx.tx({ company_id: ctx.companyId, ...defined(columns(ctx, input)) })}
-      on conflict (company_id, name) do nothing
-      returning id`;
-    if (!inserted) throw duplicate("core.category.create", input.name);
-    return { id: inserted.id };
+    const [inserted] = await refuseDuplicate(
+      "core.category.create",
+      NAME_KEY,
+      duplicateDetail(input.name),
+      () => ctx.tx<{ id: string }[]>`
+        insert into core.product_categories ${ctx.tx({ company_id: ctx.companyId, ...defined(columns(ctx, input)) })}
+        returning id`,
+    );
+    return { id: inserted!.id };
   },
 });
 
@@ -66,13 +69,12 @@ export const categoryUpdate = defineProcess({
   handler: async (ctx, { id: categoryId, ...input }) => {
     const [current] = await ctx.tx`select 1 from core.product_categories where id = ${categoryId} for update`;
     if (!current) throw new ProcessError("not_found", `category ${categoryId} not found`);
-    if (input.name !== undefined) {
-      const clash = await ctx.tx`
-        select 1 from core.product_categories where company_id = ${ctx.companyId} and name = ${input.name} and id <> ${categoryId}`;
-      if (clash.length > 0) throw duplicate("core.category.update", input.name);
-    }
     const set = defined(columns(ctx, input));
-    if (Object.keys(set).length > 0) await ctx.tx`update core.product_categories set ${ctx.tx(set)} where id = ${categoryId}`;
+    if (Object.keys(set).length > 0) {
+      await refuseDuplicate("core.category.update", NAME_KEY, duplicateDetail(input.name ?? ""), () =>
+        ctx.tx`update core.product_categories set ${ctx.tx(set)} where id = ${categoryId}`,
+      );
+    }
     return { id: categoryId };
   },
 });
@@ -83,7 +85,7 @@ export const categoryConsult = defineProcess({
   kind: "consult",
   feature: "core.products",
   description: "Consulta una categoría de productos con los campos que el rol puede ver",
-  input: z.object({ id }),
+  input: idInput,
   output: z.looseObject({ id: z.string() }),
   handler: async (ctx, { id: categoryId }) => {
     const [row] = await ctx.tx`select * from core.v_product_categories where id = ${categoryId}`;

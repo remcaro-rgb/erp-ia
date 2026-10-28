@@ -1,13 +1,11 @@
-import type { PartyFiscalInput, PartyValidation } from "@erp/kernel";
+import { DEFAULT_PHONE_CC, validateEmail, validatePhone, type PartyFiscalInput, type PartyValidation } from "@erp/kernel";
 import { DEPARTMENTS } from "./dane";
 import { DOCUMENT_TYPES, documentNumberErrors } from "./document-types";
 import { nitCheckDigit } from "./nit";
 import { NOT_RESPONSIBLE, TAX_RESPONSIBILITIES, TAX_SCHEMES } from "./tax-tables";
 import { clean } from "./util";
 
-const LIMITS = { legalName: 450, tradeName: 450, namePart: 60, address: 200, email: 100, ciiu: 4, postal: 6 } as const;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const DEFAULT_PHONE_CC = "57";
+const LIMITS = { legalName: 450, tradeName: 450, namePart: 60, address: 200, ciiu: 4, postal: 6 } as const;
 
 const NAME_PARTS = [
   ["firstSurname", "Primer apellido"],
@@ -15,22 +13,6 @@ const NAME_PARTS = [
   ["firstName", "Primer nombre"],
   ["otherNames", "Otros nombres"],
 ] as const;
-
-function emailError(value: string): string {
-  if (!EMAIL_RE.test(value)) return "Correo inválido (nombre@dominio.ext)";
-  if (value.length > LIMITS.email) return `Máximo ${LIMITS.email} caracteres`;
-  return "";
-}
-
-// Design §5.16: +57 → 10 digits starting 3 (celular) or 60 (fijo), or 7 digits; other countries 6–14 digits.
-function phoneError(cc: string, number: string): string {
-  if (!/^\d+$/.test(number)) return "Solo dígitos, sin espacios ni guiones";
-  if (cc === DEFAULT_PHONE_CC) {
-    const valid = (number.length === 10 && (number.startsWith("3") || number.startsWith("60"))) || number.length === 7;
-    return valid ? "" : "Colombia: celular 10 dígitos (3…) o fijo 10 dígitos (60…)";
-  }
-  return number.length < 6 || number.length > 14 ? "6 a 14 dígitos" : "";
-}
 
 /**
  * Colombian party validation (design §5.8a). `errors` are format/length/coherence violations that block the save;
@@ -128,13 +110,13 @@ export function validateParty(input: PartyFiscalInput): PartyValidation {
   const supplierEmail = clean(input.supplierEmail);
   if (customer && !invoiceEmail) missing.push("Correo para recibir facturas electrónicas");
   if (supplier && !supplierEmail) missing.push("Correo para enviar documentos al proveedor");
-  const invoiceEmailError = invoiceEmail ? emailError(invoiceEmail) : "";
+  const invoiceEmailError = invoiceEmail ? validateEmail(invoiceEmail) : null;
   if (invoiceEmailError) errors.push(`Correo de facturas: ${invoiceEmailError}`);
-  const supplierEmailError = supplierEmail ? emailError(supplierEmail) : "";
+  const supplierEmailError = supplierEmail ? validateEmail(supplierEmail) : null;
   if (supplierEmailError) errors.push(`Correo del proveedor: ${supplierEmailError}`);
   const phoneCc = (clean(input.phoneCc) ?? DEFAULT_PHONE_CC).replace(/^\+/, "");
   const phone = clean(input.phone);
-  const phoneErrorText = phone ? phoneError(phoneCc, phone) : "";
+  const phoneErrorText = phone ? validatePhone(phoneCc, phone) : null;
   if (phoneErrorText) errors.push(`Teléfono: ${phoneErrorText}`);
 
   return {

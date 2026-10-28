@@ -36,6 +36,9 @@ describe("core product categories", () => {
     expect(row).toMatchObject({ name: "Café", iva_rate: "5", default_uom: "KGM", income_account: "413524", status: "active" });
     expect(Number(row!.seq)).toBeGreaterThan(0);
     await expect(runProcess(deps, admin, "core.category.create", { name: "Café", ivaRate: "19" })).rejects.toMatchObject({ code: "invalid_input" });
+    // Names are unique without regard to case, on create and on rename.
+    await expect(runProcess(deps, admin, "core.category.create", { name: "CAFÉ", ivaRate: "19" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(runProcess(deps, admin, "core.category.update", { id: bebidasId, name: "café" })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(runProcess(deps, admin, "core.category.create", { name: "Mala", ivaRate: "12" })).rejects.toMatchObject({ code: "invalid_input" });
     const seen = await runProcess(deps, admin, "core.category.consult", { id: bebidasId });
     expect(seen).toMatchObject({ id: bebidasId, name: "Bebidas azucaradas", inc_rate: "8", other_taxes: ["34"] });

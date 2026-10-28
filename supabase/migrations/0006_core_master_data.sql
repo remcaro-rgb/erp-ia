@@ -165,6 +165,20 @@ as $$
   end;
 $$;
 
+-- Writes are stricter than reads: every non-employee kind of the party (as stored and as it would be
+-- written) must be inside the scope, so a `clientes` role cannot create, extend or edit a party that
+-- is also a supplier. `ninguno` writes no party.
+create or replace function core.party_scope_covers(scope text, kind text[]) returns boolean
+language sql immutable parallel safe
+as $$
+  select case scope
+    when 'ambos' then true
+    when 'clientes' then kind <@ array['customer', 'employee']
+    when 'proveedores' then kind <@ array['supplier', 'employee']
+    else false
+  end;
+$$;
+
 -- ---------------------------------------------------------------------------------------------
 -- Parties (design §5.8a, §5.18). dian_status / dian_missing are written by core.party.create and
 -- core.party.update from the country pack's validateParty, never by the client; invoice_ready by
@@ -263,9 +277,10 @@ create table core.product_categories (
   updated_at     timestamptz not null default now(),
   created_by     uuid default kernel.current_user_id(),
   updated_by     uuid,
-  unique (company_id, name),
   unique (company_id, seq)
 );
+-- Category names are unique per company without regard to case ("Café" = "CAFÉ").
+create unique index product_categories_company_name_key on core.product_categories (company_id, lower(name));
 select core.setup_table('product_categories', 'core.product_category');
 
 create table core.products (
@@ -551,3 +566,35 @@ select
   "updated_at"
 from core.price_lists;
 grant select on core.v_price_lists to authenticated;
+
+create or replace view core.v_price_list_items with (security_invoker = true) as
+select
+  "id",
+  "company_id",
+  case when (select kernel.field_visible('core.price_list_item', 'seq')) then "seq" else null end as "seq",
+  case when (select kernel.field_visible('core.price_list_item', 'price_list_id')) then "price_list_id" else null end as "price_list_id",
+  case when (select kernel.field_visible('core.price_list_item', 'product_id')) then "product_id" else null end as "product_id",
+  case when (select kernel.field_visible('core.price_list_item', 'price')) then "price" else null end as "price",
+  case when (select kernel.field_visible('core.price_list_item', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.price_list_item', 'extra_free')) then "extra_free" else null end as "extra_free",
+  "created_at",
+  "updated_at"
+from core.price_list_items;
+grant select on core.v_price_list_items to authenticated;
+
+create or replace view core.v_document_sequences with (security_invoker = true) as
+select
+  "id",
+  "company_id",
+  case when (select kernel.field_visible('core.document_sequence', 'seq')) then "seq" else null end as "seq",
+  case when (select kernel.field_visible('core.document_sequence', 'document_type')) then "document_type" else null end as "document_type",
+  case when (select kernel.field_visible('core.document_sequence', 'prefix')) then "prefix" else null end as "prefix",
+  case when (select kernel.field_visible('core.document_sequence', 'next_number')) then "next_number" else null end as "next_number",
+  case when (select kernel.field_visible('core.document_sequence', 'padding')) then "padding" else null end as "padding",
+  case when (select kernel.field_visible('core.document_sequence', 'resolution')) then "resolution" else null end as "resolution",
+  case when (select kernel.field_visible('core.document_sequence', 'extra')) then "extra" else null end as "extra",
+  case when (select kernel.field_visible('core.document_sequence', 'extra_free')) then "extra_free" else null end as "extra_free",
+  "created_at",
+  "updated_at"
+from core.document_sequences;
+grant select on core.v_document_sequences to authenticated;

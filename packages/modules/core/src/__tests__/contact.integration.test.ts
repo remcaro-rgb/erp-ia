@@ -46,6 +46,19 @@ describe("core party contacts", () => {
   it("rejects an invalid e-mail or phone with invalid_input", async () => {
     await expect(runProcess(deps, admin, "core.contact.create", { partyId, name: "X", email: "no-es-correo" })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(runProcess(deps, admin, "core.contact.create", { partyId, name: "X", phone: "12" })).rejects.toMatchObject({ code: "invalid_input" });
+    // Rule 11: +57 numbers are 10 digits starting with 3 or 60, or 7 digits.
+    const error = await runProcess(deps, admin, "core.contact.create", { partyId, name: "X", phoneCc: "+57", phone: "12345678" }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "invalid_input" });
+    expect((error as { details: string[] }).details).toEqual(["Teléfono: Colombia: celular 10 dígitos (3…) o fijo 10 dígitos (60…)"]);
+    await expect(runProcess(deps, admin, "core.contact.create", { partyId, name: "X", mobile: "12345678" })).rejects.toMatchObject({ code: "invalid_input" });
+    // Another country follows its own length rule; the calling code is stored without "+".
+    const abroad = await runProcess(deps, admin, "core.contact.create", { partyId, name: "Y", phoneCc: "+34", phone: "915551234", email: "y@iberia.es" });
+    const [row] = await sql`select phone_cc, phone from core.party_contacts where id = ${abroad.id}`;
+    expect(row).toMatchObject({ phone_cc: "34", phone: "915551234" });
+    // An update validates the number against the stored calling code.
+    await expect(runProcess(deps, admin, "core.contact.update", { id: abroad.id, phone: "12345" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(runProcess(deps, admin, "core.contact.update", { id: abroad.id, phoneCc: "57" })).rejects.toMatchObject({ code: "invalid_input" });
+    await runProcess(deps, admin, "core.contact.delete", { id: abroad.id });
   });
 
   it("a contact needs a party of the caller's company and scope", async () => {

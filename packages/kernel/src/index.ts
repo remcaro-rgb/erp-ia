@@ -21,4 +21,5 @@ export { loadModules } from "./module/loader";
 export { entitled, entitlementLimit, enableModule, syncModuleManifest } from "./entitlements/resolver";
 export type { EntitledFn } from "./entitlements/resolver";
 export { registerCountryPack, countryPack } from "./localization/country-pack";
+export { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "./validation";
 export type { CountryPack, DocumentType, PartyFiscalInput, PartyValidation, ProductFiscalInput, ProductValidation, TaxIdResult } from "./localization/country-pack";

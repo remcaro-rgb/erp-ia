@@ -1,11 +1,26 @@
 import { defineProcess, ProcessError, type PartyValidation, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { assertScopeAllows, assertVisibleParty, companyPack, defined, dianStatus, num, rejectErrors, str, undefinedAsNull } from "./common";
+import {
+  assertScopeCovers,
+  companyPack,
+  defined,
+  dianStatus,
+  idInput,
+  idOutput,
+  jsonb,
+  num,
+  refuseDuplicate,
+  rejectErrors,
+  str,
+  undefinedAsNull,
+  writableParty,
+} from "./common";
 import { documentType, extra, id, optionalText, partyKind, taxScheme } from "./schemas";
 
 // Parties (design §5.8a, §5.18): customers, suppliers and employees as one model. The company's
 // country pack validates every create and update: its errors refuse the run with invalid_input, its
-// missing data is stored as dian_status / dian_missing. The party scope bounds reads and writes.
+// missing data is stored as dian_status / dian_missing. The party scope bounds reads (core.v_parties)
+// and writes (every non-employee kind of the record, stored and written, must be in the scope).
 
 const fields = {
   kind: z.array(partyKind).min(1),
@@ -44,8 +59,9 @@ const createInput = z.object({
 type PartyInput = z.output<typeof createInput>;
 
 const updateInput = z.object(fields).partial().extend({ id });
-const idInput = z.object({ id });
-const idOutput = z.object({ id: z.string() });
+
+/** Unique constraint on (company_id, document_type, document_number). */
+const DOCUMENT_KEY = "parties_company_id_document_type_document_number_key";
 
 /** The stored record as a create input, so an update re-validates the whole merged record. */
 function inputOf(row: Record<string, unknown>): PartyInput {
@@ -81,7 +97,7 @@ function inputOf(row: Record<string, unknown>): PartyInput {
 /** Validates with the company's pack (errors refuse the run) and maps the normalized record to columns. */
 async function validated(ctx: ProcessContext, processId: string, input: PartyInput) {
   const kind = [...new Set(input.kind)];
-  await assertScopeAllows(ctx, kind);
+  await assertScopeCovers(ctx, kind);
   const pack = await companyPack(ctx);
   const result: PartyValidation = pack.validateParty({ ...input, kind });
   rejectErrors(processId, result.errors);
@@ -112,16 +128,14 @@ async function validated(ctx: ProcessContext, processId: string, input: PartyInp
     phone: n.phone,
     contact_name: input.contactName?.trim() || undefined,
     credit_limit: input.creditLimit,
-    extra: input.extra === undefined ? undefined : ctx.tx.json(input.extra as Parameters<typeof ctx.tx.json>[0]),
+    extra: jsonb(ctx, input.extra),
     dian_status: dianStatus(result.missing),
     dian_missing: [...result.missing],
   };
 }
 
-const duplicate = (processId: string, input: { documentType: string; documentNumber: string }) =>
-  new ProcessError("invalid_input", `duplicate party in ${processId}`, {
-    details: [`Ya existe un tercero con documento ${input.documentType} ${input.documentNumber.trim()}`],
-  });
+const duplicateDetail = (row: { document_type: string; document_number: string }) =>
+  `Ya existe un tercero con documento ${row.document_type} ${row.document_number}`;
 
 export const partyCreate = defineProcess({
   id: "core.party.create",
@@ -133,13 +147,14 @@ export const partyCreate = defineProcess({
   output: idOutput,
   handler: async (ctx, input) => {
     const row = await validated(ctx, "core.party.create", input);
-    const [inserted] = await ctx.tx<{ id: string }[]>`
-      insert into core.parties ${ctx.tx({ company_id: ctx.companyId, ...defined(row) })}
-      on conflict (company_id, document_type, document_number) do nothing
-      returning id`;
-    if (!inserted) throw duplicate("core.party.create", input);
-    await ctx.emit("core.party.created", { id: inserted.id });
-    return { id: inserted.id };
+    const [inserted] = await refuseDuplicate(
+      "core.party.create",
+      DOCUMENT_KEY,
+      duplicateDetail(row),
+      () => ctx.tx<{ id: string }[]>`insert into core.parties ${ctx.tx({ company_id: ctx.companyId, ...defined(row) })} returning id`,
+    );
+    await ctx.emit("core.party.created", { id: inserted!.id });
+    return { id: inserted!.id };
   },
 });
 
@@ -152,19 +167,17 @@ export const partyUpdate = defineProcess({
   input: updateInput,
   output: idOutput,
   handler: async (ctx, { id: partyId, ...changes }) => {
-    await assertVisibleParty(ctx, partyId);
+    // The stored kinds must be in scope (a dual party is off limits to a one-sided role) …
+    await writableParty(ctx, partyId);
     const [current] = await ctx.tx`select * from core.parties where id = ${partyId} for update`;
     if (!current) throw new ProcessError("not_found", `party ${partyId} not found`);
     const merged: PartyInput = { ...inputOf(current), ...defined(changes) };
+    // … and so must the kinds it would have after the update (checked in validated).
     const row = await validated(ctx, "core.party.update", merged);
-    const clash = await ctx.tx`
-      select 1 from core.parties
-      where company_id = ${ctx.companyId} and document_type = ${row.document_type} and document_number = ${row.document_number} and id <> ${partyId}`;
-    if (clash.length > 0) throw duplicate("core.party.update", merged);
     const { credit_limit, extra: extraValue, ...rest } = row;
     // Unset optional columns are cleared; credit limit and extra data change only when given.
     const set = { ...undefinedAsNull(rest), ...defined({ credit_limit, extra: extraValue }) };
-    await ctx.tx`update core.parties set ${ctx.tx(set)} where id = ${partyId}`;
+    await refuseDuplicate("core.party.update", DOCUMENT_KEY, duplicateDetail(row), () => ctx.tx`update core.parties set ${ctx.tx(set)} where id = ${partyId}`);
     await ctx.emit("core.party.updated", { id: partyId });
     return { id: partyId };
   },
@@ -179,7 +192,7 @@ export const partyDeactivate = defineProcess({
   input: idInput,
   output: idOutput,
   handler: async (ctx, { id: partyId }) => {
-    await assertVisibleParty(ctx, partyId);
+    await writableParty(ctx, partyId);
     await ctx.tx`update core.parties set is_active = false where id = ${partyId}`;
     await ctx.emit("core.party.updated", { id: partyId });
     return { id: partyId };

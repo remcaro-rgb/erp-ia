@@ -65,6 +65,7 @@ describe("core products", () => {
     expect(Number(after!.list_price)).toBe(52000);
     expect((await sql`select 1 from kernel.outbox where event = 'core.product.updated' and payload->>'id' = ${out.id}`).length).toBe(1);
     await expect(runProcess(deps, admin, "core.product.update", { id: out.id, listPrice: -1 })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(runProcess(deps, admin, "core.product.update", { id: out.id, sku: "CAF-500" })).rejects.toMatchObject({ code: "invalid_input" });
     await runProcess(deps, admin, "core.product.deactivate", { id: out.id });
     const [inactive] = await sql`select is_active, invoice_ready from core.products where id = ${out.id}`;
     expect(inactive).toMatchObject({ is_active: false, invoice_ready: false });
@@ -91,5 +92,15 @@ describe("core products", () => {
     await expect(runProcess(deps, admin, "core.product.create", { ...cafe, sku: "CAF-FOR", supplierId: foreign.id })).rejects.toMatchObject({
       code: "invalid_input",
     });
+    // The supplier is looked up through core.v_parties, so a role that does not see suppliers cannot pick one.
+    const company = h.seed.companies[0]!;
+    await sql`update kernel.roles set party_scope = 'clientes' where id = ${company.adminRoleId}`;
+    try {
+      await expect(runProcess(deps, admin, "core.product.create", { ...cafe, sku: "CAF-SCO", supplierId: own.id })).rejects.toMatchObject({
+        code: "invalid_input",
+      });
+    } finally {
+      await sql`update kernel.roles set party_scope = 'ambos' where id = ${company.adminRoleId}`;
+    }
   });
 });

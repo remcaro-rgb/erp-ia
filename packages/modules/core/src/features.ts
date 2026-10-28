@@ -29,13 +29,13 @@ export const FEATURES: FeatureDef[] = [
     id: "core.products",
     label: "feature.core.products",
     processes: [...ids(PRODUCT_PROCESSES), ...ids(CATEGORY_PROCESSES)],
-    entities: ["core.product", "core.product_category", "core.uom", "core.price_list"],
+    entities: ["core.product", "core.product_category", "core.uom", "core.price_list", "core.price_list_item"],
     nav: nav("core.products"),
   },
   {
     id: "core.settings",
     label: "feature.core.settings",
     processes: ids(SEQUENCE_PROCESSES),
-    entities: [],
+    entities: ["core.document_sequence"],
   },
 ];

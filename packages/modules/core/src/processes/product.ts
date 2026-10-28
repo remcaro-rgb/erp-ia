@@ -1,6 +1,6 @@
 import { defineProcess, ProcessError, type ProcessContext, type ProductFiscalInput } from "@erp/kernel";
 import { z } from "zod";
-import { companyPack, defined, dianStatus, num, rejectErrors, str, undefinedAsNull } from "./common";
+import { companyPack, defined, dianStatus, idInput, idOutput, jsonb, num, refuseDuplicate, rejectErrors, str, undefinedAsNull } from "./common";
 import { resolveTaxes, type Taxes, type TaxResolution } from "./product-taxes";
 import { extra, id, idScheme, incRate, ivaRate, optionalText, otherTaxes, referencePriceType, uomCode } from "./schemas";
 
@@ -36,8 +36,8 @@ const createInput = z.object({ ...fields, idScheme: fields.idScheme.default("999
 type ProductInput = z.output<typeof createInput>;
 type Fiscal = Omit<ProductInput, "uomCode" | "ivaRate" | "incRate" | "otherTaxes" | "categoryId" | "supplierId" | "extra">;
 
-const idInput = z.object({ id });
-const idOutput = z.object({ id: z.string() });
+/** Unique constraint on (company_id, sku). */
+const SKU_KEY = "products_company_id_sku_key";
 
 type Category = Taxes & { defaultUom: string | null };
 
@@ -50,9 +50,11 @@ async function assignableCategory(ctx: ProcessContext, processId: string, catego
   return { ivaRate: row!.iva_rate, incRate: row!.inc_rate, otherTaxes: row!.other_taxes, defaultUom: row!.default_uom };
 }
 
-/** The supplier must be a party of kind supplier in the caller's company. */
+/** The supplier must be a party of kind supplier the caller sees through core.v_parties (company and party scope). */
 async function assertSupplier(ctx: ProcessContext, processId: string, supplierId: string): Promise<void> {
-  const rows = await ctx.tx`select 1 from core.parties where id = ${supplierId} and kind @> array['supplier']`;
+  const rows = await ctx.tx`
+    select 1 from core.v_parties v join core.parties p on p.id = v.id
+    where v.id = ${supplierId} and p.kind @> array['supplier']`;
   if (rows.length === 0) rejectErrors(processId, ["El proveedor no existe o no es un tercero de tipo proveedor"]);
 }
 
@@ -99,11 +101,7 @@ async function validated(ctx: ProcessContext, processId: string, fiscal: Fiscal,
   };
 }
 
-const json = (ctx: ProcessContext, value: Record<string, unknown> | undefined) =>
-  value === undefined ? undefined : ctx.tx.json(value as Parameters<typeof ctx.tx.json>[0]);
-
-const duplicate = (processId: string, sku: string) =>
-  new ProcessError("invalid_input", `duplicate product in ${processId}`, { details: [`Ya existe un producto con el código ${sku.trim()}`] });
+const duplicateDetail = (sku: string) => `Ya existe un producto con el código ${sku}`;
 
 /** The stored product's fiscal fields. */
 function fiscalOf(row: Record<string, unknown>): Fiscal {
@@ -139,17 +137,16 @@ export const productCreate = defineProcess({
     if (supplierId) await assertSupplier(ctx, "core.product.create", supplierId);
     const resolution = resolveTaxes({ explicit: { ivaRate: iva, incRate: inc, otherTaxes: other }, category, categoryChanged: true });
     const row = await validated(ctx, "core.product.create", fiscal, uom ?? category?.defaultUom ?? undefined, resolution);
-    const [inserted] = await ctx.tx<{ id: string }[]>`
-      insert into core.products ${ctx.tx({
-        company_id: ctx.companyId,
-        ...defined(row),
-        ...defined({ category_id: categoryId, supplier_id: supplierId, extra: json(ctx, extraData) }),
-      })}
-      on conflict (company_id, sku) do nothing
-      returning id`;
-    if (!inserted) throw duplicate("core.product.create", input.sku);
-    await ctx.emit("core.product.created", { id: inserted.id });
-    return { id: inserted.id };
+    const values = {
+      company_id: ctx.companyId,
+      ...defined(row),
+      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: jsonb(ctx, extraData) }),
+    };
+    const [inserted] = await refuseDuplicate("core.product.create", SKU_KEY, duplicateDetail(row.sku), () =>
+      ctx.tx<{ id: string }[]>`insert into core.products ${ctx.tx(values)} returning id`,
+    );
+    await ctx.emit("core.product.created", { id: inserted!.id });
+    return { id: inserted!.id };
   },
 });
 
@@ -185,13 +182,13 @@ export const productUpdate = defineProcess({
     const resolution = resolveTaxes({ explicit: { ivaRate: iva, incRate: inc, otherTaxes: other }, category, current: stored, categoryChanged });
     const fiscal: Fiscal = { ...fiscalOf(current), ...defined(changes) };
     const row = await validated(ctx, "core.product.update", fiscal, uom ?? String(current.uom_code), resolution);
-    const clash = await ctx.tx`select 1 from core.products where company_id = ${ctx.companyId} and sku = ${row.sku} and id <> ${productId}`;
-    if (clash.length > 0) throw duplicate("core.product.update", row.sku);
     const set = {
       ...undefinedAsNull(row),
-      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: json(ctx, extraData) }),
+      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: jsonb(ctx, extraData) }),
     };
-    await ctx.tx`update core.products set ${ctx.tx(set)} where id = ${productId}`;
+    await refuseDuplicate("core.product.update", SKU_KEY, duplicateDetail(row.sku), () =>
+      ctx.tx`update core.products set ${ctx.tx(set)} where id = ${productId}`,
+    );
     await ctx.emit("core.product.updated", { id: productId });
     return { id: productId };
   },

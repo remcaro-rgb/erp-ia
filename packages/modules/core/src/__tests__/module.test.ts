@@ -16,7 +16,10 @@ describe("core manifest", () => {
       ].sort(),
     );
     expect(registry.entities("core").map((e) => e.id)).toEqual(
-      expect.arrayContaining(["core.party", "core.product", "core.uom", "core.price_list", "core.party_contact", "core.product_category"]),
+      expect.arrayContaining([
+        "core.party", "core.product", "core.uom", "core.price_list", "core.party_contact", "core.product_category",
+        "core.price_list_item", "core.document_sequence",
+      ]),
     );
     expect(core.features.map((f) => f.id)).toEqual(["core.parties", "core.products", "core.settings"]);
     expect(core.events.emits).toEqual(["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"]);

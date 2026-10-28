@@ -22,10 +22,8 @@ export const otherTaxes = z.array(z.string().regex(/^\d{2}$/));
 /** UN/ECE Rec. 20 unit code; the pack checks membership. */
 export const uomCode = z.string().regex(/^[A-Z0-9]{1,3}$/);
 
-/** Calling code without "+", e.g. "57". */
-export const phoneCc = z.string().regex(/^\d{1,3}$/);
-/** Digits only, 6–14 (E.164 without the calling code). The pack applies country rules to party phones. */
-export const phoneNumber = z.string().regex(/^\d{6,14}$/);
+/** Calling code with or without "+", e.g. "57" or "+57"; stored without "+". */
+export const phoneCc = z.string().trim().regex(/^\+?\d{1,3}$/);
 
 /** Accepts "" so an update can clear an optional field. */
 export const clearable = <T extends z.ZodTypeAny>(schema: T) => z.union([schema, z.literal("")]);

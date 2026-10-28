@@ -141,6 +141,44 @@ describe("core parties", () => {
     expect(kinds.every((r) => r.kind.includes("customer"))).toBe(true);
   });
 
+  it("a write is forbidden when any non-employee kind of the record is outside the caller's scope; ambos may do it all", async () => {
+    const dual = { ...exito, kind: ["customer", "supplier"], supplierEmail: "compras@exito.com" };
+    await expect(runProcess(deps, vendedor, "core.party.create", { ...dual, documentNumber: "830000030" })).rejects.toMatchObject({ code: "forbidden" });
+    const customer = await runProcess(deps, vendedor, "core.party.create", { ...exito, documentNumber: "830000031" });
+    await expect(runProcess(deps, vendedor, "core.party.update", { id: customer.id, kind: ["customer", "supplier"] })).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    const existing = await runProcess(deps, admin, "core.party.create", { ...dual, documentNumber: "830000032" });
+    await expect(runProcess(deps, vendedor, "core.party.update", { id: existing.id, supplierEmail: "otro@exito.com" })).rejects.toMatchObject({
+      code: "forbidden",
+    });
+    await expect(runProcess(deps, vendedor, "core.party.update", { id: existing.id, kind: ["customer"] })).rejects.toMatchObject({ code: "forbidden" });
+    const [unchanged] = await sql`select kind, supplier_email from core.parties where id = ${existing.id}`;
+    expect(unchanged).toMatchObject({ kind: ["customer", "supplier"], supplier_email: "compras@exito.com" });
+    // An employee kind does not need a party scope.
+    await expect(runProcess(deps, vendedor, "core.party.create", { ...exito, kind: ["customer", "employee"], documentNumber: "830000033" })).resolves.toMatchObject({
+      id: expect.any(String),
+    });
+
+    // The admin's scope is ambos: the same three writes succeed.
+    await expect(runProcess(deps, admin, "core.party.create", { ...dual, documentNumber: "830000034" })).resolves.toMatchObject({ id: expect.any(String) });
+    await runProcess(deps, admin, "core.party.update", { id: customer.id, kind: ["customer", "supplier"], supplierEmail: "compras@cliente.co" });
+    await runProcess(deps, admin, "core.party.update", { id: existing.id, supplierEmail: "otro@exito.com" });
+    const rows = await sql`select id, kind, supplier_email from core.parties where id = any(${[customer.id, existing.id]}::uuid[]) order by document_number`;
+    expect(rows.map((r) => [r.kind, r.supplier_email])).toEqual([
+      [["customer", "supplier"], "compras@cliente.co"],
+      [["customer", "supplier"], "otro@exito.com"],
+    ]);
+  });
+
+  it("an update onto another party's document is invalid_input", async () => {
+    await runProcess(deps, admin, "core.party.create", { ...exito, documentNumber: "830000040" });
+    const other = await runProcess(deps, admin, "core.party.create", { ...exito, documentNumber: "830000041" });
+    const error = await runProcess(deps, admin, "core.party.update", { id: other.id, documentNumber: "830000040" }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "invalid_input" });
+    expect((error as { details: string[] }).details.join(" ")).toContain("830000040");
+  });
+
   it("party_scope is the union of the caller's roles: clientes + proveedores sees both, ninguno sees nothing", async () => {
     const company = h.seed.companies[0]!;
     const [buyer] = await sql<{ id: string }[]>`

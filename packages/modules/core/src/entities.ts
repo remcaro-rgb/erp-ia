@@ -134,4 +134,22 @@ export const priceList = entity("core.price_list", "price_lists", "name", (f) =>
   ...trailer(f),
 ]);
 
-export const CORE_ENTITIES: EntityDef[] = [party, partyContact, productCategory, product, uom, priceList];
+export const priceListItem = entity("core.price_list_item", "price_list_items", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("price_list_id", "ref", { required: true, ref: { entity: "core.price_list", display: "name" } }),
+  f("product_id", "ref", { required: true, ref: { entity: "core.product", display: "description" } }),
+  f("price", "money", { required: true }),
+  ...trailer(f),
+]);
+
+export const documentSequence = entity("core.document_sequence", "document_sequences", "document_type", (f) => [
+  f("seq", "number", { required: true }),
+  f("document_type", "text", { required: true, searchable: true }),
+  f("prefix", "text"),
+  f("next_number", "number", { required: true }),
+  f("padding", "number"),
+  f("resolution", "json", { sortable: false }),
+  ...trailer(f),
+]);
+
+export const CORE_ENTITIES: EntityDef[] = [party, partyContact, productCategory, product, uom, priceList, priceListItem, documentSequence];
