@@ -6,6 +6,7 @@ import { testDb, seedTenant, ensureRoleProbe } from "../db/test-db";
 import { registry } from "../registry";
 import { defineProcess } from "../process/define";
 import { runProcess } from "../process/run";
+import { ProcessError } from "../process/errors";
 import type { Caller } from "../process/context";
 
 const probe = defineProcess({
@@ -131,6 +132,30 @@ describe("run-process", () => {
     const count = async (rows: Promise<{ n: number }[]>) => (await rows)[0]!.n;
     expect(await count(sql`select count(*)::int as n from kernel.role_probe where company_id = ${companyId} and secret = 'x'`)).toBe(0);
     expect(await count(sql`select count(*)::int as n from kernel.audit_log where company_id = ${companyId} and input->>'name' = 'x'`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from kernel.audit_log where chain_id = ${chainId}`)).toBe(0);
+    expect(await count(sql`select count(*)::int as n from kernel.outbox where chain_id = ${chainId}`)).toBe(0);
+  });
+
+  it("a ProcessError thrown by a handler keeps its code and rolls back", async () => {
+    const refusing = defineProcess({
+      ...probe,
+      id: "test.probe.refuse",
+      handler: async (ctx, input) => {
+        await ctx.tx`insert into kernel.role_probe(company_id, secret) values (${ctx.companyId}, ${input.name})`;
+        await ctx.emit("test.probe.created", { name: input.name });
+        throw new ProcessError("invalid_input", "refused by the handler", { details: ["Dato inválido"] });
+      },
+    });
+    registry.registerProcess(refusing);
+    await grant(adminRole, refusing.id);
+    const chainId = randomUUID();
+    const error = await runProcess(deps, { ...callerWith(adminClaims), chainId }, refusing.id, { name: "refused" }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(ProcessError);
+    expect(error).toMatchObject({ code: "invalid_input", details: ["Dato inválido"] });
+    const count = async (rows: Promise<{ n: number }[]>) => (await rows)[0]!.n;
+    expect(await count(sql`select count(*)::int as n from kernel.role_probe where company_id = ${companyId} and secret = 'refused'`)).toBe(0);
     expect(await count(sql`select count(*)::int as n from kernel.audit_log where chain_id = ${chainId}`)).toBe(0);
     expect(await count(sql`select count(*)::int as n from kernel.outbox where chain_id = ${chainId}`)).toBe(0);
   });

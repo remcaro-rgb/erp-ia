@@ -117,6 +117,8 @@ create table kernel.roles (
   company_id uuid not null references kernel.companies (id),
   name       text not null,
   is_system  boolean not null default false,
+  -- Which parties the role sees (design §5.18, rule 13): customers, suppliers, both or none.
+  party_scope text not null default 'ambos' check (party_scope in ('ambos', 'clientes', 'proveedores', 'ninguno')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   created_by uuid default kernel.current_user_id(),
@@ -187,6 +189,28 @@ as $$
       and r.name = 'admin'
   );
 $$;
+
+-- The caller's party scope: the union of the scopes of their roles in the active company. `ambos`
+-- when any role has it or the roles cover both `clientes` and `proveedores`; `ninguno` without roles
+-- (e.g. a connection without claims). Modules that own parties filter their read views with it.
+create or replace function kernel.party_scope() returns text
+language sql stable security definer parallel safe
+set search_path = ''
+as $$
+  select case
+    when bool_or(r.party_scope = 'ambos')
+      or (bool_or(r.party_scope = 'clientes') and bool_or(r.party_scope = 'proveedores')) then 'ambos'
+    when bool_or(r.party_scope = 'clientes') then 'clientes'
+    when bool_or(r.party_scope = 'proveedores') then 'proveedores'
+    else 'ninguno'
+  end
+  from kernel.roles r
+  where r.id = any (kernel.current_role_ids())
+    and r.company_id = kernel.current_company_id()
+    and array[r.company_id] <@ kernel.current_company_ids();
+$$;
+revoke execute on function kernel.party_scope() from public, anon;
+grant execute on function kernel.party_scope() to authenticated, service_role;
 
 -- Keeps updated_at / updated_by current on every update.
 create or replace function kernel.touch_updated() returns trigger

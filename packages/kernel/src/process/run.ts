@@ -32,7 +32,8 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
  * entitlements (`not_entitled`), permission (`forbidden`), step-up (`step_up_required`), input
  * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
- * error rolls all of it back and surfaces as `handler_failed`. A denial is audited (action `denied`)
+ * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
+ * throws itself, which keeps its code (a denial code is then audited like any other denial). A denial is audited (action `denied`)
  * in its own committed transaction, on the attempt's chain.
  */
 export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
@@ -121,6 +122,8 @@ async function execute<O extends z.ZodTypeAny>(
       try {
         output = await def.handler(ctx, parsed.data);
       } catch (cause) {
+        // A handler refuses with a typed error (e.g. invalid_input from a country-pack validator): keep it.
+        if (cause instanceof ProcessError) throw cause;
         throw new ProcessError("handler_failed", `process ${def.id} failed`, { cause });
       }
 

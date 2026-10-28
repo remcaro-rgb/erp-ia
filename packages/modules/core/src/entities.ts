@@ -1,0 +1,137 @@
+import type { EntityDef, FieldDef, FieldType } from "@erp/kernel";
+
+// Entities of the core module (design §5.8a, §5.8b, §5.15, §5.18). Labels are i18n keys
+// (`entity.<id>`, `field.<id>.<column>`), filled by the catalogues of Task 11. Fiscal code columns
+// (document type, tax scheme, IVA rate…) are plain text: their values and labels belong to the
+// country pack, not to the module. `text[]` columns are typed `json` until the registry has a list type.
+// The masked views `core.v_<table>` in migration 0006 are generated from these definitions.
+
+type FieldOptions = Omit<FieldDef, "name" | "type" | "label">;
+
+function fieldsOf(entity: string) {
+  return (name: string, type: FieldType, options: FieldOptions = {}): FieldDef => ({ name, type, label: `field.${entity}.${name}`, ...options });
+}
+
+function entity(id: string, table: string, displayField: string, fields: (f: ReturnType<typeof fieldsOf>) => FieldDef[]): EntityDef {
+  return {
+    id,
+    module: "core",
+    schema: "core",
+    table,
+    label: `entity.${id}`,
+    displayField,
+    defaultSort: { field: displayField, dir: "asc" },
+    fields: fields(fieldsOf(id)),
+  };
+}
+
+/** Columns every company table of the module carries after its own (rule 7). */
+const trailer = (f: ReturnType<typeof fieldsOf>): FieldDef[] => [
+  f("extra", "json", { sortable: false }),
+  f("extra_free", "json", { sortable: false }),
+  f("created_at", "datetime"),
+  f("updated_at", "datetime"),
+];
+
+export const party = entity("core.party", "parties", "legal_name", (f) => [
+  f("seq", "number", { required: true }),
+  f("kind", "enum", { required: true, enumValues: ["customer", "supplier", "employee"] }),
+  f("person_type", "text", { required: true }),
+  f("document_type", "text", { required: true }),
+  f("document_number", "text", { required: true, searchable: true }),
+  f("check_digit", "text"),
+  f("legal_name", "text", { required: true, searchable: true }),
+  f("first_surname", "text"),
+  f("second_surname", "text"),
+  f("first_name", "text"),
+  f("other_names", "text"),
+  f("trade_name", "text", { searchable: true }),
+  f("tax_responsibilities", "json"),
+  f("tax_scheme", "text"),
+  f("ciiu", "text"),
+  f("country_code", "text"),
+  f("department_code", "text"),
+  f("municipality_code", "text"),
+  f("address_line", "text"),
+  f("postal_code", "text"),
+  f("invoice_email", "text"),
+  f("supplier_email", "text"),
+  f("phone_cc", "text"),
+  f("phone", "text"),
+  f("contact_name", "text"),
+  f("credit_limit", "money", { sensitivity: "confidential" }),
+  f("balance", "money", { sensitivity: "confidential" }),
+  f("dian_status", "text"),
+  f("dian_missing", "json"),
+  f("invoice_ready", "boolean"),
+  f("is_active", "boolean"),
+  ...trailer(f),
+]);
+
+export const partyContact = entity("core.party_contact", "party_contacts", "name", (f) => [
+  f("seq", "number", { required: true }),
+  f("party_id", "ref", { required: true, ref: { entity: "core.party", display: "legal_name" } }),
+  f("name", "text", { required: true, searchable: true }),
+  f("job_title", "text"),
+  f("email", "text"),
+  f("phone_cc", "text"),
+  f("phone", "text"),
+  f("ext", "text"),
+  f("mobile_cc", "text"),
+  f("mobile", "text"),
+  ...trailer(f),
+]);
+
+export const productCategory = entity("core.product_category", "product_categories", "name", (f) => [
+  f("seq", "number", { required: true }),
+  f("name", "text", { required: true, searchable: true }),
+  f("iva_rate", "text", { required: true }),
+  f("inc_rate", "text"),
+  f("other_taxes", "json"),
+  f("default_uom", "text"),
+  f("income_account", "text"),
+  f("status", "enum", { required: true, enumValues: ["active", "inactive"] }),
+  ...trailer(f),
+]);
+
+export const product = entity("core.product", "products", "description", (f) => [
+  f("seq", "number", { required: true }),
+  f("sku", "text", { required: true, searchable: true }),
+  f("description", "text", { required: true, searchable: true }),
+  f("kind", "enum", { required: true, enumValues: ["good", "service"] }),
+  f("id_scheme", "text", { required: true }),
+  f("standard_code", "text", { searchable: true }),
+  f("brand", "text"),
+  f("model", "text"),
+  f("category_id", "ref", { ref: { entity: "core.product_category", display: "name" } }),
+  f("uom_code", "text", { required: true }),
+  f("iva_rate", "text", { required: true }),
+  f("inc_rate", "text"),
+  f("other_taxes", "json"),
+  f("tax_override", "boolean"),
+  f("list_price", "money", { required: true }),
+  f("is_free_sample", "boolean"),
+  f("reference_price_type", "text"),
+  f("reference_price", "money"),
+  f("standard_cost", "money", { sensitivity: "confidential" }),
+  f("track_stock", "boolean"),
+  f("min_stock", "number"),
+  f("supplier_id", "ref", { ref: { entity: "core.party", display: "legal_name" } }),
+  f("dian_status", "text"),
+  f("dian_missing", "json"),
+  f("invoice_ready", "boolean"),
+  f("is_active", "boolean"),
+  ...trailer(f),
+]);
+
+/** Global reference table (no company): the DIAN units of measure seeded from the country pack. */
+export const uom = entity("core.uom", "uoms", "code", (f) => [f("code", "text", { required: true, searchable: true }), f("name", "text", { searchable: true })]);
+
+export const priceList = entity("core.price_list", "price_lists", "name", (f) => [
+  f("seq", "number", { required: true }),
+  f("name", "text", { required: true, searchable: true }),
+  f("currency_code", "text", { required: true }),
+  ...trailer(f),
+]);
+
+export const CORE_ENTITIES: EntityDef[] = [party, partyContact, productCategory, product, uom, priceList];
