@@ -47,6 +47,9 @@ importers:
       '@erp/module-core':
         specifier: workspace:*
         version: link:../../packages/modules/core
+      '@erp/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@supabase/ssr':
         specifier: ^0.12.7
         version: 0.12.7(@supabase/supabase-js@2.118.0)
@@ -111,7 +114,7 @@ importers:
         version: 3.4.9
       workflow:
         specifier: ^5.2.3
-        version: 5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.3.2(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(next@16.4.3(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@5.9.3)(ws@8.22.0)
+        version: 5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.3.2(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(next@16.4.3(@babel/core@7.29.7)(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@5.9.3)(ws@8.22.0)
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -6206,7 +6209,7 @@ snapshots:
       - utf-8-validate
       - ws
 
-  '@workflow/next@5.0.6(@swc/helpers@0.5.23)(next@16.4.3(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(ws@8.22.0)':
+  '@workflow/next@5.0.6(@swc/helpers@0.5.23)(next@16.4.3(@babel/core@7.29.7)(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(ws@8.22.0)':
     dependencies:
       '@swc/core': 1.15.3(@swc/helpers@0.5.23)
       '@workflow/builders': 5.0.6(@swc/helpers@0.5.23)(ws@8.22.0)
@@ -6216,7 +6219,7 @@ snapshots:
       semver: 7.7.4
       watchpack: 2.5.1
     optionalDependencies:
-      next: 16.4.3(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      next: 16.4.3(@babel/core@7.29.7)(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - '@swc/helpers'
@@ -8216,7 +8219,7 @@ snapshots:
       - '@types/node'
       - babel-plugin-macros
 
-  next@16.4.3(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.4.3(@babel/core@7.29.7)(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.4.3
       '@swc/helpers': 0.5.23
@@ -9495,14 +9498,14 @@ snapshots:
 
   wordwrap@1.0.0: {}
 
-  workflow@5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.3.2(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(next@16.4.3(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@5.9.3)(ws@8.22.0):
+  workflow@5.2.3(@aws-sdk/credential-provider-web-identity@3.972.49)(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.3.2(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(next@16.4.3(@babel/core@7.29.7)(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@5.9.3)(ws@8.22.0):
     dependencies:
       '@workflow/astro': 5.0.6(@swc/helpers@0.5.23)(ws@8.22.0)
       '@workflow/cli': 5.0.6(@aws-sdk/credential-provider-web-identity@3.972.49)(@swc/helpers@0.5.23)(react@19.3.0)(ws@8.22.0)
       '@workflow/core': 5.2.3(ws@8.22.0)
       '@workflow/errors': 5.0.5
       '@workflow/nest': 5.1.4(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.3.2(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))(@swc/cli@0.8.1(@swc/core@1.15.3(@swc/helpers@0.5.23))(chokidar@5.0.0))(@swc/core@1.15.3(@swc/helpers@0.5.23))(@swc/helpers@0.5.23)(ws@8.22.0)
-      '@workflow/next': 5.0.6(@swc/helpers@0.5.23)(next@16.4.3(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(ws@8.22.0)
+      '@workflow/next': 5.0.6(@swc/helpers@0.5.23)(next@16.4.3(@babel/core@7.29.7)(@types/node@22.20.5)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(ws@8.22.0)
       '@workflow/nitro': 5.0.6(@swc/helpers@0.5.23)(react@19.3.0)(ws@8.22.0)
       '@workflow/nuxt': 5.0.6(@swc/helpers@0.5.23)(react@19.3.0)(ws@8.22.0)
       '@workflow/rollup': 5.0.6(@swc/helpers@0.5.23)(ws@8.22.0)

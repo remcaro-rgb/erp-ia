@@ -1,7 +1,7 @@
-import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
+import { customData, defineProcess, ProcessError, visibleExtra, type CustomData, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { blank, defined, idInput, idOutput, jsonb, refuseDuplicate } from "./common";
-import { clearable, extra, id, incRate, ivaRate, otherTaxes, uomCode } from "./schemas";
+import { blank, defined, freeJsonb, idInput, idOutput, jsonb, refuseDuplicate, rejectErrors } from "./common";
+import { clearable, extra, extraFree, id, incRate, ivaRate, otherTaxes, uomCode } from "./schemas";
 
 // Product categories (design §5.18): a master whose taxes a product copies when it is assigned.
 // Changing a category never rewrites the products that already use it. Names are unique per company
@@ -16,13 +16,15 @@ const fields = {
   incomeAccount: clearable(z.string().trim().max(20)).optional(),
   status: z.enum(["active", "inactive"]),
   extra,
+  extraFree,
 };
 type CategoryFields = Partial<z.output<z.ZodObject<typeof fields>>>;
 
 /** Unique index on (company_id, lower(name)). */
 const NAME_KEY = "product_categories_company_name_key";
 
-function columns(ctx: ProcessContext, input: CategoryFields) {
+/** Column values for the given fields; `custom` carries the validated extra data when the request touches it. */
+function columns(ctx: ProcessContext, input: CategoryFields, custom?: CustomData) {
   return {
     name: input.name,
     iva_rate: input.ivaRate,
@@ -31,7 +33,8 @@ function columns(ctx: ProcessContext, input: CategoryFields) {
     default_uom: blank(input.defaultUom),
     income_account: blank(input.incomeAccount),
     status: input.status,
-    extra: jsonb(ctx, input.extra),
+    extra: custom && input.extra !== undefined ? jsonb(ctx, custom.extra) : undefined,
+    extra_free: freeJsonb(ctx, input.extraFree),
   };
 }
 
@@ -46,12 +49,14 @@ export const categoryCreate = defineProcess({
   input: z.object({ ...fields, otherTaxes: fields.otherTaxes.default([]), status: fields.status.default("active") }),
   output: idOutput,
   handler: async (ctx, input) => {
+    const custom = await customData(ctx, "core.product_category", null, input.extra);
+    rejectErrors("core.category.create", custom.errors);
     const [inserted] = await refuseDuplicate(
       "core.category.create",
       NAME_KEY,
       duplicateDetail(input.name),
       () => ctx.tx<{ id: string }[]>`
-        insert into core.product_categories ${ctx.tx({ company_id: ctx.companyId, ...defined(columns(ctx, input)) })}
+        insert into core.product_categories ${ctx.tx({ company_id: ctx.companyId, ...defined(columns(ctx, input, custom)) })}
         returning id`,
     );
     return { id: inserted!.id };
@@ -67,9 +72,11 @@ export const categoryUpdate = defineProcess({
   input: z.object(fields).partial().extend({ id }),
   output: idOutput,
   handler: async (ctx, { id: categoryId, ...input }) => {
-    const [current] = await ctx.tx`select 1 from core.product_categories where id = ${categoryId} for update`;
+    const [current] = await ctx.tx`select extra from core.product_categories where id = ${categoryId} for update`;
     if (!current) throw new ProcessError("not_found", `category ${categoryId} not found`);
-    const set = defined(columns(ctx, input));
+    const custom = await customData(ctx, "core.product_category", current.extra as Record<string, unknown> | null, input.extra);
+    rejectErrors("core.category.update", custom.errors);
+    const set = defined(columns(ctx, input, custom));
     if (Object.keys(set).length > 0) {
       await refuseDuplicate("core.category.update", NAME_KEY, duplicateDetail(input.name ?? ""), () =>
         ctx.tx`update core.product_categories set ${ctx.tx(set)} where id = ${categoryId}`,
@@ -90,7 +97,7 @@ export const categoryConsult = defineProcess({
   handler: async (ctx, { id: categoryId }) => {
     const [row] = await ctx.tx`select * from core.v_product_categories where id = ${categoryId}`;
     if (!row) throw new ProcessError("not_found", `category ${categoryId} not found`);
-    return { ...row, id: categoryId };
+    return { ...row, id: categoryId, extra: await visibleExtra(ctx, "core.product_category", row.extra) };
   },
 });
 

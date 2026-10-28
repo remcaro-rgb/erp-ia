@@ -1,10 +1,11 @@
-import { defineProcess, ProcessError, type PartyValidation, type ProcessContext } from "@erp/kernel";
+import { customData, defineProcess, ProcessError, visibleExtra, type CustomData, type PartyValidation, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import {
   assertScopeCovers,
   companyPack,
   defined,
   dianStatus,
+  freeJsonb,
   idInput,
   idOutput,
   jsonb,
@@ -15,7 +16,7 @@ import {
   undefinedAsNull,
   writableParty,
 } from "./common";
-import { documentType, extra, id, optionalText, partyKind, taxScheme } from "./schemas";
+import { documentType, extra, extraFree, id, optionalText, partyKind, taxScheme } from "./schemas";
 
 // Parties (design §5.8a, §5.18): customers, suppliers and employees as one model. The company's
 // country pack validates every create and update: its errors refuse the run with invalid_input, its
@@ -48,6 +49,7 @@ const fields = {
   creditLimit: z.number().min(0).optional(),
   contactName: optionalText,
   extra,
+  extraFree,
 };
 
 const createInput = z.object({
@@ -94,13 +96,18 @@ function inputOf(row: Record<string, unknown>): PartyInput {
   };
 }
 
-/** Validates with the company's pack (errors refuse the run) and maps the normalized record to columns. */
-async function validated(ctx: ProcessContext, processId: string, input: PartyInput) {
+/**
+ * Validates with the company's pack (errors refuse the run), then with the company's custom fields, and maps the
+ * normalized record to columns. A required custom field left empty is missing data next to the pack's.
+ */
+async function validated(ctx: ProcessContext, processId: string, input: PartyInput, custom: CustomData) {
   const kind = [...new Set(input.kind)];
   await assertScopeCovers(ctx, kind);
   const pack = await companyPack(ctx);
   const result: PartyValidation = pack.validateParty({ ...input, kind });
   rejectErrors(processId, result.errors);
+  rejectErrors(processId, custom.errors);
+  const missing = [...result.missing, ...custom.missing];
   const n = result.normalized;
   return {
     kind,
@@ -128,9 +135,10 @@ async function validated(ctx: ProcessContext, processId: string, input: PartyInp
     phone: n.phone,
     contact_name: input.contactName?.trim() || undefined,
     credit_limit: input.creditLimit,
-    extra: jsonb(ctx, input.extra),
-    dian_status: dianStatus(result.missing),
-    dian_missing: [...result.missing],
+    extra: jsonb(ctx, custom.extra),
+    extra_free: freeJsonb(ctx, input.extraFree),
+    dian_status: dianStatus(missing),
+    dian_missing: missing,
   };
 }
 
@@ -146,7 +154,8 @@ export const partyCreate = defineProcess({
   input: createInput,
   output: idOutput,
   handler: async (ctx, input) => {
-    const row = await validated(ctx, "core.party.create", input);
+    const custom = await customData(ctx, "core.party", null, input.extra);
+    const row = await validated(ctx, "core.party.create", input, custom);
     const [inserted] = await refuseDuplicate(
       "core.party.create",
       DOCUMENT_KEY,
@@ -173,10 +182,12 @@ export const partyUpdate = defineProcess({
     if (!current) throw new ProcessError("not_found", `party ${partyId} not found`);
     const merged: PartyInput = { ...inputOf(current), ...defined(changes) };
     // … and so must the kinds it would have after the update (checked in validated).
-    const row = await validated(ctx, "core.party.update", merged);
-    const { credit_limit, extra: extraValue, ...rest } = row;
+    // Extra data: the stored document unless the request replaces it; required custom fields feed dian_missing.
+    const custom = await customData(ctx, "core.party", current.extra as Record<string, unknown> | null, changes.extra);
+    const row = await validated(ctx, "core.party.update", merged, custom);
+    const { credit_limit, extra: extraValue, extra_free: freeValue, ...rest } = row;
     // Unset optional columns are cleared; credit limit and extra data change only when given.
-    const set = { ...undefinedAsNull(rest), ...defined({ credit_limit, extra: extraValue }) };
+    const set = { ...undefinedAsNull(rest), ...defined({ credit_limit, extra: extraValue, extra_free: freeValue }) };
     await refuseDuplicate("core.party.update", DOCUMENT_KEY, duplicateDetail(row), () => ctx.tx`update core.parties set ${ctx.tx(set)} where id = ${partyId}`);
     await ctx.emit("core.party.updated", { id: partyId });
     return { id: partyId };
@@ -210,7 +221,7 @@ export const partyConsult = defineProcess({
   handler: async (ctx, { id: partyId }) => {
     const [row] = await ctx.tx`select * from core.v_parties where id = ${partyId}`;
     if (!row) throw new ProcessError("not_found", `party ${partyId} not found`);
-    return { ...row, id: partyId };
+    return { ...row, id: partyId, extra: await visibleExtra(ctx, "core.party", row.extra) };
   },
 });
 

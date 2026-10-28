@@ -117,6 +117,9 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
     async cleanup() {
       await sql`delete from kernel.attachments where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.required_attachments where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.custom_fields where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.verification_requests where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.verifiers where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.company_modules where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.tenant_entitlements where tenant_id = ${tenantId}`;
       await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where company_id = any(${companyIds}::uuid[]))`;

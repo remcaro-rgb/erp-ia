@@ -1,7 +1,7 @@
-import { DEFAULT_PHONE_CC, defineProcess, ProcessError, validateEmail, validatePhone, type ProcessContext } from "@erp/kernel";
+import { customData, DEFAULT_PHONE_CC, defineProcess, ProcessError, validateEmail, validatePhone, visibleExtra, type CustomData, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { blank, defined, idInput, idOutput, jsonb, rejectErrors, writableParty } from "./common";
-import { clearable, extra, id, phoneCc } from "./schemas";
+import { blank, defined, freeJsonb, idInput, idOutput, jsonb, rejectErrors, writableParty } from "./common";
+import { clearable, extra, extraFree, id, phoneCc } from "./schemas";
 
 // Contacts of a party (design §5.18): people at a customer or supplier, shown in the record's
 // Contactos tab. A contact is written only through a party the caller may write (visible, and every
@@ -18,6 +18,7 @@ const fields = {
   mobileCc: phoneCc.optional(),
   mobile: clearable(z.string().trim()).optional(),
   extra,
+  extraFree,
 };
 type ContactFields = Partial<z.output<z.ZodObject<typeof fields>>>;
 
@@ -39,7 +40,7 @@ function contactErrors(contact: Contact): string[] {
 }
 
 /** Column values for the given fields; "" clears a column, undefined leaves it alone. */
-function columns(ctx: ProcessContext, input: ContactFields) {
+function columns(ctx: ProcessContext, input: ContactFields, custom: CustomData) {
   return {
     name: input.name,
     job_title: blank(input.jobTitle),
@@ -49,14 +50,15 @@ function columns(ctx: ProcessContext, input: ContactFields) {
     ext: blank(input.ext),
     mobile_cc: callingCode(input.mobileCc),
     mobile: blank(input.mobile),
-    extra: jsonb(ctx, input.extra),
+    extra: input.extra === undefined ? undefined : jsonb(ctx, custom.extra),
+    extra_free: freeJsonb(ctx, input.extraFree),
   };
 }
 
 /** The contact as stored, after checking its party may be written by the caller; `not_found` otherwise. */
-async function writableContact(ctx: ProcessContext, contactId: string): Promise<Contact> {
-  const [contact] = await ctx.tx<(Required<Contact> & { party_id: string })[]>`
-    select party_id, email, phone_cc, phone, mobile_cc, mobile from core.party_contacts where id = ${contactId}`;
+async function writableContact(ctx: ProcessContext, contactId: string): Promise<Contact & { extra: Record<string, unknown> }> {
+  const [contact] = await ctx.tx<(Required<Contact> & { party_id: string; extra: Record<string, unknown> })[]>`
+    select party_id, email, phone_cc, phone, mobile_cc, mobile, extra from core.party_contacts where id = ${contactId}`;
   if (!contact) throw new ProcessError("not_found", `contact ${contactId} not found`);
   await writableParty(ctx, contact.party_id);
   return contact;
@@ -72,12 +74,13 @@ export const contactCreate = defineProcess({
   output: idOutput,
   handler: async (ctx, { partyId, ...input }) => {
     await writableParty(ctx, partyId);
+    const custom = await customData(ctx, "core.party_contact", null, input.extra);
     const row = {
-      ...columns(ctx, input),
+      ...columns(ctx, input, custom),
       phone_cc: callingCode(input.phoneCc) ?? DEFAULT_PHONE_CC,
       mobile_cc: callingCode(input.mobileCc) ?? DEFAULT_PHONE_CC,
     };
-    rejectErrors("core.contact.create", contactErrors(row));
+    rejectErrors("core.contact.create", [...contactErrors(row), ...custom.errors]);
     const [inserted] = await ctx.tx<{ id: string }[]>`
       insert into core.party_contacts ${ctx.tx({ company_id: ctx.companyId, party_id: partyId, ...defined(row) })}
       returning id`;
@@ -95,9 +98,10 @@ export const contactUpdate = defineProcess({
   output: idOutput,
   handler: async (ctx, { id: contactId, ...input }) => {
     const stored = await writableContact(ctx, contactId);
-    const set = defined(columns(ctx, input));
+    const custom = await customData(ctx, "core.party_contact", stored.extra, input.extra);
+    const set = defined(columns(ctx, input, custom));
     // The stored number is re-checked against a new calling code and vice versa.
-    rejectErrors("core.contact.update", contactErrors({ ...stored, ...(set as Partial<Contact>) }));
+    rejectErrors("core.contact.update", [...contactErrors({ ...stored, ...(set as Partial<Contact>) }), ...custom.errors]);
     if (Object.keys(set).length > 0) await ctx.tx`update core.party_contacts set ${ctx.tx(set)} where id = ${contactId}`;
     return { id: contactId };
   },
@@ -118,4 +122,53 @@ export const contactDelete = defineProcess({
   },
 });
 
-export const CONTACT_PROCESSES = [contactCreate, contactUpdate, contactDelete];
+export const contactList = defineProcess({
+  id: "core.contact.list",
+  module: "core",
+  kind: "consult",
+  feature: "core.parties",
+  description: "Lista los contactos de un tercero con los campos que el rol puede ver",
+  input: z.object({ partyId: id }),
+  output: z.array(
+    z.object({
+      id: z.string(),
+      partyId: z.string(),
+      seq: z.number(),
+      name: z.string(),
+      jobTitle: z.string().nullable(),
+      email: z.string().nullable(),
+      phoneCc: z.string().nullable(),
+      phone: z.string().nullable(),
+      ext: z.string().nullable(),
+      mobileCc: z.string().nullable(),
+      mobile: z.string().nullable(),
+      extra: z.record(z.string(), z.unknown()).nullable(),
+      extraFree: z.array(z.object({ name: z.string(), value: z.string() })).nullable(),
+    }),
+  ),
+  handler: async (ctx, { partyId }) => {
+    // The party must be one the caller sees (company and party scope); its contacts follow.
+    const visible = await ctx.tx`select 1 from core.v_parties where id = ${partyId}`;
+    if (visible.length === 0) throw new ProcessError("not_found", `party ${partyId} not found`);
+    const rows = await ctx.tx`select * from core.v_party_contacts where party_id = ${partyId} order by seq`;
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: row.id as string,
+        partyId,
+        seq: Number(row.seq),
+        name: row.name as string,
+        jobTitle: (row.job_title as string | null) ?? null,
+        email: (row.email as string | null) ?? null,
+        phoneCc: (row.phone_cc as string | null) ?? null,
+        phone: (row.phone as string | null) ?? null,
+        ext: (row.ext as string | null) ?? null,
+        mobileCc: (row.mobile_cc as string | null) ?? null,
+        mobile: (row.mobile as string | null) ?? null,
+        extra: await visibleExtra(ctx, "core.party_contact", row.extra as Record<string, unknown> | null),
+        extraFree: (row.extra_free as { name: string; value: string }[] | null) ?? null,
+      })),
+    );
+  },
+});
+
+export const CONTACT_PROCESSES = [contactCreate, contactUpdate, contactDelete, contactList];

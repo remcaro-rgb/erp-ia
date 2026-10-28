@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts", "./testing": "./src/testing.ts", "./limits": "./src/attachments/limits.ts" },
+  "exports": { ".": "./src/index.ts", "./testing": "./src/testing.ts", "./limits": "./src/attachments/limits.ts", "./validation": "./src/validation.ts", "./custom-fields": "./src/custom-fields/index.ts" },
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",

@@ -85,6 +85,10 @@ export const blank = (value: string | undefined): string | null | undefined => (
 export const jsonb = (ctx: ProcessContext, value: Record<string, unknown> | undefined) =>
   value === undefined ? undefined : ctx.tx.json(value as Parameters<typeof ctx.tx.json>[0]);
 
+/** A jsonb parameter for `extra_free` (name / value pairs), or undefined when not given. */
+export const freeJsonb = (ctx: ProcessContext, value: { name: string; value: string }[] | undefined) =>
+  value === undefined ? undefined : ctx.tx.json(value);
+
 /** A numeric column (returned as a string by the driver) as a number, or undefined when null. */
 export const num = (value: unknown): number | undefined => (value === null || value === undefined ? undefined : Number(value));
 /** A nullable text column as an optional string. */

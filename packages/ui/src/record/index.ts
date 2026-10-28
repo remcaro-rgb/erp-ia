@@ -1,0 +1,16 @@
+export { RecordFrame } from "./RecordFrame";
+export type { RecordFrameProps } from "./RecordFrame";
+export { DEFAULT_RECORD_LABELS, recordHref, recordTabIds, shortId } from "./record-model";
+export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
+export { ExtraDataTab } from "./ExtraDataTab";
+export type { ExtraDataTabProps } from "./ExtraDataTab";
+export { DEFAULT_EXTRA_LABELS, extraTabCounts, fieldProblem } from "./extra-data-model";
+export type { ExtraDataLabels, ExtraDataValue, ExtraFieldDef, FreeItem } from "./extra-data-model";
+export { ContactsTab } from "./ContactsTab";
+export type { ContactsTabProps } from "./ContactsTab";
+export { DEFAULT_CONTACTS_LABELS, contactProblems, draftOf, emptyDraft } from "./contacts-model";
+export type { ContactDraft, ContactItem, ContactProblems, ContactsLabels } from "./contacts-model";
+export { PhotosTab } from "./PhotosTab";
+export type { PhotosTabProps } from "./PhotosTab";
+export { DEFAULT_PHOTOS_LABELS, PHOTO_AI_TAG, PHOTO_TAG, isAiPhoto, isPhoto } from "./photos-model";
+export type { PhotosLabels } from "./photos-model";

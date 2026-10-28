@@ -9,7 +9,7 @@ describe("core manifest", () => {
     expect(registry.processes({ module: "core" }).map((p) => p.id).sort()).toEqual(
       [
         "core.party.create", "core.party.update", "core.party.deactivate", "core.party.consult",
-        "core.contact.create", "core.contact.update", "core.contact.delete",
+        "core.contact.create", "core.contact.update", "core.contact.delete", "core.contact.list",
         "core.category.create", "core.category.update", "core.category.consult",
         "core.product.create", "core.product.update", "core.product.deactivate", "core.product.consult",
         "core.sequence.next",

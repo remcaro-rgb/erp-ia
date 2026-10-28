@@ -1,8 +1,8 @@
-import { defineProcess, ProcessError, type ProcessContext, type ProductFiscalInput } from "@erp/kernel";
+import { customData, defineProcess, ProcessError, visibleExtra, type CustomData, type ProcessContext, type ProductFiscalInput } from "@erp/kernel";
 import { z } from "zod";
-import { companyPack, defined, dianStatus, idInput, idOutput, jsonb, num, refuseDuplicate, rejectErrors, str, undefinedAsNull } from "./common";
+import { companyPack, defined, dianStatus, freeJsonb, idInput, idOutput, jsonb, num, refuseDuplicate, rejectErrors, str, undefinedAsNull } from "./common";
 import { resolveTaxes, type Taxes, type TaxResolution } from "./product-taxes";
-import { extra, id, idScheme, incRate, ivaRate, optionalText, otherTaxes, referencePriceType, uomCode } from "./schemas";
+import { extra, extraFree, id, idScheme, incRate, ivaRate, optionalText, otherTaxes, referencePriceType, uomCode } from "./schemas";
 
 // Products (design §5.8b, §5.18). The company's country pack validates every create and update
 // (errors refuse with invalid_input, missing data sets dian_status). Taxes and the unit default to
@@ -30,11 +30,12 @@ const fields = {
   categoryId: id.nullable().optional(),
   supplierId: id.nullable().optional(),
   extra,
+  extraFree,
 };
 
 const createInput = z.object({ ...fields, idScheme: fields.idScheme.default("999"), isFreeSample: fields.isFreeSample.default(false) });
 type ProductInput = z.output<typeof createInput>;
-type Fiscal = Omit<ProductInput, "uomCode" | "ivaRate" | "incRate" | "otherTaxes" | "categoryId" | "supplierId" | "extra">;
+type Fiscal = Omit<ProductInput, "uomCode" | "ivaRate" | "incRate" | "otherTaxes" | "categoryId" | "supplierId" | "extra" | "extraFree">;
 
 /** Unique constraint on (company_id, sku). */
 const SKU_KEY = "products_company_id_sku_key";
@@ -58,8 +59,11 @@ async function assertSupplier(ctx: ProcessContext, processId: string, supplierId
   if (rows.length === 0) rejectErrors(processId, ["El proveedor no existe o no es un tercero de tipo proveedor"]);
 }
 
-/** Validates with the company's pack and maps the normalized product to columns. */
-async function validated(ctx: ProcessContext, processId: string, fiscal: Fiscal, uom: string | undefined, resolution: TaxResolution) {
+/**
+ * Validates with the company's pack, then with the company's custom fields (a required one left empty is missing
+ * data next to the pack's), and maps the normalized product to columns.
+ */
+async function validated(ctx: ProcessContext, processId: string, fiscal: Fiscal, uom: string | undefined, resolution: TaxResolution, custom: CustomData) {
   const { taxes } = resolution;
   const required: string[] = [];
   if (!uom) required.push("Unidad de medida: indícala o elige una categoría que la defina");
@@ -75,6 +79,8 @@ async function validated(ctx: ProcessContext, processId: string, fiscal: Fiscal,
   };
   const result = pack.validateProduct(input);
   rejectErrors(processId, result.errors);
+  rejectErrors(processId, custom.errors);
+  const missing = [...result.missing, ...custom.missing];
   const n = result.normalized;
   return {
     sku: n.sku,
@@ -96,8 +102,8 @@ async function validated(ctx: ProcessContext, processId: string, fiscal: Fiscal,
     standard_cost: n.standardCost,
     track_stock: n.trackStock,
     min_stock: n.minStock,
-    dian_status: dianStatus(result.missing),
-    dian_missing: [...result.missing],
+    dian_status: dianStatus(missing),
+    dian_missing: missing,
   };
 }
 
@@ -132,15 +138,16 @@ export const productCreate = defineProcess({
   input: createInput,
   output: idOutput,
   handler: async (ctx, input) => {
-    const { uomCode: uom, ivaRate: iva, incRate: inc, otherTaxes: other, categoryId, supplierId, extra: extraData, ...fiscal } = input;
+    const { uomCode: uom, ivaRate: iva, incRate: inc, otherTaxes: other, categoryId, supplierId, extra: extraData, extraFree: freeData, ...fiscal } = input;
     const category = categoryId ? await assignableCategory(ctx, "core.product.create", categoryId) : null;
     if (supplierId) await assertSupplier(ctx, "core.product.create", supplierId);
     const resolution = resolveTaxes({ explicit: { ivaRate: iva, incRate: inc, otherTaxes: other }, category, categoryChanged: true });
-    const row = await validated(ctx, "core.product.create", fiscal, uom ?? category?.defaultUom ?? undefined, resolution);
+    const custom = await customData(ctx, "core.product", null, extraData);
+    const row = await validated(ctx, "core.product.create", fiscal, uom ?? category?.defaultUom ?? undefined, resolution, custom);
     const values = {
       company_id: ctx.companyId,
       ...defined(row),
-      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: jsonb(ctx, extraData) }),
+      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: jsonb(ctx, custom.extra), extra_free: freeJsonb(ctx, freeData) }),
     };
     const [inserted] = await refuseDuplicate("core.product.create", SKU_KEY, duplicateDetail(row.sku), () =>
       ctx.tx<{ id: string }[]>`insert into core.products ${ctx.tx(values)} returning id`,
@@ -161,7 +168,7 @@ export const productUpdate = defineProcess({
   handler: async (ctx, { id: productId, ...input }) => {
     const [current] = await ctx.tx`select * from core.products where id = ${productId} for update`;
     if (!current) throw new ProcessError("not_found", `product ${productId} not found`);
-    const { uomCode: uom, ivaRate: iva, incRate: inc, otherTaxes: other, categoryId, supplierId, extra: extraData, ...changes } = input;
+    const { uomCode: uom, ivaRate: iva, incRate: inc, otherTaxes: other, categoryId, supplierId, extra: extraData, extraFree: freeData, ...changes } = input;
 
     const storedCategory = (current.category_id as string | null) ?? null;
     const categoryChanged = categoryId !== undefined && categoryId !== storedCategory;
@@ -181,10 +188,11 @@ export const productUpdate = defineProcess({
     };
     const resolution = resolveTaxes({ explicit: { ivaRate: iva, incRate: inc, otherTaxes: other }, category, current: stored, categoryChanged });
     const fiscal: Fiscal = { ...fiscalOf(current), ...defined(changes) };
-    const row = await validated(ctx, "core.product.update", fiscal, uom ?? String(current.uom_code), resolution);
+    const custom = await customData(ctx, "core.product", current.extra as Record<string, unknown> | null, extraData);
+    const row = await validated(ctx, "core.product.update", fiscal, uom ?? String(current.uom_code), resolution, custom);
     const set = {
       ...undefinedAsNull(row),
-      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: jsonb(ctx, extraData) }),
+      ...defined({ category_id: categoryId, supplier_id: supplierId, extra: jsonb(ctx, custom.extra), extra_free: freeJsonb(ctx, freeData) }),
     };
     await refuseDuplicate("core.product.update", SKU_KEY, duplicateDetail(row.sku), () =>
       ctx.tx`update core.products set ${ctx.tx(set)} where id = ${productId}`,
@@ -221,7 +229,7 @@ export const productConsult = defineProcess({
   handler: async (ctx, { id: productId }) => {
     const [row] = await ctx.tx`select * from core.v_products where id = ${productId}`;
     if (!row) throw new ProcessError("not_found", `product ${productId} not found`);
-    return { ...row, id: productId };
+    return { ...row, id: productId, extra: await visibleExtra(ctx, "core.product", row.extra) };
   },
 });
 

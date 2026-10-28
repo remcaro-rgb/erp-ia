@@ -1,13 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { ATTACHMENT_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, type RunProcessDeps } from "@erp/kernel";
+import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "../index";
 
 export type Db = ReturnType<typeof testDb>;
 
-/** Every process the core module declares, plus the kernel attachment processes the record forms use. */
-export const CORE_PROCESS_IDS = [...core.processes, ...ATTACHMENT_PROCESSES].map((p) => p.id);
+/** Every process the core module declares, plus the kernel attachment and custom field processes the record forms use. */
+export const CORE_PROCESS_IDS = [...core.processes, ...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES].map((p) => p.id);
 
 export interface CoreHarness {
   sql: Db;

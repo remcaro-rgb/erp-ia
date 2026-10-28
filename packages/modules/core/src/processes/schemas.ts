@@ -1,3 +1,4 @@
+import { extraFree } from "@erp/kernel";
 import { z } from "zod";
 
 // Zod fragments shared by the core processes. The enums mirror the kernel's country-pack input types
@@ -7,8 +8,11 @@ import { z } from "zod";
 export const id = z.uuid();
 export const optionalText = z.string().optional();
 
-/** Free-form extra data (design §5.14); validated against the admin's custom fields in Task 9c. */
+/** The admin-defined extra data of a record (design §5.14): the whole document; the processes validate it against the company's custom fields. */
 export const extra = z.record(z.string(), z.unknown()).optional();
+
+/** Free name / value pairs any user may add (design §5.14). */
+export { extraFree };
 
 export const documentType = z.enum(["11", "12", "13", "21", "22", "31", "41", "42", "47", "48", "50", "91"]);
 export const partyKind = z.enum(["customer", "supplier", "employee"]);
