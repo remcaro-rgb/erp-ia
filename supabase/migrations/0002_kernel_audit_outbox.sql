@@ -126,8 +126,9 @@ select kernel.enable_row_audit('kernel', 'memberships');
 select kernel.enable_row_audit('kernel', 'companies');
 
 -- ---------------------------------------------------------------------------------------------
--- Outbox (design §5.5). Written inside the process transaction; dispatched_at, attempts and
--- last_error are maintained only by the dispatcher, which runs as the service role.
+-- Outbox (design §5.5). Written inside the process transaction; dispatched_at, claimed_at, attempts
+-- and last_error are maintained only by the dispatcher, which runs as the service role. claimed_at is
+-- set when a drain hands the row to a dispatch workflow; a claim older than 10 minutes is void.
 -- ---------------------------------------------------------------------------------------------
 create table kernel.outbox (
   id            uuid primary key default kernel.uuid_v7(),
@@ -137,11 +138,22 @@ create table kernel.outbox (
   chain_id      uuid not null,
   created_at    timestamptz not null default now(),
   dispatched_at timestamptz,
+  claimed_at    timestamptz,
   attempts      int not null default 0,
   last_error    text
 );
 create index outbox_undispatched_idx on kernel.outbox (created_at) where dispatched_at is null;
 create index outbox_company_id_idx on kernel.outbox (company_id);
+
+-- One row per (event, consuming module) that already ran, so a re-dispatch never repeats a consumer.
+-- Service role only: written by the dispatch workflow, no company data to expose.
+create table kernel.outbox_deliveries (
+  outbox_id    uuid not null references kernel.outbox (id) on delete cascade,
+  module_id    text not null,
+  delivered_at timestamptz not null default now(),
+  primary key (outbox_id, module_id)
+);
+alter table kernel.outbox_deliveries enable row level security;
 
 create table kernel.outbox_dead_letter (
   id            uuid primary key default kernel.uuid_v7(),
@@ -159,7 +171,7 @@ create index outbox_dead_letter_company_id_idx on kernel.outbox_dead_letter (com
 
 grant select, insert on kernel.outbox to authenticated;
 grant select on kernel.outbox_dead_letter to authenticated;
-grant all on kernel.outbox, kernel.outbox_dead_letter to service_role;
+grant all on kernel.outbox, kernel.outbox_dead_letter, kernel.outbox_deliveries to service_role;
 
 select kernel.enable_company_rls('kernel', 'outbox');
 select kernel.enable_company_rls('kernel', 'outbox_dead_letter');

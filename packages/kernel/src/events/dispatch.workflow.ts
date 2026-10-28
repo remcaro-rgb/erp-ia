@@ -1,6 +1,8 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
-import type { JSONValue } from "postgres";
+import type { JSONValue, Sql } from "postgres";
 import { getServiceDb } from "../db/service";
+import { ProcessError, type ProcessErrorCode } from "../process/errors";
+import { registry } from "../registry";
 import { buildConsumerContext, consumers } from "./consumers";
 
 interface OutboxRow {
@@ -12,19 +14,24 @@ interface OutboxRow {
 
 type ConsumerResult = "done" | "module_disabled";
 
+/** Refusals that repeating the run cannot fix: they dead-letter at once instead of burning retries. */
+const DETERMINISTIC: ReadonlySet<ProcessErrorCode> = new Set(["invalid_input", "forbidden", "not_entitled", "not_found"]);
+
 /**
  * Delivers one outbox row to the consumers registered for its event (design §5.5): each consumer is a
- * durable step with retries; once all ran the row is marked dispatched. A consumer of a module the
- * company disabled is skipped and the row stays undispatched with `last_error = 'module_disabled'`
+ * durable step with retries; once all ran the row is marked dispatched. A consumer that already has
+ * a row in `kernel.outbox_deliveries` is not run again. A consumer of a module the company disabled is
+ * skipped and the row stays undispatched with `last_error = 'module_disabled'`, its claim released
  * (design §5.12). A `FatalError`, or a consumer that keeps failing after its retries, sends the row to
- * `kernel.outbox_dead_letter`.
+ * `kernel.outbox_dead_letter`. A worker with no modules loaded fails the run instead, leaving the row
+ * undispatched (its claim lapses and a worker that has the modules picks it up).
  */
 export async function dispatchOutboxRow(outboxId: string): Promise<void> {
   "use workflow";
 
   const row = await loadOutboxRow(outboxId);
   if (row === null) return; // already dispatched, or gone
-  const moduleIds = await consumersFor(row.event);
+  const moduleIds = await consumersFor(outboxId, row.event);
 
   let paused = false;
   for (const moduleId of moduleIds) {
@@ -35,7 +42,8 @@ export async function dispatchOutboxRow(outboxId: string): Promise<void> {
       return;
     }
   }
-  if (!paused) await markDispatched(outboxId);
+  if (paused) await pauseRow(outboxId);
+  else await markDispatched(outboxId);
 }
 
 /** The row to dispatch, or null when it is already dispatched or no longer exists. */
@@ -44,16 +52,25 @@ async function loadOutboxRow(outboxId: string): Promise<OutboxRow | null> {
   return readRow(outboxId);
 }
 
-/** Ids of the modules that consume `event`, in registration order. */
-async function consumersFor(event: string): Promise<string[]> {
+/**
+ * Ids of the modules that consume `event`, in registration order. A process that loaded no modules
+ * would find none and the row would be marked dispatched with its event lost, so that fails (and is
+ * retried) instead, with the cause in the row's `last_error`.
+ */
+async function consumersFor(outboxId: string, event: string): Promise<string[]> {
   "use step";
+  if (registry.modules().length === 0) {
+    await recordFailure(getServiceDb(), outboxId, "outbox: no modules loaded in worker");
+    throw new RetryableError("outbox: no modules loaded in worker", { retryAfter: retryDelay() });
+  }
   return consumers.for(event).map((c) => c.moduleId);
 }
 
 /**
- * Runs the consumer `moduleId` registered for the row's event. Skipped (and the row marked
- * `module_disabled`) when the company has the module disabled. A failure counts an attempt and is
- * retried with backoff; a `FatalError` is not retried.
+ * Runs the consumer `moduleId` registered for the row's event, then records its delivery. Does nothing
+ * when the delivery is already recorded, and returns `module_disabled` when the company has the
+ * module disabled. A failure counts an attempt and is retried with backoff; a `FatalError`, or a
+ * process refusal that cannot change (`invalid_input`, `forbidden`, `not_entitled`, `not_found`), is not.
  */
 async function runConsumer(outboxId: string, moduleId: string): Promise<ConsumerResult> {
   "use step";
@@ -61,12 +78,12 @@ async function runConsumer(outboxId: string, moduleId: string): Promise<Consumer
   const row = await readRow(outboxId);
   if (row === null) return "done";
 
+  const [delivered] = await sql`select 1 from kernel.outbox_deliveries where outbox_id = ${outboxId} and module_id = ${moduleId}`;
+  if (delivered) return "done";
+
   const [gate] = await sql<{ enabled: boolean }[]>`
     select enabled from kernel.company_modules where company_id = ${row.companyId} and module_id = ${moduleId}`;
-  if (gate && !gate.enabled) {
-    await sql`update kernel.outbox set last_error = 'module_disabled' where id = ${outboxId} and dispatched_at is null`;
-    return "module_disabled";
-  }
+  if (gate && !gate.enabled) return "module_disabled";
 
   const consumer = consumers.for(row.event).find((c) => c.moduleId === moduleId);
   if (!consumer) throw new FatalError(`no consumer of ${moduleId} registered for ${row.event}`);
@@ -76,11 +93,29 @@ async function runConsumer(outboxId: string, moduleId: string): Promise<Consumer
   } catch (error) {
     if (FatalError.is(error)) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    await sql`update kernel.outbox set attempts = attempts + 1, last_error = ${message} where id = ${outboxId}`;
-    const { attempt } = getStepMetadata();
-    throw new RetryableError(message, { retryAfter: Math.min(2 ** attempt, 60) * 1000 });
+    if (error instanceof ProcessError && DETERMINISTIC.has(error.code)) throw new FatalError(`${error.code}: ${message}`);
+    await recordFailure(sql, outboxId, message);
+    throw new RetryableError(message, { retryAfter: retryDelay() });
   }
+  await sql`insert into kernel.outbox_deliveries (outbox_id, module_id) values (${outboxId}, ${moduleId}) on conflict do nothing`;
   return "done";
+}
+
+/** Exponential backoff by step attempt: 1 s, 2 s, 4 s ... capped at 60 s. */
+function retryDelay(): number {
+  return Math.min(2 ** (getStepMetadata().attempt - 1), 60) * 1000;
+}
+
+/** Counts a failed attempt on the row and keeps the cause. */
+async function recordFailure(sql: Sql, outboxId: string, message: string): Promise<void> {
+  await sql`update kernel.outbox set attempts = attempts + 1, last_error = ${message} where id = ${outboxId}`;
+}
+
+/** Parks a row whose consumer module is disabled: marks it and releases the claim so it is picked up once enabled. */
+async function pauseRow(outboxId: string): Promise<void> {
+  "use step";
+  await getServiceDb()`
+    update kernel.outbox set last_error = 'module_disabled', claimed_at = null where id = ${outboxId} and dispatched_at is null`;
 }
 
 /** Sets `dispatched_at` and clears a `module_disabled` marker; `last_error` of earlier retries is kept. */
