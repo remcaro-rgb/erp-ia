@@ -7,6 +7,7 @@ export { enqueueEvent } from "./events/outbox";
 export type { OutboxEvent } from "./events/outbox";
 export { consumers, ConsumerRegistry, SYSTEM_USER_ID } from "./events/consumers";
 export { drainOutbox } from "./events/drain";
+export type { DrainOptions } from "./events/drain";
 export { dispatchOutboxRow } from "./events/dispatch.workflow";
 export type { JwtClaims, Tx } from "./db/client";
 export { withClaims } from "./db/client";

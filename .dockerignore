@@ -14,7 +14,8 @@
 .git
 .github
 .superpowers
-docs
+docs/*
+!docs/user-guide
 **/.env*
 !**/.env.example
 !.env.docker.example

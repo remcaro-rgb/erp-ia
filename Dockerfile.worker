@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
 # The Workflow worker for the Docker target (design §21, apps/worker): a long-running Node 22 process that registers
 # the modules' manifests, starts the Workflow Postgres World (its graphile-worker queue) and ticks the outbox. Build
-# context: the repository root. The same image runs the World's schema bootstrap (compose `workflow-init`).
+# context: the repository root. The same image runs the World's schema bootstrap (compose `workflow-init`); the
+# `tools` stage runs the help index (compose `help-index`). `runner` is the last stage, the default target.
 
 ARG NODE_IMAGE=node:22-bookworm-slim
 
@@ -13,6 +14,13 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm fetch --frozen-lockfile
+
+# One-shot tooling of the compose init (`help-index`: `pnpm help:index`, design §7.1): the whole workspace with its dev
+# dependencies and the user guides, so the root scripts run exactly as on a developer machine.
+FROM deps AS tools
+COPY . .
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline --frozen-lockfile
+CMD ["pnpm", "help:index"]
 
 # The worker runs its TypeScript sources and the workspace packages' (kernel, core, support) with tsx: production
 # dependencies of the worker and of the packages it uses, nothing else.

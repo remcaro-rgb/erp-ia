@@ -18,7 +18,7 @@ const verifies = (jwt: string, secret: string) => {
 describe("docker env", () => {
   it("the committed example holds no secret, only `generate`", () => {
     const env = parse(example);
-    for (const name of ["POSTGRES_PASSWORD", "JWT_SECRET", "ANON_KEY", "SERVICE_ROLE_KEY", "INTERNAL_TOKEN", "JWT_KEYS", "JWT_JWKS"]) expect(env[name]).toBe("generate");
+    for (const name of ["POSTGRES_PASSWORD", "JWT_SECRET", "ANON_KEY", "SERVICE_ROLE_KEY", "INTERNAL_TOKEN", "WORKFLOW_INTERNAL_TOKEN", "JWT_KEYS", "JWT_JWKS"]) expect(env[name]).toBe("generate");
   });
 
   it("generates every secret, the API keys signed with the generated JWT secret", () => {
@@ -47,6 +47,7 @@ describe("docker env", () => {
   it("two runs never share a secret", () => {
     const a = parse(generateEnv(example));
     const b = parse(generateEnv(example));
-    for (const name of ["POSTGRES_PASSWORD", "JWT_SECRET", "INTERNAL_TOKEN"]) expect(a[name]).not.toBe(b[name]);
+    for (const name of ["POSTGRES_PASSWORD", "JWT_SECRET", "INTERNAL_TOKEN", "WORKFLOW_INTERNAL_TOKEN"]) expect(a[name]).not.toBe(b[name]);
+    expect(a.WORKFLOW_INTERNAL_TOKEN).not.toBe(a.INTERNAL_TOKEN);
   });
 });

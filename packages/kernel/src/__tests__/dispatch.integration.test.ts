@@ -69,6 +69,9 @@ describe("outbox dispatch", () => {
   const outboxRow = async (chainId: string, event?: string) =>
     (await sql`select * from kernel.outbox where chain_id = ${chainId} and (${event ?? null}::text is null or event = ${event ?? null})`)[0];
   const deadLetter = async (chainId: string) => (await sql`select * from kernel.outbox_dead_letter where chain_id = ${chainId}`)[0];
+  // The suite drains only its own company's rows: rows another suite, a crashed run or someone using the app left in
+  // the shared outbox are neither claimed nor counted.
+  const drain = () => drainOutbox(sql, 100, { companyIds: [companyId] });
   const isDispatched = (chainId: string, event?: string) => async () =>
     expect((await outboxRow(chainId, event))!.dispatched_at).not.toBeNull();
 
@@ -121,14 +124,14 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.created");
 
-    const n = await drainOutbox(sql);
+    const n = await drain();
     expect(n).toBe(1);
 
     await vi.waitFor(isDispatched(chainId), WAIT);
     expect(seen).toEqual([chainId]);
     expect((await outboxRow(chainId))!.last_error).toBeNull();
     // A dispatched row is never claimed again.
-    expect(await drainOutbox(sql)).toBe(0);
+    expect(await drain()).toBe(0);
   });
 
   it("a FatalError moves the row to the dead letter table", async () => {
@@ -137,7 +140,7 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.fatal", { n: 1 });
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
 
     await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
     const dead = (await deadLetter(chainId))!;
@@ -155,7 +158,7 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.refused");
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
 
     await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
     const dead = (await deadLetter(chainId))!;
@@ -171,7 +174,7 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.flaky");
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
 
     await vi.waitFor(isDispatched(chainId), WAIT);
     expect(calls).toBe(2);
@@ -189,7 +192,7 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.exhausted");
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
 
     await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
     // The first run plus the step's 3 retries.
@@ -208,16 +211,16 @@ describe("outbox dispatch", () => {
     await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, ${ids.paused}, false)`;
     const chainId = await enqueue("test.probe.paused");
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
     await vi.waitFor(async () => expect((await outboxRow(chainId))!.last_error).toBe("module_disabled"), WAIT);
     expect((await outboxRow(chainId))!.dispatched_at).toBeNull();
     expect(seen).toEqual([]);
 
     // While the module stays disabled the row is not claimed again.
-    expect(await drainOutbox(sql)).toBe(0);
+    expect(await drain()).toBe(0);
 
     await sql`update kernel.company_modules set enabled = true where company_id = ${companyId} and module_id = ${ids.paused}`;
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
     await vi.waitFor(isDispatched(chainId), WAIT);
     expect(seen).toEqual([chainId]);
     expect((await outboxRow(chainId))!.last_error).toBeNull();
@@ -231,14 +234,14 @@ describe("outbox dispatch", () => {
     await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, ${ids.b}, false)`;
     const chainId = await enqueue("test.probe.partial");
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
     await vi.waitFor(async () => expect((await outboxRow(chainId))!.last_error).toBe("module_disabled"), WAIT);
     expect(calls).toEqual(["a"]);
     const delivered = await sql`select module_id from kernel.outbox_deliveries where outbox_id = ${(await outboxRow(chainId))!.id}`;
     expect(delivered.map((r) => r.module_id)).toEqual([ids.a]);
 
     await sql`update kernel.company_modules set enabled = true where company_id = ${companyId} and module_id = ${ids.b}`;
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
     await vi.waitFor(isDispatched(chainId), WAIT);
     expect(calls).toEqual(["a", "b"]);
   });
@@ -253,12 +256,12 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.gated");
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
     await vi.waitFor(() => expect(calls).toBe(1), WAIT);
     expect((await outboxRow(chainId))!.claimed_at).not.toBeNull();
     // In flight, within the claim window: neither drain claims it again.
-    expect(await drainOutbox(sql)).toBe(0);
-    expect(await Promise.all([drainOutbox(sql), drainOutbox(sql)])).toEqual([0, 0]);
+    expect(await drain()).toBe(0);
+    expect(await Promise.all([drain(), drain()])).toEqual([0, 0]);
 
     release();
     await vi.waitFor(isDispatched(chainId), WAIT);
@@ -270,9 +273,25 @@ describe("outbox dispatch", () => {
     };
     const lost = await enqueue("test.probe.gated");
     await sql`update kernel.outbox set claimed_at = now() - interval '11 minutes' where chain_id = ${lost}`;
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
     await vi.waitFor(isDispatched(lost), WAIT);
     expect(calls).toBe(2);
+  });
+
+  it("a drain scoped to its companies leaves every other company's undispatched rows alone", async () => {
+    const strayCompany = randomUUID();
+    const [stray] = await sql<{ id: string }[]>`
+      insert into kernel.outbox(company_id, event, payload, chain_id) values (${strayCompany}, 'test.probe.stray', '{}', ${randomUUID()}) returning id`;
+    try {
+      handlers["test.probe.created"] = async () => {};
+      const chainId = await enqueue("test.probe.created");
+      expect(await drain()).toBe(1);
+      await vi.waitFor(isDispatched(chainId), WAIT);
+      const [left] = await sql<{ claimed_at: Date | null; dispatched_at: Date | null }[]>`select claimed_at, dispatched_at from kernel.outbox where id = ${stray!.id}`;
+      expect(left).toEqual({ claimed_at: null, dispatched_at: null });
+    } finally {
+      await sql`delete from kernel.outbox where id = ${stray!.id}`;
+    }
   });
 
   it("loadModules registered the consumers, and ctx.runProcess runs as the system user on the same chain", async () => {
@@ -282,7 +301,7 @@ describe("outbox dispatch", () => {
     };
     const chainId = await enqueue("test.probe.requested", { note: "hola" });
 
-    expect(await drainOutbox(sql)).toBe(1);
+    expect(await drain()).toBe(1);
 
     await vi.waitFor(isDispatched(chainId, "test.probe.requested"), WAIT);
     const [audit] = await sql`select * from kernel.audit_log where company_id = ${companyId} and process_id = ${touch.id}`;

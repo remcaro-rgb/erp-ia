@@ -1,6 +1,6 @@
 /**
  * Writes .env.docker from .env.docker.example with fresh local-only secrets (`pnpm docker:env`). Every value spelled
- * `generate` is replaced: POSTGRES_PASSWORD, JWT_SECRET and INTERNAL_TOKEN with random strings, ANON_KEY and
+ * `generate` is replaced: POSTGRES_PASSWORD, JWT_SECRET, INTERNAL_TOKEN and WORKFLOW_INTERNAL_TOKEN with random strings, ANON_KEY and
  * SERVICE_ROLE_KEY with HS256 JWTs signed with that JWT_SECRET (what Supabase's self-hosting guide derives). An existing
  * .env.docker is kept unless `--force` is given (its database volume was created with its password).
  */
@@ -50,6 +50,7 @@ export function generateEnv(example: string): string {
     ANON_KEY: apiKey("anon", jwtSecret),
     SERVICE_ROLE_KEY: apiKey("service_role", jwtSecret),
     INTERNAL_TOKEN: random(32),
+    WORKFLOW_INTERNAL_TOKEN: random(32),
     ...signingKeys(jwtSecret),
   };
   return example.replace(/^([A-Z0-9_]+)=generate$/gm, (_line, name: string) => {

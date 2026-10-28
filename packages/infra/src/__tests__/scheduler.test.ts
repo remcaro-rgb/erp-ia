@@ -54,3 +54,27 @@ describe("runEvery", () => {
     expect(runs).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("runEvery backoff", () => {
+  it("backs off exponentially on consecutive failures, up to 5 minutes, and resets after a success", async () => {
+    vi.useFakeTimers();
+    const at: number[] = [];
+    let failing = true;
+    const start = Date.now();
+    const stop = runEvery(30_000, async () => {
+      at.push(Date.now() - start);
+      if (failing) throw new Error("web down");
+    }, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+    // Failures at 0, then waits of 60 s, 120 s, 240 s, 300 s (capped), 300 s.
+    await vi.advanceTimersByTimeAsync(60_000 + 120_000 + 240_000 + 300_000 + 300_000);
+    expect(at).toEqual([0, 60_000, 180_000, 420_000, 720_000, 1_020_000]);
+    // Back to the plain interval once a pass succeeds.
+    failing = false;
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(at.at(-1)).toBe(1_320_000);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(at.at(-1)).toBe(1_350_000);
+    stop();
+  });
+});

@@ -1,14 +1,16 @@
 # ERP-IA on Docker (design §21, rule 6): the self-hosted Supabase stack (official compose services: Postgres, Auth,
 # PostgREST, Storage behind Kong, Mailpit for mail), the web app (Next.js standalone), the Workflow worker (the
-# Postgres World's queue + the outbox tick) and the Workflow dashboard, on one private network. The integration job
-# of CI runs against it on every push.
+# Postgres World's always-on queue consumer + the outbox tick), the init jobs, and the edge (nginx), on one private
+# network. The integration job of CI runs against it on every push.
 #
-#   pnpm docker:env    # once: .env.docker with generated local-only secrets (from .env.docker.example)
-#   pnpm docker:up     # build, start, wait until every service is healthy and the init jobs are done
-#   pnpm docker:down   # stop and drop the volumes
+#   pnpm docker:env        # once: .env.docker with generated local-only secrets (from .env.docker.example)
+#   pnpm docker:up         # build, start, wait until every service is healthy and the init jobs are done
+#   pnpm docker:test:up    # the same, plus docker-compose.test.yml: db, API and Mailpit published for host-side tests
+#   pnpm docker:down       # stop and drop the volumes
 #
-# Published ports are bound to 127.0.0.1 and differ from the Supabase CLI stack (54322 / 55321): db 56322, API
-# 56321, web 56300, Mailpit 56324, Workflow dashboard 56456 (profile `tools`).
+# Only the edge is published (127.0.0.1:56300). It refuses /.well-known/workflow/* (the Postgres World's flow route has
+# no authentication) and /api/internal/* without `x-workflow-internal-token` (docker/edge/default.conf.template). The
+# web app has no published port; the worker and the web app's own deliveries reach it on the private network.
 name: erp-ia-stack
 
 x-supabase-env: &supabase-db-env
@@ -29,8 +31,6 @@ services:
     volumes:
       - ./docker/supabase/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro
       - db-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:${DB_HOST_PORT:-56322}:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
       interval: 5s
@@ -99,20 +99,29 @@ services:
     image: public.ecr.aws/supabase/postgrest:v14.17
     depends_on:
       db: { condition: service_healthy }
+    restart: unless-stopped
     environment:
+      # A concrete host (not the default "!4"), which `postgrest --ready` needs for the healthcheck.
+      PGRST_SERVER_HOST: 0.0.0.0
+      PGRST_ADMIN_SERVER_PORT: "3001"
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@db:5432/postgres
       PGRST_DB_SCHEMAS: public,graphql_public
       PGRST_DB_EXTRA_SEARCH_PATH: public,extensions
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_JWKS:?run pnpm docker:env}
       PGRST_DB_MAX_ROWS: "1000"
+    healthcheck:
+      test: ["CMD", "postgrest", "--ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks: [internal]
 
   storage:
     image: public.ecr.aws/supabase/storage-api:v1.72.1
     depends_on:
       db: { condition: service_healthy }
-      rest: { condition: service_started }
+      rest: { condition: service_healthy }
     environment:
       ANON_KEY: ${ANON_KEY:?run pnpm docker:env}
       SERVICE_KEY: ${SERVICE_ROLE_KEY:?run pnpm docker:env}
@@ -150,8 +159,6 @@ services:
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
     volumes:
       - ./docker/supabase/kong.yml:/home/kong/kong.yml:ro
-    ports:
-      - "127.0.0.1:${KONG_HOST_PORT:-56321}:8000"
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 5s
@@ -161,8 +168,6 @@ services:
 
   mail:
     image: public.ecr.aws/supabase/mailpit:v1.30.2
-    ports:
-      - "127.0.0.1:${MAIL_HOST_PORT:-56324}:8025"
     networks: [internal]
 
   # One-shot: the app's migrations and seed, once Auth and Storage created their schemas (docker/db-init.sh).
@@ -186,7 +191,7 @@ services:
 
   # One-shot: the Workflow Postgres World's schema (`bootstrap`, node_modules/workflow/docs/worlds/postgres.mdx).
   workflow-init:
-    build: { context: ., dockerfile: Dockerfile.worker }
+    build: { context: ., dockerfile: Dockerfile.worker, target: runner }
     image: erp-ia/worker:local
     command: ["./node_modules/.bin/bootstrap"]
     depends_on:
@@ -198,12 +203,28 @@ services:
     restart: "no"
     networks: [internal]
 
+  # One-shot: the assistant's help index (`pnpm help:index`; FakeEmbedder unless AI_GATEWAY_API_KEY is set), so the
+  # help tool answers on this stack.
+  help-index:
+    build: { context: ., dockerfile: Dockerfile.worker, target: tools }
+    image: erp-ia/tools:local
+    command: ["pnpm", "help:index"]
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+    restart: "no"
+    networks: [internal]
+
   web:
     build: { context: ., dockerfile: Dockerfile.web }
     image: erp-ia/web:local
+    restart: unless-stopped
     depends_on:
       kong: { condition: service_healthy }
       workflow-init: { condition: service_completed_successfully }
+      help-index: { condition: service_completed_successfully }
     environment: &app-env
       ERP_TARGET: docker
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
@@ -223,15 +244,12 @@ services:
       # (pool = concurrency + 2, node_modules/workflow/docs/worlds/postgres.mdx).
       WORKFLOW_POSTGRES_WORKER_CONCURRENCY: "10"
       WORKFLOW_POSTGRES_MAX_POOL_SIZE: "12"
-    # Published on loopback only. A deployment that exposes the web app puts a reverse proxy in front that blocks
-    # /.well-known/workflow/v1/flow (the Postgres World's unauthenticated delivery route: worlds/postgres.mdx,
-    # "Security") and keeps /api/internal/* on the private network.
-    ports:
-      - "127.0.0.1:${WEB_HOST_PORT:-56300}:3000"
+    # No published port: the edge is the way in.
     networks: [internal]
 
   worker:
     image: erp-ia/worker:local
+    restart: unless-stopped
     depends_on:
       workflow-init: { condition: service_completed_successfully }
       web: { condition: service_healthy }
@@ -239,9 +257,33 @@ services:
       <<: *app-env
       # Where the Postgres World delivers workflow and step invocations: the web app's flow route.
       WORKFLOW_LOCAL_BASE_URL: http://web:3000
+      # The name its delivery log carries (apps/worker/src/delivery-log.ts).
+      WORKER_NAME: worker
     networks: [internal]
 
-  # The Workflow dashboard (`@workflow/web`), private: `docker compose --profile tools up -d workflow-web`.
+  # The only published service: the app through nginx, with the workflow and internal routes behind a token.
+  edge:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      web: { condition: service_healthy }
+    environment:
+      WORKFLOW_INTERNAL_TOKEN: ${WORKFLOW_INTERNAL_TOKEN:?run pnpm docker:env}
+      NGINX_ENVSUBST_FILTER: ^WORKFLOW_INTERNAL_TOKEN$$
+    volumes:
+      - ./docker/edge/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-56300}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/edge-health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+
+  # The Workflow dashboard (`@workflow/web`): opt-in (`docker compose --profile tools up -d workflow-web`).
+  # WARNING: it has NO authentication and shows every run's input and output (claims, exported data). It is bound to
+  # 127.0.0.1 only and must never be published on another interface or behind the edge without an auth layer.
   workflow-web:
     image: erp-ia/worker:local
     profiles: [tools]

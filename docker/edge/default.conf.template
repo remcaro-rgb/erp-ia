@@ -1,0 +1,51 @@
+# The edge of the Docker stack (docker-compose.yml `edge`): the only service published for the app. The nginx image
+# renders this template with envsubst (only ${WORKFLOW_INTERNAL_TOKEN}; nginx's own $variables stay as they are).
+#
+#  - /.well-known/workflow/* (the Workflow Postgres World's flow route, which accepts any well-formed request:
+#    node_modules/workflow/docs/worlds/postgres.mdx "Security") and /api/internal/* (the outbox tick) answer 403 unless
+#    the request carries `x-workflow-internal-token: <WORKFLOW_INTERNAL_TOKEN>`; the header is stripped before the
+#    request reaches the app. The worker and the web app's own loopback deliveries call http://web:3000 directly on
+#    the private network and never pass here.
+#  - everything else goes to the web app, with the caller's address as the only X-Forwarded-For hop (a client-sent
+#    value is replaced: the app's per-IP limits read the first hop) and no response buffering (assistant streams).
+
+map $http_x_workflow_internal_token $workflow_internal_allowed {
+    default 0;
+    "${WORKFLOW_INTERNAL_TOKEN}" 1;
+}
+
+server {
+    listen 8080;
+    server_name _;
+    client_max_body_size 30m;
+
+    # Docker's DNS, re-resolved: a re-created web container gets a new address.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $web http://web:3000;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header x-workflow-internal-token "";
+    proxy_buffering off;
+    proxy_read_timeout 300s;
+
+    location = /edge-health {
+        access_log off;
+        return 204;
+    }
+
+    location ~ ^/(\.well-known/workflow/|api/internal/) {
+        if ($workflow_internal_allowed = 0) {
+            return 403;
+        }
+        proxy_pass $web;
+    }
+
+    location / {
+        proxy_pass $web;
+    }
+}

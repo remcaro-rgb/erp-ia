@@ -1,0 +1,13 @@
+# Host-side test access to the Docker stack (CI `docker-integration`, `pnpm docker:test:up`, the smoke check): publishes
+# the database, the Supabase API and Mailpit on 127.0.0.1, which the plain stack keeps on its private network. Not for
+# a deployment.
+services:
+  db:
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-56322}:5432"
+  kong:
+    ports:
+      - "127.0.0.1:${KONG_HOST_PORT:-56321}:8000"
+  mail:
+    ports:
+      - "127.0.0.1:${MAIL_HOST_PORT:-56324}:8025"

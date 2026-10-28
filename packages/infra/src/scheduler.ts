@@ -25,20 +25,34 @@ export function tickScheduler(driver: Scheduler["driver"], drain: () => Promise<
   };
 }
 
+/** The longest wait between passes while they keep failing. */
+export const MAX_BACKOFF_MS = 5 * 60_000;
+
 /**
  * Runs `task` now and then every `intervalMs`, never two at once (a slow pass delays the next one instead of
- * overlapping it). A failing pass goes to `onError` and the loop goes on. Answers the function that stops it.
+ * overlapping it). A failing pass goes to `onError` and the loop goes on, backing off: after n failures in a row the
+ * next pass waits `intervalMs * 2^n`, at most `maxBackoffMs` (5 minutes); a success goes back to `intervalMs`.
+ * Answers the function that stops it.
  */
-export function runEvery(intervalMs: number, task: () => Promise<unknown>, onError: (error: unknown) => void): () => void {
+export function runEvery(
+  intervalMs: number,
+  task: () => Promise<unknown>,
+  onError: (error: unknown) => void,
+  maxBackoffMs: number = MAX_BACKOFF_MS,
+): () => void {
   let stopped = false;
+  let failures = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pass = async () => {
     try {
       await task();
+      failures = 0;
     } catch (error) {
+      failures++;
       onError(error);
     }
-    if (!stopped) timer = setTimeout(pass, intervalMs);
+    const delay = failures === 0 ? intervalMs : Math.min(intervalMs * 2 ** failures, Math.max(maxBackoffMs, intervalMs));
+    if (!stopped) timer = setTimeout(pass, delay);
   };
   void pass();
   return () => {

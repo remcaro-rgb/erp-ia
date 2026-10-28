@@ -5,8 +5,10 @@ import { required, type Env } from "./target";
 //  - vercel: the Vercel-managed World, detected by the runtime inside a deployment (the Local World in `next dev`);
 //  - docker: the Workflow Postgres World (`@workflow/world-postgres`) in the compose Postgres, selected by
 //    `WORKFLOW_TARGET_WORLD` and `WORKFLOW_POSTGRES_URL` (node_modules/workflow/docs/worlds/postgres.mdx). Its
-//    graphile-worker queue is consumed by the long-running worker container (apps/worker), which delivers every
-//    workflow and step invocation to the web app's `/.well-known/workflow/v1/flow` route.
+//    graphile-worker queue is consumed by every process that enqueues (world-postgres 5 starts a runner on the first
+//    enqueue: the web app) and by the worker container (apps/worker), the always-on consumer that calls `startWorld()`
+//    at boot and also ticks the outbox and registers the manifests. Every delivery goes to the web app's
+//    `/.well-known/workflow/v1/flow` route, where the compiled workflow code runs.
 
 /** The Postgres World's package, the value `WORKFLOW_TARGET_WORLD` takes in Docker. */
 export const POSTGRES_WORLD = "@workflow/world-postgres";

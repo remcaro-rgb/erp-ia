@@ -17,16 +17,24 @@ const CLAIM_WINDOW = "10 minutes";
  * by an overlapping or repeated drain. A row parked with `last_error = 'module_disabled'` is skipped
  * until none of the consumer modules of its event is disabled for its company any more (design §5.12:
  * paused, queued, not dropped). Throws `outbox: no modules loaded` when the process has registered no
- * module: draining then would hand events to a worker that cannot run their consumers.
+ * module: draining then would hand events to a worker that cannot run their consumers. `companyIds` limits the claim
+ * to those companies' rows.
  */
-export async function drainOutbox(sql: Sql, limit = 100): Promise<number> {
+export interface DrainOptions {
+  /** Only rows of these companies (a test suite that owns its rows); every company when absent. */
+  companyIds?: readonly string[];
+}
+
+export async function drainOutbox(sql: Sql, limit = 100, options: DrainOptions = {}): Promise<number> {
   if (registry.modules().length === 0) throw new Error("outbox: no modules loaded");
 
   const ids = await sql.begin(async (tx) => {
     const gates = tx.json(consumers.pairs());
+    const companies = options.companyIds ? [...options.companyIds] : null;
     const rows = await tx<{ id: string }[]>`
       select o.id from kernel.outbox o
       where o.dispatched_at is null
+        and (${companies}::uuid[] is null or o.company_id = any(${companies}::uuid[]))
         and (o.claimed_at is null or o.claimed_at < now() - ${CLAIM_WINDOW}::interval)
         and (
           o.last_error is distinct from 'module_disabled'

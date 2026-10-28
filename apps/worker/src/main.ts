@@ -1,19 +1,23 @@
+import { hostname } from "node:os";
 import { infra, runEvery } from "@erp/infra";
 import { getServiceDb, kernelModule, loadModules, registry, syncRegistry } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
+import { logDeliveries } from "./delivery-log";
 import { tickOutbox } from "./tick";
 
 // The Docker worker (design §21, rule 6): the long-running process the Workflow Postgres World needs and Vercel does
 // not. It
 //  1. loads the modules the web app ships (kernel, core, support) and registers their manifests in SQL, as the web
 //     app's instrumentation does at boot (design §5.2);
-//  2. starts the Postgres World (`world.start()`, node_modules/workflow/docs/worlds/postgres.mdx): its graphile-worker
-//     claims the queued workflow and step jobs the web app enqueued (outbox dispatch, import, export, assistant turn)
-//     and delivers each to the web app's /.well-known/workflow/v1/flow route (`WORKFLOW_LOCAL_BASE_URL`), where the
-//     compiled workflow code runs; this process holds the queue, the retries and the schedule, the web app the code;
-//  3. ticks the outbox every 30 s through the web app's POST /api/internal/outbox/tick.
-// Its healthcheck is `workflow health --backend @workflow/world-postgres`: a message through this queue to the flow
+//  2. starts the Postgres World (`world.start()`, node_modules/workflow/docs/worlds/postgres.mdx): its graphile runner
+//     claims queued workflow and step jobs (outbox dispatch, import, export, assistant turn) and delivers each to the
+//     web app's /.well-known/workflow/v1/flow route (`WORKFLOW_LOCAL_BASE_URL`), where the compiled workflow code
+//     runs. In world-postgres 5 every process that enqueues also starts a runner, so the web app consumes too; the
+//     worker is the consumer that is always on (retries, runs re-enqueued at start, no web traffic). Each delivery it
+//     makes is logged with its name (delivery-log.ts);
+//  3. ticks the outbox every 30 s through the web app's POST /api/internal/outbox/tick (backing off while it fails).
+// Its healthcheck is `workflow health --backend @workflow/world-postgres`: a message through the queue to the flow
 // route and back.
 
 const TICK_INTERVAL_MS = Number(process.env.OUTBOX_TICK_INTERVAL_MS ?? 30_000);
@@ -51,6 +55,7 @@ async function main(): Promise<void> {
   const token = env("INTERNAL_TOKEN");
 
   await syncManifests();
+  logDeliveries(process.env.WORKER_NAME?.trim() || hostname());
   await runner.startWorld();
   log(`Postgres World started; delivering to ${webUrl}/.well-known/workflow/v1/flow`);
 

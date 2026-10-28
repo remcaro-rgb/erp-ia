@@ -46,12 +46,15 @@ jobs:
       - run: supabase stop
         if: always()
 
-  # The Docker target (design §21, rule 6): the whole stack from docker-compose.yml (self-hosted Supabase, web,
-  # Workflow worker on the Postgres World), a real export job and outbox dispatch through it, then the integration
-  # suites against its database, Auth and Storage.
+  # The Docker target (design §21, rule 6): the whole stack from docker-compose.yml (self-hosted Supabase, web behind
+  # the nginx edge, Workflow worker on the Postgres World, init jobs), with docker-compose.test.yml publishing the
+  # database and API for the host-side checks: the edge guards and real workflows through it (smoke), then the
+  # integration suites against its database, Auth and Storage.
   docker-integration:
     runs-on: ubuntu-latest
     needs: unit
+    env:
+      COMPOSE_FILE: docker-compose.yml:docker-compose.test.yml
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -62,8 +65,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # Fresh local-only secrets for this run (.env.docker is never committed).
       - run: pnpm docker:env
-      - run: docker compose --env-file .env.docker up -d --build --wait --wait-timeout 600
-      - name: Real workflows on the Postgres World (export job through the web app, outbox tick by the worker)
+      - run: docker compose --env-file .env.docker up -d --build --wait --wait-timeout 900
+      - name: Edge guards and real workflows on the Postgres World (export job, outbox tick, worker deliveries)
         run: |
           set -a; . ./.env.docker; set +a
           pnpm -F worker smoke
@@ -81,5 +84,5 @@ jobs:
       - name: Compose logs
         if: failure()
         run: docker compose --env-file .env.docker logs --no-color --tail 300
-      - run: docker compose --env-file .env.docker down -v
+      - run: docker compose --env-file .env.docker --profile tools down -v
         if: always()

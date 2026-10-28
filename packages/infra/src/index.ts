@@ -11,7 +11,7 @@ export { SupabaseAuthAdmin } from "./auth-admin";
 export type { AuthAdmin } from "./auth-admin";
 export { cloudDurableRunner, dockerDurableRunner, POSTGRES_WORLD } from "./durable-runner";
 export type { DurableRunner } from "./durable-runner";
-export { runEvery, tickScheduler } from "./scheduler";
+export { MAX_BACKOFF_MS, runEvery, tickScheduler } from "./scheduler";
 export type { Scheduler, TickResult } from "./scheduler";
 export { cloudModelProvider, dockerModelProvider } from "./model-provider";
 export type { GatewayConfig, ModelProvider } from "./model-provider";
