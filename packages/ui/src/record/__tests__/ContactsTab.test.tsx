@@ -115,6 +115,30 @@ describe("ContactsTab", () => {
   });
 });
 
+describe("ContactsTab capabilities", () => {
+  it("shows only the controls whose callback it was given (a role may create but not remove)", () => {
+    render(<ContactsTab contacts={[ana]} onCreate={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "+ Nuevo contacto" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Quitar a Ana Gómez" })).toBeNull();
+    fireEvent.click(screen.getByText("Ana Gómez"));
+    expect(screen.queryByLabelText("Nombre")).toBeNull();
+    cleanup();
+    render(<ContactsTab contacts={[ana]} onUpdate={vi.fn()} onRemove={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "+ Nuevo contacto" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Quitar a Ana Gómez" })).toBeTruthy();
+    fireEvent.click(screen.getByText("Ana Gómez"));
+    expect(screen.getByLabelText("Nombre")).toBeTruthy();
+  });
+
+  it("shows the queued status the verify hook reports next to the e-mail", () => {
+    const onVerify = vi.fn();
+    render(<ContactsTab contacts={[]} onCreate={vi.fn()} verify={{ onVerify, statusOf: (kind, value) => (kind === "email" && value === "luis@exito.com" ? "queued" : undefined) }} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ Nuevo contacto" }));
+    fill("Correo", "luis@exito.com");
+    expect(screen.getByText("en cola")).toBeTruthy();
+  });
+});
+
 describe("contactProblems", () => {
   it("needs a name and at least one channel, and checks each datum", () => {
     expect(contactProblems(emptyDraft())).toMatchObject({ name: expect.any(String) });

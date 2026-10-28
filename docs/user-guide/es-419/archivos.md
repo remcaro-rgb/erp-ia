@@ -8,6 +8,7 @@ processes:
   - kernel.attachment.add
   - kernel.attachment.list
   - kernel.attachment.remove
+  - kernel.attachment.reorder
 ---
 
 # Archivos adjuntos
@@ -42,7 +43,9 @@ Cada empresa tiene su lista de archivos obligatorios por tipo de registro, cada 
 | Tercero | **Certificación bancaria** | PDF | No (útil para proveedores) |
 | Producto | **Ficha técnica** | PDF | No |
 
-Mientras falte un archivo obligatorio, el tercero o el producto **no está «Listo para facturar»**: en un buscador de terceros se ve como no facturable con el motivo «Faltan archivos obligatorios». En cuanto subes el último, queda listo (si lo demás está completo), y si quitas un archivo obligatorio, deja de estarlo.
+En la parte superior de la pestaña **Archivos** ves la lista de los archivos obligatorios **que aplican a ese registro** (por ejemplo, la Cámara de Comercio solo aparece en una persona jurídica de Colombia), cada uno con su estado: **Cargado**, **Obligatorio** (en rojo) u **Opcional**, el tipo de archivo que acepta y su descripción. Mientras falte alguno obligatorio, la pestaña lo avisa con «Mientras falten … el registro no se puede usar en facturas».
+
+Mientras falte un archivo obligatorio, el tercero o el producto **no está «Listo para facturar»**: el **pie del registro** muestra «✕ No se puede usar en facturas» y, en un buscador de terceros, se ve como no facturable con el motivo «Faltan archivos obligatorios». En cuanto subes el último, el pie cambia solo a «✓ Se puede usar en facturas» (si lo demás está completo), y si quitas un archivo obligatorio, deja de estarlo.
 
 ## Descargar
 
@@ -58,7 +61,7 @@ El archivo deja de verse y de poder descargarse, pero no se borra del todo: se c
 
 ## Fotos de un producto
 
-Las fotos de un producto son archivos con la etiqueta «Foto»: se agregan desde la pestaña **Fotos** (guía **Productos**) y también aparecen aquí.
+Las fotos de un producto son archivos con la etiqueta «Foto» (o «Foto · IA» si las sugirió el asistente): se agregan y se ordenan desde la pestaña **Fotos** (guía **Productos**; allí se hace principal una foto con **Hacer principal**, permiso `kernel.attachment.reorder`) y también aparecen aquí.
 
 ## Tickets de soporte
 

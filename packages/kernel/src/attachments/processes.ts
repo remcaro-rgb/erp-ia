@@ -1,53 +1,16 @@
 import { ProcessError } from "../process/errors";
 import { defineProcess } from "../process/define";
-import type { ProcessContext } from "../process/context";
-import { definedTag, registeredEntity, requireOwnerUpdate, requireVisibleRecord } from "./guards";
-import { addInput, addOutput, entityRecord, listOutput, removeInput, removeOutput } from "./schemas";
+import { registeredEntity, requireOwnerUpdate, requireVisibleRecord } from "./guards";
+import { insertAttachment, refuse, selectAttachments, summary, type AttachmentRow } from "./rows";
+import { addInput, addOutput, entityRecord, listOutput, removeInput, removeOutput, reorderInput, reorderOutput } from "./schemas";
 
-// Attachments on any entity (design §5.13, rule 22). The three processes are ordinary registered
-// processes with their own permissions. add and remove also require the caller to be able to run the
-// owning entity's update process (`<entity id>.update`, or the entity's declared `processIds.attach`), and every process needs the record to be
-// visible through the entity's masked read view, so a party scope or a field mask that hides a record
+// Attachments on any entity (design §5.13, rule 22). The processes are ordinary registered processes with
+// their own permissions. add, remove and reorder also require the caller to be able to run the owning entity's
+// update process (`<entity id>.update`, or the entity's declared `processIds.attach`), and every process needs the
+// record to be visible through the entity's masked read view, so a party scope or a field mask that hides a record
 // hides its files too.
 
 const FEATURE = "kernel.attachments";
-/** SQLSTATE of a unique violation. */
-const UNIQUE_VIOLATION = "23505";
-
-interface AttachmentRow {
-  id: string;
-  entity: string;
-  record_id: string;
-  tag: string;
-  file_name: string;
-  mime_type: string;
-  size_bytes: string;
-  storage_path: string;
-  uploaded_by: string | null;
-  uploaded_by_name: string | null;
-  uploaded_at: Date;
-}
-
-const summary = (row: AttachmentRow) => ({
-  id: row.id,
-  entity: row.entity,
-  recordId: row.record_id,
-  tag: row.tag,
-  fileName: row.file_name,
-  mimeType: row.mime_type,
-  sizeBytes: Number(row.size_bytes),
-  uploadedBy: row.uploaded_by,
-  uploadedByName: row.uploaded_by_name,
-  uploadedAt: row.uploaded_at.toISOString(),
-});
-
-/** The attachment columns with the uploader's name, as a fragment to append `where …` to (kernel.users is visible to the company's members). */
-const selectAttachments = (ctx: ProcessContext) => ctx.tx`
-  select a.id, a.entity, a.record_id, a.tag, a.file_name, a.mime_type, a.size_bytes, a.storage_path,
-         a.created_by as uploaded_by, coalesce(u.full_name, u.email) as uploaded_by_name, a.created_at as uploaded_at
-  from kernel.attachments a left join kernel.users u on u.id = a.created_by`;
-
-const refuse = (message: string, detail: string) => new ProcessError("invalid_input", message, { details: [detail] });
 
 export const attachmentAdd = defineProcess({
   id: "kernel.attachment.add",
@@ -68,39 +31,8 @@ export const attachmentAdd = defineProcess({
     if (!input.storagePath.startsWith(folder) || stored === "" || stored.includes("/") || stored.includes("..")) {
       throw refuse("invalid storage path", "La ruta de almacenamiento no pertenece a este registro");
     }
-
-    // A tag the admin defined keeps its defined spelling and its file type.
-    const defined = await definedTag(ctx.tx, ctx.companyId, entity.id, input.tag);
-    const tag = defined?.tag ?? input.tag;
-    if (defined?.kind === "pdf" && input.mimeType !== "application/pdf") {
-      throw refuse("tag requires a pdf", `La etiqueta ${tag} exige un archivo PDF`);
-    }
-    if (defined?.kind === "image" && !input.mimeType.startsWith("image/")) {
-      throw refuse("tag requires an image", `La etiqueta ${tag} exige una imagen`);
-    }
-
-    // Never silently overwrite: a live file with this name (any case) on the record is a refusal.
-    const duplicate = refuse("duplicate file name", `Ya existe un archivo ${input.fileName} en este registro`);
-    const same = await ctx.tx`
-      select 1 from kernel.attachments
-      where company_id = ${ctx.companyId} and entity = ${entity.id} and record_id = ${input.recordId}
-        and removed_at is null and lower(file_name) = lower(${input.fileName})`;
-    if (same.length > 0) throw duplicate;
-
-    let id: string;
-    try {
-      const [inserted] = await ctx.tx<{ id: string }[]>`
-        insert into kernel.attachments (company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path, created_by)
-        values (${ctx.companyId}, ${entity.id}, ${input.recordId}, ${tag}, ${input.fileName}, ${input.mimeType}, ${input.sizeBytes}, ${input.storagePath}, ${ctx.userId})
-        returning id`;
-      id = inserted!.id;
-    } catch (error) {
-      // A concurrent upload of the same name or path committed between the check and the insert.
-      if ((error as { code?: string }).code === UNIQUE_VIOLATION) throw duplicate;
-      throw error;
-    }
-    const [row] = await ctx.tx<AttachmentRow[]>`${selectAttachments(ctx)} where a.id = ${id}`;
-    return { ...summary(row!), storagePath: row!.storage_path };
+    const row = await insertAttachment(ctx, entity, input);
+    return { ...summary(row), storagePath: row.storage_path };
   },
 });
 
@@ -140,9 +72,42 @@ export const attachmentList = defineProcess({
     const rows = await ctx.tx<AttachmentRow[]>`
       ${selectAttachments(ctx)}
       where a.company_id = ${ctx.companyId} and a.entity = ${entity.id} and a.record_id = ${input.recordId} and a.removed_at is null
-      order by a.created_at, a.id`;
+      order by a.position, a.created_at, a.id`;
     return rows.map(summary);
   },
 });
 
-export const ATTACHMENT_PROCESSES = [attachmentAdd, attachmentRemove, attachmentList];
+export const attachmentReorder = defineProcess({
+  id: "kernel.attachment.reorder",
+  module: "kernel",
+  kind: "update",
+  feature: FEATURE,
+  description:
+    "Cambia el orden de los archivos adjuntos de un registro (la primera foto es la principal); la foto sugerida por IA que queda primera se da por aprobada",
+  input: reorderInput,
+  output: reorderOutput,
+  handler: async (ctx, { entity: entityId, recordId, orderedIds }) => {
+    const entity = registeredEntity(ctx, entityId);
+    await requireOwnerUpdate(ctx, entity.id);
+    await requireVisibleRecord(ctx, entity, recordId);
+    if (new Set(orderedIds).size !== orderedIds.length) throw refuse("repeated attachment", "Un archivo aparece más de una vez en el orden");
+
+    // Every id must be a live file of this record; the rows are locked so two reorders do not interleave.
+    const found = await ctx.tx<{ id: string }[]>`
+      select id from kernel.attachments
+      where company_id = ${ctx.companyId} and entity = ${entity.id} and record_id = ${recordId} and removed_at is null
+        and id = any (${orderedIds}::uuid[])
+      for update`;
+    if (found.length !== orderedIds.length) throw refuse("attachment not on the record", "Algún archivo no pertenece a este registro o ya fue quitado");
+
+    // Positions 0..n-1 in the given order. Approval of a suggested picture: the one placed first is no longer a suggestion.
+    await ctx.tx`
+      update kernel.attachments a
+      set position = o.pos - 1, suggested = case when o.pos = 1 then false else a.suggested end
+      from unnest(${orderedIds}::uuid[]) with ordinality as o (id, pos)
+      where a.id = o.id and (a.position is distinct from o.pos - 1 or (o.pos = 1 and a.suggested))`;
+    return { count: orderedIds.length };
+  },
+});
+
+export const ATTACHMENT_PROCESSES = [attachmentAdd, attachmentRemove, attachmentList, attachmentReorder];

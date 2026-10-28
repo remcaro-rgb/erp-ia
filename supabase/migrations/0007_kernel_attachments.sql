@@ -58,6 +58,12 @@ create table kernel.attachments (
   mime_type    text not null,
   size_bytes   bigint not null check (size_bytes >= 0 and size_bytes <= 26214400),
   storage_path text not null unique,
+  -- Display order within the record, ascending (first = principal for photos). kernel.attachment.add puts a new
+  -- file last; kernel.attachment.reorder rewrites it 0..n-1. Ties fall back to the upload time.
+  position     int not null default 0,
+  -- A picture the assistant suggested (kernel.ai.image_suggest) that no user has approved yet; making it the
+  -- first of its record through kernel.attachment.reorder is the approval and clears the flag (design §5.18).
+  suggested    boolean not null default false,
   removed_at   timestamptz,
   removed_by   uuid,
   -- created_at / created_by are the upload time and the uploader.
@@ -70,23 +76,27 @@ create index attachments_record_idx on kernel.attachments (company_id, entity, r
 -- A record never holds two live files with the same name (any case): an upload never replaces one silently.
 create unique index attachments_live_name_key on kernel.attachments (company_id, entity, record_id, lower(file_name)) where removed_at is null;
 
--- Users insert through kernel.attachment.add and may only fill the removal columns afterwards.
+-- Users insert through kernel.attachment.add / kernel.ai.image_suggest and may only fill the removal columns, the
+-- display order and the suggested flag afterwards.
 grant select, insert on kernel.attachments to authenticated;
-grant update (removed_at, removed_by, updated_at, updated_by) on kernel.attachments to authenticated;
+grant update (removed_at, removed_by, position, suggested, updated_at, updated_by) on kernel.attachments to authenticated;
 grant all on kernel.attachments to service_role;
 select kernel.enable_company_rls('kernel', 'attachments');
 select kernel.enable_row_audit('kernel', 'attachments');
 
 -- Writes only through the process pipeline (rule 1): runProcess sets erp.audit_process_id for the
--- transaction, so a member writing directly (outside kernel.attachment.add / remove) is refused. The
--- service role bypasses RLS and is not affected.
+-- transaction, so a member writing directly (outside kernel.attachment.add / remove / reorder and the AI photo
+-- suggestion, which stores a file like an upload) is refused. The service role bypasses RLS and is not affected.
 create policy via_process_insert on kernel.attachments as restrictive for insert to authenticated
-  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%');
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%'
+              or coalesce(current_setting('erp.audit_process_id', true), '') = 'kernel.ai.image_suggest');
+-- kernel.attachment.% covers remove (removal columns) and reorder (position, suggested); the column grant and the
+-- guard below keep every other column fixed.
 create policy via_process_update on kernel.attachments as restrictive for update to authenticated
   using (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%')
   with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%');
 
--- An attachment is immutable but for its removal, and a removal is permanent.
+-- An attachment is immutable but for its removal (permanent), its display order and its suggested flag.
 create or replace function kernel.attachment_guard() returns trigger
 language plpgsql
 as $$
@@ -94,10 +104,11 @@ begin
   if old.removed_at is not null then
     raise exception 'attachment % was removed and cannot change', old.id using errcode = 'check_violation';
   end if;
-  if new.removed_at is null
-     or (to_jsonb(new) - 'removed_at' - 'removed_by' - 'updated_at' - 'updated_by')
-        is distinct from (to_jsonb(old) - 'removed_at' - 'removed_by' - 'updated_at' - 'updated_by') then
-    raise exception 'attachment % can only be removed, not changed', old.id using errcode = 'check_violation';
+  if (to_jsonb(new) - 'removed_at' - 'removed_by' - 'position' - 'suggested' - 'updated_at' - 'updated_by')
+     is distinct from (to_jsonb(old) - 'removed_at' - 'removed_by' - 'position' - 'suggested' - 'updated_at' - 'updated_by')
+     -- who removed a file only changes together with when.
+     or (new.removed_at is null and new.removed_by is distinct from old.removed_by) then
+    raise exception 'attachment % can only be removed or reordered, not changed', old.id using errcode = 'check_violation';
   end if;
   return new;
 end;
@@ -114,6 +125,14 @@ from kernel.attachments
 where removed_at is null
 group by entity, record_id;
 grant select on kernel.v_attachment_counts to authenticated;
+
+-- The admin's required files as the record page reads them (design §5.13): which tags a record must or may carry.
+-- The page applies each definition's `condition` to the record (requirementApplies in @erp/kernel, the TypeScript
+-- twin of kernel.missing_attachments). Company RLS applies to the reader.
+create or replace view kernel.v_required_attachments with (security_invoker = true) as
+select id, company_id, entity, tag, kind, required, condition, description
+from kernel.required_attachments;
+grant select on kernel.v_required_attachments to authenticated;
 
 -- ---------------------------------------------------------------------------------------------
 -- Missing required files of a record (SQL twin of missingAttachments in @erp/kernel). The tags of

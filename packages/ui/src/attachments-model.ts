@@ -27,6 +27,8 @@ export interface AttachmentItem {
   uploadedBy: string | null;
   uploadedByName?: string | null;
   uploadedAt: string;
+  /** A picture the assistant suggested that no user has approved yet (`kernel.attachment.list`). */
+  suggested?: boolean;
 }
 
 /** Copy of the panel. Spanish (es-419) until Task 11 wires packages/i18n; every string can be replaced through the `labels` prop. */

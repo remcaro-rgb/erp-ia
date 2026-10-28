@@ -165,7 +165,8 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
     const reordered = [photo, ...photos.filter((p) => p.id !== photo.id)];
     try {
       await onReorder?.(reordered.map((p) => p.id));
-      setPhotos(reordered);
+      // The chosen photo is now the principal one: a suggestion made principal is approved (the server clears the flag).
+      setPhotos(reordered.map((p, i) => (i === 0 && p.suggested ? { ...p, suggested: false } : p)));
       setIndex(0);
     } catch (error) {
       setMessage(labels.actionFailed(error instanceof Error ? error.message : String(error)));

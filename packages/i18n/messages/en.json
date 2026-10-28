@@ -132,6 +132,10 @@
       "required": "required",
       "read_only_for_role": "read-only for your role",
       "hidden_title": "Your role cannot see this data",
+      "save": "Save additional data",
+      "saving": "Saving…",
+      "saved": "Additional data saved",
+      "discard": "Discard changes",
       "none": "—",
       "yes": "Yes",
       "no": "No",
@@ -685,6 +689,7 @@
     },
     "kernel": {
       "attachments": "Attachments",
+      "ai": "AI suggestions",
       "custom_fields": "Additional data",
       "verification": "E-mail and phone verification",
       "user_prefs": "User preferences",

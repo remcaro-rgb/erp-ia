@@ -1,5 +1,5 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import { gridPageAccess, ProcessError, runGridQuery, runnableProcesses, runProcess, type Caller, type FieldMode } from "@erp/kernel";
+import { gridPageAccess, ProcessError, requiredTagsFor, runGridQuery, runnableProcesses, runProcess, type Caller, type ConditionFacts, type FieldMode, type RequiredTag } from "@erp/kernel";
 import type { CategoryOption, GridColumn, PartyTables, ProductTables } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
@@ -24,6 +24,25 @@ export type FormData =
     }
   | { kind: "category"; tables: ProductTables; productCount: number };
 
+/** What the caller may do on the record's tabs: each flag is the process (and, for files, the owner's update) they may run. */
+export interface RecordAbilities {
+  contactCreate: boolean;
+  contactUpdate: boolean;
+  contactDelete: boolean;
+  /** Ask the external verification of a contact's e-mail or phone. */
+  verify: boolean;
+  /** Save datos adicionales: the entity's update process. */
+  extra: boolean;
+  /** Upload files and photos. */
+  attach: boolean;
+  /** Remove files and photos. */
+  removeFile: boolean;
+  /** Put the photos in order / make one principal. */
+  reorder: boolean;
+  /** "Sugerir foto con IA". */
+  suggest: boolean;
+}
+
 export interface LoadedRecord {
   entity: RecordEntity;
   caller: Caller;
@@ -35,6 +54,10 @@ export interface LoadedRecord {
   modes: Record<string, FieldMode>;
   /** The caller may run the save process (create for a new record, update otherwise). */
   canSave: boolean;
+  /** What the caller may do on the Contactos, Fotos, Datos adicionales and Archivos tabs. */
+  can: RecordAbilities;
+  /** The admin's required files that apply to this record (empty for a new one), by tag. */
+  requiredTags: RequiredTag[];
   form: FormData;
 }
 
@@ -122,13 +145,58 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     }
   }
   const saveProcess = record ? entity.update : entity.create;
-  const [defs, partyContacts, access, runnable] = await Promise.all([
+  const access = await gridPageAccess(deps.sql, caller.claims, registered);
+  const [defs, partyContacts, runnable, required] = await Promise.all([
     record ? orEmpty(customFields(caller, entity.id)) : Promise.resolve([]),
     record && entity.id === "core.party" ? orEmpty(contacts(caller, record.id)) : Promise.resolve([]),
-    gridPageAccess(deps.sql, caller.claims, registered),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess]),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, ...TAB_PROCESSES]),
+    record ? requiredTagsFor(deps.sql, caller.claims, entity.id, factsOf(entity.id, record, access.modes)) : Promise.resolve([]),
   ]);
   const canSave = runnable.has(saveProcess);
   if (!record && !canSave) return null;
-  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, form: await formData(caller, entity, record) };
+  // Files and photos change the record, so they also need the right to update it.
+  const mayUpdate = runnable.has(entity.update);
+  const may = (process: string) => mayUpdate && runnable.has(process);
+  const can: RecordAbilities = {
+    contactCreate: runnable.has("core.contact.create"),
+    contactUpdate: runnable.has("core.contact.update"),
+    contactDelete: runnable.has("core.contact.delete"),
+    verify: runnable.has("kernel.verify.request"),
+    extra: mayUpdate,
+    attach: may("kernel.attachment.add"),
+    removeFile: may("kernel.attachment.remove"),
+    reorder: may("kernel.attachment.reorder"),
+    suggest: may("kernel.ai.image_suggest"),
+  };
+  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, form: await formData(caller, entity, record) };
+}
+
+/** The processes the record's tabs run besides the save: asked in one round trip. */
+const TAB_PROCESSES = [
+  "core.party.update",
+  "core.product.update",
+  "core.category.update",
+  "core.contact.create",
+  "core.contact.update",
+  "core.contact.delete",
+  "kernel.verify.request",
+  "kernel.attachment.add",
+  "kernel.attachment.remove",
+  "kernel.attachment.reorder",
+  "kernel.ai.image_suggest",
+];
+
+/**
+ * What the required-file conditions read from the record (`co`, `co-juridica`, `proveedor`, `cliente`): a party's
+ * country, person type and kinds; none for the entities without them. A fact the caller's role cannot see is left
+ * out, which keeps the requirement on the list (it is never waived for want of information).
+ */
+function factsOf(entityId: string, record: NonNullable<LoadedRecord["record"]>, modes: Record<string, FieldMode>): ConditionFacts {
+  if (entityId !== "core.party") return { countryCode: null, personType: null, kind: null };
+  const seen = <T>(field: string, value: unknown): T | undefined => ((modes[field] ?? "visible") === "visible" ? (value as T) : undefined);
+  return {
+    countryCode: seen<string | null>("country_code", record.country_code),
+    personType: seen<string | null>("person_type", record.person_type),
+    kind: seen<string[] | null>("kind", record.kind),
+  };
 }

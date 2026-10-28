@@ -3,8 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
-import { AttachmentsPanel, ContactsTab, ExtraDataTab, PhotosTab, RecordFrame, extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
+import { RecordFrame, extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
 import { loadRecord } from "@/lib/records/load";
+import { ContactsPanel } from "./contacts-panel";
+import { ExtraPanel } from "./extra-panel";
+import { FilesPanel } from "./files-panel";
+import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
 import { TicketView } from "../../../support/ticket-view";
 
@@ -43,7 +47,7 @@ async function RecordView({ params }: { params: Params }) {
   }
   // No such record for this user, or no full page for the entity: both look the same.
   if (!loaded) notFound();
-  const { entity, record, defs, contacts, modes, canSave, form } = loaded;
+  const { entity, record, defs, contacts, modes, canSave, can, requiredTags, form } = loaded;
   const t = await getTranslations();
 
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
@@ -59,12 +63,19 @@ async function RecordView({ params }: { params: Params }) {
   const extra = (record.extra as Record<string, unknown> | null) ?? {};
   const extraFree = (record.extra_free as { name: string; value: string }[] | null) ?? [];
   const counts = extraTabCounts(defs, extra, extraFree);
+  // What the picture suggestion is made from: the product's description, unit and category.
+  const category = form.kind === "product" ? form.categories.find((c) => c.id === record.category_id) : undefined;
+  const hints = {
+    description: String(record[entity.titleField] ?? ""),
+    ...(typeof record.uom_code === "string" ? { uom: record.uom_code } : {}),
+    ...(category ? { category: category.name } : {}),
+  };
   const content: Record<string, Omit<RecordTab, "id">> = {
     datos,
-    contactos: { count: contacts.length, content: <ContactsTab contacts={contacts} readOnly /> },
-    fotos: { content: <PhotosTab entity={entity.id} recordId={record.id} /> },
-    extra: { ...counts, content: <ExtraDataTab defs={defs} extra={extra} extraFree={extraFree} readOnly /> },
-    archivos: { content: <AttachmentsPanel entity={entity.id} recordId={record.id} /> },
+    contactos: { count: contacts.length, content: <ContactsPanel partyId={record.id} contacts={contacts} can={can} /> },
+    fotos: { content: <PhotosPanel entity={entity.id} recordId={record.id} can={can} hints={hints} /> },
+    extra: { ...counts, content: <ExtraPanel entity={entity.id} recordId={record.id} defs={defs} extra={extra} extraFree={extraFree} canEdit={can.extra} /> },
+    archivos: { content: <FilesPanel entity={entity.id} recordId={record.id} requiredTags={requiredTags} can={can} /> },
   };
 
   return (
@@ -76,9 +87,30 @@ async function RecordView({ params }: { params: Params }) {
         deepLinkHref={recordHref(entity.id, record.id)}
         tabs={recordTabIds(entity.id).map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
         labels={recordLabels(t)}
-        status={typeof record.dian_status === "string" ? <span className="erp-mono">{record.dian_status}</span> : undefined}
+        status={<RecordStatus record={record} t={t} />}
       />
     </div>
+  );
+}
+
+/**
+ * The footer's status: whether the record can go on an invoice (design §5.17: DIAN complete, required files present,
+ * active) and its DIAN status. The page reloads after a file is added or removed, so this follows the files.
+ */
+function RecordStatus({ record, t }: { record: Record<string, unknown>; t: Awaited<ReturnType<typeof getTranslations>> }) {
+  const ready = typeof record.invoice_ready === "boolean" ? record.invoice_ready : null;
+  const dian = typeof record.dian_status === "string" ? record.dian_status : null;
+  if (ready === null && dian === null) return null;
+  return (
+    <span data-testid="record-status">
+      {ready !== null && <span className={`erp-pill erp-pill--${ready ? "ok" : "danger"}`}>{t(ready ? "common.forms.invoice_ok" : "common.forms.invoice_no")}</span>}
+      {dian !== null && (
+        <>
+          {" "}
+          <span className="erp-mono">{dian}</span>
+        </>
+      )}
+    </span>
   );
 }
 

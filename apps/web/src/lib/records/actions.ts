@@ -1,26 +1,15 @@
 "use server";
 
 import { ProcessError, runProcess } from "@erp/kernel";
-import type { SaveIssue, SaveResult } from "@erp/ui";
+import type { SaveResult } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { processDeps } from "@/lib/server/runtime";
 import { recordEntity } from "./entities";
+import { issuesOf } from "./issues";
 
 // Saving a record form (rule 1): the entity's create process for a new record, its update process otherwise, run as
 // the session's user with the step-up token when the user just verified one. A refusal comes back with the process's
 // messages (the country pack's `invalid_input` details, and Zod issues with their field) for the form to show.
-
-/** The messages of a refusal: the pack's strings as they are (no field), Zod issues with the path of their field. */
-function issuesOf(details: unknown): SaveIssue[] {
-  if (!Array.isArray(details)) return [];
-  return details.map((d): SaveIssue => {
-    if (d && typeof d === "object" && "message" in d) {
-      const path = Array.isArray((d as { path?: unknown }).path) ? (d as { path: unknown[] }).path.map(String) : [];
-      return path.length > 0 ? { path, message: String((d as { message: unknown }).message) } : { message: String((d as { message: unknown }).message) };
-    }
-    return { message: String(d) };
-  });
-}
 
 export async function saveRecordAction(entityId: string, input: Record<string, unknown>, stepUpToken?: string): Promise<SaveResult> {
   const entity = recordEntity(entityId);

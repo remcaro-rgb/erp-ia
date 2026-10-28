@@ -10,7 +10,10 @@ export type { ContactDraft, ContactItem, ContactsLabels } from "./contacts-model
 
 export interface ContactsTabProps {
   contacts: readonly ContactItem[];
-  /** Hides the add form and the remove buttons. */
+  /**
+   * Hides the add form and the remove buttons. Each callback below is also what the caller's role may run: without
+   * `onCreate` there is no add button, without `onUpdate` a row does not open its form, without `onRemove` no ✕.
+   */
   readOnly?: boolean;
   /** `core.contact.create`; a rejection keeps the form open and shows its message. */
   onCreate?: (draft: ContactDraft) => Promise<void> | void;
@@ -42,6 +45,10 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
   const [confirming, setConfirming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const canCreate = !readOnly && onCreate !== undefined;
+  const canUpdate = !readOnly && onUpdate !== undefined;
+  const canRemove = !readOnly && onRemove !== undefined;
 
   const patch = (change: Partial<ContactDraft>) => setForm((current) => (current ? { ...current, draft: { ...current.draft, ...change } } : current));
   const problems = form ? contactProblems(form.draft, labels) : {};
@@ -75,7 +82,7 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
 
   return (
     <div className={["erp-contacts", className].filter(Boolean).join(" ")}>
-      {form && !readOnly && (
+      {form && (form.id ? canUpdate : canCreate) && (
         <section className="erp-contacts__form">
           <h3>{form.id ? labels.editTitle : labels.newTitle}</h3>
           <div className="erp-contacts__fields">
@@ -135,7 +142,7 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
           <h3>
             {labels.title} <span className="erp-pill erp-pill--gray">{contacts.length}</span>
           </h3>
-          {!readOnly && !form && (
+          {canCreate && !form && (
             <button type="button" onClick={() => setForm({ id: null, draft: emptyDraft() })}>
               {labels.add}
             </button>
@@ -176,9 +183,9 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
                     </td>
                   </tr>
                 ) : (
-                  <tr key={contact.id} onClick={readOnly ? undefined : () => setForm({ id: contact.id, draft: draftOf(contact) })} className={readOnly ? undefined : "erp-contacts__row--clickable"}>
+                  <tr key={contact.id} onClick={canUpdate ? () => setForm({ id: contact.id, draft: draftOf(contact) }) : undefined} className={canUpdate ? "erp-contacts__row--clickable" : undefined}>
                     <td>
-                      {readOnly ? (
+                      {!canUpdate ? (
                         contact.name
                       ) : (
                         // The keyboard route into the form; clicking anywhere on the row does the same for the mouse.
@@ -193,7 +200,7 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
                     <td>{contact.ext}</td>
                     <td>{formatPhone(contact.mobileCc, contact.mobile)}</td>
                     <td>
-                      {!readOnly && (
+                      {canRemove && (
                         <button
                           type="button"
                           aria-label={labels.remove(contact.name)}

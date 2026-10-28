@@ -1,3 +1,4 @@
+import { AI_PROCESSES } from "../ai/image-suggest";
 import { ATTACHMENT_PROCESSES } from "../attachments/processes";
 import { defineModule } from "./define";
 import type { ModuleDef } from "../registry/types";
@@ -20,12 +21,18 @@ export const kernelModule: ModuleDef = defineModule({
   version: "0.1.0",
   dependsOn: [],
   entities: [importEntity, exportJobEntity],
-  processes: [...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES],
+  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES],
   features: [
     {
       id: "kernel.attachments",
       label: "feature.kernel.attachments",
       processes: ATTACHMENT_PROCESSES.map((p) => p.id),
+      entities: [],
+    },
+    {
+      id: "kernel.ai",
+      label: "feature.kernel.ai",
+      processes: AI_PROCESSES.map((p) => p.id),
       entities: [],
     },
     {

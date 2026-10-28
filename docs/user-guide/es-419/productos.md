@@ -7,6 +7,8 @@ processes:
   - core.product.update
   - core.product.deactivate
   - core.product.consult
+  - kernel.attachment.reorder
+  - kernel.ai.image_suggest
 ---
 
 # Productos: bienes y servicios
@@ -48,17 +50,23 @@ Puedes cambiar los impuestos de un producto sin afectar a la categoría. Y al re
 
 ## Fotos
 
-La pestaña **Fotos** de un producto guardado es un carrusel con miniaturas. La primera foto es la **principal**.
+La pestaña **Fotos** de un producto guardado es un carrusel con miniaturas. La primera foto es la **principal**: la insignia sobre la imagen lo dice («principal · subida» o «principal · sugerida por IA»).
 
 - **Agregar**: arrastra las imágenes a la zona punteada o pulsa **elígelas**. Se aceptan imágenes (JPG, PNG o WebP) de hasta 25 MB cada una. Las fotos también aparecen en la pestaña **Archivos**, con la etiqueta «Foto».
 - **Ver**: usa las flechas ‹ › o las miniaturas.
+- **Hacer principal**: con otra foto a la vista, pulsa **Hacer principal**; pasa al primer lugar y el orden se guarda (permiso **Reordenar archivos**, `kernel.attachment.reorder`). El orden se conserva al recargar y es el mismo en todo el sistema.
 - **Quitar**: pulsa **Quitar** y confirma «¿Quitar esta foto?». La foto deja de estar disponible pero queda en la auditoría.
 - Un producto que aún no se guardó muestra «Guarda el producto para agregar fotos».
-- En esta versión no están habilitados los botones **Hacer principal** ni **Sugerir foto con IA**: la pestaña solo sube, muestra y quita fotos.
+
+### Sugerir foto con IA
+
+Pulsa **✨ Sugerir foto con IA** (permiso **Sugerir foto con IA**, `kernel.ai.image_suggest`, y poder actualizar el producto). El sistema genera una imagen a partir de la descripción, la unidad y la categoría del producto y la agrega al final, con la etiqueta «Foto · IA» y la insignia «sugerida por IA». En esta primera versión la imagen es una ilustración sencilla con las iniciales del producto; la generación con un modelo de imágenes llegará en una fase posterior con el mismo botón. Cada vez que lo pulsas se agrega una sugerencia nueva.
+
+Una foto sugerida **no cuenta como aprobada** hasta que la hagas principal: al pulsar **Hacer principal** en ella, la insignia pasa a «principal · subida» y deja de ser una sugerencia. Si no te sirve, quítala con **Quitar**. Cada sugerencia queda en la auditoría con el proceso `kernel.ai.image_suggest` y el usuario que la pidió.
 
 ## Estado DIAN y «Listo para facturar»
 
-Igual que los terceros: los **errores** de formato impiden guardar; los **datos pendientes** permiten guardar con estado «Faltan N». Un producto está **Listo para facturar** cuando su estado DIAN es **Completo**, está **Activo** y tiene los archivos obligatorios que defina tu empresa (por defecto, la **Ficha técnica** en PDF es opcional). Un producto que no está listo no se puede usar en una línea de factura; el panel **No se puede usar en facturas** dice por qué.
+Igual que los terceros: los **errores** de formato impiden guardar; los **datos pendientes** permiten guardar con estado «Faltan N». Un producto está **Listo para facturar** cuando su estado DIAN es **Completo**, está **Activo** y tiene los archivos obligatorios que defina tu empresa (por defecto, la **Ficha técnica** en PDF es opcional). El pie del registro lo muestra («✓ Se puede usar en facturas» o «✕ No se puede usar en facturas») y se actualiza al subir o quitar archivos. Un producto que no está listo no se puede usar en una línea de factura; el panel **No se puede usar en facturas** dice por qué.
 
 ## Cambiar y desactivar
 

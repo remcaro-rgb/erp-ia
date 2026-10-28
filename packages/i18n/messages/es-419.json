@@ -132,6 +132,10 @@
       "required": "obligatorio",
       "read_only_for_role": "solo lectura para tu rol",
       "hidden_title": "Tu rol no puede ver este dato",
+      "save": "Guardar datos adicionales",
+      "saving": "Guardando…",
+      "saved": "Datos adicionales guardados",
+      "discard": "Descartar cambios",
       "none": "—",
       "yes": "Sí",
       "no": "No",
@@ -685,6 +689,7 @@
     },
     "kernel": {
       "attachments": "Archivos adjuntos",
+      "ai": "Sugerencias con IA",
       "custom_fields": "Datos adicionales",
       "verification": "Verificación de correo y teléfono",
       "user_prefs": "Preferencias del usuario",

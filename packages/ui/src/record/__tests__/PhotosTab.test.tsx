@@ -138,6 +138,26 @@ describe("PhotosTab", () => {
     expect(screen.getByRole("button", { name: "Hacer principal" })).toBeTruthy();
   });
 
+  it("the stored `suggested` flag decides: a Foto · IA photo the user approved is no longer shown as a suggestion", async () => {
+    const { fetcher } = api([{ ...item("a", "Foto · IA"), suggested: false }, { ...item("b", "Foto"), suggested: true }]);
+    render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} />);
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    expect(screen.getByText(/principal · subida/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(screen.getByText(/sugerida por IA ·/)).toBeTruthy();
+  });
+
+  it("making a suggested photo principal approves it: the badge stops saying it is a suggestion", async () => {
+    const { fetcher } = api([{ ...item("a", "Foto"), suggested: false }, { ...item("b", "Foto · IA"), suggested: true }]);
+    render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} onReorder={async () => {}} />);
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(screen.getByText(/sugerida por IA ·/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hacer principal" }));
+    await waitFor(() => expect(screen.getByText(/principal · subida/)).toBeTruthy());
+    expect(screen.queryByText(/sugerida por IA/)).toBeNull();
+  });
+
   it("has no suggest button without onSuggest, and no upload or removal when read-only", async () => {
     const { fetcher } = api([item("a", "Foto")]);
     render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} readOnly onSuggest={async () => {}} />);

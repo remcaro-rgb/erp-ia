@@ -8,6 +8,9 @@ processes:
   - kernel.custom_field.set
   - kernel.custom_field.remove
   - kernel.custom_field.list
+  - core.party.update
+  - core.product.update
+  - core.category.update
 ---
 
 # Datos adicionales
@@ -44,7 +47,17 @@ Según los roles que el administrador configuró:
 
 El sistema valida cada valor según su tipo: «Debe ser un número», «Fecha AAAA-MM-DD», «Máximo N caracteres», un valor que no está entre las opciones de la lista, una URL o un correo mal escritos.
 
-En esta versión la pestaña **Datos adicionales** es de consulta: muestra los datos y los valores guardados, pero no se editan desde ahí.
+## Cómo se editan
+
+Si tu rol puede **actualizar** ese tipo de registro (por ejemplo «Actualizar tercero», `core.party.update`), los valores se editan en la misma pestaña:
+
+1. Cambia los valores de los datos definidos o agrega, cambia y quita datos libres (**+ Agregar dato**, ✕).
+2. Pulsa **Guardar datos adicionales** (o **Descartar cambios** para volver a lo guardado). El pie dice «Datos adicionales guardados» cuando termina.
+3. Se guardan únicamente los datos adicionales: el resto del registro no cambia. Cada dato respeta lo que tu rol puede ingresar, editar y ver; los que no puedes ver siguen guardados y no se pierden.
+4. Si el sistema rechaza un valor («Debe ser un número», «Máximo N caracteres»…), el motivo aparece bajo los botones y nada se guarda.
+5. Si la acción es sensible en tu empresa, el sistema pide el código de 6 dígitos de tu app de autenticación y continúa con el guardado.
+
+Sin permiso de actualizar, la pestaña es de consulta: ves los datos y sus valores, pero no se editan. Un dato obligatorio que completes con el guardado actualiza de inmediato los datos pendientes del registro.
 
 ## En los listados
 

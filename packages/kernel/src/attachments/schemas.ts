@@ -24,7 +24,12 @@ export const addInput = entityRecord.extend({
 
 export const removeInput = z.object({ id: uuid });
 
-const attachment = z.object({
+/** The files of one record in their new order, first to last (the first photo is the principal one). */
+export const reorderInput = entityRecord.extend({ orderedIds: z.array(uuid).min(1, "Indica los archivos en su nuevo orden").max(500) });
+export const reorderOutput = z.object({ count: z.number().int() });
+
+/** The attachment as every process that stores or lists files answers it. */
+export const attachment = z.object({
   id: z.string(),
   entity: z.string(),
   recordId: z.string(),
@@ -32,6 +37,10 @@ const attachment = z.object({
   fileName: z.string(),
   mimeType: z.string(),
   sizeBytes: z.number(),
+  /** Display order within the record (0 first). */
+  position: z.number().int(),
+  /** A picture the assistant suggested that no user has approved yet. */
+  suggested: z.boolean(),
   uploadedBy: z.string().nullable(),
   uploadedByName: z.string().nullable(),
   uploadedAt: z.string(),

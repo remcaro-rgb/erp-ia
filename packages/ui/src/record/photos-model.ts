@@ -14,8 +14,11 @@ const TAG = /^foto(\s*·\s*ia)?$/i;
 /** An image attachment tagged Foto or Foto · IA. */
 export const isPhoto = (item: Pick<AttachmentItem, "tag" | "mimeType">): boolean => TAG.test(item.tag.trim()) && item.mimeType.startsWith("image/");
 
-/** Suggested by the assistant (`Foto · IA`) and not a user's own upload. */
-export const isAiPhoto = (item: Pick<AttachmentItem, "tag">): boolean => /ia$/i.test(item.tag.trim());
+/**
+ * Suggested by the assistant and not approved yet. The stored `suggested` flag decides (making the picture
+ * principal clears it, the tag stays `Foto · IA`); without the flag, the tag does.
+ */
+export const isAiPhoto = (item: Pick<AttachmentItem, "tag"> & { suggested?: boolean }): boolean => item.suggested ?? /ia$/i.test(item.tag.trim());
 
 export interface PhotosLabels {
   empty: string;
