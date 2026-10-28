@@ -98,7 +98,11 @@ importers:
         specifier: ^5.0.6
         version: 5.0.6(@swc/helpers@0.5.23)(vite@7.3.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15))(vitest@3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15))(ws@8.22.0)
 
-  packages/localization/co: {}
+  packages/localization/co:
+    dependencies:
+      '@erp/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
 
   packages/modules/core: {}
 

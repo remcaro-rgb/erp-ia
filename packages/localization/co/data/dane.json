@@ -1,0 +1,373 @@
+{
+  "departments": [
+    {
+      "code": "05",
+      "name": "Antioquia"
+    },
+    {
+      "code": "08",
+      "name": "Atlántico"
+    },
+    {
+      "code": "11",
+      "name": "Bogotá D.C."
+    },
+    {
+      "code": "13",
+      "name": "Bolívar"
+    },
+    {
+      "code": "15",
+      "name": "Boyacá"
+    },
+    {
+      "code": "17",
+      "name": "Caldas"
+    },
+    {
+      "code": "18",
+      "name": "Caquetá"
+    },
+    {
+      "code": "19",
+      "name": "Cauca"
+    },
+    {
+      "code": "20",
+      "name": "Cesar"
+    },
+    {
+      "code": "23",
+      "name": "Córdoba"
+    },
+    {
+      "code": "25",
+      "name": "Cundinamarca"
+    },
+    {
+      "code": "27",
+      "name": "Chocó"
+    },
+    {
+      "code": "41",
+      "name": "Huila"
+    },
+    {
+      "code": "44",
+      "name": "La Guajira"
+    },
+    {
+      "code": "47",
+      "name": "Magdalena"
+    },
+    {
+      "code": "50",
+      "name": "Meta"
+    },
+    {
+      "code": "52",
+      "name": "Nariño"
+    },
+    {
+      "code": "54",
+      "name": "Norte de Santander"
+    },
+    {
+      "code": "63",
+      "name": "Quindío"
+    },
+    {
+      "code": "66",
+      "name": "Risaralda"
+    },
+    {
+      "code": "68",
+      "name": "Santander"
+    },
+    {
+      "code": "70",
+      "name": "Sucre"
+    },
+    {
+      "code": "73",
+      "name": "Tolima"
+    },
+    {
+      "code": "76",
+      "name": "Valle del Cauca"
+    },
+    {
+      "code": "81",
+      "name": "Arauca"
+    },
+    {
+      "code": "85",
+      "name": "Casanare"
+    },
+    {
+      "code": "86",
+      "name": "Putumayo"
+    },
+    {
+      "code": "88",
+      "name": "San Andrés y Providencia"
+    },
+    {
+      "code": "91",
+      "name": "Amazonas"
+    },
+    {
+      "code": "94",
+      "name": "Guainía"
+    },
+    {
+      "code": "95",
+      "name": "Guaviare"
+    },
+    {
+      "code": "97",
+      "name": "Vaupés"
+    },
+    {
+      "code": "99",
+      "name": "Vichada"
+    }
+  ],
+  "municipalities": [
+    {
+      "code": "05001",
+      "name": "Medellín",
+      "departmentCode": "05"
+    },
+    {
+      "code": "05266",
+      "name": "Envigado",
+      "departmentCode": "05"
+    },
+    {
+      "code": "05360",
+      "name": "Itagüí",
+      "departmentCode": "05"
+    },
+    {
+      "code": "08001",
+      "name": "Barranquilla",
+      "departmentCode": "08"
+    },
+    {
+      "code": "08758",
+      "name": "Soledad",
+      "departmentCode": "08"
+    },
+    {
+      "code": "11001",
+      "name": "Bogotá D.C.",
+      "departmentCode": "11"
+    },
+    {
+      "code": "13001",
+      "name": "Cartagena de Indias",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13042",
+      "name": "Arjona",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13244",
+      "name": "El Carmen de Bolívar",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13430",
+      "name": "Magangué",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13442",
+      "name": "María La Baja",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13468",
+      "name": "Mompós",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13836",
+      "name": "Turbaco",
+      "departmentCode": "13"
+    },
+    {
+      "code": "13838",
+      "name": "Turbaná",
+      "departmentCode": "13"
+    },
+    {
+      "code": "15001",
+      "name": "Tunja",
+      "departmentCode": "15"
+    },
+    {
+      "code": "17001",
+      "name": "Manizales",
+      "departmentCode": "17"
+    },
+    {
+      "code": "18001",
+      "name": "Florencia",
+      "departmentCode": "18"
+    },
+    {
+      "code": "19001",
+      "name": "Popayán",
+      "departmentCode": "19"
+    },
+    {
+      "code": "20001",
+      "name": "Valledupar",
+      "departmentCode": "20"
+    },
+    {
+      "code": "23001",
+      "name": "Montería",
+      "departmentCode": "23"
+    },
+    {
+      "code": "25175",
+      "name": "Chía",
+      "departmentCode": "25"
+    },
+    {
+      "code": "25754",
+      "name": "Soacha",
+      "departmentCode": "25"
+    },
+    {
+      "code": "25899",
+      "name": "Zipaquirá",
+      "departmentCode": "25"
+    },
+    {
+      "code": "27001",
+      "name": "Quibdó",
+      "departmentCode": "27"
+    },
+    {
+      "code": "41001",
+      "name": "Neiva",
+      "departmentCode": "41"
+    },
+    {
+      "code": "44001",
+      "name": "Riohacha",
+      "departmentCode": "44"
+    },
+    {
+      "code": "47001",
+      "name": "Santa Marta",
+      "departmentCode": "47"
+    },
+    {
+      "code": "50001",
+      "name": "Villavicencio",
+      "departmentCode": "50"
+    },
+    {
+      "code": "52001",
+      "name": "Pasto",
+      "departmentCode": "52"
+    },
+    {
+      "code": "54001",
+      "name": "Cúcuta",
+      "departmentCode": "54"
+    },
+    {
+      "code": "63001",
+      "name": "Armenia",
+      "departmentCode": "63"
+    },
+    {
+      "code": "66001",
+      "name": "Pereira",
+      "departmentCode": "66"
+    },
+    {
+      "code": "68001",
+      "name": "Bucaramanga",
+      "departmentCode": "68"
+    },
+    {
+      "code": "70001",
+      "name": "Sincelejo",
+      "departmentCode": "70"
+    },
+    {
+      "code": "73001",
+      "name": "Ibagué",
+      "departmentCode": "73"
+    },
+    {
+      "code": "76001",
+      "name": "Cali",
+      "departmentCode": "76"
+    },
+    {
+      "code": "76520",
+      "name": "Palmira",
+      "departmentCode": "76"
+    },
+    {
+      "code": "81001",
+      "name": "Arauca",
+      "departmentCode": "81"
+    },
+    {
+      "code": "85001",
+      "name": "Yopal",
+      "departmentCode": "85"
+    },
+    {
+      "code": "86001",
+      "name": "Mocoa",
+      "departmentCode": "86"
+    },
+    {
+      "code": "88001",
+      "name": "San Andrés",
+      "departmentCode": "88"
+    },
+    {
+      "code": "88564",
+      "name": "Providencia",
+      "departmentCode": "88"
+    },
+    {
+      "code": "91001",
+      "name": "Leticia",
+      "departmentCode": "91"
+    },
+    {
+      "code": "94001",
+      "name": "Inírida",
+      "departmentCode": "94"
+    },
+    {
+      "code": "95001",
+      "name": "San José del Guaviare",
+      "departmentCode": "95"
+    },
+    {
+      "code": "97001",
+      "name": "Mitú",
+      "departmentCode": "97"
+    },
+    {
+      "code": "99001",
+      "name": "Puerto Carreño",
+      "departmentCode": "99"
+    }
+  ]
+}

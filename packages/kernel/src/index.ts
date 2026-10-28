@@ -20,3 +20,5 @@ export { defineModule } from "./module/define";
 export { loadModules } from "./module/loader";
 export { entitled, entitlementLimit, enableModule, syncModuleManifest } from "./entitlements/resolver";
 export type { EntitledFn } from "./entitlements/resolver";
+export { registerCountryPack, countryPack } from "./localization/country-pack";
+export type { CountryPack, DocumentType, PartyFiscalInput, PartyValidation, ProductFiscalInput, ProductValidation, TaxIdResult } from "./localization/country-pack";

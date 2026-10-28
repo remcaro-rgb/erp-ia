@@ -1,0 +1,86 @@
+[
+  {
+    "code": "94",
+    "name": "Unidad"
+  },
+  {
+    "code": "EA",
+    "name": "Cada uno"
+  },
+  {
+    "code": "KGM",
+    "name": "Kilogramo"
+  },
+  {
+    "code": "GRM",
+    "name": "Gramo"
+  },
+  {
+    "code": "LTR",
+    "name": "Litro"
+  },
+  {
+    "code": "MLT",
+    "name": "Mililitro"
+  },
+  {
+    "code": "MTR",
+    "name": "Metro"
+  },
+  {
+    "code": "CMT",
+    "name": "Centímetro"
+  },
+  {
+    "code": "MTK",
+    "name": "Metro cuadrado"
+  },
+  {
+    "code": "MTQ",
+    "name": "Metro cúbico"
+  },
+  {
+    "code": "HUR",
+    "name": "Hora"
+  },
+  {
+    "code": "DAY",
+    "name": "Día"
+  },
+  {
+    "code": "MON",
+    "name": "Mes"
+  },
+  {
+    "code": "BX",
+    "name": "Caja"
+  },
+  {
+    "code": "PK",
+    "name": "Paquete"
+  },
+  {
+    "code": "BG",
+    "name": "Bolsa"
+  },
+  {
+    "code": "BO",
+    "name": "Botella"
+  },
+  {
+    "code": "DZN",
+    "name": "Docena"
+  },
+  {
+    "code": "PR",
+    "name": "Par"
+  },
+  {
+    "code": "SET",
+    "name": "Juego"
+  },
+  {
+    "code": "TNE",
+    "name": "Tonelada"
+  }
+]
