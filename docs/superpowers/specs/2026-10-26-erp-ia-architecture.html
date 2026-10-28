@@ -1,0 +1,378 @@
+<title>ERP-IA Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Layout: a ledger. One column of numbered sections, each a band; diagrams sit on a slightly raised sheet. */
+  :root {
+    --bg: #F4F6F8;
+    --sheet: #FFFFFF;
+    --fg: #16212C;
+    --muted: #5D6B78;
+    --line: #D5DCE3;
+    --accent: #0F7A66;        /* ledger green: processes */
+    --accent-soft: #DDF1EB;
+    --event: #B45309;         /* amber: domain events */
+    --event-soft: #FBEBD2;
+    --ai: #4F46A8;            /* indigo: agent */
+    --ai-soft: #E4E2F7;
+    --warn: #B42318;
+    --display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F161E; --sheet: #172028; --fg: #E6ECF1; --muted: #9AA9B6; --line: #2A3641;
+      --accent: #3DBB9D; --accent-soft: #163B33; --event: #E9A23B; --event-soft: #3E2C12;
+      --ai: #9D96EC; --ai-soft: #27254A; --warn: #F08A80; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F161E; --sheet: #172028; --fg: #E6ECF1; --muted: #9AA9B6; --line: #2A3641;
+    --accent: #3DBB9D; --accent-soft: #163B33; --event: #E9A23B; --event-soft: #3E2C12;
+    --ai: #9D96EC; --ai-soft: #27254A; --warn: #F08A80; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); line-height: 1.5; margin: 0; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 32px 64px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+  h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 600; }
+  h2 { font-size: 24px; font-weight: 600; }
+  h3 { font-size: 16px; font-weight: 600; }
+  p { margin: 0; max-width: 68ch; }
+  .lede { color: var(--muted); font-size: 17px; margin-top: 10px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  section { margin-top: 48px; display: grid; gap: 16px; }
+  .sheet { background: var(--sheet); border: 1px solid var(--line); border-radius: 6px; padding: 20px; }
+  .scroll { overflow-x: auto; }
+  code, .mono { font-family: var(--mono); font-size: 12.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .legend .p::before { background: var(--accent); }
+  .legend .e::before { background: var(--event); }
+  .legend .a::before { background: var(--ai); }
+
+  /* Layers */
+  .layers { display: grid; gap: 10px; }
+  .layer { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: start; border-top: 1px solid var(--line); padding-top: 12px; }
+  .layer:first-child { border-top: 0; padding-top: 0; }
+  .layer .name { font-family: var(--display); font-weight: 600; font-size: 15px; }
+  .layer .sub { font-size: 12px; color: var(--muted); display: block; font-family: var(--body); font-weight: 400; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+  .chip { border: 1px solid var(--line); border-radius: 4px; padding: 4px 9px; font-size: 13px; background: var(--bg); }
+  .chip.p { border-color: var(--accent); background: var(--accent-soft); }
+  .chip.e { border-color: var(--event); background: var(--event-soft); }
+  .chip.a { border-color: var(--ai); background: var(--ai-soft); }
+  @media (max-width: 560px) { .layer { grid-template-columns: 1fr; } }
+
+  /* Pipeline */
+  .callers { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .caller { border: 1px dashed var(--line); border-radius: 6px; padding: 10px 12px; font-size: 13px; }
+  .caller b { display: block; font-family: var(--display); font-size: 15px; }
+  .funnel { text-align: center; color: var(--muted); font-size: 13px; padding: 4px 0; }
+  .pipe { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+  .step { flex: 1 1 140px; min-width: 0; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 0 4px 4px 0; padding: 10px 12px; font-size: 13px; }
+  .step b { display: block; font-family: var(--display); font-size: 14px; }
+  .step.ev { background: var(--event-soft); border-left-color: var(--event); }
+  .note { font-size: 13px; color: var(--muted); }
+
+  /* Flow SVG */
+  svg text { font-family: var(--body); fill: var(--fg); }
+  svg .m { font-family: var(--mono); font-size: 11.5px; }
+  svg .t { font-size: 12.5px; font-weight: 500; }
+  svg .box { fill: var(--sheet); stroke: var(--accent); stroke-width: 1.5; }
+  svg .box.ev { fill: var(--event-soft); stroke: var(--event); stroke-dasharray: 4 3; }
+  svg .box.acc { fill: var(--accent-soft); stroke: var(--accent); }
+  svg .box.wf { fill: var(--ai-soft); stroke: var(--ai); }
+  svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.3; }
+  svg .audit { fill: var(--bg); stroke: var(--line); }
+  svg .cap { fill: var(--muted); font-size: 11px; }
+
+  /* Modules */
+  .mods { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .mod { border: 1px solid var(--line); border-radius: 6px; padding: 12px; font-size: 12.5px; display: grid; gap: 6px; min-width: 0; background: var(--sheet); }
+  .mod h3 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .mod .ph { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 400; }
+  .mod .row { display: grid; grid-template-columns: 52px 1fr; gap: 6px; }
+  .mod .k { color: var(--muted); font-family: var(--mono); font-size: 11px; padding-top: 2px; }
+  .mod .v { min-width: 0; overflow-wrap: anywhere; }
+  .mod .emit { color: var(--event); }
+
+  /* Security stack */
+  .stack { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .lvl { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); font-size: 13.5px; }
+  .lvl:first-child { border-top: 0; }
+  .lvl b { font-family: var(--display); font-size: 15px; }
+  .lvl:nth-child(odd) { background: var(--bg); }
+  @media (max-width: 560px) { .lvl { grid-template-columns: 1fr; } }
+
+  /* Two columns */
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .cols > div { min-width: 0; }
+  .tools { display: grid; gap: 8px; margin-top: 10px; }
+  .tool { display: grid; grid-template-columns: 150px 1fr; gap: 10px; font-size: 13px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .tool code { color: var(--ai); }
+  @media (max-width: 560px) { .tool { grid-template-columns: 1fr; } }
+  .rec { border-left: 3px solid var(--ai); background: var(--ai-soft); padding: 12px 14px; border-radius: 0 6px 6px 0; font-size: 13.5px; display: grid; gap: 6px; margin-top: 10px; }
+  .rec .who { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .actions span { border: 1px solid var(--ai); border-radius: 4px; padding: 3px 8px; font-size: 12px; background: var(--sheet); }
+
+  /* Country pack */
+  .pack { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+  .pack div { border-top: 2px solid var(--accent); padding-top: 8px; font-size: 13px; min-width: 0; }
+  .pack b { font-family: var(--display); font-size: 15px; display: block; }
+
+  /* Phases */
+  ol.phases { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 8px; counter-reset: ph; }
+  ol.phases li { display: grid; grid-template-columns: 36px 1fr; gap: 10px; font-size: 13.5px; counter-increment: ph; }
+  ol.phases li::before { content: counter(ph); font-family: var(--display); font-weight: 600; font-size: 18px; color: var(--accent); }
+  ol.phases b { font-family: var(--display); }
+
+  /* Grid/report demo */
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  td.num, th.num { text-align: right; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .btn { border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 12.5px; background: var(--bg); }
+  .btn.on { border-color: var(--accent); background: var(--accent-soft); }
+  .mask { color: var(--muted); letter-spacing: .1em; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Design companion · 2026-10-26 · Colombia first · es-419</div>
+    <h1>ERP-IA: one process registry, four callers</h1>
+    <p class="lede">Every business action is a Process with permissions, audit and events. The screens, the chat agent, the background agents and the scheduler all call the same registry, so anything a person can do by hand the agent can do too, under the same rules.</p>
+    <div class="legend" style="margin-top:14px"><span class="p">Process (kernel)</span><span class="e">Domain event</span><span class="a">AI / durable workflow</span></div>
+  </header>
+
+  <section>
+    <div><div class="eyebrow">01 · Layers</div><h2>Where things run</h2></div>
+    <div class="sheet layers">
+      <div class="layer"><div class="name">Clients<span class="sub">Spanish UI, responsive</span></div>
+        <div class="chips"><span class="chip">Next.js web app (ERP + CRM)</span><span class="chip">POS PWA, offline queue</span><span class="chip a">Agent chat panel on every screen</span><span class="chip">Recommendations inbox</span></div></div>
+      <div class="layer"><div class="name">Vercel<span class="sub">compute</span></div>
+        <div class="chips"><span class="chip">Server Components and Server Actions</span><span class="chip a">AI SDK + AI Gateway (Claude)</span><span class="chip a">Workflow DevKit: DurableAgent, event consumers, e-invoicing, exports</span><span class="chip">Cron tick every minute</span></div></div>
+      <div class="layer"><div class="name">Kernel<span class="sub">packages/kernel</span></div>
+        <div class="chips"><span class="chip p">Process registry + runner</span><span class="chip p">Entity and field metadata</span><span class="chip p">Entitlements: modules and features per tenant</span><span class="chip p">Permissions and step-up 2FA</span><span class="chip p">Import framework</span><span class="chip e">Outbox and event bus</span><span class="chip p">Posting engine (events to journal entries)</span><span class="chip p">Sequences and legal numbering</span><span class="chip p">Audit log</span><span class="chip p">Scheduler</span><span class="chip p">Localization hooks</span></div></div>
+      <div class="layer"><div class="name">Modules<span class="sub">packages/modules/*</span></div>
+        <div class="chips"><span class="chip">core</span><span class="chip">crm</span><span class="chip">sales</span><span class="chip">invoicing</span><span class="chip">purchases</span><span class="chip">inventory</span><span class="chip">warehouse</span><span class="chip">costing</span><span class="chip">accounting</span><span class="chip">payments</span><span class="chip">bank</span><span class="chip">finance</span><span class="chip">payroll</span><span class="chip">timekeeping</span><span class="chip">assets</span><span class="chip">pos</span><span class="chip">support</span><span class="chip" style="border-style:dashed">your next module</span></div></div>
+      <div class="layer"><div class="name">Country packs<span class="sub">packages/localization/*</span></div>
+        <div class="chips"><span class="chip p">co · PUC, IVA, retenciones, DIAN UBL 2.1, nómina electrónica, PILA</span><span class="chip" style="border-style:dashed">mx, pe …</span></div></div>
+      <div class="layer"><div class="name">On-prem option<span class="sub">same code, Docker</span></div>
+        <div class="chips"><span class="chip">Self-hosted Supabase (Docker Compose)</span><span class="chip">Next.js standalone container</span><span class="chip a">Workflow Postgres World worker</span><span class="chip">pg_cron tick</span><span class="chip a">Direct provider SDKs or LiteLLM, local models optional</span><span class="chip">SMTP relay</span></div></div>
+      <div class="layer"><div class="name">Supabase<span class="sub">system of record</span></div>
+        <div class="chips"><span class="chip">Postgres, one schema per module</span><span class="chip">RLS on every table from JWT claims</span><span class="chip">Auth with TOTP MFA</span><span class="chip">Storage (PDF, XLSX, e-invoice XML)</span><span class="chip">Realtime notifications</span><span class="chip">pgvector help index</span><span class="chip">Vault for DIAN certificates</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">02 · The contract</div><h2>One pipeline for every caller</h2></div>
+    <div class="sheet" style="display:grid;gap:10px">
+      <div class="callers">
+        <div class="caller"><b>Screen</b>A form submit or a grid action calls the process from a Server Action.</div>
+        <div class="caller"><b>Chat agent</b>Tool list is generated from the registry, filtered by the user's permissions. Writes need an in-chat confirmation.</div>
+        <div class="caller"><b>Background agent</b>Runs as a system identity bounded by the audience role. Proposes actions; the user accepts them.</div>
+        <div class="caller"><b>Scheduler</b>Due tasks run the process as the task owner and deliver the result (email, WhatsApp, in-app).</div>
+      </div>
+      <div class="funnel">▼ runProcess(ctx, "sales.order.confirm", input) ▼</div>
+      <div class="pipe">
+        <div class="step"><b>1 · Resolve caller</b>user, agent-as-user, scheduler-as-owner, origin tag</div>
+        <div class="step"><b>2 · Entitlement</b>is the module or feature enabled for this company?</div>
+        <div class="step"><b>3 · Permission</b>role × process × kind (create, update, delete, consult)</div>
+        <div class="step"><b>4 · Step-up</b>admin-listed processes need fresh TOTP or a supervisor's authorization</div>
+        <div class="step"><b>5 · Validate</b>Zod input schema (the same schema the agent sees)</div>
+        <div class="step"><b>6 · Transaction</b>handler writes state, field masks applied on reads</div>
+        <div class="step ev"><b>7 · Outbox</b>domain events written in the same transaction</div>
+        <div class="step"><b>8 · Audit</b>who, what, diff, origin, conversation id, causal chain id</div>
+      </div>
+      <p class="note">Consult-kind processes skip the transaction but keep permission, masking and audit. A new module registers its processes and is immediately usable from the UI, the agent and the scheduler.</p>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">03 · Integration</div><h2>What one confirmed sale sets in motion</h2><p class="lede" style="font-size:15px">Modules never call each other. They emit events; consumers run their own processes; the posting engine turns events into journal entries using templates the country pack seeds.</p></div>
+    <div class="sheet scroll">
+      <svg viewBox="0 0 860 392" width="860" height="392" role="img" aria-label="Event flow from sales.order.confirm to invoicing, warehouse, inventory, CRM, DIAN e-invoicing, costing and accounting, all recorded in the audit log">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/></marker></defs>
+        <!-- edges -->
+        <path class="edge" d="M184 184 H216" marker-end="url(#ah)"/>
+        <path class="edge" d="M396 184 C420 184 416 48 440 48" marker-end="url(#ah)"/>
+        <path class="edge" d="M396 184 C420 184 416 128 440 128" marker-end="url(#ah)"/>
+        <path class="edge" d="M396 184 C420 184 416 208 440 208" marker-end="url(#ah)"/>
+        <path class="edge" d="M396 184 C420 184 416 288 440 288" marker-end="url(#ah)"/>
+        <path class="edge" d="M616 48 H664" marker-end="url(#ah)"/>
+        <path class="edge" d="M616 48 C640 48 640 128 664 128" marker-end="url(#ah)"/>
+        <path class="edge" d="M616 208 H664" marker-end="url(#ah)"/>
+        <path class="edge" d="M752 232 V264" marker-end="url(#ah)"/>
+        <!-- nodes -->
+        <rect class="box" x="16" y="160" width="168" height="48" rx="4"/>
+        <text class="m" x="100" y="180" text-anchor="middle">sales.order.confirm</text>
+        <text class="cap" x="100" y="196" text-anchor="middle">process · UI or agent</text>
+
+        <rect class="box ev" x="216" y="160" width="180" height="48" rx="4"/>
+        <text class="m" x="306" y="180" text-anchor="middle">sales.order.confirmed</text>
+        <text class="cap" x="306" y="196" text-anchor="middle">outbox event</text>
+
+        <rect class="box" x="440" y="24" width="176" height="48" rx="4"/>
+        <text class="m" x="528" y="44" text-anchor="middle">invoicing.invoice.issue</text>
+        <text class="cap" x="528" y="60" text-anchor="middle">taxes + DIAN resolution number</text>
+
+        <rect class="box" x="440" y="104" width="176" height="48" rx="4"/>
+        <text class="m" x="528" y="124" text-anchor="middle">warehouse.pick.create</text>
+        <text class="cap" x="528" y="140" text-anchor="middle">picking list</text>
+
+        <rect class="box" x="440" y="184" width="176" height="48" rx="4"/>
+        <text class="m" x="528" y="204" text-anchor="middle">inventory.movement.post</text>
+        <text class="cap" x="528" y="220" text-anchor="middle">stock out by lot / location</text>
+
+        <rect class="box" x="440" y="264" width="176" height="48" rx="4"/>
+        <text class="m" x="528" y="284" text-anchor="middle">crm.opportunity.won</text>
+        <text class="cap" x="528" y="300" text-anchor="middle">activity logged</text>
+
+        <rect class="box wf" x="664" y="24" width="176" height="48" rx="4"/>
+        <text class="t" x="752" y="44" text-anchor="middle">DIAN e-invoice workflow</text>
+        <text class="cap" x="752" y="60" text-anchor="middle">UBL 2.1 · sign · submit · CUFE · PDF</text>
+
+        <rect class="box acc" x="664" y="104" width="176" height="48" rx="4"/>
+        <text class="t" x="752" y="124" text-anchor="middle">Posting: AR / revenue / IVA</text>
+        <text class="cap" x="752" y="140" text-anchor="middle">rule on invoicing.invoice.issued</text>
+
+        <rect class="box" x="664" y="184" width="176" height="48" rx="4"/>
+        <text class="m" x="752" y="204" text-anchor="middle">costing.cogs.post</text>
+        <text class="cap" x="752" y="220" text-anchor="middle">weighted average cost</text>
+
+        <rect class="box acc" x="664" y="264" width="176" height="48" rx="4"/>
+        <text class="t" x="752" y="284" text-anchor="middle">Posting: COGS / inventory</text>
+        <text class="cap" x="752" y="300" text-anchor="middle">rule on costing.cogs.posted</text>
+
+        <rect class="audit" x="16" y="344" width="824" height="32" rx="4"/>
+        <text class="m" x="428" y="364" text-anchor="middle">audit_log · every step shares one causal chain id · origin = ui | agent | scheduler | event</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">04 · Modules</div><h2>Module map with what each emits and consumes</h2></div>
+    <div class="mods">
+      <div class="mod"><h3>core <span class="ph">phase 1</span></h3><div class="row"><span class="k">owns</span><span class="v">parties, products, price lists, taxes, currencies, sequences, custom entities</span></div><div class="row"><span class="k">emits</span><span class="v emit">party.*, product.*</span></div></div>
+      <div class="mod"><h3>crm <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">leads, opportunities, pipelines, activities, quotes</span></div><div class="row"><span class="k">emits</span><span class="v emit">crm.quote.accepted</span></div><div class="row"><span class="k">consumes</span><span class="v">sales.order.confirmed, invoicing.invoice.paid</span></div></div>
+      <div class="mod"><h3>sales <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">orders, deliveries, returns, commissions</span></div><div class="row"><span class="k">emits</span><span class="v emit">sales.order.confirmed, sales.delivery.shipped, sales.return.received</span></div></div>
+      <div class="mod"><h3>invoicing <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">invoices, credit / debit notes, e-invoice submissions</span></div><div class="row"><span class="k">emits</span><span class="v emit">invoicing.invoice.issued, .paid, note.issued</span></div><div class="row"><span class="k">consumes</span><span class="v">sales.order.confirmed, payments.received</span></div></div>
+      <div class="mod"><h3>inventory <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">stock by warehouse / location / lot / serial, movements, adjustments, counts</span></div><div class="row"><span class="k">emits</span><span class="v emit">inventory.movement.posted, inventory.stock.low</span></div><div class="row"><span class="k">consumes</span><span class="v">sales.delivery.shipped, purchases.receipt.posted, pos.sale.closed</span></div></div>
+      <div class="mod"><h3>warehouse <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">locations, bins, picking, packing, put-away rules</span></div><div class="row"><span class="k">emits</span><span class="v emit">warehouse.pick.confirmed</span></div><div class="row"><span class="k">consumes</span><span class="v">sales.order.confirmed, purchases.receipt.posted</span></div></div>
+      <div class="mod"><h3>costing <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">cost layers (average default, FIFO optional), landed costs</span></div><div class="row"><span class="k">emits</span><span class="v emit">costing.cogs.posted</span></div><div class="row"><span class="k">consumes</span><span class="v">inventory.movement.posted, purchases.invoice.registered</span></div></div>
+      <div class="mod"><h3>accounting <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">chart of accounts, journals, entries, periods, cost centers, fiscal reports</span></div><div class="row"><span class="k">emits</span><span class="v emit">accounting.entry.posted, period.closed</span></div><div class="row"><span class="k">consumes</span><span class="v">every event with a posting rule</span></div></div>
+      <div class="mod"><h3>payments <span class="ph">phase 2</span></h3><div class="row"><span class="k">owns</span><span class="v">receipts, disbursements, methods, allocations, cash boxes</span></div><div class="row"><span class="k">emits</span><span class="v emit">payments.received, payments.paid</span></div><div class="row"><span class="k">consumes</span><span class="v">invoicing.invoice.issued, purchases.invoice.registered</span></div></div>
+      <div class="mod"><h3>purchases <span class="ph">phase 3</span></h3><div class="row"><span class="k">owns</span><span class="v">requests, purchase orders, receipts, supplier invoices, support documents</span></div><div class="row"><span class="k">emits</span><span class="v emit">purchases.receipt.posted, purchases.invoice.registered</span></div><div class="row"><span class="k">consumes</span><span class="v">inventory.stock.low</span></div></div>
+      <div class="mod"><h3>bank <span class="ph">phase 3</span></h3><div class="row"><span class="k">owns</span><span class="v">bank accounts, statement imports, reconciliation sessions, matching rules</span></div><div class="row"><span class="k">emits</span><span class="v emit">bank.reconciled</span></div><div class="row"><span class="k">consumes</span><span class="v">payments.*</span></div></div>
+      <div class="mod"><h3>finance <span class="ph">phase 3</span></h3><div class="row"><span class="k">owns</span><span class="v">budgets, cash-flow forecasts, KPIs, loans</span></div><div class="row"><span class="k">emits</span><span class="v emit">finance.forecast.ready</span></div><div class="row"><span class="k">consumes</span><span class="v">accounting.entry.posted, payments.*, invoicing.*</span></div></div>
+      <div class="mod"><h3>assets <span class="ph">phase 3</span></h3><div class="row"><span class="k">owns</span><span class="v">fixed assets, depreciation schedules, disposals, maintenance</span></div><div class="row"><span class="k">emits</span><span class="v emit">assets.depreciation.posted</span></div><div class="row"><span class="k">consumes</span><span class="v">purchases.invoice.registered</span></div></div>
+      <div class="mod"><h3>timekeeping <span class="ph">phase 4</span></h3><div class="row"><span class="k">owns</span><span class="v">shifts, clock events, absences, overtime, approvals</span></div><div class="row"><span class="k">emits</span><span class="v emit">timekeeping.period.closed</span></div></div>
+      <div class="mod"><h3>payroll <span class="ph">phase 4</span></h3><div class="row"><span class="k">owns</span><span class="v">contracts, concepts, runs, payslips, PILA, nómina electrónica</span></div><div class="row"><span class="k">emits</span><span class="v emit">payroll.run.approved</span></div><div class="row"><span class="k">consumes</span><span class="v">timekeeping.period.closed</span></div></div>
+      <div class="mod"><h3>pos <span class="ph">phase 5</span></h3><div class="row"><span class="k">owns</span><span class="v">registers, sessions, tickets, cash movements, offline queue</span></div><div class="row"><span class="k">emits</span><span class="v emit">pos.sale.closed, pos.session.closed</span></div></div>
+      <div class="mod"><h3>support <span class="ph">phase 1</span></h3><div class="row"><span class="k">owns</span><span class="v">tickets, bug reports, knowledge base</span></div><div class="row"><span class="k">emits</span><span class="v emit">support.ticket.created</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">05 · Security</div><h2>Seven layers, applied identically to screens, exports and the agent</h2></div>
+    <div class="stack">
+      <div class="lvl"><b>Entitlement</b><span>Modules, features and limits bought per tenant. A disabled module is invisible to screens, exports and the agent; its data and queued events are kept for re-enabling.</span></div>
+      <div class="lvl"><b>Authentication</b><span>Supabase Auth. TOTP 2FA optional per user, enforceable per role. JWT carries tenant, companies and roles so RLS needs no joins.</span></div>
+      <div class="lvl"><b>Process permissions</b><span><code>process_permissions(role, process, kind)</code> with kind = create, update, delete, consult. Checked before any handler runs.</span></div>
+      <div class="lvl"><b>Row Level Security</b><span>Every table filters by <code>company_id</code> from the JWT, plus ownership predicates a module declares (a rep sees their own opportunities).</span></div>
+      <div class="lvl"><b>Field visibility</b><span><code>field_permissions(role, entity, field, visible | masked | hidden)</code> enforced in the SELECT views, so the agent and the exports never receive a hidden value.</span></div>
+      <div class="lvl"><b>Step-up authorization</b><span>Admin lists sensitive processes (discounts, voids, period close, payroll run). They require a fresh TOTP or a supervisor's authorization on the same screen or chat.</span></div>
+      <div class="lvl"><b>Audit</b><span>Append-only log with diffs, origin, agent conversation id and causal chain id. Row triggers capture direct database edits too.</span></div>
+    </div>
+    <div class="sheet" style="display:grid;gap:10px">
+      <div class="eyebrow">Example: the same grid seen by a cashier (role without cost visibility)</div>
+      <div class="toolbar"><span class="btn on">Filter: warehouse = Bogotá</span><span class="btn on">Sort: stock ↑</span><span class="btn">Columns</span><span class="btn">Saved view</span><span class="btn">Export PDF</span><span class="btn">Export Excel</span><span class="btn">Export CSV</span></div>
+      <div class="scroll"><table>
+        <tr><th>SKU</th><th>Product</th><th>Warehouse</th><th class="num">Stock</th><th class="num">Unit cost</th><th class="num">Price</th><th>Lot</th></tr>
+        <tr><td class="mono">CAF-500</td><td>Café tostado 500 g</td><td>Bogotá</td><td class="num">12</td><td class="num mask">••••••</td><td class="num">$ 28.900</td><td class="mono">L-2609</td></tr>
+        <tr><td class="mono">PAN-ART</td><td>Panela artesanal 1 kg</td><td>Bogotá</td><td class="num">40</td><td class="num mask">••••••</td><td class="num">$ 9.500</td><td class="mono">L-2611</td></tr>
+        <tr><td class="mono">ARR-DIA</td><td>Arroz Diana 5 kg</td><td>Bogotá</td><td class="num">118</td><td class="num mask">••••••</td><td class="num">$ 24.300</td><td class="mono">—</td></tr>
+      </table></div>
+      <p class="note">Unit cost is masked by a field permission. The accountant's role sees the number; the export the cashier runs carries the mask too.</p>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">06 · AI</div><h2>A chat agent that acts as the user, and background agents that coach</h2></div>
+    <div class="cols">
+      <div class="sheet">
+        <h3>Chat agent tool families</h3>
+        <p class="note">A DurableAgent per turn, in a Workflow, streaming to the panel. Tools are generated, not hand-written.</p>
+        <div class="tools">
+          <div class="tool"><code>process.*</code><span>Every registered process the user may run. Writes render a confirmation card; step-up processes ask for the 2FA code in the chat.</span></div>
+          <div class="tool"><code>data.query</code><span>Entity, filters, sort, group and aggregate over registered fields. No free SQL except for the analyst role, read-only, with timeouts.</span></div>
+          <div class="tool"><code>forms.create</code><span>New custom entity as a real table with fields and layout. Gets grid, RLS, audit and its own processes at once.</span></div>
+          <div class="tool"><code>reports.create</code><span>Report definition (source, columns, filters, grouping, chart). Renders through the same grid, so it sorts, filters and exports.</span></div>
+          <div class="tool"><code>docs.generate</code><span>Template + record to PDF or DOCX in Storage.</span></div>
+          <div class="tool"><code>sim.run</code><span>Cash-flow projection, pricing and margin what-if, sales goal scenarios, reorder, payroll cost, loan amortization.</span></div>
+          <div class="tool"><code>messages.send</code><span>Email, WhatsApp, in-app. Always confirmed, always audited.</span></div>
+          <div class="tool"><code>scheduler.task.*</code><span>"Every Monday at 5:00 send the sales report" becomes a row the cron tick picks up and runs as me.</span></div>
+          <div class="tool"><code>help.search</code><span>User guide and process descriptions in pgvector; answers with steps and deep links, or just navigates there.</span></div>
+          <div class="tool"><code>support.ticket.*</code><span>Bug or question with auto-captured context: route, last audit entries, console errors.</span></div>
+        </div>
+      </div>
+      <div class="sheet">
+        <h3>Background agents</h3>
+        <p class="note">Profiles with a trigger, an audience role and a bounded data scope. They write recommendations, never state.</p>
+        <div class="rec">
+          <span class="who">sales-manager-coach · daily 06:00 · audience: Gerente comercial</span>
+          <b>Vas 38 % de la meta con 60 % del mes transcurrido</b>
+          <span>El ritmo actual cierra en $ 312 M frente a $ 480 M de meta. Hay 14 cotizaciones por $ 96 M sin respuesta hace más de 7 días y tres clientes top con caída del 25 % frente al mismo mes del año pasado.</span>
+          <div class="actions"><span>Enviar seguimiento a 14 cotizaciones</span><span>Agendar llamadas con los 3 clientes</span><span>Simular promoción en stock lento</span></div>
+        </div>
+        <div class="rec">
+          <span class="who">treasury-watch · on payments.* · audience: Tesorería</span>
+          <b>Caja proyectada negativa el 14 de noviembre</b>
+          <span>Nómina del 15 y pago a 2 proveedores coinciden con cartera vencida de $ 54 M. Sugerencia: adelantar cobro a 6 clientes y mover un pago a 7 días.</span>
+          <div class="actions"><span>Enviar recordatorios de cobro</span><span>Reprogramar pago</span></div>
+        </div>
+        <div class="rec">
+          <span class="who">onboarding · from sign-up to go-live · audience: Administrador</span>
+          <b>Paso 5 de 9: importar clientes y productos</b>
+          <span>Leí tu archivo de Siigo: 412 clientes, 38 con NIT sin dígito de verificación válido y 9 duplicados. Propongo el mapeo de columnas y corro una prueba antes de cargar.</span>
+          <div class="actions"><span>Ver mapeo propuesto</span><span>Corregir NITs</span><span>Ejecutar prueba</span></div>
+        </div>
+        <p class="note" style="margin-top:10px">Accepting an action runs the normal pipeline: entitlement, permission, step-up, audit. Feedback on each card is stored and fed back into the agent's prompt. Models are chosen per task by a policy table (Opus 5.5 for chat, Haiku 5.5 for scans) and can be switched per tenant to another provider through the AI Gateway without a deploy.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">07 · Localization</div><h2>What the Colombia pack provides through kernel hooks</h2></div>
+    <div class="sheet pack">
+      <div><b>Chart of accounts</b>PUC seed and account-role mapping used by posting rules.</div>
+      <div><b>Taxes</b>IVA, INC, ReteFuente, ReteIVA, ReteICA with bases, thresholds and municipality rates. UVT tables per year.</div>
+      <div><b>Identity</b>NIT with check digit, cédula, DIAN document types, fiscal responsibilities.</div>
+      <div><b>E-invoicing</b>UBL 2.1, CUFE, digital signature, DIAN or technology-provider submission, acknowledgments, credit and debit notes, support documents, POS variant.</div>
+      <div><b>Payroll</b>Prestaciones, cesantías, prima, vacaciones, horas extras y recargos, PILA, nómina electrónica, minimum wage per year.</div>
+      <div><b>Numbering</b>DIAN resolutions: prefix, authorized range, validity.</div>
+      <div><b>Calendar and templates</b>Fiscal calendar, return summaries, legal texts on documents, es-419 templates.</div>
+      <div style="border-top-style:dashed"><b>Next country</b>Implement the same CountryPack interface in a new package. No module changes.</div>
+    </div>
+  </section>
+
+  <section>
+    <div><div class="eyebrow">08 · Delivery</div><h2>Phases, in dependency order</h2></div>
+    <div class="sheet">
+      <ol class="phases">
+        <li><span><b>Foundation.</b> Kernel, core module, grid and exports, auth with MFA, agent chat with consult, help and navigate tools, support tickets.</span></li>
+        <li><span><b>Order to cash.</b> CRM, sales, invoicing with DIAN e-invoicing, inventory, warehouse, costing, payments, accounting. The flow in section 03 runs end to end.</span></li>
+        <li><span><b>Procure to pay and money.</b> Purchases, bank reconciliation, finance, fixed assets, scheduler, messaging, first background agents.</span></li>
+        <li><span><b>People.</b> Timekeeping, payroll with nómina electrónica and PILA.</span></li>
+        <li><span><b>POS and builders.</b> Offline PWA point of sale, forms and reports created from chat, simulations.</span></li>
+        <li><span><b>Second country pack.</b> Proves the localization boundary holds.</span></li>
+      </ol>
+    </div>
+  </section>
+</div>

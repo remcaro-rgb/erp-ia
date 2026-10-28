@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>ERP-IA · Inicio (dirección C + tablero A)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1440px; height: 900px; overflow: hidden; font-family: "Source Sans 3", "Segoe UI", Arial, sans-serif; color: #1A1D21; background: #EEF0F2; }
+  button, input, select { font-family: inherit; }
+  .mono { font-family: "JetBrains Mono", Menlo, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+  th, td { padding: 0 12px; height: 36px; text-align: left; border-bottom: 1px solid #E2E5E9; font-size: 14px; white-space: nowrap; }
+  th { font-size: 12px; font-weight: 600; color: #3F4752; background: #F7F8FA; border-bottom: 1px solid #D7DBE0; }
+  th input, th select { width: 100%; padding: 4px 6px; border: 1px solid #D7DBE0; border-radius: 4px; font-size: 12px; background: #FFFFFF; }
+  th input.on, th select.on { border-color: #3B82F6; background: #DBEAFE; }
+  .btn { padding: 7px 12px; border: 1px solid #D7DBE0; border-radius: 6px; background: #FFFFFF; font-size: 13px; cursor: pointer; }
+  .btn.dark { background: #1D4ED8; color: #FFFFFF; border-color: #1D4ED8; font-weight: 600; }
+  .btn.amber { background: #FFFFFF; color: #1E3A8A; border-color: #FFFFFF; font-weight: 600; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+  .kpi { background: #FFFFFF; border: 1px solid #D7DBE0; border-radius: 8px; padding: 14px 16px; min-width: 0; }
+  .kpi .l { font-size: 12px; color: #3F4752; }
+  .kpi .v { font-size: 26px; font-weight: 700; margin-top: 2px; }
+  .kpi .s { font-size: 12px; color: #3F4752; margin-top: 8px; }
+  .card { background: #FFFFFF; border: 1px solid #D7DBE0; border-radius: 8px; }
+  .rec { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .rec .who { font-size: 11px; color: #3F4752; font-family: "JetBrains Mono", monospace; }
+  .rec .t { font-size: 15px; font-weight: 600; }
+  .rec p { margin: 0; font-size: 13px; color: #3F4752; line-height: 1.5; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div style="display: flex; flex-direction: column; height: 900px">
+
+  <header style="display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 48px; background: #1E3A8A; color: #DBE4F5; flex: 0 0 auto">
+    <div style="display: flex; align-items: center; gap: 8px; margin-right: 6px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #60A5FA; display: inline-block"></span><span style="font-weight: 700; font-size: 15px; color: #FFFFFF">ERP-IA</span></div>
+    <button type="button" style="padding: 6px 10px; background: #2A4A9E; color: #FFFFFF; border: 0; border-radius: 6px; font-size: 13px">Café del Norte S.A.S. ▾</button>
+    <button type="button" style="padding: 6px 10px; background: transparent; color: #C9D6F0; border: 1px solid #4A6AC2; border-radius: 6px; font-size: 13px">Módulos ▾</button>
+    <nav aria-label="Pestañas abiertas" style="display: flex; gap: 2px; margin-left: 10px; align-self: stretch; align-items: stretch">
+      <a href="#inicio" style="display: flex; align-items: center; padding: 0 14px; background: #EEF0F2; color: #1A1D21; font-size: 13px; font-weight: 600; border-radius: 6px 6px 0 0; margin-top: 8px; text-decoration: none">Inicio</a>
+      <a href="#pedidos" style="display: flex; align-items: center; padding: 0 14px; color: #C9D6F0; font-size: 13px; margin-top: 8px; text-decoration: none">Pedidos</a>
+      <a href="#facturas" style="display: flex; align-items: center; padding: 0 14px; color: #C9D6F0; font-size: 13px; margin-top: 8px; text-decoration: none">Facturas</a>
+      <a href="#inventario" style="display: flex; align-items: center; padding: 0 14px; color: #C9D6F0; font-size: 13px; margin-top: 8px; text-decoration: none">Inventario Bogotá</a>
+      <a href="#conciliacion" style="display: flex; align-items: center; padding: 0 14px; color: #C9D6F0; font-size: 13px; margin-top: 8px; text-decoration: none">Conciliación Bancolombia</a>
+      <span style="display: flex; align-items: center; padding: 0 10px; color: #9DB0DC; font-size: 16px; margin-top: 8px">+</span>
+    </nav>
+    <div style="flex-grow: 1"></div>
+    <label for="cmd" class="sr">Comando</label>
+    <input id="cmd" type="text" placeholder="⌘K   ir a, crear, preguntar…" style="width: 280px; padding: 7px 12px; border: 1px solid #4A6AC2; border-radius: 6px; background: #2A4A9E; color: #FFFFFF; font-size: 13px">
+    <button type="button" aria-label="Notificaciones, 3" style="position: relative; width: 34px; height: 34px; border: 1px solid #4A6AC2; border-radius: 6px; background: transparent">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E6E9ED" stroke-width="2" style="display: block; margin: 0 auto"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      <span style="position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: #E9A23B"></span>
+    </button>
+    <button type="button" class="btn amber" style="padding: 7px 12px">Asistente</button>
+    <span style="width: 30px; height: 30px; border-radius: 50%; background: #93C5FD; display: inline-block"></span>
+  </header>
+
+  <div style="display: flex; flex-grow: 1; min-height: 0">
+    <main style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; overflow: hidden">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 700">Buenos días, Laura</h1>
+        <div style="display: flex; gap: 8px; align-items: center">
+          <span style="font-size: 13px; color: #3F4752">Lunes 26 de octubre · día 18 de 22 hábiles</span>
+          <button type="button" class="btn">Octubre 2026 ▾</button>
+          <button type="button" class="btn">Personalizar</button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+        <div class="kpi"><div class="l">Ventas del mes</div><div class="v num">$ 312 M</div><div style="height: 6px; background: #E2E5E9; border-radius: 3px; margin-top: 8px; overflow: hidden"><div style="width: 65%; height: 100%; background: #2563EB"></div></div><div class="s">65 % de la meta de $ 480 M · ritmo cierra en $ 381 M</div></div>
+        <div class="kpi"><div class="l">Cartera vencida</div><div class="v num" style="color: #B42318">$ 54 M</div><div class="s" style="margin-top: 22px">11 clientes · 3 con más de 60 días</div></div>
+        <div class="kpi"><div class="l">Caja y bancos</div><div class="v num">$ 128 M</div><div class="s" style="margin-top: 22px">Conciliado hasta el 24 oct · 7 movimientos sin pareja</div></div>
+        <div class="kpi"><div class="l">Pedidos por despachar</div><div class="v num">23</div><div class="s" style="margin-top: 22px">5 con retraso · 2 sin stock en Bogotá</div></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 700">Recomendaciones para ti</h2>
+          <a href="#recomendaciones" style="font-size: 13px; color: #1D4ED8; text-decoration: none">Ver todas (6)</a>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+          <article class="card rec">
+            <div class="who">coach-comercial · hoy 06:00</div>
+            <div class="t">14 cotizaciones por $ 96 M sin respuesta hace más de 7 días</div>
+            <p>Recuperar la mitad cierra la brecha con la meta. Puedo enviar un seguimiento personalizado a cada cliente desde tu correo.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap"><button type="button" class="btn dark">Preparar seguimientos</button><button type="button" class="btn">Ver cotizaciones</button><button type="button" style="border: 0; background: transparent; color: #3F4752; font-size: 13px">Descartar</button></div>
+          </article>
+          <article class="card rec">
+            <div class="who">inventario · hoy 06:10</div>
+            <div class="t">Café tostado 500 g se agota en 4 días en Bogotá</div>
+            <p>Hay 180 unidades en Medellín con rotación baja. Un traslado llega antes que una compra.</p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap"><button type="button" class="btn dark">Crear traslado de 120 und</button><button type="button" class="btn">Crear orden de compra</button></div>
+          </article>
+        </div>
+      </div>
+
+      <section class="card" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1; min-height: 0">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #E2E5E9">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 700">Pedidos recientes</h2>
+          <span style="font-size: 13px; color: #3F4752">38 abiertos · vista: Octubre</span>
+          <div style="flex-grow: 1"></div>
+          <button type="button" class="btn">Columnas</button>
+          <button type="button" class="btn">Agrupar</button>
+          <button type="button" class="btn">PDF</button>
+          <button type="button" class="btn">Excel</button>
+          <button type="button" class="btn">CSV</button>
+          <a href="#pedidos" style="font-size: 13px; color: #1D4ED8; text-decoration: none; margin-left: 6px">Abrir en pestaña →</a>
+        </div>
+        <div style="overflow: hidden">
+          <table style="border-collapse: collapse; width: 100%">
+            <thead>
+              <tr><th>Pedido ▲</th><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th style="text-align: right">Total</th><th>Estado</th><th>Entrega</th></tr>
+              <tr>
+                <th><input type="text" placeholder="contiene…" aria-label="Filtrar pedido"></th>
+                <th><input type="text" value="oct 2026" class="on" aria-label="Filtrar fecha"></th>
+                <th><input type="text" placeholder="contiene…" aria-label="Filtrar cliente"></th>
+                <th><select aria-label="Filtrar vendedor"><option>Todos</option></select></th>
+                <th><input type="text" placeholder="entre…" style="text-align: right" aria-label="Filtrar total"></th>
+                <th><select class="on" aria-label="Filtrar estado"><option>Abierto</option></select></th>
+                <th><input type="text" placeholder="fecha" aria-label="Filtrar entrega"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="mono" style="font-size: 13px">PV-1043</td><td>26 oct</td><td>Tiendas D1</td><td>Julián T.</td><td class="num" style="text-align: right; font-weight: 600">$ 7.318.500</td><td><span class="pill" style="background: #E3ECF8; color: #1D4F91">Cotizado</span></td><td>2 nov</td></tr>
+              <tr><td class="mono" style="font-size: 13px">PV-1042</td><td>26 oct</td><td>Supermercados Éxito</td><td>Carlos R.</td><td class="num" style="text-align: right; font-weight: 600">$ 18.450.000</td><td><span class="pill" style="background: #DDF1EB; color: #0A5446">Facturado</span></td><td>27 oct</td></tr>
+              <tr><td class="mono" style="font-size: 13px">PV-1041</td><td>25 oct</td><td>Tiendas D1</td><td>Ana P.</td><td class="num" style="text-align: right; font-weight: 600">$ 9.120.000</td><td><span class="pill" style="background: #FBEBD2; color: #7A3E05">Por despachar</span></td><td>28 oct</td></tr>
+              <tr><td class="mono" style="font-size: 13px">PV-1040</td><td>23 oct</td><td>Café Quindío Ltda.</td><td>Carlos R.</td><td class="num" style="text-align: right; font-weight: 600">$ 3.780.000</td><td><span class="pill" style="background: #FBE3E0; color: #8C1D17">Retrasado 2 d</span></td><td>24 oct</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display: flex; align-items: center; gap: 16px; padding: 8px 14px; border-top: 1px solid #E2E5E9; background: #F7F8FA; font-size: 13px; color: #3F4752; margin-top: auto">
+          <span>Mostrando 4 de 38</span><span class="num">Suma filtrado: <b style="color: #1A1D21">$ 186.230.400</b></span>
+        </div>
+      </section>
+    </main>
+
+    <aside aria-label="Asistente" style="flex: 0 0 400px; background: #FFFFFF; border-left: 1px solid #D7DBE0; display: flex; flex-direction: column">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #E2E5E9">
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px"><span style="width: 10px; height: 10px; border-radius: 50%; background: #2563EB; display: inline-block"></span>Asistente</div>
+        <div style="font-size: 12px; color: #3F4752">Contexto: Inicio · Opus 5.5</div>
+      </div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 12px; padding: 16px; font-size: 14px; line-height: 1.5; overflow: hidden">
+        <div style="align-self: flex-end; max-width: 88%; background: #1D4ED8; color: #FFFFFF; padding: 10px 12px; border-radius: 10px 10px 2px 10px">¿Cuánto vendimos esta semana por vendedor?</div>
+        <div style="max-width: 96%; background: #F7F8FA; padding: 10px 12px; border-radius: 10px 10px 10px 2px; display: flex; flex-direction: column; gap: 8px">
+          <div>Semana del 20 al 26 de octubre, ventas confirmadas:</div>
+          <table style="border-collapse: collapse; width: 100%; background: #FFFFFF; border: 1px solid #E2E5E9">
+            <thead><tr><th style="height: 30px">Vendedor</th><th style="height: 30px; text-align: right">Total</th><th style="height: 30px; text-align: right">vs. sem. ant.</th></tr></thead>
+            <tbody>
+              <tr><td style="height: 30px; font-size: 13px">Carlos R.</td><td class="num" style="height: 30px; text-align: right; font-size: 13px">$ 41,2 M</td><td class="num" style="height: 30px; text-align: right; font-size: 13px; color: #0A5446">+12 %</td></tr>
+              <tr><td style="height: 30px; font-size: 13px">Ana P.</td><td class="num" style="height: 30px; text-align: right; font-size: 13px">$ 27,9 M</td><td class="num" style="height: 30px; text-align: right; font-size: 13px; color: #8C1D17">−6 %</td></tr>
+              <tr><td style="height: 30px; font-size: 13px">Julián T.</td><td class="num" style="height: 30px; text-align: right; font-size: 13px">$ 12,4 M</td><td class="num" style="height: 30px; text-align: right; font-size: 13px; color: #0A5446">+3 %</td></tr>
+            </tbody>
+          </table>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap">
+            <button type="button" class="btn" style="padding: 5px 9px; font-size: 12px">Abrir como grid</button>
+            <button type="button" class="btn" style="padding: 5px 9px; font-size: 12px">Excel</button>
+            <button type="button" class="btn" style="padding: 5px 9px; font-size: 12px">Guardar reporte</button>
+            <button type="button" class="btn" style="padding: 5px 9px; font-size: 12px">Enviar cada lunes 5:00</button>
+          </div>
+        </div>
+        <div style="align-self: flex-end; max-width: 88%; background: #1D4ED8; color: #FFFFFF; padding: 10px 12px; border-radius: 10px 10px 2px 10px">Programa el envío a mí y a Daniel, y crea el traslado de café que recomiendas.</div>
+        <div style="max-width: 96%; display: flex; flex-direction: column; gap: 8px">
+          <div>Reporte programado: lunes 5:00, Excel, a laura@ y daniel@. El traslado necesita tu confirmación:</div>
+          <article class="card" style="overflow: hidden">
+            <div style="padding: 9px 12px; background: #DBEAFE; border-bottom: 1px solid #BFDBFE; font-weight: 600; font-size: 13px">Traslado Medellín → Bogotá · 120 und Café tostado 500 g</div>
+            <div style="padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid #E2E5E9; color: #3F4752">
+              <div style="display: flex; justify-content: space-between"><span>Inventario</span><span>Medellín −120 · Bogotá +120 (en tránsito)</span></div>
+              <div style="display: flex; justify-content: space-between"><span>Documento</span><span class="mono" style="font-size: 12px">TR-0311</span></div>
+              <div style="display: flex; justify-content: space-between"><span>Permiso</span><span>Inventario › crear · sin 2FA</span></div>
+            </div>
+            <div style="padding: 10px 12px; display: flex; gap: 8px"><button type="button" class="btn dark">Confirmar</button><button type="button" class="btn">Editar</button><button type="button" style="border: 0; background: transparent; color: #3F4752; font-size: 13px">Cancelar</button></div>
+          </article>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; padding: 12px; border-top: 1px solid #E2E5E9">
+        <label for="ask" class="sr">Escribe</label>
+        <input id="ask" type="text" placeholder="Pregunta, pide una acción o “¿cómo hago…?”" style="flex: 1 1 auto; min-width: 0; padding: 10px 12px; border: 1px solid #D7DBE0; border-radius: 6px; font-size: 13px">
+        <button type="button" class="btn amber" aria-label="Enviar" style="width: 40px; height: 40px; padding: 0; font-size: 16px">↑</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</body>
+</html>
