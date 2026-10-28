@@ -20,6 +20,9 @@ import { setHelpEmbedder } from "../search";
 // registered process, built with the service role, searched through kernel.help.search as the caller (platform
 // rows for everyone, company rows only for that company's members).
 
+// A locale of its own: the suite never touches the developer's real es-419 index.
+const LOCALE = "xx-test";
+
 const GUIDES: Record<string, string> = {
   "exportar.md": `---
 title: Exportar un listado a PDF, Excel o CSV
@@ -114,18 +117,17 @@ describe("help knowledge index", () => {
     for (const company of seed.companies) {
       await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${company.id}, ${company.memberRoleId}, 'kernel.help.search')`;
     }
-    const claims = (user: string, company: number) => ({ claims: seed.claimsFor(seed.users[user]!, seed.companies[company]!.id), origin: "ui" as const });
+    const claims = (user: string, company: number) => ({ claims: { ...seed.claimsFor(seed.users[user]!, seed.companies[company]!.id), locale: LOCALE }, origin: "ui" as const });
     member = claims("member", 0);
     memberB = claims("member", 1);
     outsider = claims("outsider", 1);
     noGrant = claims("nogrant", 0);
     setHelpEmbedder(embedder);
-    await buildHelpIndex(sql, embedder, { guidesDir, registry });
+    await buildHelpIndex(sql, embedder, { guidesDir, registry, locale: LOCALE });
   });
   afterAll(async () => {
     setHelpEmbedder(undefined);
-    await sql`delete from kernel.help_chunks where scope = 'company' and company_id = any(${companyIds()}::uuid[])`;
-    await sql`delete from kernel.help_chunks where scope = 'platform'`;
+    await sql`delete from kernel.help_chunks where locale = ${LOCALE} or source = 'test:fallback'`;
     await sql`delete from kernel.process_permissions where company_id = any(${companyIds()}::uuid[])`;
     await seed.cleanup();
     rmSync(guidesDir, { recursive: true, force: true });
@@ -133,12 +135,12 @@ describe("help knowledge index", () => {
   });
 
   it("indexes the guide chunks and one chunk per registered process, all platform scope with a 1536-dimension embedding", async () => {
-    const guides = await sql<{ source: string; href: string | null }[]>`select source, href from kernel.help_chunks where scope = 'platform' and source like 'guide:%'`;
+    const guides = await sql<{ source: string; href: string | null }[]>`select source, href from kernel.help_chunks where scope = 'platform' and locale = ${LOCALE} and source like 'guide:%'`;
     expect(new Set(guides.map((g) => g.source))).toEqual(new Set(["guide:exportar.md", "guide:inicio.md", "guide:seguridad.md"]));
     expect(Object.fromEntries(guides.map((g) => [g.source, g.href]))).toEqual({ "guide:exportar.md": "/parties", "guide:inicio.md": "/", "guide:seguridad.md": "/login" });
-    const processes = await sql<{ source: string }[]>`select source from kernel.help_chunks where scope = 'platform' and source like 'process:%'`;
+    const processes = await sql<{ source: string }[]>`select source from kernel.help_chunks where scope = 'platform' and locale = ${LOCALE} and source like 'process:%'`;
     expect(processes.map((p) => p.source).sort()).toEqual(registry.processes().map((p) => `process:${p.id}`).sort());
-    const [dims] = await sql<{ dims: number; companies: number }[]>`select min(vector_dims(embedding))::int as dims, count(company_id)::int as companies from kernel.help_chunks`;
+    const [dims] = await sql<{ dims: number; companies: number }[]>`select min(vector_dims(embedding))::int as dims, count(company_id)::int as companies from kernel.help_chunks where locale = ${LOCALE}`;
     expect(dims).toEqual({ dims: EMBEDDING_DIMENSIONS, companies: 0 });
   });
 
@@ -170,29 +172,29 @@ describe("help knowledge index", () => {
   });
 
   it("rebuilding replaces the platform chunks: no duplicates, removed guides disappear, edited text is searchable", async () => {
-    const before = await count(sql`scope = 'platform'`);
-    await buildHelpIndex(sql, embedder, { guidesDir, registry });
-    expect(await count(sql`scope = 'platform'`)).toBe(before);
+    const before = await count(sql`scope = 'platform' and locale = ${LOCALE}`);
+    await buildHelpIndex(sql, embedder, { guidesDir, registry, locale: LOCALE });
+    expect(await count(sql`scope = 'platform' and locale = ${LOCALE}`)).toBe(before);
 
     rmSync(join(guidesDir, "inicio.md"));
     writeFileSync(join(guidesDir, "seguridad.md"), GUIDES["seguridad.md"]!.replace("código de seis dígitos", "código de seis dígitos y la clave de respaldo"));
-    await buildHelpIndex(sql, embedder, { guidesDir, registry });
-    expect(await count(sql`source = 'guide:inicio.md'`)).toBe(0);
-    expect(await count(sql`scope = 'platform'`)).toBe(before - 1);
-    const [chunk] = await sql<{ body: string }[]>`select body from kernel.help_chunks where source = 'guide:seguridad.md'`;
+    await buildHelpIndex(sql, embedder, { guidesDir, registry, locale: LOCALE });
+    expect(await count(sql`source = 'guide:inicio.md' and locale = ${LOCALE}`)).toBe(0);
+    expect(await count(sql`scope = 'platform' and locale = ${LOCALE}`)).toBe(before - 1);
+    const [chunk] = await sql<{ body: string }[]>`select body from kernel.help_chunks where source = 'guide:seguridad.md' and locale = ${LOCALE}`;
     expect(chunk!.body).toContain("clave de respaldo");
     writeFileSync(join(guidesDir, "inicio.md"), GUIDES["inicio.md"]!);
-    await buildHelpIndex(sql, embedder, { guidesDir, registry });
+    await buildHelpIndex(sql, embedder, { guidesDir, registry, locale: LOCALE });
   });
 
   it("a rebuild that fails leaves the previous index untouched (delete and insert are one transaction)", async () => {
-    const before = await sql`select source, body from kernel.help_chunks where scope = 'platform' order by source, body`;
+    const before = await sql`select source, body from kernel.help_chunks where scope = 'platform' and locale = ${LOCALE} order by source, body`;
     const broken: Embedder = { embed: async (texts) => texts.map((_, i) => (i === texts.length - 1 ? [0, 1] : new Array<number>(EMBEDDING_DIMENSIONS).fill(0.01))) };
-    await expect(buildHelpIndex(sql, broken, { guidesDir, registry })).rejects.toThrow();
-    expect(await sql`select source, body from kernel.help_chunks where scope = 'platform' order by source, body`).toEqual(before);
+    await expect(buildHelpIndex(sql, broken, { guidesDir, registry, locale: LOCALE })).rejects.toThrow();
+    expect(await sql`select source, body from kernel.help_chunks where scope = 'platform' and locale = ${LOCALE} order by source, body`).toEqual(before);
     const down: Embedder = { embed: async () => { throw new Error("gateway down"); } };
-    await expect(buildHelpIndex(sql, down, { guidesDir, registry })).rejects.toThrow("gateway down");
-    expect(await count(sql`scope = 'platform'`)).toBe(before.length);
+    await expect(buildHelpIndex(sql, down, { guidesDir, registry, locale: LOCALE })).rejects.toThrow("gateway down");
+    expect(await count(sql`scope = 'platform' and locale = ${LOCALE}`)).toBe(before.length);
   });
 
   it("shows a company chunk only to that company's members, in the active company", async () => {
@@ -200,13 +202,24 @@ describe("help knowledge index", () => {
     const companyA = seed.companies[0]!.id;
     await sql`
       insert into kernel.help_chunks (scope, company_id, source, title, body, embedding, locale)
-      values ('company', ${companyA}, 'company:devoluciones', 'Devoluciones de la sucursal', 'Política interna de devoluciones de la sucursal', ${`[${vector!.join(",")}]`}::extensions.vector, 'es-419')`;
+      values ('company', ${companyA}, 'company:devoluciones', 'Devoluciones de la sucursal', 'Política interna de devoluciones de la sucursal', ${`[${vector!.join(",")}]`}::extensions.vector, ${LOCALE})`;
     const query = { query: "política interna de devoluciones de la sucursal", limit: 10 };
     expect((await run(member, query)).results.map((r) => r.source)).toContain("company:devoluciones");
     // The same user with the other company active, and a member of the other company only: platform rows, not A's.
     expect((await run(memberB, query)).results.map((r) => r.source)).not.toContain("company:devoluciones");
     expect((await run(outsider, query)).results.map((r) => r.source)).not.toContain("company:devoluciones");
     expect((await run(outsider, query)).results.length).toBeGreaterThan(0);
+  });
+
+  it("a caller whose locale has no index falls back to the es-419 chunks", async () => {
+    const [vector] = await embedder.embed(["texto de respaldo en español latinoamericano"]);
+    await sql`
+      insert into kernel.help_chunks (scope, source, title, body, embedding, locale)
+      values ('platform', 'test:fallback', 'Respaldo', 'texto de respaldo en español latinoamericano', ${`[${vector!.join(",")}]`}::extensions.vector, 'es-419')`;
+    const other = { ...member, claims: { ...member.claims, locale: "xx-none" } };
+    expect((await run(other, { query: "texto de respaldo en español latinoamericano", limit: 10 })).results.map((r) => r.source)).toContain("test:fallback");
+    // A locale that has an index is searched alone: the es-419 chunk stays out.
+    expect((await run(member, { query: "texto de respaldo en español latinoamericano", limit: 10 })).results.map((r) => r.source)).not.toContain("test:fallback");
   });
 
   it("authenticated users read the index but cannot write it", async () => {

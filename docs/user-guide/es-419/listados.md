@@ -103,4 +103,4 @@ Las vistas son **tuyas**: son por usuario y por empresa, y nadie más las ve ni 
 
 - «Un campo oculto o enmascarado para tu rol no se puede usar para filtrar ni ordenar.»: quita ese filtro u orden.
 - «Tu rol no puede consultar este listado» o «Tu empresa no tiene habilitado este listado»: pide acceso al administrador de tu empresa.
-- «Sin resultados con estos filtros»: usa **Limpiar filtros**.
+- «Sin resultados» en un listado sin filtros: no hay registros todavía. «Sin resultados con estos filtros»: ningún registro cumple lo que aplicaste; usa **Limpiar filtros**.

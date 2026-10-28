@@ -22,8 +22,8 @@ export function helpEmbedder(): Embedder {
 export const MAX_RESULTS = 10;
 export const DEFAULT_RESULTS = 5;
 export const SNIPPET_CHARS = 300;
-/** The index's `lists`: probing all of them makes the approximate index exact for a few hundred chunks. */
-const IVFFLAT_LISTS = 10;
+/** The locale searched when the caller's own has no index yet. */
+const FALLBACK_LOCALE = "es-419";
 
 /** One line of plain text, at most `SNIPPET_CHARS` long and cut at a word, with `…` when something was dropped. */
 export function snippetOf(text: string): string {
@@ -57,11 +57,10 @@ export async function searchHelp(tx: Tx, embedder: Embedder, options: SearchHelp
   const [embedding] = await embedder.embed([options.query]);
   if (!embedding) throw new Error("embedder returned no vector for the query");
   const vector = vectorText(embedding);
-  await tx`select set_config('ivfflat.probes', ${String(IVFFLAT_LISTS)}, true)`;
   const rows = await tx<{ title: string; body: string; source: string; href: string | null }[]>`
     select title, body, source, href
     from kernel.help_chunks
-    where locale = any (${[options.locale, "es-419"]}::text[])
+    where locale = case when exists (select 1 from kernel.help_chunks where locale = ${options.locale}) then ${options.locale} else ${FALLBACK_LOCALE} end
       and (scope = 'platform' or company_id = ${options.companyId})
     order by embedding operator(extensions.<=>) ${vector}::extensions.vector
     limit ${Math.min(options.limit, MAX_RESULTS)}`;

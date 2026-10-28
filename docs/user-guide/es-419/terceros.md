@@ -17,7 +17,7 @@ Entra desde el módulo **Núcleo › Terceros**, o con **⌘K** escribiendo «te
 
 ## El listado
 
-El listado de Terceros trae, al comienzo, las columnas N.º, Tipo de documento, Número, Razón social, Nombre comercial, Tipo de tercero, Municipio, Correo de facturación, Teléfono, Cupo de crédito, Saldo, Estado DIAN, Listo para facturar y Activo. En **Columnas** puedes mostrar otras (departamento, responsabilidades fiscales, CIIU…).
+El listado de Terceros trae, al comienzo, las columnas N.º, Tipo de documento, Número de documento, Razón social, Nombre comercial, Tipo de tercero, Municipio, Correo de facturación, Teléfono, Cupo de crédito, Saldo, Estado DIAN, Listo para facturar y Activo. En **Columnas** puedes mostrar otras (departamento, responsabilidades fiscales, CIIU…).
 
 Como en todos los listados, puedes ordenar, filtrar, paginar, guardar vistas, exportar e importar: la guía **Listados** explica cómo. Lo propio de Terceros:
 

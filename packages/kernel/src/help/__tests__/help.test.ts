@@ -23,6 +23,12 @@ describe("FakeEmbedder", () => {
     expect(Math.sqrt(dot(a!, a!))).toBeCloseTo(1, 6);
   });
 
+  it("gives a text with no indexable word a unit vector too (never zeros, whose cosine is NaN)", async () => {
+    const vectors = await embedder.embed(["", "¿?", "a de"]);
+    for (const v of vectors) expect(Math.sqrt(dot(v, v))).toBeCloseTo(1, 6);
+    expect(vectors[0]).toEqual(vectors[1]);
+  });
+
   it("puts texts that share words closer than unrelated ones, ignoring accents, case and verb endings", async () => {
     const [query, near, far] = await embedder.embed(["Cómo exporto a Excel", "Exportar un listado a Excel", "Activar la verificación en dos pasos"]);
     expect(dot(query!, near!)).toBeGreaterThan(dot(query!, far!));

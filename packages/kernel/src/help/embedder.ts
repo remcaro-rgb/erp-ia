@@ -61,6 +61,9 @@ export class FakeEmbedder implements Embedder {
           vector[h % EMBEDDING_DIMENSIONS]! += (h >>> 16) & 1 ? 1 : -1;
         }
       }
+      // A text with no indexable word (empty, punctuation, stopwords) would be all zeros and its cosine NaN: it
+      // lands in one fixed bucket instead.
+      if (!vector.some(Boolean)) vector[0] = 1;
       const norm = Math.sqrt(vector.reduce((sum, x) => sum + x * x, 0)) || 1;
       return vector.map((x) => x / norm);
     });

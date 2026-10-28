@@ -26,9 +26,9 @@ create table kernel.help_chunks (
 );
 create index help_chunks_scope_idx on kernel.help_chunks (scope, locale);
 create index help_chunks_company_id_idx on kernel.help_chunks (company_id) where company_id is not null;
--- Approximate nearest neighbours by cosine distance. The search sets `ivfflat.probes` to the number of lists so a
--- small index (a few hundred chunks) is still scanned completely.
-create index help_chunks_embedding_idx on kernel.help_chunks using ivfflat (embedding extensions.vector_cosine_ops) with (lists = 10);
+-- Approximate nearest neighbours by cosine distance. HNSW needs no training data (an ivfflat index built on a small
+-- or empty table recalls badly) and keeps full recall at this size without tuning the search.
+create index help_chunks_embedding_idx on kernel.help_chunks using hnsw (embedding extensions.vector_cosine_ops) with (m = 16, ef_construction = 64);
 
 create trigger help_chunks_touch_updated before update on kernel.help_chunks
   for each row execute function kernel.touch_updated();

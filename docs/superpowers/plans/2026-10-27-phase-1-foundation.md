@@ -826,6 +826,10 @@ git commit -m "feat(ui): design tokens, shadcn base and application shell with t
 
 ---
 
+## Task 12b: Wire the record tabs (added 2026-10-28)
+
+Controller addition during execution: Task 16's guides found the record page renders Contactos and Datos adicionales read-only, PhotosTab without `onReorder`/`onSuggest`, and AttachmentsPanel without `requiredTags`. Task 12b wires them: editable contacts (`core.contact.*`), extra data saved through `<entity>.update`, `kernel.attachment.reorder` with a `position` column (0007 edited in place), `kernel.ai.image_suggest` with a phase-1 placeholder image tagged `Foto · IA` (real model in phase 5), `kernel.v_required_attachments` feeding the required-files checklist, guides updated. Full brief in the SDD workspace (`task-12b-brief.md`); tests: wiring integration test, reorder integration test, Playwright `record.spec.ts`.
+
 ## Task 13: Universal DataGrid with server-side query builder
 
 **Files:**
