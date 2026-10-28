@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEPARTMENTS, MUNICIPALITIES } from "../dane";
+import { DEPARTMENTS, MUNICIPALITIES, departmentName, municipalityName } from "../dane";
 import { validateParty } from "../validate-party";
 
 const base = { personType: "1", documentType: "31", documentNumber: "900373115", legalName: "Café del Norte S.A.S.", taxResponsibilities: ["O-23"], taxScheme: "01", countryCode: "CO", departmentCode: "11", municipalityCode: "11001", addressLine: "Cll 1 # 2-3", invoiceEmail: "fe@cafedelnorte.co", kind: ["customer"] } as const;
@@ -133,15 +133,34 @@ describe("validateParty", () => {
 });
 
 describe("DANE data", () => {
-  it("has all 33 departments and every municipality belongs to a known department", () => {
+  it("has all 33 departments, the full municipality table and every municipality belongs to a known department", () => {
     expect(DEPARTMENTS).toHaveLength(33);
+    expect(DEPARTMENTS.map((d) => d.code)).toEqual([...DEPARTMENTS.map((d) => d.code)].sort());
+    for (const d of DEPARTMENTS) expect(d.code, d.name).toMatch(/^\d{2}$/);
+    expect(DEPARTMENTS.some((d) => d.code === "11" && d.name === "Bogotá D.C.")).toBe(true);
     const codes = new Set(DEPARTMENTS.map((d) => d.code));
-    expect(MUNICIPALITIES.length).toBeGreaterThan(0);
+    expect(MUNICIPALITIES.length).toBeGreaterThanOrEqual(1100);
     for (const m of MUNICIPALITIES) {
       expect(codes.has(m.departmentCode), m.code).toBe(true);
       expect(m.code.startsWith(m.departmentCode), m.code).toBe(true);
       expect(m.code).toMatch(/^\d{5}$/);
+      expect(m.name.trim(), m.code).toBe(m.name);
+      expect(m.name.length, m.code).toBeGreaterThan(0);
     }
     expect(new Set(MUNICIPALITIES.map((m) => m.code)).size).toBe(MUNICIPALITIES.length);
+    // Every department has at least one municipality and the table is sorted by code.
+    for (const d of DEPARTMENTS) expect(MUNICIPALITIES.some((m) => m.departmentCode === d.code), d.name).toBe(true);
+    expect(MUNICIPALITIES.map((m) => m.code)).toEqual([...MUNICIPALITIES.map((m) => m.code)].sort());
+  });
+
+  it("knows well-known DIVIPOLA codes and rejects a municipality that is not in the table", () => {
+    expect(municipalityName("11001")).toBe("Bogotá D.C.");
+    expect(municipalityName("05001")).toBe("Medellín");
+    expect(municipalityName("76001")).toBe("Santiago de Cali");
+    expect(municipalityName("88001")).toBe("San Andrés");
+    expect(departmentName("76")).toBe("Valle del Cauca");
+    const r = validateParty({ ...base, departmentCode: "11", municipalityCode: "11999" });
+    expect(r.errors).toEqual(["Municipio DANE inválido"]);
+    expect(validateParty({ ...base, departmentCode: "05", municipalityCode: "11001" }).errors).toEqual(["El municipio no pertenece al departamento"]);
   });
 });

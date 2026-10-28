@@ -1,5 +1,5 @@
 import { DEFAULT_PHONE_CC, validateEmail, validatePhone, type PartyFiscalInput, type PartyValidation } from "@erp/kernel";
-import { DEPARTMENTS } from "./dane";
+import { DEPARTMENTS, isMunicipalityCode } from "./dane";
 import { DOCUMENT_TYPES, documentNumberErrors } from "./document-types";
 import { nitCheckDigit } from "./nit";
 import { NOT_RESPONSIBLE, TAX_RESPONSIBILITIES, TAX_SCHEMES } from "./tax-tables";
@@ -98,6 +98,7 @@ export function validateParty(input: PartyFiscalInput): PartyValidation {
     else if (!DEPARTMENTS.some((d) => d.code === departmentCode)) errors.push("Departamento DANE inválido");
     if (!municipalityCode) missing.push("Municipio (DANE)");
     else if (!/^\d{5}$/.test(municipalityCode)) errors.push("Municipio DANE: 5 dígitos");
+    else if (!isMunicipalityCode(municipalityCode)) errors.push("Municipio DANE inválido");
     else if (departmentCode && !municipalityCode.startsWith(departmentCode)) errors.push("El municipio no pertenece al departamento");
     if (postalCode && !/^\d{6}$/.test(postalCode)) errors.push(`Código postal: ${LIMITS.postal} dígitos`);
   }

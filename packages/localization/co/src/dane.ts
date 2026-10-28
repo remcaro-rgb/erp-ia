@@ -7,11 +7,16 @@ export type Municipality = { code: string; name: string; departmentCode: string 
 export const DEPARTMENTS: Department[] = dane.departments;
 
 /**
- * Municipalities (DIVIPOLA, 5 digits, the first 2 are the department). Partial seed: the municipalities used by Serena and the
- * prototype plus every departmental capital; the full ~1,120-row table is a phase 2 data load. Validation therefore checks
- * the code format and its department prefix, never membership in this list.
+ * Every DIVIPOLA municipality (5 digits, the first 2 are the department): the 1,122 rows of DANE's "Códigos DIVIPOLA" dataset
+ * (datos.gov.co, gdxc-w37w: municipalities, Bogotá, San Andrés island and the non-municipalized areas) plus the two codes
+ * DIAN table 13.4.3 accepts that the extract lacks (27086, 94663). Validation checks membership in this list.
+ * Source and transformation: .superpowers/sdd/2026-10-27-phase-1-foundation/data-followup-report.md. Keep it sorted by code.
  */
 export const MUNICIPALITIES: Municipality[] = dane.municipalities;
 
-export const departmentName = (code: string): string | undefined => DEPARTMENTS.find((d) => d.code === code)?.name;
-export const municipalityName = (code: string): string | undefined => MUNICIPALITIES.find((m) => m.code === code)?.name;
+const DEPARTMENT_BY_CODE = new Map(DEPARTMENTS.map((d) => [d.code, d]));
+const MUNICIPALITY_BY_CODE = new Map(MUNICIPALITIES.map((m) => [m.code, m]));
+
+export const isMunicipalityCode = (code: string): boolean => MUNICIPALITY_BY_CODE.has(code);
+export const departmentName = (code: string): string | undefined => DEPARTMENT_BY_CODE.get(code)?.name;
+export const municipalityName = (code: string): string | undefined => MUNICIPALITY_BY_CODE.get(code)?.name;

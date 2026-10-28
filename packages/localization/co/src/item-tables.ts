@@ -13,7 +13,7 @@ export const ITEM_ID_SCHEMES: ItemIdScheme[] = [
 
 export type UomCode = { code: string; name: string };
 
-/** UN/ECE Rec. 20 codes used by DIAN table 13.3.6. Curated list; the full table is a phase 2 data load. */
+/** DIAN table 13.3.6 (UN/ECE Rec. 20 codes plus DIAN's own): the full list from the FE v1.9 toolbox, see data/uom.json. */
 export const UOM_CODES: UomCode[] = uom;
 
 export const IVA_RATES = [

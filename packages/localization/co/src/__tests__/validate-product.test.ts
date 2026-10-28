@@ -103,10 +103,25 @@ describe("validateProduct", () => {
     expect(validateProduct({ ...good, idScheme: "777" as never }).errors).toEqual(["Esquema de identificación inválido"]);
   });
 
-  it("ships the curated UN/ECE unit table", () => {
-    for (const c of ["94", "EA", "KGM", "GRM", "LTR", "MLT", "MTR", "CMT", "MTK", "MTQ", "HUR", "DAY", "MON", "BX", "PK", "BG", "BO", "DZN", "PR", "SET", "TNE"]) {
+  it("ships the full DIAN 13.3.6 unit table (UN/ECE Rec. 20)", () => {
+    expect(UOM_CODES.length).toBeGreaterThanOrEqual(1000);
+    for (const c of ["94", "EA", "C62", "KGM", "GRM", "LTR", "MLT", "MTR", "CMT", "MTK", "MTQ", "HUR", "DAY", "LUN", "BX", "PK", "BG", "BO", "DZN", "PR", "SET", "TNE", "ZZ"]) {
       expect(UOM_CODES.some((u) => u.code === c), c).toBe(true);
     }
+    expect(UOM_CODES.find((u) => u.code === "KGM")?.name).toBe("Kilogramo");
+    const codes = UOM_CODES.map((u) => u.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    expect(codes).toEqual([...codes].sort());
+    for (const u of UOM_CODES) {
+      expect(u.code).toMatch(/^[A-Z0-9]{1,3}$/);
+      expect(u.name.trim(), u.code).toBe(u.name);
+      expect(u.name.length, u.code).toBeGreaterThan(0);
+    }
+  });
+
+  it("accepts a unit that was outside the old curated list and still rejects a code that is not in the table", () => {
+    expect(validateProduct({ ...good, uomCode: "GLL" }).errors).toEqual([]);
+    expect(validateProduct({ ...good, uomCode: "MON" }).errors[0]).toMatch(/unidad/i);
   });
 
   it("does not mutate the input; a service is normalized to not tracking stock", () => {
