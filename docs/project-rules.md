@@ -36,7 +36,7 @@ Date: 2026-10-28 · These rules bind every phase, every module and every contrib
 25. Nothing changes under the user's feet: suggested or promoted UIs are offered and activated only on acceptance; the home layout is the user's own and resettable.
 
 ## 5. AI
-26. Models only through the AI SDK and the model policy table (`kernel.model_policies`); no model id in code. Defaults: chat and planning `anthropic/claude-opus-5-5`, classification and summaries `anthropic/claude-haiku-5-5`, embeddings `openai/text-embedding-3-small`; every policy has a fallback.
+26. Models only through the AI SDK and the model policy table (`kernel.model_policies`); no model id in code. Defaults: chat and planning `anthropic/claude-opus-5.5`, classification and summaries `anthropic/claude-haiku-5.5`, embeddings `openai/text-embedding-3-small`; every policy has a fallback.
 27. Every LLM call is logged with cost per user and company. Token allowance per seat, metered above it, per-company cap the admin can raise; when the cap is hit the assistant answers consult questions only.
 28. Background agents run as the audience role's permissions, never above them; their recommendations are offered, never executed without the user's accept.
 29. Statistics detect, the model composes: adaptive proposals and recommendations are built from evidence computed in SQL; the model only writes the artifact and the explanation inside a validated schema.

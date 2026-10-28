@@ -38,7 +38,7 @@ Call made here: the posting engine (§5.6) moves from phase 1 to plan 2, because
 - Default locale `es-419`; every UI string through `packages/i18n`; `en` catalogue exists with the same keys (English copy may be machine-drafted in phase 1).
 - Default currency COP; default country pack `co`. Money renders as `$ 1.234.567,00` (`Intl.NumberFormat('es-CO', { minimumFractionDigits: 2 })`, right-aligned, tabular figures) in grids, cards, forms and assistant replies; `packages/ui` exports `formatMoney(n, currency)` and `MoneyInput` and no component formats money any other way.
 - No Vercel-only runtime APIs in business code: no Edge runtime, no `@vercel/blob`, no `@vercel/edge-config`. Durable work only through `workflow`; scheduling only through the kernel scheduler tables (plan 3).
-- Models through the AI SDK only; model ids live only in `kernel.model_policies` seed: chat/planning `anthropic/claude-opus-5-5`, classification `anthropic/claude-haiku-5-5`, embeddings `openai/text-embedding-3-small` via the gateway.
+- Models through the AI SDK only; model ids live only in `kernel.model_policies` seed: chat/planning `anthropic/claude-opus-5.5`, classification `anthropic/claude-haiku-5.5`, embeddings `openai/text-embedding-3-small` via the gateway.
 - Audit log is append-only: insert-only grants, trigger raising on UPDATE/DELETE.
 - Agent write-kind tools never execute without an explicit user confirmation; step-up processes require a fresh TOTP verification (≤ 5 minutes old) recorded in `kernel.step_up_verifications`.
 - UI tokens from spec §19a (navy top bar `#1E3A8A`, primary `#1D4ED8`, grid rows 36px, Source Sans 3 + JetBrains Mono); light and dark themes from the same tokens with automatic mode.
@@ -1059,7 +1059,7 @@ it("over the monthly token limit the turn makes no model call", async () => { /*
 - [ ] **Step 3: Run to verify they fail, implement, run to verify they pass**
 
 Run: `pnpm -F @erp/agent test && pnpm -F @erp/agent test:integration`
-Expected: PASS. `agentTurn` uses `DurableAgent` from `@workflow/ai/agent` with `maxSteps: 12`; tool `execute` functions that touch the DB are `"use step"`; the model string comes from `resolveModel` (gateway ids like `anthropic/claude-opus-5-5`); usage is read from the step result and written by `recordUsage`.
+Expected: PASS. `agentTurn` uses the AI SDK `WorkflowAgent` from `@ai-sdk/workflow` (the former `DurableAgent` of `@workflow/ai` is deprecated and pinned to ai@6) with `maxSteps: 12`; tool `execute` functions that touch the DB are `"use step"`; the model string comes from `resolveModel` (gateway ids like `anthropic/claude-opus-5.5`); usage is read from the step result and written by `recordUsage`.
 
 - [ ] **Step 4: Commit**
 

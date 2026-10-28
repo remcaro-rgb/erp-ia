@@ -49,7 +49,7 @@ Target customer: small and mid-sized companies in Latin America, starting with C
 | Web app | Next.js (App Router) on Vercel, TypeScript | Server components for data-heavy screens, Server Actions for processes, streaming for chat |
 | UI | shadcn/ui + Tailwind CSS v4, TanStack Table for grids, React Hook Form + Zod for forms | Composable, no licence, strong grid primitives |
 | DB / Auth / Files / Realtime | Supabase | RLS native, MFA (TOTP) native, Storage for PDFs, Realtime for notifications |
-| Durable execution | Vercel Workflow DevKit (`"use workflow"` / `"use step"`) + `DurableAgent` from `@workflow/ai` | Agent runs, event consumers, scheduled jobs and e-invoicing submissions must survive crashes and retry |
+| Durable execution | Vercel Workflow DevKit (`"use workflow"` / `"use step"`) + the AI SDK `WorkflowAgent` from `@ai-sdk/workflow` (durable agent; the earlier `DurableAgent` of `@workflow/ai` is deprecated) | Agent runs, event consumers, scheduled jobs and e-invoicing submissions must survive crashes and retry |
 | Scheduling | `scheduled_tasks` table + one Vercel Cron tick per minute that starts due Workflows | Keeps cron definitions in the tenant's data, not in `vercel.json` |
 | AI | Vercel AI SDK + AI Gateway, Claude models, `pgvector` for the help/knowledge index | Tool calling, streaming UI, provider abstraction |
 | Reports / exports | Server-side: `exceljs` (xlsx), `@react-pdf/renderer` (pdf), streaming CSV. Large exports run as a Workflow and land in Storage | Same export service for grids and reports |
@@ -267,7 +267,7 @@ Customers buy modules, so what a company can use is a product decision separate 
 ## 7. AI layer
 
 ### 7.1 Chat agent (`packages/agent`)
-A `DurableAgent` running in a Workflow per conversation turn, streaming UI message chunks to the client. System prompt is assembled from: tenant/company facts, the user's role and permissions summary, locale, current screen context (route, selected record), and the relevant knowledge-base chunks.
+A `WorkflowAgent` (AI SDK, durable) running in a Workflow per conversation turn, streaming UI message chunks to the client. System prompt is assembled from: tenant/company facts, the user's role and permissions summary, locale, current screen context (route, selected record), and the relevant knowledge-base chunks.
 
 Tool families:
 - **Processes**: generated from the registry, filtered by permission. Write-kind tools return a "proposal" the UI renders as a confirmation card; execution happens only after the user confirms (hook resume).
@@ -396,7 +396,7 @@ Separate app (`apps/pos`), installable PWA, tablet-first. Works offline: catalog
 apps/web            Next.js app (ERP + CRM + agent chat)
 apps/pos            PWA point of sale
 packages/kernel     registry, process runner, events, posting engine, audit, scheduler, RLS generators
-packages/agent      DurableAgent, tool generation, background agent runner, knowledge index
+packages/agent      WorkflowAgent, tool generation, background agent runner, knowledge index
 packages/ui         DataGrid, forms, exports, design tokens
 packages/modules/*  one package per module (manifest + migrations + handlers + UI)
 packages/localization/co   Colombia pack (first); /mx, /pe later
