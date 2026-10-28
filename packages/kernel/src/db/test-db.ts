@@ -11,13 +11,18 @@ export function testDb(): Sql {
 
 export interface SeedOptions {
   companies: number;
-  /** Extra users; `companies` lists the company indexes they belong to. */
-  users?: { name: string; companies: number[] }[];
+  /**
+   * Extra users; `companies` lists the company indexes they belong to and `role` the role they hold
+   * there (default `admin`; `member` is a non-admin role). An empty list creates a user without memberships.
+   */
+  users?: { name: string; companies: number[]; role?: "admin" | "member" }[];
 }
 
 export interface SeededCompany {
   id: string;
   adminRoleId: string;
+  /** Non-admin, non-system role, for testing what a plain member may not do. */
+  memberRoleId: string;
 }
 
 export interface SeededTenant {
@@ -46,16 +51,18 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       values (${tenantId}, ${`Company ${i} ${suffix} S.A.S.`}, ${`9${suffix}${i}`}) returning id`;
     const [role] = await sql<{ id: string }[]>`
       insert into kernel.roles(company_id, name, is_system) values (${company!.id}, 'admin', true) returning id`;
-    companies.push({ id: company!.id, adminRoleId: role!.id });
+    const [memberRole] = await sql<{ id: string }[]>`
+      insert into kernel.roles(company_id, name, is_system) values (${company!.id}, 'member', false) returning id`;
+    companies.push({ id: company!.id, adminRoleId: role!.id, memberRoleId: memberRole!.id });
   }
 
-  const wanted = [
+  const wanted: NonNullable<SeedOptions["users"]> = [
     { name: "both", companies: companies.map((_, i) => i) },
     { name: "onlyA", companies: [0] },
     ...(options.users ?? []),
   ];
   const users: Record<string, string> = {};
-  const memberOf = new Map<string, number[]>();
+  const memberOf = new Map<string, { companies: number[]; role: "admin" | "member" }>();
   const createdUsers: string[] = [];
   for (const user of wanted) {
     const email = `${user.name.toLowerCase()}-${suffix}@test.local`;
@@ -69,10 +76,11 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       const company = companies[index]!;
       const [membership] = await sql<{ id: string }[]>`
         insert into kernel.memberships(user_id, company_id) values (${id}, ${company.id}) returning id`;
-      await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${company.adminRoleId})`;
+      await sql`insert into kernel.membership_roles(membership_id, role_id)
+        values (${membership!.id}, ${user.role === "member" ? company.memberRoleId : company.adminRoleId})`;
     }
     users[user.name] = id;
-    memberOf.set(id, user.companies);
+    memberOf.set(id, { companies: user.companies, role: user.role ?? "admin" });
   }
 
   const companyIds = companies.map((c) => c.id);
@@ -81,13 +89,16 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
     companies,
     users: users as SeededTenant["users"],
     claimsFor(userId, activeCompanyId) {
-      const memberCompanies = (memberOf.get(userId) ?? []).map((i) => companies[i]!);
+      const member = memberOf.get(userId);
+      const memberCompanies = (member?.companies ?? []).map((i) => companies[i]!);
       return {
         sub: userId,
         tenant_id: tenantId,
         company_ids: memberCompanies.map((c) => c.id),
         active_company_id: activeCompanyId,
-        role_ids: memberCompanies.filter((c) => c.id === activeCompanyId).map((c) => c.adminRoleId),
+        role_ids: memberCompanies
+          .filter((c) => c.id === activeCompanyId)
+          .map((c) => (member?.role === "member" ? c.memberRoleId : c.adminRoleId)),
         locale: "es-419",
       };
     },
