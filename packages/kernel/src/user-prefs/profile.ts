@@ -11,7 +11,8 @@ export interface CallerProfile {
 
 /**
  * Who the shell greets (design §19a top bar): the caller's name and e-mail, their role names in the active
- * company and the companies they may switch to. Read as the caller, under RLS.
+ * company (the roles they still hold, `kernel.current_role_ids()`, 0024) and the companies they may switch to.
+ * Read as the caller, under RLS.
  */
 export async function callerProfile(sql: Sql, claims: JwtClaims): Promise<CallerProfile> {
   return withClaims(sql, claims, async (tx) => {
@@ -19,7 +20,7 @@ export async function callerProfile(sql: Sql, claims: JwtClaims): Promise<Caller
       select id, full_name, email from kernel.users where id = ${claims.sub}`;
     const roles = await tx<{ name: string }[]>`
       select r.name from kernel.roles r
-      where r.id = any (${claims.role_ids}::uuid[]) and r.company_id = ${claims.active_company_id}
+      where r.id = any (kernel.current_role_ids()) and r.company_id = ${claims.active_company_id}
       order by r.name`;
     const companies = await tx<{ id: string; legal_name: string; tax_id: string | null; timezone: string }[]>`
       select id, legal_name, tax_id, timezone from kernel.companies

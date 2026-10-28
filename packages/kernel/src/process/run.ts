@@ -173,7 +173,10 @@ async function execute<O extends z.ZodTypeAny>(
       });
       if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
 
-      const ctx = buildContext(tx, deps.registry, def, caller, chainId, dryRun);
+      // The roles the caller still holds (0024: the claim's roles intersected with the live memberships), so a role
+      // revoked after the token was issued no longer counts for the handler's own checks (custom-field roles).
+      const [live] = await tx<{ role_ids: string[] }[]>`select kernel.current_role_ids() as role_ids`;
+      const ctx = buildContext(tx, deps.registry, def, caller, chainId, dryRun, live!.role_ids);
       let output: unknown;
       try {
         output = await def.handler(ctx, parsed.data);
@@ -238,7 +241,7 @@ async function consumeStepUp(tx: Tx, processId: string, token: string, userId: s
   if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`, GATE);
 }
 
-function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean): ProcessContext {
+function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean, roleIds: string[]): ProcessContext {
   const { claims } = caller;
   return {
     tx,
@@ -246,7 +249,7 @@ function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Calle
     companyId: claims.active_company_id,
     tenantId: claims.tenant_id,
     userId: claims.sub,
-    roleIds: claims.role_ids,
+    roleIds,
     locale: claims.locale,
     origin: caller.origin,
     chainId,

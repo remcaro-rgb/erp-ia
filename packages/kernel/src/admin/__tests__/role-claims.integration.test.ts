@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { withClaims, type JwtClaims } from "../../db/client";
+import { createDb, withClaims, type JwtClaims } from "../../db/client";
 import { ensureRoleProbe, seedTenant, testDb } from "../../db/test-db";
 import { Registry } from "../../registry";
 import { loadModules } from "../../module/loader";
@@ -99,5 +99,34 @@ describe("kernel role claims: revocation applies before the token refresh", () =
     expect(service).toEqual({ role_ids: [], secret: "s3" });
     const system: JwtClaims = { sub: SYSTEM_USER_ID, tenant_id: seed.tenantId, company_ids: [companyId], active_company_id: companyId, role_ids: [adminRoleId], locale: "es-419" };
     expect(await probe(system)).toMatchObject({ role_ids: [adminRoleId], admin: true, can: true, mode: "visible", secret: "s3" });
+  });
+
+  it("the system user's claim does not count through PostgREST (session user authenticator)", async () => {
+    const system = { role: "authenticated", sub: SYSTEM_USER_ID, tenant_id: seed.tenantId, company_ids: [companyId], active_company_id: companyId, role_ids: [adminRoleId] };
+    // PostgREST's own login (same password as the service user on the CLI and the compose stacks).
+    const url = new URL(process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres");
+    url.username = "authenticator";
+    const rest = createDb(url.toString());
+    try {
+      const [row] = await rest.begin(async (tx) => {
+        await tx`select set_config('request.jwt.claims', ${JSON.stringify(system)}, true)`;
+        await tx`set local role authenticated`;
+        return tx<{ session_user: string; role_ids: string[]; admin: boolean }[]>`
+          select session_user, kernel.current_role_ids() as role_ids, kernel.is_company_admin() as admin`;
+      });
+      expect(row).toEqual({ session_user: "authenticator", role_ids: [], admin: false });
+    } finally {
+      await rest.end();
+    }
+  });
+
+  it("only signed-in sessions and the service role may call current_role_ids", async () => {
+    const [grants] = await sql<{ anon: boolean; public_: boolean; authenticated: boolean; service_role: boolean }[]>`
+      select has_function_privilege('anon', 'kernel.current_role_ids()', 'execute') as anon,
+             exists (select 1 from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                     where p.oid = 'kernel.current_role_ids()'::regprocedure and a.grantee = 0) as public_,
+             has_function_privilege('authenticated', 'kernel.current_role_ids()', 'execute') as authenticated,
+             has_function_privilege('service_role', 'kernel.current_role_ids()', 'execute') as service_role`;
+    expect(grants).toEqual({ anon: false, public_: false, authenticated: true, service_role: true });
   });
 });

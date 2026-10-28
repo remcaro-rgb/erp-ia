@@ -1,6 +1,9 @@
 import "server-only";
-import { createHash } from "node:crypto";
 import { getServiceDb } from "@erp/kernel";
+import { storedKey } from "./limiter-keys";
+
+// The keys and their stored form live in ./limiter-keys (no server-only import, so the test fixtures share them).
+export { isAcceptableEmail, loginKey, MAX_EMAIL_LENGTH, mfaKey, stepUpKey, storedKey } from "./limiter-keys";
 
 // Per-account attempt limiter (design §6): at most MAX_ATTEMPTS tries per WINDOW_MINUTES for a key, counted in
 // `kernel.auth_attempts` before Auth is called, cleared by a success. Auth's own limits are per IP and all our
@@ -14,20 +17,8 @@ import { getServiceDb } from "@erp/kernel";
 
 export const MAX_ATTEMPTS = 10;
 export const WINDOW_MINUTES = 5;
-/** The longest address SMTP carries (RFC 5321 path limit): anything longer is not an account. */
-export const MAX_EMAIL_LENGTH = 254;
 const PURGE_AFTER_MINUTES = 60;
 const PURGE_BATCH = 100;
-
-export const loginKey = (email: string) => `login:${email.trim().toLowerCase()}`;
-export const mfaKey = (userId: string) => `mfa:${userId}`;
-export const stepUpKey = (userId: string) => `stepup:${userId}`;
-
-/** Whether `email` (as typed) may be an account's address at all; the sign-in refuses it before counting otherwise. */
-export const isAcceptableEmail = (email: string) => email.trim().length <= MAX_EMAIL_LENGTH;
-
-/** The primary key a counter is stored under: the sha256 (hex) of the lower-cased key. */
-export const storedKey = (key: string) => createHash("sha256").update(key.toLowerCase()).digest("hex");
 
 /**
  * Records one attempt for `key` and says whether it may go ahead (false from the 11th attempt in the window).

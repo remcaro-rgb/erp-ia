@@ -21,6 +21,7 @@ export interface ProcessContext {
   companyId: string;
   tenantId: string;
   userId: string;
+  /** The caller's roles in the company that they still hold (`kernel.current_role_ids()`, read in the run's transaction). */
   roleIds: string[];
   locale: string;
   origin: Origin;

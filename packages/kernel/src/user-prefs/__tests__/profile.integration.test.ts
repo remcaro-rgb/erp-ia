@@ -35,6 +35,17 @@ describe("callerProfile", () => {
     expect(zoneOf(seed.companies[0]!.id)).toBe("America/Bogota");
   });
 
+  it("names only the roles the caller still holds, even with older claims (final re-review)", async () => {
+    const company = seed.companies[0]!;
+    // Claims issued while the cashier also held the admin role, which is then taken away.
+    const stale = { ...seed.claimsFor(seed.users.cashier!, company.id), role_ids: [company.memberRoleId, company.adminRoleId] };
+    await seed.holdRoles(seed.users.cashier!, company.id, [company.adminRoleId]);
+    expect((await callerProfile(sql, stale)).roles).toEqual(["admin", "member"]);
+    await sql`delete from kernel.membership_roles where role_id = ${company.adminRoleId}
+              and membership_id = (select id from kernel.memberships where user_id = ${seed.users.cashier!} and company_id = ${company.id})`;
+    expect((await callerProfile(sql, stale)).roles).toEqual(["member"]);
+  });
+
   it("a member of one company sees only that company", async () => {
     const profile = await callerProfile(sql, seed.claimsFor(seed.users.cashier!, seed.companies[0]!.id));
     expect(profile.roles).toEqual(["member"]);

@@ -45,6 +45,11 @@ as $$
   );
 $$;
 
+-- Only a signed-in session (its policies and helpers) and the service role call it; the security definer helpers that
+-- read it run as their owner.
+revoke execute on function kernel.current_role_ids() from public, anon;
+grant execute on function kernel.current_role_ids() to authenticated, service_role;
+
 -- Same body as 0003 with the caller's roles read once per call (the masked views call it per row).
 create or replace function kernel.mask_extra(p_entity text, p_extra jsonb) returns jsonb
 language plpgsql stable security definer parallel safe

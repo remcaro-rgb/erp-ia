@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
-import { loginKey, MAX_ATTEMPTS, resetAttempts, storedKey, takeAttempt } from "@/lib/auth/limiter";
+import { loginKey, MAX_ATTEMPTS, mfaKey, resetAttempts, stepUpKey, storedKey, takeAttempt } from "@/lib/auth/limiter";
+import { seedAuthUser } from "../../../../test-support/auth-fixtures";
 
 const keys: string[] = [];
 const freshKey = () => {
@@ -68,6 +69,14 @@ describe("per-account attempt limiter", () => {
     await takeAttempt(freshKey());
     const left = await sql<{ key: string }[]>`select key from kernel.auth_attempts where key = any(${[stale, recent, blocked].map(storedKey)}::text[])`;
     expect(left.map((r) => r.key).sort()).toEqual([storedKey(recent), storedKey(blocked)].sort());
+  });
+
+  it("the auth fixtures' cleanup removes the user's hashed counters (final re-review)", async () => {
+    const fixture = await seedAuthUser({ role: "member" });
+    const stored = [loginKey(fixture.email), mfaKey(fixture.userId), stepUpKey(fixture.userId)].map(storedKey);
+    for (const key of [loginKey(fixture.email), mfaKey(fixture.userId), stepUpKey(fixture.userId)]) await takeAttempt(key);
+    await fixture.cleanup();
+    expect(await getServiceDb()`select key from kernel.auth_attempts where key = any(${stored}::text[])`).toHaveLength(0);
   });
 
   it("is invisible and unwritable to the signed-in role", async () => {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as OTPAuth from "otpauth";
 import postgres, { type Sql } from "postgres";
+import { loginKey, mfaKey, stepUpKey, storedKey } from "../src/lib/auth/limiter-keys";
 import { testEnv } from "./env";
 
 // Real users in the local Supabase stack for the auth tests (integration and Playwright): a tenant with
@@ -77,7 +78,8 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
     admin,
     async cleanup() {
       try {
-        await sql`delete from kernel.auth_attempts where key = any(${[`login:${email}`, `mfa:${userId}`, `stepup:${userId}`]}::text[])`;
+        // The limiter stores each key hashed (final review I2).
+        await sql`delete from kernel.auth_attempts where key = any(${[loginKey(email), mfaKey(userId), stepUpKey(userId)].map(storedKey)}::text[])`;
         await sql`delete from kernel.step_up_verifications where user_id = ${userId}`;
         // The outbox is shared by every suite and drained across companies: take this fixture's rows with it.
         await sql`delete from kernel.outbox where company_id = any(${companyIds}::uuid[])`;

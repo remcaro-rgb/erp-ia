@@ -169,6 +169,29 @@ describe("custom fields", () => {
     expect((await party(partyId)).extra).toEqual({ canal: "Retail", origen: "Huila" });
   });
 
+  it("a revoked role stops counting for the custom-field roles at once, even with the old claims (final re-review)", async () => {
+    const [origenes] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${h.companyId}, 'origenes') returning id`;
+    const roleId = origenes!.id;
+    try {
+      await h.seed.holdRoles(h.seed.users.seller!, h.companyId, [roleId]);
+      const oldClaims: Caller = { claims: { ...seller.claims, role_ids: [memberRole, roleId] }, origin: "ui" };
+      await define(admin, { key: "origen", label: "Origen del café", type: "text", options: undefined, rolesEnter: [adminRole, roleId], rolesEdit: [adminRole, roleId], rolesView: [adminRole, roleId] });
+      const partyId = await newParty();
+      await runProcess(deps, oldClaims, "core.party.update", { id: partyId, extra: { origen: "Huila" } });
+      expect((await party(partyId)).extra).toEqual({ origen: "Huila" });
+
+      await runProcess(deps, await stepUp(admin), "kernel.admin.user_role.set", { userId: h.seed.users.seller!, roleIds: [memberRole] });
+      const denied = await runProcess(deps, oldClaims, "core.party.update", { id: partyId, extraPatch: { origen: "Nariño" } }).catch((e: unknown) => e);
+      expect(denied).toMatchObject({ code: "invalid_input" });
+      expect(details(denied)).toContain("Origen del café: tu rol no puede modificar este dato");
+      expect((await party(partyId)).extra).toEqual({ origen: "Huila" });
+    } finally {
+      await sql`delete from kernel.membership_roles where role_id = ${roleId}`;
+      await sql`delete from kernel.custom_fields where company_id = ${h.companyId}`;
+      await sql`delete from kernel.roles where id = ${roleId}`;
+    }
+  });
+
   it("a role not in roles_view does not receive the key from a consult, and cannot erase it by saving", async () => {
     await define(admin);
     await define(admin, { key: "dia_pago", label: "Día de pago habitual", type: "number", options: undefined, rolesView: [adminRole], rolesEnter: [adminRole], rolesEdit: [adminRole] });
