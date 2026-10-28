@@ -105,19 +105,40 @@ create policy ticket_access on support.ticket_messages as restrictive for all to
   with check (
     exists (select 1 from support.tickets t where t.id = ticket_messages.ticket_id)
     and (not is_internal or (select support.is_agent()))
+    and author_user_id = (select kernel.current_user_id())
   );
+
+-- Writes only through the process pipeline (rule 1): runProcess sets erp.audit_process_id for the
+-- transaction it runs, so a direct insert or update by a user (through the API, say) is refused: nobody
+-- reopens a closed ticket, retitles it or writes a message under another author outside support.ticket.*.
+create policy via_process_insert on support.tickets as restrictive for insert to authenticated
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'support.ticket.%');
+create policy via_process_update on support.tickets as restrictive for update to authenticated
+  using (coalesce(current_setting('erp.audit_process_id', true), '') like 'support.ticket.%')
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'support.ticket.%');
+create policy via_process_insert on support.ticket_messages as restrictive for insert to authenticated
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'support.ticket.%');
+create policy via_process_update on support.ticket_messages as restrictive for update to authenticated
+  using (coalesce(current_setting('erp.audit_process_id', true), '') like 'support.ticket.%')
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'support.ticket.%');
 
 -- ---------------------------------------------------------------------------------------------
 -- Hooks every module that owns entities defines (kernel.notify_attachments_changed, 0007, and
 -- kernel.notify_custom_field_changed, 0008, raise when the module has none). A ticket has no readiness
--- derived from its files or from required custom fields, so both are no-ops.
+-- derived from its files or from required custom fields; the files hook only refuses changes on a closed ticket
+-- and the custom field hook is a no-op.
 -- ---------------------------------------------------------------------------------------------
 create or replace function support.attachments_changed(p_entity text, p_company uuid, p_record_id uuid) returns void
 language plpgsql security definer
 set search_path = ''
 as $$
 begin
-  null;
+  -- A closed ticket is frozen: a file cannot be added to it or removed from it. (A change of the required
+  -- files of the entity, record null, concerns no ticket.)
+  if p_entity = 'support.ticket' and p_record_id is not null
+     and exists (select 1 from support.tickets t where t.id = p_record_id and t.company_id = p_company and t.status = 'closed') then
+    raise exception 'ticket % is closed: its files can no longer change', p_record_id using errcode = '23514';
+  end if;
 end;
 $$;
 revoke execute on function support.attachments_changed(text, uuid, uuid) from public, anon, authenticated;

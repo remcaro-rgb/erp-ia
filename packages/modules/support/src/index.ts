@@ -7,7 +7,8 @@ import { TICKET_PROCESSES } from "./processes/ticket";
 export const support: ModuleDef = defineModule({
   id: "support",
   version: "0.1.0",
-  dependsOn: [],
+  // Core is the base module: the record number `seq` (rule 7) comes from its helper (migration 0017).
+  dependsOn: ["core"],
   entities: SUPPORT_ENTITIES,
   processes: TICKET_PROCESSES,
   features: FEATURES,

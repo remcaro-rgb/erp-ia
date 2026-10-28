@@ -110,7 +110,13 @@ function NewTicketForm({ onOpenChange, onCreated }: NewTicketDialogProps) {
               {context.consoleErrors.length > 0 && (
                 <>
                   <dt>{t("common.support.ui.context_errors")}</dt>
-                  <dd className="erp-mono">{context.consoleErrors.length}</dd>
+                  <dd>
+                    <ul className="erp-support__errors erp-mono" aria-label={t("common.support.ui.context_errors")}>
+                      {context.consoleErrors.map((message, i) => (
+                        <li key={i}>{message}</li>
+                      ))}
+                    </ul>
+                  </dd>
                 </>
               )}
             </dl>

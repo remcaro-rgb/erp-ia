@@ -1,5 +1,6 @@
 import { kernelModule, loadModules, Registry, type Caller, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type SeededTenant } from "@erp/kernel/testing";
+import { core } from "@erp/module-core";
 import { support } from "../index";
 
 export type Db = ReturnType<typeof testDb>;
@@ -35,7 +36,7 @@ export interface SupportHarness {
 export async function supportHarness(): Promise<SupportHarness> {
   const sql = testDb();
   const registry = new Registry();
-  loadModules(registry, [kernelModule, support]);
+  loadModules(registry, [kernelModule, core, support]);
   const seed = await seedTenant(sql, {
     companies: 2,
     entitlements: ["module:support"],

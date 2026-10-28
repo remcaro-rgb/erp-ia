@@ -7,7 +7,7 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { Toaster as Sonner, toast, type ToasterProps } from "sonner"
 
 // The toast of the prototype (`--toast-bg` / `--toast-text`); its colours already follow the theme tokens.
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -34,4 +34,4 @@ const Toaster = ({ ...props }: ToasterProps) => {
   )
 }
 
-export { Toaster }
+export { Toaster, toast }

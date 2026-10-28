@@ -1,16 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { kernelModule, loadModules, Registry } from "@erp/kernel";
+import { core } from "@erp/module-core";
 import { support } from "../index";
 
 describe("support manifest", () => {
   it("loads into a registry with its processes, entities, feature, event and menu item", () => {
     const registry = new Registry();
-    loadModules(registry, [kernelModule, support]);
+    loadModules(registry, [kernelModule, core, support]);
     expect(registry.processes({ module: "support" }).map((p) => p.id).sort()).toEqual(
       ["support.ticket.close", "support.ticket.consult", "support.ticket.create", "support.ticket.reply", "support.ticket_message.consult"].sort(),
     );
     expect(registry.entities("support").map((e) => e.id).sort()).toEqual(["support.ticket", "support.ticket_message"]);
-    expect(support.dependsOn).toEqual([]);
+    expect(support.dependsOn).toEqual(["core"]);
     expect(support.features.map((f) => f.id)).toEqual(["support.tickets"]);
     expect(support.events.emits).toEqual(["support.ticket.created"]);
     expect(support.navigation).toEqual([{ id: "support.tickets", label: "nav.support.tickets", href: "/support", icon: "life-buoy", feature: "support.tickets" }]);

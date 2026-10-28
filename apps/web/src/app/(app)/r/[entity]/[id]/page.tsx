@@ -6,6 +6,7 @@ import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { AttachmentsPanel, ContactsTab, ExtraDataTab, PhotosTab, RecordFrame, extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
 import { loadRecord } from "@/lib/records/load";
 import { RecordForm } from "./record-form";
+import { TicketView } from "../../../support/ticket-view";
 
 // Full-page record (design §5.16): /r/<entity>/<id> renders the record frame with the entity's Datos form (party,
 // product, category) and the Contactos, Fotos, Datos adicionales and Archivos tabs; /r/<entity>/new is the empty form.
@@ -22,6 +23,15 @@ async function RecordView({ params }: { params: Params }) {
     entityName = decodeURIComponent(entityId);
   } catch {
     notFound();
+  }
+  // A support ticket has its own frame (Datos, Mensajes…): the same view the support screen opens in its sheet.
+  if (entityName === "support.ticket") {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
+    return (
+      <div className="mx-auto w-full max-w-6xl">
+        <TicketView id={id} />
+      </div>
+    );
   }
   let loaded;
   try {

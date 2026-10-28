@@ -182,6 +182,12 @@ describe("support tickets", () => {
       await expect(close(h.agent, ticketB)).rejects.toMatchObject({ code: "invalid_input" });
     });
 
+    it("a closed ticket cannot be reopened by a direct update", async () => {
+      await withClaims(h.sql, h.reporterB.claims, (tx) => tx`update support.tickets set status = 'open' where id = ${ticketB}`);
+      await withClaims(h.sql, h.agent.claims, (tx) => tx`update support.tickets set status = 'open' where id = ${ticketB}`);
+      expect((await h.sql`select status from support.tickets where id = ${ticketB}`)[0]!.status).toBe("closed");
+    });
+
     it("another company's agent cannot close it", async () => {
       await expect(close(h.agentOther, ticketA)).rejects.toMatchObject({ code: "not_found" });
     });
@@ -206,6 +212,78 @@ describe("support tickets", () => {
       await expect(attach(h.reporterA, ticketA)).resolves.toMatchObject({ entity: "support.ticket", recordId: ticketA, fileName: "captura.png" });
       await expect(attach(h.reporterA, ticketB)).rejects.toMatchObject({ code: "not_found" });
       await expect(attach(h.plain, ticketA)).rejects.toMatchObject({ code: "forbidden" });
+    });
+
+    it("a reporter cannot list the files of another reporter's ticket", async () => {
+      for (const role of [h.roles.reporter, h.roles.agent]) {
+        await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${role}, 'kernel.attachment.list')`;
+      }
+      await expect(runProcess(h.deps, h.reporterA, "kernel.attachment.list", { entity: "support.ticket", recordId: ticketB })).rejects.toMatchObject({ code: "not_found" });
+      const own = (await runProcess(h.deps, h.reporterA, "kernel.attachment.list", { entity: "support.ticket", recordId: ticketA })) as unknown[];
+      expect(own).toHaveLength(1);
+    });
+
+    it("a closed ticket takes no new files and loses none: the files hook refuses the change", async () => {
+      const add = runProcess(h.deps, h.reporterB, "kernel.attachment.add", {
+        entity: "support.ticket",
+        recordId: ticketB,
+        tag: "Captura",
+        fileName: "tarde.png",
+        mimeType: "image/png",
+        sizeBytes: 100,
+        storagePath: `${h.seed.tenantId}/${h.companyId}/support.ticket/${ticketB}/0192a1b2-tarde.png`,
+      });
+      // The hook raises inside the kernel's handler, which reports an untyped failure (a typed invalid_input needs a kernel change).
+      await expect(add).rejects.toMatchObject({ code: "handler_failed" });
+      expect(await h.sql`select 1 from kernel.attachments where record_id = ${ticketB}`).toHaveLength(0);
+    });
+
+    it("a reporter holding the message consult gets not_found for an internal note", async () => {
+      await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${h.roles.reporter}, 'support.ticket_message.consult')`;
+      const [note] = await h.sql<{ id: string }[]>`select id from support.ticket_messages where ticket_id = ${ticketA} and is_internal`;
+      const [pub] = await h.sql<{ id: string }[]>`select id from support.ticket_messages where ticket_id = ${ticketA} and not is_internal limit 1`;
+      await expect(runProcess(h.deps, h.reporterA, "support.ticket_message.consult", { id: note!.id })).rejects.toMatchObject({ code: "not_found" });
+      await expect(runProcess(h.deps, h.reporterA, "support.ticket_message.consult", { id: pub!.id })).resolves.toMatchObject({ id: pub!.id });
+      await expect(runProcess(h.deps, h.agent, "support.ticket_message.consult", { id: note!.id })).resolves.toMatchObject({ id: note!.id });
+    });
+  });
+
+  describe("writes only through the processes", () => {
+    const asReporter = <T,>(caller: SupportHarness["reporterA"], fn: (tx: Parameters<Parameters<typeof withClaims>[2]>[0]) => Promise<T>) =>
+      withClaims(h.sql, caller.claims, fn);
+    const asProcess = async (tx: Parameters<Parameters<typeof withClaims>[2]>[0], id: string) => {
+      await tx`select set_config('erp.audit_process_id', ${id}, true)`;
+    };
+
+    it("a user cannot insert tickets or messages directly", async () => {
+      await expect(
+        asReporter(h.reporterA, (tx) => tx`insert into support.tickets(company_id, kind, title, body) values (${h.companyId}, 'bug', 'directo', 'x')`),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        asReporter(h.reporterA, (tx) => tx`insert into support.ticket_messages(company_id, ticket_id, body) values (${h.companyId}, ${ticketA}, 'directo')`),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+
+    it("a user cannot change a ticket directly: status, title and priority stay as the processes left them", async () => {
+      const [before] = await h.sql`select status, title, priority from support.tickets where id = ${ticketB}`;
+      await asReporter(h.reporterB, (tx) => tx`update support.tickets set status = 'open', title = 'cambiado', priority = 'high' where id = ${ticketB}`);
+      expect((await h.sql`select status, title, priority from support.tickets where id = ${ticketB}`)[0]).toEqual(before);
+    });
+
+    it("even inside a support process a message cannot be written under another author", async () => {
+      await expect(
+        asReporter(h.reporterA, async (tx) => {
+          await asProcess(tx, "support.ticket.reply");
+          await tx`insert into support.ticket_messages(company_id, ticket_id, author_user_id, body) values (${h.companyId}, ${ticketA}, ${h.seed.users.agent!}, 'suplantado')`;
+        }),
+      ).rejects.toMatchObject({ code: "42501" });
+      // Under the process pipeline and as themselves, the same insert is allowed.
+      await asReporter(h.reporterA, async (tx) => {
+        await asProcess(tx, "support.ticket.reply");
+        await tx`insert into support.ticket_messages(company_id, ticket_id, author_user_id, body) values (${h.companyId}, ${ticketA}, ${h.seed.users.reporterA!}, 'propio')`;
+      });
+      expect(await h.sql`select 1 from support.ticket_messages where body = 'propio'`).toHaveLength(1);
+      await h.sql`delete from support.ticket_messages where body = 'propio'`;
     });
   });
 

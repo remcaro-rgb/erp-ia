@@ -45,19 +45,42 @@ export function withError(state: CaptureState, message: string): CaptureState {
   return text === "" ? state : { ...state, errors: [...state.errors, text.slice(0, MAX_ERROR_LENGTH)].slice(-MAX_ERRORS) };
 }
 
-/** One line for what `console.error(...)` was called with. */
+const SECRET_KEY = /token|secret|password|authorization|cookie/i;
+/** `key=value` / `key: value` text whose key looks like a secret (an optional `Bearer ` is part of the value). */
+const SECRET_TEXT = /\b([\w-]*(?:token|secret|password|authorization|cookie)[\w-]*)(\s*[:=]\s*)(?:Bearer\s+)?[^\s,;&"']+/gi;
+const REDACTED = "[redacted]";
+const MAX_DEPTH = 3;
+const MAX_ENTRIES = 20;
+
+const redactText = (text: string): string => text.replace(SECRET_TEXT, `$1$2${REDACTED}`);
+
+/** A bounded JSON-like rendering: strings cut first, at most 20 entries and 3 levels, secret keys redacted, cycles harmless. */
+function render(value: unknown, depth: number): string {
+  if (typeof value === "string") return JSON.stringify(redactText(value.slice(0, MAX_ERROR_LENGTH)));
+  if (value instanceof Error) return JSON.stringify(redactText(`${value.name}: ${value.message}`.slice(0, MAX_ERROR_LENGTH)));
+  if (value === null || typeof value !== "object") return String(value);
+  if (depth >= MAX_DEPTH) return '"[…]"';
+  if (Array.isArray(value)) return `[${value.slice(0, MAX_ENTRIES).map((item) => render(item, depth + 1)).join(",")}]`;
+  const entries = Object.keys(value)
+    .slice(0, MAX_ENTRIES)
+    .map((key) => `${JSON.stringify(key.slice(0, 100))}:${SECRET_KEY.test(key) ? `"${REDACTED}"` : render((value as Record<string, unknown>)[key], depth + 1)}`);
+  return `{${entries.join(",")}}`;
+}
+
+/**
+ * One line for what `console.error(...)` was called with. Each argument is cut to the bound before anything is
+ * stringified, the values of keys that look like secrets (token, secret, password, authorization, cookie) are
+ * replaced, and so is the value after such a name in plain text.
+ */
 export function describeError(args: readonly unknown[]): string {
   return args
     .map((arg) => {
-      if (arg instanceof Error) return `${arg.name}: ${arg.message}`;
-      if (typeof arg === "string") return arg;
-      try {
-        return JSON.stringify(arg) ?? String(arg);
-      } catch {
-        return String(arg);
-      }
+      if (typeof arg === "string") return redactText(arg.slice(0, MAX_ERROR_LENGTH));
+      if (arg instanceof Error) return redactText(`${arg.name}: ${arg.message}`.slice(0, MAX_ERROR_LENGTH));
+      return render(arg, 0).slice(0, MAX_ERROR_LENGTH);
     })
-    .join(" ");
+    .join(" ")
+    .slice(0, MAX_ERROR_LENGTH);
 }
 
 /** The context to send: the live selection wins over the remembered one, and a user who never left the support screen gets that screen. */

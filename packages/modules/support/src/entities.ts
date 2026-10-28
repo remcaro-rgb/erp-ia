@@ -3,7 +3,8 @@ import type { EntityDef, FieldDef, FieldType } from "@erp/kernel";
 // Entities of the support module (design §8): tickets and their conversation. Labels are i18n keys
 // (`entity.<id>`, `field.<id>.<column>`). The masked views `support.v_<table>` in migration 0017 are generated
 // from these definitions by maskedViewSql (views.test.ts fails when they drift). The ticket's captured
-// `context` (route, selection, console errors) is confidential by default: an admin decides who reads it.
+// `context` (route, selection, console errors) is declared `confidential`: that is metadata for the field visibility
+// matrix (the kernel-wide default masking is Task 19's); until then an admin masks or hides it per role.
 
 type FieldOptions = Omit<FieldDef, "name" | "type" | "label">;
 

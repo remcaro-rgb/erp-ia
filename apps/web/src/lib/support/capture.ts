@@ -11,7 +11,7 @@ let state = emptyCapture();
 /** Starts listening (errors, rejections, console.error, selection); returns the function that stops. */
 export function installCapture(): () => void {
   const onError = (event: ErrorEvent) => {
-    state = withError(state, event.error instanceof Error ? describeError([event.error]) : event.message);
+    state = withError(state, event.error instanceof Error ? describeError([event.error]) : describeError([event.message]));
   };
   const onRejection = (event: PromiseRejectionEvent) => {
     state = withError(state, describeError([event.reason]));

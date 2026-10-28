@@ -41,6 +41,26 @@ describe("ticket context capture", () => {
     expect(describeError([])).toBe("");
   });
 
+  it("bounds each argument before it is stringified, so a huge object or string costs nothing", () => {
+    const huge = "z".repeat(1_000_000);
+    expect(describeError([huge]).length).toBeLessThanOrEqual(MAX_ERROR_LENGTH);
+    const wide = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`k${i}`, i]));
+    expect(describeError([wide]).length).toBeLessThanOrEqual(MAX_ERROR_LENGTH);
+    const cyclic: Record<string, unknown> = { a: 1 };
+    cyclic.self = cyclic;
+    expect(() => describeError([cyclic])).not.toThrow();
+    expect(describeError([new Error("e".repeat(5000))]).length).toBeLessThanOrEqual(MAX_ERROR_LENGTH);
+  });
+
+  it("redacts the values of keys that look like secrets, in objects and in key=value text", () => {
+    const text = describeError([{ user: "ana", token: "abc123", nested: { Password: "p4ss", ok: 1 }, headers: { Authorization: "Bearer xyz", cookie: "sid=1" }, client_secret: "s" }]);
+    for (const leaked of ["abc123", "p4ss", "Bearer xyz", "sid=1", '"s"']) expect(text).not.toContain(leaked);
+    expect(text).toContain("ana");
+    expect(text).toContain("[redacted]");
+    expect(describeError(["fetch failed: token=abc123 password: hunter2 for ana"])).toBe("fetch failed: token=[redacted] password: [redacted] for ana");
+    expect(describeError(["Authorization: Bearer abc.def"])).not.toContain("abc.def");
+  });
+
   it("builds the context the ticket process takes, preferring the live selection and falling back to the screen itself", () => {
     const state = withError(withSelection(withRoute(emptyCapture(), "/products"), "CAF-GRA-500", "/products"), "boom");
     expect(captured(state, { pathname: "/support", selection: "" })).toEqual({ route: "/products", selection: "CAF-GRA-500", lastAuditIds: [], consoleErrors: ["boom"] });

@@ -83,6 +83,8 @@ test.describe("support tickets", () => {
     // The browser reports a selection change a moment after it happens; opening ⌘K moves focus and clears it.
     await expect.poll(() => mine.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("Inicio");
     await mine.waitForTimeout(300);
+    // A console error the page raised travels with the ticket, with the secret in it redacted.
+    await mine.evaluate(() => console.error("falló la llamada token=abc123 para Ana"));
     await mine.keyboard.press("ControlOrMeta+k");
     await mine.getByRole("combobox").fill("ticket");
     await mine.getByRole("option", { name: /Crear ticket de soporte/ }).click();
@@ -91,6 +93,7 @@ test.describe("support tickets", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("Pantalla", { exact: true })).toBeVisible();
     await expect(dialog.locator("dd.erp-mono").first()).toHaveText("/");
+    await expect(dialog.getByRole("list", { name: "Errores de consola" }).getByText("falló la llamada token=[redacted] para Ana")).toBeVisible();
     await dialog.getByLabel("Tipo").selectOption("bug");
     await dialog.getByLabel("Título").fill("El botón Salir no responde");
     await dialog.getByLabel("Cuéntanos qué pasó o qué necesitas").fill("Hago clic en Salir y no pasa nada.");
@@ -110,6 +113,8 @@ test.describe("support tickets", () => {
     expect(ticket!.context.route).toBe("/");
     expect(ticket!.context.selection).toContain("Inicio");
     expect(ticket!.context.lastAuditIds).toEqual([]);
+    expect(ticket!.context.consoleErrors).toContain("falló la llamada token=[redacted] para Ana");
+    expect(JSON.stringify(ticket!.context)).not.toContain("abc123");
     await mine.keyboard.press("Escape");
 
     // --- The agent sees every ticket of the company, answers, and leaves an internal note.
@@ -151,6 +156,13 @@ test.describe("support tickets", () => {
     await expect(mySheet.getByText("fue el cierre de sesión del proxy")).toHaveCount(0);
     await expect(mySheet.getByLabel(/Nota interna/)).toHaveCount(0);
     await expect(mySheet.getByRole("button", { name: "Cerrar ticket" })).toHaveCount(0);
+
+    // The frame's link opens the same ticket as a full page (rule 21), for the reporter and not for another reporter's.
+    await expect(mySheet.getByRole("link", { name: /Abrir en una pestaña nueva/ })).toHaveAttribute("href", `/r/support.ticket/${ticket!.id}`);
+    await mine.goto(`/r/support.ticket/${ticket!.id}`);
+    await expect(mine.getByRole("heading", { name: "El botón Salir no responde" })).toBeVisible();
+    await expect(mine.getByRole("tab", { name: /Mensajes/ })).toBeVisible();
+    await mine.goto("/support");
 
     // The reporter only ever sees their own tickets: the agent's grid and theirs differ by owner, not by company.
     await reporter.sql`insert into support.tickets(company_id, reporter_user_id, kind, title, body) values (${companyId}, ${agent.userId}, 'question', 'Ticket ajeno', 'No es del solicitante')`;

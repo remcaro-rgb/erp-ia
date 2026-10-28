@@ -16,20 +16,20 @@ Para que soporte entienda el caso sin preguntarte todo, el ticket lleva, si no l
 
 - la **pantalla** en la que estabas antes de abrirlo (por ejemplo `/parties`),
 - el **texto seleccionado** en esa pantalla, si habías marcado alguno,
-- los **errores de consola** que el navegador registró.
+- los **errores de consola** que el navegador registró (los valores de claves como token, contraseña o cookie se reemplazan por `[redacted]` antes de enviarlos).
 
-Antes de enviar ves un resumen en «Contexto que se adjunta». Desmarca **Adjuntar el contexto de la pantalla** si no quieres enviarlo. Tu administrador puede ocultar el contexto a ciertos roles: es un dato sensible por defecto.
+Antes de enviar ves exactamente lo que se envía, incluida la lista de errores, en «Contexto que se adjunta». Desmarca **Adjuntar el contexto de la pantalla** si no quieres enviarlo. El contexto es un dato sensible del ticket: el administrador puede enmascararlo u ocultarlo para ciertos roles en la matriz de visibilidad de campos (campo «Contexto capturado» del ticket). Por sí solo no se oculta: lo ve quien pueda ver el ticket, salvo que el administrador lo restrinja.
 
 ## Seguir la conversación
 
-Abre el ticket desde la lista (clic en la fila). Tiene cuatro pestañas:
+Abre el ticket desde la lista (clic en la fila); con «Abrir en una pestaña nueva» se abre como página completa. Tiene cuatro pestañas:
 
 - **Datos**: tipo, estado, prioridad, descripción y contexto.
 - **Mensajes**: la conversación. Escribe en **Tu respuesta** y pulsa **Responder**.
 - **Datos adicionales**: los campos que definió tu administrador.
 - **Archivos**: adjunta capturas o documentos (hasta 25 MB cada uno, con una etiqueta).
 
-El **estado** cambia solo: **Abierto** cuando esperas a soporte, **Respondido** cuando soporte te contestó, **Cerrado** cuando el caso terminó. Si respondes un ticket **Respondido**, vuelve a **Abierto**. Un ticket **Cerrado** ya no recibe respuestas: abre uno nuevo.
+El **estado** cambia solo: **Abierto** cuando esperas a soporte, **Respondido** cuando soporte te contestó, **Cerrado** cuando el caso terminó. Si respondes un ticket **Respondido**, vuelve a **Abierto**. Un ticket **Cerrado** ya no recibe respuestas ni archivos nuevos: abre uno nuevo.
 
 ## Quién ve qué
 
