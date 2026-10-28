@@ -2,13 +2,13 @@ import uom from "../data/uom.json" with { type: "json" };
 
 // DIAN Anexo técnico FE 1.9: tables 13.3.5 (identification scheme), 13.3.6 (UoM), 13.3.10 (reference price), 13.3.11 (IVA), 13.2.2 (other taxes).
 
-export type ItemIdScheme = { code: "999" | "010" | "001" | "020"; name: string; kind: "own" | "gtin" | "digits"; length: number; standardCodeLabel: string };
+export type ItemIdScheme = { code: "999" | "010" | "001" | "020"; name: string; kind: "own" | "gtin" | "digits"; length: number; shortName: string; standardCodeLabel: string };
 
 export const ITEM_ID_SCHEMES: ItemIdScheme[] = [
-  { code: "999", name: "Código propio del contribuyente", kind: "own", length: 0, standardCodeLabel: "Código estándar" },
-  { code: "010", name: "GTIN / EAN (GS1)", kind: "gtin", length: 14, standardCodeLabel: "Código GTIN" },
-  { code: "001", name: "UNSPSC (Colombia Compra Eficiente)", kind: "digits", length: 8, standardCodeLabel: "Código UNSPSC" },
-  { code: "020", name: "Partida arancelaria", kind: "digits", length: 10, standardCodeLabel: "Partida arancelaria" },
+  { code: "999", name: "Código propio del contribuyente", kind: "own", length: 0, shortName: "Código propio", standardCodeLabel: "Código estándar" },
+  { code: "010", name: "GTIN / EAN (GS1)", kind: "gtin", length: 14, shortName: "GTIN", standardCodeLabel: "Código GTIN" },
+  { code: "001", name: "UNSPSC (Colombia Compra Eficiente)", kind: "digits", length: 8, shortName: "UNSPSC", standardCodeLabel: "Código UNSPSC" },
+  { code: "020", name: "Partida arancelaria", kind: "digits", length: 10, shortName: "Partida arancelaria", standardCodeLabel: "Partida arancelaria" },
 ];
 
 export type UomCode = { code: string; name: string };

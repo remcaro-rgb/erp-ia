@@ -67,8 +67,13 @@ describe("validateParty", () => {
     expect(r.normalized.checkDigit).toBeNull();
   });
 
-  it("a foreign party cannot carry DANE codes nor use a domestic document type", () => {
-    expect(validateParty({ ...foreignSupplier, departmentCode: "11", municipalityCode: "11001" }).errors).toEqual(["Un tercero del exterior no lleva departamento ni municipio DANE"]);
+  it("a foreign party's DANE codes and postal code are cleared in the normalized output, without an error; it cannot use a domestic document type", () => {
+    const r = validateParty({ ...foreignSupplier, departmentCode: "11", municipalityCode: "11001", postalCode: "110111" });
+    expect(r.errors).toEqual([]);
+    expect(r.missing).toEqual([]);
+    expect(r.normalized.departmentCode).toBeUndefined();
+    expect(r.normalized.municipalityCode).toBeUndefined();
+    expect(r.normalized.postalCode).toBeUndefined();
     expect(validateParty({ ...foreignSupplier, documentType: "31", documentNumber: "900373115" }).errors[0]).toMatch(/exterior/);
   });
 

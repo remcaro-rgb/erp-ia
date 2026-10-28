@@ -45,10 +45,19 @@ describe("validateProduct", () => {
     expect(r.missing).toEqual([]);
   });
 
-  it("a good without standard cost is pending, not an error", () => {
+  it("a good without standard cost is neither an error nor pending (cost is internal, not DIAN data)", () => {
     const r = validateProduct({ ...good, standardCost: undefined });
     expect(r.errors).toEqual([]);
-    expect(r.missing).toEqual(["Costo estándar"]);
+    expect(r.missing).toEqual([]);
+  });
+
+  it("rejects NaN and Infinity in every numeric field", () => {
+    expect(validateProduct({ ...good, listPrice: NaN }).errors).toEqual(["Precio de lista: debe ser un número válido"]);
+    expect(validateProduct({ ...good, listPrice: Infinity }).errors).toEqual(["Precio de lista: debe ser un número válido"]);
+    expect(validateProduct({ ...good, standardCost: NaN }).errors).toEqual(["Costo estándar: debe ser un número válido"]);
+    expect(validateProduct({ ...good, minStock: Infinity }).errors).toEqual(["Existencias mínimas: debe ser un número válido"]);
+    const free = { ...good, listPrice: 0, isFreeSample: true, referencePriceType: "1" } as const;
+    expect(validateProduct({ ...free, referencePrice: NaN }).errors).toEqual(["Precio de referencia: debe ser un número válido"]);
   });
 
   it("names the pending standard code of every scheme and accepts code 999 without one", () => {
@@ -105,6 +114,7 @@ describe("validateProduct", () => {
     const r = validateProduct(input);
     expect(input.trackStock).toBe(true);
     expect(r.normalized.trackStock).toBe(false);
+    expect(validateProduct({ ...input, minStock: 5 }).normalized.minStock).toBeUndefined();
   });
 });
 

@@ -1,11 +1,7 @@
 import type { ProductFiscalInput, ProductValidation } from "@erp/kernel";
 import { gtinValid } from "./gtin";
+import { clean } from "./util";
 import { INC_RATES, ITEM_ID_SCHEMES, ITEM_LIMITS, IVA_RATES, OTHER_TAXES, PRICE_TYPES, UOM_CODES } from "./item-tables";
-
-const clean = (s: string | undefined): string | undefined => {
-  const v = s?.trim();
-  return v ? v : undefined;
-};
 
 /** Colombian product validation (design §5.8b). `errors` block the save; `missing` only sets `dian_status`. */
 export function validateProduct(input: ProductFiscalInput): ProductValidation {
@@ -37,7 +33,7 @@ export function validateProduct(input: ProductFiscalInput): ProductValidation {
       if (gtinValid(standardCode)) standardCode = standardCode.padStart(scheme.length, "0");
       else errors.push("GTIN inválido: 8, 12, 13 o 14 dígitos con dígito de control GS1");
     } else if (!new RegExp(`^\\d{${scheme.length}}$`).test(standardCode)) {
-      errors.push(`${scheme.standardCodeLabel.replace(/^Código /, "")}: exactamente ${scheme.length} dígitos`);
+      errors.push(`${scheme.shortName}: exactamente ${scheme.length} dígitos`);
     }
   }
 
@@ -50,25 +46,36 @@ export function validateProduct(input: ProductFiscalInput): ProductValidation {
   if (brand && brand.length > ITEM_LIMITS.brand) errors.push(`Marca: máximo ${ITEM_LIMITS.brand} caracteres`);
   if (model && model.length > ITEM_LIMITS.model) errors.push(`Modelo: máximo ${ITEM_LIMITS.model} caracteres`);
 
+  // Numbers (NaN and Infinity are never valid)
+  const numeric: [number | undefined, string][] = [
+    [input.listPrice, "Precio de lista"],
+    [input.referencePrice, "Precio de referencia"],
+    [input.standardCost, "Costo estándar"],
+    [input.minStock, "Existencias mínimas"],
+  ];
+  for (const [value, label] of numeric) {
+    if (value !== undefined && !Number.isFinite(value)) errors.push(`${label}: debe ser un número válido`);
+  }
+  const finite = (v: number | undefined): v is number => v !== undefined && Number.isFinite(v);
+
   // Prices
-  const negative = input.listPrice < 0 || (input.standardCost !== undefined && input.standardCost < 0);
+  const negative = (finite(input.listPrice) && input.listPrice < 0) || (finite(input.standardCost) && input.standardCost < 0);
   if (negative) errors.push("Precio y costo no pueden ser negativos");
-  else if (!input.isFreeSample && !(input.listPrice > 0)) {
+  else if (!input.isFreeSample && Number.isFinite(input.listPrice) && !(input.listPrice > 0)) {
     errors.push("Precio de lista debe ser mayor que cero (o marca el producto como muestra gratuita)");
   }
   if (input.isFreeSample) {
     if (!input.referencePriceType || !PRICE_TYPES.some((t) => t.code === input.referencePriceType)) {
       errors.push("Tipo de precio de referencia inválido");
     }
-    if (!(input.referencePrice !== undefined && input.referencePrice > 0)) {
+    if (input.referencePrice === undefined || (Number.isFinite(input.referencePrice) && !(input.referencePrice > 0))) {
       errors.push("Precio de referencia de la muestra gratuita debe ser mayor que cero");
     }
   }
-  if (input.kind === "good" && input.standardCost === undefined) missing.push("Costo estándar");
 
   // Stock
   if (input.kind === "service" && input.trackStock) errors.push("Un servicio no controla existencias");
-  if (input.minStock !== undefined && input.minStock < 0) errors.push("Existencias mínimas no pueden ser negativas");
+  if (finite(input.minStock) && input.minStock < 0) errors.push("Existencias mínimas no pueden ser negativas");
 
   return {
     errors,
@@ -81,6 +88,7 @@ export function validateProduct(input: ProductFiscalInput): ProductValidation {
       brand,
       model,
       trackStock: input.kind === "service" ? false : input.trackStock,
+      minStock: input.kind === "service" ? undefined : input.minStock,
     },
   };
 }

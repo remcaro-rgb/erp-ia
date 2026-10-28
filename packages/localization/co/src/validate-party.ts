@@ -3,6 +3,7 @@ import { DEPARTMENTS } from "./dane";
 import { DOCUMENT_TYPES, documentNumberErrors } from "./document-types";
 import { nitCheckDigit } from "./nit";
 import { NOT_RESPONSIBLE, TAX_RESPONSIBILITIES, TAX_SCHEMES } from "./tax-tables";
+import { clean } from "./util";
 
 const LIMITS = { legalName: 450, tradeName: 450, namePart: 60, address: 200, email: 100, ciiu: 4, postal: 6 } as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -14,11 +15,6 @@ const NAME_PARTS = [
   ["firstName", "Primer nombre"],
   ["otherNames", "Otros nombres"],
 ] as const;
-
-const clean = (s: string | undefined): string | undefined => {
-  const v = s?.trim();
-  return v ? v : undefined;
-};
 
 function emailError(value: string): string {
   if (!EMAIL_RE.test(value)) return "Correo inválido (nombre@dominio.ext)";
@@ -122,8 +118,6 @@ export function validateParty(input: PartyFiscalInput): PartyValidation {
     else if (!/^\d{5}$/.test(municipalityCode)) errors.push("Municipio DANE: 5 dígitos");
     else if (departmentCode && !municipalityCode.startsWith(departmentCode)) errors.push("El municipio no pertenece al departamento");
     if (postalCode && !/^\d{6}$/.test(postalCode)) errors.push(`Código postal: ${LIMITS.postal} dígitos`);
-  } else if (departmentCode || municipalityCode) {
-    errors.push("Un tercero del exterior no lleva departamento ni municipio DANE");
   }
   const addressLine = clean(input.addressLine);
   if (!addressLine) missing.push("Dirección");
@@ -158,10 +152,11 @@ export function validateParty(input: PartyFiscalInput): PartyValidation {
       taxResponsibilities: responsibilities,
       ciiu,
       countryCode,
-      departmentCode,
-      municipalityCode,
+      // A foreign party carries no DANE data: cleared instead of rejected (stale values after a country change).
+      departmentCode: domestic ? departmentCode : undefined,
+      municipalityCode: domestic ? municipalityCode : undefined,
       addressLine,
-      postalCode,
+      postalCode: domestic ? postalCode : undefined,
       invoiceEmail,
       supplierEmail,
       phoneCc: phone ? phoneCc : clean(input.phoneCc),
