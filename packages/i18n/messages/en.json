@@ -594,6 +594,9 @@
       },
       "section": {
         "permissions": "Permissions"
+      },
+      "audit": {
+        "hint": "Table kernel.audit_log · insert only, row trigger, causal chain. Every action of the interface, the assistant, the scheduler and the events leaves a trace with its origin."
       }
     }
   },
@@ -713,7 +716,8 @@
       "sensitive": "Sensitive processes",
       "verifiers": "Verifiers",
       "modules": "Modules",
-      "companies": "Company"
+      "companies": "Company",
+      "audit": "Audit"
     }
   },
   "entity": {
@@ -729,7 +733,8 @@
     },
     "kernel": {
       "import": "Import",
-      "export_job": "Export"
+      "export_job": "Export",
+      "audit": "Audit"
     },
     "support": {
       "ticket": "Ticket",
@@ -913,6 +918,18 @@
         "finished_at": "Finished",
         "created_at": "Created",
         "updated_at": "Updated"
+      },
+      "audit": {
+        "occurred_at": "Date",
+        "origin": "Origin",
+        "process_id": "Process",
+        "entity": "Entity",
+        "row_id": "Record",
+        "action": "Action",
+        "actor": "Actor",
+        "chain_id": "Chain",
+        "actor_user_id": "Actor id",
+        "conversation_id": "Assistant conversation"
       }
     },
     "support": {
@@ -961,7 +978,8 @@
       "help": "Help and user guides",
       "data": "Assistant data queries",
       "home": "Home screen: indicators, recommendations and recent records",
-      "admin": "Administration"
+      "admin": "Administration",
+      "audit": "Company audit"
     },
     "support": {
       "tickets": "Support tickets"
@@ -1274,6 +1292,21 @@
         "low": "Low",
         "normal": "Normal",
         "high": "High"
+      },
+      "audit_origin": {
+        "ui": "ui",
+        "agent": "agent",
+        "scheduler": "scheduler",
+        "event": "event",
+        "api": "api",
+        "db": "db"
+      },
+      "audit_action": {
+        "insert": "Created",
+        "update": "Changed",
+        "delete": "Deleted",
+        "consult": "Consulted",
+        "denied": "Denied"
       }
     },
     "record_title": {
@@ -1441,6 +1474,14 @@
         "conversation_not_found": "That conversation no longer exists. Start a new one.",
         "history_failed": "We could not load your conversation. You can type to start a new one."
       }
+    },
+    "mock": {
+      "card_ready": "I prepared the card: review it and press Confirm to create it.",
+      "found": "I found {total} result(s).",
+      "refused": "I could not do it: {reason}",
+      "not_permitted_create": "Your role does not allow creating parties, so I cannot do it for you. Ask whoever administers the company.",
+      "not_permitted_query": "Your role does not allow consulting parties.",
+      "fallback": "I am the test model (AGENT_MODEL=mock). I can look up a customer (“find the customer Éxito”) or create one (“create the customer Panadería La Espiga, NIT 800197268-4”)."
     }
   },
   "auth": {

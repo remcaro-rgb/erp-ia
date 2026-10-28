@@ -9,7 +9,9 @@ export async function register(): Promise<void> {
   // Docker: the Postgres World wiring is checked before anything starts a run (lib/server/world.ts).
   const { checkWorkflowWorld } = await import("./lib/server/world");
   await checkWorkflowWorld();
-  const { registrySynced } = await import("./lib/server/runtime");
+  const { installAgentModel, registrySynced } = await import("./lib/server/runtime");
+  // AGENT_MODEL=mock: the assistant's model is the mock from the first request on, in this process's workflow steps too.
+  installAgentModel();
   try {
     await registrySynced();
   } catch (error) {

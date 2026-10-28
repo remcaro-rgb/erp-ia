@@ -1,10 +1,11 @@
 import type { NavItem } from "../registry/types";
 
-// The administration screens (design §6, prototype v5 "Sistema": Administración and Uso de IA). Each shows to whoever
-// may run its process (the company admin role holds them all); only the two entry points sit in the module bar, the
-// other sections are reached from the administration's own section bar and from ⌘K.
+// The administration screens (design §6, prototype v5 "Sistema": Administración, Auditoría and Uso de IA). Each shows to
+// whoever may run its process (the company admin role holds them all); only the three entry points sit in the module bar,
+// the other sections are reached from the administration's own section bar and from ⌘K.
 export const ADMIN_NAVIGATION: NavItem[] = [
   { id: "kernel.admin", label: "nav.kernel.admin", href: "/admin/permissions", icon: "shield", process: "kernel.admin.permission.set" },
+  { id: "kernel.audit", label: "nav.kernel.audit", href: "/admin/audit", icon: "history", process: "kernel.audit.consult" },
   { id: "kernel.ai_usage", label: "nav.kernel.ai_usage", href: "/admin/ai-usage", icon: "sparkles", process: "kernel.admin.ai_usage.consult" },
   { id: "kernel.admin_roles", label: "nav.kernel.roles", href: "/admin/roles", icon: "shield", process: "kernel.admin.role.create", menu: false },
   { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users", process: "kernel.admin.user.create", menu: false },

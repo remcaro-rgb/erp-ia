@@ -17,6 +17,7 @@
     "@ai-sdk/workflow": "2.0.87",
     "@erp/i18n": "workspace:*",
     "@erp/kernel": "workspace:*",
+    "@workflow/serde": "5.0.0",
     "ai": "^7.0.155",
     "postgres": "^3.4.9",
     "workflow": "^5.2.3",

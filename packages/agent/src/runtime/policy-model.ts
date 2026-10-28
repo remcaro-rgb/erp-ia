@@ -1,5 +1,8 @@
 import type { LanguageModelV4, LanguageModelV4CallOptions } from "@ai-sdk/provider";
-import { WORKFLOW_DESERIALIZE, WORKFLOW_SERIALIZE } from "@ai-sdk/provider-utils";
+// The serialization symbols from @workflow/serde (the same `Symbol.for` keys @ai-sdk/provider-utils re-exports): Next's
+// Turbopack runs the Workflow transform only on files that import them from there (or carry a directive), and without it
+// the step bundle never registers this class, so the model step could not rebuild the turn's model (Task 22 smoke).
+import { WORKFLOW_DESERIALIZE, WORKFLOW_SERIALIZE } from "@workflow/serde";
 import { gateway } from "ai";
 import { providerOf, type ModelChoice } from "./model-policy";
 

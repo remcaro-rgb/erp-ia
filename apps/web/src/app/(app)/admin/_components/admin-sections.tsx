@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
-/** The administration's sections (prototype v5 subnav), in the prototype's order; the AI usage report last. */
+/** The administration's sections (prototype v5 subnav), in the prototype's order; the audit and the AI usage report last. */
 export const ADMIN_SECTIONS = [
   { href: "/admin/permissions", label: "common.admin.section.permissions" },
   { href: "/admin/roles", label: "nav.kernel.roles" },
@@ -16,6 +16,7 @@ export const ADMIN_SECTIONS = [
   { href: "/admin/verifiers", label: "nav.kernel.verifiers" },
   { href: "/admin/modules", label: "nav.kernel.modules" },
   { href: "/admin/companies", label: "nav.kernel.companies" },
+  { href: "/admin/audit", label: "nav.kernel.audit" },
   { href: "/admin/ai-usage", label: "nav.kernel.ai_usage" },
 ] as const;
 

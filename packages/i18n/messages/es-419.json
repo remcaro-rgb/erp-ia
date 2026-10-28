@@ -594,6 +594,9 @@
       },
       "section": {
         "permissions": "Permisos"
+      },
+      "audit": {
+        "hint": "Tabla kernel.audit_log · solo inserción, trigger por fila, cadena causal. Cada acción de la interfaz, del asistente, del programador y de los eventos deja rastro con su origen."
       }
     }
   },
@@ -713,7 +716,8 @@
       "sensitive": "Procesos sensibles",
       "verifiers": "Verificadores",
       "modules": "Módulos",
-      "companies": "Empresa"
+      "companies": "Empresa",
+      "audit": "Auditoría"
     }
   },
   "entity": {
@@ -729,7 +733,8 @@
     },
     "kernel": {
       "import": "Importación",
-      "export_job": "Exportación"
+      "export_job": "Exportación",
+      "audit": "Auditoría"
     },
     "support": {
       "ticket": "Ticket",
@@ -913,6 +918,18 @@
         "finished_at": "Terminada",
         "created_at": "Creada",
         "updated_at": "Actualizada"
+      },
+      "audit": {
+        "occurred_at": "Fecha",
+        "origin": "Origen",
+        "process_id": "Proceso",
+        "entity": "Entidad",
+        "row_id": "Registro",
+        "action": "Acción",
+        "actor": "Actor",
+        "chain_id": "Cadena",
+        "actor_user_id": "Id del actor",
+        "conversation_id": "Conversación del asistente"
       }
     },
     "support": {
@@ -961,7 +978,8 @@
       "help": "Ayuda y guías de usuario",
       "data": "Consultas de datos del asistente",
       "home": "Pantalla de inicio: indicadores, recomendaciones y registros recientes",
-      "admin": "Administración"
+      "admin": "Administración",
+      "audit": "Auditoría de la empresa"
     },
     "support": {
       "tickets": "Tickets de soporte"
@@ -1274,6 +1292,21 @@
         "low": "Baja",
         "normal": "Normal",
         "high": "Alta"
+      },
+      "audit_origin": {
+        "ui": "ui",
+        "agent": "agent",
+        "scheduler": "scheduler",
+        "event": "event",
+        "api": "api",
+        "db": "db"
+      },
+      "audit_action": {
+        "insert": "Creó",
+        "update": "Cambió",
+        "delete": "Eliminó",
+        "consult": "Consultó",
+        "denied": "Denegado"
       }
     },
     "record_title": {
@@ -1441,6 +1474,14 @@
         "conversation_not_found": "Esa conversación ya no existe. Empieza una nueva.",
         "history_failed": "No pudimos cargar tu conversación. Puedes escribir para empezar una nueva."
       }
+    },
+    "mock": {
+      "card_ready": "Te preparé la tarjeta: revísala y pulsa Confirmar para crearlo.",
+      "found": "Encontré {total} resultado(s).",
+      "refused": "No pude hacerlo: {reason}",
+      "not_permitted_create": "Tu rol no te permite crear terceros, así que no puedo hacerlo por ti. Pídeselo a quien administra la empresa.",
+      "not_permitted_query": "Tu rol no te permite consultar terceros.",
+      "fallback": "Soy el modelo de prueba (AGENT_MODEL=mock). Puedo buscar un cliente («busca el cliente Éxito») o crear uno («crea el cliente Panadería La Espiga, NIT 800197268-4»)."
     }
   },
   "auth": {

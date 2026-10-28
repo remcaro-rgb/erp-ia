@@ -1,8 +1,8 @@
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { co } from "@erp/loc-co";
-import { PolicyEmbedder } from "@erp/agent";
-import { getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCountryPack, registry, setHelpEmbedder, syncRegistry, type RunProcessDeps } from "@erp/kernel";
+import { agentModelFactory, PolicyEmbedder, setAgentModelFactory } from "@erp/agent";
+import { FakeEmbedder, getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCountryPack, registry, setHelpEmbedder, syncRegistry, type RunProcessDeps } from "@erp/kernel";
 import { SupabaseFileStore, type FileStore } from "@erp/infra";
 
 // Server-side wiring for route handlers: the process registry with the modules this app ships, the
@@ -14,10 +14,30 @@ export function processDeps(): RunProcessDeps {
   // The core processes validate parties and products with the company's pack (rule 5). Registered on every call:
   // the registry lives on globalThis, the pack table in its module, which a bundle may load more than once.
   registerCountryPack(co);
+  installAgentModel();
   // The help search embeds questions with the model the policy table names for `embeddings` (rule 26), unless
-  // something (a test) installed its own embedder.
-  if (!installedHelpEmbedder()) setHelpEmbedder(new PolicyEmbedder(getServiceDb()));
+  // something (a test) installed its own embedder. With the mock model there is no gateway: the deterministic embedder
+  // `pnpm help:index` uses without a key.
+  if (!installedHelpEmbedder()) setHelpEmbedder(agentModelFactory(process.env) ? new FakeEmbedder() : new PolicyEmbedder(getServiceDb()));
   return { sql: getServiceDb(), registry };
+}
+
+const MODEL_KEY = Symbol.for("erp.web.agentModelInstalled");
+const modelGlobals = globalThis as { [MODEL_KEY]?: boolean };
+
+/**
+ * The assistant's model (design §7.4): `AGENT_MODEL=mock` installs the AI SDK mock model (end-to-end tests, a local stack
+ * without a gateway key); otherwise the turn's model resolves through the AI Gateway (AI_GATEWAY_API_KEY). Once per
+ * server process, at boot (instrumentation) and before any turn; the factory lives on globalThis, where the workflow's
+ * model step reads it.
+ */
+export function installAgentModel(): void {
+  if (modelGlobals[MODEL_KEY]) return;
+  modelGlobals[MODEL_KEY] = true;
+  const factory = agentModelFactory(process.env);
+  if (!factory) return;
+  setAgentModelFactory(factory);
+  console.warn("assistant: AGENT_MODEL=mock, the turns run with the AI SDK mock model (no gateway)");
 }
 
 // The manifests registered in SQL once per server process (design §5.2: at boot): the role seeds and the admin

@@ -74,6 +74,21 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       status: { valuesKey: "grid.values.category_status", pills: { active: "ok", inactive: "gray" } },
     },
   },
+  // Auditoría (prototype v5 renderAudit): date, origin as a pill, process, entity, record, action, actor and chain.
+  "kernel.audit": {
+    shown: ["occurred_at", "origin", "process_id", "entity", "row_id", "action", "actor", "chain_id"],
+    exclude: [],
+    fields: {
+      origin: { valuesKey: "grid.values.audit_origin", pills: { ui: "info", agent: "ok", scheduler: "gray", event: "gray", api: "warn", db: "danger" } },
+      action: { valuesKey: "grid.values.audit_action", pills: { insert: "ok", update: "info", delete: "danger", consult: "gray", denied: "warn" } },
+      process_id: { display: "mono" },
+      entity: { display: "mono" },
+      row_id: { display: "mono" },
+      chain_id: { display: "mono" },
+      actor_user_id: { display: "mono" },
+      conversation_id: { display: "mono" },
+    },
+  },
   "support.ticket": {
     shown: ["seq", "kind", "title", "status", "priority", "created_at"],
     exclude: ["extra", "extra_free", "context"],

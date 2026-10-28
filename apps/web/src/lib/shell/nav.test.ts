@@ -41,11 +41,11 @@ describe("buildShellNav", () => {
     expect(buildShellNav(registry, { entitled, runnable })).toEqual({ modules: [], nav: [], creates: [] });
   });
 
-  it("Administración and Uso de IA show to whoever may run the admin processes, the other admin screens off the bar", () => {
-    expect(keys.processes).toEqual(expect.arrayContaining(["kernel.admin.permission.set", "kernel.admin.ai_usage.consult"]));
+  it("Administración, Auditoría and Uso de IA show to whoever may run their processes, the other admin screens off the bar", () => {
+    expect(keys.processes).toEqual(expect.arrayContaining(["kernel.admin.permission.set", "kernel.audit.consult", "kernel.admin.ai_usage.consult"]));
     const admin = buildShellNav(registry, { entitled: new Set(), runnable: new Set(keys.processes.filter((p) => p.startsWith("kernel.") || p === "kernel.custom_field.set")) });
     expect(admin.modules).toEqual([{ id: "kernel", label: "nav.modules.kernel" }]);
-    expect(admin.nav.filter((i) => i.menu !== false).map((i) => i.href)).toEqual(["/admin/permissions", "/admin/ai-usage"]);
+    expect(admin.nav.filter((i) => i.menu !== false).map((i) => i.href)).toEqual(["/admin/permissions", "/admin/audit", "/admin/ai-usage"]);
     expect(admin.nav.filter((i) => i.menu === false).map((i) => i.href)).toEqual([
       "/admin/roles",
       "/admin/users",
@@ -59,6 +59,8 @@ describe("buildShellNav", () => {
     ]);
     const onlyUsage = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.admin.ai_usage.consult"]) });
     expect(onlyUsage.nav.map((i) => i.href)).toEqual(["/admin/ai-usage"]);
+    const onlyAudit = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.audit.consult"]) });
+    expect(onlyAudit.nav.map((i) => i.href)).toEqual(["/admin/audit"]);
   });
 
   it("an item whose feature is not entitled is hidden", () => {

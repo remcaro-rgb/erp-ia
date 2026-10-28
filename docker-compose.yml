@@ -1,7 +1,8 @@
 # ERP-IA on Docker (design §21, rule 6): the self-hosted Supabase stack (official compose services: Postgres, Auth,
 # PostgREST, Storage behind Kong, Mailpit for mail), the web app (Next.js standalone), the Workflow worker (the
-# Postgres World's always-on queue consumer + the outbox tick), the init jobs, and the edge (nginx), on one private
-# network. The integration job of CI runs against it on every push.
+# Postgres World's always-on queue consumer + the outbox tick), the init jobs (migrations and supabase/seed.sql, the demo
+# company, the Workflow schema, the help index), and the edge (nginx), on one private network. The integration job of CI
+# runs against it on every push.
 #
 #   pnpm docker:env        # once: .env.docker with generated local-only secrets (from .env.docker.example)
 #   pnpm docker:up         # build, start, wait until every service is healthy and the init jobs are done
@@ -189,6 +190,25 @@ services:
     restart: "no"
     networks: [internal]
 
+  # One-shot: the demo company (`pnpm db:seed`, scripts/seed.ts, Task 22) once the migrations, supabase/seed.sql and Auth
+  # are in: the registry synced, the modules enabled, the Auth users laura@demo.local and marcela@demo.local created
+  # through the Admin API (kong), the permissions set and 6 categories, 40 parties and 25 products created through their
+  # processes. Idempotent. The demo accounts have public passwords (README.md): a local stack only, never a deployment.
+  seed:
+    # The tools image the help-index job builds.
+    image: erp-ia/tools:local
+    command: ["pnpm", "db:seed"]
+    depends_on:
+      db-init: { condition: service_completed_successfully }
+      kong: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      SUPABASE_URL: http://kong:8000
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+    restart: "no"
+    networks: [internal]
+
   # One-shot: the Workflow Postgres World's schema (`bootstrap`, node_modules/workflow/docs/worlds/postgres.mdx).
   workflow-init:
     build: { context: ., dockerfile: Dockerfile.worker, target: runner }
@@ -225,6 +245,7 @@ services:
       kong: { condition: service_healthy }
       workflow-init: { condition: service_completed_successfully }
       help-index: { condition: service_completed_successfully }
+      seed: { condition: service_completed_successfully }
     environment: &app-env
       ERP_TARGET: docker
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
@@ -240,6 +261,8 @@ services:
       MAIL_FROM: ${MAIL_FROM:-erp@cafedelnorte.test}
       AI_GATEWAY_BASE_URL: ${AI_GATEWAY_BASE_URL:-}
       AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+      # `mock`: the assistant's turns run with the AI SDK mock model (apps/web/src/lib/server/runtime.ts); empty: the gateway.
+      AGENT_MODEL: ${AGENT_MODEL:-}
       # Postgres World queue: every process that enqueues also consumes (world-postgres 5); sized for this stack
       # (pool = concurrency + 2, node_modules/workflow/docs/worlds/postgres.mdx).
       WORKFLOW_POSTGRES_WORKER_CONCURRENCY: "10"

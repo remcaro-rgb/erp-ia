@@ -2,6 +2,7 @@ import "./zod-locale";
 
 export const KERNEL_VERSION = "0.1.0";
 export { writeAudit, setAuditContext } from "./audit/audit";
+export { AUDIT_ACTIONS, AUDIT_FEATURE, AUDIT_ORIGINS, AUDIT_PROCESSES, auditConsult, auditEntity } from "./audit/viewer";
 export type { AuditAction, AuditContext, AuditEntry, Origin } from "./audit/audit";
 export { enqueueEvent } from "./events/outbox";
 export type { OutboxEvent } from "./events/outbox";

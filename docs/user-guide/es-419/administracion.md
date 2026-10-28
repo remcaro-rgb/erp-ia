@@ -12,6 +12,7 @@ routes:
   - /admin/modules
   - /admin/companies
   - /admin/ai-usage
+  - /admin/audit
 processes:
   - kernel.admin.role.create
   - kernel.admin.role.update
@@ -30,11 +31,12 @@ processes:
   - kernel.verifier.set
   - kernel.custom_field.set
   - kernel.custom_field.remove
+  - kernel.audit.consult
 ---
 
 # Administración de la empresa
 
-La **Administración** es donde el administrador de la empresa decide quién usa el sistema y qué puede hacer cada persona: roles, usuarios, permisos, visibilidad de campos, procesos sensibles, módulos, archivos obligatorios, datos adicionales, verificadores y el uso de IA.
+La **Administración** es donde el administrador de la empresa decide quién usa el sistema y qué puede hacer cada persona: roles, usuarios, permisos, visibilidad de campos, procesos sensibles, módulos, archivos obligatorios, datos adicionales, verificadores, el uso de IA y la auditoría.
 
 Solo la ve quien tiene el rol **admin** de la empresa. Ábrela desde el menú **Módulos › Sistema › Administración** (o escribe «administración» en ⌘K). Las secciones están en la barra bajo el título.
 
@@ -132,6 +134,28 @@ Muestra, para el mes elegido (en la zona horaria de la empresa):
 
 Cuando la empresa llega al tope, el asistente responde sin usar el modelo hasta el mes siguiente o hasta que se amplíe el tope. Para ampliarlo, pide el cambio de plan a tu proveedor de ERP-IA.
 
+## Auditoría
+
+La **Auditoría** muestra todo lo que pasó en la empresa: cada creación, cambio, consulta y cada intento denegado, de cualquier persona. Ábrela desde **Módulos › Sistema › Auditoría** o desde la sección **Auditoría** de la Administración. Solo la ve el rol **admin**: para cualquier otra persona la pantalla dice que no tiene permiso, y el asistente tampoco le muestra estos registros.
+
+Cada fila es una entrada, de la más reciente a la más antigua:
+
+- **Fecha**: cuándo ocurrió, en la zona horaria de la empresa.
+- **Origen**: desde dónde se hizo. **ui** es la pantalla, **agent** el asistente (después de que la persona confirmó la tarjeta), **scheduler** una tarea programada, **event** una reacción automática a otro cambio, **api** un programa externo o la carga de datos de demostración, y **db** un cambio hecho directamente en la base de datos.
+- **Proceso**: la acción del sistema, por ejemplo `core.party.create` (crear un tercero) o `kernel.export.run` (exportar un listado).
+- **Entidad** y **Registro**: qué tabla y qué registro cambió (el identificador del registro).
+- **Acción**: **Creó**, **Cambió**, **Eliminó**, **Consultó** o **Denegado** (un intento sin permiso o sin el código de verificación).
+- **Actor**: el correo de quien lo hizo. Lo que hace el asistente queda a nombre de la persona que lo pidió.
+- **Cadena**: el identificador que une todo lo que provocó una misma acción. Filtra por una cadena para ver, por ejemplo, la creación de un tercero y los cambios que desencadenó.
+
+Para encontrar algo:
+
+1. Escribe en el filtro de una columna, por ejemplo `core.party.create` bajo **Proceso**, o elige **agent** en **Origen**.
+2. Usa **Filtro avanzado** para combinar condiciones (por ejemplo, un actor **y** un rango de fechas).
+3. Pulsa **PDF**, **Excel** o **CSV** para llevarte exactamente las filas filtradas (guía **Exportar un listado a PDF, Excel o CSV**). Guarda la búsqueda con **Guardar vista** si la repites.
+
+La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, puede cambiar ni borrar una entrada, y se conserva 10 años. No muestra los valores que cambiaron: para ver un dato, abre el registro, donde se aplica la visibilidad de campos de tu rol. Consultar la auditoría queda, a su vez, en la auditoría.
+
 ## Preguntas frecuentes
 
 **¿Por qué no veo Administración?** Solo la ve quien tiene el rol admin de la empresa.
@@ -139,3 +163,5 @@ Cuando la empresa llega al tope, el asistente responde sin usar el modelo hasta 
 **Le di un permiso a un rol y la persona no lo ve.** Pídele que recargue la página. Si le asignaste un rol nuevo, debe salir e iniciar sesión de nuevo.
 
 **¿Puedo borrar un rol o un usuario?** En esta versión no: quita los permisos del rol o los roles del usuario.
+
+**¿Puedo borrar o corregir una entrada de la auditoría?** No. La auditoría es de solo inserción para todos; si algo se hizo mal, corrígelo en el registro y la corrección quedará como una entrada nueva.

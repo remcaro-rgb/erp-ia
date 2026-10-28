@@ -1,6 +1,7 @@
-# Host-side test access to the Docker stack (CI `docker-integration`, `pnpm docker:test:up`, the smoke check): publishes
-# the database, the Supabase API and Mailpit on 127.0.0.1, which the plain stack keeps on its private network. Not for
-# a deployment.
+# Host-side test access to the Docker stack (CI `docker-integration`, `pnpm docker:test:up`, the smoke checks): publishes
+# the database, the Supabase API and Mailpit on 127.0.0.1, which the plain stack keeps on its private network, and runs
+# the assistant on the AI SDK mock model (the end-to-end smoke needs no provider) unless AGENT_MODEL says otherwise. Not
+# for a deployment.
 services:
   db:
     ports:
@@ -11,3 +12,6 @@ services:
   mail:
     ports:
       - "127.0.0.1:${MAIL_HOST_PORT:-56324}:8025"
+  web:
+    environment:
+      AGENT_MODEL: ${AGENT_MODEL:-mock}
