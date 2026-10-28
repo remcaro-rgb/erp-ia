@@ -44,6 +44,27 @@ describe("audit log and outbox", () => {
     expect(afterRow!.n).toBe(beforeRow!.n);
   });
 
+  it("a company update is audited under the company's own id and its admin can read it", async () => {
+    const companyId = company(0).id;
+    await sql`update kernel.companies set legal_name = 'Renamed S.A.S.' where id = ${companyId}`;
+    const [row] = await sql`select * from kernel.audit_log where row_id = ${companyId} and action = 'update' order by occurred_at desc, id desc limit 1`;
+    expect(row!.entity).toBe("kernel.companies");
+    expect(row!.company_id).toBe(companyId);
+    const visible = await withClaims(sql, adminClaims(), (tx) =>
+      tx`select id from kernel.audit_log where id = ${row!.id}`);
+    expect(visible).toHaveLength(1);
+    const hidden = await withClaims(sql, adminClaims(1), (tx) =>
+      tx`select id from kernel.audit_log where id = ${row!.id}`);
+    expect(hidden).toHaveLength(0);
+  });
+
+  it("an update from NULL to a value records old null and the new value", async () => {
+    const companyId = company(1).id;
+    await sql`update kernel.companies set trade_name = 'Trade Name' where id = ${companyId}`;
+    const [row] = await sql`select diff from kernel.audit_log where row_id = ${companyId} and action = 'update' order by occurred_at desc, id desc limit 1`;
+    expect(row!.diff).toEqual({ trade_name: { old: null, new: "Trade Name" } });
+  });
+
   it("an insert and a delete on kernel.roles are audited", async () => {
     const created = await withClaims(sql, adminClaims(), async (tx) => {
       const [role] = await tx<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${company(0).id}, 'temp') returning id`;
@@ -63,6 +84,7 @@ describe("audit log and outbox", () => {
     const roleId = company(0).memberRoleId;
     const chainId = randomUUID();
     const processId = "kernel.role.rename";
+    const [current] = await sql<{ name: string }[]>`select name from kernel.roles where id = ${roleId}`;
     await withClaims(sql, adminClaims(), async (tx) => {
       await setAuditContext(tx, { origin: "ui", processId, chainId, actorUserId: seed.users.both });
       await tx`update kernel.roles set name = 'by-process' where id = ${roleId}`;
@@ -70,7 +92,7 @@ describe("audit log and outbox", () => {
     const [row] = await sql`select * from kernel.audit_log where row_id = ${roleId} and chain_id = ${chainId}`;
     expect(row!.origin).toBe("ui");
     expect(row!.process_id).toBe(processId);
-    expect(row!.diff).toEqual({ name: { old: "renamed", new: "by-process" } });
+    expect(row!.diff).toEqual({ name: { old: current!.name, new: "by-process" } });
   });
 
   it("the audit context is transaction-local", async () => {

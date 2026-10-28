@@ -83,7 +83,12 @@ begin
   insert into kernel.audit_log
     (company_id, actor_user_id, origin, process_id, entity, row_id, action, diff, chain_id, conversation_id)
   values (
-    nullif(row_json ->> 'company_id', '')::uuid,
+    -- A company's own id is its company id; every other table carries a company_id column (or none).
+    nullif(
+      case when tg_table_schema = 'kernel' and tg_table_name = 'companies' then row_json ->> 'id'
+           else row_json ->> 'company_id' end,
+      ''
+    )::uuid,
     coalesce(nullif(current_setting('erp.audit_actor_user_id', true), '')::uuid, kernel.current_user_id()),
     coalesce(nullif(current_setting('erp.audit_origin', true), ''), 'db'),
     nullif(current_setting('erp.audit_process_id', true), ''),
@@ -134,7 +139,7 @@ create table kernel.outbox (
   attempts      int not null default 0,
   last_error    text
 );
-create index outbox_undispatched_idx on kernel.outbox (dispatched_at) where dispatched_at is null;
+create index outbox_undispatched_idx on kernel.outbox (created_at) where dispatched_at is null;
 create index outbox_company_id_idx on kernel.outbox (company_id);
 
 create table kernel.outbox_dead_letter (
