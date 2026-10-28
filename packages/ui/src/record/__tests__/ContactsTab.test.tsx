@@ -139,6 +139,50 @@ describe("ContactsTab capabilities", () => {
   });
 });
 
+describe("ContactsTab verification", () => {
+  const open = (verify: NonNullable<Parameters<typeof ContactsTab>[0]["verify"]>) => {
+    render(<ContactsTab contacts={[]} onCreate={vi.fn()} verify={verify} />);
+    fireEvent.click(screen.getByRole("button", { name: "+ Nuevo contacto" }));
+    fill("Correo", "luis@exito.com");
+  };
+
+  it("disables Verificar while the request is in flight and once the datum is queued: no spam", async () => {
+    let finish: () => void = () => {};
+    const onVerify = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    open({ onVerify });
+    const button = () => screen.getByRole("button", { name: "Verificar ↗" }) as HTMLButtonElement;
+    fireEvent.click(button());
+    fireEvent.click(button());
+    expect(onVerify).toHaveBeenCalledTimes(1);
+    expect(button().disabled).toBe(true);
+    finish();
+    await waitFor(() => expect(button().disabled).toBe(false));
+  });
+
+  it("keeps Verificar disabled for a queued or verified datum, and enabled again after a failure", () => {
+    const status = { value: "queued" as "queued" | "verified" | "failed" };
+    open({ onVerify: vi.fn(), statusOf: () => status.value });
+    expect((screen.getByRole("button", { name: "Verificar ↗" }) as HTMLButtonElement).disabled).toBe(true);
+    cleanup();
+    status.value = "failed";
+    open({ onVerify: vi.fn(), statusOf: () => status.value });
+    expect((screen.getByRole("button", { name: "Verificar ↗" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("a rejected onVerify is shown, not thrown as an unhandled rejection, and the button comes back", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const onVerify = vi.fn().mockRejectedValue(new Error("sin red"));
+    open({ onVerify });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar ↗" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("sin red"));
+    expect((screen.getByRole("button", { name: "Verificar ↗" }) as HTMLButtonElement).disabled).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off("unhandledRejection", unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+  });
+});
+
 describe("contactProblems", () => {
   it("needs a name and at least one channel, and checks each datum", () => {
     expect(contactProblems(emptyDraft())).toMatchObject({ name: expect.any(String) });

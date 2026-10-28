@@ -43,6 +43,20 @@ export interface RecordAbilities {
   suggest: boolean;
 }
 
+/** A file as `kernel.attachment.list` answers it. */
+export interface StoredAttachment {
+  id: string;
+  tag: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  position: number;
+  suggested: boolean;
+  uploadedBy: string | null;
+  uploadedByName: string | null;
+  uploadedAt: string;
+}
+
 export interface LoadedRecord {
   entity: RecordEntity;
   caller: Caller;
@@ -58,6 +72,10 @@ export interface LoadedRecord {
   can: RecordAbilities;
   /** The admin's required files that apply to this record (empty for a new one), by tag. */
   requiredTags: RequiredTag[];
+  /** The record's live files in order, for the Archivos tab. */
+  attachments: StoredAttachment[];
+  /** Status of the latest verification request of each contact datum, by `<kind>:<value>` (`phone` as `+<cc><number>`). */
+  verifications: Record<string, "queued" | "verified" | "failed">;
   form: FormData;
 }
 
@@ -65,6 +83,38 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const customFields = (caller: Caller, entity: string) => runProcess(processDeps(), caller, "kernel.custom_field.list", { entity });
 const contacts = (caller: Caller, partyId: string) => runProcess(processDeps(), caller, "core.contact.list", { partyId });
+const attachments = (caller: Caller, entity: string, recordId: string): Promise<StoredAttachment[]> =>
+  runProcess(processDeps(), caller, "kernel.attachment.list", { entity, recordId });
+
+type ContactRow = { email: string | null; phone: string | null; phoneCc: string | null; mobile: string | null; mobileCc: string | null };
+
+/** The data of the contacts the Verificar control asks about, as the tab keys them. */
+function verifiable(rows: readonly ContactRow[]): { kind: "email" | "phone"; value: string }[] {
+  const seen = new Map<string, { kind: "email" | "phone"; value: string }>();
+  for (const row of rows) {
+    const data: { kind: "email" | "phone"; value: string }[] = [];
+    if (row.email) data.push({ kind: "email", value: row.email });
+    if (row.phone) data.push({ kind: "phone", value: `+${(row.phoneCc ?? "57").replace(/^\+/, "")}${row.phone}` });
+    if (row.mobile) data.push({ kind: "phone", value: `+${(row.mobileCc ?? "57").replace(/^\+/, "")}${row.mobile}` });
+    for (const datum of data) seen.set(`${datum.kind}:${datum.value}`, datum);
+  }
+  return [...seen.values()];
+}
+
+/** What `kernel.verify.status` knows about the contacts' data; a caller who may not ask gets none. */
+async function verifications(caller: Caller, partyId: string, rows: readonly ContactRow[]): Promise<LoadedRecord["verifications"]> {
+  const found: LoadedRecord["verifications"] = {};
+  for (const { kind, value } of verifiable(rows)) {
+    try {
+      const status = (await runProcess(processDeps(), caller, "kernel.verify.status", { kind, value, entity: "core.party", recordId: partyId })) as { status: "queued" | "verified" | "failed" } | null;
+      if (status) found[`${kind}:${value}`] = status.status;
+    } catch (error) {
+      if (error instanceof ProcessError && ["forbidden", "not_entitled", "invalid_input"].includes(error.code)) continue;
+      throw error;
+    }
+  }
+  return found;
+}
 
 /** A side panel the caller may not read (no permission) is empty, not a failure of the page. */
 async function orEmpty<T>(read: Promise<T[]>): Promise<T[]> {
@@ -146,12 +196,14 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   }
   const saveProcess = record ? entity.update : entity.create;
   const access = await gridPageAccess(deps.sql, caller.claims, registered);
-  const [defs, partyContacts, runnable, required] = await Promise.all([
+  const [defs, partyContacts, runnable, required, files] = await Promise.all([
     record ? orEmpty(customFields(caller, entity.id)) : Promise.resolve([]),
     record && entity.id === "core.party" ? orEmpty(contacts(caller, record.id)) : Promise.resolve([]),
     runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, ...TAB_PROCESSES]),
     record ? requiredTagsFor(deps.sql, caller.claims, entity.id, factsOf(entity.id, record, access.modes)) : Promise.resolve([]),
+    record ? orEmpty(attachments(caller, entity.id, record.id)) : Promise.resolve([]),
   ]);
+  const verified = record && entity.id === "core.party" ? await verifications(caller, record.id, partyContacts as ContactRow[]) : {};
   const canSave = runnable.has(saveProcess);
   if (!record && !canSave) return null;
   // Files and photos change the record, so they also need the right to update it.
@@ -162,13 +214,14 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     contactUpdate: runnable.has("core.contact.update"),
     contactDelete: runnable.has("core.contact.delete"),
     verify: runnable.has("kernel.verify.request"),
-    extra: mayUpdate,
+    // The `extra` column masked for the caller's role: the tab shows what it may and does not write over it.
+    extra: mayUpdate && (access.modes.extra ?? "visible") === "visible",
     attach: may("kernel.attachment.add"),
     removeFile: may("kernel.attachment.remove"),
     reorder: may("kernel.attachment.reorder"),
     suggest: may("kernel.ai.image_suggest"),
   };
-  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, form: await formData(caller, entity, record) };
+  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, form: await formData(caller, entity, record) };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

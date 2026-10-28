@@ -34,14 +34,18 @@ export function initialsOf(description: string): string {
 
 const escapeXml = (text: string) => text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
 
+/** Control characters (C0, DEL, C1) are not valid in XML 1.0 and would make the file unreadable: they become spaces. */
+// eslint-disable-next-line no-control-regex
+const withoutControls = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/ {2,}/g, " ").trim();
+
 /** A line that fits the picture. */
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 /** The picture for a description: the same text always gives the same bytes. */
 export function placeholderImage({ description, uom, category }: PlaceholderInput): PlaceholderImage {
-  const text = description.trim();
+  const text = withoutControls(description);
   const hue = createHash("sha256").update(text.toLocaleLowerCase("es")).digest().readUInt16BE(0) % 360;
-  const caption = [category?.trim(), uom?.trim() ? `UM ${uom.trim()}` : undefined].filter(Boolean).join(" · ");
+  const caption = [withoutControls(category ?? ""), withoutControls(uom ?? "") ? `UM ${withoutControls(uom ?? "")}` : undefined].filter(Boolean).join(" · ");
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="320" viewBox="0 0 480 320" role="img" aria-label="${escapeXml(clip(text, 80))}">` +
     `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,38%)"/><stop offset="1" stop-color="hsl(${(hue + 30) % 360},40%,22%)"/></linearGradient></defs>` +

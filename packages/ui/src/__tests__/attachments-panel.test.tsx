@@ -150,4 +150,11 @@ describe("AttachmentsPanel", () => {
     expect(fetcher).toHaveBeenLastCalledWith("/api/attachments?id=RUT.pdf");
     click.mockRestore();
   });
+
+  it("canRemove=false hides the remove buttons but keeps the drop zone and the downloads", () => {
+    render(<AttachmentsPanel entity="core.party" recordId="p1" initialAttachments={[stored("RUT")]} canRemove={false} />);
+    expect(screen.queryByRole("button", { name: /^Quitar/ })).toBeNull();
+    expect(screen.getByText("Arrastra los archivos aquí")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Descargar" })).toBeTruthy();
+  });
 });

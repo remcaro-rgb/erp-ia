@@ -26,6 +26,8 @@ export interface FieldVerify {
   provider?: string | null;
   /** Receives the value to verify: the e-mail, or the phone as `+<cc><number>`. */
   onVerify: (value: string) => void;
+  /** The request is already in flight or queued (or done): the button waits so the same datum is not asked twice. */
+  disabled?: boolean;
 }
 
 /** Copy of the fields. Spanish (es-419) until Task 11 wires packages/i18n; every string can be replaced through the `labels` prop. */

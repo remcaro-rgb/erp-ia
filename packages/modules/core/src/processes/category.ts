@@ -1,7 +1,7 @@
 import { customData, defineProcess, ProcessError, visibleExtra, type CustomData, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { blank, defined, freeJsonb, idInput, idOutput, jsonb, refuseDuplicate, rejectErrors } from "./common";
-import { clearable, extra, extraFree, id, incRate, ivaRate, otherTaxes, uomCode } from "./schemas";
+import { clearable, extra, extraFree, extraPatch, id, incRate, ivaRate, otherTaxes, uomCode } from "./schemas";
 
 // Product categories (design §5.18): a master whose taxes a product copies when it is assigned.
 // Changing a category never rewrites the products that already use it. Names are unique per company
@@ -69,14 +69,14 @@ export const categoryUpdate = defineProcess({
   kind: "update",
   feature: "core.products",
   description: "Actualiza una categoría de productos; los productos existentes no cambian",
-  input: z.object(fields).partial().extend({ id }),
+  input: z.object(fields).partial().extend({ id, extraPatch }),
   output: idOutput,
-  handler: async (ctx, { id: categoryId, ...input }) => {
+  handler: async (ctx, { id: categoryId, extraPatch: patch, ...input }) => {
     const [current] = await ctx.tx`select extra from core.product_categories where id = ${categoryId} for update`;
     if (!current) throw new ProcessError("not_found", `category ${categoryId} not found`);
-    const custom = await customData(ctx, "core.product_category", current.extra as Record<string, unknown> | null, input.extra);
+    const custom = await customData(ctx, "core.product_category", current.extra as Record<string, unknown> | null, input.extra, patch);
     rejectErrors("core.category.update", custom.errors);
-    const set = defined(columns(ctx, input, custom));
+    const set = defined(columns(ctx, patch !== undefined ? { ...input, extra: custom.extra } : input, custom));
     if (Object.keys(set).length > 0) {
       await refuseDuplicate("core.category.update", NAME_KEY, duplicateDetail(input.name ?? ""), () =>
         ctx.tx`update core.product_categories set ${ctx.tx(set)} where id = ${categoryId}`,

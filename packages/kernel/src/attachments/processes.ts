@@ -92,15 +92,18 @@ export const attachmentReorder = defineProcess({
     await requireVisibleRecord(ctx, entity, recordId);
     if (new Set(orderedIds).size !== orderedIds.length) throw refuse("repeated attachment", "Un archivo aparece más de una vez en el orden");
 
-    // Every id must be a live file of this record; the rows are locked so two reorders do not interleave.
+    // Every id must be a live file of this record. The rows are locked in id order, so two reorders of the same record
+    // queue up instead of deadlocking.
     const found = await ctx.tx<{ id: string }[]>`
       select id from kernel.attachments
       where company_id = ${ctx.companyId} and entity = ${entity.id} and record_id = ${recordId} and removed_at is null
         and id = any (${orderedIds}::uuid[])
+      order by id
       for update`;
     if (found.length !== orderedIds.length) throw refuse("attachment not on the record", "Algún archivo no pertenece a este registro o ya fue quitado");
 
-    // Positions 0..n-1 in the given order. Approval of a suggested picture: the one placed first is no longer a suggestion.
+    // Positions 0..n-1 in the given order. Only the files named are renumbered: a list of the photos alone leaves the
+    // record's other files where they were (the Archivos list sorts by position, then upload time). Approval of a suggested picture: the one placed first is no longer a suggestion.
     await ctx.tx`
       update kernel.attachments a
       set position = o.pos - 1, suggested = case when o.pos = 1 then false else a.suggested end

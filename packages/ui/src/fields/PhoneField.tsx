@@ -64,7 +64,7 @@ export function PhoneField({ label, cc, number, onChange, disabled, hint, verify
             {verify && (
               <>
                 {" "}
-                <VerifyBadge kind="phone" value={phoneValue(cc, number)} status={verify.status} provider={verify.provider} labels={overrides} onVerify={() => verify.onVerify(phoneValue(cc, number))} />
+                <VerifyBadge kind="phone" value={phoneValue(cc, number)} status={verify.status} provider={verify.provider} disabled={verify.disabled} labels={overrides} onVerify={() => verify.onVerify(phoneValue(cc, number))} />
               </>
             )}
           </span>

@@ -34,7 +34,8 @@ export function normalizeVerifyValue(kind: VerifyKind, raw: string): { value: st
  * Asks the company's provider for `kind` to verify `value` and records the request in `tx`, a process
  * transaction (the table only accepts rows from `kernel.verify.*` processes).
  *
- * - No provider configured: the request is `queued` and waits for one (the UI shows "en cola").
+ * - No provider configured: the request is `queued` and waits for one (the UI shows "en cola"). Asking again for the
+ *   same datum of the same record while one is queued returns that request instead of adding another.
  * - A provider without an installed adapter: also `queued`, with the provider named, so nothing is lost.
  * - Otherwise the adapter answers: `verified` or `failed`; an adapter that throws is `failed` with its message.
  */
@@ -45,7 +46,15 @@ export async function verify(tx: Tx, kind: VerifyKind, value: string, ctx: Verif
 
   let status: VerifyStatus = "queued";
   let result: unknown = null;
-  if (adapter) {
+  if (!adapter) {
+    // Nothing can answer yet: the datum already waiting in the queue (same provider, or none) is the request.
+    const [waiting] = await tx<{ id: string }[]>`
+      select id from kernel.verification_requests
+      where company_id = ${ctx.companyId} and entity = ${ctx.entity} and record_id = ${ctx.recordId} and kind = ${kind} and value = ${value}
+        and status = 'queued' and provider is not distinct from ${provider}
+      order by created_at desc, id desc limit 1`;
+    if (waiting) return { id: waiting.id, status: "queued", provider };
+  } else {
     try {
       const answer = await adapter.verify(kind, value);
       status = answer.ok ? "verified" : "failed";

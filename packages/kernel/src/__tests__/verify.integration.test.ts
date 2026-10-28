@@ -73,6 +73,22 @@ describe("verify", () => {
     expect(await request(admin, { value: "otra@exito.com" })).toMatchObject({ status: "queued" });
   });
 
+  it("asking again for the same datum of the same record while it is queued returns that request and inserts nothing", async () => {
+    const first = await request(admin, { value: "dedupe@exito.com" });
+    const again = await request(admin, { value: "dedupe@exito.com" });
+    expect(again).toEqual(first);
+    expect((await sql`select 1 from kernel.verification_requests where record_id = ${recordId} and value = 'dedupe@exito.com'`).length).toBe(1);
+    // Another datum, kind or record is another request.
+    expect((await request(admin, { value: "otro-dedupe@exito.com" })).id).not.toBe(first.id);
+    expect((await request(admin, { kind: "phone", value: "+576015550000" })).id).not.toBe(first.id);
+    // A provider that can answer is asked, whatever is queued.
+    registerVerifier("fake-mail", { verify: async () => ({ ok: true }) });
+    await sql`insert into kernel.verifiers(company_id, kind, provider) values (${seed.companies[0]!.id}, 'email', 'fake-mail')`;
+    const answered = await request(admin, { value: "dedupe@exito.com" });
+    expect(answered).toMatchObject({ status: "verified", provider: "fake-mail" });
+    expect(answered.id).not.toBe(first.id);
+  });
+
   it("status answers the latest request for the record, kind and value, or null", async () => {
     const status = (over: Record<string, unknown> = {}) =>
       run(admin, "kernel.verify.status", { kind: "email", value: "luis@exito.com", entity: "kernel.role_probe", recordId, ...over });
@@ -106,7 +122,7 @@ describe("verify", () => {
     const crashed = await request(admin, { value: "boom@exito.com" });
     expect(crashed.status).toBe("failed");
     expect(seen).toEqual([["email", "ana@exito.com"], ["email", "bad@exito.com"], ["email", "boom@exito.com"]]);
-    const rows = await sql`select value, status, result from kernel.verification_requests where record_id = ${recordId} and provider = 'fake-mail' and value <> 'luis@exito.com' order by created_at, id`;
+    const rows = await sql`select value, status, result from kernel.verification_requests where record_id = ${recordId} and provider = 'fake-mail' and value in ('ana@exito.com', 'bad@exito.com', 'boom@exito.com') order by created_at, id`;
     expect(rows.map((r) => [r.value, r.status])).toEqual([["ana@exito.com", "queued"], ["ana@exito.com", "verified"], ["bad@exito.com", "failed"], ["boom@exito.com", "failed"]]);
     expect(rows[1]!.result).toEqual({ score: 0.98 });
     expect(rows[2]!.result).toEqual({ reason: "mailbox not found" });

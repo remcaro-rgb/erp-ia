@@ -2,7 +2,7 @@ import { customData, defineProcess, ProcessError, visibleExtra, type CustomData,
 import { z } from "zod";
 import { companyPack, defined, dianStatus, freeJsonb, idInput, idOutput, jsonb, num, refuseDuplicate, rejectErrors, str, undefinedAsNull } from "./common";
 import { resolveTaxes, type Taxes, type TaxResolution } from "./product-taxes";
-import { extra, extraFree, id, idScheme, incRate, ivaRate, optionalText, otherTaxes, referencePriceType, uomCode } from "./schemas";
+import { extra, extraFree, extraPatch, id, idScheme, incRate, ivaRate, optionalText, otherTaxes, referencePriceType, uomCode } from "./schemas";
 
 // Products (design §5.8b, §5.18). The company's country pack validates every create and update
 // (errors refuse with invalid_input, missing data sets dian_status). Taxes and the unit default to
@@ -163,9 +163,9 @@ export const productUpdate = defineProcess({
   kind: "update",
   feature: "core.products",
   description: "Actualiza un producto y recalcula su estado DIAN; cambiar la categoría hereda sus impuestos",
-  input: z.object(fields).partial().extend({ id }),
+  input: z.object(fields).partial().extend({ id, extraPatch }),
   output: idOutput,
-  handler: async (ctx, { id: productId, ...input }) => {
+  handler: async (ctx, { id: productId, extraPatch: patch, ...input }) => {
     const [current] = await ctx.tx`select * from core.products where id = ${productId} for update`;
     if (!current) throw new ProcessError("not_found", `product ${productId} not found`);
     const { uomCode: uom, ivaRate: iva, incRate: inc, otherTaxes: other, categoryId, supplierId, extra: extraData, extraFree: freeData, ...changes } = input;
@@ -188,7 +188,7 @@ export const productUpdate = defineProcess({
     };
     const resolution = resolveTaxes({ explicit: { ivaRate: iva, incRate: inc, otherTaxes: other }, category, current: stored, categoryChanged });
     const fiscal: Fiscal = { ...fiscalOf(current), ...defined(changes) };
-    const custom = await customData(ctx, "core.product", current.extra as Record<string, unknown> | null, extraData);
+    const custom = await customData(ctx, "core.product", current.extra as Record<string, unknown> | null, extraData, patch);
     const row = await validated(ctx, "core.product.update", fiscal, uom ?? String(current.uom_code), resolution, custom);
     const set = {
       ...undefinedAsNull(row),

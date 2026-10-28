@@ -27,6 +27,10 @@ export interface PhotosTabProps {
   onReorder?: (orderedIds: string[]) => Promise<void> | void;
   /** Runs `ai.image.suggest` for the record; the tab reloads the photos afterwards. The button shows only when this is given. */
   onSuggest?: () => Promise<void>;
+  /** Shows the Quitar button (the caller's role may remove files). Default true. */
+  canRemove?: boolean;
+  /** Called after every upload, removal, reorder and suggestion, so the page can refresh what depends on the files (readiness, checklist, Archivos). */
+  onChange?: () => void;
   /** Route handler of the attachments API. */
   endpoint?: string;
   labels?: Partial<PhotosLabels>;
@@ -48,12 +52,14 @@ async function reasonOf(response: Response): Promise<string> {
  * "Sugerir foto con IA" button. The first photo is the principal one. Files are attachments tagged `Foto`
  * handled by /api/attachments (25 MB, signed 60 s links), so they also show in the Archivos tab.
  */
-export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSuggest, endpoint = "/api/attachments", labels: overrides, className, fetcher: injected }: PhotosTabProps) {
+export function PhotosTab({ entity, recordId, readOnly = false, canRemove = true, onReorder, onSuggest, onChange, endpoint = "/api/attachments", labels: overrides, className, fetcher: injected }: PhotosTabProps) {
   const labels: PhotosLabels = { ...DEFAULT_PHOTOS_LABELS, ...overrides };
   const fetcherRef = useRef<typeof fetch>(injected ?? ((...args) => fetch(...args)));
   fetcherRef.current = injected ?? ((...args) => fetch(...args));
   const labelsRef = useRef(labels);
   labelsRef.current = labels;
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
 
   const [photos, setPhotos] = useState<readonly AttachmentItem[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -109,6 +115,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
     if (!recordId) return;
     const problems: string[] = [];
     let current = photos;
+    let stored = false;
     for (const file of files) {
       if (!file.type.startsWith("image/")) {
         problems.push(labels.notImage(file.name));
@@ -128,6 +135,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
         if (!response.ok) throw new Error(await reasonOf(response));
         const created = (await response.json()) as AttachmentItem;
         current = [...current, created];
+        stored = true;
         setPhotos(current);
         setIndex(current.length - 1);
         await sign([created]);
@@ -136,6 +144,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
       }
     }
     setMessage(problems.length > 0 ? problems.join(" · ") : null);
+    if (stored) changeRef.current?.();
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
@@ -154,6 +163,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
       const rest = photos.filter((p) => p.id !== photo.id);
       setPhotos(rest);
       setIndex(Math.min(index, Math.max(0, rest.length - 1)));
+      changeRef.current?.();
     } catch (error) {
       setMessage(labels.actionFailed(error instanceof Error ? error.message : String(error)));
     }
@@ -168,6 +178,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
       // The chosen photo is now the principal one: a suggestion made principal is approved (the server clears the flag).
       setPhotos(reordered.map((p, i) => (i === 0 && p.suggested ? { ...p, suggested: false } : p)));
       setIndex(0);
+      changeRef.current?.();
     } catch (error) {
       setMessage(labels.actionFailed(error instanceof Error ? error.message : String(error)));
     }
@@ -180,6 +191,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
     try {
       await onSuggest();
       await reload();
+      changeRef.current?.();
     } catch (error) {
       setMessage(labels.actionFailed(error instanceof Error ? error.message : String(error)));
     } finally {
@@ -231,7 +243,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, onReorder, onSug
             {labels.makePrincipal}
           </button>
         )}
-        {current && !readOnly &&
+        {current && !readOnly && canRemove &&
           (confirming ? (
             <span role="alertdialog" aria-label={labels.confirmRemove}>
               {labels.confirmRemove}{" "}

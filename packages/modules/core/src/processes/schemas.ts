@@ -11,6 +11,9 @@ export const optionalText = z.string().optional();
 /** The admin-defined extra data of a record (design §5.14): the whole document; the processes validate it against the company's custom fields. */
 export const extra = z.record(z.string(), z.unknown()).optional();
 
+/** The keys of `extra` to set (`null` removes one), merged into the stored document; not together with `extra`. */
+export const extraPatch = z.record(z.string(), z.unknown()).optional();
+
 /** Free name / value pairs any user may add (design §5.14). */
 export { extraFree };
 

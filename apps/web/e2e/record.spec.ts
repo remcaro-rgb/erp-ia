@@ -23,6 +23,7 @@ const PROCESSES = [
   "kernel.attachment.reorder",
   "kernel.ai.image_suggest",
   "kernel.verify.request",
+  "kernel.verify.status",
 ];
 
 // A 1×1 PNG and a minimal PDF: the upload route sniffs the first bytes.
@@ -137,6 +138,11 @@ test.describe("record tabs", () => {
     await expect(page.locator(".erp-contacts").getByRole("row", { name: /Ana Gómez/ })).toBeVisible();
     const [stored] = await fixture.sql`select name, email from core.party_contacts where party_id = ${partyId}`;
     expect(stored).toMatchObject({ name: "Ana Gómez", email: "ana@cafedelnorte.co" });
+    // The queued status survives the reload (kernel.verify.status), and the button waits: no second request.
+    await page.locator(".erp-contacts").getByRole("button", { name: "Ana Gómez", exact: true }).click();
+    await expect(contacts.getByText("en cola").first()).toBeVisible();
+    await expect(contacts.getByRole("button", { name: "Verificar ↗" }).first()).toBeDisabled();
+    expect((await fixture.sql`select 1 from kernel.verification_requests where record_id = ${partyId} and kind = 'email'`).length).toBe(1);
   });
 
   test("edits a datos adicionales value and saves it", async ({ page }) => {
@@ -211,6 +217,10 @@ test.describe("record tabs", () => {
     await expect(thumbs).toHaveCount(3);
     await thumbs.nth(2).click();
     await expect(badge).toContainText("sugerida por IA");
+    // The suggestion is a file of the record: the Archivos tab lists it without a reload.
+    await tab(page, /Archivos/).click();
+    await expect(page.locator(".erp-attachments__list")).toContainText("sugerencia-ia-1.svg");
+    await tab(page, /Fotos/).click();
     const [suggested] = await fixture.sql`select suggested, tag, mime_type from kernel.attachments where record_id = ${productId} and tag = 'Foto · IA'`;
     expect(suggested).toMatchObject({ suggested: true, mime_type: "image/svg+xml" });
     await page.getByRole("button", { name: "Hacer principal" }).click();

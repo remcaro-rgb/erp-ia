@@ -96,10 +96,17 @@ create policy via_process_update on kernel.attachments as restrictive for update
   using (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%')
   with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%');
 
--- An attachment is immutable but for its removal (permanent), its display order and its suggested flag.
+-- An attachment is immutable but for its removal (permanent), its display order and its suggested flag, and each of
+-- those belongs to ONE process: under kernel.attachment.remove only removed_at / removed_by may change, under
+-- kernel.attachment.reorder only position / suggested, and any other kernel.attachment.* process (add, list) changes
+-- nothing. Outside a process (the service role, maintenance) the guard only keeps the immutable columns fixed.
 create or replace function kernel.attachment_guard() returns trigger
 language plpgsql
 as $$
+declare
+  v_process text := coalesce(current_setting('erp.audit_process_id', true), '');
+  v_removal boolean := new.removed_at is distinct from old.removed_at or new.removed_by is distinct from old.removed_by;
+  v_order   boolean := new.position is distinct from old.position or new.suggested is distinct from old.suggested;
 begin
   if old.removed_at is not null then
     raise exception 'attachment % was removed and cannot change', old.id using errcode = 'check_violation';
@@ -109,6 +116,12 @@ begin
      -- who removed a file only changes together with when.
      or (new.removed_at is null and new.removed_by is distinct from old.removed_by) then
     raise exception 'attachment % can only be removed or reordered, not changed', old.id using errcode = 'check_violation';
+  end if;
+  if (v_removal and v_process like 'kernel.attachment.%' and v_process <> 'kernel.attachment.remove')
+     or (v_order and v_process like 'kernel.attachment.%' and v_process <> 'kernel.attachment.reorder')
+     or (v_removal and v_order)
+     or (v_process like 'kernel.attachment.%' and v_process not in ('kernel.attachment.remove', 'kernel.attachment.reorder')) then
+    raise exception 'attachment % cannot be changed by %', old.id, v_process using errcode = 'check_violation';
   end if;
   return new;
 end;

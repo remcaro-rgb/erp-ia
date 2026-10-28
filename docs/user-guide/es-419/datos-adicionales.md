@@ -53,11 +53,11 @@ Si tu rol puede **actualizar** ese tipo de registro (por ejemplo «Actualizar te
 
 1. Cambia los valores de los datos definidos o agrega, cambia y quita datos libres (**+ Agregar dato**, ✕).
 2. Pulsa **Guardar datos adicionales** (o **Descartar cambios** para volver a lo guardado). El pie dice «Datos adicionales guardados» cuando termina.
-3. Se guardan únicamente los datos adicionales: el resto del registro no cambia. Cada dato respeta lo que tu rol puede ingresar, editar y ver; los que no puedes ver siguen guardados y no se pierden.
+3. Se guardan únicamente los datos adicionales que **cambiaste**: el resto del registro no cambia, y los valores de otros datos que otra persona haya guardado mientras tenías la pestaña abierta se conservan. Cada dato respeta lo que tu rol puede ingresar, editar y ver; los que no puedes ver siguen guardados y no se pierden.
 4. Si el sistema rechaza un valor («Debe ser un número», «Máximo N caracteres»…), el motivo aparece bajo los botones y nada se guarda.
 5. Si la acción es sensible en tu empresa, el sistema pide el código de 6 dígitos de tu app de autenticación y continúa con el guardado.
 
-Sin permiso de actualizar, la pestaña es de consulta: ves los datos y sus valores, pero no se editan. Un dato obligatorio que completes con el guardado actualiza de inmediato los datos pendientes del registro.
+Sin permiso de actualizar (o si tu rol tiene la columna de datos adicionales enmascarada), la pestaña es de consulta: ves los datos y sus valores, pero no se editan. Un dato obligatorio que completes con el guardado actualiza de inmediato los datos pendientes del registro.
 
 ## En los listados
 

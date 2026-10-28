@@ -47,7 +47,7 @@ async function RecordView({ params }: { params: Params }) {
   }
   // No such record for this user, or no full page for the entity: both look the same.
   if (!loaded) notFound();
-  const { entity, record, defs, contacts, modes, canSave, can, requiredTags, form } = loaded;
+  const { entity, record, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, form } = loaded;
   const t = await getTranslations();
 
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
@@ -72,10 +72,10 @@ async function RecordView({ params }: { params: Params }) {
   };
   const content: Record<string, Omit<RecordTab, "id">> = {
     datos,
-    contactos: { count: contacts.length, content: <ContactsPanel partyId={record.id} contacts={contacts} can={can} /> },
+    contactos: { count: contacts.length, content: <ContactsPanel partyId={record.id} contacts={contacts} can={can} verifications={verifications} /> },
     fotos: { content: <PhotosPanel entity={entity.id} recordId={record.id} can={can} hints={hints} /> },
     extra: { ...counts, content: <ExtraPanel entity={entity.id} recordId={record.id} defs={defs} extra={extra} extraFree={extraFree} canEdit={can.extra} /> },
-    archivos: { content: <FilesPanel entity={entity.id} recordId={record.id} requiredTags={requiredTags} can={can} /> },
+    archivos: { content: <FilesPanel entity={entity.id} recordId={record.id} requiredTags={requiredTags} attachments={attachments} can={can} /> },
   };
 
   return (

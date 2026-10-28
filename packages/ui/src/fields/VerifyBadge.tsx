@@ -11,6 +11,8 @@ export interface VerifyBadgeProps {
   /** Provider that answered, when verified. */
   provider?: string | null;
   onVerify: () => void;
+  /** Keeps the button from asking again (a request is in flight, queued or done). */
+  disabled?: boolean;
   labels?: Partial<FieldLabels>;
 }
 
@@ -20,13 +22,13 @@ const TONE: Record<VerifyStatus, string> = { queued: "gray", verified: "ok", fai
  * The Verificar control of an e-mail, phone or identification (design §5.16): the state of the last request
  * ("en cola" while no provider is configured) and the button that asks `kernel.verify.request`.
  */
-export function VerifyBadge({ kind, value, status, provider, onVerify, labels: overrides }: VerifyBadgeProps) {
+export function VerifyBadge({ kind, value, status, provider, onVerify, disabled = false, labels: overrides }: VerifyBadgeProps) {
   const labels: FieldLabels = { ...DEFAULT_FIELD_LABELS, ...overrides };
   const text = status === "queued" ? labels.queued : status === "verified" ? labels.verified(provider) : status === "failed" ? labels.failed : null;
   return (
     <span className="erp-verify" data-kind={kind}>
       {status && text && <span className={`erp-pill erp-pill--${TONE[status]}`}>{text}</span>}
-      <button type="button" title={labels.verifyTitle} disabled={value.trim() === ""} onClick={onVerify}>
+      <button type="button" title={labels.verifyTitle} disabled={disabled || value.trim() === ""} onClick={onVerify}>
         {labels.verify}
       </button>
     </span>

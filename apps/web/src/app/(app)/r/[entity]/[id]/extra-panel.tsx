@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ExtraDataTab, failureMessages, StepUpPrompt, useSaveFlow, type ExtraDataValue, type ExtraFieldDef, type SaveRecord } from "@erp/ui";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { saveRecordAction } from "@/lib/records/actions";
+import { extraChanges } from "@/lib/records/extra-patch";
 
 export interface ExtraPanelProps {
   entity: string;
@@ -13,13 +14,14 @@ export interface ExtraPanelProps {
   defs: readonly ExtraFieldDef[];
   extra: Record<string, unknown>;
   extraFree: ExtraDataValue["extraFree"];
-  /** The caller may run the entity's update process. */
+  /** The caller may run the entity's update process and their role does not have the `extra` column masked. */
   canEdit: boolean;
 }
 
 /**
  * The Datos adicionales tab wired to the entity's update process: edits stay in the tab until Guardar, which sends only
- * `extra` and `extraFree` (the rest of the record is untouched), asks for the step-up code when the process requires it
+ * the keys of `extra` that changed (merged by the server into what is stored, so a form loaded earlier cannot overwrite
+ * another user's values) and `extraFree` when it changed; the rest of the record is untouched. It asks for the step-up code when the process requires it
  * and shows the process's messages when it refuses a value.
  */
 export function ExtraPanel({ entity, recordId, defs, extra, extraFree, canEdit }: ExtraPanelProps) {
@@ -78,7 +80,7 @@ export function ExtraPanel({ entity, recordId, defs, extra, extraFree, canEdit }
                 {t("discard")}
               </button>
             )}
-            <button type="button" className="erp-btn erp-btn--primary" disabled={!dirty || flow.saving} onClick={() => void flow.submit({ id: recordId, extra: value.extra, extraFree: value.extraFree })}>
+            <button type="button" className="erp-btn erp-btn--primary" disabled={!dirty || flow.saving} onClick={() => void flow.submit({ id: recordId, ...extraChanges(baseline, value) })}>
               {t("save")}
             </button>
           </div>

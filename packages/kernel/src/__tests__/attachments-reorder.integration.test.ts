@@ -120,6 +120,23 @@ describe("attachment order, suggested photos and the required-file view", () => 
     ).rejects.toThrow(/can only be removed or reordered/);
   });
 
+  it("the guard binds columns to the process: reorder cannot remove a file, remove cannot reorder, others change nothing", async () => {
+    const [first] = await idsOf();
+    const underProcess = (process: string, change: string) =>
+      sql.begin(async (tx) => {
+        await tx`select set_config('erp.audit_process_id', ${process}, true)`;
+        await tx.unsafe(`update kernel.attachments set ${change} where id = '${first!}'`);
+      });
+    await expect(underProcess("kernel.attachment.reorder", "removed_at = now()")).rejects.toThrow(/cannot be changed by/);
+    await expect(underProcess("kernel.attachment.reorder", "removed_at = now(), removed_by = kernel.current_user_id()")).rejects.toThrow(/cannot be changed by/);
+    await expect(underProcess("kernel.attachment.remove", "position = 42")).rejects.toThrow(/cannot be changed by/);
+    await expect(underProcess("kernel.attachment.remove", "suggested = true")).rejects.toThrow(/cannot be changed by/);
+    await expect(underProcess("kernel.attachment.add", "position = 5")).rejects.toThrow(/cannot be changed by/);
+    // Each process still does its own job.
+    await underProcess("kernel.attachment.reorder", "position = position");
+    expect((await sql`select removed_at from kernel.attachments where id = ${first!}`)[0]!.removed_at).toBeNull();
+  });
+
   it("making a suggested photo principal clears its suggested flag; an uploaded one stays as it is", async () => {
     const suggested = await run(admin, "kernel.ai.image_suggest", { entity: PROBE, recordId, description: "Café tostado molido 500 g", uom: "94", category: "Café" });
     expect(suggested).toMatchObject({ tag: "Foto · IA", mimeType: "image/svg+xml", suggested: true, recordId });
@@ -162,6 +179,18 @@ describe("attachment order, suggested photos and the required-file view", () => 
       await expect(run(cashier, "kernel.ai.image_suggest", { entity: PROBE, recordId, description: "Algo" })).rejects.toMatchObject({ code: "forbidden" });
       await expect(run(otherCompanyAdmin, "kernel.ai.image_suggest", { entity: PROBE, recordId, description: "Algo" })).rejects.toMatchObject({ code: "not_found" });
       await expect(run(admin, "kernel.ai.image_suggest", { entity: PROBE, recordId, description: "   " })).rejects.toMatchObject({ code: "invalid_input" });
+    });
+
+    it("removes the stored picture when the row is refused after the bytes were stored", async () => {
+      // The admin made the tag of AI photos a PDF-only one: the insert is refused once the bytes are in the store.
+      await sql`insert into kernel.required_attachments(company_id, entity, tag, kind, required) values (${seed.companies[0]!.id}, ${PROBE}, 'Foto · IA', 'pdf', false)`;
+      try {
+        const before = store.files.size;
+        await expect(run(admin, "kernel.ai.image_suggest", { entity: PROBE, recordId, description: "Algo" })).rejects.toMatchObject({ code: "invalid_input" });
+        expect(store.files.size).toBe(before);
+      } finally {
+        await sql`delete from kernel.required_attachments where company_id = ${seed.companies[0]!.id} and entity = ${PROBE}`;
+      }
     });
 
     it("leaves no bytes behind when the record refuses the file", async () => {

@@ -29,6 +29,8 @@ export interface AttachmentsPanelProps {
   recordId?: string | null;
   /** Hides the drop zone and the remove buttons. */
   readOnly?: boolean;
+  /** Shows the remove buttons (the caller's role may remove files). Default true. */
+  canRemove?: boolean;
   /** The administrator's files that apply to this record (`kernel.required_attachments`). */
   requiredTags?: readonly RequiredTag[];
   /** Files already known (server-rendered); skips the first fetch. */
@@ -58,7 +60,7 @@ async function reasonOf(response: Response): Promise<string> {
  * every file, and the stored files with signed downloads and a confirmed removal.
  */
 export function AttachmentsPanel(props: AttachmentsPanelProps) {
-  const { entity, recordId, readOnly = false, requiredTags = [], initialAttachments, onChange, endpoint = "/api/attachments", className } = props;
+  const { entity, recordId, readOnly = false, canRemove = true, requiredTags = [], initialAttachments, onChange, endpoint = "/api/attachments", className } = props;
   const fetcher = props.fetcher ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
   const labels: AttachmentsLabels = { ...DEFAULT_LABELS, ...props.labels };
 
@@ -335,7 +337,7 @@ export function AttachmentsPanel(props: AttachmentsPanelProps) {
                 <button type="button" onClick={() => void download(item)}>
                   {labels.download}
                 </button>
-                {!readOnly && (
+                {!readOnly && canRemove && (
                   <button type="button" aria-label={labels.remove(item.fileName)} onClick={() => setConfirming(item.id)}>
                     ✕
                   </button>

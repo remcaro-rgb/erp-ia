@@ -49,16 +49,23 @@ export const imageSuggest = defineProcess({
     while (used.has(`sugerencia-ia-${n}.svg`)) n += 1;
     const fileName = `sugerencia-ia-${n}.svg`;
 
-    // Register first (it validates the name and the tag), store the bytes after: a refusal leaves no bytes behind and
-    // a failed store rolls the row back. A dry run touches nothing outside the transaction.
+    // The bytes go in first and are taken out again when the row is refused (a taken name, a tag that wants another
+    // file type): a refusal never leaves a file behind. A dry run touches nothing outside the transaction.
     const storagePath = `${ctx.tenantId}/${ctx.companyId}/${entity.id}/${recordId}/${randomUUID()}-${fileName}`;
-    const row = await insertAttachment(
-      ctx,
-      entity,
-      { recordId, tag: PHOTO_AI_TAG, fileName, mimeType: image.mimeType, sizeBytes: image.bytes.byteLength, storagePath },
-      { suggested: true },
-    );
-    if (!ctx.dryRun) await (await fileStore()).put(storagePath, image.bytes, image.mimeType);
+    const store = ctx.dryRun ? null : await fileStore();
+    await store?.put(storagePath, image.bytes, image.mimeType);
+    let row;
+    try {
+      row = await insertAttachment(
+        ctx,
+        entity,
+        { recordId, tag: PHOTO_AI_TAG, fileName, mimeType: image.mimeType, sizeBytes: image.bytes.byteLength, storagePath },
+        { suggested: true },
+      );
+    } catch (error) {
+      await store?.remove(storagePath).catch((cleanup: unknown) => console.error("suggested picture cleanup failed", cleanup));
+      throw error;
+    }
     return summary(row);
   },
 });

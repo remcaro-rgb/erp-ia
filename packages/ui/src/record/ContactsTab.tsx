@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { EmailField } from "../fields/EmailField";
 import { PhoneField } from "../fields/PhoneField";
 import { digitsOnly, formatPhone, phoneValue, type VerifyKind, type VerifyStatus } from "../fields/field-model";
@@ -24,7 +24,8 @@ export interface ContactsTabProps {
   /** The Verificar control of the form's e-mail and phones. */
   verify?: {
     statusOf?: (kind: VerifyKind, value: string) => VerifyStatus | undefined;
-    onVerify: (kind: VerifyKind, value: string) => void;
+    /** May be async: the button waits for it, and a rejection is shown in the form. */
+    onVerify: (kind: VerifyKind, value: string) => Promise<void> | void;
   };
   labels?: Partial<ContactsLabels>;
   /** Appended to the root's `erp-contacts` class. */
@@ -45,6 +46,9 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
   const [confirming, setConfirming] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Verification requests in flight, by `kind:value`: one request per datum at a time.
+  const [verifying, setVerifying] = useState<ReadonlySet<string>>(new Set());
+  const inFlight = useRef(new Set<string>());
 
   const canCreate = !readOnly && onCreate !== undefined;
   const canUpdate = !readOnly && onUpdate !== undefined;
@@ -53,8 +57,32 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
   const patch = (change: Partial<ContactDraft>) => setForm((current) => (current ? { ...current, draft: { ...current.draft, ...change } } : current));
   const problems = form ? contactProblems(form.draft, labels) : {};
   const blocked = Object.keys(problems).length > 0;
-  const phoneVerify = (cc: string, number: string) =>
-    verify && { status: verify.statusOf?.("phone", phoneValue(cc, number)), onVerify: (value: string) => verify.onVerify("phone", value) };
+  /** The Verificar control of a datum: waits while its request is in flight, queued or done; a failure lets it ask again. */
+  const verifyOf = (kind: VerifyKind, value: string) => {
+    if (!verify) return undefined;
+    const key = `${kind}:${value}`;
+    const status = verify.statusOf?.(kind, value);
+    const run = async () => {
+      if (inFlight.current.has(key)) return;
+      inFlight.current.add(key);
+      setVerifying((current) => new Set(current).add(key));
+      setMessage(null);
+      try {
+        await verify.onVerify(kind, value);
+      } catch (error) {
+        setMessage(labels.verifyFailed(reason(error)));
+      } finally {
+        inFlight.current.delete(key);
+        setVerifying((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      }
+    };
+    return { status, disabled: verifying.has(key) || status === "queued" || status === "verified", onVerify: () => void run() };
+  };
+  const phoneVerify = (cc: string, number: string) => verifyOf("phone", phoneValue(cc, number));
 
   const submit = async () => {
     if (!form || blocked) return;
@@ -98,7 +126,7 @@ export function ContactsTab({ contacts, readOnly = false, onCreate, onUpdate, on
               label={labels.email}
               value={form.draft.email}
               onChange={(email) => patch({ email })}
-              verify={verify ? { status: verify.statusOf?.("email", form.draft.email), onVerify: (value) => verify.onVerify("email", value) } : undefined}
+              verify={verifyOf("email", form.draft.email)}
             />
             <PhoneField
               label={labels.phone}

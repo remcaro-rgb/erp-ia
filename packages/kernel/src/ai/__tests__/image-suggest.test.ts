@@ -30,6 +30,13 @@ describe("placeholderImage", () => {
     expect(svg).toContain("&amp;");
   });
 
+  it("strips control characters before escaping: they are not valid in XML", () => {
+    const svg = placeholderImage({ description: "Café\u0000 tos\u0007tado\u001b molido\u0085", category: "Bien\tes" }).bytes.toString("utf8");
+    // eslint-disable-next-line no-control-regex
+    expect(svg).not.toMatch(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/);
+    expect(svg).toContain("Café tos tado molido");
+  });
+
   it("initialsOf takes up to two letters or digits, upper-cased, skipping symbols and short stop words", () => {
     expect(initialsOf("café tostado")).toBe("CT");
     expect(initialsOf("  (Azúcar) de caña  ")).toBe("AC");

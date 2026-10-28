@@ -189,6 +189,39 @@ describe("custom fields", () => {
     expect((await party(partyId)).extra).toMatchObject({ dia_pago: "15" });
   });
 
+  it("extraPatch merges the given keys into the stored extra (null removes one): a stale form cannot overwrite the other keys", async () => {
+    await define(admin);
+    await define(admin, { key: "dia_pago", label: "Día de pago habitual", type: "number", options: undefined });
+    await define(admin, { key: "origen", label: "Origen del café", type: "text", options: undefined, rolesEnter: [adminRole], rolesEdit: [adminRole] });
+    const partyId = await newParty({ extra: { canal: "Retail", dia_pago: "15", origen: "Huila" } });
+
+    // Someone else changed dia_pago after this form was loaded; the form only changed the channel.
+    await runProcess(deps, admin, "core.party.update", { id: partyId, extraPatch: { dia_pago: "20" } });
+    await runProcess(deps, seller, "core.party.update", { id: partyId, extraPatch: { canal: "HORECA" } });
+    expect((await party(partyId)).extra).toEqual({ canal: "HORECA", dia_pago: "20", origen: "Huila" });
+
+    // null removes a key; values are validated like a whole document; a role still cannot touch what it may not edit.
+    await runProcess(deps, seller, "core.party.update", { id: partyId, extraPatch: { dia_pago: null } });
+    expect((await party(partyId)).extra).toEqual({ canal: "HORECA", origen: "Huila" });
+    const bad = await runProcess(deps, seller, "core.party.update", { id: partyId, extraPatch: { canal: "Mayorista" } }).catch((e: unknown) => e);
+    expect(bad).toMatchObject({ code: "invalid_input" });
+    expect(details(bad)).toContain("Canal comercial: Elige un valor de la lista");
+    const denied = await runProcess(deps, seller, "core.party.update", { id: partyId, extraPatch: { origen: "Nariño" } }).catch((e: unknown) => e);
+    expect(denied).toMatchObject({ code: "invalid_input" });
+    expect((await party(partyId)).extra).toEqual({ canal: "HORECA", origen: "Huila" });
+    // Not together with a whole document.
+    await expect(runProcess(deps, admin, "core.party.update", { id: partyId, extra: { canal: "Retail" }, extraPatch: { canal: "HORECA" } })).rejects.toMatchObject({ code: "invalid_input" });
+    // Products and categories take it too.
+    await define(admin, { entity: "core.product", key: "costo_origen", label: "Costo en origen", type: "number", options: undefined });
+    const productId = await newProduct({ extra: { costo_origen: "9000" } });
+    await runProcess(deps, admin, "core.product.update", { id: productId, extraPatch: { costo_origen: "9500" } });
+    expect((await sql`select extra from core.products where id = ${productId}`)[0]!.extra).toEqual({ costo_origen: "9500" });
+    await define(admin, { entity: "core.product_category", key: "linea", label: "Línea", type: "text", options: undefined });
+    const categoryId = (await runProcess(deps, admin, "core.category.create", { name: "Café patch", ivaRate: "5", extra: { linea: "Premium" } })).id as string;
+    await runProcess(deps, admin, "core.category.update", { id: categoryId, extraPatch: { linea: "Básica" } });
+    expect((await sql`select extra from core.product_categories where id = ${categoryId}`)[0]!.extra).toEqual({ linea: "Básica" });
+  });
+
   it("defining and removing fields are step-up processes (rule 15): refused without a fresh verification, which is consumed", async () => {
     expect(deps.registry.process("kernel.custom_field.set").sensitivity).toBe("step-up");
     expect(deps.registry.process("kernel.custom_field.remove").sensitivity).toBe("step-up");

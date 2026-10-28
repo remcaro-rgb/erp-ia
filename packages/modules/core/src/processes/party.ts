@@ -16,7 +16,7 @@ import {
   undefinedAsNull,
   writableParty,
 } from "./common";
-import { documentType, extra, extraFree, id, optionalText, partyKind, taxScheme } from "./schemas";
+import { documentType, extra, extraFree, extraPatch, id, optionalText, partyKind, taxScheme } from "./schemas";
 
 // Parties (design §5.8a, §5.18): customers, suppliers and employees as one model. The company's
 // country pack validates every create and update: its errors refuse the run with invalid_input, its
@@ -60,7 +60,7 @@ const createInput = z.object({
 });
 type PartyInput = z.output<typeof createInput>;
 
-const updateInput = z.object(fields).partial().extend({ id });
+const updateInput = z.object(fields).partial().extend({ id, extraPatch });
 
 /** Unique constraint on (company_id, document_type, document_number). */
 const DOCUMENT_KEY = "parties_company_id_document_type_document_number_key";
@@ -175,7 +175,7 @@ export const partyUpdate = defineProcess({
   description: "Actualiza los datos de un tercero y recalcula su estado DIAN",
   input: updateInput,
   output: idOutput,
-  handler: async (ctx, { id: partyId, ...changes }) => {
+  handler: async (ctx, { id: partyId, extraPatch: patch, ...changes }) => {
     // The stored kinds must be in scope (a dual party is off limits to a one-sided role) …
     await writableParty(ctx, partyId);
     const [current] = await ctx.tx`select * from core.parties where id = ${partyId} for update`;
@@ -183,7 +183,7 @@ export const partyUpdate = defineProcess({
     const merged: PartyInput = { ...inputOf(current), ...defined(changes) };
     // … and so must the kinds it would have after the update (checked in validated).
     // Extra data: the stored document unless the request replaces it; required custom fields feed dian_missing.
-    const custom = await customData(ctx, "core.party", current.extra as Record<string, unknown> | null, changes.extra);
+    const custom = await customData(ctx, "core.party", current.extra as Record<string, unknown> | null, changes.extra, patch);
     const row = await validated(ctx, "core.party.update", merged, custom);
     const { credit_limit, extra: extraValue, extra_free: freeValue, ...rest } = row;
     // Unset optional columns are cleared; credit limit and extra data change only when given.

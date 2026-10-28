@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { seedAuthUser, type AuthFixture } from "../../../../test-support/auth-fixtures";
 import { MemoryJar } from "../../../../test-support/memory-jar";
@@ -39,6 +40,7 @@ const GRANTS = [
   "kernel.attachment.reorder",
   "kernel.ai.image_suggest",
   "kernel.verify.request",
+  "kernel.verify.status",
 ];
 
 const juridica = {
@@ -208,6 +210,56 @@ describe("contacts", () => {
   });
 });
 
+describe("what the page reads back", () => {
+  it("the verification status of the contacts' e-mails and phones survives a reload (kernel.verify.status), and the files are listed for the Archivos tab", async () => {
+    await signInAs(fixture);
+    const { id: partyId } = await run("core.party.create", { ...juridica, documentNumber: "900373130" });
+    await createContactAction(partyId, draft);
+    expect((await loadRecord("core.party", partyId))!.verifications).toEqual({});
+    await requestVerificationAction("core.party", partyId, "email", draft.email);
+    await requestVerificationAction("core.party", partyId, "phone", "+576015550000");
+    const loaded = (await loadRecord("core.party", partyId))!;
+    expect(loaded.verifications).toEqual({ "email:ana@cafedelnorte.co": "queued", "phone:+576015550000": "queued" });
+    // Asking twice does not add a request.
+    await requestVerificationAction("core.party", partyId, "email", draft.email);
+    expect((await fixture.sql`select 1 from kernel.verification_requests where record_id = ${partyId} and kind = 'email'`).length).toBe(1);
+
+    expect(loaded.attachments).toEqual([]);
+    await file("core.party", partyId, "RUT", "rut.pdf");
+    expect((await loadRecord("core.party", partyId))!.attachments).toMatchObject([{ tag: "RUT", fileName: "rut.pdf", position: 0 }]);
+  });
+});
+
+describe("step-up on the tab actions", () => {
+  it("a sensitive process answers step_up_required and runs once the user's fresh token is presented", async () => {
+    await signInAs(fixture);
+    const { id: partyId } = await run("core.party.create", { ...juridica, documentNumber: "900373131" });
+    const processes = ["core.contact.create", "kernel.attachment.reorder", "kernel.ai.image_suggest"];
+    for (const process of processes) await fixture.sql`insert into kernel.sensitive_processes(company_id, process_id, mode) values (${companyId}, ${process}, 'self_2fa')`;
+    try {
+      const token = async () => {
+        const value = randomUUID();
+        await fixture.sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${fixture.userId}, ${companyId}, ${value})`;
+        return value;
+      };
+      expect(await createContactAction(partyId, draft)).toMatchObject({ ok: false, code: "step_up_required" });
+      expect(await createContactAction(partyId, draft, await token())).toMatchObject({ ok: true });
+      // The token is consumed by the run.
+      const used = await token();
+      await createContactAction(partyId, { ...draft, name: "Otra" }, used);
+      expect(await createContactAction(partyId, { ...draft, name: "Otra más" }, used)).toMatchObject({ ok: false, code: "step_up_required" });
+
+      const { id: productId } = await run("core.product.create", { ...cafe, sku: "CAF-SU", standardCode: undefined });
+      expect(await suggestPhotoAction("core.product", productId, { description: "Café" })).toMatchObject({ ok: false, code: "step_up_required" });
+      expect(await suggestPhotoAction("core.product", productId, { description: "Café" }, await token())).toMatchObject({ ok: true });
+      expect(await reorderPhotosAction("core.product", productId, ["00000000-0000-4000-8000-000000000000"])).toMatchObject({ ok: false, code: "step_up_required" });
+    } finally {
+      await fixture.sql`delete from kernel.sensitive_processes where company_id = ${companyId}`;
+      await fixture.sql`delete from kernel.step_up_verifications where company_id = ${companyId}`;
+    }
+  });
+});
+
 describe("datos adicionales", () => {
   it("saves extra and extraFree through <entity>.update, touching nothing else; a bad value comes back with its message", async () => {
     await signInAs(fixture);
@@ -227,6 +279,33 @@ describe("datos adicionales", () => {
   });
 });
 
+describe("datos adicionales: only what changed", () => {
+  it("saves a patch of the changed keys: another writer's value for a key the form did not touch survives", async () => {
+    await signInAs(fixture);
+    const { id: partyId } = await run("core.party.create", { ...juridica, documentNumber: "900373132" });
+    await saveRecordAction("core.party", { id: partyId, extra: { canal: "Mayoristas", cupo_extra: 1 } });
+    // A form loaded now would hold cupo_extra = 1; somebody saves 2 meanwhile; the form then saves its own change.
+    await saveRecordAction("core.party", { id: partyId, extraPatch: { cupo_extra: 2 } });
+    expect(await saveRecordAction("core.party", { id: partyId, extraPatch: { canal: "Minoristas" } })).toEqual({ ok: true, id: partyId });
+    expect((await loadRecord("core.party", partyId))!.record).toMatchObject({ extra: { canal: "Minoristas", cupo_extra: 2 } });
+    expect(await saveRecordAction("core.party", { id: partyId, extraPatch: { canal: null } })).toEqual({ ok: true, id: partyId });
+    expect((await loadRecord("core.party", partyId))!.record).toMatchObject({ extra: { cupo_extra: 2 } });
+  });
+
+  it("the tab is read-only for a role whose `extra` column is masked", async () => {
+    await signInAs(fixture);
+    const { id: partyId } = await run("core.party.create", { ...juridica, documentNumber: "900373133" });
+    expect((await loadRecord("core.party", partyId))!.can.extra).toBe(true);
+    const [role] = await fixture.sql<{ id: string }[]>`select id from kernel.roles where company_id = ${companyId}`;
+    await fixture.sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode) values (${companyId}, ${role!.id}, 'core.party', 'extra', 'masked')`;
+    try {
+      expect((await loadRecord("core.party", partyId))!.can.extra).toBe(false);
+    } finally {
+      await fixture.sql`delete from kernel.field_permissions where company_id = ${companyId}`;
+    }
+  });
+});
+
 describe("photos", () => {
   it("reorders a product's photos (the order persists and the list returns it) and approves a suggestion made principal", async () => {
     await signInAs(fixture);
@@ -239,10 +318,11 @@ describe("photos", () => {
     expect(await reorderPhotosAction("core.product", productId, [second!, first!])).toEqual({ ok: true });
     expect(await ids()).toEqual([second, first]);
 
+    const stored = store.files.size;
     const suggestion = await suggestPhotoAction("core.product", productId, { description: cafe.description, uom: "94", category: "Café" });
     expect(suggestion).toMatchObject({ ok: true, attachment: { tag: "Foto · IA", suggested: true, mimeType: "image/svg+xml" } });
     const suggestedId = (suggestion as unknown as { attachment: { id: string } }).attachment.id;
-    expect(store.files.size).toBe(1);
+    expect(store.files.size).toBe(stored + 1);
     expect(await ids()).toEqual([second, first, suggestedId]);
 
     await reorderPhotosAction("core.product", productId, [suggestedId, second!, first!]);

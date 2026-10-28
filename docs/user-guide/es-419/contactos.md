@@ -45,7 +45,7 @@ Cada acción es un permiso aparte de tu rol: **Crear contacto** (`core.contact.c
 
 ## Verificar el correo y el teléfono
 
-Junto a un correo o un teléfono con formato válido aparece **Verificar ↗**. Al pulsarlo se pide la verificación externa (permiso **Verificar un dato**, `kernel.verify.request`). Mientras tu empresa no tenga un proveedor de verificación configurado, la solicitud queda **en cola** y el control lo muestra con la marca «en cola»; no bloquea el guardado. La solicitud se registra sobre el tercero y el dato verificado.
+Junto a un correo o un teléfono con formato válido aparece **Verificar ↗**. Al pulsarlo se pide la verificación externa (permiso **Verificar un dato**, `kernel.verify.request`). Mientras tu empresa no tenga un proveedor de verificación configurado, la solicitud queda **en cola** y el control lo muestra con la marca «en cola» (que se conserva al recargar); no bloquea el guardado. Mientras el dato esté en cola, o la solicitud esté en camino, el botón queda deshabilitado: pedir de nuevo el mismo dato no agrega otra solicitud. La solicitud se registra sobre el tercero y el dato verificado.
 
 ## Contactos y contacto principal
 

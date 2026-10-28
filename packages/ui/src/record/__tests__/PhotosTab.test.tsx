@@ -168,6 +168,60 @@ describe("PhotosTab", () => {
   });
 });
 
+describe("PhotosTab onChange", () => {
+  it("fires after an upload, a removal, making a photo principal and a suggestion, so the page can refresh", async () => {
+    const harness = api([item("a", "Foto"), item("b", "Foto")]);
+    const onChange = vi.fn();
+    render(
+      <PhotosTab
+        entity="core.product"
+        recordId="p1"
+        fetcher={harness.fetcher}
+        onChange={onChange}
+        onReorder={async () => {}}
+        onSuggest={async () => {
+          harness.setItems([item("a", "Foto"), item("b", "Foto"), item("ia", "Foto · IA")]);
+        }}
+      />,
+    );
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    expect(onChange).not.toHaveBeenCalled();
+
+    const zone = screen.getByText("Arrastra fotos aquí").closest(".erp-photos__drop")!;
+    fireEvent.drop(zone, { dataTransfer: { files: [new File(["x"], "taza.png", { type: "image/png" })] } });
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Hacer principal" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByRole("button", { name: "✨ Sugerir foto con IA" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(3));
+
+    fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí" }));
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(4));
+  });
+
+  it("does not fire when the action failed", async () => {
+    const { fetcher } = api([item("a", "Foto"), item("b", "Foto")]);
+    const onChange = vi.fn();
+    render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} onChange={onChange} onReorder={async () => { throw new Error("no"); }} />);
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hacer principal" }));
+    await screen.findByRole("status");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("canRemove=false hides the Quitar button but keeps the rest", async () => {
+    const { fetcher } = api([item("a", "Foto"), item("b", "Foto")]);
+    render(<PhotosTab entity="core.product" recordId="p1" fetcher={fetcher} canRemove={false} onReorder={async () => {}} />);
+    await waitFor(() => expect(photo("files.test/a")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Quitar" })).toBeNull();
+    expect(screen.getByText("Arrastra fotos aquí")).toBeTruthy();
+  });
+});
+
 describe("isPhoto", () => {
   it("is an image tagged Foto or Foto · IA, in any case", () => {
     expect(isPhoto(item("a", "Foto"))).toBe(true);

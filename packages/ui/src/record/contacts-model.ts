@@ -50,6 +50,7 @@ export interface ContactsLabels {
   channelRequired: string;
   saveFailed: (reason: string) => string;
   removeFailed: (reason: string) => string;
+  verifyFailed: (reason: string) => string;
 }
 
 /** Spanish (es-419) until Task 11 wires packages/i18n; every string can be replaced through the `labels` prop. */
@@ -76,6 +77,7 @@ export const DEFAULT_CONTACTS_LABELS: ContactsLabels = {
   channelRequired: "Indica al menos un correo o teléfono",
   saveFailed: (reason) => `No se pudo guardar el contacto: ${reason}`,
   removeFailed: (reason) => `No se pudo quitar el contacto: ${reason}`,
+  verifyFailed: (reason) => `No se pudo pedir la verificación: ${reason}`,
 };
 
 export const emptyDraft = (): ContactDraft => ({ name: "", jobTitle: "", email: "", phoneCc: "57", phone: "", ext: "", mobileCc: "57", mobile: "" });

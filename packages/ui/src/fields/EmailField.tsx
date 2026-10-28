@@ -53,7 +53,7 @@ export function EmailField({ label, value, onChange, required, disabled, hint, v
             {verify && (
               <>
                 {" "}
-                <VerifyBadge kind="email" value={value} status={verify.status} provider={verify.provider} labels={overrides} onVerify={() => verify.onVerify(value)} />
+                <VerifyBadge kind="email" value={value} status={verify.status} provider={verify.provider} disabled={verify.disabled} labels={overrides} onVerify={() => verify.onVerify(value)} />
               </>
             )}
           </span>
