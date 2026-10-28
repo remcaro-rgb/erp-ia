@@ -16,7 +16,11 @@ export const UNMASKED_COLUMNS: ReadonlySet<string> = new Set([
  * `case when kernel.field_visible(entity, field) then col else null end`, so a hidden or masked
  * value never leaves the database. `security_invoker` makes the base table's RLS apply to the
  * caller; `id` and `company_id` are always selected. Grids, exports and the assistant must read
- * the view, never the table.
+ * the view, never the table. Because the view is `security_invoker`, callers need `select` on
+ * the base table too, so masking holds only for readers that select from `v_<table>`: every
+ * reader (grid, export, assistant) must use the masked view and never the base table.
+ * The visibility call is wrapped in `(select ...)` so Postgres evaluates it once per statement
+ * (an InitPlan) instead of once per row per masked column.
  */
 export function maskedViewSql(entity: ResolvedEntityDef): string {
   const columns = [`  "id"`, `  "company_id"`];
@@ -25,7 +29,7 @@ export function maskedViewSql(entity: ResolvedEntityDef): string {
     columns.push(
       UNMASKED_COLUMNS.has(field.name)
         ? `  "${field.name}"`
-        : `  case when kernel.field_visible('${entity.id}', '${field.name}') then "${field.name}" else null end as "${field.name}"`,
+        : `  case when (select kernel.field_visible('${entity.id}', '${field.name}')) then "${field.name}" else null end as "${field.name}"`,
     );
   }
   const view = `${entity.schema}.v_${entity.table}`;

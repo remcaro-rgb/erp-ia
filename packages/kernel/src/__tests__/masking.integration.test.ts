@@ -106,26 +106,22 @@ describe("field-level masking", () => {
   });
 
   it("only a company admin writes permissions, and only for roles of its own company", async () => {
-    const insert = (claims: ReturnType<typeof cashierClaims>, companyIndex: number, roleId: string) =>
+    const insertAs = (claims: ReturnType<typeof cashierClaims>, rowCompanyIndex: number, roleId: string) =>
       withClaims(sql, claims, (tx) => tx`
         insert into kernel.field_permissions(company_id, role_id, entity, field, mode)
-        values (${company(companyIndex).id}, ${roleId}, 'kernel.role_probe', 'secret', 'hidden')`);
+        values (${company(rowCompanyIndex).id}, ${roleId}, 'kernel.role_probe', 'secret', 'hidden')`);
 
-    await expect(insert(cashierClaims(), 0, company(0).memberRoleId)).rejects.toThrow(/row-level security/);
-    await expect(insert(adminClaims(), 0, company(1).memberRoleId)).rejects.toThrow(/row-level security/);
-    await expect(insert(adminClaims(), 1, company(1).memberRoleId)).rejects.toThrow(/row-level security/);
-    await insert(adminClaims(), 0, company(0).memberRoleId);
+    await expect(insertAs(cashierClaims(), 0, company(0).memberRoleId)).rejects.toThrow(/row-level security/);
+    await expect(insertAs(adminClaims(), 0, company(1).memberRoleId)).rejects.toThrow(/row-level security/);
+    await expect(insertAs(adminClaims(), 1, company(1).memberRoleId)).rejects.toThrow(/row-level security/);
+    await insertAs(adminClaims(), 0, company(0).memberRoleId);
     expect(await secretAs(cashierClaims())).toBeNull();
 
     // Everybody in the company reads the rules; a member cannot change or remove them.
     const visibleToMember = await withClaims(sql, cashierClaims(), (tx) => tx`select id from kernel.field_permissions`);
     expect(visibleToMember).toHaveLength(1);
-    const removed = await withClaims(sql, cashierClaims(), (tx) => tx`delete from kernel.field_permissions returning id`).catch(
-      (e: Error) => e,
-    );
-    expect(removed instanceof Error ? removed.message : removed).toSatisfy(
-      (r: unknown) => (Array.isArray(r) && r.length === 0) || /row-level security|permission denied/.test(String(r)),
-    );
+    const removed = await withClaims(sql, cashierClaims(), (tx) => tx`delete from kernel.field_permissions returning id`);
+    expect(removed).toHaveLength(0);
     expect(await secretAs(cashierClaims())).toBeNull();
   });
 

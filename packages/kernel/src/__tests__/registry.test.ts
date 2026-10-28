@@ -25,11 +25,13 @@ describe("entity registry", () => {
   });
 
   it("maskedViewSql wraps every field in a visibility case", () => {
-    const sql = maskedViewSql(registry.entity("core.party"));
+    const sql = maskedViewSql(defineEntity(party));
     expect(sql).toContain("create or replace view core.v_parties");
     expect(sql).toContain("security_invoker = true");
     expect(sql).toContain("kernel.field_visible('core.party', 'credit_limit')");
     expect(sql).toContain("kernel.field_visible('core.party', 'name')");
+    // Wrapped in a scalar subquery so it is evaluated once per statement, not per row.
+    expect(sql).toContain("case when (select kernel.field_visible('core.party', 'credit_limit')) then");
     expect(sql).toContain("from core.parties;");
     expect(sql).toContain("grant select on core.v_parties to authenticated;");
   });
