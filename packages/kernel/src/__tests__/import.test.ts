@@ -9,9 +9,10 @@ import { defineEntity, Registry } from "../registry";
 import { importColumns, importTarget } from "../import/columns";
 import { describeFailure, errorsCsv } from "../import/errors-csv";
 import { inFileDuplicates, mapSheet } from "../import/map";
-import { checkXlsxSize, decodeText, ImportFileError, MAX_IMPORT_ROWS, MAX_XLSX_UNCOMPRESSED_BYTES, parseCsv, parseImportFile } from "../import/parse";
+import { decodeText, ImportFileError, MAX_IMPORT_ROWS, parseCsv, parseImportFile } from "../import/parse";
+import { MAX_XLSX_UNCOMPRESSED_BYTES, readZipParts } from "../import/zip";
 import { buildTemplate } from "../import/template";
-import { deflatedZeros, forgedZip } from "../import/zip-fixtures";
+import { buildZip, deflatedZeros, forgedZip, partOf } from "../import/zip-fixtures";
 
 // Mass import (Task 13b), the pure parts: the columns a create process accepts, the template built from them,
 // the CSV / XLSX reader, the header mapping with typed coercion and errores.csv.
@@ -202,7 +203,7 @@ describe("import parsing", () => {
 
   it("refuses an XLSX whose parts declare more than 64 MB unpacked, before opening it", async () => {
     const declared = forgedZip({ data: new Uint8Array([1]), method: 0, declaredSize: MAX_XLSX_UNCOMPRESSED_BYTES + 1 });
-    expect(() => checkXlsxSize(declared)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
+    expect(() => readZipParts(declared)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
     await expect(parseImportFile(declared, "bomba.xlsx")).rejects.toBeInstanceOf(ImportFileError);
   });
 
@@ -212,13 +213,60 @@ describe("import parsing", () => {
     const bomb = forgedZip({ data: await deflatedZeros(real), method: 8, declaredSize: 1024 });
     expect(bomb.byteLength).toBeLessThan(1024 * 1024);
     const before = process.memoryUsage().arrayBuffers;
-    expect(() => checkXlsxSize(bomb)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
+    expect(() => readZipParts(bomb)).toThrow("El libro de Excel es demasiado grande al descomprimirlo");
     // What the inflater held is bounded by the cap (plus slack), never the real inflated size.
     expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(MAX_XLSX_UNCOMPRESSED_BYTES + 8 * 1024 * 1024);
     await expect(parseImportFile(bomb, "bomba.xlsx")).rejects.toThrow("demasiado grande");
     // A small honest part passes.
     const honest = forgedZip({ data: await deflatedZeros(4096), method: 8, declaredSize: 4096 });
-    expect(() => checkXlsxSize(honest)).not.toThrow();
+    // (forgedZip declares a zero CRC: an honest part is built with partOf.)
+    expect(() => readZipParts(honest)).toThrow("estructura zip");
+    expect(readZipParts(buildZip([partOf("a.xml", new Uint8Array(4096))]))[0]!.data.byteLength).toBe(4096);
+  });
+
+  it("refuses a zip whose end record understates its parts, with a bomb as the second record, before inflating anything", async () => {
+    // JSZip walks central records by signature and ignores the end record's count: this archive would reach ExcelJS
+    // with the bomb inside. The strict reader refuses the incoherent directory (and ExcelJS never sees the upload).
+    const real = 4 * MAX_XLSX_UNCOMPRESSED_BYTES;
+    const bomb = { name: "xl/worksheets/sheet1.xml", method: 8 as const, payload: await deflatedZeros(real), size: 1024, crc: 0 };
+    const zip = buildZip([partOf("[Content_Types].xml", new TextEncoder().encode("<Types/>")), bomb], { eocdEntries: 1 });
+    const before = process.memoryUsage().arrayBuffers;
+    expect(() => readZipParts(zip)).toThrow("estructura zip no es coherente");
+    expect(process.memoryUsage().arrayBuffers - before).toBeLessThan(8 * 1024 * 1024);
+    await expect(parseImportFile(zip, "doble.xlsx")).rejects.toThrow("estructura zip no es coherente");
+  });
+
+  it("refuses a part whose local header names another file than its central record", async () => {
+    const zip = buildZip([{ ...partOf("xl/workbook.xml", new TextEncoder().encode("<workbook/>")), localName: "xl/evil.xml" }]);
+    expect(() => readZipParts(zip)).toThrow("estructura zip no es coherente");
+    await expect(parseImportFile(zip, "nombres.xlsx")).rejects.toBeInstanceOf(ImportFileError);
+  });
+
+  it("refuses bytes between the central directory and the end record, and a trailing central record", () => {
+    const honest = buildZip([partOf("a.xml", new Uint8Array(10)), partOf("b.xml", new Uint8Array(10))]);
+    // The end record says 1 part: the walk finds 2 central records.
+    const understated = buildZip([partOf("a.xml", new Uint8Array(10)), partOf("b.xml", new Uint8Array(10))], { eocdEntries: 1 });
+    expect(() => readZipParts(understated)).toThrow("estructura zip");
+    const gap = new Uint8Array(honest.byteLength + 4);
+    gap.set(honest.subarray(0, honest.byteLength - 22), 0);
+    gap.set(honest.subarray(honest.byteLength - 22), honest.byteLength - 22 + 4);
+    expect(() => readZipParts(gap)).toThrow("estructura zip");
+    expect(readZipParts(honest).map((p) => p.name)).toEqual(["a.xml", "b.xml"]);
+  });
+
+  it("reads a workbook written the LibreOffice way (data descriptors), rebuilt from its parts", async () => {
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet("Hoja");
+    sheet.addRow(["name", "price"]);
+    sheet.addRow(["Uno", 1.5]);
+    const parts = readZipParts(new Uint8Array(await book.xlsx.writeBuffer()));
+    const libre = buildZip(
+      parts.map((p) => partOf(p.name, p.data)),
+      { dataDescriptor: true },
+    );
+    const parsed = await parseImportFile(libre, "libre.xlsx");
+    expect(parsed.headers).toEqual(["name", "price"]);
+    expect(parsed.rows).toEqual([{ rowNo: 2, cells: ["Uno", 1.5] }]);
   });
 
   it("refuses a file wider than 256 columns, CSV or XLSX", async () => {

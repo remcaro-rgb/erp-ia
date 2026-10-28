@@ -5,4 +5,5 @@ export type { SeedOptions, SeededCompany, SeededTenant } from "./db/test-db";
 export { withClaims } from "./db/client";
 export type { JwtClaims, Tx } from "./db/client";
 export { MemoryFileStore } from "./files/store";
-export { deflatedZeros, forgedZip } from "./import/zip-fixtures";
+export { buildZip, deflatedZeros, forgedZip, partOf } from "./import/zip-fixtures";
+export type { FixturePart } from "./import/zip-fixtures";
