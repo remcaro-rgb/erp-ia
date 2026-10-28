@@ -16,22 +16,12 @@ export const entitled: EntitledFn = async (sql, companyId, key) => {
 };
 
 /**
- * The `limit_value` of the active enabled row for a `limit:x` key, the company's own row winning
- * over a tenant-wide one (then the latest `valid_from`); null when there is none or it has no value.
+ * The `limit_value` for a `limit:x` key (`kernel.entitlement_limit`), under the same specificity rule
+ * as `entitled`: the company's own active rows win over tenant-wide ones, so a company row with
+ * `enabled = false` masks a tenant-wide limit. Null when there is none or it has no value.
  */
 export async function entitlementLimit(sql: Sql, companyId: string, key: string): Promise<number | null> {
-  const [row] = await sql<{ limit_value: string | null }[]>`
-    select te.limit_value
-    from kernel.tenant_entitlements te
-    join kernel.companies c on c.tenant_id = te.tenant_id
-    where c.id = ${companyId}
-      and te.key = ${key}
-      and te.enabled
-      and (te.company_id is null or te.company_id = c.id)
-      and te.valid_from <= current_date
-      and (te.valid_to is null or te.valid_to >= current_date)
-    order by (te.company_id is not null) desc, te.valid_from desc, te.created_at desc
-    limit 1`;
+  const [row] = await sql<{ limit_value: string | null }[]>`select kernel.entitlement_limit(${companyId}, ${key}) as limit_value`;
   return row?.limit_value == null ? null : Number(row.limit_value);
 }
 

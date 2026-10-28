@@ -70,7 +70,8 @@ async function execute<O extends z.ZodTypeAny>(
   const companyId = claims.active_company_id;
 
   const entitled = deps.entitled ?? resolveEntitled;
-  if (!(await entitled(deps.sql, companyId, `process:${def.id}`)) || !(await entitled(deps.sql, companyId, `module:${def.module}`))) {
+  // The process key already resolves through its feature and module (and a module the company disabled).
+  if (!(await entitled(deps.sql, companyId, `process:${def.id}`))) {
     throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`);
   }
 

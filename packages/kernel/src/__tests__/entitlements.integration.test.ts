@@ -143,6 +143,15 @@ describe("entitlements", () => {
     expect(await entitled(sql, companyId, "process:core.party.create")).toBe(true);
   });
 
+  it("a disabled process row denies that process even when its feature and module are entitled", async () => {
+    await entitle("module:core");
+    await entitle("feature:core.parties");
+    await entitle("process:core.party.create", { enabled: false });
+    expect(await entitled(sql, companyId, "process:core.party.create")).toBe(false);
+    expect(await entitled(sql, companyId, "feature:core.parties")).toBe(true);
+    expect(await entitled(sql, companyId, "process:core.report.run")).toBe(true);
+  });
+
   it("an unknown key, a malformed key and an unknown company are not entitled", async () => {
     await entitle("module:core");
     expect(await entitled(sql, companyId, "process:nope.thing.run")).toBe(false);
@@ -183,6 +192,13 @@ describe("entitlements", () => {
     expect(await entitled(sql, companyId, "module:core")).toBe(true);
   });
 
+  it("a company row enabling a key wins over a tenant-wide row disabling it", async () => {
+    await entitle("module:core", { enabled: false });
+    await entitle("module:core", { company: companyB });
+    expect(await entitled(sql, companyId, "module:core")).toBe(false);
+    expect(await entitled(sql, companyB, "module:core")).toBe(true);
+  });
+
   it("another tenant's entitlements never apply", async () => {
     await sql`insert into kernel.tenant_entitlements(tenant_id, key, enabled, valid_from, source)
               values (${other.tenantId}, 'module:core', true, current_date, 'plan')`;
@@ -214,6 +230,18 @@ describe("entitlements", () => {
     await entitle("limit:seats", { limit: 5, enabled: false });
     expect(await entitlementLimit(sql, companyId, "limit:seats")).toBeNull();
     expect(await entitled(sql, companyId, "module:core")).toBe(false);
+  });
+
+  it("a company row with enabled = false masks a tenant-wide limit, as it does for entitled", async () => {
+    await entitle("limit:ai_tokens_month", { limit: 1000 });
+    await entitle("limit:ai_tokens_month", { limit: 5, company: companyB, enabled: false });
+    expect(await entitlementLimit(sql, companyId, "limit:ai_tokens_month")).toBe(1000);
+    expect(await entitlementLimit(sql, companyB, "limit:ai_tokens_month")).toBeNull();
+    expect(await entitled(sql, companyB, "limit:ai_tokens_month")).toBe(false);
+    // Same level conflict: the company row wins even with a smaller value, and the latest valid_from wins among its rows.
+    await entitle("limit:ai_tokens_month", { limit: 7, company: companyB, from: "2000-01-01" });
+    await entitle("limit:ai_tokens_month", { limit: 9, company: companyB });
+    expect(await entitlementLimit(sql, companyB, "limit:ai_tokens_month")).toBe(9);
   });
 
   it("enableModule refuses when a dependency is disabled", async () => {
@@ -285,6 +313,28 @@ describe("entitlements", () => {
     ).rejects.toMatchObject({ code: "not_entitled" });
   });
 
+  it("a feature-only grant (no module row) lets runProcess run the processes that feature lists", async () => {
+    await sql`insert into kernel.process_permissions(company_id, role_id, process_id)
+              values (${companyId}, ${seed.companies[0]!.adminRoleId}, 'core.party.create'), (${companyId}, ${seed.companies[0]!.adminRoleId}, 'core.report.run')
+              on conflict (company_id, role_id, process_id) do nothing`;
+    await entitle("feature:core.parties");
+    const caller = { claims: adminClaims, origin: "ui" as const };
+    await expect(runProcess({ sql, registry }, caller, "core.party.create", {})).resolves.toEqual({});
+    await expect(runProcess({ sql, registry }, caller, "core.report.run", {})).rejects.toMatchObject({ code: "not_entitled" });
+  });
+
+  it("a module the company disabled still yields not_entitled through the process key", async () => {
+    await sql`insert into kernel.process_permissions(company_id, role_id, process_id)
+              values (${companyId}, ${seed.companies[0]!.adminRoleId}, 'core.party.create')
+              on conflict (company_id, role_id, process_id) do nothing`;
+    await entitle("module:core");
+    await entitle("feature:core.parties");
+    await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, 'core', false)`;
+    await expect(
+      runProcess({ sql, registry }, { claims: adminClaims, origin: "ui" }, "core.party.create", {}),
+    ).rejects.toMatchObject({ code: "not_entitled" });
+  });
+
   describe("access control", () => {
     it("a user reads only their own tenant's entitlements and cannot write them", async () => {
       await entitle("module:core");
@@ -335,9 +385,33 @@ describe("entitlements", () => {
       expect(audits.length).toBeGreaterThan(0);
     });
 
+    it("entitlement rows are audited under their company, tenant-wide rows without one", async () => {
+      await entitle("module:support", { company: companyB });
+      await entitle("module:core");
+      const [byCompany] = await sql`
+        select action, diff from kernel.audit_log
+        where company_id = ${companyB} and entity = 'kernel.tenant_entitlements' and diff->'key'->>'new' = 'module:support'`;
+      expect(byCompany).toMatchObject({ action: "insert" });
+      const tenantWide = await sql`
+        select action from kernel.audit_log
+        where company_id is null and entity = 'kernel.tenant_entitlements' and diff->'tenant_id'->>'new' = ${tenantId}`;
+      expect(tenantWide.length).toBeGreaterThan(0);
+      await sql`update kernel.tenant_entitlements set enabled = false where tenant_id = ${tenantId} and key = 'module:support'`;
+      const [updated] = await sql`
+        select diff from kernel.audit_log
+        where company_id = ${companyB} and entity = 'kernel.tenant_entitlements' and action = 'update' order by occurred_at desc limit 1`;
+      expect(updated!.diff).toEqual({ enabled: { old: true, new: false } });
+    });
+
     it("kernel.entitled is not callable by users", async () => {
       await expect(
         withClaims(sql, adminClaims, (tx) => tx`select kernel.entitled(${companyId}, 'module:core')`),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        withClaims(sql, adminClaims, (tx) => tx`select kernel.entitlement_limit(${companyId}, 'limit:users')`),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        withClaims(sql, adminClaims, (tx) => tx`select kernel.entitlement_decision(${tenantId}, ${companyId}, array['module:core'])`),
       ).rejects.toThrow(/permission denied/);
     });
   });

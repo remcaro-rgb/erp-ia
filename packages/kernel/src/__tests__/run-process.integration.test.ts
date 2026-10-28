@@ -87,13 +87,13 @@ describe("run-process", () => {
     const keys: string[] = [];
     const entitled = async (_sql: unknown, _companyId: unknown, key: string) => {
       keys.push(key);
-      return !key.startsWith("module:");
+      return !key.startsWith("process:");
     };
     // The cashier holds no permission, so a forbidden would surface if entitlements ran second.
     await expect(
       runProcess({ ...deps, entitled }, callerWith(cashierClaims), "test.probe.create", { name: "e" }),
     ).rejects.toMatchObject({ code: "not_entitled" });
-    expect(keys).toEqual(["process:test.probe.create", "module:test"]);
+    expect(keys).toEqual(["process:test.probe.create"]);
   });
 
   it("invalid input is rejected before the handler runs", async () => {

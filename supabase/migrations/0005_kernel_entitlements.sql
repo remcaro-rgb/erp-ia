@@ -118,7 +118,7 @@ create policy module_features_readable on kernel.module_features for select to a
 -- entitled: the most specific level with an active row decides: process -> the feature(s) that list
 -- it -> module for a process key, feature -> module for a feature key, the key itself for module and
 -- limit keys. A module the company disabled in company_modules is never entitled.
--- Both are security definer and callable by the service role only: they take any company id, so
+-- These functions are security definer and callable by the service role only: they take any company id, so
 -- exposing them to users would let one tenant probe another's plan.
 -- ---------------------------------------------------------------------------------------------
 create or replace function kernel.entitlement_decision(p_tenant uuid, p_company uuid, p_keys text[]) returns boolean
@@ -180,6 +180,33 @@ begin
 end;
 $$;
 
-revoke execute on function kernel.entitlement_decision(uuid, uuid, text[]) from public;
-revoke execute on function kernel.entitled(uuid, text) from public;
+-- entitlement_limit: the limit of a `limit:x` key under the same specificity rule as entitled: the
+-- company's own active rows win over tenant-wide ones (so a company row with enabled = false masks
+-- a tenant-wide enabled one); among the winning rows the enabled one with the latest valid_from.
+-- Null when there is none or its limit_value is null.
+create or replace function kernel.entitlement_limit(company_id uuid, key text) returns numeric
+language sql stable security definer parallel safe
+set search_path = ''
+as $$
+  with active as (
+    select te.company_id is not null as company_specific, te.enabled, te.limit_value, te.valid_from, te.created_at
+    from kernel.tenant_entitlements te
+    join kernel.companies c on c.tenant_id = te.tenant_id
+    where c.id = entitlement_limit.company_id
+      and te.key = entitlement_limit.key
+      and (te.company_id is null or te.company_id = c.id)
+      and te.valid_from <= current_date
+      and (te.valid_to is null or te.valid_to >= current_date)
+  )
+  select a.limit_value
+  from active a
+  where a.company_specific = (select bool_or(company_specific) from active) and a.enabled
+  order by a.valid_from desc, a.created_at desc
+  limit 1;
+$$;
+
+revoke execute on function kernel.entitlement_decision(uuid, uuid, text[]) from public, anon, authenticated;
+revoke execute on function kernel.entitled(uuid, text) from public, anon, authenticated;
+revoke execute on function kernel.entitlement_limit(uuid, text) from public, anon, authenticated;
 grant execute on function kernel.entitled(uuid, text) to service_role;
+grant execute on function kernel.entitlement_limit(uuid, text) to service_role;
