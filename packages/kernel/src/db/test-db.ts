@@ -18,6 +18,11 @@ export interface SeedOptions {
    * there (default `admin`; `member` is a non-admin role). An empty list creates a user without memberships.
    */
   users?: { name: string; companies: number[]; role?: "admin" | "member" }[];
+  /**
+   * Tenant-wide entitlement keys to grant (source `manual`, valid from today). Default `['module:test']`,
+   * the module the process tests declare; pass `[]` for a tenant that owns nothing.
+   */
+  entitlements?: string[];
 }
 
 export interface SeededCompany {
@@ -45,6 +50,10 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
   const suffix = randomUUID().slice(0, 8);
   const [tenant] = await sql<{ id: string }[]>`insert into kernel.tenants(name) values (${`Tenant ${suffix}`}) returning id`;
   const tenantId = tenant!.id;
+
+  for (const key of options.entitlements ?? ["module:test"]) {
+    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${tenantId}, ${key}, 'manual')`;
+  }
 
   const companies: SeededCompany[] = [];
   for (let i = 0; i < options.companies; i++) {
@@ -105,6 +114,8 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       };
     },
     async cleanup() {
+      await sql`delete from kernel.company_modules where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.tenant_entitlements where tenant_id = ${tenantId}`;
       await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where company_id = any(${companyIds}::uuid[]))`;
       await sql`delete from kernel.memberships where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.roles where company_id = any(${companyIds}::uuid[])`;

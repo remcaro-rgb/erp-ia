@@ -1,5 +1,7 @@
 import type { z } from "zod";
+import type { Sql } from "postgres";
 import type { ProcessContext } from "../process/context";
+import type { EntityDef } from "./entities";
 
 export type ProcessKind = "create" | "update" | "delete" | "consult";
 
@@ -28,7 +30,54 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
   handler(ctx: ProcessContext, input: z.infer<I>): Promise<z.infer<O>>;
 }
 
-/** Placeholder for the module manifest; Task 6 replaces it with the real definition. */
-export interface ModuleDef {
+/** A menu entry a module contributes (design §5.2, §19a). */
+export interface NavItem {
   id: string;
+  /** i18n key. */
+  label: string;
+  href: string;
+  icon: string;
+  /** Feature id (`core.parties`) that must be entitled for the item to show. */
+  feature?: string;
+  /** Shows in the active module's horizontal items bar. Default true. */
+  menu?: boolean;
+}
+
+/** A named group of processes and entities a tenant can be entitled to (design §5.12). */
+export interface FeatureDef {
+  /** `<module>.<name>`, e.g. `core.parties`. */
+  id: string;
+  /** i18n key. */
+  label: string;
+  /** Ids of processes of the same module. */
+  processes: string[];
+  /** Ids of entities of the same module. */
+  entities: string[];
+  nav?: NavItem[];
+}
+
+/** What an event consumer receives; Task 7 implements the dispatcher that builds it. */
+export interface ConsumerContext {
+  sql: Sql;
+  companyId: string;
+  chainId: string;
+  /** Runs a process with origin `event`, as the system user. */
+  runProcess: (processId: string, input: unknown) => Promise<unknown>;
+}
+
+export type EventConsumer = (ctx: ConsumerContext, payload: unknown) => Promise<void>;
+
+/** The manifest every module ships (design §5.2). */
+export interface ModuleDef {
+  /** Lowercase identifier; also the Postgres schema and the first segment of its process and feature ids. */
+  id: string;
+  version: string;
+  /** Modules that must be loaded, and enabled for a company, before this one. */
+  dependsOn: string[];
+  entities: EntityDef[];
+  processes: ProcessDef[];
+  features: FeatureDef[];
+  events: { emits: string[]; consumes: Record<string, EventConsumer> };
+  navigation: NavItem[];
+  migrationsDir?: string;
 }

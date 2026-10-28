@@ -120,8 +120,11 @@ describe("entity registry", () => {
     expect(() => r.registerProcess(proc("core.party.create", "core"))).toThrow(/already registered/);
     expect(() => r.process("nope")).toThrow(/unknown process/);
 
-    r.registerModule({ id: "core" });
-    expect(r.modules()).toEqual([{ id: "core" }]);
-    expect(() => r.registerModule({ id: "core" })).toThrow(/already registered/);
+    const core = { id: "core", version: "1", dependsOn: [], entities: [], processes: [], features: [], events: { emits: [], consumes: {} }, navigation: [] };
+    r.registerModule(core);
+    expect(r.modules()).toEqual([core]);
+    expect(r.module("core")).toBe(core);
+    expect(() => r.module("nope")).toThrow(/unknown module/);
+    expect(() => r.registerModule(core)).toThrow(/already registered/);
   });
 });

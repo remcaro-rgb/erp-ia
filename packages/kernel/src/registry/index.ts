@@ -4,7 +4,7 @@ import type { ModuleDef, ProcessDef } from "./types";
 export { defineEntity } from "./entities";
 export type { EntityDef, ResolvedEntityDef } from "./entities";
 export type { FieldDef, FieldType, ResolvedFieldDef } from "./fields";
-export type { ModuleDef, ProcessDef, ProcessKind } from "./types";
+export type { ConsumerContext, EventConsumer, FeatureDef, ModuleDef, NavItem, ProcessDef, ProcessKind } from "./types";
 
 /** The catalogue every module declares its entities, processes and manifest in (design §5.3). */
 export class Registry {
@@ -47,6 +47,17 @@ export class Registry {
     this.moduleMap.set(module.id, module);
   }
 
+  module(id: string): ModuleDef {
+    const module = this.moduleMap.get(id);
+    if (!module) throw new Error(`unknown module: ${id}`);
+    return module;
+  }
+
+  hasModule(id: string): boolean {
+    return this.moduleMap.has(id);
+  }
+
+  /** Registered modules in registration order (dependencies first when loaded through `loadModules`). */
   modules(): ModuleDef[] {
     return [...this.moduleMap.values()];
   }

@@ -3,7 +3,7 @@ import type { JSONValue, Sql } from "postgres";
 import type { z } from "zod";
 import { setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
-import { entitled as entitledStub, type EntitledFn } from "../entitlements/stub";
+import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
 import type { Registry } from "../registry";
 import type { ProcessDef, ProcessKind } from "../registry/types";
@@ -13,7 +13,7 @@ import { ProcessError, type ProcessErrorCode } from "./errors";
 export interface RunProcessDeps {
   sql: Sql;
   registry: Registry;
-  /** Entitlement check; defaults to the stub until Task 6 injects `kernel.entitled`. */
+  /** Entitlement check; defaults to the SQL resolver `kernel.entitled`. Tests may inject another. */
   entitled?: EntitledFn;
 }
 
@@ -69,7 +69,7 @@ async function execute<O extends z.ZodTypeAny>(
   const { claims } = caller;
   const companyId = claims.active_company_id;
 
-  const entitled = deps.entitled ?? entitledStub;
+  const entitled = deps.entitled ?? resolveEntitled;
   if (!(await entitled(deps.sql, companyId, `process:${def.id}`)) || !(await entitled(deps.sql, companyId, `module:${def.module}`))) {
     throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`);
   }
