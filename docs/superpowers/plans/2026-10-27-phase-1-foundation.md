@@ -65,7 +65,7 @@ Call made here: the posting engine (§5.6) moves from phase 1 to plan 2, because
 
 ## Task 1: Monorepo scaffold and CI
 
-**Mechanical enforcement of `docs/project-rules.md` (added 2026-10-28):** `eslint.config.js` with `no-restricted-imports` banning `@vercel/blob`, `@vercel/kv`, `@vercel/edge-config` and any `runtime = 'edge'` export in `apps/**` and `packages/**` (rule 6); a repo script `pnpm check:rules` that fails CI when a migration file name does not match `^\d{4}[a-z]?_[a-z]+_[a-z0-9_]+\.sql$` (rule 34), when a `.tsx` under `apps/web` contains a Spanish string literal outside `packages/i18n` catalogues (rule 24, heuristic: `/[áéíóñ¿¡]/` in JSX text), or when a module package writes to a table of another schema (grep for `from "<other>.` in `packages/modules/*/src/processes`, rule 3); `CLAUDE.md` and `AGENTS.md` at the root are part of the scaffold and are kept identical. Test: `scripts/__tests__/check-rules.test.ts` with one fixture per violation.
+**Mechanical enforcement of `docs/project-rules.md` (added 2026-10-28):** `eslint.config.js` with `no-restricted-imports` banning `@vercel/blob`, `@vercel/kv`, `@vercel/edge-config` and any `runtime = 'edge'` export in `apps/**` and `packages/**` (rule 6); a repo script `pnpm check:rules` that fails CI when a migration file name does not match `^\d{4}_[a-z]+_[a-z0-9_]+\.sql$` (rule 34; purely numeric 4-digit prefix, since the Supabase CLI skips non-numeric versions), when a `.tsx` under `apps/web` contains a Spanish string literal outside `packages/i18n` catalogues (rule 24, heuristic: `/[áéíóñ¿¡]/` in JSX text), or when a module package writes to a table of another schema (write verbs `insert into|update|delete from|truncate|alter table|create …` on `<other>.` or `from("<other>.…").insert|update|upsert|delete` in `packages/modules/*/src/processes`; reads through views are allowed, rule 3); `CLAUDE.md` and `AGENTS.md` at the root are part of the scaffold and are kept identical. Test: `scripts/__tests__/check-rules.test.ts` with one fixture per violation.
 
 **Files:**
 - Create: `package.json`, `pnpm-workspace.yaml`, `turbo.json`, `tsconfig.base.json`, `.gitignore`, `.nvmrc` (`22`), `.github/workflows/ci.yml`, `vitest.workspace.ts`
@@ -613,7 +613,7 @@ git commit -m "feat(loc-co): country pack interface and Colombian tax id validat
 
 **Files:**
 - Create: `packages/modules/core/src/index.ts` (the `defineModule`), `packages/modules/core/src/entities.ts`, `packages/modules/core/src/processes/party.ts`, `packages/modules/core/src/processes/product.ts`, `packages/modules/core/src/processes/sequence.ts`, `packages/modules/core/src/features.ts`
-- Create: `supabase/migrations/0006_core.sql`
+- Create: `supabase/migrations/0006_core_master_data.sql`
 - Create: `packages/modules/core/src/processes/contact.ts`, `packages/modules/core/src/processes/category.ts`
 - Test: `packages/modules/core/src/__tests__/party.test.ts`, `product.test.ts`, `sequence.test.ts`, `contact.test.ts`, `category.test.ts` (integration)
 
@@ -661,7 +661,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/modules/core supabase/migrations/0006_core.sql
+git add packages/modules/core supabase/migrations/0006_core_master_data.sql
 git commit -m "feat(core): parties, products, price lists and gap-free document sequences"
 ```
 
@@ -672,7 +672,7 @@ git commit -m "feat(core): parties, products, price lists and gap-free document 
 **Additions decided 2026-10-27:** `kernel.attachments.tag text not null`; `kernel.required_attachments(id, company_id, entity, tag, kind, required, condition, description)` seeded for Colombia with `RUT` (pdf, `co`) and `Cámara de Comercio` (pdf, `co-juridica`) on parties; `missingAttachments(entity, record) → string[]` in `packages/kernel/src/attachments/required.ts`, used by the `invoice_ready` trigger; `AttachmentsPanel` offers drag-and-drop and a chooser, asks a tag per file (defined tags or free text), and confirms before `kernel.attachment.remove`. Tests to add: `upload without tag is rejected`, `a Colombian juridical party without a Cámara de Comercio pdf has invoice_ready false and missingAttachments returns ['Cámara de Comercio']`, `removing the RUT flips invoice_ready to false`.
 
 **Files:**
-- Create: `supabase/migrations/0006b_attachments.sql` (`kernel.attachments` per spec §5.13, company RLS, row audit; Storage bucket `attachments` private with a policy that allows reads only through signed URLs issued by the server)
+- Create: `supabase/migrations/0007_kernel_attachments.sql` (`kernel.attachments` per spec §5.13, company RLS, row audit; Storage bucket `attachments` private with a policy that allows reads only through signed URLs issued by the server)
 - Create: `packages/kernel/src/attachments/index.ts`, `packages/kernel/src/attachments/processes.ts` (`kernel.attachment.add`, `kernel.attachment.remove`, `kernel.attachment.list`), `packages/infra/src/file-store.ts` (`FileStore` interface: `put`, `signedUrl`, `remove`; Supabase implementation), `apps/web/src/app/api/attachments/route.ts` (POST multipart upload → `FileStore.put` → `kernel.attachment.add`; GET `?id=` → signed URL)
 - Create: `packages/ui/src/attachments-panel.tsx` (`AttachmentsPanel({ entity, recordId, readOnly })`), used by Task 12's record form shell and Task 13's grid as a count column (`attachments_count` view per entity)
 - Test: `packages/kernel/src/__tests__/attachments.integration.test.ts`
@@ -703,7 +703,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0006b_attachments.sql packages/kernel/src/attachments packages/infra/src/file-store.ts packages/ui/src/attachments-panel.tsx apps/web/src/app/api/attachments
+git add supabase/migrations/0007_kernel_attachments.sql packages/kernel/src/attachments packages/infra/src/file-store.ts packages/ui/src/attachments-panel.tsx apps/web/src/app/api/attachments
 git commit -m "feat(kernel): attachments on any entity with soft delete and signed downloads"
 ```
 
@@ -712,10 +712,10 @@ git commit -m "feat(kernel): attachments on any entity with soft delete and sign
 ## Task 9c: Custom fields (Datos adicionales) and the record frame
 
 **Files:**
-- Create: `supabase/migrations/0006c_custom_fields.sql` (`kernel.custom_fields` per spec §5.14; `extra jsonb not null default '{}'`, `extra_free jsonb not null default '[]'` on `core.parties`, `core.products`, `core.product_categories`, `support.tickets`)
+- Create: `supabase/migrations/0008_kernel_custom_fields.sql` (`kernel.custom_fields` per spec §5.14; `extra jsonb not null default '{}'`, `extra_free jsonb not null default '[]'` on `core.parties`, `core.products`, `core.product_categories`, `support.tickets`)
 - Create: `packages/kernel/src/custom-fields/validate.ts` (`validateCustomFields(defs, extra, caller) → { errors: string[]; missing: string[] }`), `packages/kernel/src/custom-fields/visibility.ts` (strips keys the caller's roles cannot view, mirrors field masking)
 - Create: `packages/ui/src/record/RecordFrame.tsx` (title, N.º, UUID, open-in-new-tab, tabs `datos | contactos | fotos | extra | archivos`, status footer), `packages/ui/src/record/ExtraDataTab.tsx`, `packages/ui/src/record/ContactsTab.tsx`, `packages/ui/src/record/PhotosTab.tsx`, `packages/ui/src/fields/PhoneField.tsx`, `packages/ui/src/fields/EmailField.tsx`, `packages/ui/src/fields/VerifyBadge.tsx`, `apps/web/src/app/(app)/r/[entity]/[id]/page.tsx` (full-page record for deep links)
-- Create: `supabase/migrations/0006d_verifiers.sql` (`kernel.verifiers(kind, provider, config jsonb)`, `kernel.verification_requests(id, company_id, kind, value, entity, record_id, status, provider, result jsonb, created_at)`), `packages/kernel/src/verify/index.ts` (`verify(kind, value, ctx)` queues when no provider; provider adapters are empty interfaces in phase 1)
+- Create: `supabase/migrations/0009_kernel_verifiers.sql` (`kernel.verifiers(kind, provider, config jsonb)`, `kernel.verification_requests(id, company_id, kind, value, entity, record_id, status, provider, result jsonb, created_at)`), `packages/kernel/src/verify/index.ts` (`verify(kind, value, ctx)` queues when no provider; provider adapters are empty interfaces in phase 1)
 - Test: `packages/kernel/src/__tests__/custom-fields.test.ts`, `packages/kernel/src/__tests__/verify.test.ts`, `packages/ui/src/record/__tests__/RecordFrame.test.tsx`
 
 **Interfaces:**
@@ -731,7 +731,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0006c_custom_fields.sql supabase/migrations/0006d_verifiers.sql packages/kernel/src/custom-fields packages/kernel/src/verify packages/ui/src/record packages/ui/src/fields "apps/web/src/app/(app)/r"
+git add supabase/migrations/0008_kernel_custom_fields.sql supabase/migrations/0009_kernel_verifiers.sql packages/kernel/src/custom-fields packages/kernel/src/verify packages/ui/src/record packages/ui/src/fields "apps/web/src/app/(app)/r"
 git commit -m "feat(kernel): custom fields, record frame with tabs and deep links, phone/e-mail fields with verification hooks"
 ```
 
@@ -832,7 +832,7 @@ git commit -m "feat(ui): design tokens, shadcn base and application shell with t
 - Create: `packages/kernel/src/query/grid-state.ts`, `packages/kernel/src/query/build-query.ts`
 - Create: `apps/web/src/app/api/grid/[entity]/route.ts`
 - Create: `packages/ui/src/grid/DataGrid.tsx`, `FilterRow.tsx`, `ColumnChooser.tsx`, `GridFooter.tsx` (pager 10/25/50/100 + page buttons), `packages/ui/src/grid/use-grid.ts`, `packages/ui/src/grid/saved-views.ts`, `packages/ui/src/grid/ExportButtons.tsx` (PDF / Excel / CSV with icons), `packages/ui/src/grid/AdvancedFilter.tsx` (popup condition builder over every registry field, operators by type, Y/O joins with AND precedence, live results table with row pick (fills the lookup or opens the record), chips; opened by DataGrid's button and by the magnifier icon of EntityLookup), `packages/ui/src/lookup/EntityLookup.tsx` (autocomplete over `searchable` fields + the same AdvancedFilter inline + `forInvoice` disabling non-ready rows, spec §9), `packages/ui/src/grid/PartyScopeSwitches.tsx` (Mostrar clientes / proveedores within the role's `party_scope`)
-- Create: `supabase/migrations/0007_kernel_saved_views.sql` (`kernel.saved_views(id, company_id, user_id, entity, name, state jsonb, is_default)`)
+- Create: `supabase/migrations/0011_kernel_saved_views.sql` (`kernel.saved_views(id, company_id, user_id, entity, name, state jsonb, is_default)`)
 - Create: `apps/web/src/app/(app)/parties/page.tsx`, `apps/web/src/app/(app)/products/page.tsx`, `apps/web/src/app/(app)/categories/page.tsx`
 - Test: `packages/kernel/src/__tests__/build-query.test.ts` (unit), `apps/web/src/app/api/grid/__tests__/grid-route.test.ts` (integration), `packages/ui/src/grid/__tests__/DataGrid.test.tsx`
 
@@ -876,7 +876,7 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/kernel/src/query packages/ui/src/grid apps/web/src/app/api/grid "apps/web/src/app/(app)/parties" "apps/web/src/app/(app)/products" supabase/migrations/0007_kernel_saved_views.sql
+git add packages/kernel/src/query packages/ui/src/grid apps/web/src/app/api/grid "apps/web/src/app/(app)/parties" "apps/web/src/app/(app)/products" supabase/migrations/0011_kernel_saved_views.sql
 git commit -m "feat(grid): universal DataGrid with server-side filters, sort, masking and saved views"
 ```
 
@@ -885,7 +885,7 @@ git commit -m "feat(grid): universal DataGrid with server-side filters, sort, ma
 ## Task 13b: Mass import from Excel / CSV on any entity
 
 **Files:**
-- Create: `supabase/migrations/0007b_imports.sql` (`kernel.imports(id, company_id, entity, file_attachment_id, status, rows_total, rows_ok, rows_failed, errors_attachment_id, started_by, finished_at)`)
+- Create: `supabase/migrations/0012_kernel_imports.sql` (`kernel.imports(id, company_id, entity, file_attachment_id, status, rows_total, rows_ok, rows_failed, errors_attachment_id, started_by, finished_at)`)
 - Create: `packages/kernel/src/import/template.ts` (`buildTemplate(entity, format: 'xlsx'|'csv')` from the registry: one column per writable field, list columns as dropdowns in xlsx), `packages/kernel/src/import/parse.ts` (CSV with `;` or `,`, UTF-8; xlsx via SheetJS), `packages/kernel/src/import/run.ts` (`"use workflow"`: validate every row with the entity's create process in dry-run, insert the valid rows in batches of 500, write `errores.csv` to Storage), `packages/modules/core/src/processes/import.ts` (`kernel.import.template`, `kernel.import.preview`, `kernel.import.run` — the last is `step-up` by default)
 - Create: `packages/ui/src/import/ImportDialog.tsx` (template buttons, drop zone, preview with per-row status, "Importar filas válidas"), `apps/web/src/app/(app)/import/page.tsx` (entity cards + history)
 - Test: `packages/kernel/src/__tests__/import.test.ts` (unit parse + template), `packages/modules/core/src/__tests__/import.integration.test.ts`
@@ -903,7 +903,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0007b_imports.sql packages/kernel/src/import packages/modules/core/src/processes/import.ts packages/ui/src/import "apps/web/src/app/(app)/import"
+git add supabase/migrations/0012_kernel_imports.sql packages/kernel/src/import packages/modules/core/src/processes/import.ts packages/ui/src/import "apps/web/src/app/(app)/import"
 git commit -m "feat(kernel): mass import from Excel/CSV templates with per-row validation"
 ```
 
@@ -914,7 +914,7 @@ git commit -m "feat(kernel): mass import from Excel/CSV templates with per-row v
 **Files:**
 - Create: `packages/kernel/src/exports/csv.ts`, `xlsx.ts`, `pdf.tsx`, `packages/kernel/src/exports/export.process.ts`, `packages/kernel/src/exports/export.workflow.ts`
 - Create: `apps/web/src/app/api/export/route.ts`, `apps/web/src/app/api/export/[jobId]/route.ts`
-- Create: `supabase/migrations/0008_kernel_export_jobs.sql` (`kernel.export_jobs(id, company_id, user_id, entity, format, state jsonb, status text check in ('queued','running','done','failed'), storage_path, row_count, error, created_at, finished_at)`)
+- Create: `supabase/migrations/0013_kernel_export_jobs.sql` (`kernel.export_jobs(id, company_id, user_id, entity, format, state jsonb, status text check in ('queued','running','done','failed'), storage_path, row_count, error, created_at, finished_at)`)
 - Modify: `packages/ui/src/grid/DataGrid.tsx` (toolbar buttons PDF / Excel / CSV)
 - Test: `packages/kernel/src/__tests__/exports.test.ts` (unit on writers), `apps/web/src/app/api/export/__tests__/export-route.test.ts` (integration)
 
@@ -934,7 +934,7 @@ Expected: PASS.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/kernel/src/exports apps/web/src/app/api/export supabase/migrations/0008_kernel_export_jobs.sql packages/ui/src/grid/DataGrid.tsx
+git add packages/kernel/src/exports apps/web/src/app/api/export supabase/migrations/0013_kernel_export_jobs.sql packages/ui/src/grid/DataGrid.tsx
 git commit -m "feat(exports): CSV, XLSX and PDF export process with durable job for large sets"
 ```
 
@@ -944,7 +944,7 @@ git commit -m "feat(exports): CSV, XLSX and PDF export process with durable job 
 
 **Files:**
 - Create: `packages/modules/support/src/index.ts`, `entities.ts`, `processes/ticket.ts`
-- Create: `supabase/migrations/0009_support.sql` (`support.tickets(id, company_id, reporter_user_id, kind text check in ('bug','question','request'), title, body, context jsonb, status text check in ('open','answered','closed'), priority, created_at, updated_at)`, `support.ticket_messages(id, ticket_id, author_user_id, body, is_internal, created_at)`)
+- Create: `supabase/migrations/0014_support_tickets.sql` (`support.tickets(id, company_id, reporter_user_id, kind text check in ('bug','question','request'), title, body, context jsonb, status text check in ('open','answered','closed'), priority, created_at, updated_at)`, `support.ticket_messages(id, ticket_id, author_user_id, body, is_internal, created_at)`)
 - Create: `apps/web/src/app/(app)/support/page.tsx` (grid of tickets + detail sheet)
 - Test: `packages/modules/support/src/__tests__/ticket.test.ts`
 
@@ -961,7 +961,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/modules/support supabase/migrations/0009_support.sql "apps/web/src/app/(app)/support"
+git add packages/modules/support supabase/migrations/0014_support_tickets.sql "apps/web/src/app/(app)/support"
 git commit -m "feat(support): tickets with captured context and role-scoped visibility"
 ```
 
@@ -970,7 +970,7 @@ git commit -m "feat(support): tickets with captured context and role-scoped visi
 ## Task 16: Help knowledge index (pgvector)
 
 **Files:**
-- Create: `supabase/migrations/0010_kernel_help_index.sql` (`create extension vector`; `kernel.help_chunks(id, scope text check in ('platform','company'), company_id null, source text, title, body, embedding vector(1536), locale, updated_at)`; ivfflat index)
+- Create: `supabase/migrations/0015_kernel_help_index.sql` (`create extension vector`; `kernel.help_chunks(id, scope text check in ('platform','company'), company_id null, source text, title, body, embedding vector(1536), locale, updated_at)`; ivfflat index)
 - Create: `packages/kernel/src/help/embedder.ts`, `packages/kernel/src/help/index-builder.ts`, `packages/kernel/src/help/search.ts`, `packages/kernel/src/help/help.process.ts`
 - Create: `docs/user-guide/es-419/*.md` (first guides: `inicio.md`, `grids.md`, `exportar.md`, `asistente.md`, `seguridad-2fa.md`, written for users, Spanish)
 - Test: `packages/kernel/src/__tests__/help.test.ts` (integration with `FakeEmbedder`)
@@ -988,7 +988,7 @@ Expected: PASS.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0010_kernel_help_index.sql packages/kernel/src/help docs/user-guide
+git add supabase/migrations/0015_kernel_help_index.sql packages/kernel/src/help docs/user-guide
 git commit -m "feat(help): pgvector knowledge index over user guides and process registry"
 ```
 
@@ -997,7 +997,7 @@ git commit -m "feat(help): pgvector knowledge index over user guides and process
 ## Task 17: Agent runtime: tool generation, durable turn, confirmations, model policy, usage log
 
 **Files:**
-- Create: `supabase/migrations/0011_kernel_agent.sql` (`kernel.model_policies(id, tenant_id null, task text, primary_model text, fallbacks text[], max_cost_usd numeric null)` seeded per Global Constraints; `kernel.agent_conversations(id, company_id, user_id, title, created_at)`, `kernel.agent_messages(id, conversation_id, role, parts jsonb, created_at)`, `kernel.agent_confirmations(id, conversation_id, process_id, input jsonb, token text unique, status text check in ('pending','confirmed','rejected','executed'), result jsonb, created_at, decided_at)`, `kernel.llm_usage(id, company_id, user_id, conversation_id, provider, model, input_tokens, output_tokens, cached_tokens, cost_usd, task, created_at)`)
+- Create: `supabase/migrations/0016_kernel_agent.sql` (`kernel.model_policies(id, tenant_id null, task text, primary_model text, fallbacks text[], max_cost_usd numeric null)` seeded per Global Constraints; `kernel.agent_conversations(id, company_id, user_id, title, created_at)`, `kernel.agent_messages(id, conversation_id, role, parts jsonb, created_at)`, `kernel.agent_confirmations(id, conversation_id, process_id, input jsonb, token text unique, status text check in ('pending','confirmed','rejected','executed'), result jsonb, created_at, decided_at)`, `kernel.llm_usage(id, company_id, user_id, conversation_id, provider, model, input_tokens, output_tokens, cached_tokens, cost_usd, task, created_at)`)
 - Create: `packages/agent/src/tools/from-registry.ts`, `packages/agent/src/tools/builtin.ts` (`data.query`, `ui.navigate`, `help.search`, `support.ticket.create`, `ui.open_record`), `packages/agent/src/runtime/system-prompt.ts`, `packages/agent/src/runtime/turn.workflow.ts`, `packages/agent/src/runtime/confirm.ts`, `packages/agent/src/runtime/model-policy.ts`, `packages/agent/src/runtime/usage.ts`, `packages/agent/src/runtime/limits.ts`
 - Create: `apps/web/src/app/api/agent/turn/route.ts` (POST, starts the workflow, returns the run's readable stream of `UIMessageChunk`), `apps/web/src/app/api/agent/confirm/route.ts` (POST `{ token, decision: "confirm"|"reject", stepUpToken? }`)
 - Test: `packages/agent/src/__tests__/tools.test.ts` (unit), `packages/agent/src/__tests__/turn.integration.test.ts` (`@workflow/vitest` + AI SDK `MockLanguageModelV2`), `packages/agent/src/__tests__/limits.test.ts`
@@ -1060,7 +1060,7 @@ Expected: PASS. `agentTurn` uses `DurableAgent` from `@workflow/ai/agent` with `
 - [ ] **Step 4: Commit**
 
 ```bash
-git add supabase/migrations/0011_kernel_agent.sql packages/agent apps/web/src/app/api/agent
+git add supabase/migrations/0016_kernel_agent.sql packages/agent apps/web/src/app/api/agent
 git commit -m "feat(agent): registry-generated tools, durable turns, confirmations, model policy and usage limits"
 ```
 
@@ -1122,7 +1122,7 @@ git commit -m "feat(admin): roles, permission matrix, field visibility, sensitiv
 **Addition decided 2026-10-27:** the home is a widget dashboard (`packages/ui/src/home/Dashboard.tsx`, `Widget.tsx`): 4-column CSS grid, widgets draggable by header (HTML5 drag and drop) to relocate and resizable from the corner (span 1–4, free height), layout persisted per user in `kernel.user_prefs(user_id, key 'home_layout', value jsonb)` through `kernel.user_prefs.set`, with reset to the role default. Tests to add: `dropping widget 5 on slot 1 reorders and persists`, `resizing to span 2 persists and survives reload`, `an unknown widget id in saved prefs falls back to the default layout`.
 
 **Files:**
-- Create: `supabase/migrations/0012_kernel_recommendations.sql` (`kernel.recommendations(id, company_id, audience_role_id null, user_id null, agent_profile text, title, body, evidence jsonb, suggested_actions jsonb, confidence numeric, status text check in ('new','accepted','dismissed'), created_at, decided_at)`; background agents that fill it arrive in plan 3; phase 1 seeds two example rows for the demo company)
+- Create: `supabase/migrations/0017_kernel_recommendations.sql` (`kernel.recommendations(id, company_id, audience_role_id null, user_id null, agent_profile text, title, body, evidence jsonb, suggested_actions jsonb, confidence numeric, status text check in ('new','accepted','dismissed'), created_at, decided_at)`; background agents that fill it arrive in plan 3; phase 1 seeds two example rows for the demo company)
 - Create: `packages/kernel/src/home/kpis.ts` (`kernel.home.kpis` consult process: counts of parties and products, open tickets, AI tokens used; sales KPIs arrive in plan 2 through a `HomeKpiProvider` interface modules register), `apps/web/src/app/(app)/page.tsx`, `packages/ui/src/home/KpiCard.tsx`, `RecommendationCard.tsx`
 - Test: `packages/kernel/src/__tests__/home.test.ts`, `packages/ui/src/home/__tests__/RecommendationCard.test.tsx`
 
@@ -1139,7 +1139,7 @@ Expected: PASS. Visual check against the blue mockup.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0012_kernel_recommendations.sql packages/kernel/src/home packages/ui/src/home "apps/web/src/app/(app)/page.tsx"
+git add supabase/migrations/0017_kernel_recommendations.sql packages/kernel/src/home packages/ui/src/home "apps/web/src/app/(app)/page.tsx"
 git commit -m "feat(home): KPI providers, recommendations inbox and recent grid on the home screen"
 ```
 
