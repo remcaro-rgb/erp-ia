@@ -14,8 +14,11 @@ export const ATTACHMENTS_BUCKET = "attachments";
 export interface FileStore {
   /** Stores the bytes at `path`; refuses to overwrite an existing object. */
   put(path: string, body: ReadableStream | Buffer, contentType: string): Promise<void>;
-  /** A link that downloads the object at `path` for `ttlSeconds`, then stops working. */
-  signedUrl(path: string, ttlSeconds: number): Promise<string>;
+  /**
+   * A link that downloads the object at `path` for `ttlSeconds`, then stops working. With `downloadName`
+   * the browser saves it under that file name (the stored path is not the user's file name).
+   */
+  signedUrl(path: string, ttlSeconds: number, downloadName?: string): Promise<string>;
   /** Deletes the object (a no-op when it does not exist). */
   remove(path: string): Promise<void>;
 }
@@ -46,8 +49,10 @@ export class SupabaseFileStore implements FileStore {
     if (error) throw new Error(`could not store ${path}: ${error.message}`);
   }
 
-  async signedUrl(path: string, ttlSeconds: number): Promise<string> {
-    const { data, error } = await this.client.storage.from(this.bucket).createSignedUrl(path, ttlSeconds);
+  async signedUrl(path: string, ttlSeconds: number, downloadName?: string): Promise<string> {
+    const { data, error } = await this.client.storage
+      .from(this.bucket)
+      .createSignedUrl(path, ttlSeconds, downloadName === undefined ? undefined : { download: downloadName });
     if (error || !data) throw new Error(`could not sign ${path}: ${error?.message ?? "no url"}`);
     return data.signedUrl;
   }

@@ -1,7 +1,7 @@
 import { ProcessError } from "../process/errors";
 import { defineProcess } from "../process/define";
 import type { ProcessContext } from "../process/context";
-import type { ResolvedEntityDef } from "../registry/entities";
+import { definedTag, registeredEntity, requireOwnerUpdate, requireVisibleRecord } from "./guards";
 import { addInput, addOutput, entityRecord, listOutput, removeInput, removeOutput } from "./schemas";
 
 // Attachments on any entity (design §5.13, rule 22). The three processes are ordinary registered
@@ -44,30 +44,8 @@ const summary = (row: AttachmentRow) => ({
 /** The attachment columns with the uploader's name, as a fragment to append `where …` to (kernel.users is visible to the company's members). */
 const selectAttachments = (ctx: ProcessContext) => ctx.tx`
   select a.id, a.entity, a.record_id, a.tag, a.file_name, a.mime_type, a.size_bytes, a.storage_path,
-         a.uploaded_by, coalesce(u.full_name, u.email) as uploaded_by_name, a.uploaded_at
-  from kernel.attachments a left join kernel.users u on u.id = a.uploaded_by`;
-
-/** The registered entity, or `invalid_input`. */
-function registeredEntity(ctx: ProcessContext, entityId: string): ResolvedEntityDef {
-  try {
-    return ctx.registry.entity(entityId);
-  } catch {
-    throw new ProcessError("invalid_input", `unknown entity ${entityId}`, { details: [`La entidad ${entityId} no existe`] });
-  }
-}
-
-/** `not_found` unless the record is visible to the caller through the entity's masked view `<schema>.v_<table>`. */
-async function requireVisibleRecord(ctx: ProcessContext, entity: ResolvedEntityDef, recordId: string): Promise<void> {
-  const view = ctx.tx(`${entity.schema}.v_${entity.table}`);
-  const rows = await ctx.tx`select 1 from ${view} where id = ${recordId}`;
-  if (rows.length === 0) throw new ProcessError("not_found", `${entity.id} ${recordId} not found`);
-}
-
-/** `forbidden` unless a role of the caller may run `<entity>.update`, the owning entity's update process. */
-async function requireOwnerUpdate(ctx: ProcessContext, entityId: string): Promise<void> {
-  const [row] = await ctx.tx<{ allowed: boolean }[]>`select kernel.can_run_process(${`${entityId}.update`}) as allowed`;
-  if (!row?.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${entityId}.update, which attaching files requires`);
-}
+         a.created_by as uploaded_by, coalesce(u.full_name, u.email) as uploaded_by_name, a.created_at as uploaded_at
+  from kernel.attachments a left join kernel.users u on u.id = a.created_by`;
 
 const refuse = (message: string, detail: string) => new ProcessError("invalid_input", message, { details: [detail] });
 
@@ -92,9 +70,7 @@ export const attachmentAdd = defineProcess({
     }
 
     // A tag the admin defined keeps its defined spelling and its file type.
-    const [defined] = await ctx.tx<{ tag: string; kind: string }[]>`
-      select tag, kind from kernel.required_attachments
-      where company_id = ${ctx.companyId} and entity = ${entity.id} and lower(btrim(tag)) = lower(${input.tag})`;
+    const defined = await definedTag(ctx.tx, ctx.companyId, entity.id, input.tag);
     const tag = defined?.tag ?? input.tag;
     if (defined?.kind === "pdf" && input.mimeType !== "application/pdf") {
       throw refuse("tag requires a pdf", `La etiqueta ${tag} exige un archivo PDF`);
@@ -114,7 +90,7 @@ export const attachmentAdd = defineProcess({
     let id: string;
     try {
       const [inserted] = await ctx.tx<{ id: string }[]>`
-        insert into kernel.attachments (company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path, uploaded_by)
+        insert into kernel.attachments (company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path, created_by)
         values (${ctx.companyId}, ${entity.id}, ${input.recordId}, ${tag}, ${input.fileName}, ${input.mimeType}, ${input.sizeBytes}, ${input.storagePath}, ${ctx.userId})
         returning id`;
       id = inserted!.id;
@@ -164,7 +140,7 @@ export const attachmentList = defineProcess({
     const rows = await ctx.tx<AttachmentRow[]>`
       ${selectAttachments(ctx)}
       where a.company_id = ${ctx.companyId} and a.entity = ${entity.id} and a.record_id = ${input.recordId} and a.removed_at is null
-      order by a.uploaded_at, a.id`;
+      order by a.created_at, a.id`;
     return rows.map(summary);
   },
 });

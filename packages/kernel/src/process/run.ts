@@ -72,7 +72,8 @@ async function execute<O extends z.ZodTypeAny>(
 
   const entitled = deps.entitled ?? resolveEntitled;
   // The process key already resolves through its feature and module (and a module the company disabled).
-  if (!(await entitled(deps.sql, companyId, `process:${def.id}`))) {
+  // The kernel is the platform, not something a tenant buys: its processes are always entitled.
+  if (def.module !== "kernel" && !(await entitled(deps.sql, companyId, `process:${def.id}`))) {
     throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`);
   }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { MAX_ATTACHMENT_BYTES, missingAttachments, runProcess, type Caller } from "@erp/kernel";
-import { withClaims } from "@erp/kernel/testing";
+import { defineEntity, MAX_ATTACHMENT_BYTES, missingAttachments, precheckAttachment, runProcess, type Caller } from "@erp/kernel";
+import { seedTenant, withClaims } from "@erp/kernel/testing";
 import { coreHarness, exito, type CoreHarness } from "./helpers";
 
 // Attachments on any entity (design §5.13, §5.17). They live in the core suite, not the kernel's,
@@ -149,8 +149,10 @@ describe("kernel attachments", () => {
     expect(await ready("parties", partyId)).toBe(true);
     const [rut] = await sql<{ id: string }[]>`select id from kernel.attachments where record_id = ${partyId} and tag = 'RUT'`;
 
-    // Inside the removing transaction, before it commits, the party is already not ready.
+    // The trigger runs inside the removing transaction: with the pipeline's audit context (what runProcess sets)
+    // the party is already not ready before the transaction commits, and a rollback restores it.
     await withClaims(sql, admin.claims, async (tx) => {
+      await tx`select set_config('erp.audit_process_id', 'kernel.attachment.remove', true)`;
       await tx`update kernel.attachments set removed_at = now(), removed_by = kernel.current_user_id() where id = ${rut!.id}`;
       const [inside] = await tx`select invoice_ready from core.parties where id = ${partyId}`;
       expect(inside!.invoice_ready).toBe(false);
@@ -160,6 +162,9 @@ describe("kernel attachments", () => {
 
     await runProcess(deps, admin, "kernel.attachment.remove", { id: rut!.id });
     expect(await ready("parties", partyId)).toBe(false);
+    // The party row records the change under the removing process, in the same chain as the removal.
+    const flips = await sql`select process_id, chain_id from kernel.audit_log where entity = 'core.parties' and row_id = ${partyId} and diff ? 'invoice_ready' and process_id = 'kernel.attachment.remove'`;
+    expect(flips).toHaveLength(1);
     // Uploading a RUT again makes it ready; removing the Cámara breaks it again.
     await add(admin, fileInput(partyId, "RUT", "rut-nuevo.pdf"));
     expect(await ready("parties", partyId)).toBe(true);
@@ -276,7 +281,7 @@ describe("kernel attachments", () => {
     expect((await sql`select 1 from kernel.required_attachments where company_id = ${h.companyId}`).length).toBe(4);
   });
 
-  it("the bucket is private and closed to users; kernel processes need no module:kernel entitlement", async () => {
+  it("the bucket is private and closed to users", async () => {
     const [bucket] = await sql`select public, file_size_limit from storage.buckets where id = 'attachments'`;
     expect(bucket).toMatchObject({ public: false, file_size_limit: String(MAX_ATTACHMENT_BYTES) });
     await withClaims(sql, admin.claims, async (tx) => {
@@ -284,9 +289,131 @@ describe("kernel attachments", () => {
     });
     const insert = await withClaims(sql, admin.claims, (tx) => tx`insert into storage.objects(bucket_id, name) values ('attachments', 'x')`).catch((e: unknown) => e);
     expect(insert).toMatchObject({ code: "42501" });
-    const [tenantKeys] = await sql`select count(*)::int as n from kernel.tenant_entitlements where tenant_id = ${h.seed.tenantId} and key like 'module:kernel%'`;
-    expect(tenantKeys!.n).toBe(0);
-    const [entitled] = await sql`select kernel.entitled(${h.companyId}, 'process:kernel.attachment.add') as ok, kernel.entitled(${h.companyId}, 'process:sales.order.create') as other`;
-    expect(entitled).toEqual({ ok: true, other: false });
+  });
+
+  it("kernel processes are always entitled; a module's processes still need their entitlement", async () => {
+    // A tenant that bought nothing: no module:kernel and no module:core.
+    const bare = await seedTenant(sql, { companies: 1, entitlements: [] });
+    const company = bare.companies[0]!;
+    const caller: Caller = { claims: bare.claimsFor(bare.users.both, company.id), origin: "ui" };
+    try {
+      await h.grantAll(company.id, company.adminRoleId, ["kernel.attachment.list", "core.party.consult"]);
+      const [party] = await sql<{ id: string }[]>`
+        insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
+        values (${company.id}, '{customer}', '1', '31', '900111222', 'Sin plan S.A.S.', 'complete') returning id`;
+      await expect(runProcess(deps, caller, "kernel.attachment.list", { entity: PARTY, recordId: party!.id })).resolves.toEqual([]);
+      await expect(runProcess(deps, caller, "core.party.consult", { id: party!.id })).rejects.toMatchObject({ code: "not_entitled" });
+    } finally {
+      await sql`delete from core.parties where company_id = ${company.id}`;
+      await sql`delete from core.entity_sequences where company_id = ${company.id}`;
+      await sql`delete from kernel.process_permissions where company_id = ${company.id}`;
+      await sql`delete from kernel.outbox where company_id = ${company.id}`;
+      await bare.cleanup();
+    }
+  });
+
+  it("writes outside the process pipeline are refused, even for an admin of the company", async () => {
+    const partyId = await newParty();
+    const att = await add(admin, fileInput(partyId, "RUT"));
+    for (const caller of [admin, cashier]) {
+      const direct = await withClaims(
+        sql,
+        caller.claims,
+        (tx) => tx`insert into kernel.attachments(company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path)
+                   values (${h.companyId}, ${PARTY}, ${partyId}, 'RUT', 'directo.pdf', 'application/pdf', 10, ${storagePath(partyId, "directo.pdf")})`,
+      ).catch((e: unknown) => e);
+      expect(direct).toMatchObject({ code: "42501" });
+      // Another process' name does not open the gate either.
+      const other = await withClaims(sql, caller.claims, async (tx) => {
+        await tx`select set_config('erp.audit_process_id', 'core.party.update', true)`;
+        return tx`update kernel.attachments set removed_at = now() where id = ${att.id}`;
+      });
+      expect(other.count).toBe(0);
+    }
+    const direct = await withClaims(sql, admin.claims, (tx) => tx`update kernel.attachments set removed_at = now(), removed_by = kernel.current_user_id() where id = ${att.id}`);
+    expect(direct.count).toBe(0);
+    expect((await sql`select 1 from kernel.attachments where id = ${att.id} and removed_at is null`).length).toBe(1);
+    expect((await sql`select 1 from kernel.attachments where record_id = ${partyId}`).length).toBe(1);
+    // Removal is permanent and nothing else about a stored file can change, whoever asks.
+    await runProcess(deps, admin, "kernel.attachment.remove", { id: att.id });
+    await expect(sql`update kernel.attachments set removed_at = null where id = ${att.id}`).rejects.toMatchObject({ code: "23514" });
+    await expect(sql`update kernel.attachments set tag = 'Otro' where id = ${att.id}`).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("standard audit columns: created_* is the upload, updated_* the removal; a tag is unique per entity whatever its case", async () => {
+    const partyId = await newParty();
+    const att = await add(admin, fileInput(partyId, "RUT"));
+    const [before] = await sql`select created_by, created_at, updated_at, removed_by from kernel.attachments where id = ${att.id}`;
+    expect(before!.created_by).toBe(h.seed.users.both);
+    expect(att.uploadedBy).toBe(h.seed.users.both);
+    await runProcess(deps, admin, "kernel.attachment.remove", { id: att.id });
+    const [after] = await sql`select updated_by, updated_at, created_at from kernel.attachments where id = ${att.id}`;
+    expect(after!.updated_by).toBe(h.seed.users.both);
+    expect(after!.updated_at.getTime()).toBeGreaterThanOrEqual(before!.updated_at.getTime());
+    expect(after!.created_at).toEqual(before!.created_at);
+    await expect(
+      sql`insert into kernel.required_attachments(company_id, entity, tag, kind) values (${h.companyId}, ${PARTY}, ' rut ', 'any')`,
+    ).rejects.toMatchObject({ code: "23505" });
+    const [req] = await sql`select created_by, created_at, updated_at from kernel.required_attachments where company_id = ${h.companyId} and tag = 'RUT'`;
+    expect(req!.created_at).toBeInstanceOf(Date);
+    await sql`update kernel.required_attachments set description = 'x' where company_id = ${h.companyId} and tag = 'RUT'`;
+    const [touched] = await sql`select updated_at from kernel.required_attachments where company_id = ${h.companyId} and tag = 'RUT'`;
+    expect(touched!.updated_at.getTime()).toBeGreaterThan(req!.updated_at.getTime());
+  });
+
+  it("precheckAttachment refuses before any bytes are stored, and says which kind the tag requires", async () => {
+    const partyId = await newParty();
+    const target = { entity: PARTY, recordId: partyId, tag: "rut", fileName: "rut.pdf", mimeType: "application/pdf", sizeBytes: 1024 };
+    await expect(precheckAttachment(deps, admin, target)).resolves.toEqual({ tag: "RUT", kind: "pdf" });
+    await expect(precheckAttachment(deps, admin, { ...target, tag: "Libre" })).resolves.toEqual({ tag: "Libre", kind: null });
+    await expect(precheckAttachment(deps, admin, { ...target, entity: "core.nope" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(precheckAttachment(deps, admin, { ...target, recordId: "not-a-uuid" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(precheckAttachment(deps, admin, { ...target, tag: " " })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(precheckAttachment(deps, admin, { ...target, sizeBytes: MAX_ATTACHMENT_BYTES + 1 })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(precheckAttachment(deps, admin, { ...target, fileName: "../rut.pdf" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(precheckAttachment(deps, admin, { ...target, recordId: "00000000-0000-7000-8000-000000000000" })).rejects.toMatchObject({ code: "not_found" });
+    await expect(precheckAttachment(deps, otherCompanyAdmin, target)).rejects.toMatchObject({ code: "not_found" });
+    const company = h.seed.companies[0]!;
+    await sql`delete from kernel.process_permissions where company_id = ${company.id} and role_id = ${company.memberRoleId} and process_id = 'core.party.update'`;
+    await expect(precheckAttachment(deps, cashier, target)).rejects.toMatchObject({ code: "forbidden" });
+    await add(admin, fileInput(partyId, "RUT", "rut.pdf"));
+    await expect(precheckAttachment(deps, admin, target)).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("an entity whose module has no attachments_changed hook cannot take files (no silent skip)", async () => {
+    await sql`create schema if not exists fake`;
+    await sql`create table fake.things (id uuid primary key default kernel.uuid_v7(), company_id uuid not null)`;
+    await sql`alter table fake.things enable row level security`;
+    await sql`create policy company_isolation on fake.things for all to authenticated using (company_id = (select kernel.current_company_id()))`;
+    await sql`create view fake.v_things with (security_invoker = true) as select id, company_id from fake.things`;
+    await sql`grant usage on schema fake to authenticated`;
+    await sql`grant select on fake.things, fake.v_things to authenticated`;
+    try {
+      deps.registry.registerEntity(
+        defineEntity({ id: "fake.thing", module: "fake", schema: "fake", table: "things", label: "entity.fake.thing", displayField: "company_id", defaultSort: { field: "company_id", dir: "asc" }, fields: [{ name: "company_id", type: "uuid", label: "field.company" }] }),
+      );
+      await h.grantAll(h.companyId, h.seed.companies[0]!.adminRoleId, ["fake.thing.update"]);
+      const [thing] = await sql<{ id: string }[]>`insert into fake.things(company_id) values (${h.companyId}) returning id`;
+      const error = await add(admin, {
+        entity: "fake.thing",
+        recordId: thing!.id,
+        tag: "Doc",
+        fileName: "doc.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 10,
+        storagePath: storagePath(thing!.id, "doc.pdf", "fake.thing"),
+      }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "handler_failed" });
+      expect(String((error as { cause?: Error }).cause?.message)).toContain("module fake has no attachments_changed hook");
+      expect((await sql`select 1 from kernel.attachments where record_id = ${thing!.id}`).length).toBe(0);
+      // A requirement for such an entity is refused too.
+      await expect(sql`insert into kernel.required_attachments(company_id, entity, tag, kind) values (${h.companyId}, 'fake.thing', 'Doc', 'any')`).rejects.toThrow(
+        "module fake has no attachments_changed hook",
+      );
+    } finally {
+      await sql`drop view fake.v_things`;
+      await sql`drop table fake.things`;
+      await sql`drop schema fake`;
+    }
   });
 });

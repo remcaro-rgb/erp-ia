@@ -1,14 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { getServiceDb, MAX_ATTACHMENT_BYTES, ProcessError, runProcess, type Caller } from "@erp/kernel";
+import { getServiceDb, MAX_ATTACHMENT_BYTES, precheckAttachment, ProcessError, runProcess, type Caller } from "@erp/kernel";
 import { SIGNED_URL_TTL_SECONDS } from "@erp/infra";
 import { sessionCaller } from "@/lib/auth/caller";
+import { contentProblem } from "@/lib/attachments/sniff";
 import { fileStore, processDeps } from "@/lib/server/runtime";
 
 // Attachments over HTTP (design §5.13). POST stores the bytes in the private bucket and registers
 // them with kernel.attachment.add as the session's user; GET ?entity=&recordId= lists a record's files
 // (kernel.attachment.list); GET ?id= answers a 60 s signed download link after the same list confirms
 // the caller may see the file; DELETE ?id= removes a file (kernel.attachment.remove, soft). The bucket
-// has no user policy: bytes only move through this handler, with the service role.
+// has no user policy: bytes only move through this handler, with the service role. An upload is
+// validated and authorised (precheckAttachment) and its content sniffed before a byte is stored.
+
+/** Room for the multipart boundaries and field parts around a file of the maximum size. */
+const BODY_OVERHEAD_BYTES = 1024 * 1024;
 
 const STATUS: Record<ProcessError["code"], number> = {
   not_entitled: 403,
@@ -37,6 +42,11 @@ export async function POST(request: Request): Promise<Response> {
   const caller = await sessionCaller();
   if (!caller) return problem("forbidden", "No hay sesión");
 
+  // Refuse an oversized body before reading it (the multipart envelope adds a little to the file).
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_ATTACHMENT_BYTES + BODY_OVERHEAD_BYTES) {
+    return Response.json({ code: "invalid_input", details: ["El archivo supera los 25 MB"] }, { status: 413 });
+  }
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   const entity = form?.get("entity");
@@ -47,15 +57,27 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (file.size > MAX_ATTACHMENT_BYTES) return problem("invalid_input", "El archivo supera los 25 MB");
 
-  const { tenant_id: tenantId, active_company_id: companyId } = caller.claims;
   const fileName = file.name.trim();
-  const storagePath = `${tenantId}/${companyId}/${entity}/${recordId}/${randomUUID()}-${storageName(fileName)}`;
   const mimeType = file.type || "application/octet-stream";
+  const deps = processDeps();
   const store = fileStore();
 
-  await store.put(storagePath, Buffer.from(await file.arrayBuffer()), mimeType);
+  // Nothing is stored until the caller is known to be allowed to attach this file to this record.
+  let target;
   try {
-    const { storagePath: _stored, ...attachment } = await runProcess(processDeps(), caller, "kernel.attachment.add", {
+    target = await precheckAttachment(deps, caller, { entity, recordId, tag, fileName, mimeType, sizeBytes: file.size });
+  } catch (error) {
+    return fail(error);
+  }
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const mismatch = contentProblem(target.kind, mimeType, bytes);
+  if (mismatch) return problem("invalid_input", mismatch === "not_pdf" ? `La etiqueta ${target.tag} exige un archivo PDF` : `La etiqueta ${target.tag} exige una imagen`);
+
+  const { tenant_id: tenantId, active_company_id: companyId } = caller.claims;
+  const storagePath = `${tenantId}/${companyId}/${entity}/${recordId}/${randomUUID()}-${storageName(fileName)}`;
+  await store.put(storagePath, bytes, mimeType);
+  try {
+    const { storagePath: _stored, ...attachment } = await runProcess(deps, caller, "kernel.attachment.add", {
       entity,
       recordId,
       tag,
@@ -67,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
     void _stored;
     return Response.json(attachment, { status: 201 });
   } catch (error) {
-    // The process refused (permission, duplicate, wrong type…): do not leave the bytes behind.
+    // The process refused after all (a concurrent change): do not leave the bytes behind.
     await store.remove(storagePath).catch((cleanup: unknown) => console.error("attachment cleanup failed", cleanup));
     return fail(error);
   }
@@ -95,7 +117,7 @@ export async function GET(request: Request): Promise<Response> {
     if (!row) return problem("not_found", "No se encontró el archivo");
     const visible = await runProcess(processDeps(), caller, "kernel.attachment.list", { entity: row.entity, recordId: row.record_id });
     if (!visible.some((attachment: { id: string }) => attachment.id === id)) return problem("not_found", "No se encontró el archivo");
-    const url = await fileStore().signedUrl(row.storage_path, SIGNED_URL_TTL_SECONDS);
+    const url = await fileStore().signedUrl(row.storage_path, SIGNED_URL_TTL_SECONDS, row.file_name);
     return Response.json({ url, fileName: row.file_name, expiresIn: SIGNED_URL_TTL_SECONDS });
   } catch (error) {
     return fail(error);

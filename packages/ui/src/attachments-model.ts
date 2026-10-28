@@ -1,8 +1,8 @@
 // Types, default copy and pure rules of the attachments panel (design §5.13, rule 22). No React here,
 // so the rules are unit-tested without a DOM.
 
-/** Largest file a record accepts: 25 MB. The server enforces it too. */
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+// The server enforces the same limit; the dependency-free subpath keeps the kernel's server code out of the browser bundle.
+export { MAX_ATTACHMENT_BYTES } from "@erp/kernel/limits";
 
 /** Value of the tag select that opens the free-text tag input. */
 export const TAG_OTHER = "__other__";

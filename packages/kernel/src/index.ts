@@ -24,5 +24,5 @@ export type { EntitledFn } from "./entitlements/resolver";
 export { registerCountryPack, countryPack } from "./localization/country-pack";
 export { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "./validation";
 export type { CountryPack, DocumentType, PartyFiscalInput, PartyValidation, ProductFiscalInput, ProductValidation, TaxIdResult } from "./localization/country-pack";
-export { ATTACHMENT_PROCESSES, attachmentAdd, attachmentList, attachmentRemove, kernelModule, MAX_ATTACHMENT_BYTES, missingAttachments } from "./attachments";
+export { ATTACHMENT_PROCESSES, attachmentAdd, attachmentList, attachmentRemove, kernelModule, MAX_ATTACHMENT_BYTES, missingAttachments, precheckAttachment } from "./attachments";
 export type { RecordFacts } from "./attachments";

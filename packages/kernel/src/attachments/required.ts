@@ -1,5 +1,8 @@
 import type { Sql } from "postgres";
 
+/** The file kinds a required definition accepts. */
+export type RequiredKind = "pdf" | "image" | "any";
+
 /** What the required-file conditions (`co`, `co-juridica`, `proveedor`, `cliente`) read from the owning record. */
 export interface RecordFacts {
   id: string;

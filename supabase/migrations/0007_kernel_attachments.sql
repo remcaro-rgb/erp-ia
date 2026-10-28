@@ -18,8 +18,16 @@ create table kernel.required_attachments (
   required    boolean not null default true,
   condition   text,
   description text,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  created_by  uuid default kernel.current_user_id(),
+  updated_by  uuid,
   unique (company_id, entity, tag)
 );
+-- "RUT" and " rut " are the same definition.
+create unique index required_attachments_tag_key on kernel.required_attachments (company_id, entity, lower(btrim(tag)));
+create trigger required_attachments_touch_updated before update on kernel.required_attachments
+  for each row execute function kernel.touch_updated();
 
 grant select, insert, update, delete on kernel.required_attachments to authenticated;
 grant all on kernel.required_attachments to service_role;
@@ -50,10 +58,13 @@ create table kernel.attachments (
   mime_type    text not null,
   size_bytes   bigint not null check (size_bytes >= 0 and size_bytes <= 26214400),
   storage_path text not null unique,
-  uploaded_by  uuid default kernel.current_user_id(),
-  uploaded_at  timestamptz not null default now(),
   removed_at   timestamptz,
-  removed_by   uuid
+  removed_by   uuid,
+  -- created_at / created_by are the upload time and the uploader.
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  created_by   uuid default kernel.current_user_id(),
+  updated_by   uuid
 );
 create index attachments_record_idx on kernel.attachments (company_id, entity, record_id) where removed_at is null;
 -- A record never holds two live files with the same name (any case): an upload never replaces one silently.
@@ -61,10 +72,19 @@ create unique index attachments_live_name_key on kernel.attachments (company_id,
 
 -- Users insert through kernel.attachment.add and may only fill the removal columns afterwards.
 grant select, insert on kernel.attachments to authenticated;
-grant update (removed_at, removed_by) on kernel.attachments to authenticated;
+grant update (removed_at, removed_by, updated_at, updated_by) on kernel.attachments to authenticated;
 grant all on kernel.attachments to service_role;
 select kernel.enable_company_rls('kernel', 'attachments');
 select kernel.enable_row_audit('kernel', 'attachments');
+
+-- Writes only through the process pipeline (rule 1): runProcess sets erp.audit_process_id for the
+-- transaction, so a member writing directly (outside kernel.attachment.add / remove) is refused. The
+-- service role bypasses RLS and is not affected.
+create policy via_process_insert on kernel.attachments as restrictive for insert to authenticated
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%');
+create policy via_process_update on kernel.attachments as restrictive for update to authenticated
+  using (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%')
+  with check (coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.attachment.%');
 
 -- An attachment is immutable but for its removal, and a removal is permanent.
 create or replace function kernel.attachment_guard() returns trigger
@@ -74,7 +94,9 @@ begin
   if old.removed_at is not null then
     raise exception 'attachment % was removed and cannot change', old.id using errcode = 'check_violation';
   end if;
-  if new.removed_at is null or (to_jsonb(new) - 'removed_at' - 'removed_by') is distinct from (to_jsonb(old) - 'removed_at' - 'removed_by') then
+  if new.removed_at is null
+     or (to_jsonb(new) - 'removed_at' - 'removed_by' - 'updated_at' - 'updated_by')
+        is distinct from (to_jsonb(old) - 'removed_at' - 'removed_by' - 'updated_at' - 'updated_by') then
     raise exception 'attachment % can only be removed, not changed', old.id using errcode = 'check_violation';
   end if;
   return new;
@@ -82,6 +104,8 @@ end;
 $$;
 create trigger attachment_guard before update on kernel.attachments
   for each row execute function kernel.attachment_guard();
+create trigger attachments_touch_updated before update on kernel.attachments
+  for each row execute function kernel.touch_updated();
 
 -- Live files per record, for the grids' attachment count column. Company RLS applies to the reader.
 create or replace view kernel.v_attachment_counts with (security_invoker = true) as
@@ -168,8 +192,8 @@ grant execute on function kernel.seed_required_attachments(uuid) to service_role
 -- ---------------------------------------------------------------------------------------------
 -- Readiness hooks (design §5.17). The kernel does not know the modules: after a file is added or
 -- removed, or a requirement changes, it calls <module>.attachments_changed(entity, company, record)
--- of the module that owns the entity (the first segment of the entity id) when that module defines
--- it; record is null when the whole entity must be re-evaluated. The module re-evaluates its records
+-- of the module that owns the entity (the first segment of the entity id), and raises when that module
+-- does not define it; record is null when the whole entity must be re-evaluated. The module re-evaluates its records
 -- in the same transaction, so a record loses invoice_ready the moment its last required file goes.
 -- ---------------------------------------------------------------------------------------------
 create or replace function kernel.notify_attachments_changed(p_entity text, p_company uuid, p_record_id uuid) returns void
@@ -179,9 +203,12 @@ as $$
 declare
   v_module text := split_part(p_entity, '.', 1);
 begin
-  if to_regprocedure(format('%I.attachments_changed(text,uuid,uuid)', v_module)) is not null then
-    execute format('select %I.attachments_changed($1, $2, $3)', v_module) using p_entity, p_company, p_record_id;
+  -- A module that accepts files for its entities must say how a file change affects its records; a silent
+  -- skip would leave invoice_ready stale.
+  if to_regprocedure(format('%I.attachments_changed(text,uuid,uuid)', v_module)) is null then
+    raise exception 'module % has no attachments_changed hook (entity %)', v_module, p_entity;
   end if;
+  execute format('select %I.attachments_changed($1, $2, $3)', v_module) using p_entity, p_company, p_record_id;
 end;
 $$;
 revoke execute on function kernel.notify_attachments_changed(text, uuid, uuid) from public, anon, authenticated;
@@ -216,57 +243,6 @@ $$;
 revoke execute on function kernel.required_attachment_changed() from public, anon, authenticated;
 create trigger required_attachment_changed after insert or update or delete on kernel.required_attachments
   for each row execute function kernel.required_attachment_changed();
-
--- ---------------------------------------------------------------------------------------------
--- The kernel is the platform: its processes (kernel.attachment.*) are available to every company
--- and need no module:kernel entitlement. Same resolver as 0005 with that one early return.
--- ---------------------------------------------------------------------------------------------
-create or replace function kernel.entitled(company_id uuid, key text) returns boolean
-language plpgsql stable security definer parallel safe
-set search_path = ''
-as $$
-declare
-  v_tenant   uuid;
-  v_kind     text := split_part(entitled.key, ':', 1);
-  v_name     text := substr(entitled.key, position(':' in entitled.key) + 1);
-  v_module   text := split_part(substr(entitled.key, position(':' in entitled.key) + 1), '.', 1);
-  v_features text[];
-  v_decision boolean;
-begin
-  if position(':' in entitled.key) = 0 or v_kind not in ('module', 'feature', 'process', 'limit') then
-    return false;
-  end if;
-  select c.tenant_id into v_tenant from kernel.companies c where c.id = entitled.company_id;
-  if v_tenant is null then
-    return false;
-  end if;
-
-  if v_module = 'kernel' and v_kind <> 'limit' then
-    return true;
-  end if;
-
-  if v_kind <> 'limit' and exists (
-    select 1 from kernel.company_modules cm
-    where cm.company_id = entitled.company_id and cm.module_id = v_module and not cm.enabled
-  ) then
-    return false;
-  end if;
-
-  v_decision := kernel.entitlement_decision(v_tenant, entitled.company_id, array[entitled.key]);
-  if v_decision is null and v_kind = 'process' then
-    select array_agg('feature:' || mf.feature_id) into v_features
-    from kernel.module_features mf
-    where mf.module_id = v_module and v_name = any (mf.process_ids);
-    v_decision := kernel.entitlement_decision(v_tenant, entitled.company_id, v_features);
-  end if;
-  if v_decision is null and v_kind in ('process', 'feature') then
-    v_decision := kernel.entitlement_decision(v_tenant, entitled.company_id, array['module:' || v_module]);
-  end if;
-  return coalesce(v_decision, false);
-end;
-$$;
-revoke execute on function kernel.entitled(uuid, text) from public, anon, authenticated;
-grant execute on function kernel.entitled(uuid, text) to service_role;
 
 -- ---------------------------------------------------------------------------------------------
 -- Storage: the private bucket `attachments` (25 MB per object). No policy lets a user touch it:

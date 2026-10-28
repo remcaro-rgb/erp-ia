@@ -33,8 +33,13 @@ describe("SupabaseFileStore", () => {
     const { client, calls } = fakeClient({ signedUrl: "http://storage/signed?token=1" });
     const store = new SupabaseFileStore(client);
     await expect(store.signedUrl("p", 60)).resolves.toBe("http://storage/signed?token=1");
+    await store.signedUrl("p", 60, "Cámara de Comercio.pdf");
     await store.remove("p");
-    expect(calls.filter((c) => c[0] !== "from")).toEqual([["createSignedUrl", "p", 60], ["remove", ["p"]]]);
+    expect(calls.filter((c) => c[0] !== "from")).toEqual([
+      ["createSignedUrl", "p", 60, undefined],
+      ["createSignedUrl", "p", 60, { download: "Cámara de Comercio.pdf" }],
+      ["remove", ["p"]],
+    ]);
   });
 
   it("surfaces storage errors", async () => {
