@@ -194,7 +194,7 @@ Lengths 60 / 450 / 200 and the exógena country table come from the DIAN prevali
 | `other_taxes` | set of `22` INC bolsas, `32` ICL, `33` INPP, `34` IBUA, `35` ICUI, `23` carbono (table 13.2.2); amounts per unit configured in plan 2 | optional | extra `TaxTotal` lines |
 | `list_price` | `numeric(18,4)` > 0 unless `is_free_sample` | always | `Price/PriceAmount` |
 | `is_free_sample`, `reference_price_type`, `reference_price` | type `1` valor comercial, `2` valor en inventarios, `3` otro; reference price > 0 when free | free samples | `FreeOfChargeIndicator`, `PricingReference/AlternativeConditionPrice` (table 13.3.10) |
-| `standard_cost` | ≥ 0; missing cost is pending, not an error | goods | — |
+| `standard_cost` | ≥ 0; optional (cost is a costing datum, not a DIAN one: a missing cost never affects `dian_status` or `invoice_ready`; the costing module in phase 2 flags goods without cost) | goods | — |
 | `track_stock`, `min_stock` | goods only | — | — |
 
 Format errors block the save; missing data sets `dian_status` exactly as for parties (§5.8a). Products imported with errors (for example price 0 from a legacy system) keep the `errors` status until corrected and cannot be put on an invoice.
