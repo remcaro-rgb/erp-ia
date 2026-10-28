@@ -39,6 +39,7 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
     const items = moduleItems(mod);
     if (items.length === 0) continue;
     entitlements.add(`module:${mod.id}`);
+    for (const item of items) if (item.process) processes.add(item.process);
     for (const feature of mod.features) {
       if (!items.some((item) => item.feature === feature.id)) continue;
       entitlements.add(`feature:${feature.id}`);
@@ -50,7 +51,7 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
 
 /**
  * The modules (entitled, with at least one item for the caller), their menu items (feature entitled and one of
- * the feature's processes runnable by the caller) and the create commands (`<module>.<noun>.create` runnable,
+ * the feature's processes runnable by the caller; an item naming a `process` also needs that one runnable) and the create commands (`<module>.<noun>.create` runnable,
  * on the item of its feature whose id starts with the noun's stem: `core.party.create` → `core.parties`).
  */
 export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav {
@@ -60,6 +61,7 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
   for (const mod of registry.modules()) {
     if (!access.entitled.has(`module:${mod.id}`)) continue;
     const visible = moduleItems(mod).filter((item) => {
+      if (item.process && !access.runnable.has(item.process)) return false;
       if (!item.feature) return true;
       const feature = mod.features.find((f) => f.id === item.feature);
       return access.entitled.has(`feature:${item.feature}`) && (feature?.processes.some((p) => access.runnable.has(p)) ?? false);

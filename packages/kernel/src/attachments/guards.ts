@@ -30,9 +30,15 @@ export async function requireProcess(scope: Pick<Scope, "tx">, processId: string
   if (!row?.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${processId}${because}`);
 }
 
-/** `forbidden` unless a role of the caller may run `<entity>.update`, the owning entity's update process. */
-export const requireOwnerUpdate = (scope: Pick<Scope, "tx">, entityId: string) =>
-  requireProcess(scope, `${entityId}.update`, ", which attaching files requires");
+/** The process that governs attaching files to records of `entityId`: its declared `processIds.attach`, else `<entity>.update`. */
+export function attachProcessOf(registry: Scope["registry"], entityId: string): string {
+  const declared = registry.entities().find((e) => e.id === entityId)?.processIds?.attach;
+  return declared ?? `${entityId}.update`;
+}
+
+/** `forbidden` unless a role of the caller may run the owning entity's update process (or its declared attach process). */
+export const requireOwnerUpdate = (scope: Scope, entityId: string) =>
+  requireProcess(scope, attachProcessOf(scope.registry, entityId), ", which attaching files requires");
 
 /** The admin's definition of `tag` for the entity (trimmed, any case), or undefined for a free-form tag. */
 export async function definedTag(

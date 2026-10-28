@@ -14,6 +14,8 @@ export const NAVIGATION: NavItem[] = [
   { id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users", feature: "core.parties" },
   { id: "core.products", label: "nav.core.products", href: "/products", icon: "package", feature: "core.products" },
   { id: "core.categories", label: "nav.core.categories", href: "/categories", icon: "tags", feature: "core.products" },
+  // Mass import of parties, products and categories (kernel.import.*): shown to whoever may import.
+  { id: "core.import", label: "nav.core.import", href: "/import", icon: "upload", process: "kernel.import.run" },
 ];
 
 const nav = (feature: string) => NAVIGATION.filter((item) => item.feature === feature);

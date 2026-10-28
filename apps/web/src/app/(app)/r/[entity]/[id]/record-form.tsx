@@ -2,7 +2,8 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { CategoryForm, gridFetcher, PartyForm, ProductForm, useTabs, type FieldMode, type RequestStepUp, type SaveRecord } from "@erp/ui";
+import { CategoryForm, gridFetcher, PartyForm, ProductForm, useTabs, type FieldMode, type SaveRecord } from "@erp/ui";
+import { requestStepUp } from "@/lib/auth/step-up-client";
 import { saveRecordAction } from "@/lib/records/actions";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
 import type { FormData } from "@/lib/records/load";
@@ -14,13 +15,6 @@ export interface RecordFormProps {
   readOnly: boolean;
   form: FormData;
 }
-
-/** A TOTP code for the step-up endpoint (rule 15). */
-const requestStepUp: RequestStepUp = async (code) => {
-  const response = await fetch("/api/auth/step-up", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
-  const body = (await response.json().catch(() => null)) as { token?: string; code?: string } | null;
-  return response.ok && body?.token ? { token: body.token } : { error: body?.code ?? "unavailable" };
-};
 
 /**
  * The Datos tab of a record wired to the app: saves through the entity's processes (server action), asks for the

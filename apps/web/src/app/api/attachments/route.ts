@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { getServiceDb, MAX_ATTACHMENT_BYTES, precheckAttachment, ProcessError, runProcess } from "@erp/kernel";
+import { getServiceDb, MAX_ATTACHMENT_BYTES, precheckAttachment, runProcess } from "@erp/kernel";
 import { SIGNED_URL_TTL_SECONDS } from "@erp/infra";
 import { callerOrResponse } from "@/lib/auth/http";
 import { contentProblem } from "@/lib/attachments/sniff";
+import { processFailure as fail, processProblem as problem } from "@/lib/server/process-response";
 import { fileStore, processDeps } from "@/lib/server/runtime";
 
 // Attachments over HTTP (design §5.13). POST stores the bytes in the private bucket and registers
@@ -14,26 +15,6 @@ import { fileStore, processDeps } from "@/lib/server/runtime";
 
 /** Room for the multipart boundaries and field parts around a file of the maximum size. */
 const BODY_OVERHEAD_BYTES = 1024 * 1024;
-
-const STATUS: Record<ProcessError["code"], number> = {
-  not_entitled: 403,
-  forbidden: 403,
-  step_up_required: 401,
-  invalid_input: 400,
-  not_found: 404,
-  idempotent_replay: 409,
-  handler_failed: 500,
-};
-
-function fail(error: unknown): Response {
-  if (error instanceof ProcessError) {
-    return Response.json({ code: error.code, details: error.details ?? null }, { status: STATUS[error.code] });
-  }
-  console.error(error);
-  return Response.json({ code: "handler_failed", details: null }, { status: 500 });
-}
-
-const problem = (code: ProcessError["code"], detail: string) => Response.json({ code, details: [detail] }, { status: STATUS[code] });
 
 /** Storage keys avoid accents and spaces; the original name stays in the attachment row. */
 const storageName = (fileName: string) => fileName.normalize("NFKD").replace(/[^\w.-]+/g, "_");

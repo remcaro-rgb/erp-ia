@@ -4,7 +4,7 @@ import { SupabaseFileStore, type FileStore } from "../file-store";
 type Call = [string, ...unknown[]];
 
 /** A Storage client that records what the store asks of it. */
-function fakeClient(result: { error?: { message: string } | null; signedUrl?: string } = {}) {
+function fakeClient(result: { error?: { message: string } | null; signedUrl?: string; download?: Blob } = {}) {
   const calls: Call[] = [];
   const bucket = {
     upload: async (...args: unknown[]) => (calls.push(["upload", ...args]), { error: result.error ?? null }),
@@ -13,6 +13,7 @@ function fakeClient(result: { error?: { message: string } | null; signedUrl?: st
       { data: result.signedUrl ? { signedUrl: result.signedUrl } : null, error: result.error ?? null }
     ),
     remove: async (...args: unknown[]) => (calls.push(["remove", ...args]), { error: result.error ?? null }),
+    download: async (...args: unknown[]) => (calls.push(["download", ...args]), { data: result.download ?? null, error: result.error ?? null }),
   };
   const client = { storage: { from: (name: string) => (calls.push(["from", name]), bucket) } };
   return { client: client as unknown as ConstructorParameters<typeof SupabaseFileStore>[0], calls };
@@ -23,7 +24,7 @@ describe("SupabaseFileStore", () => {
     const { client, calls } = fakeClient();
     const store: FileStore = new SupabaseFileStore(client);
     await store.put("t/c/core.party/1/a.pdf", Buffer.from("pdf"), "application/pdf");
-    await store.put("t/c/core.party/1/b.pdf", new Blob(["stream"]).stream(), "application/pdf");
+    await store.put("t/c/core.party/1/b.pdf", new Response("stream").body!, "application/pdf");
     expect(calls[0]).toEqual(["from", "attachments"]);
     expect(calls[1]).toEqual(["upload", "t/c/core.party/1/a.pdf", Buffer.from("pdf"), { contentType: "application/pdf", upsert: false }]);
     expect(calls[3]).toEqual(["upload", "t/c/core.party/1/b.pdf", Buffer.from("stream"), { contentType: "application/pdf", upsert: false }]);
@@ -42,12 +43,20 @@ describe("SupabaseFileStore", () => {
     ]);
   });
 
+  it("reads an object's bytes back", async () => {
+    const { client, calls } = fakeClient({ download: new Blob(["nombre;precio"]) });
+    const store = new SupabaseFileStore(client);
+    expect(new TextDecoder().decode(await store.get("t/c/kernel.import/1/a.csv"))).toBe("nombre;precio");
+    expect(calls.filter((c) => c[0] !== "from")).toEqual([["download", "t/c/kernel.import/1/a.csv"]]);
+  });
+
   it("surfaces storage errors", async () => {
     const { client } = fakeClient({ error: { message: "The resource already exists" } });
     const store = new SupabaseFileStore(client);
     await expect(store.put("p", Buffer.from("x"), "text/plain")).rejects.toThrow("The resource already exists");
     await expect(store.signedUrl("p", 60)).rejects.toThrow("could not sign p");
     await expect(store.remove("p")).rejects.toThrow("could not remove p");
+    await expect(store.get("p")).rejects.toThrow("could not read p");
   });
 
   it("fromEnv needs the project url and the service-role key", () => {

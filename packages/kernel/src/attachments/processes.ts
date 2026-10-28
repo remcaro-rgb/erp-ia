@@ -6,7 +6,7 @@ import { addInput, addOutput, entityRecord, listOutput, removeInput, removeOutpu
 
 // Attachments on any entity (design §5.13, rule 22). The three processes are ordinary registered
 // processes with their own permissions. add and remove also require the caller to be able to run the
-// owning entity's update process (`<entity id>.update`), and every process needs the record to be
+// owning entity's update process (`<entity id>.update`, or the entity's declared `processIds.attach`), and every process needs the record to be
 // visible through the entity's masked read view, so a party scope or a field mask that hides a record
 // hides its files too.
 

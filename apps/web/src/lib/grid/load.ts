@@ -22,11 +22,16 @@ export interface GridPageData {
   partyScope: PartyScope | null;
   views: SavedViewItem[];
   canCreate: boolean;
+  /** The caller may import into the entity (kernel.import.run and its create process). */
+  canImport: boolean;
   /** "Crear <entity>": the title of the new record's tab. */
   newTitle: string;
   /** Column that names a record in its tab. */
   titleField: string;
 }
+
+/** The process a mass import runs (Task 13b). */
+const IMPORT_PROCESS = "kernel.import.run";
 
 export type GridPageResult = { ok: true; data: GridPageData } | { ok: false; denial: GridDenial };
 
@@ -68,7 +73,7 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
   const [access, views, runnable, t, locale, categories] = await Promise.all([
     gridPageAccess(deps.sql, caller.claims, entity),
     savedViews(caller, entity.id),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, record ? [record.create] : []),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, record ? [record.create, IMPORT_PROCESS] : []),
     getTranslations(),
     getLocale(),
     entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([]),
@@ -83,6 +88,7 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
       partyScope: entity.id === "core.party" ? access.partyScope : null,
       views,
       canCreate: record ? runnable.has(record.create) : false,
+      canImport: record ? runnable.has(record.create) && runnable.has(IMPORT_PROCESS) : false,
       newTitle: record ? t("grid.record_title.new", { entity: t(record.nounKey) }) : "",
       titleField: record?.titleField ?? entity.displayField,
     },

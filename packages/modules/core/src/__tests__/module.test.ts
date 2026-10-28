@@ -24,7 +24,7 @@ describe("core manifest", () => {
     );
     expect(core.features.map((f) => f.id)).toEqual(["core.parties", "core.products", "core.settings"]);
     expect(core.events.emits).toEqual(["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"]);
-    expect(core.navigation.map((n) => n.href)).toEqual(["/parties", "/products", "/categories"]);
+    expect(core.navigation.map((n) => n.href)).toEqual(["/parties", "/products", "/categories", "/import"]);
   });
 
   it("every entity has its own consult process (the grid and the record read through it)", () => {

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { withWorkflow } from "workflow/next";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -18,4 +19,5 @@ const nextConfig: NextConfig = {
 // Locale and messages per request: src/i18n/request.ts.
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
-export default withNextIntl(nextConfig);
+// "use workflow" / "use step" (durable work, rule 6): the import route starts kernel workflows with start().
+export default withWorkflow(withNextIntl(nextConfig));

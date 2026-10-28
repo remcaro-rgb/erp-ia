@@ -383,7 +383,8 @@
     "core": {
       "parties": "Parties",
       "products": "Products",
-      "categories": "Categories"
+      "categories": "Categories",
+      "import": "Import data"
     },
     "modules": {
       "core": "Core"
@@ -413,6 +414,9 @@
       "price_list": "Price list",
       "price_list_item": "Price list item",
       "document_sequence": "Document sequence"
+    },
+    "kernel": {
+      "import": "Import"
     }
   },
   "field": {
@@ -564,6 +568,22 @@
       "verified": "verified",
       "verified_by": "verified · {provider}",
       "failed": "not verified"
+    },
+    "kernel": {
+      "import": {
+        "entity": "Entity",
+        "status": "Status",
+        "rows_total": "Rows",
+        "rows_ok": "Created",
+        "rows_failed": "Rejected",
+        "file_attachment_id": "Original file",
+        "errors_attachment_id": "Errors",
+        "started_by": "User",
+        "finished_at": "Finished",
+        "error": "Failure reason",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
     }
   },
   "feature": {
@@ -577,7 +597,8 @@
       "custom_fields": "Additional data",
       "verification": "E-mail and phone verification",
       "user_prefs": "User preferences",
-      "saved_views": "Saved views"
+      "saved_views": "Saved views",
+      "imports": "Bulk import (Excel / CSV)"
     }
   },
   "process": {
@@ -624,9 +645,62 @@
     },
     "import": {
       "title": "Import",
+      "dialog_title": "Import {entity}",
       "template": "Download template",
       "row_error": "Row {row}: {reason}",
-      "soon": "Import is coming soon"
+      "template_title": "1 · Template",
+      "template_xlsx": "Excel template",
+      "template_csv": "CSV template",
+      "template_hint": "Fill in the template without changing the headers. CSV separated by “;” or “,”, UTF-8; the NIT goes without its check digit; list values are separated by “|”.",
+      "file_title": "2 · File",
+      "drop": "Drop here",
+      "drop_or": "the .xlsx or .csv file, or",
+      "choose": "choose the file",
+      "drop_hint": "Up to 25 MB · up to 50,000 rows per file",
+      "file": "File: {name}",
+      "too_big": "The file is larger than 25 MB",
+      "wrong_type": "The file must be .xlsx or .csv",
+      "checking": "Checking the file…",
+      "preview_title": "Preview · {total, plural, one {# row} other {# rows}}",
+      "valid": "{count, plural, one {# valid} other {# valid}}",
+      "invalid": "{count, plural, one {# with errors} other {# with errors}}",
+      "col_row": "Row",
+      "col_result": "Result",
+      "row_ok": "valid",
+      "row_bad": "error",
+      "partial": "The first {shown} of {total} rows were checked; the import checks them all.",
+      "missing_columns": "Required columns are missing: {columns}. Every row would be rejected.",
+      "unknown_headers": "Columns that are not imported: {headers}",
+      "preview_note": "Only rows without errors are loaded; rows with pending DIAN data are created and cannot be invoiced until completed. Rows with errors come back in errores.csv with the reason.",
+      "process_note": "Process kernel.import.run · requires two-step verification · runs in the background with the form's own validator and is audited with the original file attached",
+      "run": "Import valid rows",
+      "running": "Importing…",
+      "started": "Import in progress. The result and errores.csv will be in the import history.",
+      "history_link": "View history",
+      "failed": "The import failed: {reason}",
+      "page_title": "Import data",
+      "page_hint": "Bulk load with an Excel or CSV template",
+      "card_columns": "{count, plural, one {# column} other {# columns}}",
+      "card_hint": "DIAN validation row by row · duplicates by document or code",
+      "none": "Your role cannot import into any entity.",
+      "history": "History",
+      "history_empty": "No imports yet",
+      "refresh": "Refresh",
+      "col_date": "Date",
+      "col_entity": "Entity",
+      "col_file": "File",
+      "col_user": "User",
+      "col_status": "Status",
+      "col_ok": "Created",
+      "col_failed": "Rejected",
+      "col_errors": "Errors",
+      "errors_file": "errores.csv",
+      "status": {
+        "queued": "queued",
+        "running": "running",
+        "done": "done",
+        "failed": "failed"
+      }
     },
     "views": {
       "title": "Views",

@@ -12,6 +12,12 @@ export interface EntityDef {
   fields: FieldDef[];
   displayField: string;
   defaultSort: { field: string; dir: "asc" | "desc" };
+  /**
+   * Processes acting on the entity whose id does not follow `<entity id>.<verb>`: `create` is the process the
+   * importer creates records through (default `<entity id>.create`); `attach` is the process a caller must be
+   * able to run to attach files to a record (default `<entity id>.update`).
+   */
+  processIds?: { create?: string; attach?: string };
 }
 
 export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFieldDef[] };

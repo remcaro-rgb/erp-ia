@@ -1,0 +1,172 @@
+import { randomUUID } from "node:crypto";
+import { getServiceDb } from "../db/service";
+import type { JwtClaims } from "../db/client";
+import { fileStore } from "../files/store";
+import type { Caller } from "../process/context";
+import { runProcess } from "../process/run";
+import { registry } from "../registry";
+import { errorsCsv } from "./errors-csv";
+import { ERRORS_FILE_NAME, ERRORS_TAG, failImport, forgetJob, importSummaryText, loadJob, recordImport, sourceOf, type ImportSummary } from "./job";
+import type { ImportLabels } from "./map";
+import { ImportFileError } from "./parse";
+import { resolveReferences, runRecords } from "./validate";
+
+// The import workflow (design §5.11 "validate → commit → report", §9). Started by the route once
+// `kernel.import.run` committed the import record and its source file was attached. It reads the file, validates
+// every row with the entity's create process in a dry run, creates the valid rows for real in batches of 500 (one
+// step each, in file order, so a document repeated in the file is refused on its second occurrence by the process's
+// own uniqueness), writes errores.csv when a row was refused, and records the counts with the final audit entry
+// ("3 creadas · 1 rechazada"). Every process runs as the caller who imported, origin `api`, on one chain.
+
+export interface RunImportArgs {
+  importId: string;
+  claims: JwtClaims;
+  /** The chain of the `kernel.import.run` call: every row, file and audit entry of the import joins it. */
+  chainId: string;
+  /** Column key → header label, to read a file whose headers are the template's labels. */
+  labels?: ImportLabels;
+}
+
+/** Rows per validation step and per creation step. */
+export const IMPORT_BATCH = 500;
+
+interface Failure {
+  index: number;
+  errors: string[];
+}
+
+export async function runImport(args: RunImportArgs): Promise<ImportSummary> {
+  "use workflow";
+
+  try {
+    const begun = await beginImport(args);
+    if (!begun.ok) return await abandonImport(args, begun.reason);
+
+    const failed: Failure[] = [];
+    const valid: number[] = [];
+    for (let from = 0; from < begun.total; from += IMPORT_BATCH) {
+      const batch = await validateBatch(args, from);
+      valid.push(...batch.valid);
+      failed.push(...batch.failed);
+    }
+    let created = 0;
+    for (let at = 0; at < valid.length; at += IMPORT_BATCH) {
+      const batch = await createBatch(args, valid.slice(at, at + IMPORT_BATCH));
+      created += batch.created;
+      failed.push(...batch.failed);
+    }
+    return await finishImport(args, { total: begun.total, created, failed });
+  } catch (error) {
+    // A step that kept failing after its retries: the import stops, recorded as failed (rows already created stay).
+    return await abandonImport(args, error instanceof Error ? error.message : String(error));
+  }
+}
+
+const callerOf = (args: RunImportArgs): Caller => ({ claims: args.claims, origin: "api", chainId: args.chainId });
+const deps = () => ({ sql: getServiceDb(), registry });
+
+/** Reads and maps the file, marks the import running with its row count; a file that cannot be read ends it. */
+async function beginImport(args: RunImportArgs): Promise<{ ok: true; total: number } | { ok: false; reason: string }> {
+  "use step";
+  // A worker without the app's modules cannot resolve the entity: fail the step (it is retried) rather than the import.
+  if (registry.modules().length === 0) throw new Error("import: no modules loaded in worker");
+  const sql = getServiceDb();
+  try {
+    const job = await loadJob(sql, args.importId, args.labels);
+    const source = await sourceOf(sql, args.importId);
+    await recordImport(sql, args, { status: "running", rows_total: job.sheet.records.length, file_attachment_id: source?.attachment_id ?? null });
+    return { ok: true, total: job.sheet.records.length };
+  } catch (error) {
+    if (error instanceof ImportFileError) return { ok: false, reason: error.message };
+    throw error;
+  }
+}
+
+/** Dry-runs rows `from`..`from + IMPORT_BATCH` of the file: which are valid, and why the others are not. */
+async function validateBatch(args: RunImportArgs, from: number): Promise<{ valid: number[]; failed: Failure[] }> {
+  "use step";
+  const job = await loadJob(getServiceDb(), args.importId, args.labels);
+  const slice = job.sheet.records.slice(from, from + IMPORT_BATCH).map((record, i) => ({ index: from + i, record }));
+  await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels);
+  const outcomes = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: true, labels: args.labels });
+  return {
+    valid: outcomes.filter((o) => o.ok).map((o) => o.index),
+    failed: outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors })),
+  };
+}
+
+/** Creates the valid rows at `indexes` for real, in order; a row the process refuses now (a duplicate) is a failure. */
+async function createBatch(args: RunImportArgs, indexes: number[]): Promise<{ created: number; failed: Failure[] }> {
+  "use step";
+  const job = await loadJob(getServiceDb(), args.importId, args.labels);
+  const slice = indexes.map((index) => ({ index, record: job.sheet.records[index]! }));
+  await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels);
+  const outcomes = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: false, labels: args.labels });
+  return {
+    created: outcomes.filter((o) => o.ok).length,
+    failed: outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors })),
+  };
+}
+
+/**
+ * Attaches errores.csv when a row was refused (once: a retried step reuses the stored file), then records the
+ * counts, the status `done` and the summary audit entry.
+ */
+async function finishImport(args: RunImportArgs, result: { total: number; created: number; failed: Failure[] }): Promise<ImportSummary> {
+  "use step";
+  const sql = getServiceDb();
+  const job = await loadJob(sql, args.importId, args.labels);
+  const failed = [...result.failed].sort((a, b) => a.index - b.index);
+  let errorsAttachmentId: string | null = null;
+  let attachError: string | null = null;
+  if (failed.length > 0) {
+    try {
+      errorsAttachmentId = await attachErrors(args, errorsCsv(job.sheet.headers, failed.map((f) => ({ rowNo: job.sheet.records[f.index]!.rowNo, errors: f.errors, raw: job.sheet.records[f.index]!.raw }))));
+    } catch (error) {
+      attachError = `No se pudo guardar ${ERRORS_FILE_NAME}: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
+  const summary = importSummaryText(result.created, failed.length);
+  await recordImport(
+    sql,
+    args,
+    { status: "done", rows_total: result.total, rows_ok: result.created, rows_failed: failed.length, errors_attachment_id: errorsAttachmentId, error: attachError, finished_at: new Date() },
+    { summary, entity: job.entity, file: job.fileName, created: result.created, rejected: failed.length },
+  );
+  forgetJob(args.importId);
+  return { importId: args.importId, status: "done", total: result.total, created: result.created, rejected: failed.length, summary };
+}
+
+/** Stores errores.csv and attaches it to the import record as the caller; returns the attachment id. */
+async function attachErrors(args: RunImportArgs, bytes: Uint8Array): Promise<string> {
+  const sql = getServiceDb();
+  const [existing] = await sql<{ id: string }[]>`
+    select id from kernel.attachments
+    where entity = 'kernel.import' and record_id = ${args.importId} and tag = ${ERRORS_TAG} and removed_at is null`;
+  if (existing) return existing.id;
+  const { tenant_id: tenantId, active_company_id: companyId } = args.claims;
+  const storagePath = `${tenantId}/${companyId}/kernel.import/${args.importId}/${randomUUID()}-${ERRORS_FILE_NAME}`;
+  const store = await fileStore();
+  await store.put(storagePath, Buffer.from(bytes), "text/csv");
+  try {
+    const attachment = await runProcess(deps(), callerOf(args), "kernel.attachment.add", {
+      entity: "kernel.import",
+      recordId: args.importId,
+      tag: ERRORS_TAG,
+      fileName: ERRORS_FILE_NAME,
+      mimeType: "text/csv",
+      sizeBytes: bytes.byteLength,
+      storagePath,
+    });
+    return attachment.id as string;
+  } catch (error) {
+    await store.remove(storagePath).catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Records the import as failed as a whole. */
+async function abandonImport(args: RunImportArgs, reason: string): Promise<ImportSummary> {
+  "use step";
+  return failImport(getServiceDb(), args, reason);
+}

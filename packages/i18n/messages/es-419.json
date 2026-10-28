@@ -383,7 +383,8 @@
     "core": {
       "parties": "Terceros",
       "products": "Productos",
-      "categories": "Categorías"
+      "categories": "Categorías",
+      "import": "Importar datos"
     },
     "modules": {
       "core": "Núcleo"
@@ -413,6 +414,9 @@
       "price_list": "Lista de precios",
       "price_list_item": "Ítem de lista de precios",
       "document_sequence": "Secuencia de documentos"
+    },
+    "kernel": {
+      "import": "Importación"
     }
   },
   "field": {
@@ -564,6 +568,22 @@
       "verified": "verificado",
       "verified_by": "verificado · {provider}",
       "failed": "no verificado"
+    },
+    "kernel": {
+      "import": {
+        "entity": "Entidad",
+        "status": "Estado",
+        "rows_total": "Filas",
+        "rows_ok": "Creadas",
+        "rows_failed": "Rechazadas",
+        "file_attachment_id": "Archivo original",
+        "errors_attachment_id": "Errores",
+        "started_by": "Usuario",
+        "finished_at": "Terminada",
+        "error": "Motivo del fallo",
+        "created_at": "Creada",
+        "updated_at": "Actualizada"
+      }
     }
   },
   "feature": {
@@ -577,7 +597,8 @@
       "custom_fields": "Datos adicionales",
       "verification": "Verificación de correo y teléfono",
       "user_prefs": "Preferencias del usuario",
-      "saved_views": "Vistas guardadas"
+      "saved_views": "Vistas guardadas",
+      "imports": "Importación masiva (Excel / CSV)"
     }
   },
   "process": {
@@ -624,9 +645,62 @@
     },
     "import": {
       "title": "Importar",
+      "dialog_title": "Importar {entity}",
       "template": "Descargar plantilla",
       "row_error": "Fila {row}: {reason}",
-      "soon": "La importación llega pronto"
+      "template_title": "1 · Plantilla",
+      "template_xlsx": "Plantilla Excel",
+      "template_csv": "Plantilla CSV",
+      "template_hint": "Llena la plantilla sin cambiar los encabezados. CSV separado por “;” o “,”, en UTF-8; el NIT va sin dígito de verificación; los valores de una lista van separados por “|”.",
+      "file_title": "2 · Archivo",
+      "drop": "Arrastra aquí",
+      "drop_or": "el .xlsx o .csv, o",
+      "choose": "elige el archivo",
+      "drop_hint": "Máximo 25 MB · hasta 50.000 filas por archivo",
+      "file": "Archivo: {name}",
+      "too_big": "El archivo supera los 25 MB",
+      "wrong_type": "El archivo debe ser .xlsx o .csv",
+      "checking": "Revisando el archivo…",
+      "preview_title": "Vista previa · {total, plural, one {# fila} other {# filas}}",
+      "valid": "{count, plural, one {# válida} other {# válidas}}",
+      "invalid": "{count, plural, one {# con errores} other {# con errores}}",
+      "col_row": "Fila",
+      "col_result": "Resultado",
+      "row_ok": "válida",
+      "row_bad": "error",
+      "partial": "Se revisaron las primeras {shown} filas de {total}; la importación revisa todas.",
+      "missing_columns": "Faltan columnas obligatorias: {columns}. Todas las filas se rechazarían.",
+      "unknown_headers": "Columnas que no se importan: {headers}",
+      "preview_note": "Solo se cargan las filas sin errores; las que tienen datos DIAN pendientes se crean y no serán facturables hasta completarlas. Las filas con error se devuelven en errores.csv con el motivo.",
+      "process_note": "Proceso kernel.import.run · requiere verificación en dos pasos · corre en segundo plano con el mismo validador del formulario y queda en auditoría con el archivo original adjunto",
+      "run": "Importar filas válidas",
+      "running": "Importando…",
+      "started": "Importación en curso. El resultado y errores.csv quedan en el historial de importaciones.",
+      "history_link": "Ver historial",
+      "failed": "No se pudo importar: {reason}",
+      "page_title": "Importar datos",
+      "page_hint": "Carga masiva con plantilla Excel o CSV",
+      "card_columns": "{count, plural, one {# columna} other {# columnas}}",
+      "card_hint": "Validación DIAN fila a fila · duplicados por documento o código",
+      "none": "Tu rol no puede importar en ninguna entidad.",
+      "history": "Historial",
+      "history_empty": "Sin importaciones todavía",
+      "refresh": "Actualizar",
+      "col_date": "Fecha",
+      "col_entity": "Entidad",
+      "col_file": "Archivo",
+      "col_user": "Usuario",
+      "col_status": "Estado",
+      "col_ok": "Creadas",
+      "col_failed": "Rechazadas",
+      "col_errors": "Errores",
+      "errors_file": "errores.csv",
+      "status": {
+        "queued": "en cola",
+        "running": "en curso",
+        "done": "terminada",
+        "failed": "fallida"
+      }
     },
     "views": {
       "title": "Vistas",

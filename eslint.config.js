@@ -7,7 +7,7 @@ const vercelOnlyPackages = ["@vercel/blob", "@vercel/kv", "@vercel/edge-config"]
 
 export default tseslint.config(
   {
-    ignores: ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/.turbo/**", "**/coverage/**", "**/next-env.d.ts", "supabase/**"],
+    ignores: ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/.turbo/**", "**/coverage/**", "**/next-env.d.ts", "supabase/**", "**/.well-known/workflow/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

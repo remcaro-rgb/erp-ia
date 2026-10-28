@@ -1,0 +1,149 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { ImportDialog, ImportIcon, importPending, type ImportHistoryItem } from "@erp/ui";
+import { requestStepUp } from "@/lib/auth/step-up-client";
+import type { ImportPageData } from "@/lib/imports/load";
+
+/** While an import is queued or running, the history is read again this often. */
+const REFRESH_MS = 3000;
+
+const STATUS_TONE: Record<string, string> = { done: "ok", failed: "danger", running: "info", queued: "gray" };
+
+/** The import page: entity cards that open the import dialog, and the history with each import's errores.csv. */
+export function ImportPage({ data }: { data: ImportPageData }) {
+  const t = useTranslations();
+  const locale = useLocale();
+  const [open, setOpen] = useState<string | null>(null);
+  const [items, setItems] = useState<ImportHistoryItem[]>(data.history);
+  const [failure, setFailure] = useState<string | null>(null);
+  const when = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
+
+  const refresh = useCallback(async () => {
+    const response = await fetch("/api/import");
+    if (response.ok) setItems((await response.json()) as ImportHistoryItem[]);
+  }, []);
+
+  // Follow the imports in progress until they end.
+  useEffect(() => {
+    if (!importPending(items)) return;
+    const timer = setTimeout(() => void refresh(), REFRESH_MS);
+    return () => clearTimeout(timer);
+  }, [items, refresh]);
+
+  const downloadErrors = async (attachmentId: string) => {
+    setFailure(null);
+    const response = await fetch(`/api/attachments?${new URLSearchParams({ id: attachmentId }).toString()}`);
+    const body = (await response.json().catch(() => null)) as { url?: string; code?: string } | null;
+    if (!response.ok || !body?.url) return setFailure(t(`errors.${body?.code ?? "unknown"}`));
+    window.open(body.url, "_blank", "noopener,noreferrer");
+  };
+
+  const screen = data.screens.find((s) => s.entity === open);
+  return (
+    <div className="erp-stack" data-testid="import-page">
+      <div className="erp-row">
+        <h1 className="text-xl font-semibold">{t("grid.import.page_title")}</h1>
+        <span className="erp-small erp-muted">
+          {t("grid.import.page_hint")} · <span className="erp-mono">kernel.import.run</span>
+        </span>
+      </div>
+
+      {data.screens.length === 0 ? (
+        <div role="alert" className="erp-dian erp-dian--info">
+          {t("grid.import.none")}
+        </div>
+      ) : (
+        <div className="erp-modcards">
+          {data.screens.map((s) => (
+            <article key={s.entity} className="erp-card erp-modcard">
+              <b>{s.title}</b>
+              <div className="erp-small erp-muted">
+                {t("grid.import.card_columns", { count: s.columns })} · {t("grid.import.card_hint")}
+              </div>
+              <div className="erp-row">
+                <span className="erp-small erp-muted erp-mono">{s.table}</span>
+                <span className="erp-grow" />
+                <button type="button" className="erp-btn erp-btn--primary" onClick={() => setOpen(s.entity)}>
+                  <ImportIcon />
+                  {t("grid.import.title")}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <section className="erp-card erp-stack erp-import__history">
+        <div className="erp-row">
+          <h2>{t("grid.import.history")}</h2>
+          <span className="erp-grow" />
+          <button type="button" className="erp-btn erp-btn--sm" onClick={() => void refresh()}>
+            {t("grid.import.refresh")}
+          </button>
+        </div>
+        {failure && (
+          <div role="alert" className="erp-dian erp-dian--bad">
+            {failure}
+          </div>
+        )}
+        <table>
+          <thead>
+            <tr>
+              <th>{t("grid.import.col_date")}</th>
+              <th>{t("grid.import.col_entity")}</th>
+              <th>{t("grid.import.col_file")}</th>
+              <th>{t("grid.import.col_user")}</th>
+              <th>{t("grid.import.col_status")}</th>
+              <th className="erp-num">{t("grid.import.col_ok")}</th>
+              <th className="erp-num">{t("grid.import.col_failed")}</th>
+              <th>{t("grid.import.col_errors")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="erp-muted">
+                  {t("grid.import.history_empty")}
+                </td>
+              </tr>
+            ) : (
+              items.map((item) => (
+                <tr key={item.id}>
+                  <td className="erp-mono erp-small">{when.format(new Date(item.createdAt))}</td>
+                  <td>{item.entity ? (data.titles[item.entity] ?? item.entity) : ""}</td>
+                  <td>{item.fileName}</td>
+                  <td>{item.startedByName}</td>
+                  <td title={item.error ?? undefined}>
+                    <span className={`erp-pill erp-pill--${STATUS_TONE[item.status ?? ""] ?? "gray"}`}>{item.status ? t(`grid.import.status.${item.status}`) : ""}</span>
+                  </td>
+                  <td className="erp-num">{item.rowsOk}</td>
+                  <td className="erp-num">{item.rowsFailed}</td>
+                  <td>
+                    {item.errorsAttachmentId && (
+                      <button type="button" className="erp-link" onClick={() => void downloadErrors(item.errorsAttachmentId!)}>
+                        {t("grid.import.errors_file")}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      {screen && (
+        <ImportDialog
+          open
+          onOpenChange={(next) => !next && setOpen(null)}
+          entity={screen.entity}
+          entityLabel={screen.title}
+          requestStepUp={requestStepUp}
+          onStarted={() => void refresh()}
+        />
+      )}
+    </div>
+  );
+}

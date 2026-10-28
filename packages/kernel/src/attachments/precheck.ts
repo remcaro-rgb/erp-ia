@@ -25,7 +25,7 @@ export async function precheckAttachment(
   const entity = registeredEntity(deps, entityId);
   return withClaims(deps.sql, caller.claims, async (tx) => {
     await requireProcess({ tx }, "kernel.attachment.add", "");
-    await requireOwnerUpdate({ tx }, entity.id);
+    await requireOwnerUpdate({ tx, registry: deps.registry }, entity.id);
     await requireVisibleRecord({ tx }, entity, recordId);
     const defined = await definedTag(tx, caller.claims.active_company_id, entity.id, tag);
     const same = await tx`

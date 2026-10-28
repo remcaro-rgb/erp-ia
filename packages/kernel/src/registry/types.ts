@@ -45,6 +45,8 @@ export interface NavItem {
   icon: string;
   /** Feature id (`core.parties`) that must be entitled for the item to show. */
   feature?: string;
+  /** Process id one of the caller's roles must be able to run for the item to show (`kernel.import.run`). */
+  process?: string;
   /** Shows in the active module's horizontal items bar. Default true. */
   menu?: boolean;
 }

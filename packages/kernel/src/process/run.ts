@@ -24,6 +24,21 @@ type UntypedOutput = z.ZodType<any>;
 const ACTION: Record<ProcessKind, AuditAction> = { create: "insert", update: "update", delete: "delete", consult: "consult" };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export interface RunProcessOptions {
+  /**
+   * Runs the whole pipeline (resolve, entitlement, permission, step-up, input, handler) in a transaction that is
+   * always rolled back: the handler's output (or its refusal) comes back, and no record, audit, outbox or
+   * idempotency row is written. A denial is still audited; an idempotency key already stored answers its stored
+   * result, as a real run would. The importer validates rows this way (Task 13b).
+   */
+  dryRun?: boolean;
+}
+
+/** Thrown inside a dry run's transaction to roll it back while carrying the handler's output out. */
+class DryRunRollback {
+  constructor(readonly output: unknown) {}
+}
+
 /** Refusals recorded in the audit log with action `denied` (design §5.4 step 2). */
 const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up_required"]);
 
@@ -34,18 +49,20 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
  * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
  * throws itself, which keeps its code (a denial code is then audited like any other denial). A denial is audited (action `denied`)
- * in its own committed transaction, on the attempt's chain.
+ * in its own committed transaction, on the attempt's chain. With `options.dryRun` the transaction is always
+ * rolled back after the handler (see `RunProcessOptions`).
  */
 export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
   deps: RunProcessDeps,
   caller: Caller,
   processId: string,
   input: unknown,
+  options: RunProcessOptions = {},
 ): Promise<z.infer<O>> {
   const def = resolve(deps.registry, processId);
   const chainId = caller.chainId ?? randomUUID();
   try {
-    return await execute<O>(deps, caller, def, chainId, input);
+    return await execute<O>(deps, caller, def, chainId, input, options.dryRun === true);
   } catch (error) {
     if (error instanceof ProcessError && DENIALS.has(error.code)) {
       await withClaims(deps.sql, caller.claims, (tx) =>
@@ -66,6 +83,7 @@ async function execute<O extends z.ZodTypeAny>(
   def: ProcessDef,
   chainId: string,
   input: unknown,
+  dryRun: boolean,
 ): Promise<z.infer<O>> {
   const { claims } = caller;
   const companyId = claims.active_company_id;
@@ -130,6 +148,8 @@ async function execute<O extends z.ZodTypeAny>(
         if (cause instanceof ProcessError) throw cause;
         throw new ProcessError("handler_failed", `process ${def.id} failed`, { cause });
       }
+      // A dry run ends here: everything the handler wrote (and the step-up consumption) is rolled back.
+      if (dryRun) throw new DryRunRollback(output);
 
       await writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(output), input: parsed.data });
 
@@ -145,6 +165,7 @@ async function execute<O extends z.ZodTypeAny>(
       return output as z.infer<O>;
     });
   } catch (error) {
+    if (error instanceof DryRunRollback) return error.output as z.infer<O>;
     if (key !== undefined && error instanceof ProcessError && error.code === "idempotent_replay") {
       const stored = await storedResult(deps.sql, claims, def.id, key);
       if (stored) return stored.result as z.infer<O>;

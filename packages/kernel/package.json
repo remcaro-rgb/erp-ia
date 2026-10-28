@@ -9,7 +9,8 @@
     "./limits": "./src/attachments/limits.ts",
     "./validation": "./src/validation.ts",
     "./custom-fields": "./src/custom-fields/index.ts",
-    "./query": "./src/query/index.ts"
+    "./query": "./src/query/index.ts",
+    "./import": "./src/import/index.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",
@@ -17,7 +18,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@erp/infra": "workspace:*",
     "@workflow/world-postgres": "^5.0.5",
+    "exceljs": "^4.4.0",
     "postgres": "^3.4.9",
     "workflow": "^5.2.3",
     "zod": "^4.6.7"

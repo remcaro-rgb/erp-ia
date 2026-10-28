@@ -82,7 +82,11 @@ export interface CountryPack {
   // phase 2 adds taxes, sequences, eInvoicing, payroll hooks
 }
 
-const packs = new Map<string, CountryPack>();
+// Kept on globalThis, like the registry: a workflow step bundle loads this module a second time and must see the
+// packs the app registered.
+const PACKS_KEY = Symbol.for("erp.kernel.countryPacks");
+const packGlobals = globalThis as { [PACKS_KEY]?: Map<string, CountryPack> };
+const packs: Map<string, CountryPack> = (packGlobals[PACKS_KEY] ??= new Map<string, CountryPack>());
 
 /** Registers (or replaces) the pack for `pack.code`. Called by the app at boot. */
 export function registerCountryPack(pack: CountryPack): void {

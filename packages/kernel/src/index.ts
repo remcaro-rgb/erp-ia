@@ -13,7 +13,7 @@ export type { ConsumerContext, EntityDef, EventConsumer, FeatureDef, FieldDef, F
 export { maskedViewSql } from "./security/masked-views";
 export { defineProcess } from "./process/define";
 export { runProcess } from "./process/run";
-export type { RunProcessDeps } from "./process/run";
+export type { RunProcessDeps, RunProcessOptions } from "./process/run";
 export { ProcessError } from "./process/errors";
 export type { ProcessErrorCode } from "./process/errors";
 export type { Caller, ProcessContext } from "./process/context";
@@ -42,3 +42,9 @@ export { gridAccess, gridPageAccess, runGridQuery, visibleIn } from "./query/run
 export type { FieldMode, GridAccess, GridExtraField, GridResult, PartyScope } from "./query/run";
 export { SAVED_VIEW_PROCESS_IDS, SAVED_VIEW_PROCESSES, SavedViewState } from "./saved-views";
 export type { SavedView } from "./saved-views";
+export { IMPORT_PROCESSES, importList, importPreview, importRun, importTemplate } from "./import/processes";
+export type { ImportItem } from "./import/processes";
+export { importEntity } from "./import/entity";
+export { importColumns, importTarget } from "./import/columns";
+export type { ImportColumn, ImportColumnType } from "./import/columns";
+export { fileStore, setFileStore } from "./files/store";

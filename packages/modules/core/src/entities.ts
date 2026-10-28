@@ -82,17 +82,21 @@ export const partyContact = entity("core.party_contact", "party_contacts", "name
   ...trailer(f),
 ]);
 
-export const productCategory = entity("core.product_category", "product_categories", "name", (f) => [
-  f("seq", "number", { required: true }),
-  f("name", "text", { required: true, searchable: true }),
-  f("iva_rate", "text", { required: true }),
-  f("inc_rate", "text"),
-  f("other_taxes", "json"),
-  f("default_uom", "text"),
-  f("income_account", "text"),
-  f("status", "enum", { required: true, enumValues: ["active", "inactive"] }),
-  ...trailer(f),
-]);
+// Its processes are named `core.category.*`: the importer creates categories through `core.category.create`.
+export const productCategory: EntityDef = {
+  ...entity("core.product_category", "product_categories", "name", (f) => [
+    f("seq", "number", { required: true }),
+    f("name", "text", { required: true, searchable: true }),
+    f("iva_rate", "text", { required: true }),
+    f("inc_rate", "text"),
+    f("other_taxes", "json"),
+    f("default_uom", "text"),
+    f("income_account", "text"),
+    f("status", "enum", { required: true, enumValues: ["active", "inactive"] }),
+    ...trailer(f),
+  ]),
+  processIds: { create: "core.category.create" },
+};
 
 export const product = entity("core.product", "products", "description", (f) => [
   f("seq", "number", { required: true }),

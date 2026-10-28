@@ -21,6 +21,8 @@ export interface FileStore {
   signedUrl(path: string, ttlSeconds: number, downloadName?: string): Promise<string>;
   /** Deletes the object (a no-op when it does not exist). */
   remove(path: string): Promise<void>;
+  /** The object's bytes (server side: Workflows read the files they process). */
+  get(path: string): Promise<Uint8Array>;
 }
 
 /**
@@ -60,5 +62,11 @@ export class SupabaseFileStore implements FileStore {
   async remove(path: string): Promise<void> {
     const { error } = await this.client.storage.from(this.bucket).remove([path]);
     if (error) throw new Error(`could not remove ${path}: ${error.message}`);
+  }
+
+  async get(path: string): Promise<Uint8Array> {
+    const { data, error } = await this.client.storage.from(this.bucket).download(path);
+    if (error || !data) throw new Error(`could not read ${path}: ${error?.message ?? "no data"}`);
+    return new Uint8Array(await data.arrayBuffer());
   }
 }
