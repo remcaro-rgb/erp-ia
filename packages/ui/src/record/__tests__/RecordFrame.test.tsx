@@ -104,5 +104,6 @@ describe("record model", () => {
     expect(recordTabIds("core.party")).toEqual(["datos", "contactos", "extra", "archivos"]);
     expect(recordTabIds("core.product")).toEqual(["datos", "fotos", "extra", "archivos"]);
     expect(recordTabIds("core.product_category")).toEqual(["datos", "extra", "archivos"]);
+    expect(recordTabIds("support.ticket")).toEqual(["datos", "mensajes", "extra", "archivos"]);
   });
 });

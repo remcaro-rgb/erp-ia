@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 // Types, default copy and pure rules of the record frame (design §5.16, rule 21). No React components here.
 
-export type RecordTabId = "datos" | "contactos" | "fotos" | "extra" | "archivos";
+export type RecordTabId = "datos" | "contactos" | "fotos" | "mensajes" | "extra" | "archivos";
 
 /** One tab of the frame; the caller supplies the content, the frame only chooses what is shown. */
 export interface RecordTab {
@@ -27,7 +27,7 @@ export interface RecordLabels {
 }
 
 export const DEFAULT_RECORD_LABELS: RecordLabels = {
-  tabs: { datos: "Datos", contactos: "Contactos", fotos: "Fotos", extra: "Datos adicionales", archivos: "Archivos" },
+  tabs: { datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos" },
   number: "N.º",
   uuid: "uuid",
   assignedOnCreate: "N.º y uuid se asignan al crear",
@@ -41,12 +41,13 @@ export const recordHref = (entity: string, recordId: string): string => `/r/${en
 /** First 8 characters of the UUID, as the prototype shows it. */
 export const shortId = (uuid: string): string => uuid.slice(0, 8);
 
-/** The tabs an entity needs, in order: parties add Contactos, products add Fotos; every record has Datos adicionales and Archivos. */
+/** The tabs an entity needs, in order: parties add Contactos, products add Fotos, tickets add Mensajes; every record has Datos adicionales and Archivos. */
 export function recordTabIds(entity: string): RecordTabId[] {
   return [
     "datos",
     ...(entity === "core.party" ? (["contactos"] as const) : []),
     ...(entity === "core.product" ? (["fotos"] as const) : []),
+    ...(entity === "support.ticket" ? (["mensajes"] as const) : []),
     "extra",
     "archivos",
   ];

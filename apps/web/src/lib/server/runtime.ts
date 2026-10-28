@@ -1,4 +1,5 @@
 import { core } from "@erp/module-core";
+import { support } from "@erp/module-support";
 import { co } from "@erp/loc-co";
 import { getServiceDb, kernelModule, loadModules, registerCountryPack, registry, type RunProcessDeps } from "@erp/kernel";
 import { SupabaseFileStore, type FileStore } from "@erp/infra";
@@ -8,7 +9,7 @@ import { SupabaseFileStore, type FileStore } from "@erp/infra";
 
 /** Dependencies for `runProcess`; loads the modules into the registry and the country packs on first use. */
 export function processDeps(): RunProcessDeps {
-  if (!registry.hasModule(kernelModule.id)) loadModules(registry, [kernelModule, core]);
+  if (!registry.hasModule(kernelModule.id)) loadModules(registry, [kernelModule, core, support]);
   // The core processes validate parties and products with the company's pack (rule 5). Registered on every call:
   // the registry lives on globalThis, the pack table in its module, which a bundle may load more than once.
   registerCountryPack(co);

@@ -59,7 +59,8 @@
         "contactos": "Contactos",
         "fotos": "Fotos",
         "extra": "Datos adicionales",
-        "archivos": "Archivos"
+        "archivos": "Archivos",
+        "mensajes": "Mensajes"
       },
       "number": "N.º",
       "uuid": "uuid",
@@ -315,6 +316,41 @@
       "products_note": "cambiar los impuestos aquí no modifica los productos existentes: se aplica a los nuevos y a los que pulsen “restablecer los de la categoría”.",
       "missing_name": "Falta: nombre",
       "ready": "Lista para usar"
+    },
+    "support": {
+      "ui": {
+        "new": "Nuevo ticket",
+        "new_title": "Nuevo ticket de soporte",
+        "kind": "Tipo",
+        "title": "Título",
+        "title_placeholder": "Resume el caso en una línea",
+        "body": "Cuéntanos qué pasó o qué necesitas",
+        "submit": "Enviar ticket",
+        "sending": "Enviando…",
+        "created": "Ticket enviado",
+        "context_title": "Contexto que se adjunta",
+        "context_hint": "Ayuda al equipo de soporte a reproducir el caso. Puedes quitarlo.",
+        "context_include": "Adjuntar el contexto de la pantalla",
+        "context_route": "Pantalla",
+        "context_selection": "Texto seleccionado",
+        "context_errors": "Errores de consola",
+        "context_audit": "Últimos movimientos",
+        "context_empty": "Sin datos",
+        "detail_close": "Cerrar el ticket",
+        "messages_empty": "Todavía no hay respuestas.",
+        "reply": "Tu respuesta",
+        "reply_send": "Responder",
+        "reply_internal": "Nota interna (solo la ve el equipo de soporte)",
+        "internal_badge": "Nota interna",
+        "close_ticket": "Cerrar ticket",
+        "closed_notice": "Este ticket está cerrado y no recibe más respuestas.",
+        "author_you": "Tú",
+        "author_reporter": "Solicitante",
+        "author_agent": "Soporte",
+        "loading_failed": "No se pudo cargar el ticket.",
+        "reported_by": "Reportado por",
+        "hidden": "Oculto para tu rol"
+      }
     }
   },
   "nav": {
@@ -387,13 +423,17 @@
       "import": "Importar datos"
     },
     "modules": {
-      "core": "Núcleo"
+      "core": "Núcleo",
+      "support": "Soporte"
     },
     "keywords": {
       "core": {
         "parties": "clientes proveedores terceros nit empresas personas",
         "products": "productos servicios artículos referencias inventario",
         "categories": "categorías familias grupos impuestos iva"
+      },
+      "support": {
+        "tickets": "soporte ayuda ticket tickets error problema pregunta solicitud"
       }
     },
     "create": {
@@ -401,7 +441,13 @@
         "party": "tercero",
         "product": "producto",
         "category": "categoría de producto"
+      },
+      "support": {
+        "ticket": "ticket de soporte"
       }
+    },
+    "support": {
+      "tickets": "Soporte"
     }
   },
   "entity": {
@@ -418,6 +464,10 @@
     "kernel": {
       "import": "Importación",
       "export_job": "Exportación"
+    },
+    "support": {
+      "ticket": "Ticket",
+      "ticket_message": "Mensaje de ticket"
     }
   },
   "field": {
@@ -598,6 +648,33 @@
         "created_at": "Creada",
         "updated_at": "Actualizada"
       }
+    },
+    "support": {
+      "ticket": {
+        "seq": "N.º",
+        "reporter_user_id": "Solicitante",
+        "kind": "Tipo",
+        "title": "Título",
+        "body": "Descripción",
+        "context": "Contexto capturado",
+        "status": "Estado",
+        "priority": "Prioridad",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "ticket_message": {
+        "seq": "N.º",
+        "ticket_id": "Ticket",
+        "author_user_id": "Autor",
+        "body": "Mensaje",
+        "is_internal": "Nota interna",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      }
     }
   },
   "feature": {
@@ -614,6 +691,9 @@
       "saved_views": "Vistas guardadas",
       "imports": "Importación masiva (Excel / CSV)",
       "exports": "Exportación a PDF, Excel y CSV"
+    },
+    "support": {
+      "tickets": "Tickets de soporte"
     }
   },
   "process": {
@@ -908,6 +988,21 @@
       "person_type": {
         "1": "Jurídica",
         "2": "Natural"
+      },
+      "ticket_kind": {
+        "bug": "Error",
+        "question": "Pregunta",
+        "request": "Solicitud"
+      },
+      "ticket_status": {
+        "open": "Abierto",
+        "answered": "Respondido",
+        "closed": "Cerrado"
+      },
+      "ticket_priority": {
+        "low": "Baja",
+        "normal": "Normal",
+        "high": "Alta"
       }
     },
     "record_title": {

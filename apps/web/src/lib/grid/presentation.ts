@@ -74,6 +74,15 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       status: { valuesKey: "grid.values.category_status", pills: { active: "ok", inactive: "gray" } },
     },
   },
+  "support.ticket": {
+    shown: ["seq", "kind", "title", "status", "priority", "created_at"],
+    exclude: ["extra", "extra_free", "context"],
+    fields: {
+      kind: { valuesKey: "grid.values.ticket_kind", pills: { bug: "danger", question: "info", request: "gray" } },
+      status: { valuesKey: "grid.values.ticket_status", pills: { open: "warn", answered: "ok", closed: "gray" } },
+      priority: { valuesKey: "grid.values.ticket_priority", pills: { low: "gray", normal: "info", high: "danger" } },
+    },
+  },
 };
 
 /** The entity's presentation; an entity without one shows every field but the internal JSON. */

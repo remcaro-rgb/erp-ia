@@ -79,6 +79,7 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
       datos: t("common.record.tabs.datos"),
       contactos: t("common.record.tabs.contactos"),
       fotos: t("common.record.tabs.fotos"),
+      mensajes: t("common.record.tabs.mensajes"),
       extra: t("common.record.tabs.extra"),
       archivos: t("common.record.tabs.archivos"),
     },

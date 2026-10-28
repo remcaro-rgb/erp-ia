@@ -12,6 +12,7 @@
     "@erp/kernel": "workspace:*"
   },
   "devDependencies": {
-    "@erp/module-core": "workspace:*"
+    "@erp/module-core": "workspace:*",
+    "@erp/module-support": "workspace:*"
   }
 }

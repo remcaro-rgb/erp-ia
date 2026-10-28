@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { kernelModule, loadModules, Registry, type ProcessErrorCode } from "@erp/kernel";
 import { core } from "@erp/module-core";
+import { support } from "@erp/module-support";
 import { collectRegistryKeys, defaultLocale, locales, messages, type Messages } from "../index";
 
 /** Every leaf of a nested catalogue as `a.b.c`, sorted. */
@@ -23,7 +24,7 @@ function valueAt(tree: Messages, key: string): string | undefined {
 const argumentsOf = (text: string): string[] => [...new Set([...text.matchAll(/\{\s*([a-z_][a-z0-9_]*)\s*[,}]/g)].map((m) => m[1]!))].sort();
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core]);
+loadModules(registry, [kernelModule, core, support]);
 
 const es = messages("es-419");
 const en = messages("en");
@@ -72,6 +73,8 @@ describe("registry labels", () => {
     expect(keys).toContain("field.core.party.legal_name");
     expect(keys).toContain("nav.core.parties");
     expect(keys).toContain("feature.kernel.attachments");
+    expect(keys).toContain("nav.support.tickets");
+    expect(keys).toContain("field.support.ticket.context");
     expect(keys.filter((key) => key.startsWith("entity.")).length).toBe(registry.entities().length);
     expect(new Set(keys).size).toBe(keys.length);
   });

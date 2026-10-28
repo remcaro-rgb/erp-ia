@@ -59,7 +59,8 @@
         "contactos": "Contacts",
         "fotos": "Photos",
         "extra": "Additional data",
-        "archivos": "Files"
+        "archivos": "Files",
+        "mensajes": "Messages"
       },
       "number": "No.",
       "uuid": "uuid",
@@ -315,6 +316,41 @@
       "products_note": "changing the taxes here does not change existing products: it applies to new ones and to those that press “reset to the category's”.",
       "missing_name": "Missing: name",
       "ready": "Ready to use"
+    },
+    "support": {
+      "ui": {
+        "new": "New ticket",
+        "new_title": "New support ticket",
+        "kind": "Type",
+        "title": "Title",
+        "title_placeholder": "Sum up the case in one line",
+        "body": "Tell us what happened or what you need",
+        "submit": "Send ticket",
+        "sending": "Sending…",
+        "created": "Ticket sent",
+        "context_title": "Context attached",
+        "context_hint": "Helps the support team reproduce the case. You can remove it.",
+        "context_include": "Attach the screen context",
+        "context_route": "Screen",
+        "context_selection": "Selected text",
+        "context_errors": "Console errors",
+        "context_audit": "Latest activity",
+        "context_empty": "No data",
+        "detail_close": "Close the ticket",
+        "messages_empty": "No replies yet.",
+        "reply": "Your reply",
+        "reply_send": "Reply",
+        "reply_internal": "Internal note (only the support team sees it)",
+        "internal_badge": "Internal note",
+        "close_ticket": "Close ticket",
+        "closed_notice": "This ticket is closed and takes no more replies.",
+        "author_you": "You",
+        "author_reporter": "Reporter",
+        "author_agent": "Support",
+        "loading_failed": "The ticket could not be loaded.",
+        "reported_by": "Reported by",
+        "hidden": "Hidden for your role"
+      }
     }
   },
   "nav": {
@@ -387,13 +423,17 @@
       "import": "Import data"
     },
     "modules": {
-      "core": "Core"
+      "core": "Core",
+      "support": "Support"
     },
     "keywords": {
       "core": {
         "parties": "customers suppliers parties tax id companies people",
         "products": "products services items references inventory",
         "categories": "categories families groups taxes vat"
+      },
+      "support": {
+        "tickets": "support help ticket tickets bug problem question request"
       }
     },
     "create": {
@@ -401,7 +441,13 @@
         "party": "party",
         "product": "product",
         "category": "product category"
+      },
+      "support": {
+        "ticket": "support ticket"
       }
+    },
+    "support": {
+      "tickets": "Support"
     }
   },
   "entity": {
@@ -418,6 +464,10 @@
     "kernel": {
       "import": "Import",
       "export_job": "Export"
+    },
+    "support": {
+      "ticket": "Ticket",
+      "ticket_message": "Ticket message"
     }
   },
   "field": {
@@ -598,6 +648,33 @@
         "created_at": "Created",
         "updated_at": "Updated"
       }
+    },
+    "support": {
+      "ticket": {
+        "seq": "No.",
+        "reporter_user_id": "Reporter",
+        "kind": "Type",
+        "title": "Title",
+        "body": "Description",
+        "context": "Captured context",
+        "status": "Status",
+        "priority": "Priority",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "ticket_message": {
+        "seq": "No.",
+        "ticket_id": "Ticket",
+        "author_user_id": "Author",
+        "body": "Message",
+        "is_internal": "Internal note",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
     }
   },
   "feature": {
@@ -614,6 +691,9 @@
       "saved_views": "Saved views",
       "imports": "Bulk import (Excel / CSV)",
       "exports": "Export to PDF, Excel and CSV"
+    },
+    "support": {
+      "tickets": "Support tickets"
     }
   },
   "process": {
@@ -908,6 +988,21 @@
       "person_type": {
         "1": "Legal entity",
         "2": "Natural person"
+      },
+      "ticket_kind": {
+        "bug": "Bug",
+        "question": "Question",
+        "request": "Request"
+      },
+      "ticket_status": {
+        "open": "Open",
+        "answered": "Answered",
+        "closed": "Closed"
+      },
+      "ticket_priority": {
+        "low": "Low",
+        "normal": "Normal",
+        "high": "High"
       }
     },
     "record_title": {

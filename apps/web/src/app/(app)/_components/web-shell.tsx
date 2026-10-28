@@ -6,6 +6,7 @@ import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/u
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
+import { installCapture, noteRoute } from "@/lib/support/capture";
 import type { ShellData } from "@/lib/shell/load";
 
 /** Tabs change in bursts (open, open, close): save the last state once things settle. */
@@ -26,6 +27,10 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
 
   // The saved theme on <html> before the first paint of a server render; a client render applies it in the shell.
   useServerInsertedHTML(() => <script dangerouslySetInnerHTML={{ __html: themeScript(data.theme?.value ?? "auto") }} />);
+
+  // The context a support ticket carries (route, selection, console errors) is remembered from the first screen on.
+  useEffect(() => installCapture(), []);
+  useEffect(() => noteRoute(pathname), [pathname]);
 
   /** Sends the pending save now through the action; resolves when it is stored. */
   const flush = useCallback(async () => {

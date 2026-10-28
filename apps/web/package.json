@@ -17,6 +17,7 @@
     "@erp/kernel": "workspace:*",
     "@erp/loc-co": "workspace:*",
     "@erp/module-core": "workspace:*",
+    "@erp/module-support": "workspace:*",
     "@erp/ui": "workspace:*",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
