@@ -83,7 +83,9 @@ describe("company isolation", () => {
 
   it("authenticated can only read tenants, companies and users", async () => {
     const claims = seed.claimsFor(seed.users.both, company(0).id);
-    await expect(withClaims(sql, claims, (tx) => tx`update kernel.companies set trade_name = 'x'`))
+    // The names and the time zone change only inside kernel.admin.company.update (0021); the other columns never.
+    expect(await withClaims(sql, claims, (tx) => tx`update kernel.companies set trade_name = 'x' returning id`)).toHaveLength(0);
+    await expect(withClaims(sql, claims, (tx) => tx`update kernel.companies set tax_id = 'x'`))
       .rejects.toMatchObject({ code: "42501" });
     await expect(withClaims(sql, claims, (tx) => tx`delete from kernel.users`))
       .rejects.toMatchObject({ code: "42501" });
@@ -126,12 +128,17 @@ describe("company isolation", () => {
       expect(still?.name).toBe("admin");
     });
 
-    it("the admin can assign a role to a member of the company", async () => {
-      const rows = await withClaims(sql, seed.claimsFor(seed.users.onlyA, company(0).id),
-        (tx) => tx`insert into kernel.membership_roles(membership_id, role_id)
+    it("the admin can assign a role to a member of the company, inside the admin process only (0021)", async () => {
+      const assign = (tx: Parameters<Parameters<typeof withClaims>[2]>[0]) => tx`insert into kernel.membership_roles(membership_id, role_id)
                    select m.id, ${company(0).memberRoleId} from kernel.memberships m
                    where m.user_id = ${seed.users.onlyA} and m.company_id = ${company(0).id}
-                   returning membership_id`);
+                   returning membership_id`;
+      await expect(withClaims(sql, seed.claimsFor(seed.users.onlyA, company(0).id), assign))
+        .rejects.toMatchObject({ code: "42501", message: expect.stringMatching(/row-level security/) });
+      const rows = await withClaims(sql, seed.claimsFor(seed.users.onlyA, company(0).id), async (tx) => {
+        await tx`select set_config('erp.audit_process_id', 'kernel.admin.user_role.set', true)`;
+        return assign(tx);
+      });
       expect(rows).toHaveLength(1);
       // Leave the seed as it was for the tests that follow.
       await sql`delete from kernel.membership_roles where membership_id = ${rows[0]!.membership_id} and role_id = ${company(0).memberRoleId}`;
@@ -189,8 +196,10 @@ describe("company isolation", () => {
         (tx) => tx`select company_id from kernel.roles`);
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.every(r => r.company_id === company(1).id)).toBe(true);
-      const canWrite = await withClaims(sql, { sub: seed.users.both, ...claims } as JwtClaims,
-        (tx) => tx`insert into kernel.roles(company_id, name) values (${company(1).id}, 'ops') returning id`);
+      const canWrite = await withClaims(sql, { sub: seed.users.both, ...claims } as JwtClaims, async (tx) => {
+        await tx`select set_config('erp.audit_process_id', 'kernel.admin.role.create', true)`;
+        return tx`insert into kernel.roles(company_id, name) values (${company(1).id}, 'ops') returning id`;
+      });
       expect(canWrite).toHaveLength(1);
     });
   });

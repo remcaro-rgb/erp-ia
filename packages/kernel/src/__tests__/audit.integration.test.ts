@@ -24,6 +24,8 @@ describe("audit log and outbox", () => {
   it("a direct update produces an audit row with a column diff and origin db", async () => {
     const roleId = company(0).memberRoleId;
     await withClaims(sql, adminClaims(), async (tx) => {
+      // A direct edit by a database operator: users write kernel.roles only inside kernel.admin.role.* (0021).
+      await tx`reset role`;
       await tx`update kernel.roles set name = 'renamed' where id = ${roleId}`;
     });
     const [row] = await sql`select * from kernel.audit_log where row_id = ${roleId} and action = 'update' order by occurred_at desc limit 1`;
@@ -67,10 +69,13 @@ describe("audit log and outbox", () => {
 
   it("an insert and a delete on kernel.roles are audited", async () => {
     const created = await withClaims(sql, adminClaims(), async (tx) => {
+      // A direct edit by a database operator: users write kernel.roles only inside kernel.admin.role.* (0021).
+      await tx`reset role`;
       const [role] = await tx<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${company(0).id}, 'temp') returning id`;
       return role!.id;
     });
     await withClaims(sql, adminClaims(), async (tx) => {
+      await tx`reset role`;
       await tx`delete from kernel.roles where id = ${created}`;
     });
     const rows = await sql`select action, diff from kernel.audit_log where row_id = ${created} order by occurred_at, id`;
@@ -83,7 +88,7 @@ describe("audit log and outbox", () => {
   it("setAuditContext makes a direct update carry origin, process id and chain id", async () => {
     const roleId = company(0).memberRoleId;
     const chainId = randomUUID();
-    const processId = "kernel.role.rename";
+    const processId = "kernel.admin.role.update";
     const [current] = await sql<{ name: string }[]>`select name from kernel.roles where id = ${roleId}`;
     await withClaims(sql, adminClaims(), async (tx) => {
       await setAuditContext(tx, { origin: "ui", processId, chainId, actorUserId: seed.users.both });
@@ -101,6 +106,7 @@ describe("audit log and outbox", () => {
       await setAuditContext(tx, { origin: "agent", chainId: randomUUID(), actorUserId: seed.users.both });
     });
     await withClaims(sql, adminClaims(), async (tx) => {
+      await tx`reset role`;
       await tx`update kernel.roles set name = 'after-context' where id = ${roleId}`;
     });
     const [row] = await sql`select origin, process_id from kernel.audit_log where row_id = ${roleId} order by occurred_at desc, id desc limit 1`;

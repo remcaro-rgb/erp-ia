@@ -24,6 +24,12 @@ export interface ShellNav {
   creates: ShellCreate[];
 }
 
+/** The kernel is the platform (Sistema: administration, AI usage): always entitled, listed after the modules. */
+const PLATFORM = "kernel";
+
+/** The registry's modules with the platform last: the first module of the shell carries Inicio. */
+const shellModules = (registry: Registry) => [...registry.modules().filter((m) => m.id !== PLATFORM), ...registry.modules().filter((m) => m.id === PLATFORM)];
+
 /** Every menu item of a module: its navigation plus the ones its features unlock, once each, in manifest order. */
 function moduleItems(mod: ReturnType<Registry["modules"]>[number]): NavItem[] {
   const items = new Map<string, NavItem>();
@@ -38,7 +44,7 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
   for (const mod of registry.modules()) {
     const items = moduleItems(mod);
     if (items.length === 0) continue;
-    entitlements.add(`module:${mod.id}`);
+    if (mod.id !== PLATFORM) entitlements.add(`module:${mod.id}`);
     for (const item of items) if (item.process) processes.add(item.process);
     for (const feature of mod.features) {
       if (!items.some((item) => item.feature === feature.id)) continue;
@@ -50,7 +56,7 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
 }
 
 /**
- * The modules (entitled, with at least one item for the caller), their menu items (feature entitled and one of
+ * The modules (entitled, with at least one item for the caller; the platform's Sistema last and always entitled), their menu items (feature entitled and one of
  * the feature's processes runnable by the caller; an item naming a `process` also needs that one runnable) and the create commands (`<module>.<noun>.create` runnable,
  * on the item of its feature whose id starts with the noun's stem: `core.party.create` → `core.parties`).
  */
@@ -58,8 +64,8 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
   const modules: ShellModule[] = [];
   const nav: NavItem[] = [];
   const creates: ShellCreate[] = [];
-  for (const mod of registry.modules()) {
-    if (!access.entitled.has(`module:${mod.id}`)) continue;
+  for (const mod of shellModules(registry)) {
+    if (mod.id !== PLATFORM && !access.entitled.has(`module:${mod.id}`)) continue;
     const visible = moduleItems(mod).filter((item) => {
       if (item.process && !access.runnable.has(item.process)) return false;
       if (!item.feature) return true;

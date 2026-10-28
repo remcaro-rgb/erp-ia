@@ -355,6 +355,246 @@
         "reported_by": "Reportado por",
         "hidden": "Oculto para tu rol"
       }
+    },
+    "admin": {
+      "title": "Administración",
+      "sections": "Secciones de administración",
+      "forbidden_title": "No tienes permiso.",
+      "forbidden_body": "La administración requiere el rol admin de la empresa.",
+      "saved": "Cambios guardados",
+      "failed": "No se pudo guardar: {reason}",
+      "process": "Proceso {process}",
+      "step_up_note": "Cada cambio pide el código de 6 dígitos de tu app de autenticación y queda en la auditoría.",
+      "kind": {
+        "create": "crear",
+        "update": "actualizar",
+        "delete": "eliminar",
+        "consult": "consultar"
+      },
+      "scope": {
+        "ambos": "Clientes y proveedores",
+        "clientes": "Solo clientes",
+        "proveedores": "Solo proveedores",
+        "ninguno": "No ve terceros"
+      },
+      "mode": {
+        "visible": "visible",
+        "masked": "enmascarado",
+        "hidden": "oculto"
+      },
+      "permissions": {
+        "title": "Matriz proceso × rol",
+        "hint": "Las columnas son los roles; cada proceso muestra la entidad sobre la que actúa.",
+        "col_entity": "Entidad",
+        "col_process": "Proceso",
+        "col_kind": "Acción",
+        "step_up": "2FA",
+        "step_up_title": "Este proceso siempre pide la verificación en dos pasos",
+        "admin_locked": "El rol admin tiene todos los permisos"
+      },
+      "roles": {
+        "title": "Roles",
+        "hint": "El alcance de terceros limita listados, formularios, exportaciones y el asistente.",
+        "new": "Nuevo rol",
+        "col_name": "Rol",
+        "col_description": "Descripción",
+        "col_scope": "Ve terceros",
+        "col_permissions": "Permisos",
+        "col_users": "Usuarios",
+        "edit": "Editar y asignar",
+        "name": "Nombre",
+        "description": "Descripción",
+        "scope": "Ve terceros",
+        "users": "Usuarios con este rol",
+        "create": "Crear rol",
+        "save": "Guardar",
+        "create_hint": "El rol nuevo recibe los permisos de consulta y los campos confidenciales quedan enmascarados; luego ajusta la matriz en Permisos.",
+        "edit_title": "Rol · {name}",
+        "system": "sistema",
+        "no_users": "Sin usuarios",
+        "name_required": "El nombre es obligatorio"
+      },
+      "users": {
+        "title": "Usuarios",
+        "hint": "Cada usuario entra con su correo y activa la verificación en dos pasos en su perfil.",
+        "new": "Nuevo usuario",
+        "col_name": "Nombre",
+        "col_email": "Correo",
+        "col_mobile": "Celular",
+        "col_roles": "Roles",
+        "col_mfa": "2FA",
+        "mfa_on": "activo",
+        "mfa_off": "pendiente",
+        "name": "Nombre completo",
+        "email": "Correo (inicio de sesión)",
+        "mobile": "Celular",
+        "mobile_hint": "indicativo + número",
+        "roles": "Roles",
+        "roles_hint": "al menos uno",
+        "roles_required": "Elige al menos un rol",
+        "photo": "Foto",
+        "photo_hint": "opcional · PNG, JPEG o WebP hasta 300 KB",
+        "photo_remove": "Quitar la foto",
+        "photo_too_big": "La foto supera 300 KB",
+        "create": "Crear e invitar",
+        "create_hint": "Se envía una invitación por correo: la persona define su contraseña y activa la verificación en dos pasos en su perfil.",
+        "edit_title": "Usuario · {name}",
+        "edit_roles": "Editar roles",
+        "edit_hint": "Los cambios de rol aplican en el siguiente inicio de sesión del usuario.",
+        "save": "Guardar",
+        "created": "Usuario creado e invitación enviada a {email}",
+        "name_required": "El nombre es obligatorio"
+      },
+      "fields": {
+        "title": "Visibilidad por campo y rol",
+        "hint": "Aplica a listados, formularios, exportaciones y al asistente. Los campos confidenciales empiezan enmascarados en cada rol nuevo.",
+        "entity": "Entidad",
+        "col_field": "Campo",
+        "confidential": "confidencial",
+        "admin_note": "El rol admin ve todos los campos"
+      },
+      "extra": {
+        "title": "Datos adicionales",
+        "hint": "Campos propios de la empresa en la pestaña Datos adicionales de cada registro.",
+        "new": "Nuevo dato",
+        "empty": "Sin datos adicionales definidos",
+        "col_label": "Nombre",
+        "col_key": "Clave",
+        "col_type": "Tipo",
+        "col_length": "Long.",
+        "col_required": "Obligatorio",
+        "col_enter": "Pueden ingresar",
+        "col_edit": "Pueden editar",
+        "col_view": "Pueden ver",
+        "label": "Nombre",
+        "key": "Clave",
+        "key_hint": "letras minúsculas, números y _",
+        "type": "Tipo",
+        "max_length": "Longitud máxima",
+        "required": "Obligatorio",
+        "required_label": "Sí, cuenta como dato faltante mientras no se llene",
+        "options": "Opciones de la lista",
+        "options_hint": "separadas por |",
+        "edit": "Editar",
+        "remove": "Quitar",
+        "new_title": "Nuevo dato adicional",
+        "edit_title": "Dato adicional · {label}",
+        "create": "Crear",
+        "save": "Guardar",
+        "confirm_remove": "¿Quitar {label}? Los valores guardados se conservan, pero nadie los ve."
+      },
+      "required_files": {
+        "title": "Archivos obligatorios",
+        "hint": "Un archivo obligatorio que falte deja el registro como no facturable hasta cargarlo con esa etiqueta y tipo.",
+        "new": "Nuevo archivo",
+        "empty": "Sin archivos definidos",
+        "col_tag": "Etiqueta",
+        "col_kind": "Tipo",
+        "col_required": "Obligatorio",
+        "col_condition": "Aplica cuando",
+        "col_description": "Descripción",
+        "kind": {
+          "pdf": "PDF",
+          "image": "Imagen",
+          "any": "Cualquiera"
+        },
+        "condition": {
+          "always": "Siempre",
+          "co": "Tercero de Colombia",
+          "co_juridica": "Persona jurídica de Colombia",
+          "proveedor": "Es proveedor",
+          "cliente": "Es cliente"
+        },
+        "save": "Guardar",
+        "remove": "Quitar",
+        "confirm_remove": "¿Dejar de exigir {tag}?",
+        "new_tag": "Nuevo documento"
+      },
+      "sensitive": {
+        "title": "Procesos que exigen verificación en dos pasos",
+        "hint": "La verificación vale 5 minutos y una sola acción de quien la hizo.",
+        "on": "requiere 2FA",
+        "off": "sin 2FA",
+        "locked": "siempre: proceso de administración"
+      },
+      "verifiers": {
+        "title": "Verificación externa de datos",
+        "hint": "El botón Verificar ya está en correos, teléfonos e identificaciones; mientras no haya proveedor, las solicitudes quedan en cola.",
+        "kind": {
+          "email": "Correo electrónico",
+          "phone": "Teléfono / celular",
+          "document": "Número de identificación"
+        },
+        "none": "Por definir (sin proveedor)",
+        "candidates": "Candidatos: {list}",
+        "providers": {
+          "email": "ZeroBounce|Hunter|Mailgun Validate",
+          "phone": "Twilio Lookup|Numverify|Vonage",
+          "document": "RUES (Confecámaras)|DIAN RUT|Registraduría"
+        }
+      },
+      "modules": {
+        "title": "Módulos",
+        "hint": "Un módulo desactivado desaparece del menú, de las exportaciones y de las herramientas del asistente; sus datos y eventos se conservan.",
+        "on": "activo",
+        "off": "inactivo",
+        "not_purchased": "no contratado",
+        "requires": "Requiere: {list}",
+        "used_by": "Lo necesitan: {list}",
+        "menu": "Menú: {list}",
+        "desc": {
+          "core": "Terceros, productos, categorías, consecutivos, importación y exportación",
+          "support": "Tickets de soporte y su conversación"
+        }
+      },
+      "companies": {
+        "title": "Empresa",
+        "hint": "El NIT, el país y la moneda definen el paquete fiscal y no se cambian aquí.",
+        "legal_name": "Razón social",
+        "trade_name": "Nombre comercial",
+        "tax_id": "NIT",
+        "country": "País",
+        "currency": "Moneda",
+        "timezone": "Zona horaria",
+        "timezone_hint": "rige reportes, programación y el mes del uso de IA",
+        "save": "Guardar"
+      },
+      "ai_usage": {
+        "title": "Uso de IA",
+        "hint": "Tokens y costo del mes en la zona horaria de la empresa; al llegar al tope el asistente responde sin el modelo.",
+        "month": "Mes",
+        "tokens_month": "Tokens del mes",
+        "of_limit": "de {limit} del tope mensual",
+        "no_limit": "sin tope configurado",
+        "bar": "Uso del tope mensual",
+        "cost": "Costo estimado",
+        "cost_value": "{amount} USD",
+        "limit": "Tope de la empresa",
+        "limit_none": "Sin tope",
+        "limit_note": "al superarlo el asistente responde solo consultas sin el modelo",
+        "per_user": "Por usuario",
+        "per_model": "Por modelo",
+        "col_user": "Usuario",
+        "col_calls": "Llamadas",
+        "col_tokens": "Tokens",
+        "col_cost": "Costo (USD)",
+        "col_task": "Tarea",
+        "col_model": "Modelo",
+        "empty": "Sin uso de IA en este mes",
+        "platform": "Plataforma",
+        "tasks": {
+          "chat": "Chat",
+          "planning": "Planificación",
+          "classification": "Clasificación",
+          "summarization": "Resúmenes",
+          "extraction": "Extracción",
+          "embeddings": "Búsqueda de ayuda",
+          "recommendations": "Recomendaciones"
+        }
+      },
+      "section": {
+        "permissions": "Permisos"
+      }
     }
   },
   "nav": {
@@ -428,7 +668,8 @@
     },
     "modules": {
       "core": "Núcleo",
-      "support": "Soporte"
+      "support": "Soporte",
+      "kernel": "Sistema"
     },
     "keywords": {
       "core": {
@@ -438,6 +679,14 @@
       },
       "support": {
         "tickets": "soporte ayuda ticket tickets error problema pregunta solicitud"
+      },
+      "kernel": {
+        "admin": "administración permisos matriz seguridad",
+        "ai_usage": "uso ia tokens costo tope asistente",
+        "admin_roles": "roles perfiles alcance terceros",
+        "admin_users": "usuarios invitar personas celular",
+        "admin_fields": "campos visibilidad enmascarar ocultar",
+        "admin_modules": "módulos activar desactivar"
       }
     },
     "create": {
@@ -452,6 +701,19 @@
     },
     "support": {
       "tickets": "Soporte"
+    },
+    "kernel": {
+      "admin": "Administración",
+      "ai_usage": "Uso de IA",
+      "roles": "Roles",
+      "users": "Usuarios",
+      "fields": "Visibilidad de campos",
+      "extra": "Datos adicionales",
+      "required_files": "Archivos obligatorios",
+      "sensitive": "Procesos sensibles",
+      "verifiers": "Verificadores",
+      "modules": "Módulos",
+      "companies": "Empresa"
     }
   },
   "entity": {
@@ -697,7 +959,8 @@
       "imports": "Importación masiva (Excel / CSV)",
       "exports": "Exportación a PDF, Excel y CSV",
       "help": "Ayuda y guías de usuario",
-      "data": "Consultas de datos del asistente"
+      "data": "Consultas de datos del asistente",
+      "admin": "Administración"
     },
     "support": {
       "tickets": "Tickets de soporte"

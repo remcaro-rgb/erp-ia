@@ -6,7 +6,7 @@ import { PhotosTab } from "@erp/ui";
 import { reorderPhotosAction, suggestPhotoAction } from "@/lib/records/tab-actions";
 import type { RecordAbilities } from "@/lib/records/load";
 import { refusalText } from "./refusal";
-import { useStepUpAction } from "./use-step-up";
+import { useStepUpAction } from "../../../_components/use-step-up";
 
 export interface PhotosPanelProps {
   entity: string;

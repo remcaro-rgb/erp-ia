@@ -299,12 +299,20 @@ describe("run-process", () => {
   it("process security tables: only the admin writes them and a user reads and consumes only their own verifications", async () => {
     const cashier = seed.users.cashier!;
     const asCashier = <T,>(fn: (tx: Tx) => Promise<T>) => withClaims(sql, cashierClaims, fn);
+    // Even inside an admin process (0021) a member is not the admin.
+    const inAdminProcess = (tx: Tx) => tx`select set_config('erp.audit_process_id', 'kernel.admin.permission.set', true)`;
     await expect(
-      asCashier((tx) => tx`insert into kernel.process_permissions(company_id, role_id, process_id)
-        values (${companyId}, ${seed.companies[0]!.memberRoleId}, 'test.probe.create')`),
+      asCashier(async (tx) => {
+        await inAdminProcess(tx);
+        return tx`insert into kernel.process_permissions(company_id, role_id, process_id)
+          values (${companyId}, ${seed.companies[0]!.memberRoleId}, 'test.probe.create')`;
+      }),
     ).rejects.toThrow(/row-level security/);
     await expect(
-      asCashier((tx) => tx`insert into kernel.sensitive_processes(company_id, process_id, mode) values (${companyId}, 'test.probe.list', 'self_2fa')`),
+      asCashier(async (tx) => {
+        await inAdminProcess(tx);
+        return tx`insert into kernel.sensitive_processes(company_id, process_id, mode) values (${companyId}, 'test.probe.list', 'self_2fa')`;
+      }),
     ).rejects.toThrow(/row-level security/);
     // Verifications are recorded only by the service role after the TOTP check: a user cannot mint
     // one, not even for themselves.
@@ -314,8 +322,11 @@ describe("run-process", () => {
       ).rejects.toThrow(/permission denied/);
     }
     // The admin grants the member role a process, and the member can then run it.
-    await withClaims(sql, adminClaims, (tx) => tx`insert into kernel.process_permissions(company_id, role_id, process_id)
-      values (${companyId}, ${seed.companies[0]!.memberRoleId}, 'test.probe.list')`);
+    await withClaims(sql, adminClaims, async (tx) => {
+      await inAdminProcess(tx);
+      await tx`insert into kernel.process_permissions(company_id, role_id, process_id)
+        values (${companyId}, ${seed.companies[0]!.memberRoleId}, 'test.probe.list')`;
+    });
     await expect(runProcess(deps, callerWith(cashierClaims), "test.probe.list", {})).resolves.toMatchObject({ rows: expect.any(Array) });
 
     const mine = await insertVerification(cashier, companyId, new Date());

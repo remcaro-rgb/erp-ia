@@ -154,10 +154,18 @@ describe("verify", () => {
   });
 
   it("only the admin chooses a provider", async () => {
+    // Inside kernel.verifier.set (0021); a member is refused there too.
+    const inProcess = <T,>(fn: (tx: Parameters<Parameters<typeof withClaims>[2]>[0]) => Promise<T>) => async (tx: Parameters<Parameters<typeof withClaims>[2]>[0]) => {
+      await tx`select set_config('erp.audit_process_id', 'kernel.verifier.set', true)`;
+      return fn(tx);
+    };
     await expect(
-      withClaims(sql, cashier.claims, (tx) => tx`insert into kernel.verifiers(company_id, kind, provider) values (${seed.companies[0]!.id}, 'email', 'fake-mail')`),
+      withClaims(sql, cashier.claims, inProcess((tx) => tx`insert into kernel.verifiers(company_id, kind, provider) values (${seed.companies[0]!.id}, 'email', 'fake-mail')`)),
     ).rejects.toThrow(/row-level security/);
-    await withClaims(sql, admin.claims, (tx) => tx`insert into kernel.verifiers(company_id, kind, provider) values (${seed.companies[0]!.id}, 'phone', 'fake-sms')`);
+    await expect(
+      withClaims(sql, admin.claims, (tx) => tx`insert into kernel.verifiers(company_id, kind, provider) values (${seed.companies[0]!.id}, 'phone', 'fake-sms')`),
+    ).rejects.toThrow(/row-level security/);
+    await withClaims(sql, admin.claims, inProcess((tx) => tx`insert into kernel.verifiers(company_id, kind, provider) values (${seed.companies[0]!.id}, 'phone', 'fake-sms')`));
     const seen = await withClaims(sql, cashier.claims, (tx) => tx`select provider from kernel.verifiers where kind = 'phone'`);
     expect(seen).toEqual([{ provider: "fake-sms" }]);
   });

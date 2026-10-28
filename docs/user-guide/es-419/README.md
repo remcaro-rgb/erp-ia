@@ -17,3 +17,4 @@ Guías para quien usa ERP-IA todos los días, en español latinoamericano. El as
 - [Importar terceros, productos o categorías desde Excel o CSV](importar.md): cargar muchos registros con una plantilla.
 - [Pedir ayuda: tickets de soporte](soporte.md): reportar un problema o hacer una pregunta.
 - [El asistente: preguntar, pedir acciones y confirmar](asistente.md): consultar datos, tarjetas de confirmación, código de verificación y qué hacer con los resultados.
+- [Administración de la empresa](administracion.md): roles, usuarios, permisos, visibilidad de campos, procesos sensibles, módulos, archivos obligatorios, datos adicionales, verificadores y uso de IA.

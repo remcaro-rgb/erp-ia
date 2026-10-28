@@ -121,6 +121,9 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       await sql`delete from kernel.attachments where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.required_attachments where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.step_up_verifications where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.sensitive_processes where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.field_permissions where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.process_permissions where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.custom_fields where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.verification_requests where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.verifiers where company_id = any(${companyIds}::uuid[])`;

@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { callerProfile, entitled, readUserPrefs, runnableProcesses, type Caller } from "@erp/kernel";
 import { isThemeMode, type CommandItem, type ResultColumn, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
 import { savedFrom } from "@/lib/prefs/validate";
-import { processDeps } from "@/lib/server/runtime";
+import { processDeps, registrySynced } from "@/lib/server/runtime";
 import { loadAssistantColumns } from "./assistant-columns";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
@@ -27,6 +27,7 @@ export interface ShellData {
 
 export async function loadShell(caller: Caller): Promise<ShellData> {
   const deps = processDeps();
+  await registrySynced();
   const { claims } = caller;
   const keys = shellAccessKeys(deps.registry);
   const [profile, entitledKeys, runnable, prefs, t] = await Promise.all([

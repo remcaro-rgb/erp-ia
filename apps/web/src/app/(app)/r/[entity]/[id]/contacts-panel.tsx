@@ -7,7 +7,7 @@ import { ContactsTab, type ContactDraft, type ContactItem } from "@erp/ui";
 import { createContactAction, removeContactAction, requestVerificationAction, updateContactAction, type ActionResult } from "@/lib/records/tab-actions";
 import type { RecordAbilities } from "@/lib/records/load";
 import { refusalText } from "./refusal";
-import { useStepUpAction } from "./use-step-up";
+import { useStepUpAction } from "../../../_components/use-step-up";
 
 type Status = "queued" | "verified" | "failed";
 

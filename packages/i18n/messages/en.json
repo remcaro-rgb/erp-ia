@@ -355,6 +355,246 @@
         "reported_by": "Reported by",
         "hidden": "Hidden for your role"
       }
+    },
+    "admin": {
+      "title": "Administration",
+      "sections": "Administration sections",
+      "forbidden_title": "You do not have permission.",
+      "forbidden_body": "Administration requires the company's admin role.",
+      "saved": "Changes saved",
+      "failed": "Could not save: {reason}",
+      "process": "Process {process}",
+      "step_up_note": "Every change asks for the 6-digit code of your authenticator app and is recorded in the audit log.",
+      "kind": {
+        "create": "create",
+        "update": "update",
+        "delete": "delete",
+        "consult": "consult"
+      },
+      "scope": {
+        "ambos": "Customers and suppliers",
+        "clientes": "Customers only",
+        "proveedores": "Suppliers only",
+        "ninguno": "No parties"
+      },
+      "mode": {
+        "visible": "visible",
+        "masked": "masked",
+        "hidden": "hidden"
+      },
+      "permissions": {
+        "title": "Process × role matrix",
+        "hint": "Columns are the roles; each process shows the entity it acts on.",
+        "col_entity": "Entity",
+        "col_process": "Process",
+        "col_kind": "Action",
+        "step_up": "2FA",
+        "step_up_title": "This process always asks for two-step verification",
+        "admin_locked": "The admin role holds every permission"
+      },
+      "roles": {
+        "title": "Roles",
+        "hint": "The party scope limits grids, forms, exports and the assistant.",
+        "new": "New role",
+        "col_name": "Role",
+        "col_description": "Description",
+        "col_scope": "Sees parties",
+        "col_permissions": "Permissions",
+        "col_users": "Users",
+        "edit": "Edit and assign",
+        "name": "Name",
+        "description": "Description",
+        "scope": "Sees parties",
+        "users": "Users with this role",
+        "create": "Create role",
+        "save": "Save",
+        "create_hint": "A new role gets the consult permissions and its confidential fields masked; then adjust the matrix under Permissions.",
+        "edit_title": "Role · {name}",
+        "system": "system",
+        "no_users": "No users",
+        "name_required": "The name is required"
+      },
+      "users": {
+        "title": "Users",
+        "hint": "Each user signs in with their e-mail and turns on two-step verification in their profile.",
+        "new": "New user",
+        "col_name": "Name",
+        "col_email": "E-mail",
+        "col_mobile": "Mobile",
+        "col_roles": "Roles",
+        "col_mfa": "2FA",
+        "mfa_on": "on",
+        "mfa_off": "pending",
+        "name": "Full name",
+        "email": "E-mail (sign-in)",
+        "mobile": "Mobile",
+        "mobile_hint": "country code + number",
+        "roles": "Roles",
+        "roles_hint": "at least one",
+        "roles_required": "Choose at least one role",
+        "photo": "Photo",
+        "photo_hint": "optional · PNG, JPEG or WebP up to 300 KB",
+        "photo_remove": "Remove the photo",
+        "photo_too_big": "The photo is larger than 300 KB",
+        "create": "Create and invite",
+        "create_hint": "An invitation is sent by e-mail: the person sets their password and turns on two-step verification in their profile.",
+        "edit_title": "User · {name}",
+        "edit_roles": "Edit roles",
+        "edit_hint": "Role changes apply at the user's next sign-in.",
+        "save": "Save",
+        "created": "User created and invitation sent to {email}",
+        "name_required": "The name is required"
+      },
+      "fields": {
+        "title": "Visibility by field and role",
+        "hint": "Applies to grids, forms, exports and the assistant. Confidential fields start masked for every new role.",
+        "entity": "Entity",
+        "col_field": "Field",
+        "confidential": "confidential",
+        "admin_note": "The admin role sees every field"
+      },
+      "extra": {
+        "title": "Extra data",
+        "hint": "The company's own fields, in the Extra data tab of every record.",
+        "new": "New field",
+        "empty": "No extra data defined",
+        "col_label": "Name",
+        "col_key": "Key",
+        "col_type": "Type",
+        "col_length": "Length",
+        "col_required": "Required",
+        "col_enter": "May enter",
+        "col_edit": "May edit",
+        "col_view": "May view",
+        "label": "Name",
+        "key": "Key",
+        "key_hint": "lowercase letters, digits and _",
+        "type": "Type",
+        "max_length": "Maximum length",
+        "required": "Required",
+        "required_label": "Yes, it counts as missing data until filled in",
+        "options": "List options",
+        "options_hint": "separated by |",
+        "edit": "Edit",
+        "remove": "Remove",
+        "new_title": "New extra field",
+        "edit_title": "Extra field · {label}",
+        "create": "Create",
+        "save": "Save",
+        "confirm_remove": "Remove {label}? Stored values are kept, but nobody sees them."
+      },
+      "required_files": {
+        "title": "Required files",
+        "hint": "A missing required file keeps the record from being invoiced until it is uploaded with that tag and type.",
+        "new": "New file",
+        "empty": "No files defined",
+        "col_tag": "Tag",
+        "col_kind": "Type",
+        "col_required": "Required",
+        "col_condition": "Applies when",
+        "col_description": "Description",
+        "kind": {
+          "pdf": "PDF",
+          "image": "Image",
+          "any": "Any"
+        },
+        "condition": {
+          "always": "Always",
+          "co": "Colombian party",
+          "co_juridica": "Colombian legal entity",
+          "proveedor": "Is a supplier",
+          "cliente": "Is a customer"
+        },
+        "save": "Save",
+        "remove": "Remove",
+        "confirm_remove": "Stop requiring {tag}?",
+        "new_tag": "New document"
+      },
+      "sensitive": {
+        "title": "Processes that require two-step verification",
+        "hint": "A verification is valid for 5 minutes and one action of the person who made it.",
+        "on": "requires 2FA",
+        "off": "no 2FA",
+        "locked": "always: administration process"
+      },
+      "verifiers": {
+        "title": "External data verification",
+        "hint": "The Verify button is already on e-mails, phones and identifications; until a provider is set, requests are queued.",
+        "kind": {
+          "email": "E-mail",
+          "phone": "Phone / mobile",
+          "document": "Identification number"
+        },
+        "none": "To be defined (no provider)",
+        "candidates": "Candidates: {list}",
+        "providers": {
+          "email": "ZeroBounce|Hunter|Mailgun Validate",
+          "phone": "Twilio Lookup|Numverify|Vonage",
+          "document": "RUES (Confecámaras)|DIAN RUT|Registraduría"
+        }
+      },
+      "modules": {
+        "title": "Modules",
+        "hint": "A disabled module disappears from the menu, the exports and the assistant's tools; its data and events are kept.",
+        "on": "on",
+        "off": "off",
+        "not_purchased": "not purchased",
+        "requires": "Requires: {list}",
+        "used_by": "Needed by: {list}",
+        "menu": "Menu: {list}",
+        "desc": {
+          "core": "Parties, products, categories, sequences, import and export",
+          "support": "Support tickets and their conversation"
+        }
+      },
+      "companies": {
+        "title": "Company",
+        "hint": "The tax id, country and currency decide the fiscal pack and are not changed here.",
+        "legal_name": "Legal name",
+        "trade_name": "Trade name",
+        "tax_id": "Tax id",
+        "country": "Country",
+        "currency": "Currency",
+        "timezone": "Time zone",
+        "timezone_hint": "governs reports, scheduling and the AI usage month",
+        "save": "Save"
+      },
+      "ai_usage": {
+        "title": "AI usage",
+        "hint": "Tokens and cost of the month in the company's time zone; at the cap the assistant answers without the model.",
+        "month": "Month",
+        "tokens_month": "Tokens this month",
+        "of_limit": "of the {limit} monthly cap",
+        "no_limit": "no cap configured",
+        "bar": "Monthly cap usage",
+        "cost": "Estimated cost",
+        "cost_value": "{amount} USD",
+        "limit": "Company cap",
+        "limit_none": "No cap",
+        "limit_note": "above it the assistant answers consult questions only, without the model",
+        "per_user": "By user",
+        "per_model": "By model",
+        "col_user": "User",
+        "col_calls": "Calls",
+        "col_tokens": "Tokens",
+        "col_cost": "Cost (USD)",
+        "col_task": "Task",
+        "col_model": "Model",
+        "empty": "No AI usage this month",
+        "platform": "Platform",
+        "tasks": {
+          "chat": "Chat",
+          "planning": "Planning",
+          "classification": "Classification",
+          "summarization": "Summaries",
+          "extraction": "Extraction",
+          "embeddings": "Help search",
+          "recommendations": "Recommendations"
+        }
+      },
+      "section": {
+        "permissions": "Permissions"
+      }
     }
   },
   "nav": {
@@ -428,7 +668,8 @@
     },
     "modules": {
       "core": "Core",
-      "support": "Support"
+      "support": "Support",
+      "kernel": "System"
     },
     "keywords": {
       "core": {
@@ -438,6 +679,14 @@
       },
       "support": {
         "tickets": "support help ticket tickets bug problem question request"
+      },
+      "kernel": {
+        "admin": "administration permissions matrix security",
+        "ai_usage": "usage ai tokens cost cap assistant",
+        "admin_roles": "roles profiles party scope",
+        "admin_users": "users invite people mobile",
+        "admin_fields": "fields visibility mask hide",
+        "admin_modules": "modules enable disable"
       }
     },
     "create": {
@@ -452,6 +701,19 @@
     },
     "support": {
       "tickets": "Support"
+    },
+    "kernel": {
+      "admin": "Administration",
+      "ai_usage": "AI usage",
+      "roles": "Roles",
+      "users": "Users",
+      "fields": "Field visibility",
+      "extra": "Extra data",
+      "required_files": "Required files",
+      "sensitive": "Sensitive processes",
+      "verifiers": "Verifiers",
+      "modules": "Modules",
+      "companies": "Company"
     }
   },
   "entity": {
@@ -697,7 +959,8 @@
       "imports": "Bulk import (Excel / CSV)",
       "exports": "Export to PDF, Excel and CSV",
       "help": "Help and user guides",
-      "data": "Assistant data queries"
+      "data": "Assistant data queries",
+      "admin": "Administration"
     },
     "support": {
       "tickets": "Support tickets"

@@ -7,3 +7,4 @@ export type { JwtClaims, Tx } from "./db/client";
 export { MemoryFileStore } from "./files/store";
 export { buildZip, deflatedZeros, forgedZip, partOf } from "./import/zip-fixtures";
 export type { FixturePart } from "./import/zip-fixtures";
+export { DbAuthAdmin } from "./db/test-auth-admin";

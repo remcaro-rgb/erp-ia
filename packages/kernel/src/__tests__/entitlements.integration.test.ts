@@ -378,7 +378,14 @@ describe("entitlements", () => {
       await expect(
         withClaims(sql, cashierClaims, (tx) => tx`insert into kernel.company_modules(company_id, module_id) values (${companyId}, 'support')`),
       ).rejects.toThrow(/row-level security/);
+      // The admin switches modules only through kernel.admin.module.enable / disable (0021).
       await withClaims(sql, adminClaims, (tx) => tx`update kernel.company_modules set enabled = false where module_id = 'core'`);
+      const [unchanged] = await sql`select enabled from kernel.company_modules where company_id = ${companyId}`;
+      expect(unchanged!.enabled).toBe(true);
+      await withClaims(sql, adminClaims, async (tx) => {
+        await tx`select set_config('erp.audit_process_id', 'kernel.admin.module.disable', true)`;
+        await tx`update kernel.company_modules set enabled = false where module_id = 'core'`;
+      });
       const [after] = await sql`select enabled from kernel.company_modules where company_id = ${companyId}`;
       expect(after!.enabled).toBe(false);
       const audits = await sql`select action from kernel.audit_log where company_id = ${companyId} and entity = 'kernel.company_modules'`;

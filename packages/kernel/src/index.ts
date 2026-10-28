@@ -82,3 +82,6 @@ export {
 export type { EmbedOptions, Embedder, HelpIndexSummary, HelpResult } from "./help";
 export { costUsd, DEFAULT_PRICE, MODEL_PRICES, priceOf, providerOfModel, recordLlmUsage } from "./ai/usage";
 export type { EmbeddingUsage, LlmTask, LlmUsageRow, ModelPrice } from "./ai/usage";
+export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcesses, moduleStates, readAiUsage, readPermissionMatrix, setAuthAdmin, syncRegistry } from "./admin";
+export type { AiUsage, MatrixProcess, ModuleState, PermissionMatrix } from "./admin";
+export { ADMIN_NAVIGATION } from "./admin/navigation";

@@ -106,10 +106,16 @@ describe("field-level masking", () => {
   });
 
   it("only a company admin writes permissions, and only for roles of its own company", async () => {
-    const insertAs = (claims: ReturnType<typeof cashierClaims>, rowCompanyIndex: number, roleId: string) =>
-      withClaims(sql, claims, (tx) => tx`
-        insert into kernel.field_permissions(company_id, role_id, entity, field, mode)
-        values (${company(rowCompanyIndex).id}, ${roleId}, 'kernel.role_probe', 'secret', 'hidden')`);
+    // Inside kernel.admin.field_permission.set (0021: outside an admin process nobody writes them).
+    const insertAs = (claims: ReturnType<typeof cashierClaims>, rowCompanyIndex: number, roleId: string, processId = "kernel.admin.field_permission.set") =>
+      withClaims(sql, claims, async (tx) => {
+        await tx`select set_config('erp.audit_process_id', ${processId}, true)`;
+        return tx`
+          insert into kernel.field_permissions(company_id, role_id, entity, field, mode)
+          values (${company(rowCompanyIndex).id}, ${roleId}, 'kernel.role_probe', 'secret', 'hidden')`;
+      });
+
+    await expect(insertAs(adminClaims(), 0, company(0).memberRoleId, "")).rejects.toThrow(/row-level security/);
 
     await expect(insertAs(cashierClaims(), 0, company(0).memberRoleId)).rejects.toThrow(/row-level security/);
     await expect(insertAs(adminClaims(), 0, company(1).memberRoleId)).rejects.toThrow(/row-level security/);

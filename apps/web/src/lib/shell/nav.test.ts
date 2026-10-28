@@ -17,10 +17,14 @@ describe("buildShellNav", () => {
     expect(keys.processes).toEqual(expect.arrayContaining(["core.party.consult", "core.party.create", "core.category.create"]));
   });
 
-  it("with everything granted: the core module, its four items and its three create commands", () => {
+  it("with everything granted: the core module, its four items and its three create commands, then Sistema", () => {
     const shell = buildShellNav(registry, all);
-    expect(shell.modules).toEqual([{ id: "core", label: "nav.modules.core" }]);
-    expect(shell.nav.map((i) => i.href)).toEqual(["/parties", "/products", "/categories", "/import"]);
+    // The kernel is the platform: always entitled, listed after the modules (the first carries Inicio).
+    expect(shell.modules).toEqual([
+      { id: "core", label: "nav.modules.core" },
+      { id: "kernel", label: "nav.modules.kernel" },
+    ]);
+    expect(shell.nav.filter((i) => !i.id.startsWith("kernel.")).map((i) => i.href)).toEqual(["/parties", "/products", "/categories", "/import"]);
     const byId = (a: { processId: string }, b: { processId: string }) => a.processId.localeCompare(b.processId);
     expect([...shell.creates].sort(byId)).toEqual([
       { processId: "core.category.create", labelKey: "nav.create.core.category", href: "/categories?new=1" },
@@ -33,19 +37,40 @@ describe("buildShellNav", () => {
 
   it("a module the company is not entitled to disappears with its items (rule 4)", () => {
     const entitled = new Set([...all.entitled].filter((k) => k !== "module:core"));
-    expect(buildShellNav(registry, { ...all, entitled })).toEqual({ modules: [], nav: [], creates: [] });
+    const runnable = new Set([...all.runnable].filter((p) => !p.startsWith("kernel.")));
+    expect(buildShellNav(registry, { entitled, runnable })).toEqual({ modules: [], nav: [], creates: [] });
+  });
+
+  it("Administración and Uso de IA show to whoever may run the admin processes, the other admin screens off the bar", () => {
+    expect(keys.processes).toEqual(expect.arrayContaining(["kernel.admin.permission.set", "kernel.admin.ai_usage.consult"]));
+    const admin = buildShellNav(registry, { entitled: new Set(), runnable: new Set(keys.processes.filter((p) => p.startsWith("kernel.") || p === "kernel.custom_field.set")) });
+    expect(admin.modules).toEqual([{ id: "kernel", label: "nav.modules.kernel" }]);
+    expect(admin.nav.filter((i) => i.menu !== false).map((i) => i.href)).toEqual(["/admin/permissions", "/admin/ai-usage"]);
+    expect(admin.nav.filter((i) => i.menu === false).map((i) => i.href)).toEqual([
+      "/admin/roles",
+      "/admin/users",
+      "/admin/fields",
+      "/admin/extra",
+      "/admin/required-files",
+      "/admin/sensitive",
+      "/admin/verifiers",
+      "/admin/modules",
+      "/admin/companies",
+    ]);
+    const onlyUsage = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.admin.ai_usage.consult"]) });
+    expect(onlyUsage.nav.map((i) => i.href)).toEqual(["/admin/ai-usage"]);
   });
 
   it("an item whose feature is not entitled is hidden", () => {
     const entitled = new Set([...all.entitled].filter((k) => k !== "feature:core.products"));
     const shell = buildShellNav(registry, { ...all, entitled });
-    expect(shell.nav.map((i) => i.href)).toEqual(["/parties", "/import"]);
+    expect(shell.nav.filter((i) => !i.id.startsWith("kernel.")).map((i) => i.href)).toEqual(["/parties", "/import"]);
     expect(shell.creates.map((c) => c.processId)).toEqual(["core.party.create"]);
   });
 
   it("an item naming a process shows only to callers who may run it (Importar datos: kernel.import.run)", () => {
     expect(keys.processes).toContain("kernel.import.run");
-    const runnable = new Set([...all.runnable].filter((p) => p !== "kernel.import.run"));
+    const runnable = new Set([...all.runnable].filter((p) => p !== "kernel.import.run" && !p.startsWith("kernel.")));
     expect(buildShellNav(registry, { ...all, runnable }).nav.map((i) => i.href)).toEqual(["/parties", "/products", "/categories"]);
   });
 

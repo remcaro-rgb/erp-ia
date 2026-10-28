@@ -271,4 +271,33 @@
   .erp-result td { height: 30px; padding: 4px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
   .erp-result th.erp-num, .erp-result td.erp-num { text-align: right; }
   .erp-result__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* administration (design §6, prototype v5 "Administración"): section bar, matrices, KPIs and the usage bar */
+  .erp-admin { display: flex; flex-direction: column; gap: 12px; }
+  .erp-admin h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  .erp-admin__sections { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .erp-admin__sections a { padding: 8px 12px; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; }
+  .erp-admin__sections a[aria-current="page"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .erp-admin__head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
+  .erp-admin__scroll { overflow: auto; max-height: calc(100vh - 260px); }
+  .erp-admin__dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 40; box-shadow: 0 10px 30px var(--shadow); border-radius: 6px; min-width: 360px; }
+  .erp-matrix td, .erp-matrix th { text-align: center; }
+  .erp-matrix td:first-child, .erp-matrix th:first-child, .erp-matrix .erp-matrix__left { text-align: left; }
+  .erp-matrix input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
+  .erp-matrix__group td { background: var(--head); font-weight: 700; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .erp-matrix select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); }
+  .erp-matrix select.is-masked { background: var(--warn-bg); color: var(--warn); }
+  .erp-matrix select.is-hidden { background: var(--danger-bg); color: var(--danger); }
+  .erp-admin__row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
+  .erp-admin__row:last-child { border-bottom: 0; }
+  .erp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .erp-kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .erp-kpi__label { font-size: 12px; color: var(--text-muted); }
+  .erp-kpi__value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .erp-bar { height: 8px; border-radius: 4px; background: var(--line-2); overflow: hidden; }
+  .erp-bar > i { display: block; height: 100%; background: var(--primary); }
+  .erp-bar.is-over > i { background: var(--danger); }
+  .erp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; }
+  .erp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .erp-avatar--lg { width: 72px; height: 72px; font-size: 22px; }
 }

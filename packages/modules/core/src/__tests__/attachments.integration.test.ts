@@ -257,14 +257,21 @@ describe("kernel attachments", () => {
       withClaims(sql, cashier.claims, (tx) => tx`insert into kernel.required_attachments(company_id, entity, tag, kind, required) values (${h.companyId}, ${PRODUCT}, 'Otra', 'any', true)`),
     ).rejects.toThrow();
 
+    // The admin writes them only inside kernel.required_file.* (0021); a bare statement changes nothing.
+    const asAdminProcess = (statement: (tx: Parameters<Parameters<typeof withClaims>[2]>[0]) => Promise<unknown>) =>
+      withClaims(sql, admin.claims, async (tx) => {
+        await tx`select set_config('erp.audit_process_id', 'kernel.required_file.set', true)`;
+        return statement(tx);
+      });
+    expect(await withClaims(sql, admin.claims, (tx) => tx`update kernel.required_attachments set required = true where company_id = ${h.companyId} and entity = ${PRODUCT} returning id`)).toHaveLength(0);
     // The admin makes the data sheet mandatory: the existing product is no longer ready until it has one.
-    await withClaims(sql, admin.claims, (tx) => tx`update kernel.required_attachments set required = true where company_id = ${h.companyId} and entity = ${PRODUCT} and tag = 'Ficha técnica'`);
+    await asAdminProcess((tx) => tx`update kernel.required_attachments set required = true where company_id = ${h.companyId} and entity = ${PRODUCT} and tag = 'Ficha técnica'`);
     expect(await ready("products", product)).toBe(false);
     expect(await missingAttachments(sql, PRODUCT, { id: product, companyId: h.companyId })).toEqual(["Ficha técnica"]);
     await add(admin, { entity: PRODUCT, recordId: product, tag: "Ficha técnica", fileName: "ficha.pdf", mimeType: "application/pdf", sizeBytes: 2048, storagePath: storagePath(product, "ficha.pdf", PRODUCT) });
     expect(await ready("products", product)).toBe(true);
     // Dropping the requirement frees every record that was waiting on it.
-    await withClaims(sql, admin.claims, (tx) => tx`update kernel.required_attachments set required = false where company_id = ${h.companyId} and entity = ${PRODUCT}`);
+    await asAdminProcess((tx) => tx`update kernel.required_attachments set required = false where company_id = ${h.companyId} and entity = ${PRODUCT}`);
     const [other] = [(await runProcess(deps, admin, "core.product.create", { ...productInput, sku: "ATT-2", standardCode: "7702001005017" })).id as string];
     expect(await ready("products", other)).toBe(true);
   });
