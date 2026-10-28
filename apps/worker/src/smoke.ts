@@ -9,7 +9,8 @@ import postgres from "postgres";
 // End-to-end check of the Docker stack (design §21, Task 21): real workflows through the compose edge, web app and
 // Workflow Postgres World, from outside the compose network (CI and `pnpm -F worker smoke`, with the stack started by
 // `pnpm docker:test:up`). It seeds its own tenant, so run it against a disposable stack (`pnpm docker:down`).
-//  0. The edge: the flow route and the tick answer 403 without `x-workflow-internal-token`, 2xx with it.
+//  0. The edge: the flow route and the tick answer 403 without `x-workflow-internal-token`, 2xx with it; a signed-in
+//     browser's same-origin POST /api/prefs (Origin http://127.0.0.1:56300) is accepted, another origin is not.
 //  1. An export job: a member signs in through the compose Auth, POST /api/export of 10,001 parties as CSV answers
 //     202 { mode: "job" }; the `exportJobWorkflow` run runs on the Postgres World; the file lands in the compose
 //     Storage; GET /api/export/:jobId answers done.
@@ -88,7 +89,8 @@ async function main(): Promise<void> {
     const [role] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${companyId}, 'member', false) returning id`;
     await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${tenant!.id}, 'module:core', 'manual')`;
     await sql`insert into kernel.process_permissions(company_id, role_id, process_id)
-              values (${companyId}, ${role!.id}, 'core.party.consult'), (${companyId}, ${role!.id}, 'kernel.export.run')`;
+              values (${companyId}, ${role!.id}, 'core.party.consult'), (${companyId}, ${role!.id}, 'kernel.export.run'),
+                     (${companyId}, ${role!.id}, 'kernel.user_prefs.set')`;
     const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
     if (createError || !created.user) throw new Error(`could not create the user: ${createError?.message}`);
     const userId = created.user.id;
@@ -117,6 +119,18 @@ async function main(): Promise<void> {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) throw new Error(`sign-in failed: ${signInError.message}`);
     const cookie = [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+
+    // ---- a browser's same-origin request through the edge: the app must see the host with its port ----
+    const origin = new URL(WEB).origin;
+    const prefs = (from: string) =>
+      fetch(`${WEB}/api/prefs`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: from, cookie },
+        body: JSON.stringify({ key: "theme", value: "dark", savedAt: Date.now() }),
+      });
+    const sameOrigin = { [origin]: (await prefs(origin)).status, "http://evil.example": (await prefs("http://evil.example")).status };
+    log("POST /api/prefs through the edge, by Origin", sameOrigin);
+    if (sameOrigin[origin] !== 204 || sameOrigin["http://evil.example"] !== 403) throw new Error("the app does not see the browser's origin as its own");
 
     // ---- 1. an export job through the compose web app ----
     const started = await fetch(`${WEB}/api/export`, {

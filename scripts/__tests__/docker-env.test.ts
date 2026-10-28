@@ -26,6 +26,8 @@ describe("docker env", () => {
     expect(Object.values(env)).not.toContain("generate");
     expect(env.JWT_SECRET!.length).toBeGreaterThanOrEqual(32);
     expect(env.INTERNAL_TOKEN!.length).toBeGreaterThanOrEqual(32);
+    // 32 random bytes, base64url: the edge's token is as strong as the internal one.
+    expect(env.WORKFLOW_INTERNAL_TOKEN!.length).toBeGreaterThanOrEqual(43);
     expect(claims(env.ANON_KEY!)).toMatchObject({ role: "anon", iss: "supabase" });
     expect(claims(env.SERVICE_ROLE_KEY!)).toMatchObject({ role: "service_role", iss: "supabase" });
     expect(verifies(env.ANON_KEY!, env.JWT_SECRET!)).toBe(true);

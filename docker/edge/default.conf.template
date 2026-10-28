@@ -25,11 +25,20 @@ server {
 
     proxy_http_version 1.1;
     proxy_set_header Connection "";
-    proxy_set_header Host $host;
+    # The host with its port, as the browser sent it: Next's Server Action CSRF check and the app's same-origin checks
+    # compare it with `Origin` (`$host` would drop the port: 127.0.0.1 vs http://127.0.0.1:56300).
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Host $http_host;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header x-workflow-internal-token "";
+    # Supabase session cookies (chunked JWTs with the kernel claims, MFA factors) make large Set-Cookie and Cookie
+    # headers: room for them in both directions (nginx defaults of 4-8k answer 502 / 400).
+    proxy_buffer_size 64k;
+    proxy_buffers 8 64k;
+    proxy_busy_buffers_size 128k;
+    large_client_header_buffers 8 64k;
     proxy_buffering off;
     proxy_read_timeout 300s;
 
@@ -38,6 +47,9 @@ server {
         return 204;
     }
 
+    # Every Workflow route is guarded, including /.well-known/workflow/v1/webhook/:token. When an external service
+    # must call a `createWebhook()` URL, that path needs its own exception here (it is authorized by its token alone;
+    # node_modules/workflow/docs/worlds/postgres.mdx "Security"), never the flow route.
     location ~ ^/(\.well-known/workflow/|api/internal/) {
         if ($workflow_internal_allowed = 0) {
             return 403;
