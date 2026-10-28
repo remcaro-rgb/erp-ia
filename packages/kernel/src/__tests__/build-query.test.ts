@@ -133,6 +133,22 @@ describe("buildQuery", () => {
     expect(q.params).toEqual(["America/Bogota", "2026-01-01", "2026-01-31", "2000-01-01"]);
   });
 
+  it("adds the time zone parameter only when a datetime is filtered: sorting, grouping or aggregating one takes the column as it is", () => {
+    const tz = { timeZone: "America/Bogota" };
+    const sorted = buildQuery(partyEntity, state({ sort: [{ field: "created_at", dir: "desc" }] }), all, tz);
+    expect(sorted.params).toEqual([]);
+    expect(sorted.sql).toMatch(/order by "created_at" desc nulls last, "id" asc/);
+    expect(sorted.sql).not.toMatch(/\$\d/);
+    const grouped = buildQuery(partyEntity, state({ groupBy: "created_at", aggregates: [{ field: "created_at", fn: "min" }, { field: "created_at", fn: "max" }] }), all, tz);
+    expect(grouped.params).toEqual([]);
+    expect(grouped.sql).toMatch(/order by "created_at" asc nulls last, "name" asc nulls last, "id" asc/);
+    expect(grouped.aggregateSql).toBe('select min("created_at") as "min:created_at", max("created_at") as "max:created_at" from core.v_parties');
+    // Filtered too: the zone parameter comes once, before the values, and is used.
+    const filtered = buildQuery(partyEntity, state({ filters: [{ field: "created_at", op: "gt", value: "2026-01-01" }], sort: [{ field: "created_at", dir: "asc" }] }), all, tz);
+    expect(filtered.params).toEqual(["America/Bogota", "2026-01-01"]);
+    expect(filtered.sql).toMatch(/\("created_at" at time zone \$1\)::date > \$2::date.* order by "created_at" asc/);
+  });
+
   it("joins conditions with AND binding tighter than OR (OR-groups of AND-runs)", () => {
     // A y B o C y D  =  (A y B) o (C y D)
     const q = buildQuery(

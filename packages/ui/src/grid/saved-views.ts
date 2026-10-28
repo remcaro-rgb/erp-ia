@@ -1,3 +1,4 @@
+import { orGroups } from "@erp/kernel/query";
 import { initialView, stateFilters } from "./grid-model";
 import type { Condition, GridColumn, GridStateInput, GridView, SortEntry } from "./types";
 
@@ -31,15 +32,28 @@ export function savedStateOf(columns: readonly GridColumn[], view: GridView): Sa
 /** The grid view a saved state comes back as; fields the caller no longer sees are dropped. */
 export function viewFromSaved(columns: readonly GridColumn[], saved: SavedGridState): GridView {
   const known = new Map(columns.filter((c) => c.mode !== "hidden").map((c) => [c.field, c]));
+  // A masked field never filters or sorts (rule 14): its conditions and sort are dropped like a hidden field's.
+  const usable = (field: string) => known.get(field)?.mode === "visible";
   const base = initialView(columns);
   const shown = (saved.columns ?? []).filter((f) => known.has(f));
   return {
     ...base,
-    conditions: (saved.filters ?? []).filter((f) => known.has(f.field)).map((f, i): Condition => ({ ...f, join: i === 0 ? undefined : f.join })),
-    sort: (saved.sort ?? []).filter((s) => known.has(s.field)),
+    conditions: keepGroups(saved.filters ?? [], usable),
+    sort: (saved.sort ?? []).filter((s) => usable(s.field)),
     pageSize: saved.pageSize ?? base.pageSize,
     columns: shown.length > 0 ? shown : base.columns,
   };
+}
+
+/**
+ * The conditions whose field passes `keep`, with the OR groups as they were: a group that loses its first condition
+ * still starts with O, and a group left empty disappears.
+ */
+export function keepGroups(filters: readonly Filter[], keep: (field: string) => boolean): Condition[] {
+  return orGroups(filters)
+    .map((group) => group.filter((f) => keep(f.field)))
+    .filter((group) => group.length > 0)
+    .flatMap((group, g) => group.map((f, i): Condition => ({ ...f, join: i > 0 ? "and" : g === 0 ? undefined : "or" })));
 }
 
 /** The user's default view of the entity, if any. */

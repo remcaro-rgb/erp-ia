@@ -147,6 +147,11 @@ describe("DataGrid", () => {
     expect(screen.queryByRole("columnheader", { name: /Tipo/ })).toBeNull();
     fireEvent.click(screen.getByText("Café del Norte S.A.S."));
     expect(onRowOpen).toHaveBeenCalledWith(rows[1]);
+    // A row also opens from the keyboard.
+    const row = screen.getByText("Almacenes Éxito S.A.").closest("tr")!;
+    expect(row.tabIndex).toBe(0);
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(onRowOpen).toHaveBeenLastCalledWith(rows[0]);
   });
 
   it("applies fixed filters (the party switches) to every result and shows the server's refusal", async () => {

@@ -109,7 +109,7 @@ describe("PartyForm", () => {
   });
 
   it("saves through the process and shows its invalid_input messages in the DIAN panel", async () => {
-    const save = vi.fn<SaveRecord>(async () => ({ ok: false, code: "invalid_input", details: ["Ya existe un tercero con documento 31 900373115"] }));
+    const save = vi.fn<SaveRecord>(async () => ({ ok: false, code: "invalid_input", details: [{ message: "Ya existe un tercero con documento 31 900373115" }] }));
     const { onSaved } = setup({ save });
     fireEvent.change(field("Número"), { target: { value: "900373115" } });
     fireEvent.change(field("Razón social"), { target: { value: "Café del Norte S.A.S." } });
@@ -132,6 +132,33 @@ describe("PartyForm", () => {
     const panel = await screen.findByText("1 error impide guardar");
     expect(within(panel.closest("div")!).getByText("Ya existe un tercero con documento 31 900373115")).toBeTruthy();
     expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("shows a process message about one input field under that field, and the pack's messages in the panel", async () => {
+    const save = vi.fn<SaveRecord>(async () => ({
+      ok: false,
+      code: "invalid_input",
+      details: [
+        { path: ["legalName"], message: "La razón social es demasiado larga" },
+        { path: ["invoiceEmail"], message: "Correo rechazado por el proceso" },
+        { path: ["taxResponsibilities", "0"], message: "Responsabilidad desconocida" },
+        { message: "Municipio DANE inválido" },
+      ],
+    }));
+    setup({ save });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    fireEvent.change(field("Razón social"), { target: { value: "Café del Norte S.A.S." } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear" }));
+    const message = await screen.findByText("La razón social es demasiado larga");
+    // Under its own field, which is flagged.
+    expect(message.closest(".erp-field")!.querySelector("input")!.getAttribute("aria-invalid")).toBe("true");
+    expect(within(message.closest(".erp-field")!).getByText(/^Razón social/)).toBeTruthy();
+    expect(screen.getByText("Correo rechazado por el proceso").closest(".erp-field-wrap")!.textContent).toMatch(/Correo de recepción de facturas de venta/);
+    // The panel keeps the pack's message and the one about a field the form has no slot for.
+    const panel = screen.getByText("2 errores impiden guardar").closest("div")!;
+    expect(within(panel).getByText("Municipio DANE inválido")).toBeTruthy();
+    expect(within(panel).getByText("taxResponsibilities.0: Responsabilidad desconocida")).toBeTruthy();
+    expect(within(panel).queryByText("La razón social es demasiado larga")).toBeNull();
   });
 
   it("asks for the step-up code when the process requires it and saves again with the token", async () => {

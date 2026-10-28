@@ -45,6 +45,7 @@ export function Field({ label, hint, error, className, children }: { label: Reac
 export interface SelectFieldProps {
   label: ReactNode;
   hint?: ReactNode;
+  error?: string | null;
   value: string;
   options: readonly CodeOption[];
   onChange: (value: string) => void;
@@ -56,11 +57,11 @@ export interface SelectFieldProps {
   className?: string;
 }
 
-export function SelectField({ label, hint, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
+export function SelectField({ label, hint, error, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
   return (
-    <Field label={label} hint={hint} className={className}>
+    <Field label={label} hint={hint} error={error} className={className}>
       {(id) => (
-        <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        <select id={id} value={value} disabled={disabled} aria-invalid={error ? true : undefined} className={error ? "erp-input--bad" : undefined} onChange={(e) => onChange(e.target.value)}>
           {empty !== undefined && <option value="">{empty}</option>}
           {!options.some((o) => o.code === value) && value !== "" && <option value={value}>{value}</option>}
           {options.map((o) => (
@@ -124,6 +125,46 @@ export function Checks({ label, hint, options, value, onToggle, disabled, row }:
       </div>
     </fieldset>
   );
+}
+
+/** A field's message from the process, under a control that has no error slot of its own (e-mail, phone). */
+export function FieldError({ message }: { message: string | null | undefined }) {
+  if (!message) return null;
+  return (
+    <span role="alert" className="erp-field__error">
+      {message}
+    </span>
+  );
+}
+
+export interface FailureMessages {
+  /** Messages for the DIAN panel: the pack's (no field) and those of fields the form does not show. */
+  panel: string[];
+  /** The process's message(s) about one input field, or null. */
+  field: (key: string) => string | null;
+}
+
+/**
+ * Where a refused save's messages go (rule: validation messages come from the process): a Zod issue under the field
+ * its path names, when the form shows that field; everything else, and any other refusal, in the panel.
+ */
+export function failureMessages(failure: SaveFlow["failure"], fieldKeys: readonly string[], translateError: (code: string) => string): FailureMessages {
+  if (!failure) return { panel: [], field: () => null };
+  if (failure.code !== "invalid_input" || failure.details.length === 0) return { panel: [translateError(failure.code)], field: () => null };
+  const byField = new Map<string, string[]>();
+  const panel: string[] = [];
+  for (const issue of failure.details) {
+    const key = issue.path?.[0];
+    if (key && fieldKeys.includes(key)) byField.set(key, [...(byField.get(key) ?? []), issue.message]);
+    else panel.push(issue.path?.length ? `${issue.path.join(".")}: ${issue.message}` : issue.message);
+  }
+  return { panel, field: (key) => byField.get(key)?.join(" · ") ?? null };
+}
+
+/** `errors.<code>` from the catalogue, `errors.unknown` for a code it does not know. */
+export function useErrorText(): (code: string) => string {
+  const te = useTranslations("errors");
+  return (code) => (te.has(code) ? te(code) : te("unknown"));
 }
 
 /** A value the role may not see (masked) or edit: a disabled box. */

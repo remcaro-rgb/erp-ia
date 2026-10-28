@@ -26,14 +26,16 @@ export function formatMoney(value: number | string | null | undefined, currency 
 }
 
 /**
- * Reads an amount as a person types or pastes it: `$ 1.234.567,00`, `1234567,5`, `1.234.567`. A comma followed by one
- * or two digits at the end is the decimal mark; other dots and commas group thousands. Null when there is no number.
+ * Reads an amount as a person types or pastes it: `$ 1.234.567,00`, `1234567,5`, `1.234.567`, `1.5`. A comma followed by
+ * one or two digits at the end is the decimal mark, and so is a lone dot followed by one or two digits; other dots and
+ * commas group thousands. Null when there is no number.
  */
 export function parseMoney(text: string): number | null {
   let s = text.trim().replace(/[$\s\u00a0]|US\$|\u20ac/g, "").replace(/\u2212/g, "-");
   if (s === "") return null;
   if (/,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
-  else s = s.replace(/[.,]/g, "");
+  // A single dot followed by one or two digits and no comma is a decimal point (`1.5`); otherwise dots group thousands.
+  else if (!/^-?\d+\.\d{1,2}$/.test(s)) s = s.replace(/[.,]/g, "");
   if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
   return Number(s);
 }

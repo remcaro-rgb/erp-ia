@@ -13,6 +13,7 @@ describe("core manifest", () => {
         "core.category.create", "core.category.update", "core.category.consult",
         "core.product.create", "core.product.update", "core.product.deactivate", "core.product.consult",
         "core.sequence.next",
+        "core.uom.consult", "core.price_list.consult", "core.price_list_item.consult", "core.party_contact.consult", "core.document_sequence.consult",
       ].sort(),
     );
     expect(registry.entities("core").map((e) => e.id)).toEqual(
@@ -24,6 +25,15 @@ describe("core manifest", () => {
     expect(core.features.map((f) => f.id)).toEqual(["core.parties", "core.products", "core.settings"]);
     expect(core.events.emits).toEqual(["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"]);
     expect(core.navigation.map((n) => n.href)).toEqual(["/parties", "/products", "/categories"]);
+  });
+
+  it("every entity has its own consult process (the grid and the record read through it)", () => {
+    const consults = new Set(core.processes.filter((p) => p.kind === "consult").map((p) => p.id));
+    for (const entity of core.entities) {
+      const name = entity.id.slice(entity.id.indexOf(".") + 1);
+      const own = [`${entity.id}.consult`, `core.${name.split("_").at(-1)}.consult`];
+      expect(own.some((id) => consults.has(id)), entity.id).toBe(true);
+    }
   });
 
   it("every process belongs to exactly one feature, and labels are i18n keys", () => {

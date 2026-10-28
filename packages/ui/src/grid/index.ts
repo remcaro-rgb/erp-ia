@@ -17,7 +17,7 @@ export { PartyScopeSwitches, partyKindFilters } from "./PartyScopeSwitches";
 export type { PartyScope, PartyScopeSwitchesProps, PartySwitches } from "./PartyScopeSwitches";
 export { SavedViewsMenu } from "./SavedViewsMenu";
 export type { SavedViewsMenuProps } from "./SavedViewsMenu";
-export { defaultView, savedStateOf, viewFromSaved } from "./saved-views";
+export { defaultView, keepGroups, savedStateOf, viewFromSaved } from "./saved-views";
 export type { SavedGridState, SavedViewItem } from "./saved-views";
 export { failureCode, GridFetchError, gridFetcher } from "./fetch-grid";
 export {

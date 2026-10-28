@@ -2,6 +2,7 @@ import { defineModule, type ModuleDef } from "@erp/kernel";
 import { CORE_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
 import { CATEGORY_PROCESSES } from "./processes/category";
+import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
 import { PARTY_PROCESSES } from "./processes/party";
 import { PRODUCT_PROCESSES } from "./processes/product";
@@ -13,7 +14,16 @@ export const core: ModuleDef = defineModule({
   version: "0.1.0",
   dependsOn: [],
   entities: CORE_ENTITIES,
-  processes: [...PARTY_PROCESSES, ...CONTACT_PROCESSES, ...CATEGORY_PROCESSES, ...PRODUCT_PROCESSES, ...SEQUENCE_PROCESSES],
+  processes: [
+    ...PARTY_PROCESSES,
+    ...CONTACT_PROCESSES,
+    ...CATEGORY_PROCESSES,
+    ...PRODUCT_PROCESSES,
+    ...SEQUENCE_PROCESSES,
+    ...CONSULT_PROCESSES.parties,
+    ...CONSULT_PROCESSES.products,
+    ...CONSULT_PROCESSES.settings,
+  ],
   features: FEATURES,
   events: { emits: ["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"], consumes: {} },
   navigation: NAVIGATION,

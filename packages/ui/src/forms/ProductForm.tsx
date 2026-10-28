@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { FieldMode, GridColumn, GridFetcher, GridRow, GridStateInput } from "../grid/types";
 import { EntityLookup } from "../lookup/EntityLookup";
 import { MoneyInput } from "../money/MoneyInput";
-import { Checks, DianPanel, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField } from "./form-parts";
+import { Checks, DianPanel, failureMessages, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText } from "./form-parts";
 import {
   margin,
   productBlocked,
@@ -25,6 +25,27 @@ import type { RequestStepUp, SaveRecord } from "./save-model";
 import { useSaveFlow } from "./use-save";
 
 type Filter = NonNullable<GridStateInput["filters"]>[number];
+
+/** Input fields the form shows a process message under (the rest go to the DIAN panel). */
+const PRODUCT_FIELDS = [
+  "sku",
+  "description",
+  "kind",
+  "categoryId",
+  "idScheme",
+  "standardCode",
+  "brand",
+  "model",
+  "supplierId",
+  "uomCode",
+  "ivaRate",
+  "incRate",
+  "listPrice",
+  "referencePriceType",
+  "referencePrice",
+  "standardCost",
+  "minStock",
+];
 
 export interface ProductFormProps {
   /** The stored product as `core.product.consult` returns it, or null for a new one. */
@@ -57,7 +78,7 @@ export interface ProductFormProps {
 export function ProductForm({ record, tables, categories, modes, readOnly = false, save, requestStepUp, onSaved, supplier }: ProductFormProps) {
   const t = useTranslations("common.product_form");
   const tf = useTranslations("common.forms");
-  const te = useTranslations("errors");
+  const errorText = useErrorText();
   const isNew = record === null;
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
   const [seen, setSeen] = useState(recordKey);
@@ -85,8 +106,8 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
   const offered = categories.filter((c) => c.active || c.id === draft.categoryId);
   const overridden = category ? taxesOverridden(draft, category) : false;
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
-  const failure = flow.failure;
-  const errors = failure ? (failure.code === "invalid_input" && failure.details.length > 0 ? failure.details : [te.has(failure.code) ? te(failure.code) : te("unknown")]) : [];
+  const failed = failureMessages(flow.failure, PRODUCT_FIELDS, errorText);
+  const fe = failed.field;
   const costMode = mode("standard_cost");
   const pct = costMode === "visible" ? margin(draft) : null;
   const ivaNote = draft.ivaRate === "EXC" ? t("iva_exc") : draft.ivaRate === "0" ? t("iva_zero") : draft.ivaRate ? t("iva_rate", { rate: draft.ivaRate }) : "";
@@ -98,10 +119,11 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">
-          <TextField label={t("sku")} hint={t("sku_hint", { count: L.sku })} value={draft.sku} maxLength={L.sku} mono disabled={dis} onChange={set("sku")} />
-          <TextField className="erp-span2" label={t("description")} hint={t("description_hint", { count: L.description })} value={draft.description} maxLength={L.description} disabled={dis} onChange={set("description")} />
+          <TextField label={t("sku")} hint={t("sku_hint", { count: L.sku })} value={draft.sku} maxLength={L.sku} mono disabled={dis} error={fe("sku")} onChange={set("sku")} />
+          <TextField className="erp-span2" label={t("description")} hint={t("description_hint", { count: L.description })} value={draft.description} maxLength={L.description} disabled={dis} error={fe("description")} onChange={set("description")} />
           <SelectField
             label={t("kind")}
+            error={fe("kind")}
             value={draft.kind}
             showCode={false}
             disabled={dis}
@@ -114,6 +136,7 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
           <SelectField
             label={t("category")}
             hint={t("category_hint")}
+            error={fe("categoryId")}
             value={draft.categoryId}
             showCode={false}
             empty="—"
@@ -124,7 +147,7 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
             }))}
             onChange={(id) => setDraft((d) => withCategory(d, categories.find((c) => c.id === id) ?? null, isNew))}
           />
-          <SelectField label={t("id_scheme")} hint="StandardItemIdentification@schemeID" value={draft.idScheme} disabled={dis} options={tables.idSchemes} onChange={set("idScheme")} />
+          <SelectField label={t("id_scheme")} hint="StandardItemIdentification@schemeID" value={draft.idScheme} disabled={dis} options={tables.idSchemes} error={fe("idScheme")} onChange={set("idScheme")} />
           {scheme?.kind === "own" ? (
             <Field label={t("standard_code")}>{(id) => <input id={id} disabled value={draft.sku} title={t("standard_code_own")} />}</Field>
           ) : (
@@ -136,12 +159,13 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
               inputMode="numeric"
               mono
               disabled={dis}
+              error={fe("standardCode")}
               onChange={set("standardCode")}
             />
           )}
-          <TextField label={t("brand")} hint={`BrandName · ${tf("optional")}`} value={draft.brand} maxLength={L.brand} disabled={dis} onChange={set("brand")} />
-          <TextField label={t("model")} hint={`ModelName · ${tf("optional")}`} value={draft.model} maxLength={L.model} disabled={dis} onChange={set("model")} />
-          <Field label={t("supplier")} hint={t("supplier_hint")} className="erp-span3">
+          <TextField label={t("brand")} hint={`BrandName · ${tf("optional")}`} value={draft.brand} maxLength={L.brand} disabled={dis} error={fe("brand")} onChange={set("brand")} />
+          <TextField label={t("model")} hint={`ModelName · ${tf("optional")}`} value={draft.model} maxLength={L.model} disabled={dis} error={fe("model")} onChange={set("model")} />
+          <Field label={t("supplier")} hint={t("supplier_hint")} error={fe("supplierId")} className="erp-span3">
             {(id) => (
               <EntityLookup
                 id={id}
@@ -183,9 +207,9 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
         }
       >
         <div className="erp-form3">
-          <SelectField label={t("uom")} hint="@unitCode UN/ECE Rec. 20" value={draft.uomCode} empty="—" disabled={dis} options={tables.uoms} onChange={set("uomCode")} />
-          <SelectField label={t("iva")} hint="01" value={draft.ivaRate} empty="—" disabled={dis} options={tables.ivaRates} onChange={set("ivaRate")} />
-          <SelectField label={t("inc")} hint="04" value={draft.incRate} empty={tf("none")} disabled={dis} options={tables.incRates} onChange={set("incRate")} />
+          <SelectField label={t("uom")} hint="@unitCode UN/ECE Rec. 20" value={draft.uomCode} empty="—" disabled={dis} options={tables.uoms} error={fe("uomCode")} onChange={set("uomCode")} />
+          <SelectField label={t("iva")} hint="01" value={draft.ivaRate} empty="—" disabled={dis} options={tables.ivaRates} error={fe("ivaRate")} onChange={set("ivaRate")} />
+          <SelectField label={t("inc")} hint="04" value={draft.incRate} empty={tf("none")} disabled={dis} options={tables.incRates} error={fe("incRate")} onChange={set("incRate")} />
           <div className="erp-span2">
             <Checks label={t("other_taxes")} options={tables.otherTaxes} value={draft.otherTaxes} row disabled={dis} onToggle={(code, on) => setDraft((d) => toggleOtherTax(d, code, on))} />
           </div>
@@ -202,7 +226,7 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
 
       <Section title={t("price")}>
         <div className="erp-form4">
-          <Field label={t("list_price")} hint={t("list_price_hint")}>
+          <Field label={t("list_price")} hint={t("list_price_hint")} error={fe("listPrice")}>
             {(id) => <MoneyInput id={id} value={draft.listPrice} disabled={dis} onChange={set("listPrice")} />}
           </Field>
           <Field label={t("free_sample")}>
@@ -214,8 +238,8 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
           </Field>
           {draft.isFreeSample ? (
             <>
-              <SelectField label={t("reference_price_type")} hint="PriceTypeCode" value={draft.referencePriceType} empty="—" disabled={dis} options={tables.priceTypes} onChange={set("referencePriceType")} />
-              <Field label={t("reference_price")} hint={t("reference_price_hint")}>
+              <SelectField label={t("reference_price_type")} hint="PriceTypeCode" value={draft.referencePriceType} empty="—" disabled={dis} options={tables.priceTypes} error={fe("referencePriceType")} onChange={set("referencePriceType")} />
+              <Field label={t("reference_price")} hint={t("reference_price_hint")} error={fe("referencePrice")}>
                 {(id) => <MoneyInput id={id} value={draft.referencePrice} disabled={dis} onChange={set("referencePrice")} />}
               </Field>
             </>
@@ -228,7 +252,7 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
           {costMode === "masked" ? (
             <MaskedField label={t("standard_cost")} />
           ) : costMode === "visible" ? (
-            <Field label={t("standard_cost")} hint={t("standard_cost_hint")}>
+            <Field label={t("standard_cost")} hint={t("standard_cost_hint")} error={fe("standardCost")}>
               {(id) => <MoneyInput id={id} value={draft.standardCost} disabled={dis} onChange={set("standardCost")} />}
             </Field>
           ) : null}
@@ -246,11 +270,11 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
               </label>
             )}
           </Field>
-          {draft.trackStock && <TextField label={t("min_stock")} hint={t("min_stock_hint")} value={draft.minStock} inputMode="decimal" disabled={dis} onChange={set("minStock")} />}
+          {draft.trackStock && <TextField label={t("min_stock")} hint={t("min_stock_hint")} value={draft.minStock} inputMode="decimal" disabled={dis} error={fe("minStock")} onChange={set("minStock")} />}
         </div>
       </Section>
 
-      <DianPanel errors={errors} pending={storedPending(record)} />
+      <DianPanel errors={failed.panel} pending={storedPending(record)} />
       {record && <InvoicePanel record={record} />}
       <span className="erp-small erp-muted">{t("footnote")}</span>
       {!readOnly && (

@@ -201,7 +201,15 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className={selected.has(row.id) ? "erp-row-link is-selected" : "erp-row-link"} onClick={() => onRowOpen?.(row)}>
+              <tr
+                key={row.id}
+                className={selected.has(row.id) ? "erp-row-link is-selected" : "erp-row-link"}
+                tabIndex={onRowOpen ? 0 : undefined}
+                onClick={() => onRowOpen?.(row)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && e.target === e.currentTarget) onRowOpen?.(row);
+                }}
+              >
                 <td className="erp-grid__check" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
                 </td>

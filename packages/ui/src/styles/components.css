@@ -69,6 +69,7 @@
   .erp-grid__empty { height: 80px !important; text-align: center !important; }
   .erp-row-link { cursor: pointer; }
   .erp-row-link:hover td { background: var(--hover); }
+  .erp-row-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
   .erp-row-link.is-selected td { background: var(--accent); }
   .erp-row-link.is-blocked { opacity: .55; cursor: not-allowed; }
   .erp-grid__ft { display: flex; align-items: center; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
@@ -155,6 +156,7 @@
   .erp-field input:focus, .erp-field select:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
   .erp-field input:disabled, .erp-field select:disabled { background: var(--head); color: var(--text-muted); }
   .erp-field .erp-input--bad, .erp-input--bad { border-color: var(--danger) !important; background: var(--danger-bg) !important; }
+  .erp-field-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .erp-field__hint { font-weight: 400; color: var(--text-muted); font-size: 11px; }
   .erp-field__error { font-size: 11px; color: var(--danger); font-weight: 600; }
   .erp-field__ok { font-size: 11px; color: var(--ok); }

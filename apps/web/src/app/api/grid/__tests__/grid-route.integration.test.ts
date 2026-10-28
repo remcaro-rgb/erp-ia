@@ -94,6 +94,16 @@ describe("grid-route", () => {
     expect(((await masked.json()) as { total: number }).total).toBe(0);
   });
 
+  it("sorts, groups and aggregates a datetime without a filter on it (no unused time-zone parameter)", async () => {
+    const response = await call("core.party", { ...base, sort: [{ field: "created_at", dir: "desc" }], groupBy: "created_at", aggregates: [{ field: "created_at", fn: "min" }, { field: "created_at", fn: "max" }] });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { total: number; aggregates: Record<string, string> };
+    expect(body.total).toBe(3);
+    expect(Object.keys(body.aggregates).sort()).toEqual(["max:created_at", "min:created_at"]);
+    const filtered = await call("core.party", { ...base, filters: [{ field: "created_at", op: "gt", value: "2000-01-01" }], sort: [{ field: "created_at", dir: "asc" }] });
+    expect(((await filtered.json()) as { total: number }).total).toBe(3);
+  });
+
   it("filter on hidden field returns 403", async () => {
     const hidden = await call("core.party", { ...base, filters: [{ field: "credit_limit", op: "gt", value: 1 }] });
     expect(hidden.status).toBe(403);
@@ -125,6 +135,21 @@ describe("grid-route", () => {
       expect(await response.json()).toMatchObject({ code: "not_entitled" });
     } finally {
       await fixture.sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${fixture.tenantId}, 'module:core', 'manual')`;
+    }
+  });
+
+  it("a grid needs the entity's own consult: a role allowed categories does not read price lists, their items or units", async () => {
+    const companyId = fixture.companyIds[0]!;
+    await fixture.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${roleId}, 'core.category.consult')`;
+    try {
+      expect((await call("core.product_category", base)).status).toBe(200);
+      for (const entity of ["core.price_list_item", "core.price_list", "core.uom", "core.product"]) {
+        const response = await call(entity, base);
+        expect(response.status, entity).toBe(403);
+        expect(await response.json()).toMatchObject({ code: "forbidden" });
+      }
+    } finally {
+      await fixture.sql`delete from kernel.process_permissions where role_id = ${roleId} and process_id = 'core.category.consult'`;
     }
   });
 

@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { categoryDraft, categoryInput, incomeAccountProblem, nameMissing, type CategoryDraft } from "./category-form-model";
-import { Checks, FormActions, Section, SelectField, TextField } from "./form-parts";
+import { Checks, failureMessages, FormActions, Section, SelectField, TextField, useErrorText } from "./form-parts";
 import type { ProductTables } from "./product-form-model";
 import type { RequestStepUp, SaveRecord } from "./save-model";
 import { useSaveFlow } from "./use-save";
+
+/** Input fields the form shows a process message under (the rest go to the status panel). */
+const CATEGORY_FIELDS = ["name", "status", "ivaRate", "incRate", "defaultUom", "incomeAccount"];
 
 export interface CategoryFormProps {
   /** The stored category as `core.category.consult` returns it, or null for a new one. */
@@ -27,7 +30,7 @@ export interface CategoryFormProps {
 export function CategoryForm({ record, tables, productCount = 0, readOnly = false, save, requestStepUp, onSaved }: CategoryFormProps) {
   const t = useTranslations("common.category_form");
   const tf = useTranslations("common.forms");
-  const te = useTranslations("errors");
+  const errorText = useErrorText();
   const isNew = record === null;
   const defaultIva = tables.ivaRates[0]?.code ?? "";
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
@@ -48,18 +51,19 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
   const dis = readOnly;
   const accountBad = incomeAccountProblem(draft);
   const missing = nameMissing(draft);
-  const failure = flow.failure;
-  const errors = failure ? (failure.code === "invalid_input" && failure.details.length > 0 ? failure.details : [te.has(failure.code) ? te(failure.code) : te("unknown")]) : [];
-  const problems = [...(accountBad ? [t("income_account_error")] : []), ...errors];
+  const failed = failureMessages(flow.failure, CATEGORY_FIELDS, errorText);
+  const fe = failed.field;
+  const problems = [...(accountBad ? [t("income_account_error")] : []), ...failed.panel];
 
   return (
     <div className="erp-form">
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("category")}>
         <div className="erp-form2">
-          <TextField label={t("name")} value={draft.name} maxLength={100} disabled={dis} onChange={set("name")} />
+          <TextField label={t("name")} value={draft.name} maxLength={100} disabled={dis} error={fe("name")} onChange={set("name")} />
           <SelectField
             label={t("status")}
+            error={fe("status")}
             value={draft.status}
             showCode={false}
             disabled={dis}
@@ -73,9 +77,9 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
       </Section>
       <Section title={t("taxes")} extra={<span className="erp-hint">{t("taxes_hint")}</span>}>
         <div className="erp-form3">
-          <SelectField label={t("iva")} value={draft.ivaRate} disabled={dis} options={tables.ivaRates} onChange={set("ivaRate")} />
-          <SelectField label={t("inc")} value={draft.incRate} empty={tf("none")} disabled={dis} options={tables.incRates} onChange={set("incRate")} />
-          <SelectField label={t("default_uom")} value={draft.defaultUom} empty="—" disabled={dis} options={tables.uoms} onChange={set("defaultUom")} />
+          <SelectField label={t("iva")} value={draft.ivaRate} disabled={dis} options={tables.ivaRates} error={fe("ivaRate")} onChange={set("ivaRate")} />
+          <SelectField label={t("inc")} value={draft.incRate} empty={tf("none")} disabled={dis} options={tables.incRates} error={fe("incRate")} onChange={set("incRate")} />
+          <SelectField label={t("default_uom")} value={draft.defaultUom} empty="—" disabled={dis} options={tables.uoms} error={fe("defaultUom")} onChange={set("defaultUom")} />
           <div className="erp-span2">
             <Checks
               label={t("other_taxes")}
@@ -94,7 +98,7 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
             inputMode="numeric"
             mono
             disabled={dis}
-            error={accountBad ? t("income_account_error") : null}
+            error={accountBad ? t("income_account_error") : fe("incomeAccount")}
             onChange={set("incomeAccount")}
           />
         </div>

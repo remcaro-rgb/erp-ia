@@ -51,8 +51,9 @@ export interface BuiltQuery {
 interface Target {
   name: string;
   kind: FilterKind;
-  /** Filter expression (a datetime is its day). */
-  expr: string;
+  /** Filter expression (a datetime is its day in the company's zone); built only when a filter needs it, since the
+   *  zone is a parameter and an unused parameter breaks the statement. */
+  filterExpr: () => string;
   /** Sort expression. */
   sortExpr: string;
   type: FieldType | { custom: CustomFieldType };
@@ -60,6 +61,9 @@ interface Target {
   filterable: boolean;
   sortable: boolean;
 }
+
+/** A target with its filter expression built. */
+type Bound = Target & { expr: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -131,21 +135,21 @@ export function buildQuery(
           : type === "date"
             ? `(case when ${text} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then ${text}::date end)`
             : text;
-      return { name, kind: customFilterKind(type), expr, sortExpr: expr, type: { custom: type }, filterable: true, sortable: true };
+      return { name, kind: customFilterKind(type), filterExpr: () => expr, sortExpr: expr, type: { custom: type }, filterable: true, sortable: true };
     }
     if (name === "id" && !fields.has("id")) {
-      return { name, kind: "uuid", expr: quote("id"), sortExpr: quote("id"), type: "uuid", filterable: true, sortable: true };
+      return { name, kind: "uuid", filterExpr: () => quote("id"), sortExpr: quote("id"), type: "uuid", filterable: true, sortable: true };
     }
     const field = fields.get(name);
     if (!field) throw new QueryError("unknown_field", name);
     if (!visibleFields(name)) throw new QueryError("field_hidden", name);
     const column = quote(name);
     const kind = filterKind(field.type);
-    const expr = field.type === "datetime" ? dayOf(column) : field.type === "json" ? `(${column})::text` : column;
+    const filterExpr = () => (field.type === "datetime" ? dayOf(column) : field.type === "json" ? `(${column})::text` : column);
     return {
       name,
       kind,
-      expr,
+      filterExpr,
       sortExpr: column,
       type: field.type,
       enumValues: field.enumValues,
@@ -183,10 +187,11 @@ export function buildQuery(
 
   // ---- predicates ---------------------------------------------------------------------------------
   const predicate = (filter: GridFilter): string => {
-    const t = target(filter.field);
-    if (!t.filterable) throw new QueryError("field_not_filterable", t.name);
+    const found = target(filter.field);
+    if (!found.filterable) throw new QueryError("field_not_filterable", found.name);
     const op: FilterOp = filter.op;
-    if (!OPERATORS[t.kind].includes(op)) throw new QueryError("bad_operator", t.name, `${op} does not apply to ${t.kind}`);
+    if (!OPERATORS[found.kind].includes(op)) throw new QueryError("bad_operator", found.name, `${op} does not apply to ${found.kind}`);
+    const t: Bound = { ...found, expr: found.filterExpr() };
     if (NO_VALUE_OPS.has(op)) return nullTest(t, op === "is_null");
     const { value, value2 } = filter;
     switch (t.kind) {
@@ -209,7 +214,7 @@ export function buildQuery(
     }
   };
 
-  const nullTest = (t: Target, isNull: boolean): string => {
+  const nullTest = (t: Bound, isNull: boolean): string => {
     const test =
       t.kind === "text"
         ? `nullif(${t.expr}, '') is null`
@@ -220,14 +225,14 @@ export function buildQuery(
     return t.kind === "text" ? `nullif(${t.expr}, '') is not null` : t.kind === "json" ? `not ${test}` : `${t.expr} is not null`;
   };
 
-  const textPredicate = (t: Target, op: FilterOp, text: string): string => {
+  const textPredicate = (t: Bound, op: FilterOp, text: string): string => {
     const escaped = likeEscape(text);
     const pattern = op === "contains" || op === "ncontains" ? `%${escaped}%` : op === "starts" ? `${escaped}%` : op === "ends" ? `%${escaped}` : escaped;
     const like = `${t.expr} ilike ${param(pattern)}`;
     return op === "ncontains" || op === "neq" ? `not (${like})` : like;
   };
 
-  const enumPredicate = (t: Target, op: FilterOp, value: unknown): string => {
+  const enumPredicate = (t: Bound, op: FilterOp, value: unknown): string => {
     const custom = typeof t.type === "object" ? t.type.custom : undefined;
     if (custom === "bool") {
       const texts = (v: unknown) => BOOL_TEXT[boolValue(t, v) ? "true" : "false"];
@@ -299,7 +304,8 @@ export function buildQuery(
   const aggregates = (state.aggregates ?? []).map(({ field, fn }) => {
     const t = target(field);
     if (!aggregateApplies(fn, t.kind)) throw new QueryError("bad_operator", t.name, `${fn} does not apply to ${t.kind}`);
-    const expr = t.kind === "date" ? t.sortExpr : t.expr;
+    // A date aggregates as stored (no day conversion, so no zone parameter).
+    const expr = t.kind === "date" ? t.sortExpr : t.filterExpr();
     return `${fn}(${expr}) as "${fn}:${t.name}"`;
   });
 

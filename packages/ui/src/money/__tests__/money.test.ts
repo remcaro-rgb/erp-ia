@@ -35,6 +35,12 @@ describe("parseMoney and moneyEditText", () => {
     expect(parseMoney("1.234.567")).toBe(1234567);
     expect(parseMoney("1234567")).toBe(1234567);
     expect(parseMoney("-2.000,25")).toBe(-2000.25);
+    // A lone dot with one or two digits after it is a decimal point; three digits are thousands.
+    expect(parseMoney("1.5")).toBe(1.5);
+    expect(parseMoney("1.50")).toBe(1.5);
+    expect(parseMoney("1.234")).toBe(1234);
+    expect(parseMoney("1.234,50")).toBe(1234.5);
+    expect(parseMoney("1.234.56")).toBe(123456);
     expect(parseMoney("")).toBeNull();
     expect(parseMoney("  ")).toBeNull();
     expect(parseMoney("doce")).toBeNull();

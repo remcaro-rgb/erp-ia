@@ -1,5 +1,6 @@
 import type { FeatureDef, NavItem } from "@erp/kernel";
 import { CATEGORY_PROCESSES } from "./processes/category";
+import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
 import { PARTY_PROCESSES } from "./processes/party";
 import { PRODUCT_PROCESSES } from "./processes/product";
@@ -21,21 +22,21 @@ export const FEATURES: FeatureDef[] = [
   {
     id: "core.parties",
     label: "feature.core.parties",
-    processes: [...ids(PARTY_PROCESSES), ...ids(CONTACT_PROCESSES)],
+    processes: [...ids(PARTY_PROCESSES), ...ids(CONTACT_PROCESSES), ...ids(CONSULT_PROCESSES.parties)],
     entities: ["core.party", "core.party_contact"],
     nav: nav("core.parties"),
   },
   {
     id: "core.products",
     label: "feature.core.products",
-    processes: [...ids(PRODUCT_PROCESSES), ...ids(CATEGORY_PROCESSES)],
+    processes: [...ids(PRODUCT_PROCESSES), ...ids(CATEGORY_PROCESSES), ...ids(CONSULT_PROCESSES.products)],
     entities: ["core.product", "core.product_category", "core.uom", "core.price_list", "core.price_list_item"],
     nav: nav("core.products"),
   },
   {
     id: "core.settings",
     label: "feature.core.settings",
-    processes: ids(SEQUENCE_PROCESSES),
+    processes: [...ids(SEQUENCE_PROCESSES), ...ids(CONSULT_PROCESSES.settings)],
     entities: ["core.document_sequence"],
   },
 ];

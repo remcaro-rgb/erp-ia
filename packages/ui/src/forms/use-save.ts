@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { RequestStepUp, SaveRecord, SaveResult } from "./save-model";
+import type { RequestStepUp, SaveIssue, SaveRecord, SaveResult } from "./save-model";
 
 export interface SaveFlow {
   saving: boolean;
   /** The last refusal: its code and the process's messages. */
-  failure: { code: string; details: string[] } | null;
+  failure: { code: string; details: SaveIssue[] } | null;
   /** A save waits for the user's TOTP code (the process answered `step_up_required`). */
   stepUp: boolean;
   stepUpError: string | null;
