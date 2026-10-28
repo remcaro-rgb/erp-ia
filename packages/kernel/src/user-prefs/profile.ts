@@ -6,7 +6,7 @@ export interface CallerProfile {
   /** Names of the caller's roles in the active company. */
   roles: string[];
   /** Every company of the caller's claims, by legal name. */
-  companies: { id: string; name: string; taxId: string | null }[];
+  companies: { id: string; name: string; taxId: string | null; /** IANA zone the company schedules and reports in. */ timeZone: string }[];
 }
 
 /**
@@ -21,14 +21,14 @@ export async function callerProfile(sql: Sql, claims: JwtClaims): Promise<Caller
       select r.name from kernel.roles r
       where r.id = any (${claims.role_ids}::uuid[]) and r.company_id = ${claims.active_company_id}
       order by r.name`;
-    const companies = await tx<{ id: string; legal_name: string; tax_id: string | null }[]>`
-      select id, legal_name, tax_id from kernel.companies
+    const companies = await tx<{ id: string; legal_name: string; tax_id: string | null; timezone: string }[]>`
+      select id, legal_name, tax_id, timezone from kernel.companies
       where id = any (${claims.company_ids}::uuid[]) order by legal_name`;
     const email = user?.email ?? "";
     return {
       user: { id: claims.sub, name: user?.full_name?.trim() || email, email },
       roles: roles.map((r) => r.name),
-      companies: companies.map((c) => ({ id: c.id, name: c.legal_name, taxId: c.tax_id })),
+      companies: companies.map((c) => ({ id: c.id, name: c.legal_name, taxId: c.tax_id, timeZone: c.timezone })),
     };
   });
 }

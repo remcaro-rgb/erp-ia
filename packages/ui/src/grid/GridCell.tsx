@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { cn } from "@erp/ui/lib/utils";
-import { formatMoney } from "../money/format";
+import { formatCellValue, isEmptyCell, useCellTimeZone } from "./cell-format";
 import { cellValue, dianPill } from "./grid-model";
 import type { GridColumn, GridRow, PillTone } from "./types";
 
@@ -15,24 +15,11 @@ export function Pill({ tone, children, title }: { tone: PillTone; children: Reac
   );
 }
 
-const DATE_TIME = new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeStyle: "short" });
-
-/** The text of one value of a column: option labels, Sí / No, dates and lists. */
+/** The text of one value of a column (the formatter the assistant's result tables share): option labels, Sí / No, money, dates in the company's zone and lists. */
 export function useValueText() {
   const t = useTranslations();
-  return (column: GridColumn, value: unknown): string => {
-    if (value === null || value === undefined || value === "") return "";
-    const label = (v: unknown) => column.options?.find((o) => o.value === String(v))?.label ?? String(v);
-    if (Array.isArray(value)) return value.map(label).join(", ");
-    if (typeof value === "boolean") return column.options ? label(value) : t(value ? "common.yes" : "common.no");
-    if (column.type === "money") return formatMoney(value as number | string);
-    if (column.type === "datetime" && (typeof value === "string" || value instanceof Date)) {
-      const date = new Date(value);
-      return Number.isNaN(date.getTime()) ? String(value) : DATE_TIME.format(date);
-    }
-    if (typeof value === "object") return JSON.stringify(value);
-    return label(value);
-  };
+  const timeZone = useCellTimeZone();
+  return (column: GridColumn, value: unknown): string => formatCellValue(column, value, { yes: t("common.yes"), no: t("common.no"), timeZone });
 }
 
 const NUMERIC = new Set(["money", "number", "custom:number"]);
@@ -57,8 +44,7 @@ export function GridCell({ column, row }: { column: GridColumn; row: GridRow }) 
     return <td>{pill ? <Pill tone={pill.tone}>{t(`grid.dian.${pill.key}`, { count: pill.count })}</Pill> : <span className="erp-muted">—</span>}</td>;
   }
   const shown = text(column, value);
-  const zeroMoney = column.type === "money" && Number(value) === 0;
-  if (shown === "" || zeroMoney) {
+  if (shown === "" || isEmptyCell(column, value)) {
     return (
       <td className={base}>
         <span className="erp-muted">—</span>

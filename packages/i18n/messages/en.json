@@ -1039,7 +1039,7 @@
       "new_conversation": "New conversation",
       "stop": "Stop",
       "loading": "Loading the conversation…",
-      "tool_running": "Looking up {process}…",
+      "tool_running": "Working on your request…",
       "open_link": "Open",
       "card": {
         "permission": "Permission",
@@ -1075,7 +1075,8 @@
       },
       "errors": {
         "message_too_long": "The message is too long. Shorten it and try again.",
-        "conversation_not_found": "That conversation no longer exists. Start a new one."
+        "conversation_not_found": "That conversation no longer exists. Start a new one.",
+        "history_failed": "We could not load your conversation. You can type to start a new one."
       }
     }
   },

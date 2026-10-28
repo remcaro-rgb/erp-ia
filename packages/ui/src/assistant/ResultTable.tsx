@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { formatMoney } from "../money/format";
+import { formatCellValue, isEmptyCell, useCellTimeZone } from "../grid/cell-format";
 import { browserDownload, useGridExport } from "../grid/use-grid-export";
 import type { ExportResult } from "../grid/export-client";
 import type { GridStateInput } from "../grid/types";
@@ -20,7 +20,7 @@ export interface ResultTableProps {
   state: GridStateInput;
   /** Opens the entity's grid in a tab with the state; absent when the entity has no grid screen. */
   onOpenGrid?: (entity: string, state: GridStateInput) => void;
-  /** Time zone dates and times are shown in (the company's). */
+  /** Time zone dates and times are shown in; the shell's (the company's) when absent. */
   timeZone?: string;
   /** `fetch` and the download of the export, injected by tests. */
   fetcher?: typeof fetch;
@@ -29,16 +29,22 @@ export interface ResultTableProps {
 
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
-/** The columns of the rows in the order the server returned them (never `id`), labelled and typed by the host's metadata when it has any. */
+/**
+ * The columns of the rows, in the order the server returned them (never `id`). With the host's metadata only the fields
+ * it offers are columns (a hidden field, an internal one such as `extra`, has none) and it labels, types and marks them;
+ * without it every key is a column, typed by its value.
+ */
 function columnsOf(rows: Record<string, unknown>[], given?: ResultColumn[]): ResultColumn[] {
-  const known = new Map((given ?? []).map((column) => [column.field, column]));
+  const known = given && given.length > 0 ? new Map(given.map((column) => [column.field, column])) : null;
   const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter((key) => key !== "id");
-  return keys.map((field) => {
-    const meta = known.get(field);
-    if (meta) return { ...meta, label: meta.label ?? field.replaceAll("_", " ") };
+  return keys.flatMap((field): ResultColumn[] => {
+    if (known) {
+      const meta = known.get(field);
+      return meta && meta.mode !== "hidden" ? [{ ...meta, label: meta.label ?? field.replaceAll("_", " ") }] : [];
+    }
     const sample = rows.map((row) => row[field]).find((v) => v !== null && v !== undefined);
     const type = typeof sample === "boolean" ? "boolean" : typeof sample === "string" && ISO_DATETIME.test(sample) ? "datetime" : "text";
-    return { field, label: field.replaceAll("_", " "), type };
+    return [{ field, label: field.replaceAll("_", " "), type }];
   });
 }
 
@@ -52,18 +58,9 @@ export function ResultTable({ entity, rows, columns, total, truncated, state, on
   const cols = columnsOf(rows, columns);
   const exporter = useGridExport({ entity, download, ...(fetcher ? { fetcher } : {}) });
 
-  const dateTime = new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeStyle: "short", ...(timeZone ? { timeZone } : {}) });
-  const dateOnly = new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeZone: "UTC" });
-  const text = (column: ResultColumn, value: unknown): string => {
-    if (typeof value === "boolean") return t(value ? "common.yes" : "common.no");
-    if (column.type === "money") return formatMoney(value as number | string);
-    if ((column.type === "datetime" || column.type === "date") && typeof value === "string") {
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return value;
-      return column.type === "date" || !ISO_DATETIME.test(value) ? dateOnly.format(date) : dateTime.format(date);
-    }
-    return typeof value === "object" ? JSON.stringify(value) : String(value);
-  };
+  const companyZone = useCellTimeZone();
+  const zone = timeZone ?? companyZone;
+  const text = (column: ResultColumn, value: unknown) => formatCellValue({ type: column.type ?? "text" }, value, { yes: t("common.yes"), no: t("common.no"), timeZone: zone });
 
   const failure = exporter.status.phase === "failed" ? exporter.status.code : null;
   return (
@@ -88,10 +85,17 @@ export function ResultTable({ entity, rows, columns, total, truncated, state, on
                   {cols.map((column) => {
                     const value = row[column.field];
                     const numeric = column.type === "money" || column.type === "number";
-                    const empty = value === null || value === undefined || value === "";
+                    // As the grid's cell: a masked field is ••••••, nothing (or a zero amount) is a dash.
+                    if (column.mode === "masked") {
+                      return (
+                        <td key={column.field} className={`${numeric ? "erp-num text-right " : ""}erp-masked`}>
+                          <span title={t("grid.masked_value")}>••••••</span>
+                        </td>
+                      );
+                    }
                     return (
                       <td key={column.field} className={numeric ? "erp-num text-right" : undefined}>
-                        {empty ? <span className="erp-muted">—</span> : text(column, value)}
+                        {isEmptyCell({ type: column.type ?? "text" }, value) ? <span className="erp-muted">—</span> : text(column, value)}
                       </td>
                     );
                   })}

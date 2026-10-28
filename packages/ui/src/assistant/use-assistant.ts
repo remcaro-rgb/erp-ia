@@ -41,6 +41,8 @@ export function useAssistant(options: UseAssistantOptions) {
   const [conversationId, setConversationId] = useState<string | null>(options.conversationId ?? null);
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const [ready, setReady] = useState(false);
+  /** The stored conversation could not be read: said, instead of silently starting a new one. */
+  const [historyFailed, setHistoryFailed] = useState(false);
 
   // The transport and the callbacks read the latest values from refs: the chat is created once.
   const latest = useRef({ screen: options.screen, fetcher: options.fetcher, onNavigate: options.onNavigate });
@@ -94,11 +96,15 @@ export function useAssistant(options: UseAssistantOptions) {
   useEffect(() => {
     const controller = new AbortController();
     setReady(false);
+    setHistoryFailed(false);
     (async () => {
       try {
         const url = wanted ? `${historyEndpoint}?id=${encodeURIComponent(wanted)}` : historyEndpoint;
         const response = await (latest.current.fetcher ?? fetch)(url, { signal: controller.signal });
-        if (!response.ok) return remember(null);
+        if (!response.ok) {
+          setHistoryFailed(true);
+          return remember(null);
+        }
         const body = (await response.json()) as HistoryBody;
         const restored = Array.isArray(body.messages) ? body.messages : [];
         for (const message of restored) for (const part of message.parts) if (isToolUIPart(part)) handled.current.add(part.toolCallId);
@@ -106,7 +112,10 @@ export function useAssistant(options: UseAssistantOptions) {
         setCards(Object.fromEntries(Object.entries(body.cards ?? {}).map(([id, stored]) => [id, toolCardState(stored)])));
         remember(typeof body.conversationId === "string" ? body.conversationId : null);
       } catch {
-        if (!controller.signal.aborted) remember(null);
+        if (!controller.signal.aborted) {
+          setHistoryFailed(true);
+          remember(null);
+        }
       } finally {
         if (!controller.signal.aborted) setReady(true);
       }
@@ -114,13 +123,20 @@ export function useAssistant(options: UseAssistantOptions) {
     return () => controller.abort();
   }, [wanted, historyEndpoint, remember, setMessages]);
 
-  const errorKey = error ? errorKeyOf(error) : null;
+  const chatErrorKey = error ? errorKeyOf(error) : null;
+  const errorKey = chatErrorKey ?? (historyFailed ? "agent.ui.errors.history_failed" : null);
   useEffect(() => {
     // A conversation that is gone (deleted, other company): the next question starts a new one.
-    if (errorKey === "agent.ui.errors.conversation_not_found") remember(null);
-  }, [errorKey, remember]);
+    if (chatErrorKey === "agent.ui.errors.conversation_not_found") remember(null);
+  }, [chatErrorKey, remember]);
 
-  const send = useCallback((text: string) => sendMessage({ text }), [sendMessage]);
+  const send = useCallback(
+    (text: string) => {
+      setHistoryFailed(false);
+      return sendMessage({ text });
+    },
+    [sendMessage],
+  );
 
   const decide = useCallback(
     async (cardId: string, decision: "confirm" | "reject", stepUpToken?: string) => {
@@ -159,6 +175,7 @@ export function useAssistant(options: UseAssistantOptions) {
   const newConversation = useCallback(() => {
     void stop();
     clearError();
+    setHistoryFailed(false);
     setMessages([]);
     setCards({});
     remember(null);

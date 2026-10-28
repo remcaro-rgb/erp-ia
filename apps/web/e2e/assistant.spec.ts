@@ -146,7 +146,7 @@ test.describe("assistant drawer", () => {
       const chunks = first
         ? [
             { type: "start", messageId },
-            { type: "tool-input-available", toolCallId: "q1", toolName: "kernel__data__query", input: { entity: "core.party", filters: [{ field: "legal_name", op: "contains", value: "Café" }], limit: 20 } },
+            { type: "tool-input-available", toolCallId: "q1", toolName: "kernel__data__query", input: { entity: "core.party", filters: [{ field: "legal_name", op: "contains", value: "Café 50%" }], limit: 20 } },
             {
               type: "tool-output-available",
               toolCallId: "q1",
@@ -188,8 +188,9 @@ test.describe("assistant drawer", () => {
 
     await drawer.getByRole("button", { name: "Abrir como grid" }).click();
     await expect(page).toHaveURL(/\/parties\?q=/);
-    // The grid starts from the query: its filter is a chip.
-    await expect(page.getByText("contiene Café")).toBeVisible();
+    // The grid starts from the query: its filter is a chip, and a value with a percent sign arrives as typed (the
+    // address is encoded once and decoded once).
+    await expect(page.getByText("contiene Café 50%")).toBeVisible();
 
     // The write: a card that needs the step-up code.
     await drawer.getByLabel("Escribe").fill("crea la Tostadora del Valle");

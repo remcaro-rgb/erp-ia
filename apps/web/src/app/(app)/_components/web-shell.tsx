@@ -74,7 +74,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       modules={data.modules}
       nav={data.nav}
       commands={data.commands}
-      assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity] }}
+      assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity], ...(data.company.timeZone ? { timeZone: data.company.timeZone } : {}) }}
       theme={data.theme}
       initialTabs={data.tabs}
       currentHref={pathname}

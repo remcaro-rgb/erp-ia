@@ -33,6 +33,8 @@ export interface ShellCompany {
   id: string;
   name: string;
   taxId?: string | null;
+  /** IANA time zone of the company: grids and the assistant show dates and times in it. */
+  timeZone?: string;
 }
 
 export interface ShellUser {

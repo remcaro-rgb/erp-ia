@@ -2,6 +2,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { AppShell } from "../AppShell";
+import { GridCell } from "../../grid/GridCell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
@@ -105,6 +106,22 @@ describe("AppShell", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("gives the grids below it the company's time zone", () => {
+    const column = { field: "at", label: "A", type: "datetime", kind: "date" as const, mode: "visible" as const, filterable: true, sortable: true };
+    renderEs(
+      <AppShell company={{ ...cafe, timeZone: "Asia/Tokyo" }} companies={[cafe]} user={{ id: "u1", name: "L", email: "l@x.co", roles: [] }} modules={[{ id: "core", label: "nav.modules.core" }]} nav={nav} currentHref="/" navigate={vi.fn()} storage={memoryStorage()}>
+        <table>
+          <tbody>
+            <tr>
+              <GridCell column={column} row={{ id: "1", at: "2026-10-28T03:30:00Z" }} />
+            </tr>
+          </tbody>
+        </table>
+      </AppShell>,
+    );
+    expect(screen.getByText(/^28\/10\/26.*12:30/)).toBeTruthy();
   });
 
   it("restores the server's tabs", () => {

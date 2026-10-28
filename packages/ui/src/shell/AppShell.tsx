@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { useStore } from "zustand";
 import { Toaster } from "@erp/ui/components/ui/sonner";
 import { AssistantDrawer, screenOf, type ResultColumn } from "../assistant";
-import { encodeGridQuery } from "../grid/query-link";
+import { CellFormatProvider } from "../grid/cell-format";
+import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
@@ -21,7 +22,7 @@ export interface AssistantOptions {
   gridHref?: (entity: string) => string | undefined;
   /** Labels and types of an entity's fields, for the result tables. */
   columnsOf?: (entity: string) => ResultColumn[] | undefined;
-  /** The company's time zone, for dates in result tables. */
+  /** The company's time zone (defaults to the company's own `timeZone`). */
   timeZone?: string;
 }
 
@@ -172,7 +173,7 @@ function ShellFrame(props: AppShellProps) {
   const { gridHref } = props.assistantOptions ?? {};
   const openGrid = (entity: string, state: GridStateInput) => {
     const href = gridHref?.(entity);
-    if (href) navigate(`${href}?q=${encodeGridQuery(state)}`);
+    if (href) navigate(gridQueryHref(href, state));
   };
 
   const paletteItems = useMemo<CommandItem[]>(
@@ -189,50 +190,53 @@ function ShellFrame(props: AppShellProps) {
 
   const activeTab = useStore(store, (state) => state.tabs.find((tab) => tab.id === state.activeId));
 
+  const timeZone = props.assistantOptions?.timeZone ?? company.timeZone;
+
   return (
-    <TabsProvider store={store}>
-      <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
-        <TopBar
-          company={company}
-          companies={companies}
-          user={user}
-          modules={visibleModules}
-          itemsByModule={itemsByModule}
-          activeModuleId={activeModuleId}
-          onSelectModule={selectModule}
-          activeHref={currentHref}
-          onNavigate={(target) => navigate(target.href)}
-          theme={theme}
-          onThemeChange={(mode) => changeTheme(mode)}
-          onOpenPalette={() => setPaletteOpen(true)}
-          onToggleAssistant={() => setAssistantOpen((open) => !open)}
-          onSwitchCompany={props.onSwitchCompany}
-          signOutAction={props.signOutAction}
-        />
-        <TabsBar onNew={() => setPaletteOpen(true)} />
-        <div className="flex min-h-0 flex-1">
-          <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">{props.children}</main>
-          <AssistantDrawer
-            open={assistantOpen}
-            context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
-            screen={screenOf(currentHref)}
-            {...(asked ? { ask: asked } : {})}
-            onNavigate={navigate}
-            onOpenGrid={openGrid}
-            canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
-            {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
-            {...(props.assistantOptions?.timeZone ? { timeZone: props.assistantOptions.timeZone } : {})}
+    <CellFormatProvider timeZone={timeZone}>
+      <TabsProvider store={store}>
+        <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
+          <TopBar
+            company={company}
+            companies={companies}
+            user={user}
+            modules={visibleModules}
+            itemsByModule={itemsByModule}
+            activeModuleId={activeModuleId}
+            onSelectModule={selectModule}
+            activeHref={currentHref}
+            onNavigate={(target) => navigate(target.href)}
+            theme={theme}
+            onThemeChange={(mode) => changeTheme(mode)}
+            onOpenPalette={() => setPaletteOpen(true)}
+            onToggleAssistant={() => setAssistantOpen((open) => !open)}
+            onSwitchCompany={props.onSwitchCompany}
+            signOutAction={props.signOutAction}
           />
+          <TabsBar onNew={() => setPaletteOpen(true)} />
+          <div className="flex min-h-0 flex-1">
+            <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">{props.children}</main>
+            <AssistantDrawer
+              open={assistantOpen}
+              context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
+              screen={screenOf(currentHref)}
+              {...(asked ? { ask: asked } : {})}
+              onNavigate={navigate}
+              onOpenGrid={openGrid}
+              canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
+              {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
+            />
+          </div>
+          <CommandPalette
+            items={paletteItems}
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            onAsk={ask}
+            onSelect={(item) => navigate(item.href)}
+          />
+          <Toaster position="bottom-center" />
         </div>
-        <CommandPalette
-          items={paletteItems}
-          open={paletteOpen}
-          onOpenChange={setPaletteOpen}
-          onAsk={ask}
-          onSelect={(item) => navigate(item.href)}
-        />
-        <Toaster position="bottom-center" />
-      </div>
-    </TabsProvider>
+      </TabsProvider>
+    </CellFormatProvider>
   );
 }

@@ -24,9 +24,14 @@ export function screenOf(href: string): ScreenContext {
 /** `core__party__create` → `core.party.create`. */
 export const processIdOfToolName = (name: string): string => name.replaceAll("__", ".");
 
-/** A path of the app: starts with one `/`, no scheme, no backslash, no whitespace or control characters. */
+/**
+ * A screen of the app that text from the model may lead to: starts with one `/`, no scheme, no backslash, no whitespace
+ * or control characters, and never the app's own API (`/api/...`): a link of the model is a page, not a request.
+ */
 export function isInternalHref(href: string): boolean {
   if (href.length === 0 || href.length > 300 || !href.startsWith("/") || href.startsWith("//")) return false;
+  const path = href.split(/[?#]/)[0]!.toLowerCase();
+  if (path === "/api" || path.startsWith("/api/")) return false;
   for (const char of href) {
     const code = char.codePointAt(0)!;
     if (code <= 0x20 || code === 0x7f || char === "\\") return false;
@@ -65,6 +70,8 @@ export interface ResultColumn {
   label?: string;
   /** Registry type (`money`, `datetime`, `boolean`…). */
   type?: string;
+  /** The caller's access to the field, as the grid has it: a masked field shows ••••••, a hidden one has no column. */
+  mode?: "visible" | "masked" | "hidden";
 }
 
 export interface QueryResult {
@@ -85,7 +92,12 @@ export function asQueryResult(output: unknown): QueryResult | null {
     const columns = output.columns
       .filter(isRecord)
       .filter((c) => typeof c.field === "string")
-      .map((c): ResultColumn => ({ field: c.field as string, ...(typeof c.label === "string" ? { label: c.label } : {}), ...(typeof c.type === "string" ? { type: c.type } : {}) }));
+      .map((c): ResultColumn => ({
+        field: c.field as string,
+        ...(typeof c.label === "string" ? { label: c.label } : {}),
+        ...(typeof c.type === "string" ? { type: c.type } : {}),
+        ...(c.mode === "visible" || c.mode === "masked" || c.mode === "hidden" ? { mode: c.mode } : {}),
+      }));
     if (columns.length > 0) result.columns = columns;
   }
   return result;
@@ -158,8 +170,12 @@ export function errorKeyOf(error: unknown): string {
 export type Inline = { type: "text"; text: string } | { type: "strong"; text: string } | { type: "code"; text: string } | { type: "link"; text: string; href: string };
 export type Block = { type: "p"; children: Inline[] } | { type: "ul"; items: Inline[][] };
 
-const URL_PART = String.raw`(?:[^()\s]|\([^()\s]*\))*`;
-const INLINE = new RegExp(String.raw`!\[([^\]]*)\]\(\s*${URL_PART}[^)]*\)|\[([^\]]*)\]\((${URL_PART})\)|\*\*([^*]+)\*\*|`+"`([^`]+)`","g");
+// Every quantifier is bounded, so a hostile run of brackets or backticks costs a bounded scan per position (linear overall).
+const URL_PART = String.raw`(?:[^()\s]|\([^()\s]{0,100}\)){0,300}`;
+const INLINE = new RegExp(
+  String.raw`!\[([^\]]{0,200})\]\(\s{0,5}${URL_PART}[^)]{0,200}\)|\[([^\]]{0,200})\]\((${URL_PART})\)|\*\*([^*]{1,300})\*\*|` + "`([^`]{1,300})`",
+  "g",
+);
 
 /** Inline markdown-lite: **bold**, `code` and [label](/route). An image keeps its alt text; any other link keeps its label. */
 export function inlineOf(text: string): Inline[] {

@@ -36,6 +36,37 @@ describe("ResultTable", () => {
     expect(within(table).getByText("$ 1.234.567,00").className).toMatch(/text-right|erp-num/);
   });
 
+  it("shows a date and time in the company's zone, whatever the browser's, and a date alone as the same day", () => {
+    const cols = [{ field: "created_at", label: "Creado", type: "datetime" }, { field: "due", label: "Vence", type: "date" }];
+    const data = [{ id: "1", created_at: "2026-10-28T03:30:00Z", due: "2026-10-27" }];
+    const { unmount } = renderEs(<ResultTable entity="e" rows={data} columns={cols} state={state} timeZone="America/Bogota" />);
+    expect(screen.getByText(/^27\/10\/26.*10:30/)).toBeTruthy();
+    expect(screen.getByText("27/10/26")).toBeTruthy();
+    unmount();
+    renderEs(<ResultTable entity="e" rows={data} columns={cols} state={state} timeZone="Asia/Tokyo" />);
+    expect(screen.getByText(/^28\/10\/26.*12:30/)).toBeTruthy();
+    expect(screen.getByText("27/10/26")).toBeTruthy();
+  });
+
+  it("a masked field shows •••••• like the grid, a hidden one has no column, and so does a field the host does not offer", () => {
+    const cols = [
+      { field: "legal_name", label: "Razón social", type: "text", mode: "visible" as const },
+      { field: "credit_limit", label: "Cupo", type: "money", mode: "masked" as const },
+      { field: "balance", label: "Saldo", type: "money", mode: "hidden" as const },
+    ];
+    renderEs(<ResultTable entity="core.party" rows={[{ id: "1", legal_name: "A", credit_limit: null, balance: null, extra: {} }]} columns={cols} state={state} />);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Razón social", "Cupo"]);
+    const masked = screen.getByText("••••••");
+    expect(masked.tagName).toBe("SPAN");
+    expect(masked.closest("td")!.className).toMatch(/erp-masked/);
+    expect(screen.queryByText("—")).toBeNull();
+  });
+
+  it("zero money and no value are a dash, as in the grid", () => {
+    renderEs(<ResultTable entity="e" rows={[{ id: "1", total: 0, note: null }]} columns={[{ field: "total", type: "money" }, { field: "note", type: "text" }]} state={state} />);
+    expect(screen.getAllByText("—")).toHaveLength(2);
+  });
+
   it("without column metadata it shows the row keys, never the id, and leaves values as they came", () => {
     renderEs(<ResultTable entity="core.party" rows={[{ id: "1", legal_name: "A", flag: true }]} state={state} />);
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["legal name", "flag"]);

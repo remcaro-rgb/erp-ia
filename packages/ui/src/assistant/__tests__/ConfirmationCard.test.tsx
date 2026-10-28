@@ -67,6 +67,32 @@ describe("ConfirmationCard", () => {
     expect(onDecide).toHaveBeenCalledWith("confirm", "tok-123");
   });
 
+  it("the token is single use: after a confirm (refused or not) the next attempt asks for a fresh code", async () => {
+    const onDecide = vi.fn();
+    const fetcher = vi.fn(async () => json({ token: "tok-1" }));
+    renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={onDecide} fetcher={fetcher as unknown as typeof fetch} />);
+    fireEvent.change(screen.getByLabelText("Código de verificación"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Confirmar" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    expect(onDecide).toHaveBeenCalledWith("confirm", "tok-1");
+    // The confirm failed (the card is still pending): Confirmar waits for a new verification.
+    expect((screen.getByRole("button", { name: "Confirmar" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText("Código de verificación") as HTMLInputElement).value).toBe("");
+  });
+
+  it("entering Editar drops the verified code: coming back needs a new verification", async () => {
+    const fetcher = vi.fn(async () => json({ token: "tok-1" }));
+    renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={vi.fn()} onEdit={vi.fn()} fetcher={fetcher as unknown as typeof fetch} />);
+    fireEvent.change(screen.getByLabelText("Código de verificación"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "Confirmar" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Volver" }));
+    expect((screen.getByRole("button", { name: "Confirmar" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText("Verificado")).toBeNull();
+  });
+
   it("a wrong code keeps Confirmar disabled and says so", async () => {
     const fetcher = vi.fn(async () => json({ code: "invalid_code", details: null }, 401));
     renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={vi.fn()} fetcher={fetcher as unknown as typeof fetch} />);

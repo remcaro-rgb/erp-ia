@@ -95,6 +95,13 @@ describe("AssistantDrawer", () => {
     expect(screen.queryByRole("button", { name: "Confirmar" })).toBeNull();
   });
 
+  it("shows an error when the stored conversation cannot be read, and stays usable", async () => {
+    const fetcher = vi.fn(async () => new Response("boom", { status: 500 }));
+    renderEs(<AssistantDrawer open context="x" screen={{ route: "/" }} fetcher={fetcher as unknown as typeof fetch} />);
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/No pudimos cargar tu conversación/));
+    expect((screen.getByLabelText("Escribe") as HTMLInputElement).disabled).toBe(false);
+  });
+
   it("follows a navigation of the assistant through the shell", async () => {
     const onNavigate = vi.fn();
     const fetcher = vi.fn(async (input: RequestInfo | URL) =>

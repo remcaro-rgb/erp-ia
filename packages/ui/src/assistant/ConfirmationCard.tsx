@@ -111,7 +111,17 @@ export function ConfirmationCard({ processId, preview, state = { status: "pendin
             <button type="button" className="erp-btn erp-btn--primary" disabled={busy || needsToken} onClick={confirm}>
               {busy ? t("agent.ui.card.processing") : t("agent.ui.card.confirm")}
             </button>
-            <button type="button" className="erp-btn" disabled={busy} onClick={() => setEditing(true)}>
+            <button
+              type="button"
+              className="erp-btn"
+              disabled={busy}
+              onClick={() => {
+                // The verified code belongs to this proposal: editing it makes a new one, which asks again.
+                setToken(null);
+                setAttempt((n) => n + 1);
+                setEditing(true);
+              }}
+            >
               {t("agent.ui.card.edit")}
             </button>
             <button type="button" className="erp-btn" disabled={busy} onClick={() => void onDecide("reject")}>

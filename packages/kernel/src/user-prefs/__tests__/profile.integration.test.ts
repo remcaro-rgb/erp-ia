@@ -27,6 +27,14 @@ describe("callerProfile", () => {
     expect(profile.companies[0]!.name).toMatch(/^Company \d .* S\.A\.S\.$/);
   });
 
+  it("carries each company's time zone (the shell formats dates in it)", async () => {
+    await sql`update kernel.companies set timezone = 'America/Mexico_City' where id = ${seed.companies[1]!.id}`;
+    const profile = await callerProfile(sql, seed.claimsFor(seed.users.both, seed.companies[1]!.id));
+    const zoneOf = (id: string) => profile.companies.find((c) => c.id === id)!.timeZone;
+    expect(zoneOf(seed.companies[1]!.id)).toBe("America/Mexico_City");
+    expect(zoneOf(seed.companies[0]!.id)).toBe("America/Bogota");
+  });
+
   it("a member of one company sees only that company", async () => {
     const profile = await callerProfile(sql, seed.claimsFor(seed.users.cashier!, seed.companies[0]!.id));
     expect(profile.roles).toEqual(["member"]);

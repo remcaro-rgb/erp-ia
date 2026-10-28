@@ -95,6 +95,17 @@ describe("buildTools", () => {
     expect(await run(cashier, "kernel__data__query", { entity: "core.party", sort: [{ field: "document_number", dir: "asc" }] })).toMatchObject({ ok: false, error: { code: "forbidden" } });
   });
 
+  it("data.query without `columns` returns a masked and a hidden field as null (the key stays): the result table decides by the caller's field mode", async () => {
+    const r = await run(cashier, "kernel__data__query", { entity: "core.party", limit: 1 });
+    const [row] = r.rows as Record<string, unknown>[];
+    expect(row).toHaveProperty("document_number", null);
+    expect(row).toHaveProperty("credit_limit", null);
+    expect(row).toHaveProperty("legal_name", expect.stringMatching(/^Cliente /));
+    // The same fields for the admin carry values.
+    const [adminRow] = (await run(admin, "kernel__data__query", { entity: "core.party", limit: 1 })).rows as Record<string, unknown>[];
+    expect(adminRow!.document_number).not.toBeNull();
+  });
+
   it("data.query is the registered process kernel.data.query: audited with the conversation, behind the role matrix", async () => {
     await run(cashier, "kernel__data__query", { entity: "core.party", limit: 1 });
     const [audit] = await h.sql`select origin, conversation_id, action from kernel.audit_log where process_id = 'kernel.data.query' and actor_user_id = ${cashier.claims.sub} order by occurred_at desc limit 1`;

@@ -54,7 +54,7 @@ export function MessageList({ messages, cards, onDecide, onEdit, onNavigate, onO
     if (part.state === "input-streaming" || part.state === "input-available") {
       return (
         <div key={key} className="erp-chat__tool">
-          {t("agent.ui.tool_running", { process: processIdOfToolName(name) })}
+          {t("agent.ui.tool_running")}
         </div>
       );
     }

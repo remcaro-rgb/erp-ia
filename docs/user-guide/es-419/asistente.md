@@ -31,7 +31,7 @@ Las respuestas muestran negrita, listas y enlaces **solo a pantallas de la aplic
 
 ## Consultas: la tabla de resultados
 
-Cuando preguntas por datos (`kernel.data.query`), el asistente responde con una tabla con los mismos formatos de los listados: dinero como `$ 1.234.567,00`, fechas y horas en la zona horaria de tu empresa, «Sí» y «No». Los campos que tu rol no puede ver no aparecen, y los enmascarados se muestran como ••••••.
+Cuando preguntas por datos (`kernel.data.query`), el asistente responde con una tabla con los mismos formatos de los listados: dinero como `$ 1.234.567,00`, fechas y horas en la zona horaria de tu empresa, «Sí» y «No», y un guion cuando no hay valor. Los campos que tu rol no puede ver no aparecen, y los enmascarados se muestran como ••••••.
 
 - Una consulta trae **hasta 50 filas**. Si hay más, la tabla lo dice («Resultado truncado a 50 filas») y verás «50 de 312»: afina la pregunta para ver el resto.
 - **Abrir como grid**: abre el listado de ese tipo de registro en su pestaña, con los mismos filtros y orden de la consulta, para trabajar con todos los registros. Solo aparece para los registros que tienen listado.
@@ -62,6 +62,7 @@ Si el código es incorrecto verás «Código incorrecto». Tras varios intentos 
 
 - El panel recuerda tu última conversación: si recargas la página la verás de nuevo, con las tarjetas pendientes todavía confirmables (mientras no hayan vencido) y las decididas con su resultado.
 - **Nueva conversación** empieza de cero.
+- Al volver a abrir una conversación el panel muestra hasta los **últimos 100 mensajes** (los anteriores se conservan, pero no se muestran). Si no se puede cargar tu conversación, el panel lo dice y puedes escribir para empezar una nueva.
 - Si recargas la página mientras el asistente responde, la respuesta no se pierde: se guarda al terminar. Recarga de nuevo unos segundos después para verla (la respuesta en vivo no se retoma).
 - Cada mensaje puede tener hasta 4.000 caracteres.
 

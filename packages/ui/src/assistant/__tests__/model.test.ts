@@ -67,9 +67,15 @@ describe("isInternalHref / asDirective", () => {
   it("follows only paths of the app", () => {
     expect(isInternalHref("/parties")).toBe(true);
     expect(isInternalHref("/r/core.party/abc?x=1")).toBe(true);
-    for (const bad of ["https://evil.example", "//evil.example", "javascript:alert(1)", "/\\evil.example", "parties", "", "/a b\nc", " /x"]) {
+    for (const bad of ["/api/auth/step-up", "/api", "/API/export", "/api/agent/confirm?x=1", "https://evil.example", "//evil.example", "javascript:alert(1)", "/\\evil.example", "parties", "", "/a b\nc", " /x"]) {
       expect(isInternalHref(bad), bad).toBe(false);
     }
+  });
+  it("never leads to the app's own API: a link of the model is a screen, not a request", () => {
+    expect(isInternalHref("/apis")).toBe(true);
+    expect(isInternalHref("/r/core.party/x")).toBe(true);
+    expect(asDirective({ action: "navigate", href: "/api/auth/step-up" })).toBeNull();
+    expect(inlineOf("[salir](/api/auth/logout)")).toEqual([{ type: "text", text: "salir" }]);
   });
   it("a directive carries a safe href or nothing", () => {
     expect(asDirective({ action: "navigate", href: "/parties" })).toEqual({ href: "/parties" });
@@ -94,6 +100,12 @@ describe("parseRichText (markdown-lite)", () => {
     expect(inlineOf("[Terceros](/parties)")).toEqual([{ type: "link", text: "Terceros", href: "/parties" }]);
     expect(inlineOf("[x](https://evil.example)")).toEqual([{ type: "text", text: "x" }]);
     expect(inlineOf("[x](javascript:alert(1))")).toEqual([{ type: "text", text: "x" }]);
+  });
+  it("scans linear time: a long run of brackets and parentheses does not stall", () => {
+    const hostile = ["[".repeat(20000), "![".repeat(10000), "[a](" + "(".repeat(20000), "**" + "a".repeat(20000), "`" + "b".repeat(20000)];
+    const started = performance.now();
+    for (const text of hostile) inlineOf(text);
+    expect(performance.now() - started).toBeLessThan(500);
   });
   it("never produces an image: the alt text stays", () => {
     expect(inlineOf("![logo](https://evil.example/p.png)")).toEqual([{ type: "text", text: "logo" }]);

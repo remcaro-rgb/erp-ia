@@ -1039,7 +1039,7 @@
       "new_conversation": "Nueva conversación",
       "stop": "Detener",
       "loading": "Cargando la conversación…",
-      "tool_running": "Consultando {process}…",
+      "tool_running": "Trabajando en tu solicitud…",
       "open_link": "Abrir",
       "card": {
         "permission": "Permiso",
@@ -1075,7 +1075,8 @@
       },
       "errors": {
         "message_too_long": "El mensaje es demasiado largo. Acórtalo e inténtalo de nuevo.",
-        "conversation_not_found": "Esa conversación ya no existe. Empieza una nueva."
+        "conversation_not_found": "Esa conversación ya no existe. Empieza una nueva.",
+        "history_failed": "No pudimos cargar tu conversación. Puedes escribir para empezar una nueva."
       }
     }
   },

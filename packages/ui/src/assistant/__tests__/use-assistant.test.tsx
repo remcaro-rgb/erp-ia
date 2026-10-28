@@ -104,12 +104,28 @@ describe("useAssistant", () => {
     expect(s.turns()[0]).toMatchObject({ conversationId: CONVERSATION, text: "sigue" });
   });
 
-  it("starts empty when there is no stored conversation or the history cannot be read", async () => {
-    const s = server({ history: () => new Response("boom", { status: 500 }) });
+  it("starts empty, without an error, when the user has no stored conversation", async () => {
+    const s = server({});
     const { result } = setup({ fetcher: s.fetcher });
     await waitFor(() => expect(result.current.ready).toBe(true));
     expect(result.current.messages).toEqual([]);
     expect(result.current.conversationId).toBeNull();
+    expect(result.current.errorKey).toBeNull();
+  });
+
+  it("says so when the stored conversation cannot be read (server error, network, or a conversation that is gone), and the next question starts a new one", async () => {
+    for (const history of [() => new Response("boom", { status: 500 }), () => json({ code: "not_found", details: ["conversation_not_found"] }, 404), () => Promise.reject(new TypeError("offline"))]) {
+      const s = server({ history: history as () => Response });
+      const { result, unmount } = setup({ fetcher: s.fetcher });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      expect(result.current.errorKey).toBe("agent.ui.errors.history_failed");
+      expect(result.current.messages).toEqual([]);
+      await act(async () => void result.current.send("hola"));
+      await waitFor(() => expect(s.turns()).toHaveLength(1));
+      expect(s.turns()[0]).not.toHaveProperty("conversationId");
+      await waitFor(() => expect(result.current.errorKey).toBeNull());
+      unmount();
+    }
   });
 
   it("confirms a card by its id with the step-up token, and keeps the final state", async () => {
