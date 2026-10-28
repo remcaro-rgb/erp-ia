@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/modules/*"
+  - "packages/localization/*"
+
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+  - esbuild
