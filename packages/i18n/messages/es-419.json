@@ -1339,7 +1339,8 @@
         "help": "Agente de ayuda",
         "seed": "Sugerencia de ERP-IA",
         "other": "Agente: {name}"
-      }
+      },
+      "refused": "Tu rol no puede hacer esta acción, así que no la abrimos. Descarta la recomendación o consulta al administrador."
     },
     "assistant": {
       "run": "Ejecuta {process} con {input}",
@@ -1468,10 +1469,6 @@
       "secret_label": "Clave",
       "code_hint": "Ingresa el primer código de 6 dígitos que muestra la app.",
       "preparing": "Preparando el código…"
-    },
-    "home": {
-      "title": "Inicio",
-      "sign_out": "Salir"
     },
     "errors": {
       "invalid_credentials": "Correo o contraseña incorrectos.",

@@ -1339,7 +1339,8 @@
         "help": "Help agent",
         "seed": "ERP-IA suggestion",
         "other": "Agent: {name}"
-      }
+      },
+      "refused": "Your role cannot do this action, so we did not open it. Dismiss the recommendation or ask your administrator."
     },
     "assistant": {
       "run": "Run {process} with {input}",
@@ -1468,10 +1469,6 @@
       "secret_label": "Key",
       "code_hint": "Enter the first 6-digit code the app shows.",
       "preparing": "Preparing the code…"
-    },
-    "home": {
-      "title": "Home",
-      "sign_out": "Sign out"
     },
     "errors": {
       "invalid_credentials": "Wrong e-mail or password.",

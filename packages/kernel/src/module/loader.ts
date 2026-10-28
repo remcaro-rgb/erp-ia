@@ -48,6 +48,17 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     }
   }
 
+  // A KPI provider's `consult` gate must be a consult process some module declares: a typo would silently hide the card.
+  const kinds = new Map([...registry.processes(), ...modules.flatMap((m) => m.processes)].map((p) => [p.id, p.kind]));
+  for (const module of modules) {
+    for (const provider of module.homeKpis ?? []) {
+      if (provider.consult === undefined) continue;
+      const kind = kinds.get(provider.consult);
+      if (kind === undefined) throw new Error(`KPI provider ${provider.id}: unknown consult process ${provider.consult}`);
+      if (kind !== "consult") throw new Error(`KPI provider ${provider.id}: ${provider.consult} is not a consult process`);
+    }
+  }
+
   for (const module of ordered) {
     for (const entity of module.entities) registry.registerEntity(defineEntity(entity));
     for (const process of module.processes) registry.registerProcess(process);

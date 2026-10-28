@@ -40,9 +40,18 @@ describe("RecommendationsWidget", () => {
   });
 
   it("says when there is nothing pending and when a decision could not be saved", () => {
-    renderEs(<RecommendationsWidget items={[]} error onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} />);
+    renderEs(<RecommendationsWidget items={[]} error="failed" onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.getByText("Sin recomendaciones pendientes.")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("No se pudo guardar tu decisión. Inténtalo de nuevo.");
+  });
+});
+
+describe("RecommendationsWidget refusal", () => {
+  it("says the user may not do the suggested action, and keeps the card", () => {
+    const item = { id: "r1", title: "Crea tu primer cliente", body: "Cuerpo", agentProfile: "seed", suggestedActions: [{ label: "Crear", processId: "core.party.create", input: {} }] };
+    renderEs(<RecommendationsWidget items={[item]} error="refused" onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} />);
+    expect(screen.getByRole("alert").textContent).toBe("Tu rol no puede hacer esta acción, así que no la abrimos. Descarta la recomendación o consulta al administrador.");
+    expect(screen.getByText("Crea tu primer cliente")).toBeTruthy();
   });
 });
 

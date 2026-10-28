@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { getServiceDb } from "../db/service";
+import { entitled } from "../entitlements/resolver";
+import type { ProcessContext } from "../process/context";
 import { ProcessError } from "../process/errors";
 import { defineProcess } from "../process/define";
 import { HOME_FEATURE } from "./kpis";
@@ -13,7 +16,7 @@ const PROCESS_ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$/;
 /** A suggested action: a registered process with its input to confirm, or a screen to open. */
 export const suggestedAction = z.union([
   z.object({ label: z.string().min(1).max(120), processId: z.string().regex(PROCESS_ID), input: z.record(z.string(), z.json()).default({}) }),
-  z.object({ label: z.string().min(1).max(120), href: z.string().regex(/^\/(?!\/)[^\s]*$/, "an internal path") }),
+  z.object({ label: z.string().min(1).max(120), href: z.string().regex(/^\/(?!\/)[^\s\\]*$/, "an internal path") }),
 ]);
 export type SuggestedAction = z.infer<typeof suggestedAction>;
 
@@ -77,6 +80,26 @@ export const recommendationList = defineProcess({
 
 const decision = z.enum(["accepted", "dismissed"]);
 
+/**
+ * Accepting hands a process to the assistant, so the recommendation is only consumed when the caller could ask for it:
+ * the process is registered (`invalid_input` when not), the company is entitled to it (`not_entitled`, the kernel is the
+ * platform and needs none) and a role of the caller may run it (`forbidden`). A refusal throws, which rolls the decision
+ * back: the recommendation stays `new` and the screen says so instead of opening the assistant.
+ */
+async function requireRunnable(ctx: ProcessContext, processId: string): Promise<void> {
+  let process;
+  try {
+    process = ctx.registry.process(processId);
+  } catch {
+    throw new ProcessError("invalid_input", `recommendation action names an unregistered process: ${processId}`);
+  }
+  if (process.module !== "kernel" && !(await entitled(getServiceDb(), ctx.companyId, `process:${processId}`))) {
+    throw new ProcessError("not_entitled", `${processId} is not entitled for company ${ctx.companyId}`);
+  }
+  const [row] = await ctx.tx<{ allowed: boolean }[]>`select kernel.can_run_process(${processId}) as allowed`;
+  if (process.permission !== "none" && !row!.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${processId}`);
+}
+
 export const recommendationDecide = defineProcess({
   id: "kernel.recommendation.decide",
   module: "kernel",
@@ -100,6 +123,8 @@ export const recommendationDecide = defineProcess({
       where id = ${input.id} and company_id = ${ctx.companyId} and status = 'new'
       returning suggested_actions`;
     let stored = updated[0]?.suggested_actions;
+    // Only the call that takes the decision opens the action; a repeat (or somebody else of the audience later) gets the status.
+    const first = updated[0] !== undefined;
     if (!updated[0]) {
       // Already decided, or not the caller's to see: the view tells which.
       const [current] = await ctx.tx<{ status: string; suggested_actions: unknown }[]>`
@@ -109,6 +134,7 @@ export const recommendationDecide = defineProcess({
       stored = current.suggested_actions;
     }
     if (input.decision === "dismissed") return { id: input.id, status: "dismissed" as const };
+    if (!first) return { id: input.id, status: "accepted" as const };
 
     const actions = actionsOf(stored);
     const action = actions[input.action];
@@ -116,6 +142,7 @@ export const recommendationDecide = defineProcess({
       if (actions.length === 0 && input.action === 0) return { id: input.id, status: "accepted" as const };
       throw new ProcessError("invalid_input", `recommendation ${input.id} has no action ${input.action}`);
     }
+    if ("processId" in action) await requireRunnable(ctx, action.processId);
     return "processId" in action
       ? { id: input.id, status: "accepted" as const, open: { processId: action.processId, input: action.input } }
       : { id: input.id, status: "accepted" as const, href: action.href };

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Dashboard, HelpWidget, KpisWidget, RecentWidget, RecommendationsWidget, useAskAssistant, type DashboardWidget, type RecommendationItem, type WidgetLayout } from "@erp/ui";
 import { decideRecommendationAction } from "@/lib/home/actions";
 import type { HomeData } from "@/lib/home/load";
+import { createLayoutSaver } from "@/lib/home/layout-save";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 
 /**
@@ -19,18 +20,19 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
   const ask = useAskAssistant();
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>(data.recommendations ?? []);
   const [pending, setPending] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<"failed" | "refused" | null>(null);
 
   const decide = useCallback(
     async (id: string, decision: "accepted" | "dismissed", action = 0) => {
       setPending(id);
-      setFailed(false);
+      setFailed(null);
       try {
         const outcome = await decideRecommendationAction({ id, decision, action });
         if (!outcome.ok) {
           // Already decided elsewhere or no longer yours: it leaves the inbox; anything else is said.
           if (outcome.code === "not_found" || outcome.code === "handler_failed") setRecommendations((list) => list.filter((r) => r.id !== id));
-          setFailed(outcome.code !== "not_found");
+          // A suggested action the role may not take: the recommendation stays, with the reason.
+          setFailed(outcome.code === "not_found" ? null : outcome.code === "forbidden" || outcome.code === "not_entitled" ? "refused" : "failed");
           return;
         }
         setRecommendations((list) => list.filter((r) => r.id !== id));
@@ -42,7 +44,7 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
           router.push(href);
         }
       } catch {
-        setFailed(true);
+        setFailed("failed");
       } finally {
         setPending(null);
       }
@@ -71,10 +73,23 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
   if (data.recent) widgets.push({ id: "recent", title: t("home.widgets.recent"), content: <RecentWidget records={data.recent} onOpen={(href) => router.push(href)} /> });
   widgets.push({ id: "help", title: t("home.widgets.help"), content: <HelpWidget shortcuts={data.help} onAsk={ask} /> });
 
-  const save = useCallback((layout: WidgetLayout[], savedAt: number) => {
-    // The dashboard already cached it in this browser; a refused or lost save is retried from that cache on the next visit.
-    void saveShellPrefAction({ key: "home_layout", value: layout, savedAt }).catch(() => {});
-  }, []);
+  // The dashboard already cached the layout in this browser; a save that has not landed when the page hides goes as a beacon.
+  const saver = useMemo(
+    () =>
+      createLayoutSaver({
+        action: saveShellPrefAction,
+        beacon: (pref) => navigator.sendBeacon("/api/prefs", new Blob([JSON.stringify(pref)], { type: "application/json" })),
+      }),
+    [],
+  );
+  useEffect(() => {
+    window.addEventListener("pagehide", saver.pageHide);
+    return () => {
+      window.removeEventListener("pagehide", saver.pageHide);
+      saver.pageHide();
+    };
+  }, [saver]);
+  const save = useCallback((layout: WidgetLayout[], savedAt: number) => void saver.save(layout, savedAt), [saver]);
 
   return (
     <div className="flex flex-col gap-4" data-testid="home">

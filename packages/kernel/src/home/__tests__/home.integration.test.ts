@@ -25,6 +25,10 @@ const consultOf = (id: string) =>
 /** The grid's own consult of the probe entity, and a report consult a KPI provider can be gated on. */
 const consult = consultOf("probe.thing.consult");
 const reportConsult = consultOf("probe.report.consult");
+const createOf = (id: string, module: string) =>
+  defineProcess({ id, module, kind: "create", description: "Alta de prueba", input: z.object({}), output: z.object({}), handler: async () => ({}) });
+const createThing = createOf("probe.thing.create", "probe");
+const createOther = createOf("other.thing.create", "other");
 
 const thing = defineEntity({
   id: "probe.thing",
@@ -71,8 +75,8 @@ const probeModule = defineModule({
   version: "0.0.1",
   dependsOn: [],
   entities: [thing],
-  processes: [consult, reportConsult],
-  features: [{ id: "probe.things", label: "feature.probe.things", processes: [consult.id, reportConsult.id], entities: ["probe.thing"] }],
+  processes: [consult, reportConsult, createThing],
+  features: [{ id: "probe.things", label: "feature.probe.things", processes: [consult.id, reportConsult.id, createThing.id], entities: ["probe.thing"] }],
   events: { emits: [], consumes: {} },
   navigation: [],
   homeKpis: [prefsCount, gated, broken],
@@ -82,8 +86,8 @@ const otherModule = defineModule({
   version: "0.0.1",
   dependsOn: [],
   entities: [],
-  processes: [],
-  features: [{ id: "other.beta", label: "feature.other.beta", processes: [], entities: [] }],
+  processes: [createOther],
+  features: [{ id: "other.beta", label: "feature.other.beta", processes: [createOther.id], entities: [] }],
   events: { emits: [], consumes: {} },
   navigation: [],
   homeKpis: [notEntitled],
@@ -118,6 +122,9 @@ describe("home screen processes", () => {
   let recCashier: string;
   let recOtherCompany: string;
   let recNav: string;
+  let recForbidden: string;
+  let recUnentitled: string;
+  let recUnknown: string;
   /** The broken provider's failure is logged (and expected): keep it out of the test output. */
   let logged: MockInstance;
 
@@ -150,6 +157,9 @@ describe("home screen processes", () => {
     }
     await grant(companyA, seed.companies[0]!.adminRoleId, "probe.report.consult");
     await grant(companyA, seed.companies[0]!.memberRoleId, "probe.thing.consult");
+    // The member role may create things (what recMember suggests) and, but for the entitlement, the other module's too.
+    await grant(companyA, seed.companies[0]!.memberRoleId, "probe.thing.create");
+    await grant(companyA, seed.companies[0]!.memberRoleId, "other.thing.create");
 
     // The probe entity's table and masked read view (the processes read records through the view, rule 14).
     await sql`create schema if not exists probe`;
@@ -164,11 +174,16 @@ describe("home screen processes", () => {
       companyA,
       "Para el rol miembro",
       { role: seed.companies[0]!.memberRoleId },
-      [{ label: "Crear el tercero", processId: "core.party.create", input: { legal_name: "Panadería La Espiga" } }],
+      [{ label: "Crear el producto", processId: "probe.thing.create", input: { name: "Café molido" } }],
     );
     recAdmin = await insertRec(companyA, "Para el administrador", { role: seed.companies[0]!.adminRoleId });
     recCashier = await insertRec(companyA, "Para la cajera", { user: seed.users.cashier! });
     recOtherCompany = await insertRec(companyB, "De otra empresa", { role: seed.companies[1]!.adminRoleId });
+    // Actions the audience may not take: a process its role cannot run, one of a module the company does not have, one nobody registered.
+    const toMembers = { role: seed.companies[0]!.memberRoleId };
+    recForbidden = await insertRec(companyA, "Acción sin permiso", toMembers, [{ label: "Ver el reporte", processId: "probe.report.consult", input: {} }]);
+    recUnentitled = await insertRec(companyA, "Acción de otro módulo", toMembers, [{ label: "Crear en el otro", processId: "other.thing.create", input: {} }]);
+    recUnknown = await insertRec(companyA, "Acción inexistente", toMembers, [{ label: "Hacer algo", processId: "probe.nothing.create", input: {} }]);
     recNav = await insertRec(companyA, "Ir al listado", { user: seed.users.clerk! }, [{ label: "Ver terceros", href: "/parties" }]);
 
     // Preferences: the cashier has two rows, the clerk none.
@@ -225,13 +240,15 @@ describe("home screen processes", () => {
     const titles = async (caller: Caller) => (await run<{ recommendations: Rec[] }>(caller, "kernel.recommendation.list")).recommendations.map((r) => r.title).sort();
 
     it("shows a recommendation to the holders of its audience role and to the user it targets, newest first", async () => {
-      expect(await titles(cashier)).toEqual(["Para el rol miembro", "Para la cajera"]);
-      expect(await titles(clerk)).toEqual(["Ir al listado", "Para el rol miembro"]);
+      expect(await titles(cashier)).toEqual(["Acción de otro módulo", "Acción inexistente", "Acción sin permiso", "Para el rol miembro", "Para la cajera"]);
+      expect(await titles(clerk)).toEqual(["Acción de otro módulo", "Acción inexistente", "Acción sin permiso", "Ir al listado", "Para el rol miembro"]);
       expect(await titles(admin)).toEqual(["Para el administrador"]);
       const { recommendations } = await run<{ recommendations: (Rec & { suggestedActions: unknown[] })[] }>(cashier, "kernel.recommendation.list");
-      expect(recommendations[0]!.title).toBe("Para la cajera");
+      expect(recommendations.map((r) => r.title)).toContain("Para la cajera");
+      const created = recommendations.map((r) => r.id);
+      expect(created.indexOf(recNav)).toBe(-1);
       expect(recommendations.find((r) => r.id === recMember)!.suggestedActions).toEqual([
-        { label: "Crear el tercero", processId: "core.party.create", input: { legal_name: "Panadería La Espiga" } },
+        { label: "Crear el producto", processId: "probe.thing.create", input: { name: "Café molido" } },
       ]);
     });
 
@@ -250,7 +267,7 @@ describe("home screen processes", () => {
   describe("kernel.recommendation.decide", () => {
     it("accepting a suggested action returns the process and input for the assistant to confirm, and records who decided", async () => {
       const result = await run<{ id: string; status: string; open?: { processId: string; input: unknown } }>(cashier, "kernel.recommendation.decide", { id: recMember, decision: "accepted" });
-      expect(result).toEqual({ id: recMember, status: "accepted", open: { processId: "core.party.create", input: { legal_name: "Panadería La Espiga" } } });
+      expect(result).toEqual({ id: recMember, status: "accepted", open: { processId: "probe.thing.create", input: { name: "Café molido" } } });
       const [row] = await sql`select status, decided_by, decided_at from kernel.recommendations where id = ${recMember}`;
       expect(row).toMatchObject({ status: "accepted", decided_by: seed.users.cashier });
       expect(row!.decided_at).toBeInstanceOf(Date);
@@ -263,11 +280,12 @@ describe("home screen processes", () => {
       expect(recommendations.map((r) => r.id)).not.toContain(recMember);
     });
 
-    it("repeating the same decision is harmless and keeps the first decision's time", async () => {
+    it("repeating the same decision is harmless, keeps the first decision's time and does not open the assistant again", async () => {
       const [before] = await sql`select decided_at from kernel.recommendations where id = ${recMember}`;
       const again = await run<{ status: string; open?: unknown }>(cashier, "kernel.recommendation.decide", { id: recMember, decision: "accepted" });
-      expect(again.status).toBe("accepted");
-      expect(again.open).toBeDefined();
+      expect(again).toEqual({ id: recMember, status: "accepted" });
+      // Somebody else of the audience accepting later gets the same: the first to accept took the action.
+      expect(await run(clerk, "kernel.recommendation.decide", { id: recMember, decision: "accepted" })).toEqual({ id: recMember, status: "accepted" });
       const [after] = await sql`select decided_at from kernel.recommendations where id = ${recMember}`;
       expect(after!.decided_at).toEqual(before!.decided_at);
     });
@@ -281,6 +299,19 @@ describe("home screen processes", () => {
     it("dismissing returns no action; an action with a link returns the link", async () => {
       expect(await run(cashier, "kernel.recommendation.decide", { id: recCashier, decision: "dismissed" })).toEqual({ id: recCashier, status: "dismissed" });
       expect(await run(clerk, "kernel.recommendation.decide", { id: recNav, decision: "accepted" })).toEqual({ id: recNav, status: "accepted", href: "/parties" });
+    });
+
+    it("an accepted process action the caller may not run is refused and the recommendation is not consumed", async () => {
+      const status = async (id: string) => (await sql`select status from kernel.recommendations where id = ${id}`)[0]!.status;
+      // No role of the cashier may run probe.report.consult.
+      await expect(run(cashier, "kernel.recommendation.decide", { id: recForbidden, decision: "accepted" })).rejects.toMatchObject({ code: "forbidden" });
+      // The company has no entitlement to the other module.
+      await expect(run(cashier, "kernel.recommendation.decide", { id: recUnentitled, decision: "accepted" })).rejects.toMatchObject({ code: "not_entitled" });
+      // Nobody registered the process.
+      await expect(run(cashier, "kernel.recommendation.decide", { id: recUnknown, decision: "accepted" })).rejects.toMatchObject({ code: "invalid_input" });
+      for (const id of [recForbidden, recUnentitled, recUnknown]) expect(await status(id)).toBe("new");
+      // Dismissing needs no permission to the action.
+      expect(await run(cashier, "kernel.recommendation.decide", { id: recForbidden, decision: "dismissed" })).toEqual({ id: recForbidden, status: "dismissed" });
     });
 
     it("a recommendation the caller cannot see is not found; an action number out of range is invalid", async () => {

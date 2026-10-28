@@ -29,20 +29,21 @@ export interface RecommendationsWidgetProps {
   items: RecommendationItem[];
   /** Id of the recommendation whose decision is being saved. */
   pendingId?: string | null;
-  error?: boolean;
+  /** `failed`: the decision could not be saved; `refused`: the suggested action is not the caller's to take. */
+  error?: "failed" | "refused" | null;
   onAction: (id: string, processId: string, input: Record<string, unknown>, index: number) => void;
   onLink: (id: string, href: string, index: number) => void;
   onDismiss: (id: string) => void;
 }
 
-export function RecommendationsWidget({ items, pendingId = null, error = false, onAction, onLink, onDismiss }: RecommendationsWidgetProps) {
+export function RecommendationsWidget({ items, pendingId = null, error = null, onAction, onLink, onDismiss }: RecommendationsWidgetProps) {
   const t = useTranslations("home.recommendations");
   return (
     <div className="erp-home-recs">
       <span className="erp-muted erp-small">{t("subtitle")}</span>
       {error ? (
         <div role="alert" className="erp-grid__error">
-          {t("failed")}
+          {t(error)}
         </div>
       ) : null}
       {items.length === 0 ? (

@@ -138,6 +138,22 @@ describe("loadModules", () => {
       expect(() => defineModule(manifest("a", [], { homeKpis: [provider("a.count", "a.things"), provider("a.count", "a.things")] }))).toThrow(/duplicate KPI provider a\.count/);
     });
 
+    it("rejects a provider whose consult process no module registers, or that is not a consult, registering nothing", () => {
+      const registry = new Registry();
+      const typo = manifest("a", [], { homeKpis: [{ ...provider("a.count", "a.things"), consult: "a.thing.lst" }] });
+      expect(() => loadModules(registry, [typo])).toThrow(/KPI provider a\.count.*consult process a\.thing\.lst/);
+      const notConsult = manifest("a", [], {
+        processes: [{ ...proc("a", "thing", "list"), kind: "update" }],
+        homeKpis: [{ ...provider("a.count", "a.things"), consult: "a.thing.list" }],
+      });
+      expect(() => loadModules(registry, [notConsult])).toThrow(/KPI provider a\.count.*not a consult/);
+      expect(registry.modules()).toEqual([]);
+      expect(registry.kpiProviders()).toEqual([]);
+      // A consult of this module, or of one already in the registry, resolves.
+      loadModules(registry, [manifest("a", [], { homeKpis: [{ ...provider("a.count", "a.things"), consult: "a.thing.list" }] })]);
+      expect(() => loadModules(registry, [manifest("b", ["a"], { homeKpis: [{ ...provider("b.count", "b.things"), consult: "a.thing.list" }] })])).not.toThrow();
+    });
+
     it("refuses two providers with the same id in one registry", () => {
       const registry = new Registry();
       registry.registerKpiProvider(provider("a.count", "a.things"));

@@ -9,7 +9,8 @@ import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 // Stubbed: POST /api/agent/turn, because a turn needs a model (the turn itself is covered by packages/agent).
 
 const SCREENSHOTS = "e2e/__screenshots__";
-const PROCESSES = ["core.party.consult", "core.product.consult", "kernel.home.kpis", "kernel.home.recent", "kernel.recommendation.list", "kernel.recommendation.decide"];
+// core.party.create is what the first recommendation suggests: the role may take that action (and may not create products).
+const PROCESSES = ["core.party.consult", "core.party.create", "core.product.consult", "kernel.home.kpis", "kernel.home.recent", "kernel.recommendation.list", "kernel.recommendation.decide"];
 /** Default order: Indicadores, Recomendaciones, Ayuda rápida, Registros recientes. */
 const DEFAULT_ORDER = ["Indicadores", "Recomendaciones para ti", "Ayuda rápida", "Registros recientes"];
 
@@ -184,5 +185,29 @@ test.describe("home dashboard", () => {
     expect((await fixture.sql`select status from kernel.recommendations where id = ${recLink}`)[0]!.status).toBe("dismissed");
     await reload(page);
     await expect(page.getByRole("region", { name: "Recomendaciones para ti" }).getByText("Sin recomendaciones pendientes.")).toBeVisible();
+  });
+
+  test("an accepted action the role may not take is refused: the card stays, the assistant is not opened", async ({ page }) => {
+    let asked = false;
+    await page.route("**/api/agent/turn", async (route) => {
+      asked = true;
+      await route.fulfill({ status: 200, headers: { "content-type": "text/event-stream" }, body: sse([{ type: "start" }, { type: "finish" }]) });
+    });
+    const [{ id }] = await fixture.sql<{ id: string }[]>`
+      insert into kernel.recommendations (company_id, audience_role_id, agent_profile, title, body, suggested_actions)
+      values (${companyId}, ${roleId}, 'seed', 'Crea un producto', 'Tu rol no puede crear productos.',
+              ${fixture.sql.json([{ label: "Crear producto", processId: "core.product.create", input: { sku: "X" } }] as never)})
+      returning id`;
+    await signIn(page, fixture);
+    const recs = page.getByRole("region", { name: "Recomendaciones para ti" });
+    await recs.getByRole("button", { name: "Crear producto" }).click();
+    await expect(recs.getByRole("alert")).toContainText("Tu rol no puede hacer esta acción");
+    await expect(recs.getByText("Crea un producto")).toBeVisible();
+    expect((await fixture.sql`select status from kernel.recommendations where id = ${id}`)[0]!.status).toBe("new");
+    expect(asked).toBe(false);
+    await expect(page.getByRole("complementary", { name: "Asistente" })).not.toContainText("Ejecuta core.product.create");
+    // It can still be dismissed.
+    await recs.getByRole("button", { name: "Descartar" }).click();
+    await expect(recs.getByText("Crea un producto")).toHaveCount(0);
   });
 });
