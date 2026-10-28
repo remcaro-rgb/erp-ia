@@ -117,7 +117,7 @@ async function execute<O extends z.ZodTypeAny>(
       });
       if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
 
-      const ctx = buildContext(tx, def, caller, chainId);
+      const ctx = buildContext(tx, deps.registry, def, caller, chainId);
       let output: unknown;
       try {
         output = await def.handler(ctx, parsed.data);
@@ -178,10 +178,11 @@ async function consumeStepUp(tx: Tx, processId: string, token: string, userId: s
   if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`);
 }
 
-function buildContext(tx: Tx, def: ProcessDef, caller: Caller, chainId: string): ProcessContext {
+function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string): ProcessContext {
   const { claims } = caller;
   return {
     tx,
+    registry,
     companyId: claims.active_company_id,
     tenantId: claims.tenant_id,
     userId: claims.sub,

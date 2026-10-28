@@ -44,7 +44,7 @@ export interface SeededTenant {
 
 /**
  * Creates a fresh tenant with unique names and e-mails (so reruns never collide): N companies,
- * an `admin` role per company and users with their memberships. Uses the service connection.
+ * an `admin` role per company (with the Colombian required-file defaults) and users with their memberships. Uses the service connection.
  */
 export async function seedTenant(sql: Sql, options: SeedOptions): Promise<SeededTenant> {
   const suffix = randomUUID().slice(0, 8);
@@ -64,6 +64,7 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       insert into kernel.roles(company_id, name, is_system) values (${company!.id}, 'admin', true) returning id`;
     const [memberRole] = await sql<{ id: string }[]>`
       insert into kernel.roles(company_id, name, is_system) values (${company!.id}, 'member', false) returning id`;
+    await sql`select kernel.seed_required_attachments(${company!.id})`;
     companies.push({ id: company!.id, adminRoleId: role!.id, memberRoleId: memberRole!.id });
   }
 
@@ -114,6 +115,8 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       };
     },
     async cleanup() {
+      await sql`delete from kernel.attachments where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.required_attachments where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.company_modules where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.tenant_entitlements where tenant_id = ${tenantId}`;
       await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where company_id = any(${companyIds}::uuid[]))`;

@@ -1,12 +1,13 @@
-import { loadModules, registerCountryPack, Registry, type RunProcessDeps } from "@erp/kernel";
+import { randomUUID } from "node:crypto";
+import { ATTACHMENT_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "../index";
 
 export type Db = ReturnType<typeof testDb>;
 
-/** Every process the core module declares. */
-export const CORE_PROCESS_IDS = core.processes.map((p) => p.id);
+/** Every process the core module declares, plus the kernel attachment processes the record forms use. */
+export const CORE_PROCESS_IDS = [...core.processes, ...ATTACHMENT_PROCESSES].map((p) => p.id);
 
 export interface CoreHarness {
   sql: Db;
@@ -28,7 +29,7 @@ export interface CoreHarness {
 export async function coreHarness(options: { companies?: number; users?: Parameters<typeof seedTenant>[1]["users"] } = {}): Promise<CoreHarness> {
   const sql = testDb();
   const registry = new Registry();
-  loadModules(registry, [core]);
+  loadModules(registry, [kernelModule, core]);
   registerCountryPack(co);
   const seed = await seedTenant(sql, { companies: options.companies ?? 1, users: options.users, entitlements: ["module:core"] });
   const grantAll = async (companyId: string, roleId: string, ids: string[]) => {
@@ -59,6 +60,20 @@ export async function coreHarness(options: { companies?: number; users?: Paramet
       await sql.end();
     },
   };
+}
+
+/**
+ * Stores a file against a record as the service role (the attachment triggers keep `invoice_ready` current),
+ * for tests whose subject is not the attachment processes themselves.
+ */
+export async function attachFile(
+  sql: Db,
+  seed: { tenantId: string; companyId: string; entity: string; recordId: string; tag: string; fileName?: string; mimeType?: string },
+): Promise<void> {
+  const fileName = seed.fileName ?? `${seed.tag}.pdf`;
+  await sql`insert into kernel.attachments(company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path)
+            values (${seed.companyId}, ${seed.entity}, ${seed.recordId}, ${seed.tag}, ${fileName}, ${seed.mimeType ?? "application/pdf"}, 1024,
+                    ${`${seed.tenantId}/${seed.companyId}/${seed.entity}/${seed.recordId}/${randomUUID()}-${fileName}`})`;
 }
 
 /** A domestic juridical customer with every DIAN datum present. */

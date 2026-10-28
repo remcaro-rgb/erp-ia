@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { runProcess, type Caller } from "@erp/kernel";
 import { withClaims } from "@erp/kernel/testing";
-import { coreHarness, exito, supplier, type CoreHarness } from "./helpers";
+import { attachFile, coreHarness, exito, supplier, type CoreHarness } from "./helpers";
 
 describe("core parties", () => {
   let h: CoreHarness;
@@ -26,7 +26,12 @@ describe("core parties", () => {
   it("creates a customer with a valid NIT and emits core.party.created", async () => {
     const out = await runProcess(deps, admin, "core.party.create", exito);
     const [row] = await sql`select document_number, check_digit, dian_status, invoice_ready from core.parties where id = ${out.id}`;
-    expect(row).toMatchObject({ document_number: "900373115", check_digit: "3", dian_status: "complete", invoice_ready: true });
+    // DIAN data is complete, but the Colombian RUT and Cámara de Comercio files are still missing (design §5.17).
+    expect(row).toMatchObject({ document_number: "900373115", check_digit: "3", dian_status: "complete", invoice_ready: false });
+    for (const tag of ["RUT", "Cámara de Comercio"]) {
+      await attachFile(sql, { tenantId: h.seed.tenantId, companyId: h.companyId, entity: "core.party", recordId: out.id, tag });
+    }
+    expect((await sql`select invoice_ready from core.parties where id = ${out.id}`)[0]!.invoice_ready).toBe(true);
     expect((await sql`select 1 from kernel.outbox where event = 'core.party.created' and payload->>'id' = ${out.id}`).length).toBe(1);
   });
 
@@ -81,6 +86,9 @@ describe("core parties", () => {
     const out = await runProcess(deps, admin, "core.party.create", { ...exito, documentNumber: "830000001", invoiceEmail: undefined });
     const [before] = await sql`select seq, dian_status from core.parties where id = ${out.id}`;
     expect(before!.dian_status).toBe("missing: 1");
+    for (const tag of ["RUT", "Cámara de Comercio"]) {
+      await attachFile(sql, { tenantId: h.seed.tenantId, companyId: h.companyId, entity: "core.party", recordId: out.id, tag });
+    }
     await runProcess(deps, admin, "core.party.update", { id: out.id, invoiceEmail: "facturas@cliente.co", phone: "3001234567", creditLimit: 5000000 });
     const [after] = await sql`select seq, dian_status, invoice_ready, phone, phone_cc, credit_limit, legal_name from core.parties where id = ${out.id}`;
     expect(after).toMatchObject({ seq: before!.seq, dian_status: "complete", invoice_ready: true, phone: "3001234567", phone_cc: "57", legal_name: exito.legalName });

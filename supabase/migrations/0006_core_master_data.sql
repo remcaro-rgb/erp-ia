@@ -1201,16 +1201,6 @@ end;
 $$;
 revoke all on function core.setup_table(text, text) from public;
 
--- Invoice readiness (design §5.17): DIAN-complete and active. Task 9b adds the required attachments.
-create or replace function core.compute_invoice_ready() returns trigger
-language plpgsql
-as $$
-begin
-  new.invoice_ready := new.dian_status = 'complete' and new.is_active;
-  return new;
-end;
-$$;
-
 -- Party scope of a role (design §5.18, rule 13) applied to a party's kinds. kernel.party_scope()
 -- gives the caller's scope (the union of their roles' scopes).
 create or replace function core.party_scope_allows(scope text, kind text[]) returns boolean
@@ -1287,8 +1277,29 @@ create table core.parties (
   unique (company_id, seq)
 );
 select core.setup_table('parties', 'core.party');
+
+-- Invoice readiness (design §5.17, rule 10): DIAN-complete, active and holding every required file that
+-- applies to the party (kernel.required_attachments, evaluated by kernel.missing_attachments, 0007; the
+-- functions are plpgsql so kernel.missing_attachments is resolved when they run, after 0007).
+create or replace function core.party_invoice_ready(p core.parties) returns boolean
+language plpgsql stable
+as $$
+begin
+  return p.dian_status = 'complete' and p.is_active
+    and kernel.missing_attachments(p.company_id, 'core.party', p.id, p.country_code, p.person_type, p.kind) = '{}'::text[];
+end;
+$$;
+
+create or replace function core.compute_party_invoice_ready() returns trigger
+language plpgsql
+as $$
+begin
+  new.invoice_ready := core.party_invoice_ready(new);
+  return new;
+end;
+$$;
 create trigger compute_invoice_ready before insert or update on core.parties
-  for each row execute function core.compute_invoice_ready();
+  for each row execute function core.compute_party_invoice_ready();
 
 create table core.party_contacts (
   id         uuid primary key default kernel.uuid_v7(),
@@ -1383,8 +1394,49 @@ create table core.products (
 create index products_category_id_idx on core.products (category_id);
 create index products_supplier_id_idx on core.products (supplier_id);
 select core.setup_table('products', 'core.product');
+
+-- Same rule for products; their required files carry no conditions on the record.
+create or replace function core.product_invoice_ready(p core.products) returns boolean
+language plpgsql stable
+as $$
+begin
+  return p.dian_status = 'complete' and p.is_active
+    and kernel.missing_attachments(p.company_id, 'core.product', p.id, null, null, null) = '{}'::text[];
+end;
+$$;
+
+create or replace function core.compute_product_invoice_ready() returns trigger
+language plpgsql
+as $$
+begin
+  new.invoice_ready := core.product_invoice_ready(new);
+  return new;
+end;
+$$;
 create trigger compute_invoice_ready before insert or update on core.products
-  for each row execute function core.compute_invoice_ready();
+  for each row execute function core.compute_product_invoice_ready();
+
+-- Hook the kernel calls (kernel.notify_attachments_changed, 0007) when a file is added or removed or a
+-- required-file definition changes: re-evaluates invoice_ready of the affected record (record null: every
+-- record of the company for that entity). Only rows whose readiness actually changes are written.
+create or replace function core.attachments_changed(p_entity text, p_company uuid, p_record_id uuid) returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if p_entity = 'core.party' then
+    update core.parties p set invoice_ready = core.party_invoice_ready(p)
+    where p.company_id = p_company and (p_record_id is null or p.id = p_record_id)
+      and p.invoice_ready is distinct from core.party_invoice_ready(p);
+  elsif p_entity = 'core.product' then
+    update core.products p set invoice_ready = core.product_invoice_ready(p)
+    where p.company_id = p_company and (p_record_id is null or p.id = p_record_id)
+      and p.invoice_ready is distinct from core.product_invoice_ready(p);
+  end if;
+end;
+$$;
+revoke execute on function core.attachments_changed(text, uuid, uuid) from public, anon, authenticated;
+grant execute on function core.attachments_changed(text, uuid, uuid) to service_role;
 
 -- ---------------------------------------------------------------------------------------------
 -- Price lists (processes arrive with the sales module).

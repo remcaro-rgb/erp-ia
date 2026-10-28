@@ -1,5 +1,6 @@
 import type { AuditEntry, Origin } from "../audit/audit";
 import type { JwtClaims, Tx } from "../db/client";
+import type { Registry } from "../registry";
 
 /** Who runs a process and from where: the user's claims, also when the assistant or a job acts for them. */
 export interface Caller {
@@ -15,6 +16,8 @@ export interface Caller {
 /** What a handler receives: the process transaction (RLS as the caller) and the caller's identity. */
 export interface ProcessContext {
   tx: Tx;
+  /** The registry this run resolved the process from, for handlers that must know a registered entity. */
+  registry: Registry;
   companyId: string;
   tenantId: string;
   userId: string;
