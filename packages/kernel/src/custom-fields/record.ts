@@ -42,6 +42,9 @@ export async function customData(
     // overwrite what somebody saved meanwhile; `null` removes a key. It becomes the whole document the caller would have
     // sent: what they may view, with the changes applied. Everything else (hidden keys, validation) is as for `given`.
     if (given !== undefined) return { extra: before, errors: ["Envía extra o extraPatch, no ambos"], missing: [] };
+    if (Object.keys(patch).some((key) => key === "__proto__" || key === "constructor" || key === "prototype")) {
+      return { extra: before, errors: ["Clave no permitida en extraPatch"], missing: [] };
+    }
     const next: Record<string, unknown> = { ...stripInvisible(defs, before, caller) };
     for (const [key, value] of Object.entries(patch)) {
       if (value === null) delete next[key];

@@ -8,27 +8,27 @@ export interface FilesPanelProps {
   entity: string;
   recordId: string;
   requiredTags: readonly RequiredTag[];
-  /** The record's files as the server just read them. */
-  attachments: readonly AttachmentItem[];
+  /** The record's files as the server just read them; null when the caller's role may not list them (the panel then loads, and says so when it cannot). */
+  attachments: readonly AttachmentItem[] | null;
   can: Pick<RecordAbilities, "attach" | "removeFile">;
 }
 
 /**
  * The Archivos tab wired to the record: the checklist of the admin's required files, and after every upload or
  * removal (here or in the Fotos tab) the page reloads the record so its footer (invoice readiness, DIAN status) and
- * this list reflect the files. The list comes with the page; the panel starts over when it changes.
+ * this list reflect the files. The list comes with the page and the panel follows it without remounting, so files staged
+ * in the meantime and the messages of a partial upload stay.
  */
 export function FilesPanel({ entity, recordId, requiredTags, attachments, can }: FilesPanelProps) {
   const router = useRouter();
   return (
     <AttachmentsPanel
-      key={attachments.map((a) => `${a.id}:${a.suggested ? "s" : ""}`).join(",")}
       entity={entity}
       recordId={recordId}
       readOnly={!can.attach}
       canRemove={can.removeFile}
       requiredTags={requiredTags}
-      initialAttachments={attachments}
+      initialAttachments={attachments ?? undefined}
       onChange={() => router.refresh()}
     />
   );

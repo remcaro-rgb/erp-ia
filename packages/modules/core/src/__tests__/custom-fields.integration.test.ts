@@ -222,6 +222,18 @@ describe("custom fields", () => {
     expect((await sql`select extra from core.product_categories where id = ${categoryId}`)[0]!.extra).toEqual({ linea: "Básica" });
   });
 
+  it("extraPatch refuses the keys that would reach into Object.prototype", async () => {
+    await define(admin);
+    const partyId = await newParty({ extra: { canal: "Retail" } });
+    for (const key of ["__proto__", "constructor", "prototype"]) {
+      // JSON.parse makes `__proto__` an own property, as a request body does.
+      const patch = JSON.parse(`{"${key}": {"polluted": true}}`) as Record<string, unknown>;
+      await expect(runProcess(deps, admin, "core.party.update", { id: partyId, extraPatch: patch })).rejects.toMatchObject({ code: "invalid_input" });
+    }
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect((await party(partyId)).extra).toEqual({ canal: "Retail" });
+  });
+
   it("defining and removing fields are step-up processes (rule 15): refused without a fresh verification, which is consumed", async () => {
     expect(deps.registry.process("kernel.custom_field.set").sensitivity).toBe("step-up");
     expect(deps.registry.process("kernel.custom_field.remove").sensitivity).toBe("step-up");

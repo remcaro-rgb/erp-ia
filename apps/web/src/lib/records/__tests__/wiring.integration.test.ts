@@ -193,6 +193,16 @@ describe("contacts", () => {
       values (${reader.companyIds[0]!}, ${["customer"]}, '1', '31', '900111222', 'Tercero del lector', 'complete') returning id`;
     const loaded = await loadRecord("core.party", own[0]!.id);
     expect(loaded!.can).toMatchObject({ contactCreate: false, contactUpdate: false, contactDelete: false, extra: false, attach: false, reorder: false, suggest: false });
+    // The reader may list files: an empty list is a list. Without that permission the page gets no list at all (null),
+    // so the Archivos tab says it could not load them instead of showing "no files".
+    expect(loaded!.attachments).toEqual([]);
+    const [readerRole] = await reader.sql<{ id: string }[]>`select id from kernel.roles where company_id = ${reader.companyIds[0]!}`;
+    await reader.sql`delete from kernel.process_permissions where role_id = ${readerRole!.id} and process_id = 'kernel.attachment.list'`;
+    try {
+      expect((await loadRecord("core.party", own[0]!.id))!.attachments).toBeNull();
+    } finally {
+      await reader.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${reader.companyIds[0]!}, ${readerRole!.id}, 'kernel.attachment.list')`;
+    }
     expect(await createContactAction(own[0]!.id, draft)).toMatchObject({ ok: false, code: "forbidden" });
     expect(await removeContactAction((contact as { id: string }).id)).toMatchObject({ ok: false, code: "forbidden" });
     await reader.sql`delete from core.parties where company_id = ${reader.companyIds[0]!}`;

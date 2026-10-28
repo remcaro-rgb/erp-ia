@@ -117,6 +117,32 @@ describe("AttachmentsPanel", () => {
     expect(screen.getByRole("button", { name: "Subir 1 archivo" })).toBeTruthy();
   });
 
+  it("partial failure then a new initialAttachments keeps the failed row and its error, and shows the new list", async () => {
+    const fetcher = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const form = init?.body as FormData;
+      const file = form.get("file") as File;
+      return file.name === "malo.pdf" ? json({ code: "invalid_input", details: ["El archivo está dañado"] }, 400) : json(stored("RUT", "bueno.pdf"), 201);
+    }) as unknown as typeof fetch;
+    const { rerender } = render(<AttachmentsPanel entity="core.party" recordId="p1" requiredTags={required} initialAttachments={[]} fetcher={fetcher} />);
+    drop(dropZone(), [pdf("bueno.pdf"), pdf("malo.pdf")]);
+    for (const select of screen.getAllByRole("combobox")) fireEvent.change(select, { target: { value: "RUT" } });
+    fireEvent.click(screen.getByRole("button", { name: "Subir 2 archivos" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("El archivo está dañado"));
+
+    // The page refreshed after the upload and hands the panel the list it just read.
+    rerender(<AttachmentsPanel entity="core.party" recordId="p1" requiredTags={required} initialAttachments={[stored("RUT", "bueno.pdf")]} fetcher={fetcher} />);
+    expect(screen.getByRole("alert").textContent).toContain("El archivo está dañado");
+    expect(screen.getByText("malo.pdf")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Subir 1 archivo" })).toBeTruthy();
+    const list = document.querySelector(".erp-attachments__list")!;
+    expect(list.textContent).toContain("bueno.pdf");
+
+    // A later server list replaces the stored files, still without touching what is staged.
+    rerender(<AttachmentsPanel entity="core.party" recordId="p1" requiredTags={required} initialAttachments={[stored("RUT", "bueno.pdf"), stored("Otro", "nuevo.pdf")]} fetcher={fetcher} />);
+    expect(list.textContent).toContain("nuevo.pdf");
+    expect(screen.getByText("malo.pdf")).toBeTruthy();
+  });
+
   it("removing asks for confirmation inline, and only a yes calls DELETE", async () => {
     const fetcher = vi.fn(async () => json({ id: "RUT.pdf" })) as unknown as typeof fetch;
     const onChange = vi.fn();

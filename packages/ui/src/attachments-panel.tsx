@@ -77,6 +77,17 @@ export function AttachmentsPanel(props: AttachmentsPanelProps) {
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
 
+  // The page hands over a fresh list after it reloads the record (an upload, a removal, a photo change elsewhere): the
+  // stored files follow it, while what is staged and the messages of a partial upload stay as they are.
+  const knownList = initialAttachments === undefined ? null : JSON.stringify(initialAttachments);
+  const syncedList = useRef(knownList);
+  useEffect(() => {
+    if (knownList === syncedList.current) return;
+    syncedList.current = knownList;
+    if (initialAttachments !== undefined) setItems(initialAttachments);
+    // The list is compared by content: a new array with the same files is not a change.
+  }, [knownList]);
+
   const url = useCallback((query: Record<string, string>) => `${endpoint}?${new URLSearchParams(query)}`, [endpoint]);
   const loadedInitially = initialAttachments !== undefined;
 

@@ -12,7 +12,16 @@ export const optionalText = z.string().optional();
 export const extra = z.record(z.string(), z.unknown()).optional();
 
 /** The keys of `extra` to set (`null` removes one), merged into the stored document; not together with `extra`. */
-export const extraPatch = z.record(z.string(), z.unknown()).optional();
+export const extraPatch = z
+  // The raw input is checked first: parsing into a record would drop a `__proto__` key before a refinement saw it.
+  .custom<Record<string, unknown>>((raw) => typeof raw === "object" && raw !== null && !Array.isArray(raw) && !Object.keys(raw).some((key) => FORBIDDEN_KEYS.has(key)), {
+    message: "extraPatch debe ser un objeto sin las claves __proto__, constructor ni prototype",
+  })
+  .pipe(z.record(z.string(), z.unknown()))
+  .optional();
+
+/** Keys that would reach into the object prototype instead of naming a data field. */
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 /** Free name / value pairs any user may add (design §5.14). */
 export { extraFree };

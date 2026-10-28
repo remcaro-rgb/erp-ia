@@ -72,8 +72,8 @@ export interface LoadedRecord {
   can: RecordAbilities;
   /** The admin's required files that apply to this record (empty for a new one), by tag. */
   requiredTags: RequiredTag[];
-  /** The record's live files in order, for the Archivos tab. */
-  attachments: StoredAttachment[];
+  /** The record's live files in order, for the Archivos tab; null when the caller's role may not list them (not the same as no files). */
+  attachments: StoredAttachment[] | null;
   /** Status of the latest verification request of each contact datum, by `<kind>:<value>` (`phone` as `+<cc><number>`). */
   verifications: Record<string, "queued" | "verified" | "failed">;
   form: FormData;
@@ -122,6 +122,16 @@ async function orEmpty<T>(read: Promise<T[]>): Promise<T[]> {
     return await read;
   } catch (error) {
     if (error instanceof ProcessError && (error.code === "forbidden" || error.code === "not_entitled")) return [];
+    throw error;
+  }
+}
+
+/** A list the caller may not read is null, which is not an empty list. */
+async function orNull<T>(read: Promise<T[]>): Promise<T[] | null> {
+  try {
+    return await read;
+  } catch (error) {
+    if (error instanceof ProcessError && (error.code === "forbidden" || error.code === "not_entitled")) return null;
     throw error;
   }
 }
@@ -201,7 +211,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     record && entity.id === "core.party" ? orEmpty(contacts(caller, record.id)) : Promise.resolve([]),
     runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, ...TAB_PROCESSES]),
     record ? requiredTagsFor(deps.sql, caller.claims, entity.id, factsOf(entity.id, record, access.modes)) : Promise.resolve([]),
-    record ? orEmpty(attachments(caller, entity.id, record.id)) : Promise.resolve([]),
+    record ? orNull(attachments(caller, entity.id, record.id)) : Promise.resolve([]),
   ]);
   const verified = record && entity.id === "core.party" ? await verifications(caller, record.id, partyContacts as ContactRow[]) : {};
   const canSave = runnable.has(saveProcess);
