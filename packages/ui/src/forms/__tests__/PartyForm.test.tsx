@@ -57,6 +57,84 @@ const setup = (props: Partial<Parameters<typeof PartyForm>[0]> = {}) => {
 /** The control whose label starts with `label` (labels carry hints after the name). */
 const field = (label: string) => screen.getByLabelText(new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), { selector: "input,select" }) as HTMLInputElement;
 
+describe("PartyForm started from a copy (rule 37)", () => {
+  it("a new party starts from the copy's values, without a NIT, and is created without an id", async () => {
+    const initial = { kind: ["customer"], person_type: "1", document_type: "31", legal_name: "Almacenes Éxito S.A.", tax_responsibilities: ["O-13"], tax_scheme: "01", country_code: "CO", department_code: "11", municipality_code: "11001", invoice_email: "fe@exito.com" };
+    const { save, onSaved } = setup({ initial });
+    expect(field("Razón social").value).toBe("Almacenes Éxito S.A.");
+    expect(field("Número").value).toBe("");
+    fireEvent.change(field("Número"), { target: { value: "860002964" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    const input = save.mock.calls[0]![0];
+    expect(input).not.toHaveProperty("id");
+    expect(input).toMatchObject({ documentNumber: "860002964", legalName: "Almacenes Éxito S.A.", taxResponsibilities: ["O-13"], invoiceEmail: "fe@exito.com" });
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith("0192f000-0000-7000-8000-000000000001", true));
+  });
+});
+
+describe("PartyForm location comboboxes", () => {
+  it("department and municipality are typeahead boxes: the municipality list follows the department, and the choice is saved by code", async () => {
+    const initial = { kind: ["customer"], person_type: "1", document_type: "31", legal_name: "Café del Norte S.A.S.", tax_responsibilities: ["O-13"], tax_scheme: "01", country_code: "CO", department_code: "11", municipality_code: "11001", invoice_email: "fe@cafedelnorte.co" };
+    const { save } = setup({ initial });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    const department = screen.getByRole("combobox", { name: /^Departamento/ });
+    const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+    expect((department as HTMLInputElement).value).toBe("Bogotá, D.C.");
+    fireEvent.change(department, { target: { value: "antio" } });
+    fireEvent.keyDown(department, { key: "Enter" });
+    expect((department as HTMLInputElement).value).toBe("Antioquia");
+    // Changing the department clears a municipality that belongs to another.
+    expect((municipality as HTMLInputElement).value).toBe("");
+    fireEvent.change(municipality, { target: { value: "bogota" } });
+    expect(screen.getByText("Sin coincidencias")).toBeTruthy();
+    fireEvent.change(municipality, { target: { value: "medellin" } });
+    fireEvent.keyDown(municipality, { key: "Enter" });
+    expect((municipality as HTMLInputElement).value).toBe("Medellín");
+    fireEvent.click(screen.getByRole("button", { name: "Crear" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
+  });
+});
+
+describe("PartyForm, Ctrl+Enter with a combobox open", () => {
+  const initial = { kind: ["customer"], person_type: "1", document_type: "31", legal_name: "Café del Norte S.A.S.", tax_responsibilities: ["O-13"], tax_scheme: "01", country_code: "CO", department_code: "05", municipality_code: "", invoice_email: "fe@cafedelnorte.co" };
+
+  it("chooses the active option and saves the committed draft, not the stale one", async () => {
+    const { save } = setup({ initial });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+    fireEvent.change(municipality, { target: { value: "medellin" } });
+    fireEvent.keyDown(municipality, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
+  });
+
+  it("Ctrl+S and ⌘+S commit the active option exactly like Ctrl+Enter, then save the committed draft", async () => {
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
+      const { save } = setup({ initial });
+      fireEvent.change(field("Número"), { target: { value: "900373115" } });
+      const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+      fireEvent.change(municipality, { target: { value: "medellin" } });
+      fireEvent.keyDown(municipality, { key: "s", ...modifier });
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
+      cleanup();
+    }
+  });
+
+  it("drops a half-typed text that points at nothing and saves the rest", async () => {
+    const { save } = setup({ initial });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+    fireEvent.change(municipality, { target: { value: "zzz" } });
+    fireEvent.keyDown(municipality, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0]).toMatchObject({ municipalityCode: "" });
+    expect((municipality as HTMLInputElement).value).toBe("");
+  });
+});
+
 describe("PartyForm", () => {
   it("computes the NIT check digit live with the DIAN algorithm", () => {
     setup();
@@ -94,7 +172,7 @@ describe("PartyForm", () => {
     expect(screen.queryByLabelText("Razón social", { selector: "input" })).toBeNull();
     fireEvent.change(field("País"), { target: { value: "US" } });
     expect(field("Tipo de documento").value).toBe("41");
-    expect(screen.queryByLabelText("Departamento", { selector: "select" })).toBeNull();
+    expect(screen.queryByLabelText("Departamento", { selector: "input" })).toBeNull();
   });
 
   it("R-99-PN excludes the other responsibilities, and the RUT summary follows them", () => {
@@ -230,6 +308,10 @@ describe("PartyForm", () => {
 
   it("links a field's hint with aria-describedby, and Ctrl+S on a blocked form goes to the problem instead of saving", () => {
     const { save } = setup();
+    // The schema hints are off until "Ver códigos DIAN" is turned on (OD-12).
+    expect(field("Tipo de persona").getAttribute("aria-describedby")).toBeNull();
+    expect(screen.queryByText("AdditionalAccountID")).toBeNull();
+    fireEvent.click(screen.getByRole("switch", { name: "Ver códigos DIAN" }));
     const personType = field("Tipo de persona");
     const hint = document.getElementById(personType.getAttribute("aria-describedby")!)!;
     expect(hint.textContent).toContain("AdditionalAccountID");

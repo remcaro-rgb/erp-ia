@@ -32,7 +32,8 @@ export async function agentTurn(args: TurnArgs): Promise<void> {
   const { workflowRunId } = getWorkflowMetadata();
   const writable = getWritable<ModelCallStreamPart>();
   const prepared = await prepareTurn(args, workflowRunId);
-  if (prepared.kind === "not_found") return await closeStream(writable);
+  // An inactive membership or a conversation that is not the caller's: nothing was stored, no model is called.
+  if (prepared.kind === "not_found" || prepared.kind === "membership_inactive") return await closeStream(writable);
   if (prepared.kind === "over_budget") return await replyWithoutModel(args, workflowRunId, prepared.message, writable);
 
   const agent = new WorkflowAgent({
@@ -66,7 +67,7 @@ export async function agentTurn(args: TurnArgs): Promise<void> {
   }
 }
 
-/** Checks the conversation, stores the user's message, checks the allowance and gathers the model's input. */
+/** Checks the membership and the conversation, stores the user's message, checks the allowance and gathers the model's input. */
 export async function prepareTurn(args: TurnArgs, runId: string): Promise<Prepared> {
   "use step";
   return prepare(args, runId);

@@ -95,6 +95,11 @@ export interface Kpi {
   tone?: "default" | "warn";
   /** The line under the number: an i18n key and the values it shows. */
   detail?: { key: string; params: Record<string, string | number> };
+  /**
+   * OD-9: the trend line under the number. Exactly 14 daily values (oldest first, today last, on the company's calendar) of
+   * the same measure, computed by the provider in SQL as the caller (`dailySeries`); the card draws it when present.
+   */
+  series?: number[];
 }
 
 /**

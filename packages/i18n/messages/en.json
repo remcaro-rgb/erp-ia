@@ -67,6 +67,10 @@
       "assigned_on_create": "No. and uuid are assigned on creation",
       "open_in_new_tab": "Open in a new tab",
       "pending": "Pending",
+      "duplicate": "Duplicate",
+      "copy_of": "Copy of {name}",
+      "copy_note": "Fill in what identifies the record. Contacts, photos and files are not copied.",
+      "duplicate_failed": "The record could not be duplicated: {reason}",
       "dian": {
         "complete": "DIAN: complete",
         "missing": "DIAN: {count, plural, one {# item missing} other {# items missing}}",
@@ -183,7 +187,13 @@
       "step_up_code": "6-digit code",
       "step_up_failed": "The code is not valid. Try again.",
       "step_up_cancel": "Cancel",
-      "save_hint": "Ctrl+S saves"
+      "save_hint": "Ctrl+S saves",
+      "dian_hints": "Show DIAN codes",
+      "copy_field": "Copy {field}",
+      "copied": "Copied",
+      "copy_failed": "Could not copy",
+      "combo_empty": "No matches",
+      "combo_more": "{count} more: type to narrow"
     },
     "party_form": {
       "identification": "Identification",
@@ -196,6 +206,7 @@
       "alnum": "letters and digits",
       "dv": "CD",
       "dv_title": "Computed with the DIAN algorithm",
+      "copy_id": "identification",
       "doc_digits": "Digits only",
       "doc_alnum": "Letters and digits only",
       "doc_max": "At most {count} characters",
@@ -258,7 +269,6 @@
       "sku": "Internal code",
       "sku_hint": "SKU · max. {count}",
       "description": "Description on the invoice",
-      "description_hint": "cbc:Description · max. {count}",
       "kind": "Type",
       "kind_good": "Good",
       "kind_service": "Service",
@@ -359,7 +369,8 @@
         "author_agent": "Support",
         "loading_failed": "The ticket could not be loaded.",
         "reported_by": "Reported by",
-        "hidden": "Hidden for your role"
+        "hidden": "Hidden for your role",
+        "copy_note": "Check the title and the description. The ticket's messages and files are not copied."
       }
     },
     "admin": {
@@ -370,7 +381,18 @@
       "saved": "Changes saved",
       "failed": "Could not save: {reason}",
       "process": "Process {process}",
-      "step_up_note": "Every change asks for the 6-digit code of your authenticator app and is recorded in the audit log.",
+      "pending_changes": "{count, plural, one {# change not applied} other {# changes not applied}}",
+      "pending_cell": "{label} (not applied)",
+      "apply_changes": "Apply changes",
+      "discard_changes": "Discard",
+      "batch_note": "They are applied together with one verification code and recorded in the audit log.",
+      "no_pending": "No pending changes · changes add up and are applied together with one verification code.",
+      "leave_title": "There are changes not applied",
+      "leave_body": "{count, plural, one {# change is lost} other {# changes are lost}} if you leave without applying them.",
+      "leave_stay": "Keep editing",
+      "leave_go": "Leave without applying",
+      "refused_changes": "{count, plural, one {# change refused} other {# changes refused}}",
+      "refused_elsewhere": "also in {entities}",
       "kind": {
         "create": "create",
         "update": "update",
@@ -396,7 +418,11 @@
         "col_kind": "Action",
         "step_up": "2FA",
         "step_up_title": "This process always asks for two-step verification",
-        "admin_locked": "The admin role holds every permission"
+        "admin_locked": "The admin role holds every permission",
+        "all": "all",
+        "none": "none",
+        "grant_module": "{mode, select, none {Take from {role} every process of {module}} other {Give {role} every process of {module}}}",
+        "admin_only": "Only the admin role runs the administration processes"
       },
       "roles": {
         "title": "Roles",
@@ -445,11 +471,37 @@
         "create": "Create and invite",
         "create_hint": "An invitation is sent by e-mail: the person sets their password and turns on two-step verification in their profile.",
         "edit_title": "User · {name}",
-        "edit_roles": "Edit roles",
-        "edit_hint": "Role changes apply at the user's next sign-in.",
+        "edit_hint": "Details and status change at once; new roles apply at the user's next sign-in.",
         "save": "Save",
         "created": "User created and invitation sent to {email}",
-        "name_required": "The name is required"
+        "name_required": "The name is required",
+        "edit": "Edit",
+        "locale": "Language",
+        "locale_es_419": "Spanish (Latin America)",
+        "locale_en": "English",
+        "col_state": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "deactivate": "Deactivate",
+        "reactivate": "Reactivate",
+        "deactivate_title": "Deactivate {name}?",
+        "deactivate_body": "{name} will not be able to sign in or do anything in the company. Their roles and history are kept, and you can reactivate them at any time.",
+        "reactivate_title": "Reactivate {name}?",
+        "reactivate_body": "{name} will be able to sign in again, with the same roles as before.",
+        "deactivate_self": "You cannot deactivate your own account",
+        "nothing_changed": "You did not change anything",
+        "open": "Open the page of {name}",
+        "page": {
+          "data": "Details",
+          "access": "Access",
+          "mfa": "Two-step verification",
+          "mfa_on": "On",
+          "mfa_off": "Not set up",
+          "last_activity": "Last activity",
+          "no_activity": "No activity recorded",
+          "back": "Users",
+          "photo_alt": "Photo of {name}"
+        }
       },
       "fields": {
         "title": "Visibility by field and role",
@@ -578,6 +630,8 @@
         "limit": "Company cap",
         "limit_none": "No cap",
         "limit_note": "above it the assistant answers consult questions only, without the model",
+        "cap_reached": "cap reached: the assistant answers questions only",
+        "warn_at": "warning at 80 %",
         "per_user": "By user",
         "per_model": "By model",
         "col_user": "User",
@@ -602,7 +656,20 @@
         "permissions": "Permissions"
       },
       "audit": {
-        "hint": "Table kernel.audit_log · insert only, row trigger, causal chain. Every action of the interface, the assistant, the scheduler and the events leaves a trace with its origin."
+        "hint": "Table kernel.audit_log · insert only, row trigger, causal chain. Every action of the interface, the assistant, the scheduler and the events leaves a trace with its origin. Open a row to see each field that changed, with its previous and its new value.",
+        "system": "system",
+        "cloned_from": "cloned from",
+        "detail": {
+          "changes": "Changes",
+          "no_changes": "This entry changed no field.",
+          "no_fields": "No field detail: an internal system table without a field catalogue.",
+          "input": "Data received",
+          "code": "Reason",
+          "source": "Cloned from",
+          "direct": "Direct change in the database",
+          "failed": "The entry could not be loaded.",
+          "masked": "Value masked for your role"
+        }
       }
     },
     "not_found": {
@@ -755,7 +822,8 @@
     "kernel": {
       "import": "Import",
       "export_job": "Export",
-      "audit": "Audit"
+      "audit": "Audit",
+      "user": "User"
     },
     "support": {
       "ticket": "Ticket",
@@ -950,7 +1018,16 @@
         "actor": "Actor",
         "chain_id": "Chain",
         "actor_user_id": "Actor id",
-        "conversation_id": "Assistant conversation"
+        "conversation_id": "Assistant conversation",
+        "source_row_id": "Cloned from"
+      },
+      "user": {
+        "full_name": "Name",
+        "email": "Email",
+        "locale": "Language",
+        "mobile": "Mobile",
+        "created_at": "Created",
+        "is_active": "Active"
       }
     },
     "support": {
@@ -1000,7 +1077,8 @@
       "data": "Assistant data queries",
       "home": "Home screen: indicators, recommendations and recent records",
       "admin": "Administration",
-      "audit": "Company audit"
+      "audit": "Company audit",
+      "users": "Company users"
     },
     "support": {
       "tickets": "Support tickets"
@@ -1081,7 +1159,13 @@
       "col_row": "Row",
       "col_result": "Result",
       "row_ok": "valid",
-      "row_bad": "error",
+      "row_bad": "Row with error",
+      "only_errors": "Only rows with errors ({count})",
+      "errors_show": "Show",
+      "errors_hide": "Hide",
+      "errors_show_label": "Show the errors of row {row}",
+      "errors_hide_label": "Hide the errors of row {row}",
+      "errors_of_row": "Errors of row {row}",
       "partial": "The first {shown} of {total} rows were checked; the import checks them all.",
       "missing_columns": "Required columns are missing: {columns}. Every row would be rejected.",
       "unknown_headers": "Columns that are not imported: {headers}",
@@ -1132,6 +1216,7 @@
       "saved": "View saved: {name}",
       "none": "No saved views",
       "remove": "Delete the view {name}",
+      "confirm_remove": "Delete {name}?",
       "apply": "Apply the view {name}",
       "is_default": "default",
       "failed": "The view could not be saved"
@@ -1143,7 +1228,7 @@
     "new": "New",
     "rows": "Rows {from}–{to} of {total}",
     "per_page": "{count} / page",
-    "sum_filtered": "Filtered {label} total: {amount}",
+    "totals": "Total",
     "selection_sum": "Selected {label}: {amount}",
     "select_all": "Select every row on the page",
     "select_row": "Select row",
@@ -1160,8 +1245,13 @@
     "date_to": "To",
     "empty_filtered": "No results with these filters",
     "masked_value": "Masked for your role",
+    "open_record": "Open {label}",
     "columns_shown": "{shown} of {total} columns shown",
     "columns_reset": "Reset columns",
+    "columns_pinned": "pinned",
+    "column_up": "Move {label} up",
+    "column_down": "Move {label} down",
+    "column_moved": "Column {label} moved to position {position}",
     "advanced_count": "Advanced filter ({count})",
     "remove_condition": "Remove condition",
     "load_failed": "The list could not be loaded.",
@@ -1357,6 +1447,7 @@
       "resize": "Resize {title}",
       "move": "Move {title}",
       "move_hint": "Drag to move. Also: Alt + arrow keys",
+      "mode_hint": "Move mode: arrows move the card, Shift + arrows resize it, Esc ends.",
       "size": "{columns}/4 · {height} px",
       "reset_done": "Cards reset"
     },
@@ -1368,6 +1459,7 @@
     },
     "kpi": {
       "empty": "There are no indicators to show with your permissions.",
+      "trend": "{days}-day trend: from {from} to {to}",
       "core_parties": {
         "label": "Active parties",
         "label_total": "Parties",
@@ -1547,7 +1639,8 @@
       "no_factor": "You do not have a second step turned on.",
       "mfa_required": "Verify your second step first to change it.",
       "too_many_attempts": "Too many attempts, wait a few minutes.",
-      "unavailable": "We could not reach the sign-in service. Please try again."
+      "unavailable": "We could not reach the sign-in service. Please try again.",
+      "account_disabled": "Account disabled. Contact an administrator."
     }
   },
   "errors": {

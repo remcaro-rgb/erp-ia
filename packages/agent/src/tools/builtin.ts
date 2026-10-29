@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { gridDenial, gridEntity, knownRoutes, type Caller, type Registry, type ResolvedEntityDef, type RunProcessDeps } from "@erp/kernel";
+import { gridDenial, gridEntity, hasRecordPage, knownRoutes, recordHref, type Caller, type Registry, type ResolvedEntityDef, type RunProcessDeps } from "@erp/kernel";
 import { refusal, type ToolDescriptor, type ToolRefusal } from "./descriptor";
 import { inputJsonSchema } from "./from-registry";
 
@@ -34,9 +34,9 @@ const withEntityEnum = (schema: z.ZodType, entities: string[]) => {
   return json as ToolDescriptor["inputSchema"];
 };
 
-/** The built-in tools for the caller: the record tool only when they may read some entity. */
+/** The built-in tools for the caller: the record tool only when they may read some entity whose records have a page. */
 export async function builtinToolDescriptors(deps: RunProcessDeps, caller: Caller, registry: Registry): Promise<ToolDescriptor[]> {
-  const entities = (await consultableEntities(deps, caller, registry)).map((e) => e.id);
+  const entities = (await consultableEntities(deps, caller, registry)).filter(hasRecordPage).map((e) => e.id);
   const description = (name: BuiltinName) => BUILTIN_TOOLS.find((t) => t.name === name)!.description;
   const navigate = inputJsonSchema(NavigateInput) as { properties: Record<string, Record<string, unknown>> };
   navigate.properties.href = { ...navigate.properties.href, examples: knownRoutes(registry) };
@@ -69,7 +69,9 @@ export async function runBuiltin(deps: RunProcessDeps, name: BuiltinName, input:
       if (!parsed.success) return invalid(parsed.error);
       const entity = gridEntity(deps.registry, parsed.data.entity);
       if (!entity) return refusal("not_found", { message: `unknown entity ${parsed.data.entity}` });
-      return { action: "open_record", href: `/r/${entity.id}/${parsed.data.id}` };
+      // Only a record with a page opens, where every link to it leads (rule 21: a user under Administración › Usuarios).
+      if (!hasRecordPage(entity)) return refusal("invalid_input", { message: `${entity.id} has no page of its own` });
+      return { action: "open_record", href: recordHref(entity.id, parsed.data.id) };
     }
   }
 }

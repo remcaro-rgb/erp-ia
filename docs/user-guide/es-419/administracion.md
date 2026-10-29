@@ -18,9 +18,12 @@ processes:
   - kernel.admin.role.update
   - kernel.admin.user_role.set
   - kernel.admin.user.create
+  - kernel.admin.user.update
   - kernel.admin.permission.set
+  - kernel.admin.permission.set_many
   - kernel.admin.permission.matrix
   - kernel.admin.field_permission.set
+  - kernel.admin.field_permission.set_many
   - kernel.admin.sensitive_process.set
   - kernel.admin.module.enable
   - kernel.admin.module.disable
@@ -32,6 +35,7 @@ processes:
   - kernel.custom_field.set
   - kernel.custom_field.remove
   - kernel.audit.consult
+  - kernel.audit.entry
 ---
 
 # Administración de la empresa
@@ -43,6 +47,8 @@ Solo la ve quien tiene el rol **admin** de la empresa. Ábrela desde el menú **
 ## Cada cambio pide tu código
 
 Todos los cambios de administración son **acciones sensibles**: al guardar, el sistema te pide el **código de 6 dígitos** de tu app de autenticación (guía **Ingresar y verificación en dos pasos**). El cursor queda en la caja del código y al sexto dígito se envía solo; **Esc** cancela. Cada código vale para una sola acción, durante 5 minutos, y solo para ti. Todos los cambios quedan en la **auditoría** con quién, cuándo y qué cambió.
+
+En las matrices de **Permisos** y **Visibilidad de campos** los cambios se acumulan y se aplican juntos: un solo código para todas las casillas que marcaste (ver abajo).
 
 Consultar las pantallas no pide código: solo cambiar. Tampoco lo piden la matriz de permisos ni el informe de uso de IA cuando se los pides al asistente.
 
@@ -74,15 +80,61 @@ La persona recibe una **invitación por correo**: con el enlace define su contra
 - Si la persona ya es usuaria de **otra empresa de tu misma organización**, no se le envía otra invitación: se le agrega a esta empresa con los roles elegidos y conserva sus datos (nombre, celular, foto).
 - Si el correo ya pertenece a **otra organización**, el sistema no lo agrega y responde «Ese correo ya pertenece a otra organización». Cada cuenta pertenece a una sola organización.
 
-Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuario conserva siempre al menos un rol, y nadie puede quitarse su propio rol admin. Los cambios de rol aplican la próxima vez que la persona inicia sesión.
+En la lista, el nombre de cada persona abre su **página de usuario**, y la columna **Estado** dice si está **Activo** o **Inactivo**.
+
+## Usuarios: editar y desactivar
+
+### La página de un usuario
+
+Ábrela con el nombre de la persona en **Usuarios**, o con cualquier enlace a ella: el **Actor** de la auditoría, quien reportó un ticket. Muestra:
+
+- **Datos**: nombre, correo (con él inicia sesión), celular e idioma, con su foto arriba.
+- **Acceso**: sus **roles** (cada uno con enlace a **Roles**), si tiene la **verificación en dos pasos** (**Activa** o **No configurada**), su **estado** y su **última actividad**: la fecha y hora de lo último que hizo en la empresa según la auditoría (por ejemplo, su último inicio de sesión). Si nunca hizo nada, dice «Sin actividad registrada».
+
+Solo el administrador ve estas páginas.
+
+### Editar
+
+1. Pulsa **Editar** en la página del usuario, o en su fila de **Usuarios**.
+2. Cambia lo que necesites: **Nombre completo**, **Celular** (con su indicativo), **Idioma**, **Foto** (o **Quitar la foto**) y los **roles** (al menos uno). El correo no se cambia: es con lo que la persona inicia sesión.
+3. Pulsa **Guardar** e ingresa tu código.
+
+Solo se guarda lo que cambiaste, y la auditoría registra cada dato con su valor anterior y el nuevo (la foto aparece como «(foto)», nunca la imagen). Mientras no cambies nada, **Guardar** sigue apagado. Cada usuario conserva siempre al menos un rol, y nadie puede quitarse su propio rol admin. Los datos cambian de inmediato; un rol nuevo aplica la próxima vez que la persona inicia sesión, y uno que le quitas deja de valer al momento.
+
+### Desactivar y reactivar
+
+Cuando una persona deja la empresa, o no debe entrar por un tiempo, **desactívala**:
+
+1. En su página pulsa **Desactivar**.
+2. Confirma en «¿Desactivar a …?» con **Desactivar** e ingresa tu código.
+
+Desde ese momento la persona **no puede iniciar sesión** («Cuenta desactivada. Contacta a un administrador.»). Si tenía una sesión abierta, el sistema le niega todo al instante: no puede guardar ni ejecutar ningún proceso, abrir pantallas ni usar el asistente. Lo que una pestaña que ya tenía abierta le pida al servidor (por ejemplo, la página siguiente de un listado) se rechaza, y en cuanto cambia de pantalla, recarga o le escribe al asistente, el sistema cierra su sesión con el mismo aviso. Si la persona trabaja también en otra empresa donde sigue activa, en vez de cerrar su sesión el sistema la pasa a esa empresa. No se borra nada: conserva sus roles, su nombre sigue en los registros y en la auditoría, y su página la muestra **Inactivo**.
+
+Para devolverle el acceso, pulsa **Reactivar** en su página, confirma e ingresa tu código: vuelve a entrar con los mismos roles que tenía.
+
+- **No puedes desactivar tu propia cuenta**: el botón aparece apagado en tu página.
+- La empresa necesita **al menos un administrador activo**: no se puede desactivar al último que tiene el rol admin.
 
 ## Permisos
 
-**Permisos** es la matriz de procesos por rol: cada fila es un proceso (agrupados por módulo), con su identificador, la acción (crear, actualizar, eliminar, consultar) y debajo la **entidad** sobre la que actúa (Tercero, Producto, Importación…). Cada columna es un rol. La columna del proceso queda fija a la izquierda cuando desplazas los roles hacia los lados, y el resultado de cada cambio («Cambios guardados» o el motivo del rechazo) aparece en la barra fija debajo de la matriz, así la tabla no se mueve mientras marcas casillas. La matriz de **Visibilidad de campos** funciona igual.
+**Permisos** es la matriz de procesos por rol: cada fila es un proceso (agrupados por módulo), con su identificador, la acción (crear, actualizar, eliminar, consultar) y debajo la **entidad** sobre la que actúa (Tercero, Producto, Importación…). Cada columna es un rol. La columna del proceso queda fija a la izquierda cuando desplazas los roles hacia los lados, y toda la celda sirve para marcar la casilla.
 
-Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**, e ingresa tu código. El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
+Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**. Con el teclado, ve a la casilla con **Tab** y pulsa **Espacio**. Los cambios no se guardan uno por uno: cada casilla cambiada queda **pendiente** (con un borde de color) y la barra fija debajo de la matriz cuenta cuántos hay, por ejemplo «3 cambios sin aplicar». Si vuelves a dejar una casilla como estaba, deja de contar.
 
-La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: no se pueden dar a otro rol. Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
+Para un rol nuevo, usa **todos** en la fila de un módulo: marca de una vez todos los procesos de ese módulo para ese rol (menos los de administración, que son solo del rol admin). Si el rol ya los tiene todos, el mismo botón dice **ninguno** y los quita.
+
+Cuando termines:
+
+1. Pulsa **Aplicar cambios** e ingresa tu código. Todos los cambios se aplican juntos, con **un solo código**, y quedan en la auditoría como una sola acción con la lista de cambios (`kernel.admin.permission.set_many`).
+2. O pulsa **Descartar** para dejar la matriz como estaba.
+
+Si algún cambio no se puede aplicar (por ejemplo, porque otro administrador quitó ese rol mientras tanto), **no se aplica ninguno**: la casilla con el problema queda marcada en rojo, la barra dice cuántos cambios se rechazaron y por qué, y los demás cambios siguen pendientes. Corrige esa casilla y vuelve a pulsar **Aplicar cambios**. Si sales de la pantalla con cambios pendientes (con un enlace, el menú, las pestañas o el botón **Atrás** del navegador), el sistema te pregunta si quieres **Seguir editando** o **Salir sin aplicar**; al recargar o cerrar la pestaña pregunta el navegador.
+
+El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
+
+La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: sus casillas están bloqueadas en los demás roles. Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
+
+El asistente también puede cambiar un permiso o la visibilidad de un campo, de a uno, con tu confirmación y tu código.
 
 ## Visibilidad de campos
 
@@ -90,6 +142,8 @@ Elige la **Entidad** (Tercero, Producto…) y, para cada campo y cada rol, si se
 
 - **Enmascarado**: el campo aparece pero sin su valor.
 - **Oculto**: el campo no aparece.
+
+Como en **Permisos**, cada cambio queda pendiente hasta que pulsas **Aplicar cambios** e ingresas tu código: puedes cambiar campos de varias entidades y aplicarlos todos juntos (`kernel.admin.field_permission.set_many`), o **Descartar**. Si se rechaza un cambio de una entidad que no estás viendo, la barra dice en cuál está.
 
 Aplica igual en los listados, los formularios, las exportaciones y las respuestas del asistente. Un campo enmascarado u oculto no se puede usar para ordenar ni filtrar. Los campos marcados **confidencial** empiezan enmascarados en cada rol nuevo y en los roles que ya existían cuando el campo apareció. El rol admin ve todos los campos, aunque tenga además otro rol que los enmascare.
 
@@ -130,7 +184,7 @@ Cambia la **razón social**, el **nombre comercial** y la **zona horaria** de la
 
 Muestra, para el mes elegido (en la zona horaria de la empresa):
 
-- **Tokens del mes** con la barra frente al **tope mensual** de la empresa.
+- **Tokens del mes** con una barra frente al **tope mensual** de la empresa: dos marcas señalan el 80 % (aviso) y el 100 % (tope), y el porcentaje está escrito al lado. Al llegar al tope la barra se pone roja y el texto dice «límite alcanzado: el asistente solo responde consultas».
 - **Costo estimado** en dólares.
 - El detalle **por usuario** (llamadas, tokens y costo) y **por modelo**.
 
@@ -143,27 +197,48 @@ La **Auditoría** muestra todo lo que pasó en la empresa: cada creación, cambi
 Cada fila es una entrada, de la más reciente a la más antigua:
 
 - **Fecha**: cuándo ocurrió, en la zona horaria de la empresa.
-- **Origen**: desde dónde se hizo. **ui** es la pantalla, **agent** el asistente (después de que la persona confirmó la tarjeta), **scheduler** una tarea programada, **event** una reacción automática a otro cambio, **api** un programa externo o la carga de datos de demostración, y **db** un cambio hecho directamente en la base de datos.
-- **Proceso**: la acción del sistema, por ejemplo `core.party.create` (crear un tercero) o `kernel.export.run` (exportar un listado).
-- **Entidad** y **Registro**: qué tabla y qué registro cambió (el identificador del registro).
+- **Origen**: desde dónde se hizo. **ui** es la pantalla, **agent** el asistente (después de que la persona confirmó la tarjeta), **scheduler** una tarea programada, **event** una reacción automática a otro cambio, **api** un programa externo o la carga de datos de demostración, y **db** un cambio hecho directamente en la base de datos. Si el registro se creó con **Duplicar**, al lado dice **clonado desde** y el registro de origen, con enlace.
+- **Proceso**: la acción del sistema con su descripción, por ejemplo «Crea un tercero (cliente, proveedor o empleado) con sus datos fiscales DIAN», y debajo su identificador (`core.party.create`). Pasa el puntero por la descripción para leerla completa.
+- **Entidad**: el nombre de lo que cambió (**Tercero**, **Producto**, **Categoría de producto**…). Las tablas internas del sistema, que no tienen nombre, se muestran con su identificador.
+- **Registro**: el nombre del registro, con enlace a su ficha. Si no tienes acceso a ese registro, o no tiene ficha, se ve su identificador corto.
 - **Acción**: **Creó**, **Cambió**, **Eliminó**, **Consultó** o **Denegado** (un intento sin permiso o sin el código de verificación).
-- **Actor**: el correo de quien lo hizo. Lo que hace el asistente queda a nombre de la persona que lo pidió.
+- **Actor**: el nombre de quien lo hizo, con enlace a su página de usuario, y su correo debajo. Lo que hace el asistente queda a nombre de la persona que lo pidió; lo que hace el sistema por su cuenta dice **sistema**.
 - **Cadena**: el identificador que une todo lo que provocó una misma acción. Filtra por una cadena para ver, por ejemplo, la creación de un tercero y los cambios que desencadenó.
 
-Para encontrar algo:
+### Ver qué cambió
+
+Haz clic en una fila (o selecciónala con las flechas y pulsa **Enter**) para abrir su detalle a la derecha. Arriba están la descripción del proceso, cuándo, qué acción y desde dónde; luego el proceso, la entidad, el registro, el registro de origen si fue un duplicado, el actor y la cadena, con sus enlaces.
+
+En **Cambios** aparece cada campo que cambió, con su nombre y su valor anterior y el nuevo, así:
+
+> Nombre comercial · — → Bosque QA
+
+El guion (**—**) significa que el campo estaba vacío. Los valores se leen como en los formularios: el tipo de tercero dice **Cliente**, el tipo de documento **31 · NIT**, el municipio **Bogotá D.C.**, el dinero **$ 1.500.000,00** y las fechas van en la zona horaria de la empresa. Si abres la fila del proceso o la del cambio del registro, ves los mismos cambios.
+
+En una creación o en un intento denegado aparece también **Datos recibidos**: lo que se envió al crear el registro, o el motivo del rechazo (por ejemplo «No tienes permiso para hacer esto.») y el proceso que se intentó.
+
+Las entradas de tablas internas del sistema (por ejemplo, las tarjetas de confirmación del asistente) dicen **Sin detalle de campos**: no tienen un catálogo de campos ni reglas de visibilidad, así que el detalle no muestra sus valores. Los códigos de acceso, claves y contraseñas nunca quedan en la auditoría.
+
+Los valores respetan la visibilidad de campos de quien consulta: un campo enmascarado para su rol se ve como **••••••** antes y después, y un campo oculto no aparece. Pulsa **Esc** o **✕** para cerrar el detalle.
+
+### Buscar y exportar
 
 1. Escribe en el filtro de una columna, por ejemplo `core.party.create` bajo **Proceso**, o elige **agent** en **Origen**.
 2. Usa **Filtro avanzado** para combinar condiciones (por ejemplo, un actor **y** un rango de fechas).
 3. Pulsa **PDF**, **Excel** o **CSV** para llevarte exactamente las filas filtradas (guía **Exportar un listado a PDF, Excel o CSV**). Guarda la búsqueda con **Guardar vista** si la repites.
 
-La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, puede cambiar ni borrar una entrada, y se conserva 10 años. No muestra los valores que cambiaron: para ver un dato, abre el registro, donde se aplica la visibilidad de campos de tu rol. Consultar la auditoría queda, a su vez, en la auditoría.
+La exportación lleva las columnas visibles con sus identificadores, sin los valores anteriores y nuevos de cada campo: esos solo se ven en el detalle, con la visibilidad de campos aplicada.
+
+La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, puede cambiar ni borrar una entrada, y se conserva 10 años. Consultar la auditoría o abrir el detalle de una entrada queda, a su vez, en la auditoría.
 
 ## Preguntas frecuentes
 
 **¿Por qué no veo Administración?** Solo la ve quien tiene el rol admin de la empresa.
 
+**Marqué varias casillas y no pasó nada.** Los cambios de las matrices quedan pendientes hasta que pulsas **Aplicar cambios** en la barra de abajo e ingresas tu código.
+
 **Le di un permiso a un rol y la persona no lo ve.** Pídele que recargue la página. Si le asignaste un rol nuevo, debe salir e iniciar sesión de nuevo.
 
-**¿Puedo borrar un rol o un usuario?** En esta versión no: quita los permisos del rol o los roles del usuario.
+**¿Puedo borrar un rol o un usuario?** En esta versión no. A un usuario lo **desactivas** (pierde el acceso y conserva su historial); a un rol le quitas sus permisos.
 
 **¿Puedo borrar o corregir una entrada de la auditoría?** No. La auditoría es de solo inserción para todos; si algo se hizo mal, corrígelo en el registro y la corrección quedará como una entrada nueva.

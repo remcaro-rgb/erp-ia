@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
 // The home screen in a real browser (design §19a, rules 25 and 28, prototype `renderHome`): the widget dashboard whose cards
@@ -32,7 +33,7 @@ test.describe("home dashboard", () => {
   let recLink: string;
 
   /** Titles of the cards in the order they are on the page. */
-  const order = (page: Page) => page.getByTestId("dashboard-grid").getByRole("region").evaluateAll((cards) => cards.map((c) => c.getAttribute("aria-label")));
+  const order = (page: Page) => page.getByTestId("dashboard-grid").filter({ visible: true }).getByRole("region").evaluateAll((cards) => cards.map((c) => c.getAttribute("aria-label")));
   const saved = async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and company_id = ${companyId} and key = 'home_layout'`)[0]?.value?.value as
     | { id: string; w: number; h: number }[]
     | undefined;
@@ -40,7 +41,7 @@ test.describe("home dashboard", () => {
   /** Reloads and waits for the dashboard to be drawn again. */
   const reload = async (page: Page) => {
     await page.reload();
-    await expect(page.getByTestId("dashboard-grid")).toBeVisible();
+    await expect(page.getByTestId("dashboard-grid").filter({ visible: true })).toBeVisible();
   };
 
   test.beforeAll(async () => {
@@ -94,6 +95,9 @@ test.describe("home dashboard", () => {
     await expect(kpis.getByText("Uso de IA del mes")).toBeVisible();
     // No support module here: no ticket card.
     await expect(kpis.getByText("Tickets de soporte")).toHaveCount(0);
+    // Each count card draws its 14-day trend (OD-9) with an accessible name; the strip says once when it was read.
+    await expect(kpis.locator('[data-kpi="core.parties"] svg[role="img"]')).toHaveAccessibleName(/^Tendencia 14 días: de \d+ a \d+$/);
+    await expect(kpis.locator('svg[role="img"]').first()).toBeVisible();
     // A snapshot says when it was read, and the size hint stays out of sight until the card is resized or focused.
     await expect(kpis.getByText(/^Actualizado \d{2}:\d{2}$/)).toBeVisible();
     await page.mouse.click(5, 5);
@@ -116,7 +120,7 @@ test.describe("home dashboard", () => {
 
     // Resize the first card (4 columns) to 2 from its corner: drag left by two columns; the height follows the drag too.
     const card = page.getByRole("region", { name: "Registros recientes" });
-    const grid = page.getByTestId("dashboard-grid");
+    const grid = page.getByTestId("dashboard-grid").filter({ visible: true });
     const gridBox = (await grid.boundingBox())!;
     const column = (gridBox.width - 36) / 4;
     const before = (await card.boundingBox())!;
@@ -153,7 +157,7 @@ test.describe("home dashboard", () => {
 
   test("the dashboard works from the keyboard", async ({ page }) => {
     await signIn(page, fixture);
-    await expect(page.getByTestId("dashboard-grid")).toBeVisible();
+    await expect(page.getByTestId("dashboard-grid").filter({ visible: true })).toBeVisible();
     const handle = page.getByRole("button", { name: "Mover Ayuda rápida" });
     await handle.focus();
     await page.keyboard.press("Alt+ArrowLeft");

@@ -229,6 +229,44 @@ describe("home screen processes", () => {
       expect(logged).toHaveBeenCalledWith(expect.stringContaining("probe.broken"), expect.anything());
     });
 
+    describe("series of the AI usage card", () => {
+      type Card = { id: string; unit: string; series?: number[] };
+      const card = async (caller: Caller) => (await run<{ kpis: Card[] }>(caller, "kernel.home.kpis")).kpis.find((k) => k.id === "kernel.ai_tokens")!;
+      /** `tokens` input+output used `daysAgo` days ago (company-local day, at `time`) by `user` in `company`. */
+      const usage = (company: string, user: string, daysAgo: number, time: string, input: number, output: number) =>
+        sql`insert into kernel.llm_usage (company_id, user_id, task, provider, model, input_tokens, output_tokens, created_at)
+            values (${company}, ${user}, 'chat', 'test', 'test', ${input}, ${output},
+                    (((now() at time zone 'America/Bogota')::date - ${daysAgo}::int + ${time}::time) at time zone 'America/Bogota'))`;
+
+      beforeAll(async () => {
+        await usage(companyA, seed.users.cashier!, 2, "10:00", 100, 50);
+        await usage(companyA, seed.users.cashier!, 2, "15:00", 10, 5);
+        // 23:30 in Bogota is already the next day in UTC: it still belongs to the company's day.
+        await usage(companyA, seed.users.clerk!, 1, "23:30", 400, 100);
+        await usage(companyA, seed.users.cashier!, 13, "00:30", 7, 3);
+        // Older than the window, and another company's: neither counts.
+        await usage(companyA, seed.users.cashier!, 14, "12:00", 999, 1);
+        await usage(companyB, seed.users.both, 2, "12:00", 5000, 5000);
+      });
+
+      const expected = (byDaysAgo: Record<number, number>) => Array.from({ length: 14 }, (_, i) => byDaysAgo[13 - i] ?? 0);
+
+      it("is 14 daily token totals of the company for its admin, oldest first, by the company's own days", async () => {
+        const kpi = await card(admin);
+        expect(kpi.series).toHaveLength(14);
+        expect(kpi.series).toEqual(expected({ 2: 165, 1: 500, 13: 10 }));
+      });
+
+      it("is the caller's own tokens for anyone else (the usage view shows them only their rows)", async () => {
+        expect((await card(cashier)).series).toEqual(expected({ 2: 165, 13: 10 }));
+        expect((await card(clerk)).series).toEqual(expected({ 1: 500 }));
+      });
+
+      it("stays in the other company for its admin", async () => {
+        expect((await card(adminInB)).series).toEqual(expected({ 2: 10000 }));
+      });
+    });
+
     it("is refused to a role without the permission, like any consult", async () => {
       await sql`delete from kernel.process_permissions where company_id = ${companyA} and role_id = ${seed.companies[0]!.memberRoleId} and process_id = 'kernel.home.kpis'`;
       await expect(run(cashier, "kernel.home.kpis")).rejects.toMatchObject({ code: "forbidden" });

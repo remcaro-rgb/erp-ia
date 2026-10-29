@@ -23,6 +23,18 @@ export interface EntityDef {
    * earlier row of the same file on them, in the preview as in the run.
    */
   importKey?: string[];
+  /**
+   * Fields a clone leaves empty (rule 37, design §22.13): the record's unique and identity fields (document number and
+   * its DV, SKU, consecutive) and the state the server derives (DIAN status, invoice readiness). "Duplicar" starts the
+   * entity's create form from the source's visible data without them; the server-managed columns (id, seq, company,
+   * timestamps, actors), secret columns, files and child records are never copied whatever this lists.
+   */
+  cloneReset?: string[];
+  /**
+   * The entity's records have a page of their own that a link can open (rule 21, design §22.15): the record frame at
+   * /r/<entity id>/<id>, or for the kernel's users their page under Administración › Usuarios (`recordHref`).
+   */
+  recordPage?: boolean;
 }
 
 export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFieldDef[] };
@@ -30,7 +42,8 @@ export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFi
 /**
  * Validates an entity declaration and returns it with every field default applied. Throws on
  * malformed identifiers, duplicate field names, an unknown `displayField` / `defaultSort.field`,
- * `ref` fields without a valid target and `enum` fields without values.
+ * `ref` fields without a valid target, `enum` fields without values and `importKey` / `cloneReset` names that are not
+ * fields.
  */
 export function defineEntity(def: EntityDef): ResolvedEntityDef {
   if (!ENTITY_ID.test(def.id)) throw new Error(`entity ${def.id}: id must look like "module.name"`);
@@ -47,8 +60,11 @@ export function defineEntity(def: EntityDef): ResolvedEntityDef {
   for (const key of def.importKey ?? []) {
     if (!names.has(key)) throw new Error(`entity ${def.id}: importKey ${key} is not a field`);
   }
+  for (const name of def.cloneReset ?? []) {
+    if (!names.has(name)) throw new Error(`entity ${def.id}: cloneReset ${name} is not a field`);
+  }
   if (!names.has(def.defaultSort.field)) {
     throw new Error(`entity ${def.id}: defaultSort.field ${def.defaultSort.field} is not a field`);
   }
-  return { ...def, defaultSort: { ...def.defaultSort }, fields };
+  return { ...def, defaultSort: { ...def.defaultSort }, ...(def.cloneReset ? { cloneReset: [...def.cloneReset] } : {}), fields };
 }

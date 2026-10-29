@@ -1,5 +1,5 @@
 import type { ModelMessage } from "ai";
-import { getServiceDb, registry, type Caller } from "@erp/kernel";
+import { getServiceDb, membershipInactive, registry, type Caller } from "@erp/kernel";
 import { builtinToolDescriptors } from "../tools/builtin";
 import type { ToolDescriptor } from "../tools/descriptor";
 import { executeTool } from "../tools/execute";
@@ -27,6 +27,7 @@ export interface TurnArgs {
 
 export type Prepared =
   | { kind: "not_found" }
+  | { kind: "membership_inactive" }
   | { kind: "over_budget"; message: string }
   | { kind: "ready"; model: ModelChoice; system: string; tools: ToolDescriptor[]; messages: ModelMessage[] };
 
@@ -36,14 +37,17 @@ const toolCaller = (args: TurnArgs): Caller => ({ ...args.caller, origin: "agent
 const deps = () => ({ sql: getServiceDb(), registry });
 
 /**
- * Checks and stores the user's message, then gathers what the model needs. Nothing is stored for a conversation that
- * is not the caller's in their active company. Over the token allowance, the turn stops before any model call.
+ * Checks and stores the user's message, then gathers what the model needs. Nothing is stored for a caller whose
+ * membership in the active company is inactive (design §22.16: the check runProcess's gate makes, whichever channel
+ * started the turn) nor for a conversation that is not the caller's there. Over the token allowance, the turn stops
+ * before any model call.
  */
 export async function prepare(args: TurnArgs, runId: string): Promise<Prepared> {
   // A worker without the app's modules cannot resolve a process: fail the step (it is retried) rather than the turn.
   if (registry.modules().length === 0) throw new Error("agent: no modules loaded in worker");
   const { sql } = deps();
   const { claims } = args.caller;
+  if (await membershipInactive(sql, claims)) return { kind: "membership_inactive" };
   if (!(await ownsConversation(sql, claims, args.conversationId))) return { kind: "not_found" };
 
   await appendMessage(sql, {

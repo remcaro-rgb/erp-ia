@@ -1,7 +1,7 @@
 import { agentStreamResponse, agentTurn, createConversation, ownsConversation } from "@erp/agent";
 import { start } from "workflow/api";
 import { z } from "zod";
-import { callerOrResponse } from "@/lib/auth/http";
+import { activeCallerOrResponse } from "@/lib/auth/http";
 import { processFailure, processProblem } from "@/lib/server/process-response";
 import { processDeps } from "@/lib/server/runtime";
 
@@ -10,7 +10,8 @@ import { processDeps } from "@/lib/server/runtime";
 // one must be theirs in the active company (404 otherwise). The turn runs as the `agentTurn` workflow with the
 // caller's claims as its argument; the response streams the run and carries `x-workflow-run-id` (to reconnect) and
 // `x-conversation-id`. Refusals carry codes (`errors.<code>`, details such as `conversation_not_found`) the client
-// translates; the route holds no copy (rule 24).
+// translates; the route holds no copy (rule 24). A session whose membership in the active company is inactive (design
+// §22.16) is refused first (403 `forbidden`, `details.reason` membership_inactive): no conversation, message or run.
 
 /** A question and its screen context are a few kilobytes at most. */
 const MAX_BODY_BYTES = 32 * 1024;
@@ -27,7 +28,7 @@ const Body = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
-  const caller = await callerOrResponse();
+  const caller = await activeCallerOrResponse();
   if (caller instanceof Response) return caller;
 
   const declared = Number(request.headers.get("content-length"));

@@ -32,4 +32,9 @@ describe("support manifest", () => {
     expect(ticket.fields.find((f) => f.name === "context")?.sensitivity).toBe("confidential");
     expect(ticket.processIds).toEqual({ attach: "support.ticket.reply" });
   });
+
+  it("the reporter is a reference to the user who filed the ticket (rule 21: it links to their page)", () => {
+    const ticket = support.entities.find((e) => e.id === "support.ticket")!;
+    expect(ticket.fields.find((f) => f.name === "reporter_user_id")).toMatchObject({ type: "ref", ref: { entity: "kernel.user", display: "full_name" } });
+  });
 });

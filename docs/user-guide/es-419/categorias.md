@@ -28,7 +28,7 @@ Muestra N.º, Nombre, Tarifa de IVA, Tarifa de INC, Otros impuestos, Unidad de m
    - **Unidad de medida por defecto**,
    - **Otros tributos** que apliquen,
    - **Cuenta de ingreso**: de 4 a 8 dígitos del PUC (para la contabilidad que llegará en una fase posterior).
-4. Cuando el cuadro inferior dice «Lista para usar», pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** solo no guarda. Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo. Si falta el nombre dice «Falta: nombre».
+4. Cuando el cuadro inferior dice «Lista para usar», pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** no guarda: pasa al campo siguiente (**Mayús+Enter** vuelve al anterior; guía **Moverse por el sistema**, «Llenar un formulario con el teclado»). Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo. Si falta el nombre dice «Falta: nombre».
 
 Dos categorías no pueden llamarse igual en la misma empresa, sin importar mayúsculas y minúsculas («Ya existe una categoría llamada …»).
 
@@ -41,4 +41,4 @@ Dos categorías no pueden llamarse igual en la misma empresa, sin importar mayú
 
 ## Permisos
 
-Crear, actualizar y consultar categorías son permisos distintos por rol; sin el de actualizar, el formulario es de solo lectura. Las categorías no se borran: se marcan **Inactiva**. Pestañas del registro: **Datos · Datos adicionales · Archivos**.
+Crear, actualizar y consultar categorías son permisos distintos por rol; sin el de actualizar, el formulario es de solo lectura. Las categorías no se borran: se marcan **Inactiva**. Pestañas del registro: **Datos · Datos adicionales · Archivos**. **Duplicar** (o **Ctrl+D**) crea una categoría nueva con los mismos impuestos y el nombre vacío (guía **Moverse por el sistema**, «Duplicar un registro»).

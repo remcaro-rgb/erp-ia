@@ -32,7 +32,7 @@ Necesitas el permiso **Importar datos** (`kernel.import.run`) y el permiso de cr
    - En productos, la **Categoría** y el **Proveedor** se escriben por su nombre, tal como aparecen en sus listados.
    - Un CSV puede ir separado por `;` o `,` y debe guardarse en UTF-8.
 4. En **2 · Archivo**, arrastra el archivo o elígelo (máximo 25 MB y 50.000 filas).
-5. Revisa la **Vista previa**: cada fila dice si es válida o el motivo del error. Si falta una columna obligatoria, todas las filas se rechazarían: corrige el archivo antes de seguir.
+5. Revisa la **Vista previa**: cada fila dice si es válida o lleva la marca **Fila con error**. Cada fila ocupa una sola línea; el motivo aparece al dejar el cursor sobre la marca o al pulsar **Ver** (con el teclado, Tab hasta **Ver** y Enter), que lo abre en una línea extra bajo la fila; **Ocultar** la cierra. Para ir directo a lo que debes corregir, activa **Solo filas con error (N)**: la lista muestra solo esas filas con el número que tienen en tu archivo. Si no hay filas con error, la casilla queda desactivada. Si falta una columna obligatoria, todas las filas se rechazarían: corrige el archivo antes de seguir.
 6. Pulsa **Importar filas válidas** e ingresa el código de verificación. La importación sigue en segundo plano; puedes cerrar la ventana.
 
 ## Resultado

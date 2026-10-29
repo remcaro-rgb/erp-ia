@@ -73,6 +73,21 @@ describe("saved views", () => {
     expect(audits.map((a) => a.process_id)).toContain("kernel.saved_view.save");
   });
 
+  it("keeps the grid's column order exactly as saved (design §22.12: the order is part of the view)", async () => {
+    const columns = ["name", "municipality_code", "seq", "extra.ruta", "credit_limit"];
+    await run(cashier, "kernel.saved_view.save", { entity: probe.id, name: "Orden", state: { columns } });
+    const views = await run(cashier, "kernel.saved_view.list", { entity: probe.id });
+    expect(views.find((v: { name: string }) => v.name === "Orden")!.state.columns).toEqual(columns);
+  });
+
+  it("keeps the chooser's full order too, hidden columns included (design §22.12)", async () => {
+    const columns = ["name", "seq"];
+    const order = ["name", "credit_limit", "seq", "municipality_code"];
+    await run(cashier, "kernel.saved_view.save", { entity: probe.id, name: "Orden completo", state: { columns, order } });
+    const views = await run(cashier, "kernel.saved_view.list", { entity: probe.id });
+    expect(views.find((v: { name: string }) => v.name === "Orden completo")!.state).toEqual({ columns, order });
+  });
+
   it("saving the same name replaces the state; one default per entity", async () => {
     const first = await run(cashier, "kernel.saved_view.save", { entity: probe.id, name: "A", state: { pageSize: 10 }, isDefault: true });
     const again = await run(cashier, "kernel.saved_view.save", { entity: probe.id, name: "A", state: { pageSize: 50 }, isDefault: true });

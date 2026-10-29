@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
 
 // The assistant drawer in a real browser (design §7.1, §19a, rules 15, 17): 400 px, the conversation, the result table

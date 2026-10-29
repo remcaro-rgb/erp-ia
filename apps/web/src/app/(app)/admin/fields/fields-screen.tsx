@@ -3,34 +3,45 @@
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { FieldsData } from "@/lib/admin/load";
-import { StepUpDock, useAdminAction, without } from "../_components/use-admin-action";
+import { StepUpDock } from "../_components/use-admin-action";
+import { useStagedChanges } from "../_components/use-staged-changes";
 
 const MODES = ["visible", "masked", "hidden"] as const;
 
 /**
  * Field visibility per entity and role (rule 14): visible, masked or hidden, enforced in the masked views and therefore
  * the same in grids, forms, exports and the assistant. Confidential fields are marked; a new role starts with them
- * masked (kernel.seed_role_defaults). The system admin role sees every field.
+ * masked (kernel.seed_role_defaults). The system admin role sees every field. A change stages the cell; the staged cells
+ * (of every entity) are applied together with one step-up through kernel.admin.field_permission.set_many (OD-7).
  */
 export function FieldsScreen({ data }: { data: FieldsData }) {
   const t = useTranslations();
   const base = useId();
-  const { perform, prompt, status } = useAdminAction();
   const [entityId, setEntityId] = useState(data.entities[0]?.id ?? "");
-  const [pending, setPending] = useState<Record<string, string>>({});
-  const [shown, setShown] = useState(data);
-  if (shown !== data) {
-    setShown(data);
-    setPending({});
-  }
+  const roleIds = new Set(data.roles.filter((r) => !r.isSystemAdmin).map((r) => r.id));
+  /** `entity.field:role` → the stored mode (no row: visible). */
+  const storedOf = (entity: string, field: string, roleId: string) => data.modes[`${entity}.${field}`]?.[roleId] ?? "visible";
+  const parse = (key: string) => {
+    const at = key.lastIndexOf(":");
+    const path = key.slice(0, at);
+    const dot = path.lastIndexOf(".");
+    return { entity: path.slice(0, dot), field: path.slice(dot + 1), roleId: key.slice(at + 1) };
+  };
+  const staged = useStagedChanges<string, { roleId: string; entity: string; field: string; mode: string }>({
+    data,
+    stored: (key) => {
+      const { entity, field, roleId } = parse(key);
+      const known = roleIds.has(roleId) && data.entities.some((e) => e.id === entity && e.fields.some((f) => f.name === field));
+      return known ? storedOf(entity, field, roleId) : undefined;
+    },
+    processId: "kernel.admin.field_permission.set_many",
+    change: (key, mode) => ({ ...parse(key), mode }),
+  });
   const entity = data.entities.find((e) => e.id === entityId);
   const roles = data.roles.filter((r) => !r.isSystemAdmin);
-  const modeOf = (field: string, roleId: string) => pending[`${entityId}.${field}:${roleId}`] ?? data.modes[`${entityId}.${field}`]?.[roleId] ?? "visible";
-  const change = async (field: string, roleId: string, mode: string) => {
-    const key = `${entityId}.${field}:${roleId}`;
-    setPending((p) => ({ ...p, [key]: mode }));
-    if (!(await perform("kernel.admin.field_permission.set", { roleId, entity: entityId, field, mode }))) setPending((current) => without(current, key));
-  };
+  const keyOf = (field: string, roleId: string) => `${entityId}.${field}:${roleId}`;
+  const modeOf = (field: string, roleId: string) => staged.value(keyOf(field, roleId), storedOf(entityId, field, roleId));
+  const change = (field: string, roleId: string, mode: string) => staged.set(keyOf(field, roleId), mode, storedOf(entityId, field, roleId));
   const label = (key: string, fallback: string) => (t.has(key) ? t(key) : fallback);
 
   return (
@@ -56,9 +67,13 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
           <table className="erp-matrix">
             <thead>
               <tr>
-                <th className="erp-matrix__left">{t("common.admin.fields.col_field")}</th>
+                <th scope="col" className="erp-matrix__left">
+                  {t("common.admin.fields.col_field")}
+                </th>
                 {roles.map((role) => (
-                  <th key={role.id}>{role.name}</th>
+                  <th key={role.id} scope="col">
+                    {role.name}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -71,13 +86,20 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
                   </td>
                   {roles.map((role) => {
                     const mode = modeOf(field.name, role.id);
+                    const key = keyOf(field.name, role.id);
+                    const name = `${role.name} ${label(field.label, field.name)}`;
+                    const isStaged = staged.isStaged(key);
+                    const refusal = staged.refusal(key);
                     return (
-                      <td key={role.id}>
+                      <td key={role.id} className={refusal ? "is-refused" : isStaged ? "is-dirty" : undefined} title={refusal}>
                         <select
-                          aria-label={`${role.name} ${label(field.label, field.name)}`}
+                          aria-label={isStaged ? t("common.admin.pending_cell", { label: name }) : name}
+                          aria-invalid={refusal ? true : undefined}
+                          aria-describedby={refusal ? staged.reasonId(key) : undefined}
                           className={mode === "masked" ? "is-masked" : mode === "hidden" ? "is-hidden" : undefined}
                           value={mode}
-                          onChange={(e) => void change(field.name, role.id, e.target.value)}
+                          disabled={staged.busy}
+                          onChange={(e) => change(field.name, role.id, e.target.value)}
                         >
                           {MODES.map((m) => (
                             <option key={m} value={m}>
@@ -85,6 +107,7 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
                             </option>
                           ))}
                         </select>
+                        {staged.reason(key)}
                       </td>
                     );
                   })}
@@ -94,9 +117,15 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
           </table>
         </div>
       )}
-      {/* One fixed bar under the matrix holds the outcome of the last change: nothing above the table ever moves it. */}
-      <div className="erp-admin__bar">{status ?? <span className="erp-small erp-muted">{t("common.admin.fields.admin_note")}</span>}</div>
-      <StepUpDock prompt={prompt} />
+      {/* One fixed bar under the matrix holds the pending changes and the outcome: nothing above the table ever moves it. */}
+      {staged.bar(t("common.admin.fields.admin_note"), {
+        // A refused cell of an entity not on screen: say which entity, since its mark is out of sight.
+        elsewhere: (keys) => [...new Set(keys.map((key) => parse(key).entity).filter((id) => id !== entityId))].map((id) => {
+          const other = data.entities.find((e) => e.id === id);
+          return other ? label(other.label, other.id) : id;
+        }),
+      })}
+      <StepUpDock prompt={staged.prompt} />
     </section>
   );
 }

@@ -2,6 +2,7 @@ import type { ResolvedEntityDef } from "./entities";
 import type { HomeKpiProvider, ModuleDef, ProcessDef } from "./types";
 
 export { defineEntity } from "./entities";
+export { hasRecordPage, recordHref, recordPageEntities, USER_ENTITY } from "./href";
 export type { EntityDef, ResolvedEntityDef } from "./entities";
 export type { FieldDef, FieldType, ResolvedFieldDef } from "./fields";
 export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind } from "./types";

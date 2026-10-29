@@ -32,7 +32,7 @@ ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite m
 - **Barra azul oscura de arriba**: el nombre de la empresa (para cambiar de empresa si tienes más de una), el menú **Módulos**, las opciones del módulo, la caja **⌘K** para ir a cualquier pantalla, el botón de **tema** (claro, oscuro o automático), las notificaciones, el botón **Asistente** y tu usuario (con la opción **Salir**).
 - **Fila de pestañas**: cada pantalla que abres queda en una pestaña. Puedes tener varias abiertas y volver a cualquiera.
 - **Zona de trabajo**: el listado o el registro que tienes abierto.
-- **Panel del Asistente** (a la derecha): por ahora indica que el asistente estará disponible muy pronto. Mientras tanto usa **⌘K** (Ctrl+K en Windows).
+- **Panel del Asistente** (a la derecha): le escribes en español y consulta datos, te explica cómo hacer algo o prepara una acción para que la confirmes. Ábrelo o ciérralo con el botón **Asistente** de la barra superior o con **⌘/** (Ctrl+/ en Windows), que deja el cursor listo para escribir. La guía **El asistente** explica cómo usarlo.
 
 La guía **Moverse por el sistema** explica cada parte con detalle.
 
@@ -43,6 +43,8 @@ Inicio te saluda por tu nombre y reúne tus tarjetas en un tablero de cuatro col
 ### Indicadores
 
 La tarjeta **Indicadores** muestra los números del momento, calculados con tus permisos. Su encabezado dice a qué hora se leyeron («Actualizado 10:42», en la hora de tu empresa); para ver números más recientes, vuelve a abrir Inicio o recarga la página. **Recomendaciones para ti** lo indica igual.
+
+Bajo cada número verás una **línea de tendencia de los últimos 14 días** (el más reciente a la derecha). En Terceros, Productos y Tickets muestra cuántos se crearon cada día; en Uso de IA, los tokens de cada día (los de tu empresa si eres administrador, los tuyos si no). La línea sigue tus permisos, igual que el número, y se dibuja a escala: el día más bajo queda abajo y el más alto arriba, así que compara la forma, no la altura entre tarjetas. Si pasas el lector de pantalla por ella, dice «Tendencia 14 días: de X a Y» (el primer y el último día). Los días son los de la hora de tu empresa.
 
 - **Terceros activos**: cuántos terceros hay activos y cuántos de ellos todavía no se pueden facturar (les faltan datos de la DIAN o archivos). Si tu rol solo ve clientes o solo proveedores, el número cuenta solo los que tú ves.
 - **Productos**: cuántos hay y cuántos no se pueden facturar todavía.
@@ -74,7 +76,7 @@ Atajos para preguntarle al asistente cómo hacer algo (crear un tercero, importa
 
 Inicio es tuyo: cada cambio se guarda para tu usuario y tu empresa, y nadie lo mueve por ti.
 
-- **Mover**: arrastra una tarjeta por su encabezado (la barra con los puntos ⋮⋮) y suéltala sobre otra; toma su lugar. Con el teclado, enfoca el encabezado y pulsa **Alt + flecha izquierda o derecha**.
+- **Mover**: arrastra una tarjeta por su encabezado (la barra con los puntos ⋮⋮) y suéltala sobre otra; toma su lugar. Con el teclado, enfoca el encabezado y pulsa **Enter** o **Espacio**: aparece el aviso «Modo mover» y las **flechas** mueven la tarjeta (izquierda y arriba la adelantan, derecha y abajo la atrasan); **Mayús + flechas** cambian su tamaño (izquierda y derecha las columnas, arriba y abajo el alto); **Esc** (o **Enter** otra vez) termina. **Alt + flecha izquierda o derecha** también mueve la tarjeta sin entrar al modo.
 - **Cambiar el tamaño**: arrastra la esquina inferior derecha de la tarjeta. El ancho se ajusta a 1, 2, 3 o 4 columnas y el alto es libre (mínimo 160 px). Mientras cambias el tamaño (o cuando la tarjeta tiene el cursor del teclado), el encabezado muestra el tamaño actual, por ejemplo «2/4 · 300 px». Con el teclado, enfoca la esquina y usa las **flechas**: izquierda y derecha cambian las columnas, arriba y abajo el alto.
 - **Restablecer tarjetas** (arriba a la derecha) devuelve todas las tarjetas a su orden y tamaño originales.
 
@@ -93,7 +95,9 @@ Tu disposición vuelve igual la próxima vez que entres, también desde otro com
 | Definir los impuestos por defecto de un grupo de productos | Categorías de productos |
 | Adjuntar el RUT, una ficha técnica u otro archivo | Archivos adjuntos |
 | Ver los campos que mi empresa agregó a los registros | Datos adicionales |
-| Ordenar, filtrar, guardar vistas o buscar con el filtro avanzado | Listados |
+| Ordenar, filtrar, mover columnas, guardar vistas o buscar con el filtro avanzado | Listados |
+| Crear un registro parecido a otro (Duplicar) o llenar un formulario con el teclado | Moverse por el sistema |
+| Administrar usuarios, permisos, visibilidad de campos o ver la auditoría | Administración de la empresa |
 | Llevarme un listado a PDF, Excel o CSV | Exportar un listado |
 | Cargar muchos registros desde Excel | Importar datos |
 | Reportar un problema o hacer una pregunta | Soporte |

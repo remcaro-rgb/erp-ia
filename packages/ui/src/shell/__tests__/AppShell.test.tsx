@@ -1,13 +1,23 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToString } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
+import { messages } from "@erp/i18n";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { AppShell } from "../AppShell";
 import { GridCell } from "../../grid/GridCell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
+import { RecordForm } from "../../forms/form-parts";
+import { assistantOpenStorageKey, dianHintsStorageKey, readCachedPref, writeCachedPref } from "../prefs-cache";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
+// jsdom's window is 1024 px wide; the drawer starts closed below 1280 px (OD-10), so tests that need it open use a laptop-plus width.
+const setWidth = (width: number) => {
+  window.innerWidth = width;
+};
+beforeEach(() => setWidth(1440));
 afterEach(() => {
   cleanup();
   document.documentElement.removeAttribute("data-theme");
@@ -194,6 +204,30 @@ describe("AppShell", () => {
     for (const item of ["Terceros", "Productos", "Categorías"]) expect(menu.textContent).not.toContain(item);
   });
 
+  it("choosing another module in the Módulos menu shows its bar and brings its open tab to the front", async () => {
+    const navigate = vi.fn();
+    const twoModules = { id: "kernel", label: "nav.modules.kernel" };
+    const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
+    const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
+    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, twoModules], nav: adminNav, initialTabs });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
+    // The bar switches to the chosen module even though the page shown belongs to Núcleo.
+    expect(screen.getByRole("button", { name: /^Sistema/ })).toBeTruthy();
+    expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: "Usuarios" })).toBeTruthy();
+    // Its open tab comes to the front (the shell then navigates to it) instead of nothing happening.
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
+  });
+
+  it("choosing a module with no open tab opens its first option", () => {
+    const navigate = vi.fn();
+    const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
+    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, { id: "kernel", label: "nav.modules.kernel" }], nav: adminNav });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
+    expect(navigate).toHaveBeenCalledWith("/admin/users");
+  });
+
   // UI density audit quick win 13 (M13) and 16 (L1)
   it("offers a skip link to the page, which takes the caret without a ring", () => {
     shell("/parties");
@@ -254,5 +288,187 @@ describe("AppShell", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+// Phase 1b task 1 (OD-10): the drawer starts closed below 1280 px, evaluated once on first mount; a stored
+// `assistant.open` preference (server copy or this browser's newer cache) always wins; only a user's toggle is saved.
+describe("AppShell, the assistant drawer's default (OD-10)", () => {
+  const drawer = () => document.getElementById("erp-assistant")!;
+  const fetchStub = () => vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 })));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is closed at 1200 px and open at 1400 px", () => {
+    fetchStub();
+    setWidth(1200);
+    shell("/");
+    expect(drawer().hidden).toBe(true);
+    expect(screen.getByRole("button", { name: "Asistente" }).getAttribute("aria-expanded")).toBe("false");
+    cleanup();
+    setWidth(1400);
+    shell("/");
+    expect(drawer().hidden).toBe(false);
+    cleanup();
+    setWidth(1280);
+    shell("/");
+    expect(drawer().hidden).toBe(false);
+  });
+
+  it("a stored preference wins over the width, both ways", () => {
+    fetchStub();
+    setWidth(1200);
+    shell("/", vi.fn(), { assistantOpen: { value: true, savedAt: 1 } });
+    expect(drawer().hidden).toBe(false);
+    cleanup();
+    setWidth(1600);
+    shell("/", vi.fn(), { assistantOpen: { value: false, savedAt: 1 } });
+    expect(drawer().hidden).toBe(true);
+  });
+
+  it("this browser's cache wins over the server's copy when it is newer", () => {
+    fetchStub();
+    setWidth(1600);
+    const storage = memoryStorage();
+    writeCachedPref(storage, assistantOpenStorageKey("u1"), "c1", { value: false, savedAt: 50 });
+    shell("/", vi.fn(), { assistantOpen: { value: true, savedAt: 10 }, storage });
+    expect(drawer().hidden).toBe(true);
+  });
+
+  it("is evaluated once: a later resize does not move it", () => {
+    fetchStub();
+    setWidth(1440);
+    shell("/");
+    setWidth(1000);
+    fireEvent(window, new Event("resize"));
+    expect(drawer().hidden).toBe(false);
+  });
+
+  it("saves a user's toggle (button and Ctrl+/) with its time and caches it, but not the default", () => {
+    fetchStub();
+    setWidth(1200);
+    const onAssistantOpenChange = vi.fn();
+    const storage = memoryStorage();
+    shell("/", vi.fn(), { onAssistantOpenChange, storage });
+    expect(onAssistantOpenChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Asistente" }));
+    expect(drawer().hidden).toBe(false);
+    expect(onAssistantOpenChange).toHaveBeenLastCalledWith(true, expect.any(Number));
+    expect(readCachedPref(storage, assistantOpenStorageKey("u1"), "c1")?.value).toBe(true);
+    fireEvent.keyDown(document, { key: "/", ctrlKey: true });
+    expect(drawer().hidden).toBe(true);
+    expect(onAssistantOpenChange).toHaveBeenLastCalledWith(false, expect.any(Number));
+    expect(readCachedPref(storage, assistantOpenStorageKey("u1"), "c1")?.value).toBe(false);
+  });
+
+  it("⌘K asking the assistant opens it without saving a preference", () => {
+    fetchStub();
+    setWidth(1200);
+    const onAssistantOpenChange = vi.fn();
+    shell("/", vi.fn(), { onAssistantOpenChange });
+    fireEvent.click(screen.getByLabelText("Comando"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "ventas de hoy" } });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(drawer().hidden).toBe(false);
+    expect(onAssistantOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+// Phase 1b task 1 (OD-1): grid and admin routes use the tighter page padding; home and the record page keep v5's.
+describe("AppShell, the page padding (OD-1)", () => {
+  const main = () => screen.getByRole("main");
+
+  it.each(["/parties", "/admin/permissions", "/products"])("%s is dense", (href) => {
+    shell(href);
+    expect(main().getAttribute("data-density")).toBe("tight");
+    expect(main().className).toContain("erp-main");
+  });
+
+  it.each(["/", "/r/core.party/0197a1b2-0000-7000-8000-0000000000c1"])("%s keeps the v5 spacing", (href) => {
+    shell(href);
+    expect(main().hasAttribute("data-density")).toBe(false);
+    expect(main().className).toContain("erp-main");
+  });
+});
+
+// Review fix: with no saved choice the drawer is decided by CSS first (`data-assistant="auto"`), so a laptop never sees it
+// open and then collapse; the client then resolves the explicit state to what the CSS already shows.
+describe("AppShell, the drawer's unset state is CSS-first", () => {
+  const drawer = () => document.getElementById("erp-assistant")!;
+  const ssr = (extra: Partial<ShellProps> = {}) =>
+    renderToString(
+      <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
+        {shellElement("/", vi.fn(), { storage: null, ...extra })}
+      </NextIntlClientProvider>,
+    );
+
+  it("the server markup carries the auto state, not hidden, when no choice is saved", () => {
+    const html = ssr();
+    expect(html).toMatch(/<aside id="erp-assistant"[^>]*data-assistant="auto"/);
+    expect(html).not.toMatch(/<aside id="erp-assistant"[^>]*hidden/);
+  });
+
+  it("a saved choice renders explicitly: no auto state, hidden when closed", () => {
+    expect(ssr({ assistantOpen: { value: false, savedAt: 1 } })).toMatch(/<aside id="erp-assistant"[^>]*hidden=""(?![^>]*data-assistant)|<aside id="erp-assistant"(?![^>]*data-assistant)[^>]*hidden/);
+    expect(ssr({ assistantOpen: { value: true, savedAt: 1 } })).not.toMatch(/data-assistant="auto"/);
+  });
+
+  it("after mounting the auto state is resolved and, when the media state already matches, the drawer is never toggled", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 })));
+    const toggles: string[] = [];
+    const observer = new MutationObserver((records) => records.forEach((r) => toggles.push(`${(r.target as Element).id}:${r.attributeName}`)));
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    setWidth(1440);
+    shell("/");
+    expect(drawer().hasAttribute("data-assistant")).toBe(false);
+    expect(drawer().hidden).toBe(false);
+    expect(toggles.filter((t) => t.startsWith("erp-assistant"))).toEqual([]);
+    observer.disconnect();
+    cleanup();
+    setWidth(1200);
+    shell("/");
+    expect(drawer().hasAttribute("data-assistant")).toBe(false);
+    expect(drawer().hidden).toBe(true);
+  });
+});
+
+// "Ver códigos DIAN" (OD-12) is a saved preference the shell hands to every record form below it: the server's copy
+// renders on the first paint (no flash), a newer copy of this browser wins, and a change is cached and reported.
+describe("AppShell, the DIAN hints preference", () => {
+  const withForm = (extra: Partial<ShellProps> = {}) => (
+    <AppShell company={cafe} companies={[cafe]} user={{ id: "u1", name: "L", email: "l@x.co", roles: [] }} modules={[{ id: "core", label: "nav.modules.core" }]} nav={nav} currentHref="/r/core.party/1" navigate={vi.fn()} storage={memoryStorage()} {...extra}>
+      <RecordForm canSave onSave={() => {}} failure={null}>
+        <input aria-label="campo" />
+      </RecordForm>
+    </AppShell>
+  );
+  const dianSwitch = () => screen.getByRole("switch", { name: "Ver códigos DIAN" });
+
+  it("is off when nothing was saved, and on from the first server markup when the saved choice is on", () => {
+    const ssr = (extra: Partial<ShellProps> = {}) =>
+      renderToString(
+        <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
+          {withForm({ storage: null, ...extra })}
+        </NextIntlClientProvider>,
+      );
+    expect(ssr()).toMatch(/role="switch"[^>]*aria-checked="false"|aria-checked="false"[^>]*role="switch"/);
+    expect(ssr({ dianHints: { value: true, savedAt: 1 } })).toMatch(/role="switch"[^>]*aria-checked="true"|aria-checked="true"[^>]*role="switch"/);
+  });
+
+  it("a change turns the forms' hints on, is cached for this browser and is reported with its time", () => {
+    const storage = memoryStorage();
+    const onDianHintsChange = vi.fn();
+    renderEs(withForm({ storage, onDianHintsChange }));
+    expect(dianSwitch().getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(dianSwitch());
+    expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
+    expect(onDianHintsChange).toHaveBeenCalledWith(true, expect.any(Number));
+    expect(readCachedPref(storage, dianHintsStorageKey("u1"), "c1")?.value).toBe(true);
+  });
+
+  it("a newer copy in this browser's cache wins over the server's", () => {
+    const storage = memoryStorage();
+    writeCachedPref(storage, dianHintsStorageKey("u1"), "c1", { value: true, savedAt: 50 });
+    renderEs(withForm({ storage, dianHints: { value: false, savedAt: 10 } }));
+    expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
   });
 });

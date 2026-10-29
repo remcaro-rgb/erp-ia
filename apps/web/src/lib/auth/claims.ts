@@ -7,7 +7,7 @@ import { serverSupabase } from "@/lib/supabase/server";
 // verified by Supabase Auth. `getCallerClaims()` / `requireCaller()` are the only way route handlers and
 // pages learn who is calling; they refuse a session that has not completed the MFA the account demands.
 
-export type UnauthenticatedReason = "no_session" | "no_company" | "mfa_required" | "mfa_enrollment_required";
+export type UnauthenticatedReason = "no_session" | "no_company" | "mfa_required" | "mfa_enrollment_required" | "account_disabled";
 
 /** No usable session for this request. Route handlers map it to 401, pages to a redirect (`redirectPathFor`). */
 export class Unauthenticated extends Error {
@@ -28,6 +28,9 @@ export function redirectPathFor(reason: UnauthenticatedReason): string {
       return "/mfa/enroll";
     case "no_company":
       return "/login?error=no_company";
+    // The admin deactivated the membership (design §22.16): signed out by the route, then the sign-in page says why.
+    case "account_disabled":
+      return "/api/auth/disabled";
     default:
       return "/login";
   }
@@ -43,9 +46,14 @@ export interface SessionState {
   requiresMfa: boolean;
   /** The user has a verified TOTP factor (hook claim; read from the auth schema, not from the client). */
   mfaEnrolled: boolean;
+  /** The company the user last chose (`app_metadata.active_company_id` when the token was issued), or null. */
+  storedCompanyId: string | null;
+  /** The company the hook passed over because the membership there is inactive (0027), or null. */
+  inactiveCompanyId: string | null;
 }
 
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === "string");
+const stringOrNull = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 /** The session state in a verified JWT payload, or null when it has no subject. */
 export function sessionStateOf(raw: Record<string, unknown>): SessionState | null {
@@ -60,7 +68,28 @@ export function sessionStateOf(raw: Record<string, unknown>): SessionState | nul
     aal: aal === "aal2" ? "aal2" : "aal1",
     requiresMfa: requires_mfa === true,
     mfaEnrolled: mfa_enrolled === true,
+    storedCompanyId: stringOrNull((raw.app_metadata as { active_company_id?: unknown } | undefined)?.active_company_id),
+    inactiveCompanyId: stringOrNull(raw.inactive_company_id),
   };
+}
+
+/**
+ * Why the session changed company without the user asking (design §22.16): `membership_inactive` when the membership in
+ * the company the user had chosen (or stood in first) was deactivated, `membership_missing` when that company is no longer
+ * one of theirs.
+ */
+export type CompanySwitchReason = "membership_inactive" | "membership_missing";
+
+/**
+ * The automatic company move a verified token carries, or null: the token's company differs from the one the user chose
+ * because the access token hook passed over an inactive membership (0027), or the chosen one is gone. Pure: one compare
+ * of claims, so the proxy can ask on every request.
+ */
+export function companyMove(state: SessionState): { from: string; reason: CompanySwitchReason } | null {
+  if (!state.claims) return null;
+  if (state.inactiveCompanyId) return { from: state.inactiveCompanyId, reason: "membership_inactive" };
+  if (state.storedCompanyId && state.storedCompanyId !== state.claims.active_company_id) return { from: state.storedCompanyId, reason: "membership_missing" };
+  return null;
 }
 
 /** The MFA page this session must pass through before it may use the app, or null when it is complete. */

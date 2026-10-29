@@ -19,12 +19,22 @@ Terceros, Productos, Categorías y Soporte son **listados** que funcionan igual.
 
 - El **título** del listado y, a su lado, cuántos registros hay con los filtros actuales («124 registros»). Mientras llega la primera página dice «Cargando…» y la tabla muestra filas grises de espera. Si tu rol tiene columnas ocultas o enmascaradas, también lo dice («2 ocultas, 1 enmascarada»).
 - Una **barra de botones**: **Nuevo** y **Importar** (si tu rol puede crear e importar), **Columnas**, **Guardar vista**, **Filtro avanzado**, los botones de exportar **PDF**, **Excel** y **CSV**, y **Limpiar filtros**, que solo se activa cuando hay algo aplicado. Junto a los botones, un espacio fijo dice qué está haciendo el listado («Actualizando…», «Generando CSV…», «Descarga lista: …»); el aviso de descarga lista se borra solo a los 8 segundos. Nada de esto mueve la tabla.
-- La **tabla**: una fila por registro, con los encabezados que ordenan y, debajo de ellos, una fila de cajas para filtrar cada columna.
-- El **pie**: las filas que estás viendo, las páginas y los totales.
+- La **tabla**: una fila por registro, con los encabezados que ordenan y, debajo de ellos, una fila de cajas para filtrar cada columna. La primera columna es la que **identifica** el registro (la razón social en Terceros, la descripción en Productos, el nombre en Categorías): junto con la columna de casillas queda **fija a la izquierda** cuando desplazas la tabla hacia los lados, con una sombra en su borde, para que siempre sepas de qué fila se trata. Si hay columnas de dinero, la fila **Suma** queda fija abajo (ver «Totales y selección»).
+- El **pie**: las filas que estás viendo, las páginas y lo que tienes seleccionado.
 
 Los importes se muestran como `$ 1.234.567,00`, alineados a la derecha. Un valor **enmascarado** para tu rol se ve como ••••••.
 
 Haz clic en una fila (o enfócala y pulsa Enter) para abrir el registro en su propia pestaña.
+
+## Enlaces a registros
+
+Cuando una columna muestra **otro registro** (el **Proveedor** o la **Categoría** de un producto, el **Solicitante** de un ticket), ves su nombre subrayado como enlace: un clic abre la página de ese registro en la misma pestaña del navegador, sin abrir la fila; con **Ctrl** (o **⌘** en Mac) se abre en una pestaña nueva. Un usuario se abre en su página de **Administración › Usuarios**.
+
+- Si tu rol no puede consultar ese tipo de registro, la celda muestra los primeros 8 caracteres de su identificador, sin enlace.
+- Si puedes consultarlo pero no ves su nombre (tu rol no ve ese tercero, o tiene enmascarado el dato que lo nombra), el enlace muestra esos 8 caracteres.
+- Las columnas de otro registro se ordenan y filtran como las demás.
+
+En los formularios pasa lo mismo: junto a la lupa de un campo que apunta a otro registro (el **Proveedor principal** de un producto) aparece una flecha ↗ «Abrir …» que abre el registro elegido.
 
 ## Usar el listado con el teclado
 
@@ -58,7 +68,19 @@ Las cajas con un filtro aplicado se tiñen. Una columna enmascarada muestra su c
 
 ## Elegir las columnas
 
-Pulsa **Columnas**: aparece la lista de todas las columnas que tu rol puede ver, con una casilla cada una y el contador «8 de 15 columnas visibles». Marca o desmarca las que quieras; siempre queda al menos una. **Restablecer columnas** vuelve a las del comienzo. Las columnas que tu rol no puede ver no se ofrecen. Los **datos adicionales** de tu empresa están en esta lista (apagados al comienzo).
+Pulsa **Columnas**: aparece la lista de todas las columnas que tu rol puede ver, **en el orden del listado**, con una casilla cada una y el contador «8 de 15 columnas visibles». Marca o desmarca las que quieras; siempre queda al menos una. Una columna que apagas **guarda su lugar** mientras tengas el listado abierto: al volver a marcarla aparece donde estaba. Una vista guardada recuerda las columnas visibles en su orden; al aplicarla, cada columna apagada queda justo después de la columna que la antecede en el orden original del listado, esté donde esté esa columna en la vista. La columna que identifica el registro dice «fija»: no tiene flechas y nada se pone delante de ella. Para cambiar el orden mira «Mover columnas». **Restablecer columnas** vuelve a las columnas y al orden del comienzo. Las columnas que tu rol no puede ver no se ofrecen. Los **datos adicionales** de tu empresa están en esta lista (apagados al comienzo).
+
+## Mover columnas
+
+Puedes poner las columnas en el orden que te sirva:
+
+- **Con el ratón**: arrastra el encabezado de una columna y suéltalo sobre otro. Una barra azul marca dónde va a quedar (a la izquierda o a la derecha del encabezado que tienes debajo).
+- **Con el teclado**: pon el cursor en un encabezado (con **Tab**) y pulsa **Alt+←** o **Alt+→** para moverlo un puesto. El cursor se queda en ese encabezado, así puedes seguir moviéndolo.
+- **Desde Columnas**: las flechas **↑** y **↓** de cada fila la suben o la bajan un puesto.
+
+Junto a los botones el listado avisa el resultado, por ejemplo «Columna Municipio movida a la posición 3». La columna que identifica el registro siempre queda primera: no se mueve y si sueltas otra columna sobre ella, esa queda justo después.
+
+El orden forma parte de la vista: las exportaciones salen con las columnas en ese mismo orden y, si guardas una vista, el orden se guarda con ella.
 
 ## Páginas
 
@@ -66,7 +88,7 @@ El pie muestra «Filas 1–10 de 124», los botones ‹ 1 2 3 … › y un menú
 
 ## Totales y selección
 
-- Si el listado tiene columnas de dinero, el pie muestra la **suma de todo lo filtrado** («Suma saldo filtrado: $ 1.500.000,00»), de todas las páginas.
+- Si el listado tiene columnas de dinero, la fila **Suma**, fija abajo mientras desplazas la tabla, muestra bajo cada una de ellas la **suma de todo lo filtrado**, de todas las páginas (no solo de la que ves). Una columna enmascarada para tu rol no suma.
 - Con las casillas de la izquierda seleccionas filas (o todas las de la página) y el pie suma también lo **seleccionado** («3 seleccionadas»). Al cambiar de página la selección se limpia.
 
 ## Filtro avanzado
@@ -97,14 +119,14 @@ Algunos campos de un formulario apuntan a otro registro; por ejemplo, el **Prove
 
 ## Guardar vistas
 
-Una **vista** guarda cómo dejaste el listado: los filtros por columna, el filtro avanzado con sus Y / O, el orden, las columnas visibles y el tamaño de página.
+Una **vista** guarda cómo dejaste el listado: los filtros por columna, el filtro avanzado con sus Y / O, el orden de las filas, las columnas visibles **en su orden** y el tamaño de página.
 
 1. Deja el listado como lo quieres.
 2. Pulsa **Guardar vista**. Se abre el panel **Vistas**.
 3. Escribe el **Nombre de la vista** (hasta 80 caracteres). Marca **Usarla como vista por defecto** si quieres que el listado se abra así siempre.
 4. Pulsa **Guardar**. Verás «Vista guardada: [nombre]».
 
-Para usar una vista, abre el panel **Vistas** y pulsa su nombre. La vista por defecto lleva una estrella ★. Con la ✕ de cada fila la borras. Si guardas otra vista con el mismo nombre, reemplaza la anterior; solo una vista puede ser la predeterminada por listado.
+Para usar una vista, abre el panel **Vistas** y pulsa su nombre. La vista por defecto lleva una estrella ★. Con la ✕ de cada fila la borras: antes pregunta en el mismo lugar «¿Eliminar [nombre]?»; confirma con ese botón (o **Enter**), y si no haces nada se vuelve a la ✕ a los 4 segundos. Al abrir el panel (igual que el de **Columnas**) el cursor queda en su primer control; **Esc** lo cierra y devuelve el cursor al botón, y si pasas con **Tab** a otro control el panel se cierra solo. Si guardas otra vista con el mismo nombre, reemplaza la anterior; solo una vista puede ser la predeterminada por listado.
 
 Las vistas son **tuyas**: son por usuario y por empresa, y nadie más las ve ni las puede cambiar. Guardar, listar y borrar vistas son permisos que tiene cada rol; si tu rol no los tiene, el botón **Guardar vista** no sirve.
 

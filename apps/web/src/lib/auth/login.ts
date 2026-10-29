@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getServiceDb, membershipInactive, type JwtClaims } from "@erp/kernel";
 import { setRememberCookies, rememberMode, type CookieJar } from "@/lib/supabase/cookies";
 import { createSupabase } from "@/lib/supabase/server";
 import { recordLogin } from "./audit";
-import { mfaStep, readSession } from "./claims";
+import { mfaStep, readSession, type SessionState } from "./claims";
+import { settleCompany } from "./inactive";
 import { authFailureOf } from "./errors";
 import { isAcceptableEmail, loginKey, mfaKey, resetAttempts, takeAttempt } from "./limiter";
 
@@ -10,7 +12,16 @@ import { isAcceptableEmail, loginKey, mfaKey, resetAttempts, takeAttempt } from 
 // answers where the browser goes next; the server actions only turn that into a redirect. Every attempt is
 // counted per account before Auth is called (./limiter) and a success clears the count.
 
-export type LoginError = "invalid_credentials" | "no_company" | "invalid_code" | "no_session" | "no_factor" | "mfa_required" | "too_many_attempts" | "unavailable";
+export type LoginError =
+  | "invalid_credentials"
+  | "no_company"
+  | "invalid_code"
+  | "no_session"
+  | "no_factor"
+  | "mfa_required"
+  | "too_many_attempts"
+  | "unavailable"
+  | "account_disabled";
 export type StepResult<T = object> = ({ ok: true } & T) | { ok: false; error: LoginError };
 export type Next = "/" | "/mfa/verify" | "/mfa/enroll";
 
@@ -25,6 +36,24 @@ const HOME = "/";
 function failure(error: { status?: number; code?: string } | null, refused: LoginError): { ok: false; error: LoginError } {
   const kind = error ? authFailureOf(error) : "rejected";
   return { ok: false, error: kind === "rate_limited" ? "too_many_attempts" : kind === "unavailable" ? "unavailable" : refused };
+}
+
+/**
+ * A session must stand in a company where the person's membership is active (kernel.admin.user.update, design §22.16).
+ * The access token hook (0027) picks an active membership whenever one exists, so a fresh token naming an inactive one
+ * means none is left: refused, and signed out (Auth knows nothing of the state, so the refusal is ours). Otherwise an
+ * automatic move the hook made (the chosen company inactive) is stored and audited, once the session is complete:
+ * nothing is written before the second factor (`settleCompany` waits for it; the TOTP step settles).
+ */
+type ActiveState = SessionState & { claims: JwtClaims };
+
+async function activeSession(supabase: SupabaseClient, state: SessionState, claims: JwtClaims): Promise<{ ok: true; state: ActiveState } | { ok: false; error: LoginError }> {
+  if (await membershipInactive(getServiceDb(), claims)) {
+    await supabase.auth.signOut({ scope: "local" });
+    return { ok: false, error: "account_disabled" };
+  }
+  const settled = await settleCompany(supabase, { ...state, claims });
+  return { ok: true, state: { ...settled, claims: settled.claims ?? claims } };
 }
 
 /** E-mail + password. A session is created at once; whether it is complete depends on the account's MFA. */
@@ -45,11 +74,13 @@ export async function loginWithPassword(jar: CookieJar, input: { email: string; 
     await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "no_company" };
   }
+  const active = await activeSession(supabase, state, state.claims);
+  if (!active.ok) return active;
   setRememberCookies(jar, input.remember, email);
-  const step = mfaStep(state);
+  const step = mfaStep(active.state);
   if (step === "verify") return { ok: true, next: "/mfa/verify" };
   if (step === "enroll") return { ok: true, next: "/mfa/enroll" };
-  await recordLogin(state.claims, { remember: input.remember, mfa: "none" });
+  await recordLogin(active.state.claims, { remember: input.remember, mfa: "none" });
   return { ok: true, next: HOME };
 }
 
@@ -72,7 +103,9 @@ async function verifyCode(jar: CookieJar, supabase: SupabaseClient, userId: stri
     await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "no_company" };
   }
-  await recordLogin(state.claims, { remember: rememberMode(jar), mfa: "totp" });
+  const active = await activeSession(supabase, state, state.claims);
+  if (!active.ok) return active;
+  await recordLogin(active.state.claims, { remember: rememberMode(jar), mfa: "totp" });
   return { ok: true, next: HOME };
 }
 

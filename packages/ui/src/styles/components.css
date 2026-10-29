@@ -12,6 +12,10 @@
   .erp-row { display: flex; align-items: center; gap: 8px; }
   .erp-row--top { align-items: flex-start; }
   .erp-stack { display: flex; flex-direction: column; gap: 12px; }
+  /* The page area of the shell (prototype v5 `main`: 20px 24px, gap 16px). OD-1: grid and admin routes use the tighter
+     variant (+1 row per screen); the home and the record page keep v5's. */
+  .erp-main { display: flex; flex-direction: column; min-width: 0; flex: 1 1 0%; overflow: auto; gap: 16px; padding: 20px 24px; }
+  .erp-main[data-density="tight"] { gap: 12px; padding: 12px 16px; }
   .erp-icon { width: 16px; height: 16px; flex: 0 0 auto; }
   .erp-icon--pdf { color: #D93025; }
   .erp-icon--xlsx { color: #1E8E3E; }
@@ -24,7 +28,7 @@
     :root:not([data-theme="light"]) .erp-icon--xlsx { color: #6BCB8B; }
     :root:not([data-theme="light"]) .erp-icon--csv { color: #B0BAC8; }
   }
-  .erp-link { border: 0; background: transparent; padding: 0; color: var(--primary); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; text-decoration: underline; }
+  .erp-link { border: 0; background: transparent; padding: 0; color: var(--link); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; text-decoration: underline; }
   .erp-link--inline { font-size: inherit; }
   .erp-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
 
@@ -37,6 +41,9 @@
   .erp-btn--primary:hover:not(:disabled) { background: var(--primary-h); }
   .erp-btn--ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
   .erp-btn--sm { padding: 5px 9px; font-size: 12px; }
+  /* A change that removes access (Desactivar): the danger text on the surface, never a filled red. */
+  .erp-btn--danger { color: var(--danger); border-color: var(--danger); font-weight: 600; }
+  .erp-btn--danger:hover:not(:disabled) { background: var(--danger-bg); }
 
   /* pills */
   .erp-pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; margin-right: 4px; }
@@ -64,24 +71,51 @@
   .erp-grid th, .erp-adv__table th { font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; }
   .erp-grid th.text-right, .erp-grid td.text-right { text-align: right; }
   .erp-grid__filters th { top: 36px; }
-  .erp-grid__filters input, .erp-grid__filters select { width: 100%; min-width: 72px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); font-weight: 400; }
+  .erp-grid__filters input, .erp-grid__filters select { width: 100%; min-width: 72px; padding: 4px 6px; border: 1px solid var(--line-input); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); font-weight: 400; }
   .erp-grid__filters input:focus-visible, .erp-grid__filters select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -1px; }
   .erp-grid__filters .is-on { border-color: var(--primary); background: var(--accent); }
   .erp-grid__range { display: flex; gap: 4px; }
   .erp-grid__sort { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; white-space: nowrap; }
   .erp-grid__sort:hover { color: var(--text); }
   .erp-grid__unsorted { opacity: .55; }
-  .erp-grid__check { width: 36px; padding-right: 0 !important; }
+  .erp-grid__check { width: var(--erp-grid-check-w); min-width: var(--erp-grid-check-w); max-width: var(--erp-grid-check-w); box-sizing: border-box; padding-right: 0 !important; }
   .erp-grid__check input { accent-color: var(--primary); }
+  /* OD-4: the selection column and the identity column stay put while the others scroll sideways under them. */
+  .erp-grid { --erp-grid-check-w: 36px; }
+  .erp-grid thead th { z-index: 2; }
+  .erp-grid th.is-pinned, .erp-grid td.is-pinned { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+  .erp-grid .is-pinned.erp-grid__id { left: var(--erp-grid-check-w); }
+  .erp-grid th.is-pinned { z-index: 3; background: var(--head); }
+  .erp-grid .is-pinned-edge { box-shadow: 1px 0 0 var(--line-2); }
+  .erp-grid__body[data-scrolled-x] .is-pinned-edge { box-shadow: 1px 0 0 var(--line), 6px 0 6px -3px var(--shadow); }
+  /* OD-5: the filter's money totals under their own columns, pinned to the bottom of the scroll area. */
+  .erp-grid tfoot td { position: sticky; bottom: 0; z-index: 2; height: 32px; background: var(--head); border-top: 1px solid var(--line); border-bottom: 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .erp-grid tfoot td.is-pinned { z-index: 3; background: var(--head); }
+  /* Design §22.12: headers move by dragging (a 2 px bar marks where the column lands) or with Alt+← / Alt+→. */
+  .erp-grid th.erp-grid__movable { cursor: grab; }
+  .erp-grid th.erp-grid__movable:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .erp-grid th.is-dragging { opacity: .5; }
+  .erp-grid th.is-drop-before { box-shadow: inset 2px 0 0 var(--primary); }
+  .erp-grid th.is-drop-after { box-shadow: inset -2px 0 0 var(--primary); }
+  /* A drop on the pinned identity header lands after it: its bar sits inside the pinned edge, which stays drawn. */
+  .erp-grid th.is-pinned-edge.is-drop-after { box-shadow: inset -2px 0 0 var(--primary), 1px 0 0 var(--line-2); }
+  .erp-grid__body[data-scrolled-x] th.is-pinned-edge.is-drop-after { box-shadow: inset -2px 0 0 var(--primary), 1px 0 0 var(--line), 6px 0 6px -3px var(--shadow); }
   .erp-grid__empty { height: 80px !important; text-align: center !important; }
   .erp-grid__skeleton td span { display: block; height: 12px; width: 70%; border-radius: 4px; background: linear-gradient(90deg, var(--line-2) 25%, var(--head) 50%, var(--line-2) 75%); background-size: 200% 100%; animation: erp-skeleton 1.2s ease-in-out infinite; }
   .erp-grid__skeleton:nth-child(even) td span { width: 55%; }
   @keyframes erp-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   @media (prefers-reduced-motion: reduce) { .erp-grid__skeleton td span { animation: none; } }
   .erp-row-link { cursor: pointer; }
+  /* Same specificity as `.erp-grid td.is-pinned` (0,2,1) and later in the file: hover and selection tint the pinned
+     cells too. Keep these rules after the pinned ones. */
   .erp-row-link:hover td { background: var(--hover); }
   .erp-row-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-row-link.is-selected td { background: var(--accent); }
+  /* The pinned cells paint over the row's outline: they draw their share of the focus ring themselves. */
+  .erp-row-link:focus-visible td.is-pinned { box-shadow: inset 0 2px 0 var(--focus-ring), inset 0 -2px 0 var(--focus-ring); }
+  .erp-row-link:focus-visible td.erp-grid__check.is-pinned { box-shadow: inset 2px 0 0 var(--focus-ring), inset 0 2px 0 var(--focus-ring), inset 0 -2px 0 var(--focus-ring); }
+  .erp-row-link:focus-visible td.erp-grid__check.is-pinned.is-pinned-edge { box-shadow: inset 2px 0 0 var(--focus-ring), inset 0 2px 0 var(--focus-ring), inset 0 -2px 0 var(--focus-ring), 1px 0 0 var(--line-2); }
+  .erp-row-link:focus-visible td.erp-grid__id.is-pinned { box-shadow: inset 0 2px 0 var(--focus-ring), inset 0 -2px 0 var(--focus-ring), 1px 0 0 var(--line-2); }
   .erp-row-link.is-blocked { opacity: .55; cursor: not-allowed; }
   .erp-grid__ft { display: flex; align-items: center; gap: 16px; min-height: 40px; padding: 0 14px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 13px; color: var(--text-muted); flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
   .erp-grid__ft-end { margin-left: auto; display: inline-flex; align-items: center; gap: 16px; }
@@ -92,7 +126,7 @@
   .erp-pager button { min-width: 28px; height: 26px; padding: 0 6px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; font-size: 12px; color: var(--text); }
   .erp-pager button.is-on { background: var(--primary); color: #fff; border-color: var(--primary); }
   .erp-pager button:disabled { opacity: .5; cursor: not-allowed; }
-  .erp-pager select { height: 26px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 12px; color: var(--text); }
+  .erp-pager select { height: 26px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); font-size: 12px; color: var(--text); }
   /* 44 px pager targets on touch screens (rule 24) */
   @media (pointer: coarse) { .erp-pager button, .erp-pager select { min-width: 44px; height: 44px; } .erp-grid__ft { min-height: 52px; } .erp-grid__keys { display: none; } }
 
@@ -102,6 +136,10 @@
   .erp-live.is-paused i { background: transparent; box-shadow: inset 0 0 0 2px var(--text-muted); }
   .erp-live.is-error i { background: var(--danger); border-radius: 1px; }
 
+  /* The assistant drawer before the user has chosen: the viewport decides in CSS, so the first paint is already right (OD-10).
+     Utilities win over this layer, hence !important. */
+  @media (max-width: 1279px) { #erp-assistant[data-assistant="auto"] { display: none !important; } }
+
   /* popovers (columns, saved views) */
   .erp-pop { position: relative; }
   .erp-pop__panel { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 220px; max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); font-size: 13px; }
@@ -110,6 +148,13 @@
   .erp-pop__check { display: flex; gap: 8px; align-items: center; }
   .erp-pop__check input { accent-color: var(--primary); }
   .erp-pop__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  /* Column chooser: visibility box, label and ↑ / ↓ per column, in the grid's order. */
+  .erp-columns__item { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+  .erp-columns__item .erp-pop__check { flex: 1; min-width: 0; }
+  .erp-columns__moves { display: inline-flex; gap: 2px; }
+  .erp-columns__move { padding: 2px; min-width: 24px; height: 24px; justify-content: center; }
+  .erp-columns__move .erp-icon { width: 14px; height: 14px; }
+  @media (pointer: coarse) { .erp-columns__move { min-width: 44px; height: 44px; } }
 
   /* chips of the advanced conditions */
   .erp-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -130,21 +175,27 @@
   .erp-adv__cond { display: grid; grid-template-columns: 72px 200px 160px 1fr auto; gap: 6px; align-items: center; }
   .erp-adv__cond--two { grid-template-columns: 72px 200px 160px 1fr 1fr auto; }
   .erp-adv__join { font-size: 12px; font-weight: 700; text-align: center; color: var(--text-muted); }
-  select.erp-adv__join { color: var(--primary); }
-  .erp-adv select, .erp-adv input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); width: 100%; }
+  select.erp-adv__join { color: var(--link); }
+  .erp-adv select, .erp-adv input { padding: 6px 8px; border: 1px solid var(--line-input); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); width: 100%; }
   .erp-adv__or { height: 1px; background: var(--line); margin: 4px 0; }
   .erp-adv__results h3 { margin: 0 0 6px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
   .erp-adv__table { max-height: 280px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; }
 
   /* entity lookup */
   .erp-lk { position: relative; }
-  .erp-lk__input { width: 100%; padding: 8px 64px 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); }
+  .erp-lk__input { width: 100%; padding: 8px 64px 8px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); }
   .erp-lk__input:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-lk__mag, .erp-lk__clear { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); display: grid; place-items: center; }
   .erp-lk__mag { right: 4px; }
   .erp-lk__clear { right: 32px; }
-  .erp-lk__mag:hover, .erp-lk__clear:hover { background: var(--head); color: var(--primary); }
-  .erp-lk__mag.is-on { color: var(--primary); background: var(--accent); }
+  .erp-lk__mag:hover, .erp-lk__clear:hover { background: var(--head); color: var(--link); }
+  /* The chosen record's page (rule 21): left of the clear button, or of the magnifier when there is none to clear. */
+  .erp-lk--linked .erp-lk__input { padding-right: 92px; }
+  .erp-lk__open { position: absolute; top: 50%; transform: translateY(-50%); right: 32px; width: 28px; height: 28px; border-radius: 4px; color: var(--link); display: grid; place-items: center; }
+  .erp-lk__clear ~ .erp-lk__open { right: 60px; }
+  .erp-lk__open:hover { background: var(--head); }
+  .erp-lk__open:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-lk__mag.is-on { color: var(--link); background: var(--accent); }
   .erp-lk__dd { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 320px; overflow: auto; }
   .erp-lk__dd ul { list-style: none; margin: 0; padding: 0; }
   .erp-lk__item { padding: 8px 10px; cursor: pointer; display: flex; gap: 10px; align-items: center; font-size: 13px; }
@@ -173,7 +224,7 @@
   .erp-span3 { grid-column: span 3; }
   .erp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; border: 0; margin: 0; padding: 0; }
   .erp-field > label, .erp-field > legend, .erp-field__label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 0; }
-  .erp-field input:not([type="checkbox"]), .erp-field select, .erp-field textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); min-width: 0; width: 100%; }
+  .erp-field input:not([type="checkbox"]), .erp-field select, .erp-field textarea { padding: 8px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); min-width: 0; width: 100%; }
   .erp-field input:focus, .erp-field select:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-field input:disabled, .erp-field select:disabled { background: var(--head); color: var(--text-muted); }
   .erp-field .erp-input--bad, .erp-input--bad { border-color: var(--danger) !important; background: var(--danger-bg) !important; }
@@ -181,8 +232,29 @@
   .erp-field__hint { font-weight: 400; color: var(--text-muted); font-size: 11px; }
   .erp-field__error { font-size: 11px; color: var(--danger); font-weight: 600; }
   .erp-field__ok { font-size: 11px; color: var(--ok); }
-  .erp-field--dv { width: 64px; flex: 0 0 auto; }
+  .erp-field--dv { width: 104px; flex: 0 0 auto; }
   .erp-field--dv input { text-align: center; }
+  /* "Ver códigos DIAN" sits at the top right of a record form */
+  .erp-form__tools { display: flex; justify-content: flex-end; }
+  /* a computed value (check digit, name on the document, margin): readable and copyable, never disabled (M12) */
+  .erp-computed { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .erp-computed input { flex: 1 1 auto; }
+  .erp-field input.erp-input--computed { background: var(--head); border-color: var(--line); color: var(--text); }
+  .erp-field input.erp-input--computed:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-copy { flex: 0 0 auto; width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); display: grid; place-items: center; }
+  .erp-copy:hover:not(:disabled) { background: var(--head); color: var(--link); }
+  .erp-copy:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-copy:disabled { opacity: .4; cursor: not-allowed; }
+  .erp-rut__id { display: inline-flex; align-items: center; gap: 4px; }
+  /* the code combobox (municipality, department, unit, category) */
+  .erp-combo { position: relative; }
+  .erp-combo__pop { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 280px; overflow: auto; }
+  .erp-combo__list { list-style: none; margin: 0; padding: 0; }
+  .erp-combo__opt { padding: 7px 10px; cursor: pointer; font-size: 13px; color: var(--text); }
+  .erp-combo__opt:hover, .erp-combo__opt.is-on { background: var(--accent); }
+  .erp-combo__opt.is-chosen { font-weight: 600; }
+  .erp-combo__none { padding: 8px 10px; font-size: 12px; color: var(--text-muted); }
+  .erp-combo__more { padding: 6px 10px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--text-muted); }
   .erp-phone { display: flex; gap: 6px; }
   .erp-phone select { width: 92px !important; flex: 0 0 auto; }
   .erp-phone input { flex: 1 1 auto; }
@@ -199,19 +271,22 @@
   .erp-dian--info { background: var(--info-bg); color: var(--info); }
   .erp-form__actions { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 0 0; background: var(--surface); border-top: 1px solid var(--line-2); }
   .erp-stepup { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
-  .erp-stepup input { width: 120px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); color: var(--text); letter-spacing: 3px; }
+  .erp-stepup input { width: 120px; padding: 6px 8px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); color: var(--text); letter-spacing: 3px; }
 
   /* the record frame (design §5.16) */
   .erp-record { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
   .erp-record__header { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); }
   .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1; }
   .erp-record__ids { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); }
-  .erp-record__open { font-size: 12px; color: var(--primary); }
+  .erp-record__open { font-size: 12px; color: var(--link); }
+  /* a new record started from a copy (rule 37): "Copia de <nombre>" above the tabs' panels */
+  .erp-record__copy { margin: 12px 18px 0; }
+  .erp-record__copy a { color: inherit; text-decoration: underline; }
   .erp-record__top { position: sticky; top: 0; z-index: 5; background: var(--surface); border-radius: 8px 8px 0 0; }
   .erp-record__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; }
   .erp-record__tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 4px; }
   .erp-record__tab { padding: 10px 12px; border: 0; background: transparent; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; }
-  .erp-record__tab--on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .erp-record__tab--on { color: var(--link); border-bottom-color: var(--primary); font-weight: 600; }
   .erp-record__count { font-size: 11px; background: var(--line-2); color: var(--text-muted); padding: 0 6px; border-radius: 8px; }
   .erp-record__count--warn { background: var(--warn-bg); color: var(--warn); }
   .erp-record__panel { padding: 18px; }
@@ -250,7 +325,7 @@
   .erp-contacts__muted, .erp-extra__muted, .erp-photos__muted, .erp-attachments__muted { margin: 0; color: var(--text-muted); font-size: 12px; }
   .erp-contacts__row--clickable { cursor: pointer; }
   .erp-contacts__row--clickable:hover td { background: var(--hover); }
-  .erp-contacts__edit { border: 0; background: transparent; padding: 0; color: var(--primary); font: inherit; text-align: left; cursor: pointer; }
+  .erp-contacts__edit { border: 0; background: transparent; padding: 0; color: var(--link); font: inherit; text-align: left; cursor: pointer; }
   .erp-contacts__edit:hover { text-decoration: underline; }
   .erp-contacts tr[role="alertdialog"] td { background: var(--danger-bg); color: var(--danger); white-space: normal; padding: 6px 10px; }
 
@@ -272,9 +347,9 @@
   .erp-photos__drop, .erp-attachments__drop { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--text-muted); font-size: 13px; background: var(--head); transition: border-color .15s, background .15s, color .15s; }
   .erp-photos__drop--over, .erp-attachments__drop--over { border-color: var(--primary); background: var(--accent); color: var(--text); }
   .erp-photos__drop--disabled, .erp-attachments__drop--disabled { opacity: .7; cursor: not-allowed; }
-  .erp-photos__choose, .erp-attachments__choose { color: var(--primary); text-decoration: underline; cursor: pointer; font-weight: 600; }
+  .erp-photos__choose, .erp-attachments__choose { color: var(--link); text-decoration: underline; cursor: pointer; font-weight: 600; }
   /* The chooser is a real <button> (Tab, Enter, Space); it keeps the link look of the prototype. */
-  :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose) { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 2px; background: transparent; color: var(--primary); font-size: inherit; font-weight: 600; text-decoration: underline; }
+  :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose) { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 2px; background: transparent; color: var(--link); font-size: inherit; font-weight: 600; text-decoration: underline; }
   :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose):hover:not(:disabled) { background: transparent; }
   :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   .erp-attachments__drop:focus-within, .erp-photos__drop:focus-within { border-color: var(--focus-ring); }
@@ -285,7 +360,7 @@
   /* Datos adicionales: the admin's fields in the Datos form's grid, the free data as a table */
   .erp-extra__defined, .erp-extra__free { min-width: 0; }
   .erp-extra__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-  .erp-extra__free table input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+  .erp-extra__free table input { width: 100%; padding: 6px 8px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
   .erp-extra__free table input:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-extra__free table input:disabled { background: var(--head); color: var(--text-muted); }
   .erp-extra__free td { padding: 4px 6px; }
@@ -300,7 +375,7 @@
   .erp-attachments__row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 0; border-bottom: 1px dashed var(--line-2); font-size: 13px; min-width: 0; flex-wrap: wrap; }
   .erp-attachments__row:last-child { border-bottom: 0; }
   .erp-attachments__row > span[aria-hidden="true"] { font-size: 18px; width: 24px; text-align: center; flex: 0 0 auto; }
-  .erp-attachments__row select, .erp-attachments__row input:not([type="file"]) { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; min-width: 0; }
+  .erp-attachments__row select, .erp-attachments__row input:not([type="file"]) { padding: 6px 8px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; min-width: 0; }
   .erp-attachments__row select { width: 200px; }
   .erp-attachments__row--confirm { background: var(--danger-bg); color: var(--danger); padding: 6px 10px; border-radius: 6px; border-bottom: 0; }
   .erp-attachments__row--confirm button:first-of-type { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
@@ -337,11 +412,15 @@
   .erp-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--text-muted); font-size: 13px; background: var(--head); transition: all .15s; }
   .erp-drop .erp-icon { width: 26px; height: 26px; }
   .erp-drop--over { border-color: var(--primary); background: var(--accent); color: var(--text); }
-  .erp-import__table { max-height: 260px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; }
+  .erp-import__table { min-height: 160px; max-height: 260px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; }
   .erp-import__table table, .erp-card table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .erp-import__table th, .erp-card th { position: sticky; top: 0; background: var(--head); text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
   .erp-import__table td, .erp-card td { padding: 6px 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
-  .erp-import__result { white-space: normal !important; max-width: 360px; }
+  .erp-import__result { white-space: nowrap; }
+  /* Every preview row is one 32 px line, so the box scrolls evenly (audit M16); the reasons open in a row of their own. */
+  .erp-import__table tbody tr[data-row] td { height: 32px; }
+  .erp-import__errors td { white-space: normal; background: var(--head); }
+  .erp-import__errors ul { margin: 0; padding: 0 0 0 18px; font-size: 12px; }
   .erp-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
   .erp-card h2 { margin: 0; font-size: 15px; font-weight: 700; }
   .erp-card .erp-num { text-align: right; }
@@ -353,6 +432,23 @@
   .erp-sheet { width: min(760px, 100%) !important; max-width: none !important; background: var(--surface) !important; color: var(--text); border-color: var(--line) !important; overflow: auto; gap: 0 !important; }
   .erp-sheet__close { position: absolute; top: 8px; right: 10px; z-index: 6; }
   .erp-sheet__state { margin: 18px; }
+
+  /* audit viewer (design §22.14): two-line cells that keep the 36 px row (name over its id), the clone's source next to
+     its origin, and the detail sheet's `label · antes → después` lines */
+  .erp-cell-stack { display: inline-flex; flex-direction: column; justify-content: center; max-width: 340px; vertical-align: middle; }
+  .erp-cell-stack__main { font-size: 13px; line-height: 15px; overflow: hidden; text-overflow: ellipsis; }
+  .erp-cell-stack__sub { font-size: 11px; line-height: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+  .erp-audit__origin { display: inline-flex; align-items: center; gap: 6px; }
+  .erp-audit-detail__head { padding: 16px 52px 12px 18px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 4px; }
+  .erp-audit-detail__title { font-size: 16px; font-weight: 600; line-height: 1.3; }
+  .erp-audit-detail { padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+  .erp-audit-detail__facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  .erp-audit-detail__facts dt { color: var(--text-muted); }
+  .erp-audit-detail__facts dd { margin: 0; overflow-wrap: anywhere; }
+  .erp-audit-detail__heading { font-size: 13px; font-weight: 600; margin: 8px 0 0; }
+  .erp-audit-detail__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; font-size: 13px; }
+  .erp-audit-detail__list li { padding: 7px 0; border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
+  .erp-audit-detail__label { font-weight: 600; }
   .erp-support__frame { border: 0; border-radius: 0; min-height: 100%; }
   .erp-support__frame .erp-record__header { padding-right: 52px; }
   .erp-support__data, .erp-support__convo { display: flex; flex-direction: column; gap: 14px; }
@@ -379,7 +475,7 @@
   .erp-msg p { margin: 0; white-space: pre-wrap; }
   .erp-msg ul { margin: 0; padding-left: 18px; }
   .erp-msg code { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; background: var(--line-2); padding: 1px 4px; border-radius: 3px; }
-  .erp-msg a { color: var(--primary); text-decoration: underline; }
+  .erp-msg a { color: var(--link); text-decoration: underline; }
   .erp-msg--user a { color: #fff; }
   .erp-chat__tool { font-size: 12px; color: var(--text-muted); }
   .erp-chat__error { margin: 0 16px 8px; padding: 8px 10px; border-radius: 6px; background: var(--danger-bg); color: var(--danger); font-size: 13px; }
@@ -397,11 +493,11 @@
   .erp-confirm__body > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
   .erp-confirm__body dt { margin: 0; }
   .erp-confirm__body dd { margin: 0; text-align: right; color: var(--text); min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-  .erp-confirm__body input { width: 60%; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+  .erp-confirm__body input { width: 60%; padding: 4px 8px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
   .erp-confirm__foot { padding: 10px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .erp-confirm__note { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
   .erp-confirm__stepup { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--line-2); }
-  .erp-confirm__stepup input { width: 130px; letter-spacing: 3px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); }
+  .erp-confirm__stepup input { width: 130px; letter-spacing: 3px; padding: 6px 8px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); }
   .erp-result { display: flex; flex-direction: column; gap: 6px; }
   .erp-result__scroll { max-height: 280px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; background: var(--surface); }
   .erp-result table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -415,7 +511,7 @@
   .erp-admin h1 { margin: 0; font-size: 20px; font-weight: 600; }
   .erp-admin__sections { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .erp-admin__sections a { padding: 8px 12px; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; }
-  .erp-admin__sections a[aria-current="page"] { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .erp-admin__sections a[aria-current="page"] { color: var(--link); border-bottom-color: var(--link); font-weight: 600; }
   .erp-admin__head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
   .erp-admin__scroll { overflow: auto; max-height: calc(100vh - 260px); }
   .erp-admin__dock { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 40; box-shadow: 0 10px 30px var(--shadow); border-radius: 6px; min-width: 360px; }
@@ -431,11 +527,31 @@
   .erp-admin__bar > .erp-dian { flex-grow: 1; padding: 4px 10px; }
   .erp-matrix input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); }
   .erp-matrix__group td { background: var(--head); font-weight: 700; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
-  .erp-matrix select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); }
+  .erp-matrix select { padding: 3px 6px; border: 1px solid var(--line-input); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); }
   .erp-matrix select.is-masked { background: var(--warn-bg); color: var(--warn); }
   .erp-matrix select.is-hidden { background: var(--danger-bg); color: var(--danger); }
+  /* Staged cells (OD-7): a pending change has a warn inset ring, a cell the last batch refused a danger one; the shape
+     cue goes with the colour. The whole cell is the checkbox's target, and the row under the pointer is tinted. */
+  .erp-matrix td.is-dirty { box-shadow: inset 0 0 0 2px var(--warn); }
+  .erp-matrix td.is-refused { box-shadow: inset 0 0 0 2px var(--danger); background: var(--danger-bg); }
+  .erp-matrix tbody tr:not(.erp-matrix__group):hover > td:not(.is-refused) { background: var(--hover); }
+  .erp-matrix td:has(> .erp-matrix__hit) { padding: 0; }
+  .erp-matrix__hit { display: grid; place-items: center; min-width: 44px; min-height: 32px; cursor: pointer; }
+  .erp-matrix__hit:has(:disabled) { cursor: not-allowed; }
+  .erp-matrix__hit:has(:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .erp-matrix__group .erp-link { text-transform: none; letter-spacing: 0; }
+  .erp-admin__bar .erp-btn { flex-shrink: 0; }
+  /* Leaving with staged changes asks in the bar itself. */
+  .erp-admin__leave { display: flex; flex-grow: 1; flex-wrap: wrap; align-items: center; gap: 8px; }
   .erp-admin__row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
   .erp-admin__row:last-child { border-bottom: 0; }
+  /* A user's page (Administración › Usuarios › <name>): the person, then label/value pairs per section. */
+  .erp-user { display: flex; flex-direction: column; }
+  .erp-user__body { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; padding: 12px 14px; }
+  .erp-user__body h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+  .erp-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  .erp-facts dt { color: var(--text-muted); }
+  .erp-facts dd { margin: 0; overflow-wrap: anywhere; }
   .erp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .erp-kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
   .erp-kpi__label { font-size: 12px; color: var(--text-muted); }
@@ -443,7 +559,14 @@
   .erp-bar { height: 8px; border-radius: 4px; background: var(--line-2); overflow: hidden; }
   .erp-bar > i { display: block; height: 100%; background: var(--primary); }
   .erp-bar.is-over > i { background: var(--danger); }
-  .erp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; }
+  /* Allowance meter (audit §2.32): 12 px track, ticks at 80 % (warning) and 100 % (cap); the share is also written next to it. */
+  .erp-meter { position: relative; height: 12px; border-radius: 6px; background: var(--line-2); }
+  .erp-meter__fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--primary); }
+  .erp-meter.is-warn .erp-meter__fill { background: var(--warn); }
+  .erp-meter.is-over .erp-meter__fill { background: var(--danger); }
+  .erp-kpi .erp-pill { align-self: flex-start; white-space: normal; margin-right: 0; }
+  .erp-meter__tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text-muted); }
+  .erp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; }
   .erp-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .erp-avatar--lg { width: 72px; height: 72px; font-size: 22px; }
 
@@ -453,13 +576,17 @@
   .erp-home__hint { font-size: 12px; color: var(--text-muted); }
   .erp-dash { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; grid-auto-flow: dense; }
   .erp-wg { position: relative; min-width: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-  .erp-wg__hd { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; color: var(--text-muted); border-bottom: 1px dashed var(--line-2); cursor: grab; user-select: none; }
+  /* The header is a real <button> (Enter or Space opens the "Mover" mode, audit L9) that is also the drag handle. */
+  .erp-wg__hd { display: flex; align-items: center; gap: 6px; width: 100%; margin: 0; padding: 6px 10px; border: 0; border-bottom: 1px dashed var(--line-2); border-radius: 8px 8px 0 0; background: transparent; font: inherit; font-size: 11px; text-align: left; color: var(--text-muted); cursor: grab; user-select: none; }
+  .erp-wg[data-moving="true"] .erp-wg__hd { background: var(--accent); }
+  .erp-wg__mode { padding: 4px 10px; border-bottom: 1px solid var(--accent-line); background: var(--accent); color: var(--text); font-size: 12px; }
+  .erp-wg__mode:empty { display: none; }
   .erp-wg__hd:active { cursor: grabbing; }
   .erp-wg__hd:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-wg__grip { letter-spacing: -2px; font-size: 14px; opacity: .6; }
   /* The size hint only while the card is resized or has the caret. */
   .erp-wg__size { opacity: 0; transition: opacity .12s; }
-  .erp-wg[data-resizing="true"] .erp-wg__size, .erp-wg:focus-within .erp-wg__size { opacity: 1; }
+  .erp-wg[data-resizing="true"] .erp-wg__size, .erp-wg[data-moving="true"] .erp-wg__size, .erp-wg:focus-within .erp-wg__size { opacity: 1; }
   .erp-wg__asof { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
   .erp-wg__title { font-weight: 600; color: var(--text); font-size: 12px; }
   .erp-wg__bd { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
@@ -474,6 +601,8 @@
   .erp-home-kpi__label { font-size: 12px; color: var(--text-muted); }
   .erp-home-kpi__value { font-size: 26px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
   .erp-home-kpi__value[data-tone="warn"] { color: var(--warn); }
+  .erp-home-kpi__trend-slot { height: 28px; margin-top: 6px; }
+  .erp-home-kpi__trend { display: block; width: 100%; height: 28px; }
   .erp-home-kpi__detail { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
   .erp-home-recs { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
   .erp-home-recs__list { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }

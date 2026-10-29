@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
 // The application shell in a real browser (design §19a, rule 19, prototype v5): navy top bar with the module and

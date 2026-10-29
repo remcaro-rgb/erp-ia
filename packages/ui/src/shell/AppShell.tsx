@@ -1,19 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useStore } from "zustand";
 import { Toaster } from "@erp/ui/components/ui/sonner";
 import { AssistantDrawer, screenOf, type ResultColumn } from "../assistant";
 import { CellFormatProvider } from "../grid/cell-format";
 import { ExportJobsProvider } from "../grid/export-jobs";
+import { FormPrefsProvider } from "../forms/form-context";
 import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
-import { browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+import { NavigateProvider } from "./navigate";
+import { assistantOpenStorageKey, browserStorage, dianHintsStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
@@ -50,6 +52,14 @@ export interface AppShellProps {
   theme?: Saved<ThemeMode> | null;
   /** A theme change with its time, to save it (the shell already caches it in localStorage). */
   onThemeChange?: (mode: ThemeMode, savedAt: number) => void;
+  /** The user's saved choice of showing the assistant drawer (`kernel.user_prefs`, key `assistant.open`), or null: then the viewport decides. */
+  assistantOpen?: Saved<boolean> | null;
+  /** The user opened or closed the drawer, with the time, to save it (the shell already caches it in localStorage). */
+  onAssistantOpenChange?: (open: boolean, savedAt: number) => void;
+  /** Whether the user turned on "Ver códigos DIAN" in the record forms (`kernel.user_prefs`, key `forms.dian_hints`), or null: off. */
+  dianHints?: Saved<boolean> | null;
+  /** The user switched the DIAN hints, with the time, to save it (the shell already caches it in localStorage). */
+  onDianHintsChange?: (on: boolean, savedAt: number) => void;
   /** The user's saved tabs in this company (`kernel.user_prefs`, key `tabs`), or null. */
   initialTabs?: Saved<unknown> | null;
   /** Every change of the tabs with its time, to save them (the shell already caches them in localStorage). */
@@ -58,6 +68,17 @@ export interface AppShellProps {
   signOutAction?: () => void | Promise<void>;
   /** The preference cache; the browser's localStorage by default. */
   storage?: Storage | null;
+}
+
+/** Below this viewport width the assistant drawer starts closed (OD-10: it would leave the page under ~920 px at 1366). */
+const ASSISTANT_MIN_WIDTH = 1280;
+
+/** Grid and admin routes use the tighter page padding (OD-1); the home and the record page keep v5's. */
+const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/");
+
+function readBooleanPref(storage: Storage | null, key: string, companyId: string): Saved<boolean> | null {
+  const cached = readCachedPref(storage, key, companyId);
+  return cached && typeof cached.value === "boolean" ? { value: cached.value, savedAt: cached.savedAt } : null;
 }
 
 /**
@@ -144,20 +165,67 @@ function ShellFrame(props: AppShellProps) {
     store.getState().open({ title, href: currentHref, kind });
   }, [currentHref, nav, store, t]);
 
+  // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
+  // choice wins until the page changes (a pick from a page of another module would otherwise never show).
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
   const hrefModule = nav.find((i) => isActiveHref(i.href, currentHref));
-  const activeModuleId = (hrefModule ? moduleOf(hrefModule) : undefined) ?? selectedModule ?? visibleModules[0]?.id;
+  const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
+  /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
   const selectModule = (moduleId: string) => {
     setSelectedModule(moduleId);
     const items = (itemsByModule[moduleId] ?? []).filter((i) => i.menu !== false);
-    const hasTab = store.getState().tabs.some((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
-    if (items[0] && !hasTab) navigate(items[0].href);
+    const openTab = store.getState().tabs.find((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
+    if (openTab) store.getState().activate(openTab.id);
+    else if (items[0]) navigate(items[0].href);
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(true);
+  // The drawer: the user's saved choice when there is one (the server's copy, or this browser's when it is newer), else
+  // closed below 1280 px (OD-10). Decided once, on the first mount; the server render and hydration use the saved choice
+  // or "open", and a narrow viewport closes it before the first paint. A resize afterwards never moves it.
+  // With no saved choice the drawer renders in the CSS-first `auto` state (hidden under 1280 px by a media query), so the
+  // first paint is right and nothing collapses after hydration; the effect then writes the same state explicitly.
+  const [assistantOpen, setAssistantOpen] = useState(props.assistantOpen?.value ?? true);
+  const [assistantAuto, setAssistantAuto] = useState(props.assistantOpen == null);
+  useLayoutEffect(() => {
+    const saved = newerSaved(props.assistantOpen ?? null, readBooleanPref(storage, assistantOpenStorageKey(user.id), company.id));
+    setAssistantAuto(false);
+    setAssistantOpen(saved ? saved.value : window.innerWidth >= ASSISTANT_MIN_WIDTH);
+    // Once per mounted shell: the first render's saved copies and viewport decide.
+  }, []);
+  /** A toggle by the user: remembered for the next visit. (Opening it to answer ⌘K is not a choice and is not saved.) */
+  const chooseAssistant = useCallback(
+    (open: boolean) => {
+      setAssistantAuto(false);
+      setAssistantOpen(open);
+      const savedAt = Date.now();
+      writeCachedPref(storage, assistantOpenStorageKey(user.id), company.id, { value: open, savedAt });
+      latest.current.onAssistantOpenChange?.(open, savedAt);
+    },
+    [storage, user.id, company.id],
+  );
+  // "Ver códigos DIAN" in the record forms: the server's saved choice renders first (no flash), a newer one of this
+  // browser's cache replaces it before the first paint. Off when never chosen.
+  const [dianHints, setDianHintsState] = useState(props.dianHints?.value ?? false);
+  useLayoutEffect(() => {
+    const saved = newerSaved(props.dianHints ?? null, readBooleanPref(storage, dianHintsStorageKey(user.id), company.id));
+    if (saved) setDianHintsState(saved.value);
+    // Once per mounted shell, like the drawer.
+  }, []);
+  const formPrefs = useMemo(
+    () => ({
+      dianHints,
+      setDianHints: (on: boolean) => {
+        setDianHintsState(on);
+        const savedAt = Date.now();
+        writeCachedPref(storage, dianHintsStorageKey(user.id), company.id, { value: on, savedAt });
+        latest.current.onDianHintsChange?.(on, savedAt);
+      },
+    }),
+    [dianHints, storage, user.id, company.id],
+  );
   // Ctrl+/ (⌘/ on a Mac) shows the assistant with the caret in its input, or hides it and returns the caret to the page.
   const openRef = useRef(assistantOpen);
   useEffect(() => {
@@ -172,18 +240,19 @@ function ShellFrame(props: AppShellProps) {
       event.preventDefault();
       if (openRef.current) {
         document.getElementById("erp-main")?.focus({ preventScroll: true });
-        setAssistantOpen(false);
+        chooseAssistant(false);
       } else {
-        setAssistantOpen(true);
+        chooseAssistant(true);
         setFocusInput((n) => n + 1);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [chooseAssistant]);
   const [asked, setAsked] = useState<{ text: string; nonce: number } | undefined>(undefined);
   const ask = useCallback((text: string) => {
     if (!text) return;
+    setAssistantAuto(false);
     setAssistantOpen(true);
     setAsked((previous) => ({ text, nonce: (previous?.nonce ?? 0) + 1 }));
   }, []);
@@ -211,13 +280,14 @@ function ShellFrame(props: AppShellProps) {
 
   return (
     <CellFormatProvider timeZone={timeZone}>
+      <NavigateProvider navigate={navigate}>
       <TabsProvider store={store}>
         {/* Exports outlive the grid that started them: a tab change no longer aborts a background job. */}
         <ExportJobsProvider>
         <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
           <a
             href="#erp-main"
-            className="sr-only rounded-md bg-surface px-3 py-2 text-[13px] font-semibold text-primary focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:shadow-[0_10px_30px_var(--shadow)]"
+            className="sr-only rounded-md bg-surface px-3 py-2 text-[13px] font-semibold text-link focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:shadow-[0_10px_30px_var(--shadow)]"
           >
             {t("nav.shell.skip_to_content")}
           </a>
@@ -235,17 +305,20 @@ function ShellFrame(props: AppShellProps) {
             onThemeChange={(mode) => changeTheme(mode)}
             onOpenPalette={() => setPaletteOpen(true)}
             assistantOpen={assistantOpen}
-            onToggleAssistant={() => setAssistantOpen((open) => !open)}
+            onToggleAssistant={() => chooseAssistant(!assistantOpen)}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
           />
           <TabsBar onNew={() => setPaletteOpen(true)} />
           <div className="flex min-h-0 flex-1">
-            <main id="erp-main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">
-              <AskAssistantProvider ask={ask}>{props.children}</AskAssistantProvider>
+            <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
+              <AskAssistantProvider ask={ask}>
+                <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
+              </AskAssistantProvider>
             </main>
             <AssistantDrawer
               open={assistantOpen}
+              auto={assistantAuto}
               focusInput={focusInput}
               context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
               screen={screenOf(currentHref)}
@@ -267,6 +340,7 @@ function ShellFrame(props: AppShellProps) {
         </div>
         </ExportJobsProvider>
       </TabsProvider>
+      </NavigateProvider>
     </CellFormatProvider>
   );
 }

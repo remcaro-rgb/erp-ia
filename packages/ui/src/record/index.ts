@@ -1,6 +1,7 @@
 export { RecordFrame } from "./RecordFrame";
 export type { RecordFrameProps } from "./RecordFrame";
 export { DEFAULT_RECORD_LABELS, recordHref, recordTabIds, shortId } from "./record-model";
+export { RecordLink } from "./RecordLink";
 export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
 export { ExtraDataTab } from "./ExtraDataTab";
 export type { ExtraDataTabProps } from "./ExtraDataTab";

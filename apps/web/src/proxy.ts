@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { mfaStep, readSession, redirectPathFor, type SessionState } from "@/lib/auth/claims";
+import { companyMove, mfaStep, readSession, redirectPathFor, type SessionState } from "@/lib/auth/claims";
 import { LOCALE_HEADER } from "@/i18n/constants";
 import { type CookieJar, type CookieOptions } from "@/lib/supabase/cookies";
 import { clientIpOf, createSupabase } from "@/lib/supabase/server";
@@ -10,6 +10,7 @@ import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 //  2. Lets only the sign-in surface through without a session: /login, /mfa/*, /api/auth/* (assets are not matched).
 //  3. Holds a session back until its MFA is complete: a verified TOTP factor with aal1 goes to /mfa/verify; a
 //     role that requires MFA (hook claim) without a factor goes to /mfa/enroll.
+//  3b. Settles an automatic company move the access token hook made on a renewal (lib/auth/inactive.ts).
 //  4. Hands the user's locale to the render as the `x-erp-locale` request header (the i18n layer reads it);
 //     a header of that name sent by the client is always discarded, so only a verified claim can set it.
 // API paths answer 401 JSON instead of a redirect. Every handler and page still checks the session itself
@@ -41,7 +42,15 @@ function requestJar(request: NextRequest, pending: PendingCookie[]): CookieJar {
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const pending: PendingCookie[] = [];
-  const state = await readSession(createSupabase(requestJar(request, pending), { clientIp: clientIpOf(request.headers) }));
+  const supabase = createSupabase(requestJar(request, pending), { clientIp: clientIpOf(request.headers) });
+  let state = await readSession(supabase);
+  // A renewed token whose company the hook changed (the chosen membership was deactivated, 0027): the move is stored and
+  // audited once, and the token reissued, so a later reactivation does not move the session back unseen (design §22.16).
+  // One compare of two claims per request; the write only on a move, and never before the second factor.
+  if (state && mfaStep(state) === null && companyMove(state)) {
+    const { settleCompany } = await import("@/lib/auth/inactive");
+    state = await settleCompany(supabase, state);
+  }
   const { pathname } = request.nextUrl;
   const isApi = pathname.startsWith("/api/");
 

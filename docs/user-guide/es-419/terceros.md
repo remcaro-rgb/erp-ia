@@ -37,7 +37,9 @@ Haz clic en una fila para abrir el tercero en su propia pestaña.
 5. En **Ubicación** elige el **País**. Para Colombia aparecen **Departamento**, **Municipio** (códigos DANE; los municipios dependen del departamento) y **Código postal** (6 dígitos, opcional). Si el tercero es del exterior no hay códigos DANE. Escribe la **Dirección** como está en el RUT.
 6. En **Comercial** elige la **Relación**: **Cliente**, **Proveedor** o **Cliente y proveedor**. Puedes indicar el **Cupo de crédito**, ver el **Saldo** y escribir una **Persona de contacto**.
 7. En **Correos y teléfono para documentos electrónicos** (ver más abajo) escribe el correo que corresponda y el teléfono.
-8. Mira el cuadro de estado DIAN al pie del formulario y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** solo no guarda. Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
+8. Mira el cuadro de estado DIAN al pie del formulario y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** no guarda: pasa al campo siguiente (**Mayús+Enter** vuelve al anterior). Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
+
+El interruptor **Ver códigos DIAN**, arriba a la derecha, muestra los nombres técnicos de la DIAN junto a cada etiqueta (por ejemplo «DANE» o «schemeName») y los códigos delante de los nombres de las listas; empieza apagado. **Departamento** y **Municipio** son cajas de búsqueda: escribe «medellin» y pulsa **Enter**. El **DV** y el **Nombre para documentos** no se editan, pero se pueden seleccionar y copiar con el botón de copiar que tienen al lado; el **Resumen RUT** también copia la identificación completa («NIT 900373115-3»). Todo esto se explica en la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
 
 Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **N.º** consecutivo y su identificador (UUID).
 
@@ -83,5 +85,6 @@ Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar t
 ## Más
 
 - Pestañas del registro: **Datos · Contactos · Datos adicionales · Archivos**.
+- **Duplicar** (o **Ctrl+D**) crea un tercero nuevo a partir de este, sin número de documento ni DV, contactos ni archivos (guía **Moverse por el sistema**, «Duplicar un registro»).
 - Cada acción (crear, actualizar, desactivar) queda en la auditoría con quién la hizo y desde dónde.
 - Para cargar muchos terceros de una vez, usa **Importar** (guía **Importar datos**).

@@ -1,5 +1,5 @@
 import "server-only";
-import { ProcessError, readUserPrefs, runProcess, type Caller, type Kpi } from "@erp/kernel";
+import { gridEntity, ProcessError, readUserPrefs, runProcess, type Caller, type Kpi } from "@erp/kernel";
 import type { HelpShortcut, RecentRecord, RecommendationItem, Saved } from "@erp/ui";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps } from "@/lib/server/runtime";
@@ -70,7 +70,7 @@ export async function loadHome(shell: ShellData, caller: Caller, now: Date = new
     greeting: { period: greetingPeriod(now, shell.company.timeZone ?? "America/Bogota"), name: firstNameOf(shell.user.name) },
     kpis: kpis?.kpis ?? null,
     recommendations: recommendations?.recommendations.map(({ id, agentProfile, title, body, confidence, suggestedActions }) => ({ id, agentProfile, title, body, confidence, suggestedActions })) ?? null,
-    recent: recent?.records.map((r) => ({ ...r, href: recentHref(r.entity, r.id) })) ?? null,
+    recent: recent?.records.map((r) => ({ ...r, href: recentHref(gridEntity(deps.registry, r.entity), r.id) })) ?? null,
     help: helpShortcuts(shell.nav.map((item) => item.href)),
     layout: savedFrom(prefs.home_layout),
     asOf: now.toISOString(),

@@ -6,10 +6,13 @@ import { setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
+import { consultProcessesOf } from "../query/access";
 import type { Registry } from "../registry";
+import type { ResolvedEntityDef } from "../registry/entities";
+import { IDENTIFIER } from "../registry/fields";
 import type { ProcessDef, ProcessKind } from "../registry/types";
 import type { Caller, ProcessContext } from "./context";
-import { ProcessError, type ProcessErrorCode } from "./errors";
+import { isMembershipInactive, MEMBERSHIP_INACTIVE, ProcessError, type ProcessErrorCode } from "./errors";
 
 export interface RunProcessDeps {
   sql: Sql;
@@ -40,6 +43,15 @@ export interface RunProcessOptions {
    * `import:<importId>:<rowIndex>`, so a retried batch replays instead of creating twice.
    */
   idempotencyKey?: string;
+  /**
+   * The record this creation was cloned from (rule 37, design §22.13): a `create` process only. The run's audit entry
+   * and the row trigger's insert entries record it as `source_row_id`, so the viewer shows "clonado desde …". Anything
+   * but a record id, or a process of another kind (or one that creates no registered entity), is refused as
+   * `invalid_input`. The source must be a record of the created entity the caller sees: a role of theirs may consult the
+   * entity and its masked view (company RLS, party scope) shows the row, checked as the caller in the run's
+   * transaction before the handler; otherwise the run is refused as `not_found` (stage `gate`), whoever calls.
+   */
+  sourceRowId?: string;
 }
 
 /** Thrown inside a dry run's transaction to roll it back while carrying the handler's output out. */
@@ -76,7 +88,8 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
 
 /**
  * Runs a registered process for `caller` (design §5.4). In order: resolve (`not_found`),
- * entitlements (`not_entitled`), permission (`forbidden`, skipped for `permission: "none"`), step-up (`step_up_required`), input
+ * entitlements (`not_entitled`), an inactive membership (`forbidden` with `details.reason` MEMBERSHIP_INACTIVE),
+ * permission (`forbidden`, skipped for `permission: "none"`), step-up (`step_up_required`), input
  * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
  * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
@@ -98,13 +111,11 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
     return await execute<O>(deps, caller, def, chainId, input, options);
   } catch (error) {
     if (error instanceof ProcessError && DENIALS.has(error.code)) {
-      await withClaims(deps.sql, caller.claims, (tx) =>
-        writeAudit(tx, {
-          ...auditDefaults(def, caller, chainId),
-          action: "denied",
-          input: { code: error.code, process_id: def.id },
-        }),
-      );
+      const denial = { ...auditDefaults(def, caller, chainId), action: "denied" as const, input: { code: error.code, process_id: def.id } };
+      // A deactivated membership's company is no longer in the caller's company_ids (0027), so their own session cannot
+      // write that company's audit: the refusal is recorded on the service connection, still on their name.
+      if (isMembershipInactive(error)) await deps.sql.begin((tx) => writeAudit(tx, denial));
+      else await withClaims(deps.sql, caller.claims, (tx) => writeAudit(tx, denial));
     }
     throw error;
   }
@@ -131,10 +142,11 @@ async function execute<O extends z.ZodTypeAny>(
 
   const stepUpToken = caller.stepUpToken ?? null;
   const gate = await withClaims(deps.sql, claims, async (tx) => {
-    const [row] = await tx<{ allowed: boolean; member: boolean; sensitive: boolean; verified: boolean }[]>`
+    const [row] = await tx<{ allowed: boolean; member: boolean; inactive: boolean; sensitive: boolean; verified: boolean }[]>`
       select
         kernel.can_run_process(${def.id}) as allowed,
         coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
+        kernel.membership_inactive() as inactive,
         exists (
           select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id}
         ) as sensitive,
@@ -145,11 +157,22 @@ async function execute<O extends z.ZodTypeAny>(
         ) as verified`;
     return row!;
   });
+  // A deactivated membership (design §22.16) runs nothing, whatever the claims say: not a self-service process, not an
+  // admin's (whose admin bypass already ends with the membership, 0025), checked here before anything else.
+  if (gate.inactive) throw new ProcessError("forbidden", `the caller's membership in company ${companyId} is inactive`, { details: { reason: MEMBERSHIP_INACTIVE }, stage: "gate" });
   // A self-service process (`permission: "none"`) needs no row in the role matrix, only membership of the
   // active company; everything else needs a role that allows it.
   if (def.permission === "none" ? !gate.member : !gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`, GATE);
   const stepUp = gate.sensitive || def.sensitivity === "step-up";
   if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`, GATE);
+
+  let cloned: ResolvedEntityDef | null = null;
+  if (options.sourceRowId !== undefined) {
+    if (def.kind !== "create") throw new ProcessError("invalid_input", `${def.id} creates nothing: it has no source record`, { details: ["Solo una creación tiene registro de origen"], stage: "gate" });
+    if (!UUID.test(options.sourceRowId)) throw new ProcessError("invalid_input", `source record ${options.sourceRowId} is not a record id`, { details: ["El registro de origen no es válido"], stage: "gate" });
+    cloned = createdEntity(deps.registry, def);
+    if (!cloned) throw new ProcessError("invalid_input", `${def.id} creates no registered entity: it has no source record`, { details: ["Solo una creación tiene registro de origen"], stage: "gate" });
+  }
 
   const parsed = def.input.safeParse(input);
   if (!parsed.success) {
@@ -170,7 +193,10 @@ async function execute<O extends z.ZodTypeAny>(
         chainId,
         actorUserId: claims.sub,
         conversationId: caller.conversationId,
+        sourceRowId: options.sourceRowId,
       });
+      // The source of a clone is a record the caller sees (rule 37), asked as them before anything is written.
+      if (cloned && options.sourceRowId !== undefined) await requireVisibleSource(tx, deps.registry, cloned, options.sourceRowId);
       if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
 
       // The roles the caller still holds (0024: the claim's roles intersected with the live memberships), so a role
@@ -189,7 +215,12 @@ async function execute<O extends z.ZodTypeAny>(
       // A dry run ends here: everything the handler wrote (and the step-up consumption) is rolled back.
       if (dryRun) throw new DryRunRollback(output);
 
-      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(output), input: def.auditInput ? def.auditInput(parsed.data) : parsed.data });
+      await writeAudit(tx, {
+        ...auditDefaults(def, caller, chainId),
+        rowId: rowIdOf(output),
+        input: def.auditInput ? def.auditInput(parsed.data) : parsed.data,
+        sourceRowId: options.sourceRowId,
+      });
 
       if (key !== undefined) {
         const inserted = await tx`
@@ -209,6 +240,31 @@ async function execute<O extends z.ZodTypeAny>(
       if (stored) return stored.result as z.infer<O>;
     }
     throw error;
+  }
+}
+
+/** The registered entity a create process creates: the one whose create process it is (`processIds.create`, else `<entity>.create`). */
+function createdEntity(registry: Registry, def: ProcessDef): ResolvedEntityDef | null {
+  return registry.entities().find((entity) => (entity.processIds?.create ?? `${entity.id}.create`) === def.id) ?? null;
+}
+
+/**
+ * Refuses (`not_found`, stage `gate`) a clone whose source the caller does not see: no role of theirs may consult the
+ * entity, or its masked view (`<schema>.v_<table>`: company RLS, the party scope) does not show the row. As the caller.
+ */
+async function requireVisibleSource(tx: Tx, registry: Registry, entity: ResolvedEntityDef, sourceRowId: string): Promise<void> {
+  for (const part of [entity.schema, entity.table]) if (!IDENTIFIER.test(part)) throw new Error(`entity ${entity.id}: invalid identifier "${part}"`);
+  const consults = consultProcessesOf(registry, entity);
+  const [row] = await tx.unsafe<{ visible: boolean }[]>(
+    `select coalesce((select bool_or(kernel.can_run_process(p)) from unnest($1::text[]) as p), false)
+            and exists (select 1 from ${entity.schema}.v_${entity.table} where id = $2::uuid) as visible`,
+    [consults, sourceRowId] as never[],
+  );
+  if (!row?.visible) {
+    throw new ProcessError("not_found", `source record ${sourceRowId} of ${entity.id} does not exist or is not visible to the caller`, {
+      details: ["El registro de origen no existe o no es visible"],
+      stage: "gate",
+    });
   }
 }
 

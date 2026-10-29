@@ -13,16 +13,17 @@ export interface GridFooterProps {
   loading?: boolean;
   onPage: (page: number) => void;
   onPageSize: (size: number) => void;
-  /** Sums of the whole filter per money column (`sum:<field>` aggregates). */
-  sums?: { column: GridColumn; sum: unknown }[];
   /** Selected rows and their money totals. */
   selection?: { count: number; totals: { column: GridColumn; sum: number }[] };
   /** Shows the keyboard hint of the rows (↑↓ · Espacio · Enter · /). */
   keysHint?: boolean;
 }
 
-/** The grid footer (prototype `.grid-ft`): rows shown, the pager with 10 / 25 / 50 / 100 per page, and the money totals. */
-export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, sums = [], selection, keysHint = false }: GridFooterProps) {
+/**
+ * The grid footer (prototype `.grid-ft`): rows shown, the pager with 10 / 25 / 50 / 100 per page, and the selection with
+ * its money totals. The filter's totals are not here: they sit under their own columns in the grid's `tfoot` (OD-5).
+ */
+export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, selection, keysHint = false }: GridFooterProps) {
   const t = useTranslations();
   const pages = pageCount(total, pageSize);
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -56,14 +57,9 @@ export function GridFooter({ page, pageSize, total, loading = false, onPage, onP
           ))}
         </select>
       </nav>
-      {/* One line: the totals, the selection and the key hint sit in a right-aligned group that never wraps (the footer
-          scrolls sideways if it must), so ticking a row never shrinks the body. */}
+      {/* One line: the selection and the key hint sit in a right-aligned group that never wraps (the footer scrolls
+          sideways if it must), so ticking a row never shrinks the body. */}
       <span className="erp-grid__ft-end">
-        {sums.map(({ column, sum }) => (
-          <span key={column.field} className="erp-num">
-            {t("grid.sum_filtered", { label: column.label.toLowerCase(), amount: formatMoney(sum as number | string) || formatMoney(0) })}
-          </span>
-        ))}
         <span className="erp-grid__selection" aria-live="polite">
           {selection && selection.count > 0 && (
             <>

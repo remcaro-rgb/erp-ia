@@ -4,6 +4,8 @@ import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import type { EntityDef } from "../registry/entities";
 import { buildQuery } from "./build-query";
 import { EXTRA_PREFIX, type GridState } from "./grid-state";
+import { addRefLabels } from "./ref-labels";
+import type { Registry } from "../registry";
 
 /** How a field reaches the caller (rule 14, `kernel.field_mode`). */
 export type FieldMode = "visible" | "masked" | "hidden";
@@ -65,24 +67,34 @@ export function visibleIn(access: GridAccess): (field: string) => boolean {
   };
 }
 
+export interface GridQueryOptions {
+  /**
+   * Name the records the page's references point to (`<field>_label`, design §22.15, rule 21), through the target
+   * entities this registry declares and the caller may read. The grid route and the assistant's query pass it; an
+   * option list or a lookup's own read has no references to show and leaves it out.
+   */
+  registry?: Registry;
+}
+
 /**
  * Runs one grid page for the caller (design §9): resolves what they may see, builds the select over the masked
  * view and reads the rows, the total and the aggregates in one transaction under their claims, so company RLS,
  * the party scope and masking apply. Throws `QueryError` when the state uses a field the caller may not filter
  * or sort by.
  */
-export async function runGridQuery(sql: Sql, claims: JwtClaims, entity: EntityDef, state: GridState): Promise<GridResult & { access: GridAccess }> {
-  return withClaims(sql, claims, (tx) => gridQueryInTx(tx, entity, state));
+export async function runGridQuery(sql: Sql, claims: JwtClaims, entity: EntityDef, state: GridState, options: GridQueryOptions = {}): Promise<GridResult & { access: GridAccess }> {
+  return withClaims(sql, claims, (tx) => gridQueryInTx(tx, entity, state, options));
 }
 
 /** One grid page read in `tx` (a transaction as the caller, e.g. a process's): see `runGridQuery`. */
-export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState): Promise<GridResult & { access: GridAccess }> {
+export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState, options: GridQueryOptions = {}): Promise<GridResult & { access: GridAccess }> {
   const access = await gridAccess(tx, entity);
   const extras = Object.fromEntries(access.extras.map((e) => [e.key, e.type]));
   const q = buildQuery(entity, state, visibleIn(access), { extras, timeZone: access.timeZone });
   const rows = await tx.unsafe<Record<string, unknown>[]>(q.sql, q.params as never[]);
   const [count] = await tx.unsafe<{ total: number }[]>(q.countSql, q.params as never[]);
-  const result: GridResult & { access: GridAccess } = { rows: [...rows], total: count?.total ?? 0, access };
+  const result: GridResult & { access: GridAccess } = { rows: rows.map((row) => ({ ...row })), total: count?.total ?? 0, access };
+  if (options.registry) await addRefLabels(tx, options.registry, entity, result.rows);
   if (q.aggregateSql) {
     const [aggregates] = await tx.unsafe<Record<string, unknown>[]>(q.aggregateSql, q.params as never[]);
     result.aggregates = { ...aggregates };

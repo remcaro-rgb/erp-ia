@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { kernelModule, loadModules, recordPageEntities, Registry } from "@erp/kernel";
+import { core } from "@erp/module-core";
+import { support } from "@erp/module-support";
 import { NEW_RECORD_ID, recordEntity } from "./entities";
 
 describe("record entities", () => {
@@ -11,5 +14,13 @@ describe("record entities", () => {
 
   it("refuses anything else, including inherited object keys", () => {
     for (const id of ["core.uom", "kernel.attachments", "constructor", "__proto__", ""]) expect(recordEntity(id)).toBeNull();
+  });
+
+  it("the entities whose modules declare a record page are exactly those that open here, the ticket's frame and the user's page (rule 21)", () => {
+    const registry = new Registry();
+    loadModules(registry, [kernelModule, core, support]);
+    const pages = [...recordPageEntities(registry.entities())].sort();
+    expect(pages).toEqual(["core.party", "core.product", "core.product_category", "kernel.user", "support.ticket"]);
+    for (const id of pages) expect(recordEntity(id) !== null || id === "support.ticket" || id === "kernel.user").toBe(true);
   });
 });

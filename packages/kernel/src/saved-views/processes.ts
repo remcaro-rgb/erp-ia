@@ -10,8 +10,13 @@ import { GridState } from "../query/grid-state";
 
 const FEATURE = "kernel.saved_views";
 
-/** What a view keeps of a grid state: everything but the page it was on. */
-export const SavedViewState = GridState.omit({ page: true }).partial();
+/**
+ * What a view keeps of a grid state: everything but the page it was on, plus the column chooser's full order (every
+ * offered field, shown or not, design §22.12), so a hidden column keeps its place.
+ */
+export const SavedViewState = GridState.omit({ page: true })
+  .extend({ order: z.array(z.string().min(1).max(80)).max(200) })
+  .partial();
 export type SavedViewState = z.infer<typeof SavedViewState>;
 
 const entity = z.string().min(1).max(80);

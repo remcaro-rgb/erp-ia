@@ -3,9 +3,9 @@ import { isThemeMode, sanitizeHomeLayout, sanitizeTabs, type Saved } from "@erp/
 
 // The shell's preferences as the browser may send them (server action and pagehide beacon) and as they are
 // stored: `{ value, savedAt }` under the key, `savedAt` being the browser's time of the change so the shell can
-// compare it with its own cache. Only the theme, the tabs and the home layout, in their known shapes.
+// compare it with its own cache. Only the theme, the tabs, the home layout and the two on/off choices (assistant drawer, DIAN hints), in their known shapes.
 
-export type ShellPrefKey = "theme" | "tabs" | "home_layout";
+export type ShellPrefKey = "theme" | "tabs" | "home_layout" | "assistant.open" | "forms.dian_hints";
 
 export interface ShellPrefInput {
   key: ShellPrefKey;
@@ -22,6 +22,7 @@ export function parseShellPref(input: unknown, now: number = Date.now()): ShellP
   if (typeof savedAt !== "number" || !Number.isFinite(savedAt) || savedAt <= 0 || savedAt > now + MAX_CLOCK_AHEAD_MS) return null;
   if (key === "theme") return isThemeMode(value) ? { key, stored: { value, savedAt } } : null;
   if (key === "tabs") return { key, stored: { value: sanitizeTabs(value), savedAt } };
+  if (key === "assistant.open" || key === "forms.dian_hints") return typeof value === "boolean" ? { key, stored: { value, savedAt } } : null;
   if (key === "home_layout") {
     // Stored repaired (clamped spans and heights), never as sent; a layout with an unknown widget is refused.
     const layout = sanitizeHomeLayout(value);

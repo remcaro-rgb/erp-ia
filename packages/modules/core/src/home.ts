@@ -1,4 +1,4 @@
-import type { HomeKpiProvider, Kpi } from "@erp/kernel";
+import { dailySeries, type HomeKpiProvider, type Kpi } from "@erp/kernel";
 
 // The core module's cards on the home screen (design §19a). Both count through the published masked views as the caller,
 // so the party scope (rule 13) and the field masks (rule 14) decide the numbers; a value the caller may not read is never
@@ -18,6 +18,8 @@ export const partiesKpi: HomeKpiProvider = {
              count(*) filter (where is_active and not invoice_ready)::int as not_ready
       from core.v_parties`;
     const { total, known_active: knownActive, active, known_ready: knownReady, not_ready } = row!;
+    // New parties per day: the same masked view, so the caller's party scope shapes the trend as it does the number.
+    const series = await dailySeries(ctx.tx, ctx.companyId, "core.v_parties");
     // `is_active` hidden or masked reads as null on every row: then the card counts every party it can see.
     const activeVisible = total === 0 || knownActive === total;
     const readyVisible = total === 0 || knownReady === total;
@@ -28,6 +30,7 @@ export const partiesKpi: HomeKpiProvider = {
       unit: "count",
       ...(activeVisible && total > 0 ? { progress: active / total } : {}),
       detail: readyVisible ? { key: "home.kpi.core_parties.detail", params: { total, not_ready } } : { key: "home.kpi.core_parties.detail_total", params: { total } },
+      series,
     };
     return [kpi];
   },
@@ -43,6 +46,7 @@ export const productsKpi: HomeKpiProvider = {
       select count(*)::int as total, count(invoice_ready)::int as known_ready, count(*) filter (where not invoice_ready)::int as not_ready
       from core.v_products`;
     const { total, known_ready: knownReady, not_ready } = row!;
+    const series = await dailySeries(ctx.tx, ctx.companyId, "core.v_products");
     return [
       {
         id: "core.products",
@@ -50,6 +54,7 @@ export const productsKpi: HomeKpiProvider = {
         value: total,
         unit: "count",
         ...(total === 0 || knownReady === total ? { detail: { key: "home.kpi.core_products.detail", params: { not_ready } } } : {}),
+        series,
       },
     ];
   },

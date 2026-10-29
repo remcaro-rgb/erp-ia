@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
 
 // Mass import in a real browser (design §9, prototype "Importar"): Terceros › Importar, a CSV with Spanish headers
@@ -71,7 +72,18 @@ test.describe("mass import", () => {
     await dialog.locator("input[type=file]").setInputFiles({ name: "terceros.csv", mimeType: "text/csv", buffer: Buffer.from(csv, "utf8") });
     await expect(dialog.getByText("Vista previa · 3 filas")).toBeVisible();
     await expect(dialog.getByText("2 válidas")).toBeVisible();
-    await expect(dialog.getByText("31: solo dígitos")).toBeVisible();
+    // Every row is one line: the reason is behind "Ver", and "Solo filas con error" keeps the file's own row numbers (audit M16).
+    await expect(dialog.getByText("31: solo dígitos")).toHaveCount(0);
+    const errorsOnly = dialog.getByRole("checkbox", { name: "Solo filas con error (1)" });
+    await errorsOnly.check();
+    await expect(dialog.getByRole("row", { name: /Fila con error/ })).toHaveCount(1);
+    await expect(dialog.getByRole("row").filter({ hasText: "Mal Dato Ltda." }).getByRole("cell").first()).toHaveText("4");
+    const show = dialog.getByRole("button", { name: "Ver errores de la fila 4" });
+    await expect(show).toHaveAttribute("aria-expanded", "false");
+    await show.click();
+    await expect(dialog.getByRole("list", { name: "Errores de la fila 4" }).getByText("31: solo dígitos")).toBeVisible();
+    await errorsOnly.uncheck();
+    await expect(dialog.getByRole("row", { name: /válida/ })).toHaveCount(2);
 
     await dialog.getByRole("button", { name: "Importar filas válidas" }).click();
     // The code box has the caret and the 6th digit sends it (no Verificar click).

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { AppShell } from "../AppShell";
 import { useAskAssistant } from "../ask-assistant";
@@ -9,6 +9,10 @@ import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 // "Ejecuta <proceso> con <input>"): useAskAssistant() opens the drawer if it is closed and sends the text as the user.
 
 beforeAll(stubLayoutApis);
+// The drawer starts open from 1280 px (OD-10); jsdom's default window is 1024.
+beforeEach(() => {
+  window.innerWidth = 1440;
+});
 afterEach(cleanup);
 
 function AskButton({ text }: { text: string }) {

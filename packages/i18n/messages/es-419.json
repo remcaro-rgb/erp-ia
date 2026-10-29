@@ -67,6 +67,10 @@
       "assigned_on_create": "N.º y uuid se asignan al crear",
       "open_in_new_tab": "Abrir en una pestaña nueva",
       "pending": "Pendientes",
+      "duplicate": "Duplicar",
+      "copy_of": "Copia de {name}",
+      "copy_note": "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
+      "duplicate_failed": "No se pudo duplicar el registro: {reason}",
       "dian": {
         "complete": "DIAN: completo",
         "missing": "DIAN: {count, plural, one {falta # dato} other {faltan # datos}}",
@@ -183,7 +187,13 @@
       "step_up_code": "Código de 6 dígitos",
       "step_up_failed": "El código no es válido. Inténtalo de nuevo.",
       "step_up_cancel": "Cancelar",
-      "save_hint": "Ctrl+S guarda"
+      "save_hint": "Ctrl+S guarda",
+      "dian_hints": "Ver códigos DIAN",
+      "copy_field": "Copiar {field}",
+      "copied": "Copiado",
+      "copy_failed": "No se pudo copiar",
+      "combo_empty": "Sin coincidencias",
+      "combo_more": "{count} más: escribe para acotar"
     },
     "party_form": {
       "identification": "Identificación",
@@ -196,6 +206,7 @@
       "alnum": "letras y números",
       "dv": "DV",
       "dv_title": "Calculado con el algoritmo DIAN",
+      "copy_id": "identificación",
       "doc_digits": "Solo dígitos",
       "doc_alnum": "Solo letras y números",
       "doc_max": "Máximo {count} caracteres",
@@ -258,7 +269,6 @@
       "sku": "Código interno",
       "sku_hint": "SKU · máx. {count}",
       "description": "Descripción en la factura",
-      "description_hint": "cbc:Description · máx. {count}",
       "kind": "Tipo",
       "kind_good": "Bien",
       "kind_service": "Servicio",
@@ -359,7 +369,8 @@
         "author_agent": "Soporte",
         "loading_failed": "No se pudo cargar el ticket.",
         "reported_by": "Reportado por",
-        "hidden": "Oculto para tu rol"
+        "hidden": "Oculto para tu rol",
+        "copy_note": "Revisa el título y la descripción. Los mensajes y los archivos del ticket no se copian."
       }
     },
     "admin": {
@@ -370,7 +381,18 @@
       "saved": "Cambios guardados",
       "failed": "No se pudo guardar: {reason}",
       "process": "Proceso {process}",
-      "step_up_note": "Cada cambio pide el código de 6 dígitos de tu app de autenticación y queda en la auditoría.",
+      "pending_changes": "{count, plural, one {# cambio sin aplicar} other {# cambios sin aplicar}}",
+      "pending_cell": "{label} (sin aplicar)",
+      "apply_changes": "Aplicar cambios",
+      "discard_changes": "Descartar",
+      "batch_note": "Se aplican juntos con un código de verificación y quedan en la auditoría.",
+      "no_pending": "Sin cambios pendientes · los cambios se acumulan y se aplican juntos con un código de verificación.",
+      "leave_title": "Hay cambios sin aplicar",
+      "leave_body": "{count, plural, one {# cambio se pierde} other {# cambios se pierden}} si sales sin aplicarlos.",
+      "leave_stay": "Seguir editando",
+      "leave_go": "Salir sin aplicar",
+      "refused_changes": "{count, plural, one {# cambio rechazado} other {# cambios rechazados}}",
+      "refused_elsewhere": "también en {entities}",
       "kind": {
         "create": "crear",
         "update": "actualizar",
@@ -396,7 +418,11 @@
         "col_kind": "Acción",
         "step_up": "2FA",
         "step_up_title": "Este proceso siempre pide la verificación en dos pasos",
-        "admin_locked": "El rol admin tiene todos los permisos"
+        "admin_locked": "El rol admin tiene todos los permisos",
+        "all": "todos",
+        "none": "ninguno",
+        "grant_module": "{mode, select, none {Quitar a {role} todos los procesos de {module}} other {Dar a {role} todos los procesos de {module}}}",
+        "admin_only": "Solo el rol admin ejecuta los procesos de administración"
       },
       "roles": {
         "title": "Roles",
@@ -445,11 +471,37 @@
         "create": "Crear e invitar",
         "create_hint": "Se envía una invitación por correo: la persona define su contraseña y activa la verificación en dos pasos en su perfil.",
         "edit_title": "Usuario · {name}",
-        "edit_roles": "Editar roles",
-        "edit_hint": "Los cambios de rol aplican en el siguiente inicio de sesión del usuario.",
+        "edit_hint": "Los datos y el estado cambian de inmediato; los roles nuevos aplican en el siguiente inicio de sesión del usuario.",
         "save": "Guardar",
         "created": "Usuario creado e invitación enviada a {email}",
-        "name_required": "El nombre es obligatorio"
+        "name_required": "El nombre es obligatorio",
+        "edit": "Editar",
+        "locale": "Idioma",
+        "locale_es_419": "Español (Latinoamérica)",
+        "locale_en": "Inglés",
+        "col_state": "Estado",
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "deactivate": "Desactivar",
+        "reactivate": "Reactivar",
+        "deactivate_title": "¿Desactivar a {name}?",
+        "deactivate_body": "{name} no podrá iniciar sesión ni hacer nada en la empresa. Sus roles y su historial se conservan, y puedes devolverle el acceso cuando quieras.",
+        "reactivate_title": "¿Reactivar a {name}?",
+        "reactivate_body": "{name} podrá volver a iniciar sesión, con los mismos roles que tenía.",
+        "deactivate_self": "No puedes desactivar tu propia cuenta",
+        "nothing_changed": "No cambiaste ningún dato",
+        "open": "Abrir la página de {name}",
+        "page": {
+          "data": "Datos",
+          "access": "Acceso",
+          "mfa": "Verificación en dos pasos",
+          "mfa_on": "Activa",
+          "mfa_off": "No configurada",
+          "last_activity": "Última actividad",
+          "no_activity": "Sin actividad registrada",
+          "back": "Usuarios",
+          "photo_alt": "Foto de {name}"
+        }
       },
       "fields": {
         "title": "Visibilidad por campo y rol",
@@ -578,6 +630,8 @@
         "limit": "Tope de la empresa",
         "limit_none": "Sin tope",
         "limit_note": "al superarlo el asistente responde solo consultas sin el modelo",
+        "cap_reached": "límite alcanzado: el asistente solo responde consultas",
+        "warn_at": "aviso al 80 %",
         "per_user": "Por usuario",
         "per_model": "Por modelo",
         "col_user": "Usuario",
@@ -602,7 +656,20 @@
         "permissions": "Permisos"
       },
       "audit": {
-        "hint": "Tabla kernel.audit_log · solo inserción, trigger por fila, cadena causal. Cada acción de la interfaz, del asistente, del programador y de los eventos deja rastro con su origen."
+        "hint": "Tabla kernel.audit_log · solo inserción, trigger por fila, cadena causal. Cada acción de la interfaz, del asistente, del programador y de los eventos deja rastro con su origen. Abre una fila para ver cada campo que cambió, con su valor anterior y el nuevo.",
+        "system": "sistema",
+        "cloned_from": "clonado desde",
+        "detail": {
+          "changes": "Cambios",
+          "no_changes": "Esta entrada no cambió ningún campo.",
+          "no_fields": "Sin detalle de campos: es una tabla interna del sistema, sin catálogo de campos.",
+          "input": "Datos recibidos",
+          "code": "Motivo",
+          "source": "Clonado desde",
+          "direct": "Cambio directo en la base de datos",
+          "failed": "No se pudo cargar la entrada.",
+          "masked": "Valor enmascarado para tu rol"
+        }
       }
     },
     "not_found": {
@@ -755,7 +822,8 @@
     "kernel": {
       "import": "Importación",
       "export_job": "Exportación",
-      "audit": "Auditoría"
+      "audit": "Auditoría",
+      "user": "Usuario"
     },
     "support": {
       "ticket": "Ticket",
@@ -950,7 +1018,16 @@
         "actor": "Actor",
         "chain_id": "Cadena",
         "actor_user_id": "Id del actor",
-        "conversation_id": "Conversación del asistente"
+        "conversation_id": "Conversación del asistente",
+        "source_row_id": "Clonado desde"
+      },
+      "user": {
+        "full_name": "Nombre",
+        "email": "Correo",
+        "locale": "Idioma",
+        "mobile": "Celular",
+        "created_at": "Creado",
+        "is_active": "Activo"
       }
     },
     "support": {
@@ -1000,7 +1077,8 @@
       "data": "Consultas de datos del asistente",
       "home": "Pantalla de inicio: indicadores, recomendaciones y registros recientes",
       "admin": "Administración",
-      "audit": "Auditoría de la empresa"
+      "audit": "Auditoría de la empresa",
+      "users": "Usuarios de la empresa"
     },
     "support": {
       "tickets": "Tickets de soporte"
@@ -1081,7 +1159,13 @@
       "col_row": "Fila",
       "col_result": "Resultado",
       "row_ok": "válida",
-      "row_bad": "error",
+      "row_bad": "Fila con error",
+      "only_errors": "Solo filas con error ({count})",
+      "errors_show": "Ver",
+      "errors_hide": "Ocultar",
+      "errors_show_label": "Ver errores de la fila {row}",
+      "errors_hide_label": "Ocultar errores de la fila {row}",
+      "errors_of_row": "Errores de la fila {row}",
       "partial": "Se revisaron las primeras {shown} filas de {total}; la importación revisa todas.",
       "missing_columns": "Faltan columnas obligatorias: {columns}. Todas las filas se rechazarían.",
       "unknown_headers": "Columnas que no se importan: {headers}",
@@ -1132,6 +1216,7 @@
       "saved": "Vista guardada: {name}",
       "none": "Sin vistas guardadas",
       "remove": "Borrar la vista {name}",
+      "confirm_remove": "¿Eliminar {name}?",
       "apply": "Aplicar la vista {name}",
       "is_default": "por defecto",
       "failed": "No se pudo guardar la vista"
@@ -1143,7 +1228,7 @@
     "new": "Nuevo",
     "rows": "Filas {from}–{to} de {total}",
     "per_page": "{count} / pág.",
-    "sum_filtered": "Suma {label} filtrado: {amount}",
+    "totals": "Suma",
     "selection_sum": "{label} seleccionado: {amount}",
     "select_all": "Seleccionar todas las filas de la página",
     "select_row": "Seleccionar fila",
@@ -1160,8 +1245,13 @@
     "date_to": "Hasta",
     "empty_filtered": "Sin resultados con estos filtros",
     "masked_value": "Enmascarado para tu rol",
+    "open_record": "Abrir {label}",
     "columns_shown": "{shown} de {total} columnas visibles",
     "columns_reset": "Restablecer columnas",
+    "columns_pinned": "fija",
+    "column_up": "Subir {label}",
+    "column_down": "Bajar {label}",
+    "column_moved": "Columna {label} movida a la posición {position}",
     "advanced_count": "Filtro avanzado ({count})",
     "remove_condition": "Quitar condición",
     "load_failed": "No se pudo cargar el listado.",
@@ -1357,6 +1447,7 @@
       "resize": "Cambiar tamaño de {title}",
       "move": "Mover {title}",
       "move_hint": "Arrastra para mover. También: Alt + flechas",
+      "mode_hint": "Modo mover: las flechas mueven la tarjeta, Mayús + flechas cambian su tamaño, Esc termina.",
       "size": "{columns}/4 · {height} px",
       "reset_done": "Tarjetas restablecidas"
     },
@@ -1368,6 +1459,7 @@
     },
     "kpi": {
       "empty": "No hay indicadores para mostrar con tus permisos.",
+      "trend": "Tendencia {days} días: de {from} a {to}",
       "core_parties": {
         "label": "Terceros activos",
         "label_total": "Terceros",
@@ -1547,7 +1639,8 @@
       "no_factor": "No tienes un segundo paso activado.",
       "mfa_required": "Primero verifica tu segundo paso para cambiarlo.",
       "too_many_attempts": "Demasiados intentos, espera unos minutos.",
-      "unavailable": "No pudimos conectar con el servicio de acceso. Inténtalo de nuevo."
+      "unavailable": "No pudimos conectar con el servicio de acceso. Inténtalo de nuevo.",
+      "account_disabled": "Cuenta desactivada. Contacta a un administrador."
     }
   },
   "errors": {

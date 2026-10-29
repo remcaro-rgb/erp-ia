@@ -4,6 +4,9 @@ routes:
   - /
 processes:
   - kernel.user_prefs.set
+  - core.party.create
+  - core.product.create
+  - core.category.create
 ---
 
 # Moverse por el sistema
@@ -37,9 +40,21 @@ Cada pantalla que abres queda en una pestaña de la fila que está debajo de la 
 - La **✕** de cada pestaña la cierra. Al cerrar la pestaña activa pasas a la vecina.
 - El botón **+** abre la paleta de comandos para elegir la pantalla de una pestaña nueva.
 - **Cerrar todas ✕** (a la derecha, solo aparece si hay pestañas que cerrar) cierra todas menos Inicio. Antes pide confirmación y te dice cuáles se cerrarán: «Los formularios sin guardar se perderían».
+- Si las pestañas no caben en el ancho, la fila se desplaza de lado y la pestaña activa siempre queda a la vista; **+** y **Cerrar todas ✕** se quedan fijos a la derecha.
 - Se mantienen hasta 30 pestañas; si abres más, se cierran las más antiguas.
 
 Tus pestañas se guardan en tu usuario, por empresa: al volver a ingresar, o desde otro computador, encuentras las mismas.
+
+## Duplicar un registro
+
+Para crear un registro parecido a uno que ya existe (un tercero de la misma cadena, un producto en otra presentación, una categoría con los mismos impuestos), ábrelo y pulsa **Duplicar**, arriba a la derecha junto a «Abrir en una pestaña nueva», o usa **Ctrl+D** (en Mac, **⌘D**) mientras el registro está abierto.
+
+- Se abre la pestaña «Crear …» con el formulario lleno con los datos **guardados** del registro de origen (lo que estabas cambiando sin guardar no pasa a la copia), y un aviso **«Copia de <nombre>»** con un enlace al original.
+- Quedan vacíos los datos que identifican al registro, para que escribas los del nuevo: en un tercero, el **número de documento** y su **DV**; en un producto, el **código interno (SKU)**; en una categoría, el **nombre**; un ticket de soporte se copia al formulario **Nuevo ticket** y queda **Abierto**. El **N.º** consecutivo, el estado DIAN y «Listo para facturar» se calculan de nuevo al crear.
+- No se copian los **contactos**, las **fotos** ni los **archivos**: quedan en el registro de origen.
+- Solo se copia lo que tu rol puede ver, y de los datos adicionales solo los que tu rol puede ingresar: un campo enmascarado u oculto para ti (por ejemplo, el cupo de crédito) queda vacío en la copia.
+- Revisa y pulsa **Crear**. La copia pasa por las mismas validaciones, permisos y código de verificación que un registro nuevo: si dejas vacío el número de documento, o escribes el de un tercero que ya existe, el sistema lo rechaza igual.
+- **Duplicar** aparece solo si tu rol puede crear registros de ese tipo. Mientras escribes en un cuadro de texto, o con una ventana abierta encima, **Ctrl+D** no duplica. Si sales del formulario de la copia sin guardarla, la copia se descarta: al volver, el formulario está vacío. La auditoría muestra el nuevo registro con «clonado desde <nombre del original>».
 
 ## La paleta de comandos (⌘K)
 
@@ -59,6 +74,8 @@ El botón de tema de la barra (y la opción **Tema** del menú de tu usuario) va
 
 El botón **Asistente** abre o cierra un panel a la derecha. Muestra el contexto de la pantalla en que estás y la conversación con el asistente; cerrarlo no la pierde. Cómo usarlo está en [El asistente](asistente.md).
 
+En pantallas angostas (menos de 1280 píxeles de ancho, como un portátil de 1366 con la ventana reducida) el panel se abre cerrado, para no quitarle espacio a los formularios; en pantallas anchas se abre abierto. Cuando lo abres o lo cierras tú, el sistema lo recuerda para tu usuario y tu empresa, y esa elección manda sobre el ancho de la pantalla.
+
 **Ctrl+/** (en Mac, **⌘/**) hace lo mismo desde cualquier pantalla: si el panel está cerrado lo abre con el cursor listo en la caja para escribir; si está abierto lo cierra y el cursor vuelve a la pantalla.
 
 ## Usar el teclado
@@ -67,4 +84,16 @@ El botón **Asistente** abre o cierra un panel a la derecha. Muestra el contexto
 - El elemento que tiene el cursor siempre se ve con un borde azul.
 - **⌘K** o **Ctrl+K** abre la paleta de comandos; **Ctrl+/** o **⌘/** abre o cierra el asistente.
 - **La fila de pestañas** es una sola parada de **Tab** (la pestaña activa). Con **← →** pasas de una pestaña a otra, **Enter** la abre y **Supr** (Delete) cierra la que tiene el cursor (Inicio no se cierra); el cursor queda en la pestaña vecina. La ✕ de cada pestaña sigue funcionando con el mouse.
+- **Ctrl+D** (en Mac, **⌘D**) en un registro abierto lo duplica (ver «Duplicar un registro»), en lugar de agregar la página a los favoritos del navegador.
 - **Las pestañas de un registro** (Datos, Contactos, Fotos, Datos adicionales, Archivos) se recorren con **← →**, e **Inicio** y **Fin** van a la primera y la última. El título del registro y sus pestañas quedan siempre visibles arriba mientras bajas por un formulario largo.
+
+## Llenar un formulario con el teclado
+
+Los formularios de Terceros, Productos y Categorías se recorren sin soltar el teclado:
+
+- **Enter** pasa al campo siguiente y **Mayús+Enter** vuelve al anterior. Ni en el último campo guarda: el cursor se queda donde está. Los campos calculados (DV, nombre para documentos, margen) se saltan. En una caja de texto de varias líneas, **Enter** escribe un salto de línea.
+- **Ctrl+Enter** (en Mac, **⌘Enter**) o **Ctrl+S** guardan desde cualquier campo. Si una caja de búsqueda tiene la lista abierta con una opción marcada, primero elige esa opción y guarda con ella; un texto a medio escribir que no coincide con nada se descarta.
+- **Ver códigos DIAN**, arriba a la derecha del formulario, muestra u oculta los nombres técnicos de la DIAN junto a las etiquetas («DANE», «schemeName»…) y los códigos delante de los nombres de las listas («05001 · Medellín»). Empieza apagado para que el formulario sea compacto; tu elección se recuerda para tu usuario y tu empresa en todos los formularios. Los textos de ayuda que no son códigos (por ejemplo «máx. 450») se ven siempre.
+- **Proveedor principal** de un producto también se recorre con **Enter**; su lista se abre al llegar, pero **Enter** o **Tab** solo eligen una fila después de que escribes o pulsas **↑ ↓**, así que pasar de largo no elige a nadie.
+- **Departamento**, **Municipio**, **Unidad de medida** y **Categoría** son cajas de búsqueda: escribe parte del nombre (o del código) sin preocuparte por las tildes («medellin» encuentra «Medellín»), muévete por la lista con **↑ ↓**, elige con **Enter** o **Tab**, y **Esc** cierra la lista y deja lo que estaba elegido. Si borras el texto y sales de la caja, el valor queda vacío.
+- Los valores que el sistema calcula (el **DV**, el **Nombre para documentos**, el **Margen**, el **Código estándar** cuando es tu código interno) se pueden leer, seleccionar y copiar: el botón de copiar al lado los lleva al portapapeles y avisa «Copiado».

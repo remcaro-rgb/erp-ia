@@ -29,4 +29,38 @@ describe("KpiCard", () => {
     renderEs(<KpiCard kpi={{ id: "kernel.ai_tokens", label: "home.kpi.kernel_ai_tokens.label", value: 1_900_000, unit: "tokens" }} />);
     expect(screen.getByTestId("kpi-value").textContent).toMatch(/1,9\s?M/);
   });
+
+  const series = [3, 5, 4, 6, 8, 7, 9, 6, 10, 12, 11, 9, 13, 14];
+
+  it("shows the 14-day trend under the value with an accessible name from the first to the last day", () => {
+    renderEs(<KpiCard kpi={{ id: "core.parties", label: "home.kpi.core_parties.label", value: 482, unit: "count", series }} />);
+    const trend = screen.getByRole("img", { name: "Tendencia 14 días: de 3 a 14" });
+    expect(trend.closest("[data-kpi]")!.getAttribute("data-kpi")).toBe("core.parties");
+  });
+
+  it("reads the trend of a token card in compact form", () => {
+    const tokens = Array.from({ length: 14 }, (_, i) => (i === 0 ? 1200 : i === 13 ? 3_400_000 : 2000));
+    renderEs(<KpiCard kpi={{ id: "kernel.ai_tokens", label: "home.kpi.kernel_ai_tokens.label", value: 76, unit: "percent", series: tokens }} />);
+    expect(screen.getByRole("img").getAttribute("aria-label")).toMatch(/^Tendencia 14 días: de 1,2\s?(K|mil) a 3,4\s?M$/);
+  });
+
+  it("has no trend line without a series or with fewer than two points", () => {
+    renderEs(<KpiCard kpi={{ id: "a.b", label: "home.kpi.core_parties.label", value: 1, unit: "count" }} />);
+    expect(screen.queryByRole("img")).toBeNull();
+    cleanup();
+    renderEs(<KpiCard kpi={{ id: "a.b", label: "home.kpi.core_parties.label", value: 1, unit: "count", series: [1] }} />);
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("keeps the card's height whether or not it has a trend: the 28 px slot is reserved by a class, not by the line", () => {
+    const { container } = renderEs(<KpiCard kpi={{ id: "a.b", label: "home.kpi.core_parties.label", value: 1, unit: "count" }} />);
+    const slot = container.querySelector(".erp-home-kpi__trend-slot");
+    expect(slot).not.toBeNull();
+    cleanup();
+    const withSeries = renderEs(<KpiCard kpi={{ id: "a.b", label: "home.kpi.core_parties.label", value: 1, unit: "count", series }} />);
+    const slot2 = withSeries.container.querySelector(".erp-home-kpi__trend-slot");
+    expect(slot2).not.toBeNull();
+    expect(slot2!.className).toBe(slot!.className);
+    expect(slot2!.querySelector("svg.erp-home-kpi__trend")).not.toBeNull();
+  });
 });

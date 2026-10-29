@@ -7,7 +7,8 @@ import { PhoneField } from "../fields/PhoneField";
 import type { FieldMode } from "../grid/types";
 import { formatMoney } from "../money/format";
 import { MoneyInput } from "../money/MoneyInput";
-import { Checks, RecordForm, DianPanel, Field, FieldError, failureMessages, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText, useFieldLabels } from "./form-parts";
+import { ComputedField, CopyButton } from "./computed-field";
+import { Checks, CodeComboboxField, RecordForm, DianPanel, Field, FieldError, failureMessages, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText, useFieldLabels } from "./form-parts";
 import {
   checkDigitOf,
   composedName,
@@ -40,6 +41,8 @@ export interface PartyFormProps {
   save: SaveRecord;
   requestStepUp?: RequestStepUp;
   /** After a save: the record's id and whether it was created. */
+  /** A new record started from a copy ("Duplicar", rule 37): the copy's values by field name, as a consult row has them. Ignored for a stored record. */
+  initial?: Readonly<Record<string, unknown>> | null;
   onSaved?: (id: string, created: boolean) => void;
 }
 
@@ -78,18 +81,18 @@ const rutKey = (code: string) => `rut_${code.toLowerCase().replace(/[^a-z0-9]/g,
  * DANE codes, commercial data, the e-mails each relation needs and the phone, then the DIAN and invoice-ready panels.
  * Saves through `core.party.create` / `core.party.update`; the process's messages are the validation messages.
  */
-export function PartyForm({ record, tables, modes, readOnly = false, save, requestStepUp, onSaved }: PartyFormProps) {
+export function PartyForm({ record, initial: copy, tables, modes, readOnly = false, save, requestStepUp, onSaved }: PartyFormProps) {
   const t = useTranslations("common.party_form");
   const tf = useTranslations("common.forms");
   const errorText = useErrorText();
   const fieldLabels = useFieldLabels();
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
   const [seen, setSeen] = useState(recordKey);
-  const [initial, setInitial] = useState(() => partyDraft(record, tables));
+  const [initial, setInitial] = useState(() => partyDraft(record ?? copy ?? null, tables));
   const [draft, setDraft] = useState(initial);
   if (seen !== recordKey) {
     // The page reloaded the record after a save: start over from it.
-    const next = partyDraft(record, tables);
+    const next = partyDraft(record ?? copy ?? null, tables);
     setSeen(recordKey);
     setInitial(next);
     setDraft(next);
@@ -103,6 +106,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
   const natural = draft.personType !== "1";
   const docDef = tables.documentTypes.find((d) => d.code === draft.documentType);
   const dv = checkDigitOf(draft, tables);
+  const identification = [`${docDef?.name ?? draft.documentType} ${draft.documentNumber}`.trim(), dv !== null && `-${dv}`].filter(Boolean).join("");
   const docProblem = documentProblem(draft, tables);
   const blocked = partyBlocked(draft, tables);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
@@ -122,6 +126,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
           <SelectField
             label={t("person_type")}
             hint="AdditionalAccountID"
+            hintKind="dian"
             value={draft.personType}
             disabled={dis}
             options={[
@@ -131,7 +136,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
             error={fe("personType")}
             onChange={set("personType")}
           />
-          <SelectField label={t("document_type")} hint="schemeName" value={draft.documentType} disabled={dis} options={docTypes} error={fe("documentType")} onChange={set("documentType")} />
+          <SelectField label={t("document_type")} hint="schemeName" hintKind="dian" value={draft.documentType} disabled={dis} options={docTypes} error={fe("documentType")} onChange={set("documentType")} />
           <div className="erp-row erp-row--top">
             <TextField
               className="erp-grow"
@@ -146,9 +151,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
               onChange={(v) => set("documentNumber")(v.trim())}
             />
             {tables.checkDigitTypes.includes(draft.documentType) && (
-              <Field label={t("dv")} className="erp-field--dv">
-                {(id) => <input id={id} className="erp-mono" disabled value={dv ?? ""} title={t("dv_title")} />}
-              </Field>
+              <ComputedField label={t("dv")} className="erp-field--dv" value={dv ?? ""} copyLabel={t("dv")} title={t("dv_title")} mono />
             )}
           </div>
         </div>
@@ -165,7 +168,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
             </div>
             <div className="erp-form2">
               <TextField label={t("trade_name_natural")} hint={tf("optional")} value={draft.tradeName} maxLength={L.legalName} disabled={dis} error={fe("tradeName")} onChange={set("tradeName")} />
-              <Field label={t("document_name")}>{(id) => <input id={id} disabled value={composedName(draft)} title={t("document_name_title")} />}</Field>
+              <ComputedField label={t("document_name")} value={composedName(draft)} copyLabel={t("document_name")} title={t("document_name_title")} />
             </div>
           </>
         ) : (
@@ -181,20 +184,24 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
           <Checks
             label={t("responsibilities")}
             hint={t("responsibilities_hint")}
+            hintKind="dian"
             options={tables.responsibilities}
             value={draft.taxResponsibilities}
             disabled={dis}
             onToggle={(code, on) => setDraft((d) => toggleResponsibility(d, code, on, tables.exclusiveResponsibility))}
           />
           <div className="erp-stack">
-            <SelectField label={t("tax_scheme")} hint="TaxScheme" value={draft.taxScheme} disabled={dis} options={tables.taxSchemes} error={fe("taxScheme")} onChange={set("taxScheme")} />
+            <SelectField label={t("tax_scheme")} hint="TaxScheme" hintKind="dian" value={draft.taxScheme} disabled={dis} options={tables.taxSchemes} error={fe("taxScheme")} onChange={set("taxScheme")} />
             <TextField label={t("ciiu")} hint={t("ciiu_hint")} value={draft.ciiu} maxLength={4} inputMode="numeric" mono disabled={dis} error={fe("ciiu")} onChange={set("ciiu")} />
           </div>
           <div className="erp-field">
             <span className="erp-field__label">{t("rut")}</span>
             <div className="erp-rut">
-              {natural ? t("rut_natural") : t("rut_juridica")} · {docDef?.name ?? draft.documentType} {draft.documentNumber}
-              {dv !== null && `-${dv}`}
+              {natural ? t("rut_natural") : t("rut_juridica")} ·{" "}
+              <span className="erp-rut__id">
+                {identification}
+                <CopyButton text={identification} label={t("copy_id")} />
+              </span>
               <br />
               {draft.taxResponsibilities.map((r) => (
                 <span key={r} className="erp-pill erp-pill--info">
@@ -216,11 +223,11 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
 
       <Section title={t("location")}>
         <div className="erp-form4">
-          <SelectField label={t("country")} hint="ISO 3166-1" value={draft.countryCode} disabled={dis} options={tables.countries} error={fe("countryCode")} onChange={set("countryCode")} />
+          <SelectField label={t("country")} hint="ISO 3166-1" hintKind="dian" value={draft.countryCode} disabled={dis} options={tables.countries} error={fe("countryCode")} onChange={set("countryCode")} />
           {home ? (
             <>
-              <SelectField label={t("department")} hint="DANE" value={draft.departmentCode} disabled={dis} options={tables.departments} empty="—" error={fe("departmentCode")} onChange={set("departmentCode")} />
-              <SelectField label={t("municipality")} hint="DANE" value={draft.municipalityCode} disabled={dis} options={municipalities} empty="—" error={fe("municipalityCode")} onChange={set("municipalityCode")} />
+              <CodeComboboxField label={t("department")} hint="DANE" hintKind="dian" value={draft.departmentCode} disabled={dis} options={tables.departments} empty="—" error={fe("departmentCode")} onChange={set("departmentCode")} />
+              <CodeComboboxField label={t("municipality")} hint="DANE" hintKind="dian" value={draft.municipalityCode} disabled={dis} options={municipalities} empty="—" error={fe("municipalityCode")} onChange={set("municipalityCode")} />
               <TextField label={t("postal_code")} hint={t("postal_hint")} value={draft.postalCode} maxLength={6} inputMode="numeric" mono disabled={dis} error={fe("postalCode")} onChange={set("postalCode")} />
             </>
           ) : (
@@ -255,7 +262,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
           {mode("balance") === "masked" ? (
             <MaskedField label={t("balance")} />
           ) : mode("balance") === "visible" ? (
-            <Field label={t("balance")}>{(id) => <input id={id} disabled className="erp-num text-right" value={formatMoney((record?.balance as string | number | null) ?? 0)} />}</Field>
+            <ComputedField label={t("balance")} value={formatMoney((record?.balance as string | number | null) ?? 0)} copyLabel={t("balance")} inputClassName="erp-num text-right" />
           ) : null}
           <TextField label={t("contact_name")} hint={tf("optional")} value={draft.contactName} disabled={dis} error={fe("contactName")} onChange={set("contactName")} />
         </div>

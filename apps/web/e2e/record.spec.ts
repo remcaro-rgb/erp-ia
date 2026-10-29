@@ -1,5 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
-import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
+import postgres from "postgres";
+import { DEMO_COMPANY_ID, LAURA } from "../../../scripts/demo/accounts";
+import { seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
+import { testEnv } from "../test-support/env";
 
 // The record page's tabs in a real browser (design §5.13, §5.14, §5.16, §5.18, prototype v5): a party's Contactos
 // (add a contact, ask to verify its e-mail), Datos adicionales (edit a value and save it through the party's update
@@ -145,6 +149,66 @@ test.describe("record tabs", () => {
     expect((await fixture.sql`select 1 from kernel.verification_requests where record_id = ${partyId} and kind = 'email'`).length).toBe(1);
   });
 
+  // OD-11, OD-12, M12: the municipality is a typeahead (about 1,100 options in a native select before), Enter walks the
+  // form, Ctrl+Enter saves, and the DIAN hints are off until the user turns them on (and stay that way after a reload).
+  test("picks a municipality by typing its name, saves with Ctrl+Enter and keeps it after a reload", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto(`/r/core.party/${partyId}`);
+    const department = page.getByRole("combobox", { name: /^Departamento/ });
+    const municipality = page.getByRole("combobox", { name: /^Municipio/ });
+    await expect(municipality).toHaveValue("Bogotá D.C.");
+    try {
+      await department.fill("antioquia");
+      await department.press("Enter");
+      await expect(department).toHaveValue("Antioquia");
+      // Without the accent, and the list holds only that department's municipalities.
+      await municipality.fill("medellin");
+      await expect(page.getByRole("option", { name: "Medellín" })).toBeVisible();
+      await expect(page.getByRole("option", { name: "Bogotá D.C." })).toHaveCount(0);
+      await municipality.press("Enter");
+      await expect(municipality).toHaveValue("Medellín");
+      // A second Enter moves on to the next field instead of submitting.
+      await municipality.press("Enter");
+      await expect(page.getByLabel(/^Código postal/)).toBeFocused();
+      await page.keyboard.press("Control+Enter");
+      await expect.poll(async () => (await fixture.sql`select municipality_code from core.parties where id = ${partyId}`)[0]!.municipality_code).toBe("05001");
+      await page.reload();
+      await expect(page.getByRole("combobox", { name: /^Municipio/ })).toHaveValue("Medellín");
+      await expect(page.getByRole("combobox", { name: /^Departamento/ })).toHaveValue("Antioquia");
+    } finally {
+      await fixture.sql`update core.parties set department_code = '11', municipality_code = '11001' where id = ${partyId}`;
+    }
+  });
+
+  test("the DIAN hints are off by default, turn on with the switch and stay on after a reload; the check digit copies", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await signIn(page, fixture);
+    await page.goto(`/r/core.party/${partyId}`);
+    const toggle = page.getByRole("switch", { name: "Ver códigos DIAN" });
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await expect(page.getByText("AdditionalAccountID")).toHaveCount(0);
+    // The check digit is readable (read-only, not disabled) and copyable.
+    const dv = page.getByLabel("DV", { exact: true }).filter({ visible: true });
+    // The page streams in: until the server's hidden copy of the form is swapped out there can be two.
+    await expect(dv).toHaveCount(1);
+    await expect(dv).toHaveValue("3");
+    await expect(dv).not.toBeDisabled();
+    await expect(dv).toHaveAttribute("readonly", "");
+    await page.getByRole("button", { name: "Copiar DV" }).click();
+    await expect(page.getByText("Copiado")).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("3");
+    try {
+      await toggle.click();
+      await expect(page.getByText("AdditionalAccountID")).toBeVisible();
+      await expect.poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'forms.dian_hints'`)[0]?.value?.value).toBe(true);
+      await page.reload();
+      await expect(page.getByRole("switch", { name: "Ver códigos DIAN" })).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByText("AdditionalAccountID")).toBeVisible();
+    } finally {
+      await fixture.sql`delete from kernel.user_prefs where user_id = ${fixture.userId} and key = 'forms.dian_hints'`;
+    }
+  });
+
   test("edits a datos adicionales value and saves it", async ({ page }) => {
     await signIn(page, fixture);
     await page.goto(`/r/core.party/${partyId}`);
@@ -248,5 +312,94 @@ test.describe("record tabs", () => {
     await expect(tabs.locator('[aria-current="page"]')).toHaveAccessibleName("No encontrado");
     await page.getByRole("link", { name: "Volver al inicio" }).click();
     await expect(page).toHaveURL(/\/$/);
+  });
+});
+
+// "Duplicar" on the demo company (rule 37, design §22.13; `pnpm db:reset && DEMO_SEED=1 pnpm db:seed`): Laura copies
+// Almacenes Éxito, the copy opens without its NIT and is refused until one is typed, the new party is created through
+// core.party.create and the audit viewer shows where it came from.
+test.describe("Duplicar on the demo company", () => {
+  const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
+  // A NIT no seeded party uses. Cleanup removes only copies of Éxito (rows whose creation the audit records as cloned
+  // from it), never a party found by its NIT alone, so a seeded record can never be lost.
+  const NIT = "901777001";
+  let exitoId = "";
+  const started = new Date();
+  const forgetCopies = (since?: Date) => sql`
+    delete from core.parties
+    where company_id = ${DEMO_COMPANY_ID}
+      and id in (select row_id from kernel.audit_log
+                 where source_row_id = ${exitoId} and process_id = 'core.party.create' and action = 'insert'
+                   and occurred_at >= ${since ?? new Date(0)})
+      ${since ? sql`` : sql`and document_number = ${NIT}`}`;
+
+  test.beforeAll(async () => {
+    const [exito] = await sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = '890900608'`;
+    exitoId = exito.id;
+    // A copy an interrupted earlier run left; then the NIT must be free (else the demo data changed: reseed).
+    await forgetCopies();
+    const taken = await sql`select legal_name from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NIT}`;
+    expect(taken, `NIT ${NIT} belongs to a party that is not a copy of Éxito: reseed the demo data`).toHaveLength(0);
+  });
+  test.afterAll(async () => {
+    await forgetCopies(started);
+    await sql.end({ timeout: 5 });
+  });
+
+  test("Duplicar Éxito → a new NIT → saved, and the audit shows clonado desde Almacenes Éxito", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const exito = { id: exitoId };
+    await page.goto("/login");
+    await page.getByLabel("Correo").fill(LAURA.email);
+    await page.getByLabel("Contraseña", { exact: true }).fill(LAURA.password);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await expect(page).toHaveURL(/\/mfa\/verify$/);
+    await page.getByLabel("Dígito 1").fill(totpCode(LAURA.totpSecret!));
+    await expect(page).toHaveURL(/\/$/);
+
+    await page.goto(`/r/core.party/${exito.id}`);
+    await expect(page.getByRole("heading", { name: "Almacenes Éxito S.A." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Duplicar" })).toHaveAttribute("aria-keyshortcuts", "Control+D Meta+D");
+    // The shortcut, from the page (not from a text box): the browser's bookmark is not what happens.
+    await page.getByRole("heading", { name: "Almacenes Éxito S.A." }).click();
+    await page.keyboard.press("ControlOrMeta+d");
+
+    // The create form, prefilled from the copy: the record's data is not in the URL.
+    await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
+    const banner = page.getByRole("status").filter({ hasText: "Copia de" });
+    await expect(banner).toContainText("Copia de Almacenes Éxito S.A.");
+    await expect(banner.getByRole("link", { name: "Almacenes Éxito S.A." })).toHaveAttribute("href", `/r/core.party/${exito.id}`);
+    // The router keeps the source's page alive but hidden: the visible boxes are the copy's.
+    await expect(page.getByRole("textbox", { name: /^Razón social/ })).toHaveValue("Almacenes Éxito S.A.");
+    const number = page.getByRole("textbox", { name: /^Número/ });
+    await expect(number).toHaveValue("");
+
+    // Without a NIT the party's own create process refuses it, as for a hand-typed one.
+    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await expect(number).toHaveAttribute("aria-invalid", "true");
+    await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
+
+    await number.fill(NIT);
+    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await expect(page).toHaveURL(/\/r\/core\.party\/[0-9a-f-]{36}$/);
+    const [clone] = await sql<{ id: string; legal_name: string; check_digit: string }[]>`
+      select id, legal_name, check_digit from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NIT}`;
+    expect(clone).toMatchObject({ legal_name: "Almacenes Éxito S.A." });
+    await expect(page).toHaveURL(new RegExp(`/r/core\\.party/${clone!.id}$`));
+    const [entry] = await sql`select source_row_id from kernel.audit_log where row_id = ${clone!.id} and process_id = 'core.party.create' and diff is null`;
+    expect(entry!.source_row_id).toBe(exito.id);
+    // Contacts and files stay with the source.
+    expect((await sql`select 1 from kernel.attachments where record_id = ${clone!.id}`).length).toBe(0);
+    expect((await sql`select 1 from core.party_contacts where party_id = ${clone!.id}`).length).toBe(0);
+
+    await page.goto("/admin/audit");
+    const audit = page.getByRole("region", { name: "Auditoría" });
+    await audit.getByLabel("Filtrar Proceso").fill("core.party.create");
+    const row = audit.getByRole("row", { name: /clonado desde/ }).first();
+    await expect(row).toContainText("clonado desde Almacenes Éxito");
+    // Registro is the copy (same name) and the origin links the source.
+    await expect(row.locator(`a[href="/r/core.party/${clone!.id}"]`)).toHaveText("Almacenes Éxito S.A.");
+    await expect(row.locator(`a[href="/r/core.party/${exito.id}"]`)).toHaveText("Almacenes Éxito S.A.");
   });
 });

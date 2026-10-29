@@ -23,7 +23,15 @@ describe("sessionStateOf", () => {
       aal: "aal2",
       requiresMfa: true,
       mfaEnrolled: true,
+      storedCompanyId: null,
+      inactiveCompanyId: null,
     });
+  });
+
+  it("reads the stored company choice and the company the hook passed over as inactive (0027)", () => {
+    const other = "44444444-4444-4444-8444-444444444444";
+    expect(sessionStateOf(raw({ app_metadata: { provider: "email", active_company_id: other }, inactive_company_id: other }))).toMatchObject({ storedCompanyId: other, inactiveCompanyId: other });
+    expect(sessionStateOf(raw({ app_metadata: { provider: "email" } }))).toMatchObject({ storedCompanyId: null, inactiveCompanyId: null });
   });
 
   it("treats a user without a company as signed in but without kernel claims", () => {

@@ -1,5 +1,5 @@
 import { orGroups } from "@erp/kernel/query";
-import { initialView, viewFilters } from "./grid-model";
+import { columnOrder, initialView, viewFilters } from "./grid-model";
 import type { Condition, GridColumn, GridStateInput, GridView, SortEntry } from "./types";
 
 // Saved views (design §9, rule 20): what a view keeps of a grid (filters with their Y / O joins, sort, page size and
@@ -14,6 +14,8 @@ export interface SavedGridState {
   sort?: SortEntry[];
   pageSize?: number;
   columns?: string[];
+  /** Every field the column chooser offers, shown or not, in the user's order (design §22.12); older views have none. */
+  order?: string[];
 }
 
 /** A saved view of the user, as `kernel.saved_view.list` returns it. */
@@ -24,9 +26,13 @@ export interface SavedViewItem {
   state: SavedGridState;
 }
 
-/** What to store for the grid as it is now: the filters as typed (a coded column keeps its label, rule 20). */
+/**
+ * What to store for the grid as it is now: the filters as typed (a coded column keeps its label, rule 20), the shown
+ * columns in their order and the chooser's full order (hidden columns included), so a column moved and then hidden
+ * comes back to its place when shown again (design §22.12).
+ */
 export function savedStateOf(columns: readonly GridColumn[], view: GridView): SavedGridState {
-  return { filters: viewFilters(columns, view), sort: view.sort, pageSize: view.pageSize, columns: view.columns };
+  return { filters: viewFilters(columns, view), sort: view.sort, pageSize: view.pageSize, columns: view.columns, order: columnOrder(columns, view) };
 }
 
 /** The grid view a saved state comes back as; fields the caller no longer sees are dropped. */
@@ -34,14 +40,16 @@ export function viewFromSaved(columns: readonly GridColumn[], saved: SavedGridSt
   const known = new Map(columns.filter((c) => c.mode !== "hidden").map((c) => [c.field, c]));
   // A masked field never filters or sorts (rule 14): its conditions and sort are dropped like a hidden field's.
   const usable = (field: string) => known.get(field)?.mode === "visible";
-  const base = initialView(columns);
   const shown = (saved.columns ?? []).filter((f) => known.has(f));
+  const order = (saved.order ?? []).filter((f) => known.has(f));
+  // The saved columns in their saved order and the saved full order (design §22.12); a view saved without `order`
+  // (older ones) gets the declared order, the chooser's other columns falling in around the shown ones.
+  const base = initialView(columns, { ...(shown.length > 0 ? { columns: shown } : {}), ...(order.length > 0 ? { order } : {}) });
   return {
     ...base,
     conditions: keepGroups(saved.filters ?? [], usable),
     sort: (saved.sort ?? []).filter((s) => usable(s.field)),
     pageSize: saved.pageSize ?? base.pageSize,
-    columns: shown.length > 0 ? shown : base.columns,
   };
 }
 

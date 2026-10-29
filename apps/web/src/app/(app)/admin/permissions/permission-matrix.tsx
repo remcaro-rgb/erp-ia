@@ -1,36 +1,40 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import { useTranslations } from "next-intl";
 import type { PermissionsData } from "@/lib/admin/load";
-import { StepUpDock, useAdminAction, without } from "../_components/use-admin-action";
+import { StepUpDock } from "../_components/use-admin-action";
+import { useStagedChanges } from "../_components/use-staged-changes";
+import { moduleTarget } from "../_components/staging";
+
+/** The staged cell of `role` × `process`. */
+const cellKey = (roleId: string, processId: string) => `${roleId}:${processId}`;
 
 /**
  * Roles as columns, the processes of the company's modules as rows grouped by module, each with the entity it acts on
- * (its name beside the id, design §6). A checkbox grants or revokes through kernel.admin.permission.set; the system
- * admin role holds everything and is not edited here.
+ * (its name beside the id, design §6). A click stages the cell; the staged cells are applied together with one step-up
+ * through kernel.admin.permission.set_many (OD-7). Each module row offers "todos / ninguno" per role. The system admin
+ * role holds everything and is not edited here; the administration processes are its own, so their cells are locked for
+ * every other role and the module buttons leave them out.
  */
 export function PermissionMatrix({ data }: { data: PermissionsData }) {
   const t = useTranslations();
-  const { perform, prompt, status } = useAdminAction();
-  // What the admin just clicked, shown until the server data says the same (or the change is refused).
-  const [pending, setPending] = useState<Record<string, boolean>>({});
-  const [shown, setShown] = useState(data);
-  if (shown !== data) {
-    setShown(data);
-    setPending({});
-  }
-
-  const granted = (roleId: string, processId: string) => {
-    const key = `${roleId}:${processId}`;
-    return key in pending ? pending[key]! : (data.grants[roleId] ?? []).includes(processId);
-  };
-  const toggle = async (roleId: string, processId: string, allowed: boolean) => {
-    const key = `${roleId}:${processId}`;
-    setPending((p) => ({ ...p, [key]: allowed }));
-    const ok = await perform("kernel.admin.permission.set", { roleId, processId, allowed });
-    if (!ok) setPending((current) => without(current, key));
-  };
+  const roleIds = new Set(data.roles.filter((r) => !r.isSystemAdmin).map((r) => r.id));
+  const storedOf = (roleId: string, processId: string) => (data.grants[roleId] ?? []).includes(processId);
+  const staged = useStagedChanges<boolean, { roleId: string; processId: string; allowed: boolean }>({
+    data,
+    stored: (key) => {
+      const [roleId, processId] = key.split(":") as [string, string];
+      return roleIds.has(roleId) && data.processes.some((p) => p.id === processId) ? storedOf(roleId, processId) : undefined;
+    },
+    processId: "kernel.admin.permission.set_many",
+    change: (key, allowed) => {
+      const [roleId, processId] = key.split(":") as [string, string];
+      return { roleId, processId, allowed };
+    },
+  });
+  const granted = (roleId: string, processId: string) => staged.value(cellKey(roleId, processId), storedOf(roleId, processId));
+  const toggle = (roleId: string, processId: string, allowed: boolean) => staged.set(cellKey(roleId, processId), allowed, storedOf(roleId, processId));
 
   const modules = [...new Set(data.processes.map((p) => p.module))];
   return (
@@ -44,24 +48,46 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
           <thead>
             <tr>
               {/* One identity column, sticky: the process, its kind and its entity stay in view while the roles scroll. */}
-              <th className="erp-matrix__left">{t("common.admin.permissions.col_process")}</th>
+              <th scope="col" className="erp-matrix__left">
+                {t("common.admin.permissions.col_process")}
+              </th>
               {data.roles.map((role) => (
-                <th key={role.id} title={role.isSystemAdmin ? t("common.admin.permissions.admin_locked") : role.description}>
+                <th key={role.id} scope="col" title={role.isSystemAdmin ? t("common.admin.permissions.admin_locked") : role.description}>
                   {role.name}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {modules.map((moduleId) => (
-              <Fragment key={moduleId}>
-                <tr className="erp-matrix__group">
-                  <td className="erp-matrix__left">{t(`nav.modules.${moduleId}`)}</td>
-                  <td colSpan={data.roles.length} />
-                </tr>
-                {data.processes
-                  .filter((p) => p.module === moduleId)
-                  .map((process) => (
+            {modules.map((moduleId) => {
+              const processes = data.processes.filter((p) => p.module === moduleId);
+              // What a module's "todos / ninguno" may change: never an administration process.
+              const grantable = processes.filter((p) => !p.admin);
+              const moduleName = t(`nav.modules.${moduleId}`);
+              return (
+                <Fragment key={moduleId}>
+                  <tr className="erp-matrix__group">
+                    <td className="erp-matrix__left">{moduleName}</td>
+                    {data.roles.map((role) => {
+                      if (role.isSystemAdmin || grantable.length === 0) return <td key={role.id} />;
+                      // Everything given → "ninguno" takes it all back; otherwise "todos" gives every process of the module.
+                      const target = moduleTarget(grantable.map((p) => granted(role.id, p.id)));
+                      return (
+                        <td key={role.id}>
+                          <button
+                            type="button"
+                            className="erp-link"
+                            disabled={staged.busy}
+                            aria-label={t("common.admin.permissions.grant_module", { mode: target ? "all" : "none", role: role.name, module: moduleName })}
+                            onClick={() => staged.setAll(grantable.map((p) => ({ key: cellKey(role.id, p.id), value: target, stored: storedOf(role.id, p.id) })))}
+                          >
+                            {target ? t("common.admin.permissions.all") : t("common.admin.permissions.none")}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                  {processes.map((process) => (
                     <tr key={process.id}>
                       <td className="erp-matrix__left">
                         <span className="erp-mono erp-small">{process.id}</span>{" "}
@@ -78,27 +104,43 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
                           <span className="erp-hint erp-mono">{process.entity}</span>
                         </div>
                       </td>
-                      {data.roles.map((role) => (
-                        <td key={role.id}>
-                          <input
-                            type="checkbox"
-                            aria-label={`${role.name} ${process.id}`}
-                            checked={role.isSystemAdmin || granted(role.id, process.id)}
-                            disabled={role.isSystemAdmin}
-                            onChange={(event) => void toggle(role.id, process.id, event.target.checked)}
-                          />
-                        </td>
-                      ))}
+                      {data.roles.map((role) => {
+                        const key = cellKey(role.id, process.id);
+                        const label = `${role.name} ${process.id}`;
+                        const isStaged = staged.isStaged(key);
+                        const refusal = staged.refusal(key);
+                        // Only the admin role holds an administration process; one another role still holds (granted
+                        // before the rule) can be taken away.
+                        const locked = !role.isSystemAdmin && process.admin && !storedOf(role.id, process.id);
+                        return (
+                          <td key={role.id} className={refusal ? "is-refused" : isStaged ? "is-dirty" : undefined}>
+                            {/* The whole cell is the target; Space toggles the focused checkbox. */}
+                            <label className="erp-matrix__hit" title={refusal ?? (locked ? t("common.admin.permissions.admin_only") : undefined)}>
+                              <input
+                                type="checkbox"
+                                aria-label={isStaged ? t("common.admin.pending_cell", { label }) : label}
+                                aria-invalid={refusal ? true : undefined}
+                                aria-describedby={refusal ? staged.reasonId(key) : undefined}
+                                checked={role.isSystemAdmin || granted(role.id, process.id)}
+                                disabled={role.isSystemAdmin || locked || staged.busy}
+                                onChange={(event) => toggle(role.id, process.id, event.target.checked)}
+                              />
+                            </label>
+                            {staged.reason(key)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
-              </Fragment>
-            ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      {/* One fixed bar under the matrix holds the outcome of the last change: nothing above the table ever moves it. */}
-      <div className="erp-admin__bar">{status ?? <span className="erp-small erp-muted">{t("common.admin.step_up_note")}</span>}</div>
-      <StepUpDock prompt={prompt} />
+      {/* One fixed bar under the matrix holds the pending changes and the outcome: nothing above the table ever moves it. */}
+      {staged.bar(t("common.admin.no_pending"))}
+      <StepUpDock prompt={staged.prompt} />
     </section>
   );
 }

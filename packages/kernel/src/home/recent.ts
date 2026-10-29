@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { requireGridAccess } from "../query/access";
 import { defineProcess } from "../process/define";
-import { ProcessError } from "../process/errors";
+import { recordTitles } from "../records/titles";
 import { HOME_FEATURE } from "./kpis";
 
 // The "recent records" widget (design §19a): the last records the caller created or changed, from the audit log as the
@@ -50,27 +49,17 @@ export const homeRecent = defineProcess({
       order by occurred_at desc, row_id
       limit ${Math.min(limit * CANDIDATES_PER_RECORD, MAX_CANDIDATES)}`;
 
-    // The entities of these records the caller may open, and the titles of the records they still see.
-    const idsByEntity = new Map<string, string[]>();
-    for (const c of candidates) idsByEntity.set(c.entity, [...(idsByEntity.get(c.entity) ?? []), c.row_id]);
-    const titles = new Map<string, string | null>();
-    for (const [table, ids] of idsByEntity) {
-      const entity = byTable.get(table)!;
-      try {
-        await requireGridAccess(ctx.tx, ctx.registry, entity);
-      } catch (error) {
-        if (error instanceof ProcessError) continue;
-        throw error;
-      }
-      const rows = await ctx.tx<{ id: string; title: unknown }[]>`
-        select id, ${ctx.tx(entity.displayField)} as title from ${ctx.tx(`${entity.schema}.v_${entity.table}`)} where id = any (${ids}::uuid[])`;
-      for (const row of rows) titles.set(`${table}:${row.id}`, row.title === null || row.title === undefined ? null : String(row.title));
-    }
+    // The titles of the records the caller still sees, of the entities their roles may open.
+    const titles = await recordTitles(
+      ctx.tx,
+      ctx.registry,
+      candidates.map((c) => ({ entity: byTable.get(c.entity)!, id: c.row_id })),
+    );
 
     const records = candidates.flatMap((c) => {
-      const key = `${c.entity}:${c.row_id}`;
-      if (!titles.has(key)) return [];
       const entity = byTable.get(c.entity)!;
+      const key = `${entity.id}:${c.row_id}`;
+      if (!titles.has(key)) return [];
       return [{ entity: entity.id, entityLabel: entity.label, id: c.row_id, title: titles.get(key)!, action: c.action, at: c.occurred_at.toISOString() }];
     });
     return { records: records.slice(0, limit) };

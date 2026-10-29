@@ -5,10 +5,12 @@ import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
+import { clearCloneHandoff } from "@/lib/records/clone-handoff";
 import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import { installCapture, noteRoute } from "@/lib/support/capture";
 import type { ShellData } from "@/lib/shell/load";
+import { guardedNavigate } from "./leave-guard";
 
 /** Tabs change in bursts (open, open, close): save the last state once things settle. */
 const SAVE_TABS_AFTER_MS = 800;
@@ -76,18 +78,29 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       commands={data.commands}
       assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity], ...(data.company.timeZone ? { timeZone: data.company.timeZone } : {}) }}
       theme={data.theme}
+      assistantOpen={data.assistantOpen}
+      dianHints={data.dianHints}
       initialTabs={data.tabs}
       currentHref={pathname}
-      navigate={(href) => router.push(href)}
+      // A screen with staged changes (the admin matrices) may ask before the shell leaves it.
+      navigate={(href) => guardedNavigate(() => router.push(href))}
       onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}
+      onAssistantOpenChange={(open, savedAt) => void saveShellPrefAction({ key: "assistant.open", value: open, savedAt })}
+      onDianHintsChange={(on, savedAt) => void saveShellPrefAction({ key: "forms.dian_hints", value: on, savedAt })}
       onTabsChange={saveTabs}
       onSwitchCompany={async (companyId) => {
         // The pending tabs belong to the company being left: store them there before the claims change.
         await flush();
+        // A copy on its way to a create form ("Duplicar") belongs to the company being left.
+        clearCloneHandoff();
         await setActiveCompany(companyId);
         router.refresh();
       }}
-      signOutAction={signOut}
+      signOutAction={async () => {
+        // Nothing of this session's records stays in the tab's memory.
+        clearCloneHandoff();
+        await signOut();
+      }}
     >
       {children}
     </AppShell>

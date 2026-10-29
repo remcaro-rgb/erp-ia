@@ -1,10 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
+import postgres from "postgres";
+import { DEMO_COMPANY_ID, LAURA, MARCELA } from "../../../scripts/demo/accounts";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
+import { testEnv } from "../test-support/env";
 
 // Administration in a real browser (design §6, prototype v5 "Administración"): the admin creates a role, assigns a
 // user to it from the role's side and toggles a permission in the matrix, each change confirmed with the step-up code;
-// the assigned user sees the menu item the permission unlocks appear, and disappear again when it is revoked.
+// the assigned user sees the menu item the permission unlocks appear, and disappear again when it is revoked. The
+// matrices stage their cells and apply them together with one code (OD-7, kernel.admin.*.set_many). On the demo company,
+// Laura edits Marcela's mobile and deactivates her (kernel.admin.user.update, design §22.16): Marcela's sign-in is refused
+// until Laura reactivates her.
 
 /** The admin processes the system admin role holds (the company defaults grant it every process). */
 const ADMIN_PROCESSES = [
@@ -12,9 +19,12 @@ const ADMIN_PROCESSES = [
   "kernel.admin.role.update",
   "kernel.admin.user_role.set",
   "kernel.admin.user.create",
+  "kernel.admin.user.update",
   "kernel.admin.permission.set",
   "kernel.admin.permission.matrix",
   "kernel.admin.field_permission.set",
+  "kernel.admin.permission.set_many",
+  "kernel.admin.field_permission.set_many",
   "kernel.admin.sensitive_process.set",
   "kernel.admin.module.enable",
   "kernel.admin.module.disable",
@@ -58,6 +68,8 @@ test.describe("administration", () => {
   let secret: string;
   let companyId: string;
   const pedro = { email: `pedro-${randomUUID().slice(0, 8)}@test.local`, password: `pw-${randomUUID()}`, id: "" };
+  /** A plain role with nothing granted, for the batch tests. */
+  let despachos = "";
 
   test.beforeAll(async () => {
     fixture = await seedAuthUser({ role: "admin" });
@@ -77,6 +89,8 @@ test.describe("administration", () => {
     const [plain] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'invitado') returning id`;
     const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${pedro.id}, ${companyId}) returning id`;
     await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${plain!.id})`;
+    const [shipping] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'Despachos') returning id`;
+    despachos = shipping!.id;
   });
 
   test.afterAll(async () => {
@@ -89,6 +103,10 @@ test.describe("administration", () => {
     await sql`delete from kernel.field_permissions where company_id = ${companyId}`;
     await sql`delete from kernel.process_permissions where company_id = ${companyId}`;
     await sql`delete from kernel.tenant_entitlements where tenant_id = ${fixture.tenantId}`;
+    await sql`delete from kernel.roles where id = ${despachos}`;
+    await sql`delete from core.parties where company_id = ${companyId}`;
+    await sql`delete from core.entity_sequences where company_id = ${companyId}`;
+    await sql`delete from kernel.outbox where company_id = ${companyId}`;
     await sql`delete from kernel.users where id = ${pedro.id}`;
     await fixture.admin.auth.admin.deleteUser(pedro.id);
     await fixture.cleanup();
@@ -154,7 +172,10 @@ test.describe("administration", () => {
     await toggle.scrollIntoViewIfNeeded();
     const top = (await matrix.boundingBox())!.y;
     await expect(importRow.locator(".erp-matrix__left")).toHaveCSS("position", "sticky");
+    // The click stages the cell; "Aplicar cambios" sends it with the code.
     await toggle.check();
+    await expect(page.locator(".erp-admin__bar").getByText("1 cambio sin aplicar")).toBeVisible();
+    await page.getByRole("button", { name: "Aplicar cambios" }).click();
     await confirmStepUp(page, secret);
     await expect(saved).toBeVisible();
     await expect(page.locator(".erp-admin__bar")).toContainText("Cambios guardados");
@@ -164,10 +185,194 @@ test.describe("administration", () => {
     expect(await pedroMenu(browser)).toContain("Importar datos");
 
     await toggle.uncheck();
+    await page.getByRole("button", { name: "Aplicar cambios" }).click();
     await confirmStepUp(page, secret);
     await expect(saved).toBeVisible();
     await expect(toggle).not.toBeChecked();
     expect(await pedroMenu(browser)).not.toContain("Importar datos");
+  });
+
+  const cell = (page: Page, processId: string, role = "Despachos") => page.getByRole("row").filter({ hasText: processId }).getByRole("checkbox", { name: `${role} ${processId}` });
+  const stepUps = async () => Number((await fixture.sql<{ n: string }[]>`select count(*) as n from kernel.step_up_verifications where company_id = ${companyId}`)[0]!.n);
+  // Sorted here, not by the database: its collation orders `kernel.user.consult` / `kernel.user_prefs.set` unlike JavaScript.
+  const grantsOf = async (roleId: string) =>
+    (await fixture.sql<{ process_id: string }[]>`select process_id from kernel.process_permissions where role_id = ${roleId} and allowed`).map((r) => r.process_id).sort();
+
+  test("the matrix stages three cells and applies them with one code; a reload shows them", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signInWithCode(page, fixture.email, fixture.password, secret);
+    await page.goto("/admin/permissions");
+    const bar = page.locator(".erp-admin__bar");
+    await expect(bar.getByText("Sin cambios pendientes", { exact: false })).toBeVisible();
+    // The count of staged changes is a live region of the bar.
+    await expect(bar.locator(".erp-admin__pending")).toHaveAttribute("role", "status");
+
+    // Two clicks and a Space on a focused cell: three staged cells, marked pending, counted in the bar's live region.
+    await cell(page, "kernel.import.run").check();
+    await cell(page, "kernel.export.run").check();
+    await cell(page, "core.party.create").focus();
+    await page.keyboard.press("Space");
+    await expect(cell(page, "core.party.create")).toBeChecked();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("3 cambios sin aplicar");
+    for (const id of ["kernel.import.run", "kernel.export.run", "core.party.create"]) {
+      await expect(page.getByRole("row").filter({ hasText: id }).locator("td.is-dirty").filter({ has: page.getByRole("checkbox", { name: `Despachos ${id}` }) })).toHaveCount(1);
+      await expect(cell(page, id)).toHaveAccessibleName(`Despachos ${id} (sin aplicar)`);
+    }
+    // Unticking a staged cell puts it back: no longer a change.
+    await cell(page, "kernel.export.run").uncheck();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
+    await cell(page, "kernel.export.run").check();
+    expect(await grantsOf(despachos)).toEqual([]);
+
+    // Leaving with staged changes asks first, in the page.
+    await page.getByRole("navigation", { name: "Secciones de administración" }).getByRole("link", { name: "Roles" }).click();
+    const leave = page.getByRole("alertdialog", { name: "Hay cambios sin aplicar" });
+    await expect(leave).toBeVisible();
+    await leave.getByRole("button", { name: "Seguir editando" }).click();
+    await expect(leave).toHaveCount(0);
+    await expect(page).toHaveURL(/\/admin\/permissions$/);
+    // So does the browser's Back.
+    await page.goBack();
+    await expect(leave).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/permissions$/);
+    await leave.getByRole("button", { name: "Seguir editando" }).click();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("3 cambios sin aplicar");
+
+    // One apply, one code, one batch.
+    const before = await stepUps();
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.getByText("Cambios guardados")).toBeVisible();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("");
+    expect((await stepUps()) - before).toBe(1);
+    expect(await grantsOf(despachos)).toEqual(["core.party.create", "kernel.export.run", "kernel.import.run"]);
+    const [audit] = await fixture.sql<{ input: { changes: unknown[] } }[]>`
+      select input from kernel.audit_log where company_id = ${companyId} and process_id = 'kernel.admin.permission.set_many' and action = 'update' order by occurred_at desc limit 1`;
+    expect(audit!.input.changes).toHaveLength(3);
+
+    await page.reload();
+    for (const id of ["kernel.import.run", "kernel.export.run", "core.party.create"]) await expect(cell(page, id)).toBeChecked();
+    await expect(page.locator("td.is-dirty")).toHaveCount(0);
+
+    // A module's "todos" stages every process of the module for the role, "ninguno" takes them back; Descartar drops all.
+    const core = page.getByRole("button", { name: "Dar a Despachos todos los procesos de Núcleo" });
+    await core.click();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText(/^\d+ cambios sin aplicar$/);
+    await expect(cell(page, "core.product.update")).toBeChecked();
+    await page.getByRole("button", { name: "Quitar a Despachos todos los procesos de Núcleo" }).click();
+    await expect(cell(page, "core.party.create")).not.toBeChecked();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("1 cambio sin aplicar");
+    await bar.getByRole("button", { name: "Descartar" }).click();
+    await expect(cell(page, "core.party.create")).toBeChecked();
+    await expect(page.locator("td.is-dirty")).toHaveCount(0);
+
+    // Sistema: the administration processes are the admin role's only, locked for Despachos and left out of "todos",
+    // so the module applies cleanly and the button turns into "ninguno".
+    await expect(cell(page, "kernel.admin.role.create")).toBeDisabled();
+    await expect(page.getByRole("row").filter({ hasText: "kernel.admin.role.create" }).locator("label[title='Solo el rol admin ejecuta los procesos de administración']")).toHaveCount(3);
+    await page.getByRole("button", { name: "Dar a Despachos todos los procesos de Sistema" }).click();
+    await expect(cell(page, "kernel.admin.role.create")).not.toBeChecked();
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.getByText("Cambios guardados")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Quitar a Despachos todos los procesos de Sistema" })).toBeVisible();
+    const held = await grantsOf(despachos);
+    expect(held).toContain("kernel.audit.consult");
+    expect(held.filter((id) => id.startsWith("kernel.admin.") || id.startsWith("kernel.required_file.") || id === "kernel.verifier.set")).toEqual([]);
+  });
+
+  test("an invalid batch marks the refused cell, keeps the changes staged and applies nothing", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const { sql } = fixture;
+    // A role that disappears while its cell is staged: the batch is refused at that change, whatever else it carries.
+    const [temporary] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'Temporal') returning id`;
+    await signInWithCode(page, fixture.email, fixture.password, secret);
+    await page.goto("/admin/permissions");
+    const before = await grantsOf(despachos);
+    const bar = page.locator(".erp-admin__bar");
+
+    await cell(page, "core.product.create").check();
+    await cell(page, "core.party.consult", "Temporal").check();
+    await cell(page, "core.product.update").check();
+    await sql`delete from kernel.roles where id = ${temporary!.id}`;
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.getByRole("alert")).toContainText("El rol no pertenece a la empresa");
+    await expect(page.locator("td.is-refused")).toHaveCount(1);
+    const refused = cell(page, "core.party.consult", "Temporal");
+    await expect(page.getByRole("row").filter({ hasText: "core.party.consult" }).locator("td.is-refused").filter({ has: page.getByRole("checkbox", { name: /^Temporal / }) })).toHaveCount(1);
+    await expect(refused).toHaveAttribute("aria-invalid", "true");
+    await expect(refused).toHaveAccessibleDescription("El rol no pertenece a la empresa");
+    await expect(bar.locator(".erp-admin__refused")).toHaveText("1 cambio rechazado");
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("3 cambios sin aplicar");
+    expect(await grantsOf(despachos)).toEqual(before);
+
+    // Staging the cell again (here through the module's "todos") clears its mark; "ninguno" takes those cells back.
+    await page.getByRole("button", { name: "Dar a Temporal todos los procesos de Núcleo" }).click();
+    await expect(page.locator("td.is-refused")).toHaveCount(0);
+    await expect(bar.locator(".erp-admin__refused")).toHaveCount(0);
+    await page.getByRole("button", { name: "Quitar a Temporal todos los procesos de Núcleo" }).click();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.getByText("Cambios guardados")).toBeVisible();
+    expect(await grantsOf(despachos)).toEqual([...before, "core.product.create", "core.product.update"].sort());
+  });
+
+  test("field visibility stages several fields and applies them with one code", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signInWithCode(page, fixture.email, fixture.password, secret);
+    const { sql } = fixture;
+    const [fleeting] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'Efímero') returning id`;
+    await page.goto("/admin/fields");
+    const bar = page.locator(".erp-admin__bar");
+    const field = (name: string, role = "Despachos") => page.getByRole("row").filter({ hasText: name }).getByRole("combobox", { name: new RegExp(`^${role} `) });
+    const entity = page.getByLabel("Entidad", { exact: true });
+
+    // A refused cell of an entity no longer on screen: the bar says how many and where.
+    await field("credit_limit", "Efímero").selectOption("hidden");
+    await entity.selectOption("core.product");
+    await field("brand").selectOption("masked");
+    await sql`delete from kernel.roles where id = ${fleeting!.id}`;
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.locator(".erp-admin__refused")).toHaveText("1 cambio rechazado · también en Tercero");
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
+    await bar.getByRole("button", { name: "Descartar" }).click();
+    await expect(bar.locator(".erp-admin__refused")).toHaveCount(0);
+    await entity.selectOption("core.party");
+    await field("credit_limit").selectOption("hidden");
+    await field("trade_name").selectOption("masked");
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
+    await expect(page.locator("td.is-dirty")).toHaveCount(2);
+    const before = await stepUps();
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.getByText("Cambios guardados")).toBeVisible();
+    expect((await stepUps()) - before).toBe(1);
+    const modes = await fixture.sql<{ field: string; mode: string }[]>`
+      select field, mode from kernel.field_permissions where role_id = ${despachos} and entity = 'core.party' and field in ('credit_limit', 'trade_name') order by field`;
+    expect(modes).toEqual([
+      { field: "credit_limit", mode: "hidden" },
+      { field: "trade_name", mode: "masked" },
+    ]);
+    await page.reload();
+    await expect(field("credit_limit")).toHaveValue("hidden");
+    await expect(field("trade_name")).toHaveValue("masked");
+
+    // Back with a staged change asks; leaving drops it.
+    await field("trade_name").selectOption("visible");
+    await page.goBack();
+    const leave = page.getByRole("alertdialog", { name: "Hay cambios sin aplicar" });
+    await expect(leave).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/fields$/);
+    await leave.getByRole("button", { name: "Salir sin aplicar" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    const [kept] = await sql<{ mode: string }[]>`select mode from kernel.field_permissions where role_id = ${despachos} and entity = 'core.party' and field = 'trade_name'`;
+    expect(kept!.mode).toBe("masked");
   });
 
   test("every administration section opens for the admin; a member is told they may not administer", async ({ page, browser }) => {
@@ -205,5 +410,116 @@ test.describe("administration", () => {
     await other.goto("/admin/roles");
     await expect(other.getByRole("alert").getByText("No tienes permiso.")).toBeVisible();
     await context.close();
+  });
+
+  test("the audit names processes, entities and actors, and an entry lists each changed field as antes → después", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const { sql } = fixture;
+    // The change to read: the trade name of a party, typed in its record and saved (core.party.update).
+    const [party] = await sql<{ id: string }[]>`
+      insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
+      values (${companyId}, ${["customer"]}, '1', '31', '900373115', 'Bosque Andino S.A.S.', 'complete') returning id`;
+    await signInWithCode(page, fixture.email, fixture.password, secret);
+    await page.goto(`/r/core.party/${party!.id}`);
+    await page.getByLabel("Nombre comercial").fill("Bosque QA");
+    await page.getByRole("button", { name: "Guardar" }).click();
+    await expect.poll(async () => (await sql`select trade_name from core.parties where id = ${party!.id}`)[0]?.trade_name).toBe("Bosque QA");
+
+    await page.goto("/admin/audit");
+    const audit = page.getByRole("region", { name: "Auditoría" });
+    await audit.getByLabel("Filtrar Proceso").fill("core.party.update");
+    // Proceso by its description (id below), Entidad by its name, Registro and Actor as links.
+    const row = audit.getByRole("row", { name: /Actualiza los datos de un tercero/ }).first();
+    await expect(row).toContainText("core.party.update");
+    await expect(row).toContainText("Tercero");
+    await expect(row.getByRole("link", { name: "Bosque Andino S.A.S." })).toHaveAttribute("href", `/r/core.party/${party!.id}`);
+    await expect(row.getByRole("link", { name: /^Auth user / })).toHaveAttribute("href", `/admin/users/${fixture.userId}`);
+
+    await row.click();
+    const sheet = page.getByRole("dialog", { name: "Actualiza los datos de un tercero y recalcula su estado DIAN" });
+    await expect(sheet.getByRole("listitem").filter({ hasText: "Nombre comercial" })).toHaveText("Nombre comercial · — → Bosque QA");
+    await expect(sheet.getByRole("link", { name: "Bosque Andino S.A.S." })).toHaveAttribute("href", `/r/core.party/${party!.id}`);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+  });
+});
+
+test.describe("editable users on the demo company", () => {
+  const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
+  /** Marcela as the seed leaves her: active, with her documented mobile. */
+  const restoreMarcela = async () => {
+    await sql`update kernel.users set mobile_cc = '57', mobile = ${MARCELA.mobile} where email = ${MARCELA.email}`;
+    await sql`update kernel.memberships set is_active = true where company_id = ${DEMO_COMPANY_ID} and user_id = (select id from kernel.users where email = ${MARCELA.email})`;
+  };
+
+  test.beforeAll(restoreMarcela);
+  test.afterAll(async () => {
+    await restoreMarcela();
+    await sql.end({ timeout: 5 });
+  });
+
+  test("Laura edits Marcela's mobile, deactivates her so her sign-in is refused, and reactivates her", async ({ page, browser }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signInWithCode(page, LAURA.email, LAURA.password, LAURA.totpSecret!);
+
+    // Editar from the list: the same dialog as on the user's page; the save asks for the code.
+    await page.goto("/admin/users");
+    const row = page.getByRole("row", { name: /Marcela Rojas/ });
+    await row.getByRole("button", { name: "Editar" }).click();
+    const dialog = page.getByRole("dialog", { name: "Usuario · Marcela Rojas" });
+    await dialog.getByLabel(/^Celular/).fill("3001112233");
+    await dialog.getByRole("button", { name: "Guardar" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => (await sql`select mobile from kernel.users where email = ${MARCELA.email}`)[0]?.mobile).toBe("3001112233");
+
+    // Marcela is working in another browser when Laura deactivates her.
+    const marcelaContext = await browser.newContext();
+    const marcela = await marcelaContext.newPage();
+    await signIn(marcela, MARCELA.email, MARCELA.password);
+
+    // Her page: data, roles, 2FA state, last activity; Desactivar asks to confirm, then for the code.
+    await row.getByRole("link", { name: "Marcela Rojas" }).click();
+    await expect(page).toHaveURL(/\/admin\/users\/[0-9a-f-]{36}$/);
+    const user = page.getByRole("region", { name: "Marcela Rojas" });
+    await expect(user).toContainText("+57 3001112233");
+    await expect(user.getByRole("link", { name: "cajero" })).toHaveAttribute("href", "/admin/roles");
+    await expect(user).toContainText("No configurada");
+    await user.getByRole("button", { name: "Desactivar" }).click();
+    const confirm = page.getByRole("dialog", { name: "¿Desactivar a Marcela Rojas?" });
+    await confirm.getByRole("button", { name: "Desactivar" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(user.getByRole("button", { name: "Reactivar" })).toBeVisible();
+    await expect(user).toContainText("Inactivo");
+
+    // Her open session ends at her next screen: signed out, the sign-in page says why.
+    await marcela.goto("/parties");
+    await expect(marcela).toHaveURL(/\/login\?error=account_disabled$/);
+    await expect(marcela.getByRole("alert").filter({ hasText: "Cuenta desactivada" })).toHaveText("Cuenta desactivada. Contacta a un administrador.");
+    expect((await marcelaContext.cookies()).filter((c) => /^sb-.*-auth-token/.test(c.name) && c.value !== "")).toEqual([]);
+
+    // Signing in again is refused with the same copy; nothing of the app opens.
+    await marcela.goto("/login");
+    await marcela.getByLabel("Correo").fill(MARCELA.email);
+    await marcela.getByLabel("Contraseña", { exact: true }).fill(MARCELA.password);
+    await marcela.getByRole("button", { name: "Entrar" }).click();
+    await expect(marcela.getByRole("alert").filter({ hasText: "Cuenta desactivada" })).toHaveText("Cuenta desactivada. Contacta a un administrador.");
+    await expect(marcela).toHaveURL(/\/login/);
+    await marcela.goto("/");
+    await expect(marcela).toHaveURL(/\/login/);
+
+    // Laura signs in again and reactivates her; Marcela's sign-in works again.
+    await page.context().clearCookies();
+    await signInWithCode(page, LAURA.email, LAURA.password, LAURA.totpSecret!);
+    await page.goto("/admin/users");
+    await page.getByRole("row", { name: /Marcela Rojas/ }).getByRole("link", { name: "Marcela Rojas" }).click();
+    await page.getByRole("region", { name: "Marcela Rojas" }).getByRole("button", { name: "Reactivar" }).click();
+    await page.getByRole("dialog", { name: "¿Reactivar a Marcela Rojas?" }).getByRole("button", { name: "Reactivar" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(page.getByRole("region", { name: "Marcela Rojas" }).getByRole("button", { name: "Desactivar" })).toBeVisible();
+    await signIn(marcela, MARCELA.email, MARCELA.password);
+    await marcelaContext.close();
   });
 });

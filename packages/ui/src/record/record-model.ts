@@ -24,6 +24,12 @@ export interface RecordLabels {
   assignedOnCreate: string;
   openInNewTab: string;
   pending: string;
+  /** The action that starts a new record from this one (rule 37). */
+  duplicate: string;
+  /** Banner of a new record started from a copy; `{name}` is where the source's name (a link to it) goes. */
+  copyOf: string;
+  /** What the person still has to do on the copy. */
+  copyNote: string;
 }
 
 export const DEFAULT_RECORD_LABELS: RecordLabels = {
@@ -33,10 +39,16 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
   assignedOnCreate: "N.º y uuid se asignan al crear",
   openInNewTab: "Abrir en una pestaña nueva",
   pending: "Pendientes",
+  duplicate: "Duplicar",
+  copyOf: "Copia de {name}",
+  copyNote: "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
 };
 
-/** Deep link of a record: `/r/<entity id>/<record id>`, the same form as a full page. */
-export const recordHref = (entity: string, recordId: string): string => `/r/${entity}/${recordId}`;
+/**
+ * The page of a record (rule 21, design §22.15): the kernel's one rule (`@erp/kernel/href`), shared with the assistant's
+ * `ui__open_record` and the server loaders. A user opens under Administración › Usuarios, any other record in its frame.
+ */
+export { recordHref } from "@erp/kernel/href";
 
 /** First 8 characters of the UUID, as the prototype shows it. */
 export const shortId = (uuid: string): string => uuid.slice(0, 8);

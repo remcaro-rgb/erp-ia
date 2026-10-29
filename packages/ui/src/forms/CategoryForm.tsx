@@ -20,6 +20,8 @@ export interface CategoryFormProps {
   readOnly?: boolean;
   save: SaveRecord;
   requestStepUp?: RequestStepUp;
+  /** A new record started from a copy ("Duplicar", rule 37): the copy's values by field name, as a consult row has them. Ignored for a stored record. */
+  initial?: Readonly<Record<string, unknown>> | null;
   onSaved?: (id: string, created: boolean) => void;
 }
 
@@ -27,7 +29,7 @@ export interface CategoryFormProps {
  * The Datos tab of a product category (design §5.18, prototype `renderCategoryForm`): name and status, the default
  * taxes and unit new products inherit, the income account; editing it never rewrites the products that use it.
  */
-export function CategoryForm({ record, tables, productCount = 0, readOnly = false, save, requestStepUp, onSaved }: CategoryFormProps) {
+export function CategoryForm({ record, initial: copy, tables, productCount = 0, readOnly = false, save, requestStepUp, onSaved }: CategoryFormProps) {
   const t = useTranslations("common.category_form");
   const tf = useTranslations("common.forms");
   const errorText = useErrorText();
@@ -35,10 +37,10 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
   const defaultIva = tables.ivaRates[0]?.code ?? "";
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
   const [seen, setSeen] = useState(recordKey);
-  const [initial, setInitial] = useState(() => categoryDraft(record, defaultIva));
+  const [initial, setInitial] = useState(() => categoryDraft(record ?? copy ?? null, defaultIva));
   const [draft, setDraft] = useState(initial);
   if (seen !== recordKey) {
-    const next = categoryDraft(record, defaultIva);
+    const next = categoryDraft(record ?? copy ?? null, defaultIva);
     setSeen(recordKey);
     setInitial(next);
     setDraft(next);

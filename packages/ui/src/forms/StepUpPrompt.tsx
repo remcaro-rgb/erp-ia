@@ -35,7 +35,8 @@ export function StepUpPrompt({ onConfirm, onCancel, error, busy }: StepUpPromptP
     input.current?.focus();
   }, [error, busy]);
   return (
-    <div className="erp-stepup" role="group" aria-label={t("process.step_up.title")}>
+    // data-enter-skip: the code box keeps the native Enter (send); the form's Enter-to-next leaves it alone.
+    <div className="erp-stepup" role="group" aria-label={t("process.step_up.title")} data-enter-skip="">
       <b>{t("process.step_up.title")}</b>
       <span className="erp-small">{t("process.step_up.hint")}</span>
       <div className="erp-row">

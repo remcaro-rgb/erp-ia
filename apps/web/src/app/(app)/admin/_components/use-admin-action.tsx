@@ -3,17 +3,25 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import type { SaveIssue } from "@erp/ui";
 import { adminAction } from "@/lib/admin/actions";
 import { useStepUpAction } from "../../_components/use-step-up";
 
+export interface PerformOptions {
+  /** Called with the process's reasons when it refuses (a batch names the refused changes by index). */
+  onRefused?: (details: SaveIssue[]) => void;
+}
+
 export interface AdminActions {
   /** Runs the admin process (asking for the step-up code when it answers `step_up_required`); true when it succeeded. */
-  perform: (processId: string, input: unknown) => Promise<boolean>;
+  perform: (processId: string, input: unknown, options?: PerformOptions) => Promise<boolean>;
   /** The step-up prompt while a run waits for the code: render it where the user is looking (inside an open dialog). */
   prompt: ReactNode;
   /** The outcome of the last run (saved / refused with the reasons). */
   status: ReactNode;
   busy: boolean;
+  /** Clears the outcome of the last run (the screen changed since). */
+  reset: () => void;
 }
 
 /** The admin screens' way to change something (rules 1 and 15): process, step-up, then the server data again. */
@@ -25,7 +33,7 @@ export function useAdminAction(): AdminActions {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const perform = useCallback(
-    async (processId: string, input: unknown) => {
+    async (processId: string, input: unknown, options?: PerformOptions) => {
       setBusy(true);
       setMessage(null);
       try {
@@ -37,6 +45,7 @@ export function useAdminAction(): AdminActions {
         }
         const reason = result.details.length > 0 ? result.details.map((d) => d.message).join(" · ") : t.has(`errors.${result.code}`) ? t(`errors.${result.code}`) : t("errors.unknown");
         setMessage({ ok: false, text: t("common.admin.failed", { reason }) });
+        options?.onRefused?.(result.details);
         return false;
       } finally {
         setBusy(false);
@@ -50,7 +59,8 @@ export function useAdminAction(): AdminActions {
       {message.text}
     </div>
   ) : null;
-  return { perform, prompt, status, busy };
+  const reset = useCallback(() => setMessage(null), []);
+  return { perform, prompt, status, busy, reset };
 }
 
 /** The step-up prompt docked at the bottom of the screen, for changes made outside a dialog. */

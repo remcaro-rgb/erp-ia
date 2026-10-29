@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { WorkflowChatTransport } from "@ai-sdk/workflow/client";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
-import { asDirective, errorKeyOf, toolCardState, userTextOf, type CardState, type ScreenContext } from "./model";
+import { asDirective, errorKeyOf, isMembershipInactiveResponse, toolCardState, userTextOf, type CardState, type ScreenContext } from "./model";
 
 // The assistant's chat state (design §7.1). AI SDK `useChat` over a `WorkflowChatTransport` to POST /api/agent/turn:
 // the route takes only `{ conversationId?, text, screen? }`, so `prepareSendMessagesRequest` sends the new text and the
@@ -17,6 +17,10 @@ import { asDirective, errorKeyOf, toolCardState, userTextOf, type CardState, typ
 // the conversation id in `x-conversation-id` (the route serves only a turn of the caller's own conversation) and the
 // answer goes on where it stopped. After a page reload the drawer shows the stored conversation (history); the live
 // stream of a turn still in flight at that moment is not resumed (its answer is stored when it ends).
+//
+// A session whose membership in its active company the admin deactivated (design §22.16) is refused by every assistant
+// route (403 `forbidden`, reason membership_inactive): the drawer then follows the app's disabled path once (GET
+// /api/auth/disabled moves the session to another company where the person is active, or signs it out).
 
 export interface UseAssistantOptions {
   screen: ScreenContext;
@@ -29,6 +33,10 @@ export interface UseAssistantOptions {
   fetcher?: typeof fetch;
   /** Called once for each navigation the assistant asks for during this session (a route of the app). */
   onNavigate?: (href: string) => void;
+  /** Where an inactive membership goes (a full page load): the app's disabled path. */
+  disabledHref?: string;
+  /** Follows `disabledHref`; tests inject it (default `window.location.assign`). */
+  onDisabled?: (href: string) => void;
 }
 
 interface HistoryBody {
@@ -48,11 +56,25 @@ export function useAssistant(options: UseAssistantOptions) {
   const [historyFailed, setHistoryFailed] = useState(false);
 
   // The transport and the callbacks read the latest values from refs: the chat is created once.
-  const latest = useRef({ screen: options.screen, fetcher: options.fetcher, onNavigate: options.onNavigate });
+  const latest = useRef({ screen: options.screen, fetcher: options.fetcher, onNavigate: options.onNavigate, onDisabled: options.onDisabled });
   const conversationRef = useRef<string | null>(conversationId);
   useEffect(() => {
-    latest.current = { screen: options.screen, fetcher: options.fetcher, onNavigate: options.onNavigate };
+    latest.current = { screen: options.screen, fetcher: options.fetcher, onNavigate: options.onNavigate, onDisabled: options.onDisabled };
   });
+  const disabledHref = options.disabledHref ?? "/api/auth/disabled";
+  const left = useRef(false);
+  /** Whether `response` refuses an inactive membership; the first one sends the page down the disabled path. */
+  const leftDisabled = useCallback(
+    async (response: Response) => {
+      if (!(await isMembershipInactiveResponse(response))) return false;
+      if (!left.current) {
+        left.current = true;
+        (latest.current.onDisabled ?? ((href: string) => window.location.assign(href)))(disabledHref);
+      }
+      return true;
+    },
+    [disabledHref],
+  );
   const remember = useCallback((id: string | null) => {
     conversationRef.current = id;
     setConversationId(id);
@@ -64,6 +86,7 @@ export function useAssistant(options: UseAssistantOptions) {
         api: endpoint,
         fetch: async (input, init) => {
           const response = await (latest.current.fetcher ?? fetch)(input, init);
+          await leftDisabled(response);
           const id = response.headers.get("x-conversation-id");
           if (id) remember(id);
           return response;
@@ -79,7 +102,7 @@ export function useAssistant(options: UseAssistantOptions) {
           return { api, headers };
         },
       }),
-    [endpoint, remember],
+    [endpoint, remember, leftDisabled],
   );
 
   const { messages, status, error, sendMessage, setMessages, stop, clearError } = useChat<UIMessage>({ transport });
@@ -109,6 +132,7 @@ export function useAssistant(options: UseAssistantOptions) {
       try {
         const url = wanted ? `${historyEndpoint}?id=${encodeURIComponent(wanted)}` : historyEndpoint;
         const response = await (latest.current.fetcher ?? fetch)(url, { signal: controller.signal });
+        if (await leftDisabled(response)) return;
         if (!response.ok) {
           setHistoryFailed(true);
           return remember(null);
@@ -129,7 +153,7 @@ export function useAssistant(options: UseAssistantOptions) {
       }
     })();
     return () => controller.abort();
-  }, [wanted, historyEndpoint, remember, setMessages]);
+  }, [wanted, historyEndpoint, remember, setMessages, leftDisabled]);
 
   const chatErrorKey = error ? errorKeyOf(error) : null;
   const errorKey = chatErrorKey ?? (historyFailed ? "agent.ui.errors.history_failed" : null);
@@ -155,6 +179,8 @@ export function useAssistant(options: UseAssistantOptions) {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ cardId, decision, ...(stepUpToken ? { stepUpToken } : {}) }),
         });
+        // Left for the disabled path: the card stays as it was.
+        if (await leftDisabled(response)) return setCards((c) => ({ ...c, [cardId]: { status: "pending" } }));
         const body = (await response.json().catch(() => null)) as { status?: string; reason?: string; code?: string; details?: unknown } | null;
         if (response.ok && body && (body.status === "executed" || body.status === "rejected")) {
           return setCards((c) => ({ ...c, [cardId]: toolCardState(body) }));
@@ -168,7 +194,7 @@ export function useAssistant(options: UseAssistantOptions) {
         setCards((c) => ({ ...c, [cardId]: { status: "pending", error: "network" } }));
       }
     },
-    [confirmEndpoint],
+    [confirmEndpoint, leftDisabled],
   );
 
   /** A change to a card's values: the card is discarded and the change goes back to the assistant as a new message. */

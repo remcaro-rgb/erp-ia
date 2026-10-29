@@ -44,3 +44,18 @@ export class ProcessError extends Error {
     return typeof value === "object" && value !== null && (value as { [BRAND]?: unknown })[BRAND] === true;
   }
 }
+
+/**
+ * The reason a `forbidden` refusal carries (`details.reason`) when the caller's membership in the active company is
+ * deactivated (kernel.admin.user.update, design §22.16): runProcess refuses it at the gate whatever the caller's claims
+ * say, and the web app signs such a session out ("Cuenta desactivada").
+ */
+export const MEMBERSHIP_INACTIVE = "membership_inactive";
+
+/** Whether `error` is runProcess's gate refusal of a caller whose membership is inactive. */
+export function isMembershipInactive(error: unknown): boolean {
+  // Only the gate's refusal: a handler's own `forbidden` never counts, whatever its details say.
+  if (!(error instanceof ProcessError) || error.code !== "forbidden" || error.stage !== "gate") return false;
+  const details = error.details as { reason?: unknown } | undefined;
+  return typeof details === "object" && details !== null && details.reason === MEMBERSHIP_INACTIVE;
+}

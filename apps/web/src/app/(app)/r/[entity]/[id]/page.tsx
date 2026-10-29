@@ -3,18 +3,20 @@ import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
-import { RecordFrame, extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
+import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
 import { loadRecord } from "@/lib/records/load";
 import { ContactsPanel } from "./contacts-panel";
 import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
 import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
+import { AppRecordFrame } from "./record-frame";
 import { RecordStatus } from "./record-status";
 import { TicketView } from "../../../support/ticket-view";
 
 // Full-page record (design §5.16): /r/<entity>/<id> renders the record frame with the entity's Datos form (party,
-// product, category) and the Contactos, Fotos, Datos adicionales and Archivos tabs; /r/<entity>/new is the empty form.
+// product, category) and the Contactos, Fotos, Datos adicionales and Archivos tabs; /r/<entity>/new is the empty form,
+// or the copy "Duplicar" opened it with (rule 37).
 
 type Params = Promise<{ entity: string; id: string }>;
 
@@ -52,11 +54,12 @@ async function RecordView({ params }: { params: Params }) {
   const t = await getTranslations();
 
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
+  const newTitle = t("grid.record_title.new", { entity: t(entity.nounKey) });
   if (!record) {
     // A record that does not exist yet has only its data; files, contacts and extra data need its id.
     return (
       <div className="mx-auto w-full max-w-6xl">
-        <RecordFrame title={t("grid.record_title.new", { entity: t(entity.nounKey) })} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} />
+        <AppRecordFrame entity={entity.id} recordId={null} newTitle={newTitle} title={newTitle} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} />
       </div>
     );
   }
@@ -81,7 +84,11 @@ async function RecordView({ params }: { params: Params }) {
 
   return (
     <div className="mx-auto w-full max-w-6xl">
-      <RecordFrame
+      <AppRecordFrame
+        entity={entity.id}
+        recordId={record.id}
+        canDuplicate={can.duplicate}
+        newTitle={newTitle}
         title={String(record[entity.titleField] ?? record.id)}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
@@ -110,6 +117,10 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
     assignedOnCreate: t("common.record.assigned_on_create"),
     openInNewTab: t("common.record.open_in_new_tab"),
     pending: t("common.record.pending"),
+    duplicate: t("common.record.duplicate"),
+    // The frame puts the source's name, as a link, where `{name}` is.
+    copyOf: t.raw("common.record.copy_of") as string,
+    copyNote: t("common.record.copy_note"),
   };
 }
 

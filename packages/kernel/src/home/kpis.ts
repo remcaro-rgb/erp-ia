@@ -5,6 +5,7 @@ import { getServiceDb } from "../db/service";
 import { entitled } from "../entitlements/resolver";
 import { defineProcess } from "../process/define";
 import type { HomeKpiProvider, Kpi } from "../registry/types";
+import { dailySeries, SERIES_DAYS } from "./series";
 
 // The home screen's KPIs (design §19a, Task 20). Modules register `HomeKpiProvider`s (core: parties and products,
 // support: open tickets; sales KPIs arrive in plan 2); `kernel.home.kpis` runs the ones the company is entitled to,
@@ -21,6 +22,7 @@ export const kpiSchema = z.object({
   progress: z.number().min(0).max(1).optional(),
   tone: z.enum(["default", "warn"]).optional(),
   detail: z.object({ key: z.string(), params: z.record(z.string(), z.union([z.string(), z.number()])) }).optional(),
+  series: z.array(z.number().finite().min(0)).length(SERIES_DAYS).optional(),
 });
 
 /** At 80 % of the monthly token allowance the card asks for attention. */
@@ -37,11 +39,13 @@ export const aiTokensKpi: HomeKpiProvider = {
     const usage = await readAiUsage(ctx.tx, ctx.companyId);
     const [who] = await ctx.tx<{ admin: boolean }[]>`select kernel.is_company_admin() as admin`;
     const label = "home.kpi.kernel_ai_tokens.label";
+    // The trend is the tokens per day whatever the number says (a share, or the caller's own): the view shows each caller their rows.
+    const series = await dailySeries(ctx.tx, ctx.companyId, "kernel.v_llm_usage", "tokens");
     if (!who!.admin) {
-      return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", detail: { key: "home.kpi.kernel_ai_tokens.own", params: {} } }];
+      return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", detail: { key: "home.kpi.kernel_ai_tokens.own", params: {} }, series }];
     }
     if (usage.limit === null || usage.limit <= 0) {
-      return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", detail: { key: "home.kpi.kernel_ai_tokens.no_cap", params: {} } }];
+      return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", detail: { key: "home.kpi.kernel_ai_tokens.no_cap", params: {} }, series }];
     }
     const share = usage.used / usage.limit;
     return [
@@ -53,6 +57,7 @@ export const aiTokensKpi: HomeKpiProvider = {
         progress: Math.min(share, 1),
         ...(share >= AI_WARN_AT ? { tone: "warn" as const } : {}),
         detail: { key: "home.kpi.kernel_ai_tokens.company", params: { used: usage.used, limit: usage.limit } },
+        series,
       },
     ];
   },

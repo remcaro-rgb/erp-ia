@@ -35,7 +35,8 @@ export const ticket: EntityDef = {
   defaultSort: { field: "seq", dir: "desc" },
   fields: [
     ticketFields("seq", "number", { required: true }),
-    ticketFields("reporter_user_id", "uuid", { required: true }),
+    // Who filed it: a reference to the user, named and linked to their page (rule 21).
+    ticketFields("reporter_user_id", "ref", { required: true, ref: { entity: "kernel.user", display: "full_name" } }),
     ticketFields("kind", "enum", { required: true, enumValues: [...TICKET_KINDS] }),
     ticketFields("title", "text", { required: true, searchable: true }),
     ticketFields("body", "text", { required: true, searchable: true, sortable: false }),
@@ -46,6 +47,10 @@ export const ticket: EntityDef = {
   ],
   // Files on a ticket are attached by whoever may follow the conversation: the reporter and the agents both reply.
   processIds: { attach: "support.ticket.reply" },
+  // Opens in its own frame at /r/support.ticket/<id> (rule 21: references to it are links).
+  recordPage: true,
+  // A copied ticket is a new conversation: its own consecutive, and the status a new ticket starts with.
+  cloneReset: ["seq", "status"],
 };
 
 const messageFields = fieldsOf("support.ticket_message");

@@ -1,9 +1,25 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import { gridPageAccess, ProcessError, requiredTagsFor, runGridQuery, runnableProcesses, runProcess, type Caller, type ConditionFacts, type FieldMode, type RequiredTag } from "@erp/kernel";
+import {
+  addRefLabels,
+  gridPageAccess,
+  ProcessError,
+  refLabelKey,
+  requiredTagsFor,
+  runGridQuery,
+  runnableProcesses,
+  runProcess,
+  withClaims,
+  type Caller,
+  type ConditionFacts,
+  type EntityDef,
+  type FieldMode,
+  type RequiredTag,
+} from "@erp/kernel";
 import type { CategoryOption, GridColumn, PartyTables, ProductTables } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
 import { buildColumns } from "@/lib/grid/columns";
+import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
@@ -20,7 +36,7 @@ export type FormData =
       kind: "product";
       tables: ProductTables;
       categories: CategoryOption[];
-      supplier: { fields: GridColumn[]; label: string | null; entityLabel: string };
+      supplier: { fields: GridColumn[]; label: string | null; entityLabel: string; linkable: boolean };
     }
   | { kind: "category"; tables: ProductTables; productCount: number };
 
@@ -41,6 +57,8 @@ export interface RecordAbilities {
   reorder: boolean;
   /** "Sugerir foto con IA". */
   suggest: boolean;
+  /** "Duplicar" (rule 37): a stored record the caller may create a copy of through the entity's create process. */
+  duplicate: boolean;
 }
 
 /** A file as `kernel.attachment.list` answers it. */
@@ -137,11 +155,28 @@ async function orNull<T>(read: Promise<T[]>): Promise<T[] | null> {
 }
 
 /** Rows of another entity's grid as the caller sees them; none when the caller may not read that grid. */
-async function gridRows(caller: Caller, entityId: string, state: Parameters<typeof runGridQuery>[3]) {
+export async function gridRows(caller: Caller, entityId: string, state: Parameters<typeof runGridQuery>[3]) {
   const deps = processDeps();
   const entity = gridEntity(deps.registry, entityId);
   if (!entity || (await gridDenial(deps, caller.claims, entity))) return { rows: [], total: 0 };
   return runGridQuery(deps.sql, caller.claims, entity, state);
+}
+
+/**
+ * How the references among `values` (by field name) read to the caller: the referenced record's display field, by the
+ * referring field's name. One select per target entity, as the caller (`addRefLabels`: the target's grid gate, RLS, the
+ * party scope and the masks apply); a reference the caller may not read gets no name.
+ */
+export async function refLabelsOf(caller: Caller, entity: EntityDef, values: Record<string, unknown>): Promise<Record<string, string>> {
+  const deps = processDeps();
+  const row: Record<string, unknown> = { ...values };
+  await withClaims(deps.sql, caller.claims, (tx) => addRefLabels(tx, deps.registry, entity, [row]));
+  const labels: Record<string, string> = {};
+  for (const field of entity.fields) {
+    const label = field.type === "ref" ? row[refLabelKey(field.name)] : undefined;
+    if (typeof label === "string") labels[field.name] = label;
+  }
+  return labels;
 }
 
 async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"]): Promise<FormData> {
@@ -156,11 +191,13 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   const deps = processDeps();
   const t = await getTranslations();
   const party = gridEntity(deps.registry, "core.party")!;
+  const product = gridEntity(deps.registry, "core.product")!;
   const supplierId = typeof record?.supplier_id === "string" ? record.supplier_id : null;
-  const [categories, partyAccess, supplier] = await Promise.all([
+  const [categories, partyAccess, labels, linkable] = await Promise.all([
     gridRows(caller, "core.product_category", { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "status"] }),
     gridPageAccess(deps.sql, caller.claims, party),
-    supplierId ? gridRows(caller, "core.party", { filters: [{ field: "id", op: "eq", value: supplierId }], sort: [], page: 1, pageSize: 1, columns: ["legal_name"] }) : null,
+    supplierId ? refLabelsOf(caller, product, { supplier_id: supplierId }) : ({} as Record<string, string>),
+    linkableEntities(deps, caller.claims, [party.id]),
   ]);
   return {
     kind: "product",
@@ -176,8 +213,10 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
     })),
     supplier: {
       fields: buildColumns(party, partyAccess, presentationOf(party.id), (key) => t(key)),
-      label: supplier?.rows[0] ? String(supplier.rows[0].legal_name ?? supplierId) : null,
+      label: labels.supplier_id ?? null,
       entityLabel: t(party.label),
+      // The chosen supplier links to its page when the caller may open parties (rule 21).
+      linkable: linkable.has(party.id),
     },
   };
 }
@@ -209,7 +248,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   const [defs, partyContacts, runnable, required, files] = await Promise.all([
     record ? orEmpty(customFields(caller, entity.id)) : Promise.resolve([]),
     record && entity.id === "core.party" ? orEmpty(contacts(caller, record.id)) : Promise.resolve([]),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, ...TAB_PROCESSES]),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, entity.create, ...TAB_PROCESSES]),
     record ? requiredTagsFor(deps.sql, caller.claims, entity.id, factsOf(entity.id, record, access.modes)) : Promise.resolve([]),
     record ? orNull(attachments(caller, entity.id, record.id)) : Promise.resolve([]),
   ]);
@@ -230,6 +269,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     removeFile: may("kernel.attachment.remove"),
     reorder: may("kernel.attachment.reorder"),
     suggest: may("kernel.ai.image_suggest"),
+    duplicate: record !== null && runnable.has(entity.create),
   };
   return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, form: await formData(caller, entity, record) };
 }

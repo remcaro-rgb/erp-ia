@@ -5,13 +5,16 @@ export interface CallerProfile {
   user: { id: string; name: string; email: string };
   /** Names of the caller's roles in the active company. */
   roles: string[];
-  /** Every company of the caller's claims, by legal name. */
+  /** Every company of the caller's claims where their membership is active (0027), by legal name. */
   companies: { id: string; name: string; taxId: string | null; /** IANA zone the company schedules and reports in. */ timeZone: string }[];
+  /** False when the admin deactivated the caller's membership in the active company (design §22.16): the shell signs out. */
+  active: boolean;
 }
 
 /**
  * Who the shell greets (design §19a top bar): the caller's name and e-mail, their role names in the active
- * company (the roles they still hold, `kernel.current_role_ids()`, 0024) and the companies they may switch to.
+ * company (the roles they still hold, `kernel.current_role_ids()`, 0024), the companies they may switch to and whether
+ * their membership there is still active (`kernel.membership_inactive()`, 0027).
  * Read as the caller, under RLS.
  */
 export async function callerProfile(sql: Sql, claims: JwtClaims): Promise<CallerProfile> {
@@ -24,12 +27,14 @@ export async function callerProfile(sql: Sql, claims: JwtClaims): Promise<Caller
       order by r.name`;
     const companies = await tx<{ id: string; legal_name: string; tax_id: string | null; timezone: string }[]>`
       select id, legal_name, tax_id, timezone from kernel.companies
-      where id = any (${claims.company_ids}::uuid[]) order by legal_name`;
+      where id = any (${claims.company_ids}::uuid[]) and id = any (kernel.active_company_ids()) order by legal_name`;
+    const [state] = await tx<{ inactive: boolean }[]>`select kernel.membership_inactive() as inactive`;
     const email = user?.email ?? "";
     return {
       user: { id: claims.sub, name: user?.full_name?.trim() || email, email },
       roles: roles.map((r) => r.name),
       companies: companies.map((c) => ({ id: c.id, name: c.legal_name, taxId: c.tax_id, timeZone: c.timezone })),
+      active: !state!.inactive,
     };
   });
 }

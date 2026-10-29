@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { GridCell } from "../GridCell";
+import { NavigateProvider } from "../../shell/navigate";
 import { CellFormatProvider } from "../cell-format";
 import { ResultTable } from "../../assistant/ResultTable";
 import { renderEs } from "../../shell/__tests__/intl";
@@ -41,5 +42,96 @@ describe("GridCell", () => {
       </CellFormatProvider>,
     );
     expect(screen.getAllByText(/^28\/10\/26.*12:30/)).toHaveLength(2);
+  });
+
+  it("shows what the grid's renderer gives for a column, the default text when it gives nothing, and never unmasks", () => {
+    const render = (c: GridColumn, row: { id: string } & Record<string, unknown>) =>
+      c.field === "process_id" ? (
+        <span>
+          Crea un tercero <span className="erp-mono">{String(row.process_id)}</span>
+        </span>
+      ) : undefined;
+    renderEs(
+      <>
+        {inRow(<GridCell column={column({ field: "process_id" })} row={{ id: "1", process_id: "core.party.create" }} render={render} />)}
+        {inRow(<GridCell column={column({ field: "entity" })} row={{ id: "1", entity: "core.parties" }} render={render} />)}
+        {inRow(<GridCell column={column({ field: "process_id", mode: "masked" })} row={{ id: "2", process_id: "kernel.secret" }} render={render} />)}
+      </>,
+    );
+    expect(screen.getByText("core.party.create").closest("td")!.textContent).toBe("Crea un tercero core.party.create");
+    expect(screen.getByText("core.parties")).toBeTruthy();
+    expect(screen.queryByText("kernel.secret")).toBeNull();
+    expect(screen.getByText("••••••")).toBeTruthy();
+  });
+});
+
+describe("GridCell: a reference to another record is a link to its page (rule 21)", () => {
+  const supplier = "0199a2b3-c4d5-7e6f-8a9b-0c1d2e3f4a5b";
+  const ref = (over: Partial<GridColumn> = {}) => column({ field: "supplier_id", label: "Proveedor", type: "ref", kind: "uuid", ref: { entity: "core.party", display: "legal_name" }, linkable: true, ...over });
+
+  it("shows the referenced record's name, from the row's <field>_label, as a link to its page that does not open the row", () => {
+    const onRow = vi.fn();
+    renderEs(
+      <table>
+        <tbody>
+          <tr onClick={onRow}>
+            <GridCell column={ref()} row={{ id: "1", supplier_id: supplier, supplier_id_label: "Café del Norte S.A.S." }} />
+          </tr>
+        </tbody>
+      </table>,
+    );
+    const link = screen.getByRole("link", { name: "Café del Norte S.A.S." });
+    expect(link.getAttribute("href")).toBe(`/r/core.party/${supplier}`);
+    expect(link.getAttribute("title")).toBe("Abrir Café del Norte S.A.S.");
+    // Out of the tab order: the row is the grid's one tab stop and Enter opens it.
+    expect(link.getAttribute("tabindex")).toBe("-1");
+    fireEvent.click(link);
+    expect(onRow).not.toHaveBeenCalled();
+  });
+
+  it("moves client-side through the shell's navigation on a plain click, and leaves a Ctrl/⌘-click to the browser", () => {
+    const navigate = vi.fn();
+    renderEs(
+      <NavigateProvider navigate={navigate}>
+        {inRow(<GridCell column={ref()} row={{ id: "1", supplier_id: supplier, supplier_id_label: "Café del Norte S.A.S." }} />)}
+      </NavigateProvider>,
+    );
+    const link = screen.getByRole("link", { name: "Café del Norte S.A.S." });
+    const plain = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    link.dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(`/r/core.party/${supplier}`);
+    const modified = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, ctrlKey: true });
+    link.dispatchEvent(modified);
+    expect(modified.defaultPrevented).toBe(false);
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("links a user to their page under Administración › Usuarios, and names a record without a label by its short id", () => {
+    const user = "0199a2b3-0000-7000-8000-000000000001";
+    renderEs(inRow(<GridCell column={ref({ field: "reporter_user_id", ref: { entity: "kernel.user", display: "full_name" } })} row={{ id: "1", reporter_user_id: user }} />));
+    const link = screen.getByRole("link", { name: "0199a2b3" });
+    expect(link.getAttribute("href")).toBe(`/admin/users/${user}`);
+    expect(link.className).toContain("erp-mono");
+  });
+
+  it("takes the name from the column's options when the row has no label (a category)", () => {
+    renderEs(inRow(<GridCell column={ref({ field: "category_id", ref: { entity: "core.product_category", display: "name" }, options: [{ value: "c1", label: "Café" }] })} row={{ id: "1", category_id: "c1" }} />));
+    expect(screen.getByRole("link", { name: "Café" }).getAttribute("href")).toBe("/r/core.product_category/c1");
+  });
+
+  it("is plain text when the viewer may not open the referenced record, a dash when empty, and stays •••••• when masked", () => {
+    renderEs(
+      <>
+        {inRow(<GridCell column={ref({ linkable: false })} row={{ id: "1", supplier_id: supplier, supplier_id_label: "Café del Norte S.A.S." }} />)}
+        {inRow(<GridCell column={ref({ field: "other_id" })} row={{ id: "2", other_id: null }} />)}
+        {inRow(<GridCell column={ref({ field: "secret_id", mode: "masked" })} row={{ id: "3", secret_id: null, secret_id_label: "Oculto" }} />)}
+      </>,
+    );
+    expect(screen.getByText("Café del Norte S.A.S.").closest("a")).toBeNull();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("••••••")).toBeTruthy();
+    expect(screen.queryByText("Oculto")).toBeNull();
   });
 });

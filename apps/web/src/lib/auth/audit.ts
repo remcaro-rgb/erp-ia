@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { getServiceDb, writeAudit, type JwtClaims } from "@erp/kernel";
+import { getServiceDb, writeAudit, type AuditEntry, type JwtClaims } from "@erp/kernel";
+import type { CompanySwitchReason } from "./claims";
 
 // Audit rows of the session events that are not process runs (design §5.5, rule 16): who signed in and
 // how, and which company they moved to. Written through `writeAudit` with origin `ui`, in the user's active
@@ -23,20 +24,26 @@ export async function recordLogin(claims: JwtClaims, input: { remember: boolean;
   );
 }
 
-/** `auth.company.switch`: the user moved their session to another of their companies. */
-export async function recordCompanySwitch(claims: JwtClaims, from: string): Promise<void> {
-  await getServiceDb().begin((tx) =>
-    writeAudit(tx, {
-      companyId: claims.active_company_id,
-      actorUserId: claims.sub,
-      origin: "ui",
-      processId: "auth.company.switch",
-      entity: "kernel.users",
-      rowId: claims.sub,
-      action: "update",
-      input: { from, to: claims.active_company_id },
-      diff: { active_company_id: { old: from, new: claims.active_company_id } },
-      chainId: randomUUID(),
-    }),
-  );
+/**
+ * The `auth.company.switch` entry: the session moved to another of the user's companies, by their own choice (no reason)
+ * or automatically (`reason`), so the audit tells the two apart.
+ */
+export function companySwitchEntry(claims: JwtClaims, from: string, reason?: CompanySwitchReason): AuditEntry {
+  return {
+    companyId: claims.active_company_id,
+    actorUserId: claims.sub,
+    origin: "ui",
+    processId: "auth.company.switch",
+    entity: "kernel.users",
+    rowId: claims.sub,
+    action: "update",
+    input: { from, to: claims.active_company_id, ...(reason ? { reason } : {}) },
+    diff: { active_company_id: { old: from, new: claims.active_company_id } },
+    chainId: randomUUID(),
+  };
+}
+
+/** Records `auth.company.switch` (`companySwitchEntry`) in its own transaction. */
+export async function recordCompanySwitch(claims: JwtClaims, from: string, reason?: CompanySwitchReason): Promise<void> {
+  await getServiceDb().begin((tx) => writeAudit(tx, companySwitchEntry(claims, from, reason)));
 }

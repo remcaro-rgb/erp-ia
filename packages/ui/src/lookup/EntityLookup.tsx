@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Search, X } from "lucide-react";
+import { ArrowUpRight, Search, X } from "lucide-react";
 import { AdvancedFilter } from "../grid/AdvancedFilter";
 import { ConditionChips } from "../grid/ConditionChips";
 import { dianPill, stateFilters } from "../grid/grid-model";
@@ -27,6 +27,11 @@ export interface EntityLookupProps {
   describe: (row: GridRow) => { label: string; sub?: string };
   /** The record chosen, as the box shows it. */
   value?: { id: string; label: string } | null;
+  /**
+   * The page of the chosen record when the viewer may open it (`recordHref`, rule 21): a link beside the magnifier opens
+   * it in the same browser tab (Ctrl/⌘-click, a new one). Null or absent: no link.
+   */
+  href?: string | null;
   /** A record was chosen, or the choice was cleared (null). */
   onPick: (row: GridRow | null) => void;
   /** Records that are not invoice-ready show disabled with their reasons (design §5.17). */
@@ -43,16 +48,19 @@ export interface EntityLookupProps {
 /**
  * The entity lookup (design §9, prototype `lookupHtml`): a text box that searches the entity's searchable fields as
  * the user types, a dropdown with the DIAN status (and, for invoices, whether each record can be used), arrow keys and
- * Enter, and the magnifier at the right that opens the advanced filter to pick a record without leaving the form.
+ * Enter (a list that opened by itself points at nothing until the user types or presses an arrow; Ctrl/⌘+S and
+ * Ctrl/⌘+Enter choose the row pointed at before the form saves), and the magnifier at the right that opens the advanced filter to pick a record without leaving the form.
  */
 export function EntityLookup(props: EntityLookupProps) {
-  const { fetcher, fields, describe, value, onPick, forInvoice = false, baseFilters, disabled, limit = 8, debounceMs = 200 } = props;
+  const { fetcher, fields, describe, value, href, onPick, forInvoice = false, baseFilters, disabled, limit = 8, debounceMs = 200 } = props;
   const t = useTranslations();
   const listId = useId();
   const [text, setText] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<GridRow[] | null>(null);
   const [highlight, setHighlight] = useState(0);
+  /** The user typed a search or pressed ↑/↓: only then do Enter and Tab choose the highlighted row. A list that opened by itself (on focus) chooses nothing, so Enter in a form moves on. */
+  const [intent, setIntent] = useState(false);
   const [conditions, setConditions] = useState<Condition[]>([]);
   const [message, setMessage] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -114,28 +122,41 @@ export function EntityLookup(props: EntityLookupProps) {
     const { label } = describe(row);
     setText(label);
     setOpen(false);
+    setIntent(false);
     setMessage(t("grid.lookup.picked", { label }));
     onPick(row);
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     const list = items ?? [];
+    const saveKey = (event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "Enter" || event.key.toLowerCase() === "s");
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!open) setOpen(true);
-      setHighlight((h) => moveHighlight(h, list.length, event.key === "ArrowDown" ? 1 : -1));
-    } else if (event.key === "Enter" && open && list[highlight]) {
+      // The first arrow points at the first row; the next ones walk.
+      if (!intent) setHighlight(0);
+      else setHighlight((h) => moveHighlight(h, list.length, event.key === "ArrowDown" ? 1 : -1));
+      setIntent(true);
+    } else if (saveKey) {
+      // Ctrl/⌘+S or Ctrl/⌘+Enter: the form is about to save. The row pointed at is chosen and the key is left to the
+      // form, which saves the choice.
+      if (open && intent && list[highlight]) choose(list[highlight]!);
+    } else if (event.key === "Enter" && open && intent && list[highlight]) {
       event.preventDefault();
+      choose(list[highlight]!);
+    } else if (event.key === "Tab" && open && intent && list[highlight]) {
+      // Chooses what the list points at and lets the browser move on.
       choose(list[highlight]!);
     } else if (event.key === "Escape") {
       setOpen(false);
+      setIntent(false);
     }
   };
 
   const list = items ?? [];
   const optionId = (i: number) => `${listId}-option-${i}`;
   return (
-    <div className="erp-lk">
+    <div className={value && href ? "erp-lk erp-lk--linked" : "erp-lk"}>
       <input
         id={props.id}
         role="combobox"
@@ -143,7 +164,7 @@ export function EntityLookup(props: EntityLookupProps) {
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={open && list[highlight] ? optionId(highlight) : undefined}
+        aria-activedescendant={open && intent && list[highlight] ? optionId(highlight) : undefined}
         autoComplete="off"
         className="erp-lk__input"
         placeholder={props.placeholder ?? t("grid.lookup.placeholder")}
@@ -152,16 +173,29 @@ export function EntityLookup(props: EntityLookupProps) {
         onChange={(e) => {
           setText(e.target.value);
           setOpen(true);
+          setIntent(e.target.value.trim() !== "");
           setHighlight(0);
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onFocus={() => {
+          setOpen(true);
+          setIntent(false);
+          setHighlight(0);
+        }}
+        onBlur={() => {
+          setOpen(false);
+          setIntent(false);
+        }}
         onKeyDown={onKeyDown}
       />
       {value && !disabled && (
         <button type="button" className="erp-lk__clear" aria-label={t("grid.lookup.clear")} onMouseDown={(e) => e.preventDefault()} onClick={() => (setText(""), onPick(null))}>
           <X aria-hidden="true" className="erp-icon" />
         </button>
+      )}
+      {value && href && (
+        <a className="erp-lk__open" href={href} aria-label={t("grid.open_record", { label: value.label })} title={t("grid.open_record", { label: value.label })}>
+          <ArrowUpRight aria-hidden="true" className="erp-icon" />
+        </a>
       )}
       <button
         type="button"
@@ -186,10 +220,11 @@ export function EntityLookup(props: EntityLookupProps) {
                   key={row.id}
                   id={optionId(i)}
                   role="option"
-                  aria-selected={i === highlight ? "true" : "false"}
+                  // Only a row the user pointed at (typed, arrows) is selected; a list that opened by itself leaves every row neutral.
+                  aria-selected={intent && i === highlight ? "true" : "false"}
                   aria-disabled={reason ? true : undefined}
                   title={reason ? t("grid.adv.not_invoiceable", { reasons: reason }) : undefined}
-                  className={["erp-lk__item", i === highlight && "is-on", reason && "is-blocked"].filter(Boolean).join(" ")}
+                  className={["erp-lk__item", intent && i === highlight && "is-on", reason && "is-blocked"].filter(Boolean).join(" ")}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     choose(row);

@@ -1,8 +1,9 @@
 import { z } from "zod";
 import type { Tx } from "../db/client";
+import type { ProcessContext } from "../process/context";
 import type { Registry } from "../registry";
 import { defineProcess } from "../process/define";
-import { ADMIN_FEATURE, companyRole, invalid, refuseSystemAdmin, requireAdmin } from "./common";
+import { ADMIN_FEATURE, companyRole, invalid, refuseSystemAdmin, requireAdmin, type CompanyRole } from "./common";
 import { matrixProcesses, type MatrixProcess } from "./matrix";
 import { moduleStates } from "./modules-state";
 
@@ -11,6 +12,46 @@ import { moduleStates } from "./modules-state";
 
 const PROCESS_ID = z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, "Identificador de proceso inválido");
 
+/** One cell of the permission matrix: the role, the process and whether the role may run it. */
+export const permissionChange = z.object({ roleId: z.uuid(), processId: PROCESS_ID, allowed: z.boolean() });
+export type PermissionChange = z.infer<typeof permissionChange>;
+
+/** The company's role by id, read once per batch. */
+export type RoleLookup = (roleId: string) => Promise<CompanyRole>;
+
+/** Reads each role of the active company once (a batch names the same roles many times). */
+export function roleLookup(ctx: ProcessContext): RoleLookup {
+  const seen = new Map<string, Promise<CompanyRole>>();
+  return (roleId) => {
+    let role = seen.get(roleId);
+    if (!role) seen.set(roleId, (role = companyRole(ctx, roleId)));
+    return role;
+  };
+}
+
+/**
+ * Refuses (`invalid_input`) a cell the matrix may not change: a role of another company, the system admin role, an
+ * unknown process, or an administration process given to another role. Shared by permission.set and set_many, so the
+ * single and the batch paths cannot drift.
+ */
+export async function checkPermissionChange(ctx: ProcessContext, change: PermissionChange, roleOf: RoleLookup = roleLookup(ctx)): Promise<void> {
+  refuseSystemAdmin(await roleOf(change.roleId));
+  const process = ctx.registry.processes().find((p) => p.id === change.processId);
+  if (!process) throw invalid(`unknown process ${change.processId}`, `El proceso ${change.processId} no existe`);
+  // Administration stays with the admin role: it is never granted to another role (the handlers check it too).
+  if (change.allowed && process.feature === ADMIN_FEATURE) {
+    throw invalid(`${change.processId} is an administration process`, "Los procesos de administración son solo del rol admin");
+  }
+}
+
+/** Stores checked cells (one statement; the row trigger audits each grant). */
+export async function writePermissions(ctx: ProcessContext, changes: PermissionChange[]): Promise<void> {
+  const rows = changes.map((c) => ({ company_id: ctx.companyId, role_id: c.roleId, process_id: c.processId, allowed: c.allowed }));
+  await ctx.tx`
+    insert into kernel.process_permissions ${ctx.tx(rows, "company_id", "role_id", "process_id", "allowed")}
+    on conflict (company_id, role_id, process_id) do update set allowed = excluded.allowed`;
+}
+
 export const permissionSet = defineProcess({
   id: "kernel.admin.permission.set",
   module: "kernel",
@@ -18,21 +59,12 @@ export const permissionSet = defineProcess({
   feature: ADMIN_FEATURE,
   sensitivity: "step-up",
   description: "Permite o niega a un rol ejecutar un proceso (matriz de permisos)",
-  input: z.object({ roleId: z.uuid(), processId: PROCESS_ID, allowed: z.boolean() }),
+  input: permissionChange,
   output: z.object({ roleId: z.string(), processId: z.string(), allowed: z.boolean() }),
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
-    refuseSystemAdmin(await companyRole(ctx, input.roleId));
-    const process = ctx.registry.processes().find((p) => p.id === input.processId);
-    if (!process) throw invalid(`unknown process ${input.processId}`, `El proceso ${input.processId} no existe`);
-    // Administration stays with the admin role: it is never granted to another role (the handlers check it too).
-    if (input.allowed && process.feature === ADMIN_FEATURE) {
-      throw invalid(`${input.processId} is an administration process`, "Los procesos de administración son solo del rol admin");
-    }
-    await ctx.tx`
-      insert into kernel.process_permissions (company_id, role_id, process_id, allowed)
-      values (${ctx.companyId}, ${input.roleId}, ${input.processId}, ${input.allowed})
-      on conflict (company_id, role_id, process_id) do update set allowed = excluded.allowed`;
+    await checkPermissionChange(ctx, input);
+    await writePermissions(ctx, [input]);
     return input;
   },
 });
@@ -40,7 +72,7 @@ export const permissionSet = defineProcess({
 const matrixOutput = z.object({
   roles: z.array(z.object({ id: z.string(), name: z.string(), description: z.string(), isSystemAdmin: z.boolean(), partyScope: z.string() })),
   processes: z.array(
-    z.object({ id: z.string(), module: z.string(), kind: z.string(), entity: z.string(), entityLabel: z.string(), stepUp: z.boolean() }),
+    z.object({ id: z.string(), module: z.string(), kind: z.string(), entity: z.string(), entityLabel: z.string(), stepUp: z.boolean(), admin: z.boolean() }),
   ),
   /** Process ids each role (by id) may run. */
   grants: z.record(z.string(), z.array(z.string())),
@@ -84,6 +116,27 @@ export const permissionMatrix = defineProcess({
   },
 });
 
+/** One cell of the field visibility matrix: the role, the entity's field and how the role sees it (rule 14). */
+export const fieldPermissionChange = z.object({ roleId: z.uuid(), entity: z.string().min(1), field: z.string().min(1), mode: z.enum(["visible", "masked", "hidden"]) });
+export type FieldPermissionChange = z.infer<typeof fieldPermissionChange>;
+
+/** Refuses a cell of another company's role, of the system admin role or of an unknown field (single and batch paths). */
+export async function checkFieldPermissionChange(ctx: ProcessContext, change: FieldPermissionChange, roleOf: RoleLookup = roleLookup(ctx)): Promise<void> {
+  refuseSystemAdmin(await roleOf(change.roleId));
+  const entity = ctx.registry.entities().find((e) => e.id === change.entity);
+  if (!entity || !entity.fields.some((f) => f.name === change.field)) {
+    throw invalid(`unknown field ${change.entity}.${change.field}`, `El campo ${change.entity}.${change.field} no existe`);
+  }
+}
+
+/** Stores checked cells. An explicit row also for `visible`: the confidential defaults never mask again what the admin chose to show. */
+export async function writeFieldPermissions(ctx: ProcessContext, changes: FieldPermissionChange[]): Promise<void> {
+  const rows = changes.map((c) => ({ company_id: ctx.companyId, role_id: c.roleId, entity: c.entity, field: c.field, mode: c.mode }));
+  await ctx.tx`
+    insert into kernel.field_permissions ${ctx.tx(rows, "company_id", "role_id", "entity", "field", "mode")}
+    on conflict (company_id, role_id, entity, field) do update set mode = excluded.mode`;
+}
+
 export const fieldPermissionSet = defineProcess({
   id: "kernel.admin.field_permission.set",
   module: "kernel",
@@ -91,20 +144,12 @@ export const fieldPermissionSet = defineProcess({
   feature: ADMIN_FEATURE,
   sensitivity: "step-up",
   description: "Define si un rol ve un campo de una entidad visible, enmascarado u oculto (en grids, formularios, exportaciones y asistente)",
-  input: z.object({ roleId: z.uuid(), entity: z.string().min(1), field: z.string().min(1), mode: z.enum(["visible", "masked", "hidden"]) }),
+  input: fieldPermissionChange,
   output: z.object({ roleId: z.string(), entity: z.string(), field: z.string(), mode: z.string() }),
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
-    refuseSystemAdmin(await companyRole(ctx, input.roleId));
-    const entity = ctx.registry.entities().find((e) => e.id === input.entity);
-    if (!entity || !entity.fields.some((f) => f.name === input.field)) {
-      throw invalid(`unknown field ${input.entity}.${input.field}`, `El campo ${input.entity}.${input.field} no existe`);
-    }
-    // An explicit row also for `visible`: the confidential defaults never mask again what the admin chose to show.
-    await ctx.tx`
-      insert into kernel.field_permissions (company_id, role_id, entity, field, mode)
-      values (${ctx.companyId}, ${input.roleId}, ${input.entity}, ${input.field}, ${input.mode})
-      on conflict (company_id, role_id, entity, field) do update set mode = excluded.mode`;
+    await checkFieldPermissionChange(ctx, input);
+    await writeFieldPermissions(ctx, [input]);
     return input;
   },
 });

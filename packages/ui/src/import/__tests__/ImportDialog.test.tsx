@@ -69,7 +69,9 @@ describe("ImportDialog", () => {
     expect(sent.get("entity")).toBe("core.party");
     expect(screen.getByText("1 válida")).toBeTruthy();
     expect(screen.getByText("1 con errores")).toBeTruthy();
-    expect(screen.getByText("31: solo dígitos")).toBeTruthy();
+    // One line per row: the pill carries the reason as a tooltip; the text itself opens with "Ver".
+    expect(screen.getByText("Fila con error").getAttribute("title")).toBe("31: solo dígitos");
+    expect(screen.queryByText("31: solo dígitos")).toBeNull();
     expect(screen.getByText("Columnas que no se importan: Canal")).toBeTruthy();
     expect(run.disabled).toBe(false);
   });
@@ -112,5 +114,107 @@ describe("ImportDialog", () => {
     expect(fetcher).not.toHaveBeenCalled();
     fireEvent.drop(screen.getByTestId("import-drop"), { dataTransfer: { files: [csvFile("vacio.csv")] } });
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("El archivo está vacío"));
+  });
+
+  describe("errors-only preview", () => {
+    const many: ImportPreviewData = {
+      ...preview,
+      total: 5,
+      rows: [
+        { rowNo: 2, ok: true, errors: [], cells: ["customer", "900373115"] },
+        { rowNo: 3, ok: false, errors: ["31: solo dígitos", "municipio: código DANE desconocido"], cells: ["customer", "800ABC123"] },
+        { rowNo: 4, ok: true, errors: [], cells: ["customer", "800197268"] },
+        { rowNo: 5, ok: true, errors: [], cells: ["supplier", "900555666"] },
+        { rowNo: 6, ok: false, errors: ["correo inválido"], cells: ["supplier", "900111222"] },
+      ],
+    };
+    const open = async (data: ImportPreviewData) => {
+      const fetcher = vi.fn(async () => json(data));
+      renderEs(<ImportDialog open onOpenChange={() => {}} entity="core.party" entityLabel="Terceros" fetcher={fetcher as unknown as typeof fetch} />);
+      fireEvent.drop(screen.getByTestId("import-drop"), { dataTransfer: { files: [csvFile()] } });
+      await screen.findByText("Vista previa", { exact: false });
+    };
+    const rowNumbers = () => [...document.querySelectorAll("tbody tr[data-row]")].map((tr) => tr.getAttribute("data-row"));
+
+    it("offers 'Solo filas con error (N)', off by default; turning it on lists only the refused rows with their original numbers", async () => {
+      await open(many);
+      const toggle = screen.getByRole("checkbox", { name: "Solo filas con error (2)" }) as HTMLInputElement;
+      expect(toggle.checked).toBe(false);
+      expect(toggle.disabled).toBe(false);
+      expect(rowNumbers()).toEqual(["2", "3", "4", "5", "6"]);
+      fireEvent.click(toggle);
+      expect(rowNumbers()).toEqual(["3", "6"]);
+      expect(screen.getByText("6").closest("td")!.className).toContain("erp-num");
+      fireEvent.click(toggle);
+      expect(rowNumbers()).toEqual(["2", "3", "4", "5", "6"]);
+    });
+
+    it("is disabled when no row has an error", async () => {
+      await open({ ...preview, total: 1, rows: [preview.rows[0]!] });
+      const toggle = screen.getByRole("checkbox", { name: "Solo filas con error (0)" }) as HTMLInputElement;
+      expect(toggle.disabled).toBe(true);
+      expect(toggle.checked).toBe(false);
+    });
+
+    it("keeps every row one line: the reasons are a tooltip and behind a 'Ver' disclosure that opens one extra row", async () => {
+      await open(many);
+      const bad = screen.getAllByText("Fila con error");
+      expect(bad).toHaveLength(2);
+      expect(bad[0]!.getAttribute("title")).toBe("31: solo dígitos · municipio: código DANE desconocido");
+      expect(screen.queryByText("municipio: código DANE desconocido")).toBeNull();
+
+      const [first, second] = screen.getAllByRole("button", { name: /^Ver/ });
+      expect(first!.getAttribute("aria-expanded")).toBe("false");
+      // Closed, each disclosure's panel is in the document (aria-controls resolves) but hidden.
+      for (const button of [first!, second!]) {
+        const panel = document.getElementById(button.getAttribute("aria-controls")!);
+        expect(panel).not.toBeNull();
+        expect(panel!.hidden).toBe(true);
+      }
+      const shownRows = () => document.querySelectorAll("tbody tr:not([hidden])").length;
+      const before = shownRows();
+      fireEvent.click(first!);
+      expect(first!.getAttribute("aria-expanded")).toBe("true");
+      expect(shownRows()).toBe(before + 1);
+      const reasons = screen.getByRole("list", { name: /Errores de la fila 3/ });
+      expect([...reasons.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["31: solo dígitos", "municipio: código DANE desconocido"]);
+      // The panel is the disclosure's target, and the other row stays closed.
+      expect(first!.getAttribute("aria-controls")).toBe(reasons.closest("tr")!.id);
+      expect(second!.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.queryByText("correo inválido")).toBeNull();
+
+      fireEvent.click(first!);
+      expect(first!.getAttribute("aria-expanded")).toBe("false");
+      expect(shownRows()).toBe(before);
+      expect(document.getElementById(first!.getAttribute("aria-controls")!)!.hidden).toBe(true);
+    });
+
+    it("lists a row's reasons by position: two that read the same both show", async () => {
+      const twice = { ...many, rows: many.rows.map((row) => (row.ok ? row : { ...row, errors: ["correo inválido", "correo inválido"] })) };
+      await open(twice);
+      const [first] = screen.getAllByRole("button", { name: /^Ver/ });
+      fireEvent.click(first!);
+      const reasons = screen.getByRole("list", { name: /Errores de la fila/ });
+      expect([...reasons.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["correo inválido", "correo inválido"]);
+    });
+
+    it("the disclosure is a real button: reachable by keyboard (not removed from the tab order)", async () => {
+      await open(many);
+      const button = screen.getAllByRole("button", { name: /^Ver/ })[0]! as HTMLButtonElement;
+      expect(button.tagName).toBe("BUTTON");
+      expect(button.type).toBe("button");
+      expect(button.tabIndex).toBe(0);
+    });
+
+    it("a new file starts again with the toggle off", async () => {
+      const fetcher = vi.fn(async () => json(many));
+      renderEs(<ImportDialog open onOpenChange={() => {}} entity="core.party" entityLabel="Terceros" fetcher={fetcher as unknown as typeof fetch} />);
+      fireEvent.drop(screen.getByTestId("import-drop"), { dataTransfer: { files: [csvFile()] } });
+      fireEvent.click(await screen.findByRole("checkbox", { name: "Solo filas con error (2)" }));
+      expect(rowNumbers()).toEqual(["3", "6"]);
+      fireEvent.drop(screen.getByTestId("import-drop"), { dataTransfer: { files: [csvFile("otro.csv")] } });
+      await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect((screen.getByRole("checkbox", { name: /Solo filas con error/ }) as HTMLInputElement).checked).toBe(false));
+    });
   });
 });

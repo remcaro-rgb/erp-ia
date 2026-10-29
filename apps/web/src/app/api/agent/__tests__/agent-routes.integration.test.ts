@@ -280,3 +280,62 @@ describe("GET /api/agent/conversation", () => {
     }
   });
 });
+
+describe("an inactive membership (design §22.16)", () => {
+  it("every assistant route refuses it with 403 membership_inactive before anything is written, started or metered", async () => {
+    const gone = await seedAuthUser({ role: "member" });
+    const companyId = gone.companyIds[0]!;
+    const jar = state.jar;
+    state.jar = new MemoryJar();
+    try {
+      await loginWithPassword(state.jar as MemoryJar, { email: gone.email, password: gone.password, remember: false });
+      // A conversation with a turn and a pending card from before the admin deactivated the membership.
+      const [c] = await gone.sql<{ id: string }[]>`insert into kernel.agent_conversations(company_id, user_id) values (${companyId}, ${gone.userId}) returning id`;
+      await gone.sql`insert into kernel.agent_messages(company_id, conversation_id, role, parts, run_id)
+                     values (${companyId}, ${c!.id}, 'user', '[{"type":"text","text":"hola"}]', 'wrun_01INACTIVE')`;
+      const [card] = await gone.sql<{ id: string }[]>`
+        insert into kernel.agent_confirmations(company_id, conversation_id, user_id, process_id, input, token)
+        values (${companyId}, ${c!.id}, ${gone.userId}, 'core.party.create', ${gone.sql.json({})}, ${randomBytes(32).toString("base64url")}) returning id`;
+      await gone.sql`update kernel.memberships set is_active = false where user_id = ${gone.userId} and company_id = ${companyId}`;
+
+      const counts = async () => {
+        const [row] = await gone.sql<{ conversations: number; messages: number; usage: number; pending: number }[]>`
+          select (select count(*)::int from kernel.agent_conversations where user_id = ${gone.userId}) as conversations,
+                 (select count(*)::int from kernel.agent_messages where company_id = ${companyId}) as messages,
+                 (select count(*)::int from kernel.llm_usage where company_id = ${companyId}) as usage,
+                 (select count(*)::int from kernel.agent_confirmations where id = ${card!.id} and status = 'pending') as pending`;
+        return row!;
+      };
+      const before = await counts();
+      const started = state.started.length;
+      const read = state.read.length;
+      const refusal = { code: "forbidden", details: { reason: "membership_inactive" } };
+
+      const responses = [
+        await post(turn, "/api/agent/turn", { text: "¿Cuántos clientes hay?" }),
+        await post(turn, "/api/agent/turn", { conversationId: c!.id, text: "¿y proveedores?" }),
+        await conversation(new Request("http://localhost/api/agent/conversation")),
+        await conversation(new Request(`http://localhost/api/agent/conversation?id=${c!.id}`)),
+        await post(confirm, "/api/agent/confirm", { cardId: card!.id, decision: "reject" }),
+        await post(confirm, "/api/agent/confirm", { cardId: card!.id, decision: "confirm" }),
+        await stream(new Request("http://localhost/api/agent/turn/wrun_01INACTIVE/stream?startIndex=0", { headers: { "x-conversation-id": c!.id } }), {
+          params: Promise.resolve({ runId: "wrun_01INACTIVE" }),
+        }),
+      ];
+      for (const response of responses) {
+        expect(response.status).toBe(403);
+        expect(await response.json()).toEqual(refusal);
+      }
+      // No conversation, message, usage row or decided card; no turn started, no run read.
+      expect(await counts()).toEqual(before);
+      expect(before).toMatchObject({ conversations: 1, messages: 1, usage: 0, pending: 1 });
+      expect(state.started.length).toBe(started);
+      expect(state.read.length).toBe(read);
+    } finally {
+      state.jar = jar;
+      await gone.sql`update kernel.memberships set is_active = true where user_id = ${gone.userId}`;
+      await gone.sql`delete from kernel.agent_conversations where company_id = any(${gone.companyIds}::uuid[])`;
+      await gone.cleanup();
+    }
+  });
+});

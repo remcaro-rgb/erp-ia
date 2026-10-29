@@ -9,6 +9,7 @@ import { processDeps } from "@/lib/server/runtime";
 import { gridDenial, gridEntity, type GridDenial } from "./access";
 import { categoryOptions } from "./options";
 import { buildColumns, type CodeTables } from "./columns";
+import { linkableEntities, refTargets } from "./links";
 import { presentationOf } from "./presentation";
 
 // What a grid page (Terceros, Productos, Categorías) needs, read as the caller (design §9): the columns with the
@@ -62,13 +63,14 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
   if (denial) return { ok: false, denial };
 
   const record = recordEntity(entity.id);
-  const [access, views, runnable, t, locale, categories] = await Promise.all([
+  const [access, views, runnable, t, locale, categories, linkable] = await Promise.all([
     gridPageAccess(deps.sql, caller.claims, entity),
     savedViews(caller, entity.id),
     runnableProcesses(deps.sql, deps.registry, caller.claims, record ? [record.create, IMPORT_PROCESS] : []),
     getTranslations(),
     getLocale(),
     entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([]),
+    linkableEntities(deps, caller.claims, refTargets(entity)),
   ]);
   const tables: CodeTables = { ...gridTables(locale), categories };
   return {
@@ -76,7 +78,7 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
     data: {
       entity: entity.id,
       title: t(screenLabel(deps, href, entity.label)),
-      columns: buildColumns(entity, access, presentationOf(entity.id), (key) => t(key), tables),
+      columns: buildColumns(entity, access, presentationOf(entity.id), (key) => t(key), tables, linkable),
       partyScope: entity.id === "core.party" ? access.partyScope : null,
       views,
       canCreate: record ? runnable.has(record.create) : false,
