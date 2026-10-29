@@ -83,6 +83,7 @@ Cuando los filtros por columna no alcanzan, pulsa **Filtro avanzado**. Se abre u
 4. **Y se evalúa antes que O**: «A y B o C» significa «(A y B) o C». Una línea separa cada grupo que empieza con **O**.
 5. Debajo, la lista de **Resultados** se actualiza sola mientras editas: ves cuántos registros cumplen y los primeros 50 («se muestran 50; afina las condiciones»).
 6. Pulsa **Aplicar** para filtrar el listado con esas condiciones. **Limpiar** vacía el formulario y **Cancelar** cierra sin cambiar nada. Si haces clic en una fila de los resultados, se aplican las condiciones y se abre ese registro.
+7. Con el teclado: **Enter** en una caja de valor aplica las condiciones; **Alt+↓** lleva el cursor a los resultados, donde **↑ ↓**, **Inicio** y **Fin** se mueven y **Enter** (o **Espacio**) elige la fila. La lista lo recuerda: «Enter aplica · Alt+↓ va a los resultados · Enter elige».
 
 Las condiciones aplicadas se ven como fichas sobre la tabla, cada una con su ✕ para quitarla, y el botón pasa a decir «Filtro avanzado (2)». Los campos enmascarados aparecen en la lista marcados «(enmascarado)» y no se pueden elegir; los datos adicionales aparecen marcados «(adicional)».
 

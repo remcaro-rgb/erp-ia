@@ -1187,7 +1187,8 @@
       "invoice": "Invoiceable",
       "not_invoiceable": "Cannot be used on invoices: {reasons}",
       "condition": "Condition {n}",
-      "conditions_active": "Active conditions"
+      "conditions_active": "Active conditions",
+      "keys_hint": "Enter applies · Alt+↓ goes to the results · Enter picks"
     },
     "ops": {
       "text": {

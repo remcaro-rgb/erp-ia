@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { NO_VALUE_OPS, OPERATORS } from "@erp/kernel/query";
 import { Dialog, DialogContent, DialogTitle } from "@erp/ui/components/ui/dialog";
@@ -60,6 +60,9 @@ function AdvancedFilterBody({ fields, conditions, onApply, onOpenChange, preview
   const live = draftConditions(draft, fields);
   const liveKey = JSON.stringify(live);
   const [results, setResults] = useState<GridPage | null>(null);
+  // Roving tabindex over the live results: one tab stop, ↑ ↓ Home End move, Enter or Space picks.
+  const [activeResult, setActiveResult] = useState(0);
+  const resultsRef = useRef<HTMLTableSectionElement>(null);
   const previewRef = useRef(preview);
   useEffect(() => {
     previewRef.current = preview;
@@ -69,7 +72,11 @@ function AdvancedFilterBody({ fields, conditions, onApply, onOpenChange, preview
     let cancelled = false;
     const timer = setTimeout(() => {
       previewRef.current(JSON.parse(liveKey) as Condition[]).then(
-        (page) => !cancelled && setResults(page),
+        (page) => {
+          if (cancelled) return;
+          setResults(page);
+          setActiveResult(0);
+        },
         () => !cancelled && setResults({ rows: [], total: 0 }),
       );
     }, debounceMs);
@@ -92,12 +99,43 @@ function AdvancedFilterBody({ fields, conditions, onApply, onOpenChange, preview
     onPickRow(row);
   };
 
+  const resultRows = (results?.rows ?? []).slice(0, PREVIEW_ROWS);
+  const focusResult = (index: number) => {
+    const next = Math.max(0, Math.min(resultRows.length - 1, index));
+    setActiveResult(next);
+    resultsRef.current?.querySelectorAll<HTMLTableRowElement>("tr[data-row]")[next]?.focus();
+  };
+  // In the conditions: Enter applies (a button keeps its own Enter, a multiple select its options), Alt+↓ goes to the
+  // results.
+  const onConditionsKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (event.key === "Enter" && !event.nativeEvent.isComposing && target.tagName !== "BUTTON" && !(target instanceof HTMLSelectElement && target.multiple)) {
+      event.preventDefault();
+      apply();
+    } else if (event.key === "ArrowDown" && event.altKey && resultRows.length > 0) {
+      event.preventDefault();
+      focusResult(activeResult);
+    }
+  };
+  const onResultKey = (event: KeyboardEvent<HTMLTableRowElement>, index: number, row: GridRow) => {
+    const moves: Record<string, number> = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: resultRows.length - 1 };
+    const move = moves[event.key];
+    if (move !== undefined) {
+      event.preventDefault();
+      focusResult(move);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      pick(row);
+    }
+  };
+  const tabResult = Math.min(activeResult, Math.max(resultRows.length - 1, 0));
+
   const shownColumns = previewColumns.slice(0, 7);
   const total = results?.total ?? 0;
   return (
     <>
       <div className="erp-dialog__body">
-        <div className="erp-adv">
+        <div className="erp-adv" onKeyDown={onConditionsKey} aria-keyshortcuts="Enter Alt+ArrowDown">
           {draft.map((condition, index) => (
             <Fragment key={index}>
               {index > 0 && condition.join === "or" && <div className="erp-adv__or" role="separator" />}
@@ -115,7 +153,7 @@ function AdvancedFilterBody({ fields, conditions, onApply, onOpenChange, preview
           <h3>
             {t("grid.adv.results")} <Pill tone="gray">{t("grid.results", { count: total })}</Pill>{" "}
             <span className="erp-hint">
-              {mode === "pick" ? t("grid.adv.hint_pick") : t("grid.adv.hint_open")}
+              {mode === "pick" ? t("grid.adv.hint_pick") : t("grid.adv.hint_open")} · {t("grid.adv.keys_hint")}
               {total > PREVIEW_ROWS && ` · ${t("grid.adv.capped")}`}
             </span>
           </h3>
@@ -129,15 +167,19 @@ function AdvancedFilterBody({ fields, conditions, onApply, onOpenChange, preview
                   {blockedReason && <th>{t("grid.adv.invoice")}</th>}
                 </tr>
               </thead>
-              <tbody>
-                {(results?.rows ?? []).slice(0, PREVIEW_ROWS).map((row) => {
+              <tbody ref={resultsRef}>
+                {resultRows.map((row, index) => {
                   const reason = blockedReason?.(row) ?? null;
                   return (
                     <tr
                       key={row.id}
+                      data-row=""
+                      tabIndex={index === tabResult ? 0 : -1}
                       className={reason ? "erp-row-link is-blocked" : "erp-row-link"}
                       title={reason ? t("grid.adv.not_invoiceable", { reasons: reason }) : undefined}
                       aria-disabled={reason ? true : undefined}
+                      onFocus={(event) => event.target === event.currentTarget && setActiveResult(index)}
+                      onKeyDown={(event) => event.target === event.currentTarget && onResultKey(event, index, row)}
                       onClick={() => pick(row)}
                     >
                       {shownColumns.map((c) => (

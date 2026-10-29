@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderEs, stubLayoutApis } from "../../shell/__tests__/intl";
 import { AdvancedFilter } from "../AdvancedFilter";
 import { ConditionChips } from "../ConditionChips";
@@ -162,5 +163,79 @@ describe("AdvancedFilter", () => {
     const results = await screen.findByRole("region", { name: "Resultados" });
     fireEvent.click(await within(results).findByText("Tostadora Pérez"));
     expect(onRowOpen).toHaveBeenCalledWith(rows[1]);
+  });
+});
+
+// UI density audit quick win 8 (H8): the advanced filter works from the keyboard. Enter applies, Alt+↓ goes to the
+// live results, the results are one tab stop with ↑ ↓ Home End, and Enter or Space picks a row (rule 20's "row pick").
+describe("AdvancedFilter keyboard", () => {
+  const render = (props: Partial<Parameters<typeof AdvancedFilter>[0]> = {}) => {
+    const onApply = vi.fn();
+    const onPickRow = vi.fn();
+    const onOpenChange = vi.fn();
+    renderEs(
+      <AdvancedFilter
+        open
+        onOpenChange={onOpenChange}
+        entityLabel="Terceros"
+        fields={fields}
+        conditions={[]}
+        onApply={onApply}
+        preview={async () => ({ rows, total: 2 })}
+        previewColumns={fields.slice(0, 3)}
+        mode="open"
+        onPickRow={onPickRow}
+        debounceMs={10}
+        {...props}
+      />,
+    );
+    return { onApply, onPickRow, onOpenChange };
+  };
+
+  it("Enter in a value box applies the conditions; Enter on a button does what the button does", async () => {
+    const { onApply, onOpenChange } = render();
+    const user = userEvent.setup();
+    await user.click(within(condition(1)).getByLabelText("Valor"));
+    await user.keyboard("norte");
+    await user.keyboard("{Enter}");
+    expect(onApply).toHaveBeenCalledWith([{ field: "legal_name", op: "contains", value: "norte" }]);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    onApply.mockClear();
+    within(condition(1)).getByRole("button", { name: "Quitar condición" }).focus();
+    await user.keyboard("{Enter}");
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("Alt+↓ goes to the results, the rows rove with ↑ ↓ Home End, and Enter picks", async () => {
+    const { onPickRow, onApply } = render();
+    const user = userEvent.setup();
+    const results = await screen.findByRole("region", { name: "Resultados" });
+    await within(results).findByText("Almacenes Éxito S.A.");
+    const resultRows = () => [...results.querySelectorAll<HTMLTableRowElement>("tbody tr[data-row]")];
+    expect(resultRows().map((r) => r.tabIndex)).toEqual([0, -1]);
+    await user.click(within(condition(1)).getByLabelText("Valor"));
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    expect(document.activeElement).toBe(resultRows()[0]);
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(resultRows()[1]);
+    expect(resultRows().map((r) => r.tabIndex)).toEqual([-1, 0]);
+    await user.keyboard("{Home}");
+    expect(document.activeElement).toBe(resultRows()[0]);
+    await user.keyboard("{End}{Enter}");
+    expect(onPickRow).toHaveBeenCalledWith(rows[1]);
+    expect(onApply).toHaveBeenCalled();
+    expect(screen.getByText(/Enter aplica · Alt\+↓ va a los resultados · Enter elige/)).toBeTruthy();
+  });
+
+  it("a row that cannot be picked stays put on Enter", async () => {
+    const { onPickRow } = render({ mode: "pick", blockedReason: (row) => (row.id === "a" ? "faltan datos DIAN" : null) });
+    const user = userEvent.setup();
+    const results = await screen.findByRole("region", { name: "Resultados" });
+    await within(results).findByText("Almacenes Éxito S.A.");
+    results.querySelector<HTMLTableRowElement>("tbody tr[data-row]")!.focus();
+    await user.keyboard("{Enter}");
+    expect(onPickRow).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowDown} ");
+    expect(onPickRow).toHaveBeenCalledWith(rows[1]);
   });
 });
