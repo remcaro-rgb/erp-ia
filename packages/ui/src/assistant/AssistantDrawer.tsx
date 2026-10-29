@@ -10,6 +10,8 @@ import type { GridStateInput } from "../grid/types";
 
 export interface AssistantDrawerProps {
   open: boolean;
+  /** Bumped by the shell's Ctrl+/ (⌘/): the input takes the caret as soon as it can. */
+  focusInput?: number;
   /** What the assistant is looking at: the active tab's title. */
   context: string;
   /** The route and selected record sent with every turn. */
@@ -36,7 +38,7 @@ export interface AssistantDrawerProps {
  * confirmation and step-up cards, the result tables and the input. It stays mounted while closed, so a running turn and
  * the conversation survive hiding it.
  */
-export function AssistantDrawer({ open, context, screen, conversationId, ask, onNavigate, onOpenGrid, canOpenGrid, columnsOf, timeZone, fetcher }: AssistantDrawerProps) {
+export function AssistantDrawer({ open, focusInput, context, screen, conversationId, ask, onNavigate, onOpenGrid, canOpenGrid, columnsOf, timeZone, fetcher }: AssistantDrawerProps) {
   const t = useTranslations("nav.shell");
   const tAgent = useTranslations("agent.ui");
   const tErrors = useTranslations();
@@ -61,7 +63,7 @@ export function AssistantDrawer({ open, context, screen, conversationId, ask, on
   const errorText = assistant.errorKey && tErrors.has(assistant.errorKey) ? tErrors(assistant.errorKey) : assistant.errorKey ? tErrors("errors.unknown") : null;
 
   return (
-    <aside aria-label={t("assistant")} hidden={!open} className="flex min-h-0 w-[400px] shrink-0 flex-col border-l border-line bg-surface">
+    <aside id="erp-assistant" aria-label={t("assistant")} hidden={!open} className="flex min-h-0 w-[400px] shrink-0 flex-col border-l border-line bg-surface">
       <div className="flex items-center justify-between gap-2 border-b border-line-2 px-4 py-3">
         <div className="flex items-center gap-2 font-bold">
           <span aria-hidden="true" className="inline-block size-2.5 rounded-full bg-primary" />
@@ -102,7 +104,7 @@ export function AssistantDrawer({ open, context, screen, conversationId, ask, on
           {errorText}
         </div>
       )}
-      <Composer onSend={(text) => void assistant.send(text)} working={assistant.working} onStop={() => void assistant.stop()} disabled={!assistant.ready} />
+      <Composer onSend={(text) => void assistant.send(text)} working={assistant.working} onStop={() => void assistant.stop()} disabled={!assistant.ready} {...(focusInput ? { focusNonce: focusInput } : {})} />
     </aside>
   );
 }

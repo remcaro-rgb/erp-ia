@@ -193,4 +193,49 @@ describe("AppShell", () => {
     expect(entries[0]).toContain("3 opciones");
     for (const item of ["Terceros", "Productos", "Categorías"]) expect(menu.textContent).not.toContain(item);
   });
+
+  // UI density audit quick win 13 (M13) and 16 (L1)
+  it("offers a skip link to the page, which takes the caret without a ring", () => {
+    shell("/parties");
+    const skip = screen.getByRole("link", { name: "Saltar al contenido" });
+    expect(skip.getAttribute("href")).toBe("#erp-main");
+    const main = screen.getByRole("main");
+    expect(main.id).toBe("erp-main");
+    expect(main.getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("the Asistente toggle says whether the drawer is open and Ctrl+/ or ⌘/ toggles it", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 }));
+    vi.stubGlobal("fetch", fetcher);
+    try {
+      shell("/");
+      const toggle = screen.getByRole("button", { name: "Asistente" });
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      expect(toggle.getAttribute("aria-controls")).toBe("erp-assistant");
+      expect(toggle.getAttribute("aria-keyshortcuts")).toBe("Control+/ Meta+/");
+      expect(toggle.getAttribute("title")).toBe("Mostrar u ocultar el asistente (Ctrl+/ o ⌘/)");
+      expect(screen.getByRole("complementary", { name: "Asistente" }).id).toBe("erp-assistant");
+
+      fireEvent.keyDown(document, { key: "/", ctrlKey: true });
+      expect(screen.queryByRole("complementary", { name: "Asistente" })).toBeNull();
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      expect(document.activeElement).toBe(screen.getByRole("main"));
+
+      fireEvent.keyDown(document, { key: "/", metaKey: true });
+      expect(screen.getByRole("complementary", { name: "Asistente" })).toBeTruthy();
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      await waitFor(() => expect(document.activeElement?.id).toBe("erp-assistant-input"));
+
+      fireEvent.keyDown(document, { key: "/" });
+      expect(screen.getByRole("complementary", { name: "Asistente" })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("draws the notification dot only when there is something to read", () => {
+    shell("/");
+    const bell = screen.getByRole("button", { name: "Notificaciones" });
+    expect(bell.querySelector("span")).toBeNull();
+  });
 });

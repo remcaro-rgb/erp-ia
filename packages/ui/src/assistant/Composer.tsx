@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 export interface ComposerProps {
@@ -9,13 +9,22 @@ export interface ComposerProps {
   working?: boolean;
   onStop?: () => void;
   disabled?: boolean;
+  /** A change asks for the caret (the shell's Ctrl+/); applied once the input is enabled. */
+  focusNonce?: number;
 }
 
 /** The input of the drawer (prototype v5 `.a-in`). Enter sends. */
-export function Composer({ onSend, working, onStop, disabled }: ComposerProps) {
+export function Composer({ onSend, working, onStop, disabled, focusNonce }: ComposerProps) {
   const t = useTranslations("nav.shell");
   const tAgent = useTranslations("agent.ui");
   const [draft, setDraft] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  const focused = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (focusNonce === undefined || focused.current === focusNonce || disabled) return;
+    focused.current = focusNonce;
+    input.current?.focus();
+  }, [focusNonce, disabled]);
   const send = () => {
     const text = draft.trim();
     if (!text || disabled || working) return;
@@ -29,6 +38,7 @@ export function Composer({ onSend, working, onStop, disabled }: ComposerProps) {
       </label>
       <input
         id="erp-assistant-input"
+        ref={input}
         value={draft}
         disabled={disabled}
         maxLength={4000}

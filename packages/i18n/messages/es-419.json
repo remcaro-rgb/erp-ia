@@ -672,7 +672,9 @@
         "input_label": "Escribe",
         "send": "Enviar",
         "close": "Cerrar asistente"
-      }
+      },
+      "skip_to_content": "Saltar al contenido",
+      "assistant_toggle_title": "Mostrar u ocultar el asistente (Ctrl+/ o ⌘/)"
     },
     "core": {
       "parties": "Terceros",

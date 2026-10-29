@@ -672,7 +672,9 @@
         "input_label": "Type",
         "send": "Send",
         "close": "Close assistant"
-      }
+      },
+      "skip_to_content": "Skip to content",
+      "assistant_toggle_title": "Show or hide the assistant (Ctrl+/ or ⌘/)"
     },
     "core": {
       "parties": "Parties",

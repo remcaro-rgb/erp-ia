@@ -20,8 +20,8 @@ De izquierda a derecha:
 - **Las opciones del módulo** (a la derecha del botón de módulo): por ejemplo **Inicio · Terceros · Productos · Categorías · Importar datos**. La opción de la pantalla en que estás aparece subrayada. **Inicio** está siempre en el primer módulo.
 - **La caja ⌘K**: abre la paleta de comandos (ver abajo).
 - **El botón de tema**: alterna el aspecto.
-- **La campana**: las notificaciones. Por ahora siempre dice «Sin novedades».
-- **Asistente**: abre o cierra el panel del asistente.
+- **La campana**: las notificaciones. El número sobre la campana aparece solo cuando hay algo sin leer; por ahora siempre dice «Sin novedades».
+- **Asistente**: abre o cierra el panel del asistente (también con **Ctrl+/**, o **⌘/** en Mac).
 - **Tu usuario** (el círculo con tus iniciales): muestra tu nombre, correo y roles, permite cambiar el tema y tiene la opción **Salir**.
 
 Una opción o un módulo solo aparece si tu empresa lo tiene habilitado y tu rol puede usarlo.
@@ -58,3 +58,11 @@ El botón de tema de la barra (y la opción **Tema** del menú de tu usuario) va
 ## El panel del asistente
 
 El botón **Asistente** abre o cierra un panel a la derecha. Muestra el contexto de la pantalla en que estás y la conversación con el asistente; cerrarlo no la pierde. Cómo usarlo está en [El asistente](asistente.md).
+
+**Ctrl+/** (en Mac, **⌘/**) hace lo mismo desde cualquier pantalla: si el panel está cerrado lo abre con el cursor listo en la caja para escribir; si está abierto lo cierra y el cursor vuelve a la pantalla.
+
+## Usar el teclado
+
+- **Saltar al contenido**: la primera vez que pulsas **Tab** en una pantalla aparece arriba a la izquierda el enlace «Saltar al contenido». Pulsa **Enter** y el cursor pasa directo a la pantalla, sin recorrer la barra ni las pestañas.
+- El elemento que tiene el cursor siempre se ve con un borde azul.
+- **⌘K** o **Ctrl+K** abre la paleta de comandos; **Ctrl+/** o **⌘/** abre o cierra el asistente.

@@ -157,6 +157,27 @@ function ShellFrame(props: AppShellProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(true);
+  // Ctrl+/ (⌘/ on a Mac) shows the assistant with the caret in its input, or hides it and returns the caret to the page.
+  const openRef = useRef(assistantOpen);
+  useEffect(() => {
+    openRef.current = assistantOpen;
+  }, [assistantOpen]);
+  const [focusInput, setFocusInput] = useState(0);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key !== "/") return;
+      event.preventDefault();
+      if (openRef.current) {
+        document.getElementById("erp-main")?.focus({ preventScroll: true });
+        setAssistantOpen(false);
+      } else {
+        setAssistantOpen(true);
+        setFocusInput((n) => n + 1);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const [asked, setAsked] = useState<{ text: string; nonce: number } | undefined>(undefined);
   const ask = useCallback((text: string) => {
     if (!text) return;
@@ -189,6 +210,12 @@ function ShellFrame(props: AppShellProps) {
     <CellFormatProvider timeZone={timeZone}>
       <TabsProvider store={store}>
         <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
+          <a
+            href="#erp-main"
+            className="sr-only rounded-md bg-surface px-3 py-2 text-[13px] font-semibold text-primary focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:shadow-[0_10px_30px_var(--shadow)]"
+          >
+            {t("nav.shell.skip_to_content")}
+          </a>
           <TopBar
             company={company}
             companies={companies}
@@ -202,17 +229,19 @@ function ShellFrame(props: AppShellProps) {
             theme={theme}
             onThemeChange={(mode) => changeTheme(mode)}
             onOpenPalette={() => setPaletteOpen(true)}
+            assistantOpen={assistantOpen}
             onToggleAssistant={() => setAssistantOpen((open) => !open)}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
           />
           <TabsBar onNew={() => setPaletteOpen(true)} />
           <div className="flex min-h-0 flex-1">
-            <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">
+            <main id="erp-main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">
               <AskAssistantProvider ask={ask}>{props.children}</AskAssistantProvider>
             </main>
             <AssistantDrawer
               open={assistantOpen}
+              focusInput={focusInput}
               context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
               screen={screenOf(currentHref)}
               {...(asked ? { ask: asked } : {})}

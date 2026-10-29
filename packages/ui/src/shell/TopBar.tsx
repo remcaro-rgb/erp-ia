@@ -32,6 +32,10 @@ export interface TopBarProps {
   theme: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
   onOpenPalette: () => void;
+  /** The assistant drawer is showing (the toggle's expanded state). */
+  assistantOpen?: boolean;
+  /** Unread notifications; the dot shows only above zero. */
+  notificationCount?: number;
   onToggleAssistant: () => void;
   onSwitchCompany?: (companyId: string) => void;
   /** Server action of the sign-out form. */
@@ -143,7 +147,11 @@ export function TopBar(props: TopBarProps) {
           className="relative grid size-[34px] shrink-0 place-items-center rounded-md border border-bar-line bg-transparent text-bar-text hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Bell aria-hidden="true" className="size-[18px]" />
-          <span aria-hidden="true" className="absolute top-[5px] right-[5px] size-2 rounded-full bg-alert" />
+          {(props.notificationCount ?? 0) > 0 && (
+            <span aria-hidden="true" className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-alert px-1 text-[10px] font-bold text-bar tabular-nums">
+              {props.notificationCount! > 9 ? "9+" : props.notificationCount}
+            </span>
+          )}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={menuClass}>
           <DropdownMenuLabel className={headClass}>{s("notifications")}</DropdownMenuLabel>
@@ -153,7 +161,15 @@ export function TopBar(props: TopBarProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <button type="button" onClick={props.onToggleAssistant} className={cn(barButton, "bg-white font-semibold text-bar")}>
+      <button
+        type="button"
+        onClick={props.onToggleAssistant}
+        aria-expanded={props.assistantOpen ?? true}
+        aria-controls="erp-assistant"
+        aria-keyshortcuts="Control+/ Meta+/"
+        title={s("assistant_toggle_title")}
+        className={cn(barButton, "bg-white font-semibold text-bar")}
+      >
         {s("assistant")}
       </button>
 
