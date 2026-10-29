@@ -35,7 +35,7 @@ Al comienzo muestra N.º, SKU, Descripción, Tipo de producto, Categoría, Códi
 3. En **Unidad e impuestos**: **Unidad de medida**, **IVA**, **Impuesto nacional al consumo** y **Otros tributos de la línea**. El **Resumen fiscal de la línea** te explica el efecto: IVA excluido, exento (0 %) o la tarifa aplicada.
 4. En **Precio y costo**: **Precio de lista** (en COP, sin IVA), **Costo estándar** (para calcular el **Margen**, que se muestra solo) y, si el producto es una **Muestra gratuita**, el **Tipo de precio de referencia** y el **Precio de referencia**, que es la base del IVA.
 5. En **Inventario**: marca **Controla existencias** (**Sí, por bodega**) y, si quieres una alerta, el **Mínimo**. Un servicio no controla existencias.
-6. Revisa el panel de estado DIAN y pulsa **Crear**.
+6. Revisa el panel de estado DIAN y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** solo no guarda. Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
 
 Los importes se muestran como `$ 1.234.567,00`; mientras escribes ves los dígitos sin formato.
 

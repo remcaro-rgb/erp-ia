@@ -7,7 +7,7 @@ import { PhoneField } from "../fields/PhoneField";
 import type { FieldMode } from "../grid/types";
 import { formatMoney } from "../money/format";
 import { MoneyInput } from "../money/MoneyInput";
-import { Checks, DianPanel, Field, FieldError, failureMessages, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText, useFieldLabels } from "./form-parts";
+import { Checks, RecordForm, DianPanel, Field, FieldError, failureMessages, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText, useFieldLabels } from "./form-parts";
 import {
   checkDigitOf,
   composedName,
@@ -115,7 +115,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
   const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...partyInput(draft, { creditLimitVisible: mode("credit_limit") === "visible" }) });
 
   return (
-    <div className="erp-form">
+    <RecordForm canSave={!readOnly && !blocked && !flow.saving && (dirty || record === null)} onSave={submit} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">
@@ -265,17 +265,18 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
         <div className="erp-form3">
           {includesCustomer(draft.relation) && (
             <div className="erp-field-wrap">
-              <EmailField label={t("invoice_email")} hint={`${t("pill_customer")} · ${t("invoice_email_hint")}`} value={draft.invoiceEmail} required disabled={dis} labels={fieldLabels} onChange={set("invoiceEmail")} />
+              <EmailField label={t("invoice_email")} hint={`${t("pill_customer")} · ${t("invoice_email_hint")}`} value={draft.invoiceEmail} required disabled={dis} announce={false} labels={fieldLabels} onChange={set("invoiceEmail")} />
               <FieldError message={fe("invoiceEmail")} />
             </div>
           )}
           {includesSupplier(draft.relation) && (
             <div className="erp-field-wrap">
-              <EmailField label={t("supplier_email")} hint={`${t("pill_supplier")} · ${t("supplier_email_hint")}`} value={draft.supplierEmail} required disabled={dis} labels={fieldLabels} onChange={set("supplierEmail")} />
+              <EmailField label={t("supplier_email")} hint={`${t("pill_supplier")} · ${t("supplier_email_hint")}`} value={draft.supplierEmail} required disabled={dis} announce={false} labels={fieldLabels} onChange={set("supplierEmail")} />
               <FieldError message={fe("supplierEmail")} />
             </div>
           )}
           <PhoneField
+            announce={false}
             label={t("phone")}
             hint={t("phone_hint")}
             cc={draft.phoneCc}
@@ -304,6 +305,6 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
           process={record ? "core.party.update" : "core.party.create"}
         />
       )}
-    </div>
+    </RecordForm>
   );
 }

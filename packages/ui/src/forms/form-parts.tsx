@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { FieldLabels } from "../fields/field-model";
 import { invoiceBlockers } from "../lookup/lookup-model";
@@ -23,18 +23,73 @@ export function Section({ title, extra, children }: { title: ReactNode; extra?: 
   );
 }
 
-/** A labelled control; `children` receives the control's id. */
-export function Field({ label, hint, error, className, children }: { label: ReactNode; hint?: ReactNode; error?: string | null; className?: string; children: (id: string) => ReactNode }) {
+/** The keys that save a record form from any of its fields. */
+export const SAVE_SHORTCUTS = "Control+S Meta+S Control+Enter Meta+Enter";
+
+export interface RecordFormProps {
+  /** A save would run now (not read-only, not blocked by the client's checks, not saving, something to save). */
+  canSave: boolean;
+  onSave: () => void;
+  /** The last refusal: when it changes, the caret goes to the first field in error or to the error summary. */
+  failure: SaveFlow["failure"];
+  children: ReactNode;
+}
+
+/**
+ * The record forms' frame (party, product, category): a real <form> where Ctrl/⌘+S and Ctrl/⌘+Enter save from any
+ * field, Enter alone never submits (a form of many text boxes), and after a refusal (or a shortcut on a blocked form)
+ * the caret goes to the first field in error, else to the error summary (`data-error-summary`).
+ */
+export function RecordForm({ canSave, onSave, failure, children }: RecordFormProps) {
+  const ref = useRef<HTMLFormElement>(null);
+  const focusFirstProblem = (summaryFirst = false) => {
+    const form = ref.current;
+    const field = form?.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)');
+    const summary = form?.querySelector<HTMLElement>("[data-error-summary]");
+    const target = summaryFirst ? (summary ?? field) : (field ?? summary);
+    if (!target) return;
+    target.focus();
+    target.scrollIntoView?.({ block: "center" });
+  };
+  useEffect(() => {
+    // A refusal that names fields goes to the first of them; one that does not (a duplicate, the pack's checks) goes
+    // to the summary that says it.
+    if (failure) focusFirstProblem(!failure.details.some((d) => (d.path?.length ?? 0) > 0));
+  }, [failure]);
+  const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || (event.key.toLowerCase() !== "s" && event.key !== "Enter")) return;
+    event.preventDefault();
+    if (canSave) onSave();
+    else focusFirstProblem();
+  };
+  return (
+    <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
+      {children}
+    </form>
+  );
+}
+
+/**
+ * A labelled control; `children` receives the control's id and the ids that describe it (hint, error). The error is
+ * not an alert of its own: the form announces one summary and moves the caret to the first field in error.
+ */
+export function Field({ label, hint, error, className, children }: { label: ReactNode; hint?: ReactNode; error?: string | null; className?: string; children: (id: string, describedBy?: string) => ReactNode }) {
   const id = useId();
+  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
   return (
     <div className={["erp-field", className].filter(Boolean).join(" ")}>
       <label htmlFor={id}>
         {label}
-        {hint && <span className="erp-field__hint"> {hint}</span>}
+        {hint && (
+          <span id={`${id}-hint`} className="erp-field__hint">
+            {" "}
+            {hint}
+          </span>
+        )}
       </label>
-      {children(id)}
+      {children(id, describedBy)}
       {error && (
-        <span role="alert" className="erp-field__error">
+        <span id={`${id}-error`} className="erp-field__error">
           {error}
         </span>
       )}
@@ -60,8 +115,8 @@ export interface SelectFieldProps {
 export function SelectField({ label, hint, error, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
   return (
     <Field label={label} hint={hint} error={error} className={className}>
-      {(id) => (
-        <select id={id} value={value} disabled={disabled} aria-invalid={error ? true : undefined} className={error ? "erp-input--bad" : undefined} onChange={(e) => onChange(e.target.value)}>
+      {(id, describedBy) => (
+        <select id={id} value={value} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={error ? "erp-input--bad" : undefined} onChange={(e) => onChange(e.target.value)}>
           {empty !== undefined && <option value="">{empty}</option>}
           {!options.some((o) => o.code === value) && value !== "" && <option value={value}>{value}</option>}
           {options.map((o) => (
@@ -91,7 +146,7 @@ export interface TextFieldProps {
 export function TextField({ label, hint, value, onChange, disabled, maxLength, inputMode, mono, error, className }: TextFieldProps) {
   return (
     <Field label={label} hint={hint} error={error} className={className}>
-      {(id) => (
+      {(id, describedBy) => (
         <input
           id={id}
           value={value}
@@ -99,6 +154,7 @@ export function TextField({ label, hint, value, onChange, disabled, maxLength, i
           maxLength={maxLength}
           inputMode={inputMode}
           aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
           className={[mono && "erp-mono", error && "erp-input--bad"].filter(Boolean).join(" ") || undefined}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -127,11 +183,11 @@ export function Checks({ label, hint, options, value, onToggle, disabled, row }:
   );
 }
 
-/** A field's message from the process, under a control that has no error slot of its own (e-mail, phone). */
+/** A field's message from the process, under a control that has no error slot of its own (e-mail, phone). Not an alert: the form's summary speaks. */
 export function FieldError({ message }: { message: string | null | undefined }) {
   if (!message) return null;
   return (
-    <span role="alert" className="erp-field__error">
+    <span className="erp-field__error">
       {message}
     </span>
   );
@@ -208,7 +264,7 @@ export function DianPanel({ errors, pending, party }: DianPanelProps) {
   const t = useTranslations("common.forms");
   if (errors.length > 0) {
     return (
-      <div className="erp-dian erp-dian--bad" role="alert">
+      <div className="erp-dian erp-dian--bad" role="alert" tabIndex={-1} data-error-summary="">
         <b>{t("dian_errors", { count: errors.length })}</b>
         <ul>
           {errors.map((e) => (
@@ -281,14 +337,15 @@ export function FormActions({ flow, isNew, dirty, blocked, pendingCount, onSave,
       {flow.stepUp && <StepUpPrompt onConfirm={(code) => void flow.confirmStepUp(code)} onCancel={flow.cancelStepUp} error={flow.stepUpError} busy={flow.saving} />}
       <div className="erp-row">
         <span className="erp-small erp-muted erp-grow" role="status">
-          {flow.saving ? t("saving") : status} · <span className="erp-mono">{t("process", { process })}</span>
+          {flow.saving ? t("saving") : status} · <span className="erp-mono">{t("process", { process })}</span> · <kbd className="erp-mono">{t("save_hint")}</kbd>
         </span>
         {dirty && !isNew && (
           <button type="button" className="erp-btn" onClick={onDiscard} disabled={flow.saving}>
             {t("discard")}
           </button>
         )}
-        <button type="button" className="erp-btn erp-btn--primary" onClick={onSave} disabled={blocked || flow.saving || (!dirty && !isNew)}>
+        {/* type="button": a submit button would make Enter in any text box save (implicit submission). */}
+        <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={onSave} disabled={blocked || flow.saving || (!dirty && !isNew)}>
           {isNew ? t("create") : common("save")}
         </button>
       </div>

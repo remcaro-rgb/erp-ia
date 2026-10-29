@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import type { FieldMode, GridColumn, GridFetcher, GridRow, GridStateInput } from "../grid/types";
 import { EntityLookup } from "../lookup/EntityLookup";
 import { MoneyInput } from "../money/MoneyInput";
-import { Checks, DianPanel, failureMessages, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText } from "./form-parts";
+import { Checks, RecordForm, DianPanel, failureMessages, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText } from "./form-parts";
 import {
   margin,
   productBlocked,
@@ -115,7 +115,7 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
   const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...productInput(draft, { standardCostVisible: costMode === "visible" }) });
 
   return (
-    <div className="erp-form">
+    <RecordForm canSave={!readOnly && !productBlocked(draft) && !flow.saving && (dirty || isNew)} onSave={submit} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">
@@ -289,6 +289,6 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
           process={isNew ? "core.product.create" : "core.product.update"}
         />
       )}
-    </div>
+    </RecordForm>
   );
 }

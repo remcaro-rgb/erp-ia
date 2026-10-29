@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { categoryDraft, categoryInput, incomeAccountProblem, nameMissing, type CategoryDraft } from "./category-form-model";
-import { Checks, failureMessages, FormActions, Section, SelectField, TextField, useErrorText } from "./form-parts";
+import { Checks, RecordForm, failureMessages, FormActions, Section, SelectField, TextField, useErrorText } from "./form-parts";
 import type { ProductTables } from "./product-form-model";
 import type { RequestStepUp, SaveRecord } from "./save-model";
 import { useSaveFlow } from "./use-save";
@@ -54,9 +54,11 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
   const failed = failureMessages(flow.failure, CATEGORY_FIELDS, errorText);
   const fe = failed.field;
   const problems = [...(accountBad ? [t("income_account_error")] : []), ...failed.panel];
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...categoryInput(draft) });
 
   return (
-    <div className="erp-form">
+    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && (dirty || isNew)} onSave={submit} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("category")}>
         <div className="erp-form2">
@@ -108,21 +110,21 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
           <b>{t("products", { count: productCount })}</b> · {t("products_note")}
         </div>
       )}
-      <div className={problems.length > 0 ? "erp-dian erp-dian--bad" : missing ? "erp-dian erp-dian--warn" : "erp-dian erp-dian--ok"} role={problems.length > 0 ? "alert" : undefined}>
+      <div className={problems.length > 0 ? "erp-dian erp-dian--bad" : missing ? "erp-dian erp-dian--warn" : "erp-dian erp-dian--ok"} role={problems.length > 0 ? "alert" : undefined} tabIndex={problems.length > 0 ? -1 : undefined} data-error-summary={problems.length > 0 ? "" : undefined}>
         <b>{problems.length > 0 ? problems.join(" · ") : missing ? t("missing_name") : t("ready")}</b>
       </div>
       {!readOnly && (
         <FormActions
           flow={flow}
           isNew={isNew}
-          dirty={JSON.stringify(draft) !== JSON.stringify(initial)}
+          dirty={dirty}
           blocked={accountBad || missing}
           pendingCount={0}
-          onSave={() => void flow.submit({ ...(record ? { id: record.id } : {}), ...categoryInput(draft) })}
+          onSave={submit}
           onDiscard={() => setDraft(initial)}
           process={isNew ? "core.category.create" : "core.category.update"}
         />
       )}
-    </div>
+    </RecordForm>
   );
 }

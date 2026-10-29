@@ -37,7 +37,7 @@ Haz clic en una fila para abrir el tercero en su propia pestaña.
 5. En **Ubicación** elige el **País**. Para Colombia aparecen **Departamento**, **Municipio** (códigos DANE; los municipios dependen del departamento) y **Código postal** (6 dígitos, opcional). Si el tercero es del exterior no hay códigos DANE. Escribe la **Dirección** como está en el RUT.
 6. En **Comercial** elige la **Relación**: **Cliente**, **Proveedor** o **Cliente y proveedor**. Puedes indicar el **Cupo de crédito**, ver el **Saldo** y escribir una **Persona de contacto**.
 7. En **Correos y teléfono para documentos electrónicos** (ver más abajo) escribe el correo que corresponda y el teléfono.
-8. Mira el cuadro de estado DIAN al pie del formulario y pulsa **Crear**.
+8. Mira el cuadro de estado DIAN al pie del formulario y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** solo no guarda. Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
 
 Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **N.º** consecutivo y su identificador (UUID).
 

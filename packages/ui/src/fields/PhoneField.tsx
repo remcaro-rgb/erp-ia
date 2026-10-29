@@ -18,10 +18,12 @@ export interface PhoneFieldProps {
   verify?: FieldVerify;
   labels?: Partial<FieldLabels>;
   className?: string;
+  /** Raise the format error as an alert (default). A record form passes false: its summary is the one alert. */
+  announce?: boolean;
 }
 
 /** Country-code select plus number, validated inline (rule 11): +57 takes 10 digits starting with 3 or 60, or 7; other codes 6 to 14. */
-export function PhoneField({ label, cc, number, onChange, disabled, hint, verify, labels: overrides, className }: PhoneFieldProps) {
+export function PhoneField({ announce = true, label, cc, number, onChange, disabled, hint, verify, labels: overrides, className }: PhoneFieldProps) {
   const labels: FieldLabels = { ...DEFAULT_FIELD_LABELS, ...overrides };
   const id = useId();
   const problem = phoneProblem(cc, number);
@@ -55,7 +57,7 @@ export function PhoneField({ label, cc, number, onChange, disabled, hint, verify
       </div>
       <div id={`${id}-note`}>
         {problem ? (
-          <span role="alert" className="erp-field__error">
+          <span role={announce ? "alert" : undefined} className="erp-field__error">
             {problem}
           </span>
         ) : number ? (

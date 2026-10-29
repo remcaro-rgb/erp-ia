@@ -326,6 +326,30 @@ test.describe("universal grid", () => {
     expect(row!.dian_status).toMatch(/^missing: \d+$/);
   });
 
+  test("Ctrl+S saves the party form, and a refusal puts the caret on what to fix", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto("/r/core.party/new");
+    await expect(page.getByRole("heading", { name: "Crear tercero" })).toBeVisible();
+    await page.getByLabel(/^Número/).fill("830114921");
+    await page.getByLabel(/^Razón social/).fill("Molinos del Atlántico S.A.S.");
+    await page.getByLabel(/^Correo de recepción de facturas de venta/).fill("fe@molinos.co");
+    // Enter in a text box does not submit; Ctrl+S does, from any field.
+    await page.getByLabel(/^Razón social/).press("Enter");
+    await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
+    await page.getByLabel(/^Razón social/).press("Control+s");
+    await expect(page).toHaveURL(/\/r\/core\.party\/[0-9a-f-]{36}$/);
+    await expect(page.getByRole("heading", { name: "Molinos del Atlántico S.A.S." })).toBeVisible();
+    // The same document again: the process refuses it, and the caret lands on the summary that says why.
+    await page.goto("/r/core.party/new");
+    await page.getByLabel(/^Número/).fill("830114921");
+    await page.getByLabel(/^Razón social/).fill("Molinos Duplicados S.A.S.");
+    await page.getByLabel(/^Correo de recepción de facturas de venta/).fill("fe@duplicado.co");
+    await page.getByLabel(/^Número/).press("Control+Enter");
+    await expect(page.locator("[data-error-summary]")).toBeFocused();
+    // One alert speaks for the form (the page's route announcer is the other alert on the page).
+    await expect(page.locator("form.erp-form").getByRole("alert")).toHaveCount(1);
+  });
+
   test("the product form picks its supplier with the lookup and saves it", async ({ page }) => {
     await signIn(page, fixture);
     // The Productos and Categorías grids: category names, IVA labels and money as $ 31.000,00.

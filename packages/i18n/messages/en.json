@@ -182,7 +182,8 @@
       "process": "Process {process}",
       "step_up_code": "6-digit code",
       "step_up_failed": "The code is not valid. Try again.",
-      "step_up_cancel": "Cancel"
+      "step_up_cancel": "Cancel",
+      "save_hint": "Ctrl+S saves"
     },
     "party_form": {
       "identification": "Identification",

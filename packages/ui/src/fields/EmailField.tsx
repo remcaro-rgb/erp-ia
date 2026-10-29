@@ -17,10 +17,12 @@ export interface EmailFieldProps {
   verify?: FieldVerify;
   labels?: Partial<FieldLabels>;
   className?: string;
+  /** Raise the format error as an alert (default). A record form passes false: its summary is the one alert. */
+  announce?: boolean;
 }
 
 /** E-mail input validated inline (rule 11: `nombre@dominio.ext`, at most 100 characters). */
-export function EmailField({ label, value, onChange, required, disabled, hint, verify, labels: overrides, className }: EmailFieldProps) {
+export function EmailField({ announce = true, label, value, onChange, required, disabled, hint, verify, labels: overrides, className }: EmailFieldProps) {
   const labels: FieldLabels = { ...DEFAULT_FIELD_LABELS, ...overrides };
   const id = useId();
   const problem = emailProblem(value);
@@ -44,7 +46,7 @@ export function EmailField({ label, value, onChange, required, disabled, hint, v
       />
       <div id={`${id}-note`}>
         {problem || missing ? (
-          <span role="alert" className="erp-field__error">
+          <span role={announce ? "alert" : undefined} className="erp-field__error">
             {problem ?? labels.required}
           </span>
         ) : value ? (

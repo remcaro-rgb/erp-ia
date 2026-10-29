@@ -186,4 +186,58 @@ describe("PartyForm", () => {
     expect(save.mock.calls[1]![0]).toMatchObject({ addressLine: "Cll 80 No. 10-20", creditLimit: 5_000_000 });
     expect(onSaved).toHaveBeenCalledWith("0192f000-0000-7000-8000-000000000002", false);
   });
+
+  // UI density audit quick win 6 (H5): a real <form>, Ctrl/⌘+S and Ctrl/⌘+Enter save, the caret goes to the first field
+  // in error after a refusal, hints and errors are linked with aria-describedby, and one alert speaks for the form.
+  it("is a form that saves with Ctrl+S or ⌘+Enter, and Enter alone never submits", async () => {
+    const { save } = setup();
+    const form = field("Número").closest("form")!;
+    expect(form.className).toContain("erp-form");
+    expect(form.getAttribute("aria-keyshortcuts")).toBe("Control+S Meta+S Control+Enter Meta+Enter");
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    fireEvent.change(field("Razón social"), { target: { value: "Café del Norte S.A.S." } });
+    fireEvent.keyDown(field("Razón social"), { key: "Enter" });
+    expect(save).not.toHaveBeenCalled();
+    const ctrlS = fireEvent.keyDown(field("Razón social"), { key: "s", ctrlKey: true });
+    // The browser's own "save page" is suppressed.
+    expect(ctrlS).toBe(false);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    fireEvent.keyDown(field("Número"), { key: "Enter", metaKey: true });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Ctrl+S guarda")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Crear" }).getAttribute("aria-keyshortcuts")).toBe("Control+S Meta+S Control+Enter Meta+Enter");
+  });
+
+  it("after a refusal puts the caret on the first field in error, or on the summary when no field is named", async () => {
+    const save = vi
+      .fn<SaveRecord>()
+      .mockResolvedValueOnce({ ok: false, code: "invalid_input", details: [{ path: ["legalName"], message: "La razón social es demasiado larga" }] })
+      .mockResolvedValueOnce({ ok: false, code: "invalid_input", details: [{ message: "Ya existe un tercero con documento 31 900373115" }] });
+    setup({ save });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    fireEvent.change(field("Razón social"), { target: { value: "Café del Norte S.A.S." } });
+    fireEvent.keyDown(field("Número"), { key: "s", ctrlKey: true });
+    await waitFor(() => expect(document.activeElement).toBe(field("Razón social")));
+    // The message describes the field; it is not an alert of its own.
+    const describedBy = field("Razón social").getAttribute("aria-describedby")!.split(" ");
+    expect(describedBy.map((id) => document.getElementById(id)?.textContent)).toContain("La razón social es demasiado larga");
+    expect(screen.queryAllByRole("alert").map((a) => a.textContent)).not.toContain("La razón social es demasiado larga");
+    fireEvent.keyDown(field("Número"), { key: "s", metaKey: true });
+    const panel = await screen.findByText("1 error impide guardar");
+    await waitFor(() => expect(document.activeElement).toBe(panel.closest("[data-error-summary]")));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("links a field's hint with aria-describedby, and Ctrl+S on a blocked form goes to the problem instead of saving", () => {
+    const { save } = setup();
+    const personType = field("Tipo de persona");
+    const hint = document.getElementById(personType.getAttribute("aria-describedby")!)!;
+    expect(hint.textContent).toContain("AdditionalAccountID");
+    // NIT with letters: the client check blocks the save.
+    fireEvent.change(field("Número"), { target: { value: "90037311A" } });
+    field("Razón social").focus();
+    fireEvent.keyDown(field("Razón social"), { key: "s", ctrlKey: true });
+    expect(save).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(field("Número"));
+  });
 });

@@ -4,7 +4,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createTranslator } from "next-intl";
 import { messages } from "@erp/i18n";
-import { AttachmentsPanel, PhotosTab, attachmentsLabels, type AttachmentItem } from "../index";
+import { AttachmentsPanel, PhotosTab, attachmentsLabels, type AttachmentItem, type AttachmentsTranslator } from "../index";
 import { CellFormatProvider } from "../grid/cell-format";
 import { ImportDialog } from "../import/ImportDialog";
 import { renderEs, stubLayoutApis } from "../shell/__tests__/intl";
@@ -77,16 +77,17 @@ describe("Archivos tab copy and time", () => {
   });
 
   it("builds the labels from common.attachments in either language, lists joined the locale's way", () => {
-    const en = attachmentsLabels(createTranslator({ locale: "en", messages: messages("en"), namespace: "common.attachments" }), "en");
-    expect(en.choose).toBe(messages("en").common.attachments.choose);
+    const translator = (locale: "en" | "es-419") => createTranslator({ locale, messages: messages(locale), namespace: "common.attachments" }) as unknown as AttachmentsTranslator;
+    const en = attachmentsLabels(translator("en"), "en");
+    expect(en.choose).toBe("choose them");
     expect(en.missing(["RUT", "Chamber of commerce"])).toContain("RUT and Chamber of commerce");
     expect(en.upload(2)).toBe("Upload 2 files");
-    const es = attachmentsLabels(createTranslator({ locale: "es-419", messages: messages("es-419"), namespace: "common.attachments" }), "es-419");
+    const es = attachmentsLabels(translator("es-419"), "es-419");
     expect(es.missing(["RUT", "Cámara", "Banco"])).toBe("Mientras falten RUT, Cámara y Banco el registro no se puede usar en facturas.");
     expect(es.confirmRemove("rut.pdf", "RUT")).toBe("¿Quitar rut.pdf (RUT)? Deja de estar disponible pero queda en auditoría.");
     expect(es.wrongKind("RUT", "pdf")).toBe("La etiqueta RUT exige un archivo PDF");
     // A refusal code is read through the caller's translator when it has one.
-    const withReasons = attachmentsLabels(createTranslator({ locale: "es-419", messages: messages("es-419"), namespace: "common.attachments" }), "es-419", (code) => (code === "file_too_large" ? "el archivo es muy grande" : code));
+    const withReasons = attachmentsLabels(translator("es-419"), "es-419", (code) => (code === "file_too_large" ? "el archivo es muy grande" : code));
     expect(withReasons.failed("a.pdf", "file_too_large")).toBe("No se pudo subir a.pdf: el archivo es muy grande");
   });
 });
