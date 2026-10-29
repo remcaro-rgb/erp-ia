@@ -72,12 +72,12 @@ test.describe("application shell", () => {
 
     // A record opens in its own tab; the open tabs survive a reload (kernel.user_prefs, key tabs).
     await page.goto(`/r/core.party/${randomUUID()}`);
-    await expect(tabs.getByRole("button", { name: "Registro", exact: true })).toHaveAttribute("aria-current", "page");
+    await expect(tabs.getByRole("button", { name: "No encontrado", exact: true })).toHaveAttribute("aria-current", "page");
     await expect
       .poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'tabs'`)[0]?.value?.value?.tabs?.length ?? 0)
       .toBe(2);
     await page.goto("/");
-    await expect(tabs.getByRole("button", { name: "Registro", exact: true })).toBeVisible();
+    await expect(tabs.getByRole("button", { name: "No encontrado", exact: true })).toBeVisible();
     await expect(page.getByRole("complementary", { name: "Asistente" })).toBeVisible();
     await page.screenshot({ path: `${SCREENSHOTS}/shell-light.png` });
 
@@ -96,7 +96,7 @@ test.describe("application shell", () => {
     expect(await (await page.request.get("/")).text()).toContain(`setAttribute("data-theme","dark")`);
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-    await expect(tabs.getByRole("button", { name: "Registro", exact: true })).toBeVisible();
+    await expect(tabs.getByRole("button", { name: "No encontrado", exact: true })).toBeVisible();
     await page.screenshot({ path: `${SCREENSHOTS}/shell-dark.png` });
 
     // Cerrar todas asks first and keeps Inicio.
