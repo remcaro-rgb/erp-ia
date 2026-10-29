@@ -165,10 +165,17 @@ describe("ImportDialog", () => {
 
       const [first, second] = screen.getAllByRole("button", { name: /^Ver/ });
       expect(first!.getAttribute("aria-expanded")).toBe("false");
-      const before = document.querySelectorAll("tbody tr").length;
+      // Closed, each disclosure's panel is in the document (aria-controls resolves) but hidden.
+      for (const button of [first!, second!]) {
+        const panel = document.getElementById(button.getAttribute("aria-controls")!);
+        expect(panel).not.toBeNull();
+        expect(panel!.hidden).toBe(true);
+      }
+      const shownRows = () => document.querySelectorAll("tbody tr:not([hidden])").length;
+      const before = shownRows();
       fireEvent.click(first!);
       expect(first!.getAttribute("aria-expanded")).toBe("true");
-      expect(document.querySelectorAll("tbody tr").length).toBe(before + 1);
+      expect(shownRows()).toBe(before + 1);
       const reasons = screen.getByRole("list", { name: /Errores de la fila 3/ });
       expect([...reasons.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["31: solo dígitos", "municipio: código DANE desconocido"]);
       // The panel is the disclosure's target, and the other row stays closed.
@@ -178,7 +185,17 @@ describe("ImportDialog", () => {
 
       fireEvent.click(first!);
       expect(first!.getAttribute("aria-expanded")).toBe("false");
-      expect(document.querySelectorAll("tbody tr").length).toBe(before);
+      expect(shownRows()).toBe(before);
+      expect(document.getElementById(first!.getAttribute("aria-controls")!)!.hidden).toBe(true);
+    });
+
+    it("lists a row's reasons by position: two that read the same both show", async () => {
+      const twice = { ...many, rows: many.rows.map((row) => (row.ok ? row : { ...row, errors: ["correo inválido", "correo inválido"] })) };
+      await open(twice);
+      const [first] = screen.getAllByRole("button", { name: /^Ver/ });
+      fireEvent.click(first!);
+      const reasons = screen.getByRole("list", { name: /Errores de la fila/ });
+      expect([...reasons.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["correo inválido", "correo inválido"]);
     });
 
     it("the disclosure is a real button: reachable by keyboard (not removed from the tab order)", async () => {

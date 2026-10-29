@@ -143,7 +143,8 @@ export function Field({
   return (
     <div className={["erp-field", className].filter(Boolean).join(" ")}>
       <label id={`${id}-label`} htmlFor={id}>
-        {label}
+        {/* The label's own words, without the hint: what a control named after the field points at (a combobox's list). */}
+        <span id={`${id}-label-text`}>{label}</span>
         {shown && (
           <span id={`${id}-hint`} className="erp-field__hint">
             {" "}
@@ -200,7 +201,7 @@ export function SelectField({ label, hint, hintKind, error, value, options, onCh
 export function CodeComboboxField({ label, hint, hintKind, error, value, options, onChange, disabled, empty, showCode, className }: SelectFieldProps) {
   return (
     <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
-      {(id, describedBy) => <CodeCombobox id={id} aria-labelledby={`${id}-label`} value={value} options={options} onChange={onChange} empty={empty} showCode={showCode} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} />}
+      {(id, describedBy) => <CodeCombobox id={id} aria-labelledby={`${id}-label-text`} value={value} options={options} onChange={onChange} empty={empty} showCode={showCode} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} />}
     </Field>
   );
 }

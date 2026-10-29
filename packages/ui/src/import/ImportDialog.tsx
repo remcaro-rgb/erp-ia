@@ -287,14 +287,18 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
                             </td>
                           ))}
                         </tr>
-                        {!row.ok && expanded && (
-                          <tr id={rowPanel} className="erp-import__errors">
+                        {!row.ok && (
+                          // Always in the document, so the disclosure's aria-controls names an element; hidden while closed.
+                          <tr id={rowPanel} className="erp-import__errors" hidden={!expanded}>
                             <td colSpan={2 + shownHeaders.length}>
-                              <ul aria-label={t("grid.import.errors_of_row", { row: row.rowNo })}>
-                                {row.errors.map((error) => (
-                                  <li key={error}>{error}</li>
-                                ))}
-                              </ul>
+                              {expanded && (
+                                <ul aria-label={t("grid.import.errors_of_row", { row: row.rowNo })}>
+                                  {/* Two reasons may read the same: keyed by position, not by text. */}
+                                  {row.errors.map((error, i) => (
+                                    <li key={i}>{error}</li>
+                                  ))}
+                                </ul>
+                              )}
                             </td>
                           </tr>
                         )}

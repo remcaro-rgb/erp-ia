@@ -83,10 +83,11 @@ describe("ProductForm", () => {
     fireEvent.keyDown(lookup, { key: "Enter" });
     expect(document.activeElement).toBe(uom);
     expect(lookup.value).toBe("");
-    // An arrow first: it points at the second row and Enter picks that one.
+    // Arrows first: the first ↓ points at the first row, the second at the next one, and Enter picks that one.
     lookup.focus();
     fireEvent.focus(lookup);
     await screen.findByRole("option", { name: /Tostadora Andina/ });
+    fireEvent.keyDown(lookup, { key: "ArrowDown" });
     fireEvent.keyDown(lookup, { key: "ArrowDown" });
     fireEvent.keyDown(lookup, { key: "Enter" });
     expect(lookup.value).toBe("Café Montaña Ltda.");

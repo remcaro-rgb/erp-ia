@@ -110,6 +110,19 @@ describe("PartyForm, Ctrl+Enter with a combobox open", () => {
     expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
   });
 
+  it("Ctrl+S and ⌘+S commit the active option exactly like Ctrl+Enter, then save the committed draft", async () => {
+    for (const modifier of [{ ctrlKey: true }, { metaKey: true }]) {
+      const { save } = setup({ initial });
+      fireEvent.change(field("Número"), { target: { value: "900373115" } });
+      const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+      fireEvent.change(municipality, { target: { value: "medellin" } });
+      fireEvent.keyDown(municipality, { key: "s", ...modifier });
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
+      cleanup();
+    }
+  });
+
   it("drops a half-typed text that points at nothing and saves the rest", async () => {
     const { save } = setup({ initial });
     fireEvent.change(field("Número"), { target: { value: "900373115" } });

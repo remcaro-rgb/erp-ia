@@ -251,7 +251,7 @@
   .erp-combo__pop { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 280px; overflow: auto; }
   .erp-combo__list { list-style: none; margin: 0; padding: 0; }
   .erp-combo__opt { padding: 7px 10px; cursor: pointer; font-size: 13px; color: var(--text); }
-  .erp-combo__opt.is-on { background: var(--accent); }
+  .erp-combo__opt:hover, .erp-combo__opt.is-on { background: var(--accent); }
   .erp-combo__opt.is-chosen { font-weight: 600; }
   .erp-combo__none { padding: 8px 10px; font-size: 12px; color: var(--text-muted); }
   .erp-combo__more { padding: 6px 10px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--text-muted); }

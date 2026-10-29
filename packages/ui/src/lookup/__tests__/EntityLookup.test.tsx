@@ -88,6 +88,11 @@ describe("EntityLookup", () => {
       expect(within(list).getAllByRole("option")).toHaveLength(2);
       expect(input.getAttribute("aria-expanded")).toBe("true");
       expect(input.getAttribute("aria-activedescendant")).toBeNull();
+      // No row looks chosen either: row 0 is as neutral as the others.
+      for (const option of within(list).getAllByRole("option")) {
+        expect(option.getAttribute("aria-selected")).toBe("false");
+        expect(option.classList.contains("is-on")).toBe(false);
+      }
       expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(true);
       expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);
       expect(onPick).not.toHaveBeenCalled();
@@ -103,14 +108,29 @@ describe("EntityLookup", () => {
       expect(onPick).toHaveBeenCalledWith(ready);
     });
 
-    it("an arrow, then Enter picks the row it points at", async () => {
+    it("the first arrow points at the first row, the next walks; Enter picks the row pointed at", async () => {
+      const { input, onPick } = setup();
+      fireEvent.focus(input);
+      const list = await screen.findByRole("listbox");
+      const [first, second] = within(list).getAllByRole("option");
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(input.getAttribute("aria-activedescendant")).toBe(first!.id);
+      expect(first!.getAttribute("aria-selected")).toBe("true");
+      expect(first!.classList.contains("is-on")).toBe(true);
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(second!.getAttribute("aria-selected")).toBe("true");
+      expect(first!.getAttribute("aria-selected")).toBe("false");
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onPick).toHaveBeenCalledWith(pending);
+    });
+
+    it("the first ↓ points at the first row also on a list opened by itself", async () => {
       const { input, onPick } = setup();
       fireEvent.focus(input);
       await screen.findByRole("listbox");
       fireEvent.keyDown(input, { key: "ArrowDown" });
-      expect(input.getAttribute("aria-activedescendant")).not.toBeNull();
       fireEvent.keyDown(input, { key: "Enter" });
-      expect(onPick).toHaveBeenCalledWith(pending);
+      expect(onPick).toHaveBeenCalledWith(ready);
     });
 
     it("typing, then Tab picks the highlighted row and lets the browser move on", async () => {
@@ -127,6 +147,28 @@ describe("EntityLookup", () => {
       await screen.findByRole("listbox");
       expect(fireEvent.keyDown(input, { key: "Enter", ctrlKey: true })).toBe(true);
       expect(onPick).toHaveBeenCalledWith(ready);
+    });
+
+    it("Ctrl+S and ⌘+S pick the row pointed at exactly like Ctrl+Enter, leaving the key to the form", async () => {
+      const { input, onPick } = setup();
+      fireEvent.change(input, { target: { value: "caf" } });
+      await screen.findByRole("listbox");
+      expect(fireEvent.keyDown(input, { key: "s", ctrlKey: true })).toBe(true);
+      expect(onPick).toHaveBeenCalledWith(ready);
+      cleanup();
+      const other = setup();
+      fireEvent.change(other.input, { target: { value: "caf" } });
+      await waitFor(() => expect(other.input.getAttribute("aria-activedescendant")).not.toBeNull());
+      expect(fireEvent.keyDown(other.input, { key: "S", metaKey: true })).toBe(true);
+      expect(other.onPick).toHaveBeenCalledWith(ready);
+    });
+
+    it("Ctrl+S on a list nobody pointed at picks nothing", async () => {
+      const { input, onPick } = setup();
+      fireEvent.focus(input);
+      await screen.findByRole("listbox");
+      expect(fireEvent.keyDown(input, { key: "s", ctrlKey: true })).toBe(true);
+      expect(onPick).not.toHaveBeenCalled();
     });
   });
 

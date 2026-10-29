@@ -104,28 +104,51 @@ describe("CodeCombobox", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
-  it("names the list by the field's label", () => {
+  it("names the list by the field's label text, never by its DIAN hint", () => {
     renderEs(
-      <RecordForm canSave onSave={() => {}} failure={null}>
-        <CodeComboboxField label="Municipio" value="" options={options} onChange={() => {}} />
-      </RecordForm>,
+      <FormPrefsProvider value={{ dianHints: true, setDianHints: () => {} }}>
+        <RecordForm canSave onSave={() => {}} failure={null}>
+          <CodeComboboxField label="Municipio" hint="DANE · CityCode" hintKind="dian" value="" options={options} onChange={() => {}} />
+        </RecordForm>
+      </FormPrefsProvider>,
     );
-    const input = screen.getByRole("combobox", { name: "Municipio" });
+    // The hint shows (DIAN hints on) and still describes the box, but is no part of the list's name.
+    expect(screen.getByText("DANE · CityCode")).toBeTruthy();
+    const input = screen.getByRole("combobox", { name: /^Municipio/ });
     fireEvent.change(input, { target: { value: "a" } });
     const list = screen.getByRole("listbox");
     const label = document.getElementById(list.getAttribute("aria-labelledby")!)!;
-    expect(label.tagName).toBe("LABEL");
     expect(label.textContent).toBe("Municipio");
+    expect(label.closest("label")).not.toBeNull();
     expect(screen.getByRole("listbox", { name: "Municipio" })).toBe(list);
   });
 
-  it("points at no option (no active descendant) until the user types or walks the list", () => {
-    renderEs(<Harness initial="05088" />);
+  it("points at no option (no active descendant, no selected row) until the user types or walks the list", () => {
+    renderEs(<Harness />);
     fireEvent.click(box());
     expect(box().getAttribute("aria-expanded")).toBe("true");
     expect(box().getAttribute("aria-activedescendant")).toBeNull();
+    const rows = screen.getAllByRole("option");
+    // Row 0 is as neutral as the others.
+    for (const row of rows) {
+      expect(row.getAttribute("aria-selected")).toBe("false");
+      expect(row.classList.contains("is-on")).toBe(false);
+    }
+    // The first ↓ points at row 0, the next one walks on.
     key("ArrowDown");
-    expect(box().getAttribute("aria-activedescendant")).not.toBeNull();
+    expect(box().getAttribute("aria-activedescendant")).toBe(rows[0]!.id);
+    expect(rows[0]!.getAttribute("aria-selected")).toBe("true");
+    expect(rows[0]!.classList.contains("is-on")).toBe(true);
+    key("ArrowDown");
+    expect(box().getAttribute("aria-activedescendant")).toBe(rows[1]!.id);
+  });
+
+  it("a list opened by a click on a chosen value points at nothing; the first ↓ points at the chosen row", () => {
+    renderEs(<Harness initial="05088" />);
+    fireEvent.click(box());
+    expect(screen.getByRole("option", { name: "Bello" }).getAttribute("aria-selected")).toBe("false");
+    key("ArrowDown");
+    expect(screen.getByRole("option", { name: "Bello" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("Ctrl/⌘+Enter chooses the active option but does not claim the key, so the form can save the choice", () => {
@@ -135,6 +158,27 @@ describe("CodeCombobox", () => {
     expect(fireEvent.keyDown(box(), { key: "Enter", ctrlKey: true })).toBe(true);
     expect(onChange).toHaveBeenCalledWith("05001");
     expect(box().value).toBe("Medellín");
+  });
+
+  it("Ctrl/⌘+S commits the active option like Ctrl/⌘+Enter and does not claim the key", () => {
+    const onChange = vi.fn();
+    renderEs(<Harness onChange={onChange} />);
+    type("medellin");
+    expect(fireEvent.keyDown(box(), { key: "s", ctrlKey: true })).toBe(true);
+    expect(onChange).toHaveBeenCalledWith("05001");
+    expect(box().value).toBe("Medellín");
+    type("bel");
+    expect(fireEvent.keyDown(box(), { key: "S", metaKey: true })).toBe(true);
+    expect(onChange).toHaveBeenLastCalledWith("05088");
+  });
+
+  it("Ctrl+S with a half-typed text that points at nothing drops the text and keeps the value", () => {
+    const onChange = vi.fn();
+    renderEs(<Harness initial="05088" onChange={onChange} />);
+    type("zzz");
+    expect(fireEvent.keyDown(box(), { key: "s", ctrlKey: true })).toBe(true);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(box().value).toBe("Bello");
   });
 
   it("Ctrl+Enter with a half-typed text that points at nothing drops the text and keeps the value", () => {

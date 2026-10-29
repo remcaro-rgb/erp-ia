@@ -6,8 +6,11 @@ import { useDianHints } from "../form-context";
 import type { CodeOption } from "../save-model";
 
 // A typeahead over a code table (municipality, department, unit of measure, category): type part of the name or the
-// code, ↑ ↓ pick, Enter or Tab choose, Esc gives the chosen name back. Replaces the native select where the list is
-// too long to scan (about 1,100 municipalities). The ARIA 1.2 combobox pattern with the list popup.
+// code, ↑ ↓ pick, Enter or Tab choose, Esc gives the chosen name back. A list only opened (a click) points at nothing
+// until the user types or presses an arrow: the first ↓ or ↑ points at the row the list opened on (the chosen option,
+// else the first). Ctrl/⌘+S and Ctrl/⌘+Enter commit what the list points at before the form saves. Replaces the
+// native select where the list is too long to scan (about 1,100 municipalities). The ARIA 1.2 combobox pattern with
+// the list popup.
 
 /** Lower case without accents: "Medellin" finds "Medellín". */
 export function fold(text: string): string {
@@ -81,6 +84,13 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
+    // The form's save keys: the form saves after this box has committed (the active option, else what was typed is
+    // dropped: an emptied box empties the value). The key is not claimed.
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.key === "Enter" || event.key.toLowerCase() === "s")) {
+      if (open && current && intent) choose(current);
+      else dropText();
+      return;
+    }
     switch (event.key) {
       case "ArrowDown":
       case "ArrowUp": {
@@ -90,19 +100,16 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
           setIntent(true);
           break;
         }
-        setIntent(true);
+        // The first arrow points at the row the list stands on; the next ones walk.
+        if (!intent) {
+          setIntent(true);
+          break;
+        }
         const step = event.key === "ArrowDown" ? 1 : -1;
         setActive((a) => Math.min(Math.max(a + step, 0), Math.max(listed.length - 1, 0)));
         break;
       }
       case "Enter":
-        if (event.ctrlKey || event.metaKey) {
-          // The form saves on this key and reads the draft after this box has committed: the active option, else what
-          // was typed is dropped (an emptied box empties the value). The key is not claimed.
-          if (open && current && intent) choose(current);
-          else dropText();
-          break;
-        }
         // Closed: the form takes the Enter and moves to the next field. Open: it chooses (or, with nothing listed, waits).
         if (!open) break;
         event.preventDefault();
@@ -168,8 +175,9 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
                 key={o.code}
                 id={optionId(o.code)}
                 role="option"
-                aria-selected={i === active}
-                className={["erp-combo__opt", i === active && "is-on", o.code === value && "is-chosen"].filter(Boolean).join(" ")}
+                // Only a row the user pointed at (typed, arrows) is selected; a list only opened leaves every row neutral.
+                aria-selected={intent && i === active}
+                className={["erp-combo__opt", intent && i === active && "is-on", o.code === value && "is-chosen"].filter(Boolean).join(" ")}
                 // The box keeps the focus: a click must not blur it before the choice lands.
                 onMouseDown={(e) => e.preventDefault()}
                 onMouseMove={() => i !== active && setActive(i)}
