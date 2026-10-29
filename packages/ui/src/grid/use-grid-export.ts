@@ -1,19 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ExportRequestError, requestExport, type ExportOptions, type ExportResult } from "./export-client";
+import { useCallback, useEffect } from "react";
+import { requestExport, type ExportOptions, type ExportResult } from "./export-client";
+import { useExportJobs } from "./export-jobs";
 import type { ExportFormat, GridStateInput } from "./types";
 
-export type ExportStatus =
-  | { phase: "idle" }
-  | { phase: "working"; format: ExportFormat }
-  /** Too many rows for a request: the server makes the file in the background and the download starts when it is ready. */
-  | { phase: "job"; format: ExportFormat }
-  | { phase: "ready"; fileName: string }
-  | { phase: "failed"; code: string; detail?: string };
-
-/** How long "Descarga lista: …" stays in the grid header. */
-export const READY_CLEARS_MS = 8_000;
+export type { ExportStatus } from "./export-jobs";
+export { READY_CLEARS_MS } from "./export-jobs";
 
 /** Saves the exported file: an inline file through an object URL, a job's file through its signed link. */
 export function browserDownload(result: ExportResult): void {
@@ -39,41 +32,24 @@ export interface UseGridExportOptions extends Pick<ExportOptions, "endpoint" | "
   download?: (result: ExportResult) => void;
 }
 
-/** Runs the PDF / Excel / CSV export of a grid and tells how it is going (one at a time). */
+/**
+ * Runs the PDF / Excel / CSV export of a grid and tells how it is going (one at a time per entity). Inside the shell the
+ * job belongs to `ExportJobsProvider` and survives this grid (a tab change); a bare grid aborts it when it unmounts.
+ */
 export function useGridExport({ entity, title, endpoint, fetcher, pollMs, maxWaitMs, download = browserDownload }: UseGridExportOptions) {
-  const [status, setStatus] = useState<ExportStatus>({ phase: "idle" });
-  const running = useRef<AbortController | null>(null);
-  useEffect(() => () => running.current?.abort(), []);
-  // "Descarga lista" is news, not a state: it clears after 8 s (UI density audit L10).
-  useEffect(() => {
-    if (status.phase !== "ready") return;
-    const timer = setTimeout(() => setStatus((current) => (current === status ? { phase: "idle" } : current)), READY_CLEARS_MS);
-    return () => clearTimeout(timer);
-  }, [status]);
+  const jobs = useExportJobs();
+  const { attach } = jobs;
+  useEffect(() => attach(entity), [attach, entity]);
+  const status = jobs.statusOf(entity);
 
   const run = useCallback(
-    async (format: ExportFormat, state: GridStateInput) => {
-      if (running.current) return;
-      const controller = new AbortController();
-      running.current = controller;
-      setStatus({ phase: "working", format });
-      try {
-        const result = await requestExport(
-          { entity, format, state, ...(title ? { title } : {}) },
-          { endpoint, fetcher, pollMs, maxWaitMs, signal: controller.signal, onJob: () => setStatus({ phase: "job", format }) },
-        );
+    (format: ExportFormat, state: GridStateInput) =>
+      jobs.start(entity, format, title ?? entity, async (signal, onJob) => {
+        const result = await requestExport({ entity, format, state, ...(title ? { title } : {}) }, { endpoint, fetcher, pollMs, maxWaitMs, signal, onJob });
         download(result);
-        setStatus({ phase: "ready", fileName: result.fileName ?? `${entity}.${format}` });
-      } catch (error) {
-        if (error instanceof ExportRequestError && error.code === "aborted") return;
-        setStatus(
-          error instanceof ExportRequestError ? { phase: "failed", code: error.code, ...(error.detail ? { detail: error.detail } : {}) } : { phase: "failed", code: "unknown" },
-        );
-      } finally {
-        running.current = null;
-      }
-    },
-    [entity, title, endpoint, fetcher, pollMs, maxWaitMs, download],
+        return result.fileName ?? `${entity}.${format}`;
+      }),
+    [jobs, entity, title, endpoint, fetcher, pollMs, maxWaitMs, download],
   );
 
   return { status, run, busy: status.phase === "working" || status.phase === "job" };

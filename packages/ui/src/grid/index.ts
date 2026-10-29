@@ -41,6 +41,8 @@ export {
 export { codeFilter, foldText, serverFilters } from "./code-filter";
 export { useGrid } from "./use-grid";
 export { browserDownload, useGridExport } from "./use-grid-export";
+export { ExportJobsProvider, exportFailureText, useExportJobs } from "./export-jobs";
+export type { ExportJobs } from "./export-jobs";
 export type { ExportStatus, UseGridExportOptions } from "./use-grid-export";
 export { ExportRequestError, fileNameOf, requestExport } from "./export-client";
 export type { ExportOptions, ExportRequest, ExportResult } from "./export-client";

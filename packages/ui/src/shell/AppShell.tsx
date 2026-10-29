@@ -6,6 +6,7 @@ import { useStore } from "zustand";
 import { Toaster } from "@erp/ui/components/ui/sonner";
 import { AssistantDrawer, screenOf, type ResultColumn } from "../assistant";
 import { CellFormatProvider } from "../grid/cell-format";
+import { ExportJobsProvider } from "../grid/export-jobs";
 import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
@@ -209,6 +210,8 @@ function ShellFrame(props: AppShellProps) {
   return (
     <CellFormatProvider timeZone={timeZone}>
       <TabsProvider store={store}>
+        {/* Exports outlive the grid that started them: a tab change no longer aborts a background job. */}
+        <ExportJobsProvider>
         <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
           <a
             href="#erp-main"
@@ -260,6 +263,7 @@ function ShellFrame(props: AppShellProps) {
           />
           <Toaster position="bottom-center" />
         </div>
+        </ExportJobsProvider>
       </TabsProvider>
     </CellFormatProvider>
   );

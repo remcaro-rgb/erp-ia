@@ -1053,7 +1053,9 @@
       "failed": "No se pudo exportar. {reason}",
       "reasons": {
         "pdf_too_large": "Un PDF admite hasta 10.000 filas. Para listados más grandes exporta a Excel o CSV."
-      }
+      },
+      "ready_in": "{title} · Descarga lista: {file}",
+      "failed_in": "{title} · No se pudo exportar. {reason}"
     },
     "import": {
       "title": "Importar",

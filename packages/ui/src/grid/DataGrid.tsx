@@ -15,6 +15,7 @@ import { initialView, moneyColumns, pageCount, selectionTotals, shownColumns, st
 import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } from "./saved-views";
 import { SavedViewsMenu } from "./SavedViewsMenu";
 import { useGrid } from "./use-grid";
+import { exportFailureText as failureText } from "./export-jobs";
 import { useGridExport } from "./use-grid-export";
 import type { Condition, ExportFormat, GridColumn, GridFetcher, GridRow, GridStateInput, GridView } from "./types";
 
@@ -25,12 +26,6 @@ const NO_ROWS: GridRow[] = [];
 const SKELETON_ROWS = 6;
 
 const FORMAT_LABEL = { pdf: "pdf", xlsx: "excel", csv: "csv" } as const;
-
-/** Why an export failed: the server's own reason when the screen has words for it, else the error code's. */
-function failureText(t: ReturnType<typeof useTranslations>, status: { code: string; detail?: string }): string {
-  if (status.detail && t.has(`grid.export.reasons.${status.detail}`)) return t(`grid.export.reasons.${status.detail}`);
-  return t.has(`errors.${status.code}`) ? t(`errors.${status.code}`) : t("errors.unknown");
-}
 
 /**
  * One fixed slot for what the grid is doing (an export, a refetch), for screen readers and eyes alike (role="status").

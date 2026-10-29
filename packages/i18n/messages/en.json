@@ -1053,7 +1053,9 @@
       "failed": "The export failed. {reason}",
       "reasons": {
         "pdf_too_large": "A PDF takes up to 10,000 rows. For larger lists export to Excel or CSV."
-      }
+      },
+      "ready_in": "{title} · Download ready: {file}",
+      "failed_in": "{title} · The export failed. {reason}"
     },
     "import": {
       "title": "Import",
