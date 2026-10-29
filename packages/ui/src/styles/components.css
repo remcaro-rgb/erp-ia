@@ -395,6 +395,23 @@
   .erp-sheet { width: min(760px, 100%) !important; max-width: none !important; background: var(--surface) !important; color: var(--text); border-color: var(--line) !important; overflow: auto; gap: 0 !important; }
   .erp-sheet__close { position: absolute; top: 8px; right: 10px; z-index: 6; }
   .erp-sheet__state { margin: 18px; }
+
+  /* audit viewer (design §22.14): two-line cells that keep the 36 px row (name over its id), the clone's source next to
+     its origin, and the detail sheet's `label · antes → después` lines */
+  .erp-cell-stack { display: inline-flex; flex-direction: column; justify-content: center; max-width: 340px; vertical-align: middle; }
+  .erp-cell-stack__main { font-size: 13px; line-height: 15px; overflow: hidden; text-overflow: ellipsis; }
+  .erp-cell-stack__sub { font-size: 11px; line-height: 13px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+  .erp-audit__origin { display: inline-flex; align-items: center; gap: 6px; }
+  .erp-audit-detail__head { padding: 16px 52px 12px 18px; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 4px; }
+  .erp-audit-detail__title { font-size: 16px; font-weight: 600; line-height: 1.3; }
+  .erp-audit-detail { padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+  .erp-audit-detail__facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  .erp-audit-detail__facts dt { color: var(--text-muted); }
+  .erp-audit-detail__facts dd { margin: 0; overflow-wrap: anywhere; }
+  .erp-audit-detail__heading { font-size: 13px; font-weight: 600; margin: 8px 0 0; }
+  .erp-audit-detail__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; font-size: 13px; }
+  .erp-audit-detail__list li { padding: 7px 0; border-bottom: 1px solid var(--line-2); overflow-wrap: anywhere; }
+  .erp-audit-detail__label { font-weight: 600; }
   .erp-support__frame { border: 0; border-radius: 0; min-height: 100%; }
   .erp-support__frame .erp-record__header { padding-right: 52px; }
   .erp-support__data, .erp-support__convo { display: flex; flex-direction: column; gap: 14px; }

@@ -1,11 +1,11 @@
 import { defaultLocale, isLocale, messages, type Messages } from "@erp/i18n";
-import { countryPack, type CountryPack, type FieldDef, type ProcessDef, type Registry } from "@erp/kernel";
+import { countryPackOf, fieldOfKey, valueText, type ProcessDef, type Registry, type ValueLabels } from "@erp/kernel";
 
 // What a confirmation card shows (design §6 "Agent": "card with the diff"): the process's description as its title,
 // one line per input field with the field's label in the user's language, the permission it runs under and whether
 // the user will be asked for a step-up code. Values read as the forms and grids show them: an enum by its catalogue
-// label (`FieldDef.valuesKey`), a fiscal code by the country pack's (`FieldDef.codes`: "31 · NIT", "Medellín"), never
-// the stored code alone.
+// label (`FieldDef.valuesKey`), a fiscal code by the country pack's (`FieldDef.codes`: "31 · NIT", "Medellín"), money as
+// `$ 1.234.567,00`, never the stored code alone: the kernel's shared label helper, which the audit viewer uses too.
 
 export interface ConfirmationPreview {
   title: string;
@@ -28,46 +28,19 @@ export function message(catalogue: Messages, key: string): string | undefined {
 
 export const catalogueOf = (locale: string): Messages => messages(isLocale(locale) ? locale : defaultLocale);
 
-const snake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-
 /** `core.party.create` acts on the registered entity `core.party`, when there is one. */
 function entityOf(registry: Registry, def: ProcessDef) {
   const id = def.id.slice(0, def.id.lastIndexOf("."));
   return registry.entities().find((e) => e.id === id);
 }
 
-/** The registered pack of `country`, or none (codes then show as they are). */
-function packOf(country: string | undefined): CountryPack | undefined {
-  if (!country) return undefined;
-  try {
-    return countryPack(country);
-  } catch {
-    return undefined;
-  }
-}
-
-interface Labels {
-  catalogue: Messages;
-  locale: string;
-  pack: CountryPack | undefined;
-}
-
-function render(value: unknown, labels: Labels, field?: FieldDef): string {
-  if (typeof value === "boolean") return message(labels.catalogue, value ? "common.yes" : "common.no") ?? String(value);
-  if (Array.isArray(value)) return value.map((v) => render(v, labels, field)).join(", ");
-  if (value !== null && typeof value === "object") return JSON.stringify(value);
-  const text = String(value);
-  if (field?.valuesKey) return message(labels.catalogue, `${field.valuesKey}.${text}`) ?? text;
-  if (field?.codes) return labels.pack?.codeLabel(field.codes, text, labels.locale) ?? text;
-  return text;
-}
-
 /** The card of a proposed run of `def` with `input` (already validated by the process's schema); `country` is the company's (its pack labels the fiscal codes). */
 export function buildPreview(registry: Registry, def: ProcessDef, input: unknown, options: { locale: string; stepUp: boolean; country?: string }): ConfirmationPreview {
   const catalogue = catalogueOf(options.locale);
-  const labels: Labels = { catalogue, locale: options.locale, pack: packOf(options.country) };
+  // The label helper the audit viewer shares (kernel registry/labels.ts): option labels, the pack's codes, money, Sí / No.
+  const labels: ValueLabels = { t: (key) => message(catalogue, key), locale: options.locale, pack: countryPackOf(options.country) };
   const entity = entityOf(registry, def);
-  const fieldOf = (key: string) => entity?.fields.find((f) => f.name === snake(key) || f.name === key);
+  const fieldOf = (key: string) => (entity ? fieldOfKey(entity.fields, key) : undefined);
   const label = (key: string): string => {
     const field = fieldOf(key);
     return (field && message(catalogue, field.label)) ?? key;
@@ -75,6 +48,6 @@ export function buildPreview(registry: Registry, def: ProcessDef, input: unknown
   const entries = input !== null && typeof input === "object" && !Array.isArray(input) ? Object.entries(input) : [["input", input] as const];
   const effects = entries
     .filter(([, value]) => value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0))
-    .map(([key, value]) => ({ label: label(key), value: render(value, labels, fieldOf(key)) }));
+    .map(([key, value]) => ({ label: label(key), value: valueText(fieldOf(key), value, labels) }));
   return { title: def.description, effects, permission: def.id, stepUp: options.stepUp };
 }

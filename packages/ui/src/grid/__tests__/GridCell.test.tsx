@@ -42,4 +42,24 @@ describe("GridCell", () => {
     );
     expect(screen.getAllByText(/^28\/10\/26.*12:30/)).toHaveLength(2);
   });
+
+  it("shows what the grid's renderer gives for a column, the default text when it gives nothing, and never unmasks", () => {
+    const render = (c: GridColumn, row: { id: string } & Record<string, unknown>) =>
+      c.field === "process_id" ? (
+        <span>
+          Crea un tercero <span className="erp-mono">{String(row.process_id)}</span>
+        </span>
+      ) : undefined;
+    renderEs(
+      <>
+        {inRow(<GridCell column={column({ field: "process_id" })} row={{ id: "1", process_id: "core.party.create" }} render={render} />)}
+        {inRow(<GridCell column={column({ field: "entity" })} row={{ id: "1", entity: "core.parties" }} render={render} />)}
+        {inRow(<GridCell column={column({ field: "process_id", mode: "masked" })} row={{ id: "2", process_id: "kernel.secret" }} render={render} />)}
+      </>,
+    );
+    expect(screen.getByText("core.party.create").closest("td")!.textContent).toBe("Crea un tercero core.party.create");
+    expect(screen.getByText("core.parties")).toBeTruthy();
+    expect(screen.queryByText("kernel.secret")).toBeNull();
+    expect(screen.getByText("••••••")).toBeTruthy();
+  });
 });

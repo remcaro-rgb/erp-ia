@@ -12,9 +12,10 @@ import { runGridQuery } from "../../query/run";
 import { syncRegistry } from "../sync";
 
 // Migration 0023_kernel_audit_view (rule 34) and the audit viewer (design §5.9, §6, rule 16): `kernel.v_audit_entries`
-// is the company-wide audit log for the company admin only (`kernel.is_company_admin()`), without the recorded input and
-// diff, with the actor's e-mail; `kernel.audit.consult` is a consult process of its own feature that only the admin role
-// receives from the role defaults, and its grid (`kernel.audit`) opens only for a caller allowed it.
+// is the company-wide audit log for the company admin only (`kernel.is_company_admin()`), with the actor's e-mail (and,
+// since 0025, the recorded input, diff and source record, which only the entry's detail reads); `kernel.audit.consult`
+// is a consult process of its own feature that only the admin role receives from the role defaults, and its grid
+// (`kernel.audit`) opens only for a caller allowed it.
 
 describe("kernel audit viewer: v_audit_entries and kernel.audit.consult", () => {
   let sql: ReturnType<typeof testDb>;
@@ -57,13 +58,32 @@ describe("kernel audit viewer: v_audit_entries and kernel.audit.consult", () => 
   const visible = (caller: Caller) =>
     withClaims(sql, caller.claims, (tx) => tx<Record<string, unknown>[]>`select * from kernel.v_audit_entries where chain_id = ${chain} order by process_id`);
 
-  it("shows the company admin every entry of the active company, with the actor's e-mail and without input or diff", async () => {
+  it("shows the company admin every entry of the active company, with the actor's e-mail, its input, diff and source (0025)", async () => {
     const rows = await visible(admin);
     expect(rows.map((r) => r.process_id)).toEqual(["probe.audit.admin", "probe.audit.member"]);
-    expect(Object.keys(rows[0]!).sort()).toEqual(["action", "actor", "actor_user_id", "chain_id", "company_id", "conversation_id", "entity", "id", "occurred_at", "origin", "process_id", "row_id"]);
+    expect(Object.keys(rows[0]!).sort()).toEqual([
+      "action",
+      "actor",
+      "actor_user_id",
+      "chain_id",
+      "company_id",
+      "conversation_id",
+      "diff",
+      "entity",
+      "id",
+      "input",
+      "occurred_at",
+      "origin",
+      "process_id",
+      "row_id",
+      "source_row_id",
+    ]);
     const mine = rows.find((r) => r.process_id === "probe.audit.admin")!;
     expect(mine).toMatchObject({ origin: "agent", entity: "core.parties", action: "insert", actor_user_id: seed.users.both, actor: expect.stringMatching(/^both-.*@test\.local$/) });
-    expect(JSON.stringify(rows)).not.toContain("123456789");
+    // The detail of an entry (kernel.audit.entry) reads them; the grid, its exports and the consult never do.
+    expect(mine.diff).toEqual({ credit_limit: { old: null, new: 123456789 } });
+    const page = await runGridQuery(sql, admin.claims, registry.entity("kernel.audit"), { filters: [{ field: "chain_id", op: "eq", value: chain }], sort: [], page: 1, pageSize: 10 });
+    expect(JSON.stringify(page.rows)).not.toContain("123456789");
   });
 
   it("follows the active company and shows nothing to a member who is not the admin", async () => {

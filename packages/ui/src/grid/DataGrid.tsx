@@ -11,7 +11,7 @@ import { ConditionChips } from "./ConditionChips";
 import { ExportButtons } from "./ExportButtons";
 import { gridFetcher } from "./fetch-grid";
 import { FilterRow } from "./FilterRow";
-import { GridCell, isNumeric } from "./GridCell";
+import { GridCell, isNumeric, type CellRenderer } from "./GridCell";
 import { GridFooter } from "./GridFooter";
 import { identityField, moneyColumns, moveColumn, pageCount, selectionTotals, shownColumns, stateFilters } from "./grid-model";
 import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } from "./saved-views";
@@ -68,6 +68,8 @@ export interface DataGridProps {
   fetcher?: GridFetcher;
   initialState?: Partial<GridView>;
   onRowOpen?: (row: GridRow) => void;
+  /** A cell's own content for some columns (the default text for the rest); masked cells always show ••••••. */
+  renderCell?: CellRenderer;
   /** Buttons before the grid's own (Nuevo, Importar). */
   toolbar?: ReactNode;
   /** Next to the title (the party switches). */
@@ -98,7 +100,7 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, toolbar, headerExtra, baseFilters, onExport, exportEndpoint, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, onExport, exportEndpoint, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, debounceMs });
@@ -443,7 +445,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                   <input type="checkbox" tabIndex={-1} aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
                 </td>
                 {shown.map((column) => (
-                  <GridCell key={column.field} column={column} row={row} className={column.field === pinned ? pinClass : undefined} />
+                  <GridCell key={column.field} column={column} row={row} render={renderCell} className={column.field === pinned ? pinClass : undefined} />
                 ))}
               </tr>
             ))}

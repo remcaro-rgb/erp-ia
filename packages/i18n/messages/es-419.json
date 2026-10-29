@@ -619,7 +619,19 @@
         "permissions": "Permisos"
       },
       "audit": {
-        "hint": "Tabla kernel.audit_log · solo inserción, trigger por fila, cadena causal. Cada acción de la interfaz, del asistente, del programador y de los eventos deja rastro con su origen."
+        "hint": "Tabla kernel.audit_log · solo inserción, trigger por fila, cadena causal. Cada acción de la interfaz, del asistente, del programador y de los eventos deja rastro con su origen. Abre una fila para ver cada campo que cambió, con su valor anterior y el nuevo.",
+        "system": "sistema",
+        "cloned_from": "clonado desde",
+        "detail": {
+          "changes": "Cambios",
+          "no_changes": "Esta entrada no cambió ningún campo.",
+          "input": "Datos recibidos",
+          "code": "Motivo",
+          "source": "Clonado desde",
+          "direct": "Cambio directo en la base de datos",
+          "failed": "No se pudo cargar la entrada.",
+          "masked": "Valor enmascarado para tu rol"
+        }
       }
     },
     "not_found": {
@@ -967,7 +979,8 @@
         "actor": "Actor",
         "chain_id": "Cadena",
         "actor_user_id": "Id del actor",
-        "conversation_id": "Conversación del asistente"
+        "conversation_id": "Conversación del asistente",
+        "source_row_id": "Clonado desde"
       }
     },
     "support": {

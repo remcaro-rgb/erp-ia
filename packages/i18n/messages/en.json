@@ -619,7 +619,19 @@
         "permissions": "Permissions"
       },
       "audit": {
-        "hint": "Table kernel.audit_log · insert only, row trigger, causal chain. Every action of the interface, the assistant, the scheduler and the events leaves a trace with its origin."
+        "hint": "Table kernel.audit_log · insert only, row trigger, causal chain. Every action of the interface, the assistant, the scheduler and the events leaves a trace with its origin. Open a row to see each field that changed, with its previous and its new value.",
+        "system": "system",
+        "cloned_from": "cloned from",
+        "detail": {
+          "changes": "Changes",
+          "no_changes": "This entry changed no field.",
+          "input": "Data received",
+          "code": "Reason",
+          "source": "Cloned from",
+          "direct": "Direct change in the database",
+          "failed": "The entry could not be loaded.",
+          "masked": "Value masked for your role"
+        }
       }
     },
     "not_found": {
@@ -967,7 +979,8 @@
         "actor": "Actor",
         "chain_id": "Chain",
         "actor_user_id": "Actor id",
-        "conversation_id": "Assistant conversation"
+        "conversation_id": "Assistant conversation",
+        "source_row_id": "Cloned from"
       }
     },
     "support": {

@@ -1,5 +1,7 @@
 import "server-only";
+import { getTranslations } from "next-intl/server";
 import {
+  auditEntityOf,
   loadCustomFields,
   matrixProcesses,
   moduleStates,
@@ -18,6 +20,7 @@ import {
 } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
 import { loadGridPage, type GridPageData } from "@/lib/grid/load";
+import type { AuditCatalogue } from "./audit-links";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
 
 // What the administration screens show (design §6, prototype v5 "Administración"), read as the caller under RLS from
@@ -253,15 +256,39 @@ export const loadCompany = (): Promise<CompanyData | null> =>
 
 export const loadAiUsage = (month?: string): Promise<AiUsage | null> => asAdmin((tx, { caller }) => readAiUsage(tx, caller.claims.active_company_id, month));
 
+export interface AuditPageData extends GridPageData {
+  catalogue: AuditCatalogue;
+}
+
+/** The names of the processes, entities and members the audit grid shows instead of their ids (design §22.14). */
+function auditCatalogue(registry: Registry, t: (key: string) => string, people: AdminMember[]): AuditCatalogue {
+  const entities: AuditCatalogue["entities"] = {};
+  for (const entity of registry.entities()) {
+    // The entity id, its table (row changes), the prefixes of its processes (`core.category.*`, `core.contact.*`).
+    const short = entity.id.slice(entity.id.indexOf(".") + 1).split("_").at(-1);
+    const prefixes = Object.values(entity.processIds ?? {}).map((p) => p.slice(0, p.lastIndexOf(".")));
+    const spellings = [entity.id, `${entity.schema}.${entity.table}`, ...prefixes, `${entity.module}.${short}`];
+    // Only the spellings that name this entity and no other (auditEntityOf is the rule the detail follows too).
+    for (const spelling of new Set(spellings)) if (auditEntityOf(registry, spelling)?.id === entity.id) entities[spelling] = { id: entity.id, label: t(entity.label) };
+  }
+  return {
+    processes: Object.fromEntries(registry.processes().map((p) => [p.id, p.description])),
+    entities,
+    members: Object.fromEntries(people.map((m) => [m.userId, m.name])),
+  };
+}
+
 /**
- * Auditoría (design §5.9, §6): the company's audit log as a grid of the registry entity `kernel.audit`, read over
- * `kernel.v_audit_entries`. Opens for a caller whose roles may run `kernel.audit.consult` and who administers the
- * company (the view shows nothing to anyone else); null otherwise. The grid's own requests, filters and exports go
- * through the same gate (POST /api/grid/kernel.audit, kernel.export.run).
+ * Auditoría (design §5.9, §6, §22.14): the company's audit log as a grid of the registry entity `kernel.audit`, read over
+ * `kernel.v_audit_entries`, with the names its cells show (process descriptions, entity names, members). Opens for a
+ * caller whose roles may run `kernel.audit.consult` and who administers the company (the view shows nothing to anyone
+ * else); null otherwise. The grid's own requests, filters and exports go through the same gate (POST
+ * /api/grid/kernel.audit, kernel.export.run); an entry's detail through kernel.audit.entry.
  */
-export async function loadAudit(): Promise<GridPageData | null> {
-  const admin = await asAdmin(async () => true);
-  if (!admin) return null;
-  const result = await loadGridPage("kernel.audit", "/admin/audit");
-  return result.ok ? result.data : null;
+export async function loadAudit(): Promise<AuditPageData | null> {
+  const people = await asAdmin((tx) => members(tx));
+  if (!people) return null;
+  const [result, t] = await Promise.all([loadGridPage("kernel.audit", "/admin/audit"), getTranslations()]);
+  if (!result.ok) return null;
+  return { ...result.data, catalogue: auditCatalogue(processDeps().registry, (key) => t(key), people) };
 }

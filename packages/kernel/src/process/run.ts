@@ -40,6 +40,12 @@ export interface RunProcessOptions {
    * `import:<importId>:<rowIndex>`, so a retried batch replays instead of creating twice.
    */
   idempotencyKey?: string;
+  /**
+   * The record this creation was cloned from (rule 37, design §22.13): a `create` process only. The run's audit entry
+   * and the row trigger's insert entries record it as `source_row_id`, so the viewer shows "clonado desde …". Anything
+   * but a record id, or a process of another kind, is refused as `invalid_input`.
+   */
+  sourceRowId?: string;
 }
 
 /** Thrown inside a dry run's transaction to roll it back while carrying the handler's output out. */
@@ -151,6 +157,11 @@ async function execute<O extends z.ZodTypeAny>(
   const stepUp = gate.sensitive || def.sensitivity === "step-up";
   if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`, GATE);
 
+  if (options.sourceRowId !== undefined) {
+    if (def.kind !== "create") throw new ProcessError("invalid_input", `${def.id} creates nothing: it has no source record`, { details: ["Solo una creación tiene registro de origen"], stage: "gate" });
+    if (!UUID.test(options.sourceRowId)) throw new ProcessError("invalid_input", `source record ${options.sourceRowId} is not a record id`, { details: ["El registro de origen no es válido"], stage: "gate" });
+  }
+
   const parsed = def.input.safeParse(input);
   if (!parsed.success) {
     throw new ProcessError("invalid_input", `invalid input for ${def.id}`, { details: parsed.error.issues, stage: "gate" });
@@ -170,6 +181,7 @@ async function execute<O extends z.ZodTypeAny>(
         chainId,
         actorUserId: claims.sub,
         conversationId: caller.conversationId,
+        sourceRowId: options.sourceRowId,
       });
       if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
 
@@ -189,7 +201,12 @@ async function execute<O extends z.ZodTypeAny>(
       // A dry run ends here: everything the handler wrote (and the step-up consumption) is rolled back.
       if (dryRun) throw new DryRunRollback(output);
 
-      await writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(output), input: def.auditInput ? def.auditInput(parsed.data) : parsed.data });
+      await writeAudit(tx, {
+        ...auditDefaults(def, caller, chainId),
+        rowId: rowIdOf(output),
+        input: def.auditInput ? def.auditInput(parsed.data) : parsed.data,
+        sourceRowId: options.sourceRowId,
+      });
 
       if (key !== undefined) {
         const inserted = await tx`

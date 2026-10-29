@@ -34,6 +34,7 @@ processes:
   - kernel.custom_field.set
   - kernel.custom_field.remove
   - kernel.audit.consult
+  - kernel.audit.entry
 ---
 
 # Administración de la empresa
@@ -162,20 +163,37 @@ La **Auditoría** muestra todo lo que pasó en la empresa: cada creación, cambi
 Cada fila es una entrada, de la más reciente a la más antigua:
 
 - **Fecha**: cuándo ocurrió, en la zona horaria de la empresa.
-- **Origen**: desde dónde se hizo. **ui** es la pantalla, **agent** el asistente (después de que la persona confirmó la tarjeta), **scheduler** una tarea programada, **event** una reacción automática a otro cambio, **api** un programa externo o la carga de datos de demostración, y **db** un cambio hecho directamente en la base de datos.
-- **Proceso**: la acción del sistema, por ejemplo `core.party.create` (crear un tercero) o `kernel.export.run` (exportar un listado).
-- **Entidad** y **Registro**: qué tabla y qué registro cambió (el identificador del registro).
+- **Origen**: desde dónde se hizo. **ui** es la pantalla, **agent** el asistente (después de que la persona confirmó la tarjeta), **scheduler** una tarea programada, **event** una reacción automática a otro cambio, **api** un programa externo o la carga de datos de demostración, y **db** un cambio hecho directamente en la base de datos. Si el registro se creó con **Duplicar**, al lado dice **clonado desde** y el registro de origen, con enlace.
+- **Proceso**: la acción del sistema con su descripción, por ejemplo «Crea un tercero (cliente, proveedor o empleado) con sus datos fiscales DIAN», y debajo su identificador (`core.party.create`). Pasa el puntero por la descripción para leerla completa.
+- **Entidad**: el nombre de lo que cambió (**Tercero**, **Producto**, **Categoría de producto**…). Las tablas internas del sistema, que no tienen nombre, se muestran con su identificador.
+- **Registro**: el nombre del registro, con enlace a su ficha. Si no tienes acceso a ese registro, o no tiene ficha, se ve su identificador corto.
 - **Acción**: **Creó**, **Cambió**, **Eliminó**, **Consultó** o **Denegado** (un intento sin permiso o sin el código de verificación).
-- **Actor**: el correo de quien lo hizo. Lo que hace el asistente queda a nombre de la persona que lo pidió.
+- **Actor**: el nombre de quien lo hizo, con enlace a su página de usuario, y su correo debajo. Lo que hace el asistente queda a nombre de la persona que lo pidió; lo que hace el sistema por su cuenta dice **sistema**.
 - **Cadena**: el identificador que une todo lo que provocó una misma acción. Filtra por una cadena para ver, por ejemplo, la creación de un tercero y los cambios que desencadenó.
 
-Para encontrar algo:
+### Ver qué cambió
+
+Haz clic en una fila (o selecciónala con las flechas y pulsa **Enter**) para abrir su detalle a la derecha. Arriba están la descripción del proceso, cuándo, qué acción y desde dónde; luego el proceso, la entidad, el registro, el registro de origen si fue un duplicado, el actor y la cadena, con sus enlaces.
+
+En **Cambios** aparece cada campo que cambió, con su nombre y su valor anterior y el nuevo, así:
+
+> Nombre comercial · — → Bosque QA
+
+El guion (**—**) significa que el campo estaba vacío. Los valores se leen como en los formularios: el tipo de tercero dice **Cliente**, el tipo de documento **31 · NIT**, el municipio **Bogotá D.C.**, el dinero **$ 1.500.000,00** y las fechas van en la zona horaria de la empresa. Si abres la fila del proceso o la del cambio del registro, ves los mismos cambios.
+
+En una creación o en un intento denegado aparece también **Datos recibidos**: lo que se envió al crear el registro, o el motivo del rechazo (por ejemplo «No tienes permiso para hacer esto.») y el proceso que se intentó.
+
+Los valores respetan la visibilidad de campos de quien consulta: un campo enmascarado para su rol se ve como **••••••** antes y después, y un campo oculto no aparece. Pulsa **Esc** o **✕** para cerrar el detalle.
+
+### Buscar y exportar
 
 1. Escribe en el filtro de una columna, por ejemplo `core.party.create` bajo **Proceso**, o elige **agent** en **Origen**.
 2. Usa **Filtro avanzado** para combinar condiciones (por ejemplo, un actor **y** un rango de fechas).
 3. Pulsa **PDF**, **Excel** o **CSV** para llevarte exactamente las filas filtradas (guía **Exportar un listado a PDF, Excel o CSV**). Guarda la búsqueda con **Guardar vista** si la repites.
 
-La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, puede cambiar ni borrar una entrada, y se conserva 10 años. No muestra los valores que cambiaron: para ver un dato, abre el registro, donde se aplica la visibilidad de campos de tu rol. Consultar la auditoría queda, a su vez, en la auditoría.
+La exportación lleva las columnas visibles con sus identificadores, sin los valores anteriores y nuevos de cada campo: esos solo se ven en el detalle, con la visibilidad de campos aplicada.
+
+La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, puede cambiar ni borrar una entrada, y se conserva 10 años. Consultar la auditoría o abrir el detalle de una entrada queda, a su vez, en la auditoría.
 
 ## Preguntas frecuentes
 

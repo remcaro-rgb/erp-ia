@@ -6,14 +6,18 @@ import { QueryError } from "../query/errors";
 import { GridFilter, GridSort, GridState } from "../query/grid-state";
 import { gridQueryInTx } from "../query/run";
 import { defineEntity } from "../registry/entities";
+import { AUDIT_FEATURE } from "./audit";
+import { auditEntryRead } from "./detail";
 
 // The audit viewer (design §5.9: "the audit viewer is itself a consult process with its own permission", §6, rule 16).
 // `kernel.audit` is the registry entity of the company's audit log as its admin reads it, through `kernel.v_audit_entries`
-// (migration 0023: the company admin only, without the recorded input and diff). The /admin/audit grid, its exports and
-// the assistant read it through the same gate: the company admin role holds `kernel.audit.consult` (the role defaults
-// give every registered process to the system admin role and no kernel consult to other roles).
+// (migration 0023: the company admin only). The /admin/audit grid, its exports and the assistant read it through the same
+// gate: the company admin role holds `kernel.audit.consult` (the role defaults give every registered process to the system
+// admin role and no kernel consult to other roles). The view also publishes each entry's diff, input and source record
+// (0025), which the entity does not declare: grids, exports and this consult select registry fields only, and only
+// `kernel.audit.entry` (./detail.ts) reads them, for one entry, under the viewer's field visibility.
 
-export const AUDIT_FEATURE = "kernel.audit";
+export { AUDIT_FEATURE };
 
 /** Where an audited action came from (`kernel.audit_log.origin`). */
 export const AUDIT_ORIGINS = ["ui", "agent", "scheduler", "event", "api", "db"] as const;
@@ -39,6 +43,8 @@ export const auditEntity = defineEntity({
     { name: "chain_id", type: "uuid", label: "field.kernel.audit.chain_id" },
     { name: "actor_user_id", type: "uuid", label: "field.kernel.audit.actor_user_id" },
     { name: "conversation_id", type: "uuid", label: "field.kernel.audit.conversation_id" },
+    // The record a creation was cloned from (rule 37): the grid's Origen says "clonado desde …".
+    { name: "source_row_id", type: "uuid", label: "field.kernel.audit.source_row_id" },
   ],
 });
 
@@ -59,7 +65,7 @@ export const auditConsult = defineProcess({
     pageSize: z.number().int().min(1).max(AUDIT_PAGE_MAX).default(50),
   }),
   // One row per entry with the entity's fields (`occurred_at`, `origin`, `process_id`, `entity`, `row_id`, `action`,
-  // `actor`, `chain_id`, `actor_user_id`, `conversation_id`) and its `id`.
+  // `actor`, `chain_id`, `actor_user_id`, `conversation_id`, `source_row_id`) and its `id`.
   output: z.object({ rows: z.array(z.record(z.string(), z.unknown())).max(AUDIT_PAGE_MAX), total: z.number(), page: z.number() }),
   handler: async (ctx, input) => {
     // The role matrix lets the process run; administering the company is what may read its whole log.
@@ -75,4 +81,4 @@ export const auditConsult = defineProcess({
   },
 });
 
-export const AUDIT_PROCESSES = [auditConsult];
+export const AUDIT_PROCESSES = [auditConsult, auditEntryRead];

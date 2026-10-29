@@ -97,6 +97,9 @@ test.describe("administration", () => {
     await sql`delete from kernel.process_permissions where company_id = ${companyId}`;
     await sql`delete from kernel.tenant_entitlements where tenant_id = ${fixture.tenantId}`;
     await sql`delete from kernel.roles where id = ${despachos}`;
+    await sql`delete from core.parties where company_id = ${companyId}`;
+    await sql`delete from core.entity_sequences where company_id = ${companyId}`;
+    await sql`delete from kernel.outbox where company_id = ${companyId}`;
     await sql`delete from kernel.users where id = ${pedro.id}`;
     await fixture.admin.auth.admin.deleteUser(pedro.id);
     await fixture.cleanup();
@@ -399,5 +402,37 @@ test.describe("administration", () => {
     await other.goto("/admin/roles");
     await expect(other.getByRole("alert").getByText("No tienes permiso.")).toBeVisible();
     await context.close();
+  });
+
+  test("the audit names processes, entities and actors, and an entry lists each changed field as antes → después", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const { sql } = fixture;
+    // The change to read: the trade name of a party, typed in its record and saved (core.party.update).
+    const [party] = await sql<{ id: string }[]>`
+      insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
+      values (${companyId}, ${["customer"]}, '1', '31', '900373115', 'Bosque Andino S.A.S.', 'complete') returning id`;
+    await signInWithCode(page, fixture.email, fixture.password, secret);
+    await page.goto(`/r/core.party/${party!.id}`);
+    await page.getByLabel("Nombre comercial").fill("Bosque QA");
+    await page.getByRole("button", { name: "Guardar" }).click();
+    await expect.poll(async () => (await sql`select trade_name from core.parties where id = ${party!.id}`)[0]?.trade_name).toBe("Bosque QA");
+
+    await page.goto("/admin/audit");
+    const audit = page.getByRole("region", { name: "Auditoría" });
+    await audit.getByLabel("Filtrar Proceso").fill("core.party.update");
+    // Proceso by its description (id below), Entidad by its name, Registro and Actor as links.
+    const row = audit.getByRole("row", { name: /Actualiza los datos de un tercero/ }).first();
+    await expect(row).toContainText("core.party.update");
+    await expect(row).toContainText("Tercero");
+    await expect(row.getByRole("link", { name: "Bosque Andino S.A.S." })).toHaveAttribute("href", `/r/core.party/${party!.id}`);
+    await expect(row.getByRole("link", { name: /^Auth user / })).toHaveAttribute("href", `/admin/users/${fixture.userId}`);
+
+    await row.click();
+    const sheet = page.getByRole("dialog", { name: "Actualiza los datos de un tercero y recalcula su estado DIAN" });
+    await expect(sheet.getByRole("listitem").filter({ hasText: "Nombre comercial" })).toHaveText("Nombre comercial · — → Bosque QA");
+    await expect(sheet.getByRole("link", { name: "Bosque Andino S.A.S." })).toHaveAttribute("href", `/r/core.party/${party!.id}`);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
   });
 });

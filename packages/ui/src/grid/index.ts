@@ -11,6 +11,7 @@ export type { ExportButtonsProps } from "./ExportButtons";
 export { FilterRow } from "./FilterRow";
 export type { FilterRowProps } from "./FilterRow";
 export { GridCell, Pill } from "./GridCell";
+export type { CellRenderer } from "./GridCell";
 export { GridFooter } from "./GridFooter";
 export type { GridFooterProps } from "./GridFooter";
 export { PartyScopeSwitches, partyKindFilters } from "./PartyScopeSwitches";

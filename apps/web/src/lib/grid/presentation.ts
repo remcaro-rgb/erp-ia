@@ -87,12 +87,11 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     fields: {
       origin: { valuesKey: "grid.values.audit_origin", pills: { ui: "info", agent: "ok", scheduler: "gray", event: "gray", api: "warn", db: "danger" } },
       action: { valuesKey: "grid.values.audit_action", pills: { insert: "ok", update: "info", delete: "danger", consult: "gray", denied: "warn" } },
-      process_id: { display: "mono" },
-      entity: { display: "mono" },
-      row_id: { display: "mono" },
+      // Proceso, Entidad and Registro show names (the audit screen's cells), their ids in mono only where no name exists.
       chain_id: { display: "mono" },
       actor_user_id: { display: "mono" },
       conversation_id: { display: "mono" },
+      source_row_id: { display: "mono" },
     },
   },
   "support.ticket": {

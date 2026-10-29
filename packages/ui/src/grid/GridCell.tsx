@@ -25,8 +25,14 @@ export function useValueText() {
 const NUMERIC = new Set(["money", "number", "custom:number"]);
 export const isNumeric = (column: GridColumn) => NUMERIC.has(column.type);
 
+/**
+ * What a screen shows in a cell instead of the value's text (the audit's process description over its id, an actor's
+ * link): its content, or undefined to keep the default. Never called for a masked column.
+ */
+export type CellRenderer = (column: GridColumn, row: GridRow) => React.ReactNode | undefined;
+
 /** One cell of the grid (prototype `cell`): masked values as ••••••, money as $ 1.234.567,00 right-aligned, pills. */
-export function GridCell({ column, row, className }: { column: GridColumn; row: GridRow; className?: string }) {
+export function GridCell({ column, row, className, render }: { column: GridColumn; row: GridRow; className?: string; render?: CellRenderer }) {
   const t = useTranslations();
   const text = useValueText();
   const numeric = isNumeric(column);
@@ -38,6 +44,8 @@ export function GridCell({ column, row, className }: { column: GridColumn; row: 
       </td>
     );
   }
+  const custom = render?.(column, row);
+  if (custom !== undefined) return <td className={base}>{custom}</td>;
   const value = cellValue(row, column.field);
   if (column.display === "dian") {
     const pill = dianPill(value);
