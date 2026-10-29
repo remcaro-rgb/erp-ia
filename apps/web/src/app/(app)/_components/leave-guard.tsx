@@ -23,6 +23,25 @@ const historyState = (): HistoryState => (window.history.state as HistoryState) 
 /** The entry keeps the router's own state (Next reads it on Back/Forward); only the flag is ours. */
 const withFlag = (on: boolean) => ({ ...(historyState() ?? {}), [SENTINEL]: on });
 
+const screenOf = () => `${window.location.pathname}${window.location.search}`;
+
+/**
+ * Leaves the screen through the browser history: goes back `steps` entries, then on past any entry of the same screen.
+ * The guard's own entry is spent but stays in the history, and a reload of the production build drops its mark (the
+ * router rewrites `history.state` as the page loads), so the next guard pushes another: two entries of one screen can
+ * sit side by side, and stopping on the first would leave the person where they were.
+ */
+export function goBackPast(steps: number): void {
+  const screen = screenOf();
+  let spare = 4;
+  const onPop = () => {
+    if (screenOf() === screen && spare-- > 0) window.history.back();
+    else window.removeEventListener("popstate", onPop);
+  };
+  window.addEventListener("popstate", onPop);
+  window.history.go(-steps);
+}
+
 /** Runs `go` (a navigation) at once, or after the screen with staged changes lets it. */
 export function guardedNavigate(go: () => void): void {
   if (active) active(go);
@@ -59,7 +78,7 @@ export function useLeaveGuard(count: number): ReactNode {
       if (state?.[SENTINEL] !== undefined) return;
       // Back from the guard's entry: stand on it again and ask; leaving goes back past the screen.
       window.history.pushState(withFlag(true), "", window.location.href);
-      setWaiting({ go: () => window.history.go(-2) });
+      setWaiting({ go: () => goBackPast(2) });
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (released.current) return;
