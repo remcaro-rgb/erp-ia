@@ -20,9 +20,10 @@ export function LiveStatus({ state, at, onResume }: { state: LiveState; at: Date
   if (state === "idle") return time ? <span className="erp-small erp-muted">{t("updated", { time })}</span> : null;
   return (
     <span className="erp-row">
-      <span role="status" className={`erp-live${state === "paused" ? " is-paused" : state === "error" ? " is-error" : ""}`}>
+      <span className={`erp-live${state === "paused" ? " is-paused" : state === "error" ? " is-error" : ""}`}>
         <i aria-hidden="true" />
-        {t(state === "live" ? "on" : state === "paused" ? "paused" : "error")}
+        {/* Only the state is live: a change (live → paused → offline) is announced, the clock ticking every read is not. */}
+        <span role="status">{t(state === "live" ? "on" : state === "paused" ? "paused" : "error")}</span>
         {time && <span className="erp-mono">{` · ${time}`}</span>}
       </span>
       {state === "error" && onResume && (

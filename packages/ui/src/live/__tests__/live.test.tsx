@@ -54,9 +54,15 @@ describe("useLivePoll and LiveStatus", () => {
     expect(screen.getByRole("status").textContent).toContain("En vivo");
     await tick(3000);
     expect(read).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status").textContent).toBe("En vivo · 10:04:08");
+    // Branch review fix 3: the live region holds the state only; the clock beside it is not re-announced every read.
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("En vivo");
+    expect(status.parentElement!.textContent).toBe("En vivo · 10:04:08");
     await tick(3000);
     expect(read).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status.textContent).toBe("En vivo");
+    expect(status.parentElement!.textContent).toBe("En vivo · 10:04:11");
   });
 
   it("stops when nothing is pending, and then only says when it last read", async () => {
