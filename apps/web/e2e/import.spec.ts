@@ -74,8 +74,9 @@ test.describe("mass import", () => {
     await expect(dialog.getByText("31: solo dígitos")).toBeVisible();
 
     await dialog.getByRole("button", { name: "Importar filas válidas" }).click();
+    // The code box has the caret and the 6th digit sends it (no Verificar click).
+    await expect(dialog.getByLabel("Código de 6 dígitos")).toBeFocused();
     await dialog.getByLabel("Código de 6 dígitos").fill(totpCode(secret));
-    await dialog.getByRole("button", { name: "Verificar" }).click();
     await expect(dialog.getByText("Importación en curso", { exact: false })).toBeVisible();
 
     await dialog.getByRole("link", { name: "Ver historial" }).click();

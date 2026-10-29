@@ -56,8 +56,8 @@ Algunas acciones son sensibles y piden un código **nuevo** aunque ya hayas ingr
 
 Cuando ocurre, aparece un cuadro **Verificación requerida** con el mensaje «Esta acción es sensible. Ingresa el código de 6 dígitos de tu app de autenticación.»
 
-1. Escribe el código de 6 dígitos de tu app.
-2. Pulsa **Verificar** (o Enter). La acción continúa sola, con los mismos datos que ya habías llenado.
+1. El cursor ya está en la caja: escribe (o pega) el código de 6 dígitos de tu app.
+2. Al completar el sexto dígito el código se envía solo (también puedes pulsar **Verificar** o Enter). La acción continúa sola, con los mismos datos que ya habías llenado. Si el código no sirve, la caja se vacía y queda lista para el siguiente. **Esc** (o **Cancelar**) cierra el cuadro sin hacer la acción.
 3. Si prefieres no seguir, pulsa **Cancelar**: no se guarda nada.
 
 Detalles que conviene conocer:

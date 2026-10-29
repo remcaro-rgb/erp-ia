@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 export interface StepUpFieldProps {
@@ -26,13 +26,19 @@ export function StepUpField({ onToken, fetcher, endpoint = "/api/auth/step-up", 
   const [verified, setVerified] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const ready = /^\d{6}$/.test(code);
+  const input = useRef<HTMLInputElement>(null);
+  // The card asks for the code: take the caret, unless the user is typing somewhere else (never steal it from a form).
+  useEffect(() => {
+    const active = document.activeElement;
+    if (!active || active === document.body || active.id === "erp-assistant-input") input.current?.focus();
+  }, []);
 
-  const verify = async () => {
-    if (!ready || busy || verified) return;
+  const verify = async (value = code) => {
+    if (!/^\d{6}$/.test(value) || busy || verified) return;
     setBusy(true);
     setFailure(null);
     try {
-      const response = await (fetcher ?? fetch)(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
+      const response = await (fetcher ?? fetch)(endpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: value }) });
       const body = (await response.json().catch(() => null)) as { token?: unknown; code?: string } | null;
       if (response.ok && typeof body?.token === "string") {
         setVerified(true);
@@ -54,6 +60,7 @@ export function StepUpField({ onToken, fetcher, endpoint = "/api/auth/step-up", 
       <span className="erp-small erp-muted">{t("process.step_up.hint")}</span>
       <div className="erp-row">
         <input
+          ref={input}
           aria-label={t("agent.step_up_code")}
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -62,11 +69,14 @@ export function StepUpField({ onToken, fetcher, endpoint = "/api/auth/step-up", 
           value={code}
           disabled={disabled}
           onChange={(event) => {
-            setCode(event.target.value.replace(/\D/g, ""));
+            const next = event.target.value.replace(/\D/g, "").slice(0, 6);
+            setCode(next);
             if (verified) {
               setVerified(false);
               onToken(null);
             }
+            // The 6th digit verifies, typed or pasted: no extra key.
+            if (next.length === 6 && !verified) void verify(next);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") void verify();

@@ -199,13 +199,15 @@ test.describe("assistant drawer", () => {
     await expect(card).toBeVisible();
     const confirm = card.getByRole("button", { name: "Confirmar" });
     await expect(confirm).toBeDisabled();
+    // The code box takes the caret from the composer, and the 6th digit verifies: no Verificar click.
+    await expect(card.getByLabel("Código de verificación")).toBeFocused();
     await card.getByLabel("Código de verificación").fill("000000");
-    await card.getByRole("button", { name: "Verificar" }).click();
     await expect(card.getByText(/Código incorrecto/)).toBeVisible();
     await expect(confirm).toBeDisabled();
     await card.getByLabel("Código de verificación").fill(totpCode(secret));
-    await card.getByRole("button", { name: "Verificar" }).click();
     await expect(card.getByText("Verificado")).toBeVisible();
+    // Verified: the caret is on Confirmar.
+    await expect(confirm).toBeFocused();
     await page.screenshot({ path: `${SCREENSHOTS}/assistant-step-up-card.png` });
     await expect(confirm).toBeEnabled();
     await confirm.click();

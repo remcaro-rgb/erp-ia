@@ -147,4 +147,36 @@ describe("ConfirmationCard", () => {
     expect((screen.getByRole("button", { name: /Confirmar|Procesando/ }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Cancelar" }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  // UI density audit quick win 7 (M7): the code box takes the caret, the 6th digit verifies, and once verified the
+  // caret moves to Confirmar.
+  it("with stepUp the code box takes the caret, the 6th digit verifies, and Confirmar takes the caret", async () => {
+    const onDecide = vi.fn();
+    const fetcher = vi.fn(async () => json({ token: "tok-9" }));
+    renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={onDecide} fetcher={fetcher as unknown as typeof fetch} />);
+    const code = screen.getByLabelText("Código de verificación");
+    expect(document.activeElement).toBe(code);
+    fireEvent.change(code, { target: { value: "65432" } });
+    expect(fetcher).not.toHaveBeenCalled();
+    fireEvent.change(code, { target: { value: "654321" } });
+    const confirm = screen.getByRole("button", { name: "Confirmar" }) as HTMLButtonElement;
+    await waitFor(() => expect(confirm.disabled).toBe(false));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ code: "654321" });
+    await waitFor(() => expect(document.activeElement).toBe(confirm));
+    fireEvent.click(confirm);
+    expect(onDecide).toHaveBeenCalledWith("confirm", "tok-9");
+  });
+
+  it("does not steal the caret from a field the user is typing in", () => {
+    const outside = document.createElement("input");
+    document.body.append(outside);
+    outside.focus();
+    try {
+      renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={vi.fn()} />);
+      expect(document.activeElement).toBe(outside);
+    } finally {
+      outside.remove();
+    }
+  });
 });

@@ -52,9 +52,9 @@ Una tarjeta decidida queda en la conversación con su resultado («Listo · la a
 
 Algunas acciones (las que el administrador marcó como sensibles, como cambiar un cupo de crédito) piden **verificación en dos pasos**. Su tarjeta lleva una zona «Verificación requerida» y **Confirmar** está desactivado hasta que:
 
-1. Escribes el **código de 6 dígitos** de tu app de autenticación (el mismo de [Ingresar y verificación en dos pasos](ingreso-y-2fa.md)).
-2. Pulsas **Verificar**. Aparece «Verificado» y Confirmar se activa.
-3. Pulsas **Confirmar**. El código sirve para esa sola confirmación y vale 5 minutos; para otra acción sensible se pide uno nuevo.
+1. Escribes (o pegas) el **código de 6 dígitos** de tu app de autenticación (el mismo de [Ingresar y verificación en dos pasos](ingreso-y-2fa.md)). La caja del código toma el cursor cuando aparece la tarjeta, salvo que estés escribiendo en otro campo.
+2. Al sexto dígito el código se verifica solo (también puedes pulsar **Verificar**). Aparece «Verificado», Confirmar se activa y el cursor pasa a **Confirmar**.
+3. Pulsas **Confirmar** (o Enter). El código sirve para esa sola confirmación y vale 5 minutos; para otra acción sensible se pide uno nuevo.
 
 Si el código es incorrecto verás «Código incorrecto». Tras varios intentos fallidos debes esperar unos minutos.
 

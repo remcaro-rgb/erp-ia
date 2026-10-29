@@ -46,10 +46,11 @@ async function signIn(page: Page, email: string, password: string) {
   await expect(page).toHaveURL(/\/$/);
 }
 
-/** Answers the step-up prompt the sensitive admin process raised. */
+/** Answers the step-up prompt the sensitive admin process raised: the box has the caret and the 6th digit sends it. */
 async function confirmStepUp(page: Page, secret: string) {
-  await page.getByLabel("Código de 6 dígitos").fill(totpCode(secret));
-  await page.getByRole("button", { name: "Verificar" }).click();
+  const code = page.getByLabel("Código de 6 dígitos");
+  await expect(code).toBeFocused();
+  await code.fill(totpCode(secret));
 }
 
 test.describe("administration", () => {

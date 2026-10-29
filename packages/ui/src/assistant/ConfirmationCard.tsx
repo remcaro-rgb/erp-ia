@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { StepUpField } from "./StepUpField";
 import type { CardState, ConfirmationPreview } from "./model";
@@ -31,6 +31,11 @@ export function ConfirmationCard({ processId, preview, state = { status: "pendin
   const [attempt, setAttempt] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string[]>(() => preview.effects.map((e) => e.value));
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  // A verified code makes Confirmar the next step: the caret goes there (Enter confirms).
+  useEffect(() => {
+    if (token) confirmRef.current?.focus();
+  }, [token]);
 
   const errorText = (code: string) => (t.has(`errors.${code}`) ? t(`errors.${code}`) : t("errors.unknown"));
   const permission = `${preview.permission} · ${t(preview.stepUp ? "agent.ui.card.with_step_up" : "agent.ui.card.without_step_up")}`;
@@ -108,7 +113,7 @@ export function ConfirmationCard({ processId, preview, state = { status: "pendin
           </>
         ) : (
           <>
-            <button type="button" className="erp-btn erp-btn--primary" disabled={busy || needsToken} onClick={confirm}>
+            <button ref={confirmRef} type="button" className="erp-btn erp-btn--primary" disabled={busy || needsToken} onClick={confirm}>
               {busy ? t("agent.ui.card.processing") : t("agent.ui.card.confirm")}
             </button>
             <button
