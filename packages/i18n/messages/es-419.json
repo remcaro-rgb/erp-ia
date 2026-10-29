@@ -191,6 +191,7 @@
       "dian_hints": "Ver códigos DIAN",
       "copy_field": "Copiar {field}",
       "copied": "Copiado",
+      "copy_failed": "No se pudo copiar",
       "combo_empty": "Sin coincidencias",
       "combo_more": "{count} más: escribe para acotar"
     },

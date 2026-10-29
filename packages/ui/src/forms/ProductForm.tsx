@@ -172,7 +172,7 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
           )}
           <TextField label={t("brand")} hint={<><DianText>BrandName · </DianText>{tf("optional")}</>} value={draft.brand} maxLength={L.brand} disabled={dis} error={fe("brand")} onChange={set("brand")} />
           <TextField label={t("model")} hint={<><DianText>ModelName · </DianText>{tf("optional")}</>} value={draft.model} maxLength={L.model} disabled={dis} error={fe("model")} onChange={set("model")} />
-          <Field label={t("supplier")} hint={t("supplier_hint")} error={fe("supplierId")} className="erp-span3" enterSkip>
+          <Field label={t("supplier")} hint={t("supplier_hint")} error={fe("supplierId")} className="erp-span3">
             {(id) => (
               <EntityLookup
                 id={id}

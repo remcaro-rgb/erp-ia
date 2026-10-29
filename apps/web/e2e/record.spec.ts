@@ -188,6 +188,8 @@ test.describe("record tabs", () => {
     await expect(page.getByText("AdditionalAccountID")).toHaveCount(0);
     // The check digit is readable (read-only, not disabled) and copyable.
     const dv = page.getByLabel("DV", { exact: true });
+    // The page streams in: until the server's hidden copy of the form is swapped out there can be two.
+    await expect(dv).toHaveCount(1);
     await expect(dv).toHaveValue("3");
     await expect(dv).not.toBeDisabled();
     await expect(dv).toHaveAttribute("readonly", "");

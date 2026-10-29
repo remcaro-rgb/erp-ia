@@ -87,7 +87,7 @@ describe("CodeCombobox", () => {
     const onChange = vi.fn();
     renderEs(<Harness onChange={onChange} />);
     type("a");
-    // Apartadó, Bello? "a" matches Medellín? no: Apartadó, Itagüí (a), Bello? (no a). Names with a: Apartadó, Itagüí.
+    // Of the four names only Apartadó and Itagüí contain an "a".
     const names = screen.getAllByRole("option").map((o) => o.textContent);
     expect(names).toEqual(["Apartadó", "Itagüí"]);
     key("ArrowDown");
@@ -102,6 +102,48 @@ describe("CodeCombobox", () => {
     expect(box().value).toBe("Itagüí");
     expect(box().getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("names the list by the field's label", () => {
+    renderEs(
+      <RecordForm canSave onSave={() => {}} failure={null}>
+        <CodeComboboxField label="Municipio" value="" options={options} onChange={() => {}} />
+      </RecordForm>,
+    );
+    const input = screen.getByRole("combobox", { name: "Municipio" });
+    fireEvent.change(input, { target: { value: "a" } });
+    const list = screen.getByRole("listbox");
+    const label = document.getElementById(list.getAttribute("aria-labelledby")!)!;
+    expect(label.tagName).toBe("LABEL");
+    expect(label.textContent).toBe("Municipio");
+    expect(screen.getByRole("listbox", { name: "Municipio" })).toBe(list);
+  });
+
+  it("points at no option (no active descendant) until the user types or walks the list", () => {
+    renderEs(<Harness initial="05088" />);
+    fireEvent.click(box());
+    expect(box().getAttribute("aria-expanded")).toBe("true");
+    expect(box().getAttribute("aria-activedescendant")).toBeNull();
+    key("ArrowDown");
+    expect(box().getAttribute("aria-activedescendant")).not.toBeNull();
+  });
+
+  it("Ctrl/⌘+Enter chooses the active option but does not claim the key, so the form can save the choice", () => {
+    const onChange = vi.fn();
+    renderEs(<Harness onChange={onChange} />);
+    type("medellin");
+    expect(fireEvent.keyDown(box(), { key: "Enter", ctrlKey: true })).toBe(true);
+    expect(onChange).toHaveBeenCalledWith("05001");
+    expect(box().value).toBe("Medellín");
+  });
+
+  it("Ctrl+Enter with a half-typed text that points at nothing drops the text and keeps the value", () => {
+    const onChange = vi.fn();
+    renderEs(<Harness initial="05088" onChange={onChange} />);
+    type("zzz");
+    expect(fireEvent.keyDown(box(), { key: "Enter", metaKey: true })).toBe(true);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(box().value).toBe("Bello");
   });
 
   it("Enter with the list closed is left to the form (it moves on)", () => {

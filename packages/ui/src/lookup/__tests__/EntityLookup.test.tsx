@@ -79,6 +79,57 @@ describe("EntityLookup", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
+  // In a record form Enter walks the fields: a list that opened by itself on focus must not pick the first row.
+  describe("intent: Enter and Tab choose only after the user typed or pressed an arrow", () => {
+    it("an untouched list chooses nothing: Enter and Tab fall through, and the list says no row is active", async () => {
+      const { input, onPick } = setup();
+      fireEvent.focus(input);
+      const list = await screen.findByRole("listbox");
+      expect(within(list).getAllByRole("option")).toHaveLength(2);
+      expect(input.getAttribute("aria-expanded")).toBe("true");
+      expect(input.getAttribute("aria-activedescendant")).toBeNull();
+      expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(true);
+      expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);
+      expect(onPick).not.toHaveBeenCalled();
+    });
+
+    it("typing, then Enter picks the highlighted row (and claims the key)", async () => {
+      const { input, onPick } = setup();
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: "caf" } });
+      await screen.findByRole("listbox");
+      await waitFor(() => expect(input.getAttribute("aria-activedescendant")).not.toBeNull());
+      expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+      expect(onPick).toHaveBeenCalledWith(ready);
+    });
+
+    it("an arrow, then Enter picks the row it points at", async () => {
+      const { input, onPick } = setup();
+      fireEvent.focus(input);
+      await screen.findByRole("listbox");
+      fireEvent.keyDown(input, { key: "ArrowDown" });
+      expect(input.getAttribute("aria-activedescendant")).not.toBeNull();
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onPick).toHaveBeenCalledWith(pending);
+    });
+
+    it("typing, then Tab picks the highlighted row and lets the browser move on", async () => {
+      const { input, onPick } = setup();
+      fireEvent.change(input, { target: { value: "caf" } });
+      await screen.findByRole("listbox");
+      expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);
+      expect(onPick).toHaveBeenCalledWith(ready);
+    });
+
+    it("Ctrl+Enter after typing picks the row but leaves the key to the form that saves", async () => {
+      const { input, onPick } = setup();
+      fireEvent.change(input, { target: { value: "caf" } });
+      await screen.findByRole("listbox");
+      expect(fireEvent.keyDown(input, { key: "Enter", ctrlKey: true })).toBe(true);
+      expect(onPick).toHaveBeenCalledWith(ready);
+    });
+  });
+
   it("without forInvoice every row can be picked; Escape closes the list", async () => {
     const { input, onPick } = setup();
     fireEvent.change(input, { target: { value: "caf" } });

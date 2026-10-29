@@ -191,6 +191,7 @@
       "dian_hints": "Show DIAN codes",
       "copy_field": "Copy {field}",
       "copied": "Copied",
+      "copy_failed": "Could not copy",
       "combo_empty": "No matches",
       "combo_more": "{count} more: type to narrow"
     },

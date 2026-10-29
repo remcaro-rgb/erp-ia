@@ -47,7 +47,7 @@ describe("ComputedField", () => {
     expect((screen.getByRole("button", { name: "Copiar DV" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("says nothing when the clipboard refuses", async () => {
+  it("says so in the live region when the clipboard refuses", async () => {
     writeText.mockRejectedValueOnce(new Error("denied"));
     renderEs(
       <RecordForm canSave onSave={() => {}} failure={null}>
@@ -56,6 +56,7 @@ describe("ComputedField", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Copiar DV" }));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
+    expect((await screen.findByText("No se pudo copiar")).getAttribute("aria-live")).toBe("polite");
     expect(screen.queryByText("Copiado")).toBeNull();
   });
 });

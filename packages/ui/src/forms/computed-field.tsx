@@ -10,11 +10,11 @@ const COPIED_MS = 2000;
 
 /**
  * A button that copies `text` to the clipboard and says "Copiado" in a live region (polite status, always mounted so
- * the change is announced). Nothing to copy: disabled. A clipboard that refuses says nothing.
+ * the change is announced). Nothing to copy: disabled. A clipboard that refuses says so in the same region.
  */
 export function CopyButton({ text, label, className }: { text: string; label: string; className?: string }) {
   const t = useTranslations("common.forms");
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<"copied" | "failed" | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -23,22 +23,23 @@ export function CopyButton({ text, label, className }: { text: string; label: st
     [],
   );
   const copy = async () => {
+    let next: "copied" | "failed" = "copied";
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      return;
+      next = "failed";
     }
-    setCopied(true);
+    setState(next);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), COPIED_MS);
+    timer.current = setTimeout(() => setState(null), COPIED_MS);
   };
   return (
     <>
       <button type="button" className={["erp-copy", className].filter(Boolean).join(" ")} disabled={text === ""} aria-label={t("copy_field", { field: label })} title={t("copy_field", { field: label })} onClick={() => void copy()}>
-        {copied ? <Check aria-hidden="true" className="erp-icon" /> : <Copy aria-hidden="true" className="erp-icon" />}
+        {state === "copied" ? <Check aria-hidden="true" className="erp-icon" /> : <Copy aria-hidden="true" className="erp-icon" />}
       </button>
       <span aria-live="polite" className="sr-only">
-        {copied ? t("copied") : ""}
+        {state === "copied" ? t("copied") : state === "failed" ? t("copy_failed") : ""}
       </span>
     </>
   );

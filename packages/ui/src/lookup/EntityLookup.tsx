@@ -58,6 +58,8 @@ export function EntityLookup(props: EntityLookupProps) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<GridRow[] | null>(null);
   const [highlight, setHighlight] = useState(0);
+  /** The user typed a search or pressed ↑/↓: only then do Enter and Tab choose the highlighted row. A list that opened by itself (on focus) chooses nothing, so Enter in a form moves on. */
+  const [intent, setIntent] = useState(false);
   const [conditions, setConditions] = useState<Condition[]>([]);
   const [message, setMessage] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -119,6 +121,7 @@ export function EntityLookup(props: EntityLookupProps) {
     const { label } = describe(row);
     setText(label);
     setOpen(false);
+    setIntent(false);
     setMessage(t("grid.lookup.picked", { label }));
     onPick(row);
   };
@@ -128,12 +131,18 @@ export function EntityLookup(props: EntityLookupProps) {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!open) setOpen(true);
+      setIntent(true);
       setHighlight((h) => moveHighlight(h, list.length, event.key === "ArrowDown" ? 1 : -1));
-    } else if (event.key === "Enter" && open && list[highlight]) {
-      event.preventDefault();
+    } else if (event.key === "Enter" && open && intent && list[highlight]) {
+      // With Ctrl/⌘ the form is about to save: the row is chosen but the key is left to the form, which saves the choice.
+      if (!event.ctrlKey && !event.metaKey) event.preventDefault();
+      choose(list[highlight]!);
+    } else if (event.key === "Tab" && open && intent && list[highlight]) {
+      // Chooses what the list points at and lets the browser move on.
       choose(list[highlight]!);
     } else if (event.key === "Escape") {
       setOpen(false);
+      setIntent(false);
     }
   };
 
@@ -148,7 +157,7 @@ export function EntityLookup(props: EntityLookupProps) {
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={open && list[highlight] ? optionId(highlight) : undefined}
+        aria-activedescendant={open && intent && list[highlight] ? optionId(highlight) : undefined}
         autoComplete="off"
         className="erp-lk__input"
         placeholder={props.placeholder ?? t("grid.lookup.placeholder")}
@@ -157,10 +166,17 @@ export function EntityLookup(props: EntityLookupProps) {
         onChange={(e) => {
           setText(e.target.value);
           setOpen(true);
+          setIntent(e.target.value.trim() !== "");
           setHighlight(0);
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onFocus={() => {
+          setOpen(true);
+          setIntent(false);
+        }}
+        onBlur={() => {
+          setOpen(false);
+          setIntent(false);
+        }}
         onKeyDown={onKeyDown}
       />
       {value && !disabled && (

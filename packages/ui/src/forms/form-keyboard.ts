@@ -2,12 +2,26 @@
 // so it works for every control the forms render (inputs, selects, the code combobox) without each knowing about it.
 
 const TEXT_TYPES = new Set(["text", "email", "tel", "number", "search", "url", "password", "date", "datetime-local", "month", "week", "time"]);
+/** What a user fills in: text-like boxes and the checkbox / radio; never a button, a file chooser, a range or a colour. */
+const FIELD_TYPES = new Set([...TEXT_TYPES, "checkbox", "radio"]);
+
+/** Whether the list of a combobox is open with an option pointed at: Enter then chooses that option, it is not "next field". */
+const choosing = (input: HTMLInputElement): boolean => input.getAttribute("aria-expanded") === "true" && !!input.getAttribute("aria-activedescendant");
+
+/** Not laid out (`display: none` on it or an ancestor, `visibility: hidden`): the caret cannot go there. */
+function isRendered(el: HTMLElement): boolean {
+  if (getComputedStyle(el).visibility === "hidden") return false;
+  for (let node: HTMLElement | null = el; node; node = node.parentElement) if (getComputedStyle(node).display === "none") return false;
+  return true;
+}
 
 /** Whether an Enter typed in `target` means "next field": a text-like input or a select, not a button, a textarea or an open list. */
 export function isEnterSource(target: EventTarget | null): target is HTMLInputElement | HTMLSelectElement {
   if (target instanceof HTMLSelectElement) return true;
   if (!(target instanceof HTMLInputElement)) return false;
-  if (target.getAttribute("aria-expanded") === "true") return false;
+  // A widget with its own Enter (the step-up code, ...) opts out.
+  if (target.closest("[data-enter-skip]")) return false;
+  if (choosing(target)) return false;
   return TEXT_TYPES.has(target.type) || target.type === "checkbox";
 }
 
@@ -15,9 +29,11 @@ export function isEnterSource(target: EventTarget | null): target is HTMLInputEl
 export function enterFields(form: HTMLElement): HTMLElement[] {
   return Array.from(form.querySelectorAll<HTMLElement>("input, select, textarea")).filter((el) => {
     const field = el as HTMLInputElement;
-    if (field.disabled || field.readOnly || field.type === "hidden") return false;
+    if (field.disabled || field.readOnly) return false;
+    if (el instanceof HTMLInputElement && !FIELD_TYPES.has(el.type)) return false;
     if (el.tabIndex < 0) return false;
-    return !el.closest("[hidden], [aria-hidden='true'], [data-enter-skip]");
+    if (el.closest("[hidden], [aria-hidden='true'], [data-enter-skip]")) return false;
+    return isRendered(el);
   });
 }
 

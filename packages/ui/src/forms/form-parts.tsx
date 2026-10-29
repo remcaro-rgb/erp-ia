@@ -66,6 +66,18 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
     target.focus();
     target.scrollIntoView?.({ block: "center" });
   };
+  // A save asked for by the keyboard runs after the render that follows the key: a widget that commits on the same key
+  // (the combobox choosing its active option) has then updated the draft, and the save reads that committed draft.
+  const latest = useRef({ canSave, onSave });
+  useEffect(() => {
+    latest.current = { canSave, onSave };
+  });
+  const [saveAsked, setSaveAsked] = useState(0);
+  useEffect(() => {
+    if (saveAsked === 0) return;
+    if (latest.current.canSave) latest.current.onSave();
+    else focusFirstProblem();
+  }, [saveAsked]);
   useEffect(() => {
     // A refusal that names fields goes to the first of them; one that does not (a duplicate, the pack's checks) goes
     // to the summary that says it.
@@ -84,9 +96,10 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
     if (!(event.metaKey || event.ctrlKey) || event.altKey || (event.key.toLowerCase() !== "s" && event.key !== "Enter")) return;
     // React events bubble through portals: a dialog opened from the form (the lookup's advanced filter) keeps its keys.
     if (!event.currentTarget.contains(event.target as Node)) return;
+    // A widget that claimed the key and did not commit anything keeps it; one that commits (the combobox) lets it through.
+    if (event.defaultPrevented) return;
     event.preventDefault();
-    if (canSave) onSave();
-    else focusFirstProblem();
+    setSaveAsked((n) => n + 1);
   };
   return (
     <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
@@ -114,7 +127,6 @@ export function Field({
   hintKind = "help",
   error,
   className,
-  enterSkip,
   children,
 }: {
   label: ReactNode;
@@ -122,8 +134,6 @@ export function Field({
   hintKind?: HintKind;
   error?: string | null;
   className?: string;
-  /** Enter does not stop in this field (a widget with its own Enter, like the entity lookup); Tab and the mouse still do. */
-  enterSkip?: boolean;
   children: (id: string, describedBy?: string) => ReactNode;
 }) {
   const id = useId();
@@ -131,8 +141,8 @@ export function Field({
   const shown = hint && (hintKind === "help" || dian) ? hint : null;
   const describedBy = [shown ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
   return (
-    <div className={["erp-field", className].filter(Boolean).join(" ")} {...(enterSkip ? { "data-enter-skip": "" } : {})}>
-      <label htmlFor={id}>
+    <div className={["erp-field", className].filter(Boolean).join(" ")}>
+      <label id={`${id}-label`} htmlFor={id}>
         {label}
         {shown && (
           <span id={`${id}-hint`} className="erp-field__hint">
@@ -190,7 +200,7 @@ export function SelectField({ label, hint, hintKind, error, value, options, onCh
 export function CodeComboboxField({ label, hint, hintKind, error, value, options, onChange, disabled, empty, showCode, className }: SelectFieldProps) {
   return (
     <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
-      {(id, describedBy) => <CodeCombobox id={id} value={value} options={options} onChange={onChange} empty={empty} showCode={showCode} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} />}
+      {(id, describedBy) => <CodeCombobox id={id} aria-labelledby={`${id}-label`} value={value} options={options} onChange={onChange} empty={empty} showCode={showCode} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} />}
     </Field>
   );
 }

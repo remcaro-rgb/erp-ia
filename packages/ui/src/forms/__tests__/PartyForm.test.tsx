@@ -97,6 +97,31 @@ describe("PartyForm location comboboxes", () => {
   });
 });
 
+describe("PartyForm, Ctrl+Enter with a combobox open", () => {
+  const initial = { kind: ["customer"], person_type: "1", document_type: "31", legal_name: "Café del Norte S.A.S.", tax_responsibilities: ["O-13"], tax_scheme: "01", country_code: "CO", department_code: "05", municipality_code: "", invoice_email: "fe@cafedelnorte.co" };
+
+  it("chooses the active option and saves the committed draft, not the stale one", async () => {
+    const { save } = setup({ initial });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+    fireEvent.change(municipality, { target: { value: "medellin" } });
+    fireEvent.keyDown(municipality, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
+  });
+
+  it("drops a half-typed text that points at nothing and saves the rest", async () => {
+    const { save } = setup({ initial });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
+    fireEvent.change(municipality, { target: { value: "zzz" } });
+    fireEvent.keyDown(municipality, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0]).toMatchObject({ municipalityCode: "" });
+    expect((municipality as HTMLInputElement).value).toBe("");
+  });
+});
+
 describe("PartyForm", () => {
   it("computes the NIT check digit live with the DIAN algorithm", () => {
     setup();

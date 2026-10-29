@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useDianHints } from "../form-context";
 import type { CodeOption } from "../save-model";
@@ -20,6 +20,8 @@ const MAX_LISTED = 200;
 export interface CodeComboboxProps {
   id?: string;
   "aria-label"?: string;
+  /** The id of the field's label: names the list too. */
+  "aria-labelledby"?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
   /** The chosen code, or "" for none. */
@@ -44,7 +46,7 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   /** The user typed a search or walked the list: Enter and Tab may choose. A list only opened by a click chooses nothing. */
-  const intent = useRef(false);
+  const [intent, setIntent] = useState(false);
 
   const labelOf = (o: CodeOption) => (showCode ? `${o.code} · ${o.name}` : o.name);
   const chosen = options.find((o) => o.code === value);
@@ -62,7 +64,7 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
   });
 
   const close = () => {
-    intent.current = false;
+    setIntent(false);
     setOpen(false);
     setEditing(false);
   };
@@ -72,7 +74,7 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
   };
   const openList = () => {
     if (open) return;
-    intent.current = false;
+    setIntent(false);
     setActive(Math.max(0, options.findIndex((o) => o.code === value)));
     setOpen(true);
   };
@@ -85,19 +87,26 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
         event.preventDefault();
         if (!open) {
           openList();
-          intent.current = true;
+          setIntent(true);
           break;
         }
-        intent.current = true;
+        setIntent(true);
         const step = event.key === "ArrowDown" ? 1 : -1;
         setActive((a) => Math.min(Math.max(a + step, 0), Math.max(listed.length - 1, 0)));
         break;
       }
       case "Enter":
+        if (event.ctrlKey || event.metaKey) {
+          // The form saves on this key and reads the draft after this box has committed: the active option, else what
+          // was typed is dropped (an emptied box empties the value). The key is not claimed.
+          if (open && current && intent) choose(current);
+          else dropText();
+          break;
+        }
         // Closed: the form takes the Enter and moves to the next field. Open: it chooses (or, with nothing listed, waits).
         if (!open) break;
         event.preventDefault();
-        if (current && intent.current) choose(current);
+        if (current && intent) choose(current);
         else close();
         break;
       case "Escape":
@@ -108,14 +117,14 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
         break;
       case "Tab":
         // Chooses what the list points at and lets the browser move on.
-        if (open && current && intent.current) choose(current);
+        if (open && current && intent) choose(current);
         else close();
         break;
     }
   };
 
-  const onBlur = () => {
-    // Left with the mouse or by a field that took the focus: a half-typed text is dropped, an emptied box empties the value.
+  /** Leaves the box without choosing: a half-typed text is dropped, an emptied box empties the value. */
+  const dropText = () => {
     if (editing && empty !== undefined && text.trim() === "" && value !== "") onChange("");
     close();
   };
@@ -129,7 +138,7 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={open && current ? optionId(current.code) : undefined}
+        aria-activedescendant={open && intent && current ? optionId(current.code) : undefined}
         aria-label={aria["aria-label"]}
         aria-invalid={aria["aria-invalid"]}
         aria-describedby={aria["aria-describedby"]}
@@ -142,18 +151,18 @@ export function CodeCombobox({ id, value, options, onChange, empty, showCode: ha
         onChange={(e) => {
           setText(e.target.value);
           setEditing(true);
-          intent.current = e.target.value.trim() !== "";
+          setIntent(e.target.value.trim() !== "");
           setActive(0);
           setOpen(true);
         }}
         onFocus={(e) => e.target.select()}
         onClick={() => openList()}
         onKeyDown={onKeyDown}
-        onBlur={onBlur}
+        onBlur={dropText}
       />
       {open && (
         <div className="erp-combo__pop" onMouseDown={(e) => e.preventDefault()}>
-          <ul id={listId} role="listbox" aria-label={aria["aria-label"]} className="erp-combo__list">
+          <ul id={listId} role="listbox" aria-label={aria["aria-labelledby"] ? undefined : aria["aria-label"]} aria-labelledby={aria["aria-labelledby"]} className="erp-combo__list">
             {listed.map((o, i) => (
               <li
                 key={o.code}

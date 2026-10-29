@@ -30,7 +30,11 @@ const categories: CategoryOption[] = [
   { id: "cat-1", name: "Café", ivaRate: "5", incRate: null, otherTaxes: [], defaultUom: "KGM", active: true },
   { id: "cat-2", name: "Lácteos", ivaRate: "19", incRate: null, otherTaxes: [], defaultUom: "LTR", active: true },
 ];
-const supplier = { fetcher: vi.fn(async () => ({ rows: [], total: 0 })) as never, fields: [], entityLabel: "Terceros", label: null };
+const suppliers = [
+  { id: "s1", legal_name: "Tostadora Andina S.A.S.", document_number: "900111222", dian_status: "complete", dian_missing: [], invoice_ready: true, is_active: true },
+  { id: "s2", legal_name: "Café Montaña Ltda.", document_number: "800333444", dian_status: "complete", dian_missing: [], invoice_ready: true, is_active: true },
+];
+const supplier = { fetcher: vi.fn(async () => ({ rows: suppliers, total: 2 })) as never, fields: [], entityLabel: "Terceros", label: null };
 
 const writeText = vi.fn<(text: string) => Promise<void>>(async () => {});
 beforeEach(() => {
@@ -63,6 +67,39 @@ describe("ProductForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]![0]).toMatchObject({ uomCode: "KGM", categoryId: "cat-2" });
+  });
+
+  it("Enter walks into the supplier lookup and on again without picking anyone; typing or an arrow first does pick", async () => {
+    const { save } = setup();
+    const model = screen.getByLabelText(/^Modelo/) as HTMLInputElement;
+    const lookup = screen.getByRole("combobox", { name: "Proveedor principal" }) as HTMLInputElement;
+    const uom = screen.getByRole("combobox", { name: /^Unidad de medida/ });
+    model.focus();
+    fireEvent.keyDown(model, { key: "Enter" });
+    expect(document.activeElement).toBe(lookup);
+    // Its list opens on focus; Enter is still "next field" and picks nothing.
+    fireEvent.focus(lookup);
+    expect(await screen.findByRole("option", { name: /Tostadora Andina/ })).toBeTruthy();
+    fireEvent.keyDown(lookup, { key: "Enter" });
+    expect(document.activeElement).toBe(uom);
+    expect(lookup.value).toBe("");
+    // An arrow first: it points at the second row and Enter picks that one.
+    lookup.focus();
+    fireEvent.focus(lookup);
+    await screen.findByRole("option", { name: /Tostadora Andina/ });
+    fireEvent.keyDown(lookup, { key: "ArrowDown" });
+    fireEvent.keyDown(lookup, { key: "Enter" });
+    expect(lookup.value).toBe("Café Montaña Ltda.");
+    // Typing first: Enter picks the highlighted row.
+    fireEvent.change(lookup, { target: { value: "tost" } });
+    await waitFor(() => expect(lookup.getAttribute("aria-activedescendant")).not.toBeNull());
+    fireEvent.keyDown(lookup, { key: "Enter" });
+    expect(lookup.value).toBe("Tostadora Andina S.A.S.");
+    fireEvent.change(screen.getByLabelText(/^Código interno/), { target: { value: "CAF-1" } });
+    fireEvent.change(screen.getByLabelText(/^Descripción/), { target: { value: "Café" } });
+    fireEvent.click(screen.getByRole("button", { name: "Crear" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]![0]).toMatchObject({ supplierId: "s1" });
   });
 
   it("the unit shows its DIAN code only with the hints on", () => {
