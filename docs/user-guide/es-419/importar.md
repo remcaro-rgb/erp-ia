@@ -39,6 +39,8 @@ Necesitas el permiso **Importar datos** (`kernel.import.run`) y el permiso de cr
 
 En **Importar datos › Historial** ves tus importaciones (el administrador de la empresa ve las de todos), cada una con su estado (en cola, en curso, terminada, fallida), cuántas filas se crearon y cuántas se rechazaron. Si hubo rechazos, el enlace **errores.csv** descarga las filas rechazadas con la columna `error` y sus datos originales: corrígelas y vuelve a importar solo ese archivo.
 
+Mientras una importación está en cola o en curso, el historial se actualiza solo cada 3 segundos y lo dice junto al título: **En vivo** con la hora de la última lectura, **En pausa** si la pestaña del navegador está oculta (vuelve a leer en cuanto regresas) o **Sin conexión** si no pudo leer; en ese caso pulsa **Reanudar**. Cada importación en curso muestra una barra con las filas procesadas («1.380 de 2.400 filas»). Cuando no queda nada en curso, el historial dice cuándo se leyó por última vez («Actualizado 10:42:07») y el botón **Actualizar** lo lee de nuevo. Las fechas se muestran en la hora de tu empresa.
+
 - Un documento repetido dentro del archivo se rechaza en su segunda aparición; uno que ya existe en el sistema también se rechaza.
 - Los registros con datos DIAN pendientes se crean, pero no se pueden facturar hasta completarlos.
 - Si crear registros de esa entidad exige verificación en dos pasos en cada uno, la importación se detiene en la primera fila sin crear nada y el historial lo explica.

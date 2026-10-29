@@ -38,6 +38,13 @@ export interface ImportHistoryItem {
   finishedAt: string | null;
 }
 
+/** Rows done of a running import (ok + refused, never above the total), or null when it is not running or has no total. */
+export function importProgress(item: Pick<ImportHistoryItem, "status" | "rowsTotal" | "rowsOk" | "rowsFailed">): { done: number; total: number; ratio: number } | null {
+  if (item.status !== "running" || !item.rowsTotal) return null;
+  const done = Math.min(item.rowsTotal, (item.rowsOk ?? 0) + (item.rowsFailed ?? 0));
+  return { done, total: item.rowsTotal, ratio: done / item.rowsTotal };
+}
+
 /** Columns of the file shown in the preview table, after the row number and the result. */
 export const PREVIEW_COLUMNS = 6;
 

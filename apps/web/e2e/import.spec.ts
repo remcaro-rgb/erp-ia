@@ -87,6 +87,18 @@ test.describe("mass import", () => {
     await expect(row.getByRole("cell", { name: "1", exact: true })).toBeVisible();
     await expect(row.getByRole("button", { name: "errores.csv" })).toBeVisible();
 
+    // The history says how fresh it is, and a failed read is said on screen with Reanudar (UI density audit quick win 10).
+    const history = page.locator(".erp-import__history");
+    await history.getByRole("button", { name: "Actualizar" }).click();
+    await expect(history.getByText(/^Actualizado \d{2}:\d{2}:\d{2}$/)).toBeVisible();
+    // The network drops: the read of the history fails.
+    await page.route(/\/api\/import$/, (route) => route.abort("internetdisconnected"));
+    await history.getByRole("button", { name: "Actualizar" }).click();
+    await expect(history.getByRole("status")).toContainText("Sin conexión");
+    await page.unroute(/\/api\/import$/);
+    await history.getByRole("button", { name: "Reanudar" }).click();
+    await expect(history.getByText(/^Actualizado \d{2}:\d{2}:\d{2}$/)).toBeVisible();
+
     const parties = await fixture.sql<{ document_number: string }[]>`select document_number from core.parties where company_id = ${companyId} order by document_number`;
     expect(parties.map((p) => p.document_number)).toEqual(["800197268", "900373115"]);
   });
