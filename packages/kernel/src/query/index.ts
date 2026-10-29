@@ -4,6 +4,7 @@
 export { buildQuery } from "./build-query";
 export type { BuildQueryOptions, BuiltQuery } from "./build-query";
 export { QueryError } from "./errors";
+export { refLabelKey } from "./ref-label";
 export type { QueryErrorCode } from "./errors";
 export {
   AGGREGATE_FNS,

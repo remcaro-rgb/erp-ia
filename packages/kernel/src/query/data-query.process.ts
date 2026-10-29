@@ -47,7 +47,8 @@ export const dataQuery = defineProcess({
     await requireGridAccess(ctx.tx, ctx.registry, entity);
     const state = GridState.parse({ filters: query.filters, sort: query.sort, page: query.page, pageSize: query.limit, columns: query.columns, search: query.search });
     try {
-      const { rows, total } = await gridQueryInTx(ctx.tx, entity, state);
+      // The rows name the records their references point to (`<field>_label`), as the grid does.
+      const { rows, total } = await gridQueryInTx(ctx.tx, entity, state, { registry: ctx.registry });
       return { entity: entity.id, rows, total, page: query.page, truncated: total > (query.page - 1) * query.limit + rows.length };
     } catch (error) {
       // As the grid answers: a hidden or masked field is a denial, the rest a bad request.

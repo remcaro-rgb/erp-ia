@@ -790,7 +790,8 @@
     "kernel": {
       "import": "Import",
       "export_job": "Export",
-      "audit": "Audit"
+      "audit": "Audit",
+      "user": "User"
     },
     "support": {
       "ticket": "Ticket",
@@ -987,6 +988,13 @@
         "actor_user_id": "Actor id",
         "conversation_id": "Assistant conversation",
         "source_row_id": "Cloned from"
+      },
+      "user": {
+        "full_name": "Name",
+        "email": "Email",
+        "locale": "Language",
+        "mobile": "Mobile",
+        "created_at": "Created"
       }
     },
     "support": {
@@ -1036,7 +1044,8 @@
       "data": "Assistant data queries",
       "home": "Home screen: indicators, recommendations and recent records",
       "admin": "Administration",
-      "audit": "Company audit"
+      "audit": "Company audit",
+      "users": "Company users"
     },
     "support": {
       "tickets": "Support tickets"
@@ -1197,6 +1206,7 @@
     "date_to": "To",
     "empty_filtered": "No results with these filters",
     "masked_value": "Masked for your role",
+    "open_record": "Open {label}",
     "columns_shown": "{shown} of {total} columns shown",
     "columns_reset": "Reset columns",
     "columns_pinned": "pinned",

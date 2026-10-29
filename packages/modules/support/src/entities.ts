@@ -35,7 +35,8 @@ export const ticket: EntityDef = {
   defaultSort: { field: "seq", dir: "desc" },
   fields: [
     ticketFields("seq", "number", { required: true }),
-    ticketFields("reporter_user_id", "uuid", { required: true }),
+    // Who filed it: a reference to the user, named and linked to their page (rule 21).
+    ticketFields("reporter_user_id", "ref", { required: true, ref: { entity: "kernel.user", display: "full_name" } }),
     ticketFields("kind", "enum", { required: true, enumValues: [...TICKET_KINDS] }),
     ticketFields("title", "text", { required: true, searchable: true }),
     ticketFields("body", "text", { required: true, searchable: true, sortable: false }),

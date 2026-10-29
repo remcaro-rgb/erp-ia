@@ -790,7 +790,8 @@
     "kernel": {
       "import": "Importación",
       "export_job": "Exportación",
-      "audit": "Auditoría"
+      "audit": "Auditoría",
+      "user": "Usuario"
     },
     "support": {
       "ticket": "Ticket",
@@ -987,6 +988,13 @@
         "actor_user_id": "Id del actor",
         "conversation_id": "Conversación del asistente",
         "source_row_id": "Clonado desde"
+      },
+      "user": {
+        "full_name": "Nombre",
+        "email": "Correo",
+        "locale": "Idioma",
+        "mobile": "Celular",
+        "created_at": "Creado"
       }
     },
     "support": {
@@ -1036,7 +1044,8 @@
       "data": "Consultas de datos del asistente",
       "home": "Pantalla de inicio: indicadores, recomendaciones y registros recientes",
       "admin": "Administración",
-      "audit": "Auditoría de la empresa"
+      "audit": "Auditoría de la empresa",
+      "users": "Usuarios de la empresa"
     },
     "support": {
       "tickets": "Tickets de soporte"
@@ -1197,6 +1206,7 @@
     "date_to": "Hasta",
     "empty_filtered": "Sin resultados con estos filtros",
     "masked_value": "Enmascarado para tu rol",
+    "open_record": "Abrir {label}",
     "columns_shown": "{shown} de {total} columnas visibles",
     "columns_reset": "Restablecer columnas",
     "columns_pinned": "fija",
