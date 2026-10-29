@@ -108,6 +108,54 @@ export const DEFAULT_LABELS: AttachmentsLabels = {
   loadFailed: "No se pudieron cargar los archivos",
 };
 
+/** A translator of the `common.attachments` namespace (next-intl's `useTranslations("common.attachments")`). */
+export type AttachmentsTranslator = (key: string, values?: Record<string, string | number>) => string;
+
+/**
+ * The panel's copy from the catalogue (rule 24): every label from `common.attachments`, lists of tags joined the
+ * locale's way ("RUT, Cámara y Banco", "RUT and Chamber"), and an API refusal code read through `reason` when given.
+ */
+export function attachmentsLabels(t: AttachmentsTranslator, locale: string, reason: (code: string) => string = (code) => code): AttachmentsLabels {
+  const list = new Intl.ListFormat(locale, { type: "conjunction" });
+  return {
+    requiredTitle: t("required_title"),
+    loaded: t("loaded"),
+    required: t("required"),
+    optional: t("optional"),
+    kindPdf: t("kind_pdf"),
+    kindImage: t("kind_image"),
+    kindAny: t("kind_any"),
+    missing: (tags) => t("missing", { tags: list.format(tags) }),
+    saveFirst: t("save_first"),
+    dropTitle: t("drop_title"),
+    dropOr: t("drop_or"),
+    choose: t("choose"),
+    dropHint: t("drop_hint"),
+    stageTitle: t("stage_title"),
+    tagPlaceholder: t("tag_placeholder"),
+    tagOther: t("tag_other"),
+    tagName: t("tag_name"),
+    unstage: t("unstage"),
+    readyToUpload: t("ready_to_upload"),
+    needsTag: t("needs_tag"),
+    upload: (count) => t("upload", { count }),
+    uploading: t("uploading"),
+    listTitle: t("list_title"),
+    empty: t("empty"),
+    download: t("download"),
+    remove: (name) => t("remove", { name }),
+    confirmRemove: (name, tag) => t("confirm_remove", { name, tag }),
+    confirmYes: t("confirm_yes"),
+    confirmNo: t("confirm_no"),
+    tooBig: (name) => t("too_big", { name }),
+    duplicate: (name) => t("duplicate", { name }),
+    wrongKind: (tag, kind) => t(kind === "pdf" ? "wrong_kind_pdf" : "wrong_kind_image", { tag }),
+    failed: (name, code) => t("failed", { name, reason: reason(code) }),
+    actionFailed: (code) => t("action_failed", { reason: reason(code) }),
+    loadFailed: t("load_failed"),
+  };
+}
+
 /** A file waiting for its tag. */
 export interface StagedFile {
   key: number;

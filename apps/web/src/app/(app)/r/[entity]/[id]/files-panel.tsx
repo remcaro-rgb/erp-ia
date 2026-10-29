@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AttachmentsPanel, type AttachmentItem, type RequiredTag } from "@erp/ui";
+import { useLocale, useTranslations } from "next-intl";
+import { AttachmentsPanel, attachmentsLabels, type AttachmentItem, type RequiredTag } from "@erp/ui";
 import type { RecordAbilities } from "@/lib/records/load";
 
 export interface FilesPanelProps {
@@ -21,10 +23,16 @@ export interface FilesPanelProps {
  */
 export function FilesPanel({ entity, recordId, requiredTags, attachments, can }: FilesPanelProps) {
   const router = useRouter();
+  const t = useTranslations("common.attachments");
+  const te = useTranslations("errors");
+  const locale = useLocale();
+  // The tab's copy from the catalogue (rule 24); an API refusal code reads as its errors.* text when there is one.
+  const labels = useMemo(() => attachmentsLabels(t, locale, (code) => (te.has(code) ? te(code) : code)), [t, te, locale]);
   return (
     <AttachmentsPanel
       entity={entity}
       recordId={recordId}
+      labels={labels}
       readOnly={!can.attach}
       canRemove={can.removeFile}
       requiredTags={requiredTags}

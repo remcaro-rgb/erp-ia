@@ -18,11 +18,11 @@ Todo registro (tercero, producto, categoría, ticket de soporte) tiene una pesta
 ## Adjuntar archivos
 
 1. Abre el registro y entra a la pestaña **Archivos**. Si el registro todavía no está guardado, la zona dice «Guarda el registro para adjuntar archivos».
-2. **Arrastra los archivos** a la zona punteada («Arrastra los archivos aquí»), o pulsa **elígelos** para escogerlos en tu computador. Puedes soltar varios a la vez.
+2. **Arrastra los archivos** a la zona punteada («Arrastra los archivos aquí»), o pulsa **elígelos** para escogerlos en tu computador. Puedes soltar varios a la vez. Con el teclado, llega a **elígelos** con **Tab** y pulsa **Enter** o la barra espaciadora.
 3. En la lista **Por subir** asigna una **etiqueta** a cada archivo, porque cada archivo debe tener una. Elige una de la lista si aparece o elige **Otra…** y escribe la tuya (hasta 80 caracteres), por ejemplo «RUT» o «Contrato». Si escribes una etiqueta que tu empresa ya definió, se usa tal como la definió y se respeta el tipo de archivo que exige. Con la ✕ sacas un archivo de la lista antes de subirlo.
 4. Cuando todos tengan etiqueta, el mensaje cambia a «Listo para subir». Pulsa **Subir N archivos**.
 
-Cada archivo subido aparece en **Archivos adjuntos** con su etiqueta, su nombre, el tamaño, quién lo subió y cuándo.
+Cada archivo subido aparece en **Archivos adjuntos** con su etiqueta, su nombre, el tamaño, quién lo subió y cuándo (fecha y hora en la zona horaria de tu empresa).
 
 ### Reglas
 

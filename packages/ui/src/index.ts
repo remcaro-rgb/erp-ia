@@ -1,6 +1,6 @@
 export { AttachmentsPanel } from "./attachments-panel";
 export type { AttachmentItem, AttachmentsLabels, AttachmentsPanelProps, RequiredKind, RequiredTag } from "./attachments-panel";
-export { DEFAULT_LABELS as DEFAULT_ATTACHMENT_LABELS, MAX_ATTACHMENT_BYTES, missingTags } from "./attachments-model";
+export { DEFAULT_LABELS as DEFAULT_ATTACHMENT_LABELS, MAX_ATTACHMENT_BYTES, attachmentsLabels, missingTags, type AttachmentsTranslator } from "./attachments-model";
 export * from "./fields";
 export * from "./record";
 export * from "./shell";

@@ -19,6 +19,7 @@ import {
   type RequiredTag,
   type StagedFile,
 } from "./attachments-model";
+import { formatCellValue, useCellTimeZone } from "./grid/cell-format";
 
 export type { AttachmentItem, AttachmentsLabels, RequiredKind, RequiredTag } from "./attachments-model";
 
@@ -37,7 +38,7 @@ export interface AttachmentsPanelProps {
   initialAttachments?: readonly AttachmentItem[];
   /** Called with the current list after every upload or removal, so the form can refresh the record's readiness. */
   onChange?: (items: readonly AttachmentItem[]) => void;
-  /** Copy overrides. Spanish defaults until packages/i18n is wired. */
+  /** Copy overrides (`attachmentsLabels` builds them from `common.attachments`); Spanish defaults otherwise. */
   labels?: Partial<AttachmentsLabels>;
   /** Route handler of the attachments API. */
   endpoint?: string;
@@ -71,6 +72,10 @@ export function AttachmentsPanel(props: AttachmentsPanelProps) {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const nextKey = useRef(1);
+  const fileInput = useRef<HTMLInputElement>(null);
+  // Upload times in the company's zone, like every other date (the shell's CellFormatProvider).
+  const timeZone = useCellTimeZone();
+  const when = (iso: string) => formatCellValue({ type: "datetime" }, iso, { yes: "", no: "", timeZone });
   // Held in refs so the load effect does not rerun when a parent passes a new function or array each render.
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
@@ -234,18 +239,21 @@ export function AttachmentsPanel(props: AttachmentsPanelProps) {
           >
             <div>
               <b>{labels.dropTitle}</b> {labels.dropOr}{" "}
-              <label className="erp-attachments__choose">
+              {/* A real button: Tab reaches it, Enter or Space opens the system chooser (rule 22). */}
+              <button type="button" className="erp-attachments__choose" onClick={() => fileInput.current?.click()}>
                 {labels.choose}
-                <input
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={(event) => {
-                    stageFiles(Array.from(event.target.files ?? []));
-                    event.target.value = "";
-                  }}
-                />
-              </label>
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                tabIndex={-1}
+                onChange={(event) => {
+                  stageFiles(Array.from(event.target.files ?? []));
+                  event.target.value = "";
+                }}
+              />
             </div>
             <div className="erp-attachments__muted">{labels.dropHint}</div>
           </div>
@@ -342,7 +350,10 @@ export function AttachmentsPanel(props: AttachmentsPanelProps) {
                   </div>
                   <div className="erp-attachments__muted">
                     {formatSize(item.sizeBytes)}
-                    {item.uploadedByName ? ` · ${item.uploadedByName}` : ""} · {item.uploadedAt.slice(0, 16).replace("T", " ")}
+                    {item.uploadedByName ? ` · ${item.uploadedByName}` : ""} ·{" "}
+                    <time className="erp-attachments__when" dateTime={item.uploadedAt}>
+                      {when(item.uploadedAt)}
+                    </time>
                   </div>
                 </div>
                 <button type="button" onClick={() => void download(item)}>

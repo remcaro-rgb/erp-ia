@@ -25,6 +25,8 @@
     :root:not([data-theme="light"]) .erp-icon--csv { color: #B0BAC8; }
   }
   .erp-link { border: 0; background: transparent; padding: 0; color: var(--primary); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; text-decoration: underline; }
+  .erp-link--inline { font-size: inherit; }
+  .erp-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
 
   /* buttons */
   .erp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; line-height: 1.2; white-space: nowrap; }
@@ -259,7 +261,12 @@
   .erp-photos__drop--over, .erp-attachments__drop--over { border-color: var(--primary); background: var(--accent); color: var(--text); }
   .erp-photos__drop--disabled, .erp-attachments__drop--disabled { opacity: .7; cursor: not-allowed; }
   .erp-photos__choose, .erp-attachments__choose { color: var(--primary); text-decoration: underline; cursor: pointer; font-weight: 600; }
-  .erp-photos__choose:focus-within, .erp-attachments__choose:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
+  /* The chooser is a real <button> (Tab, Enter, Space); it keeps the link look of the prototype. */
+  :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose) { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 2px; background: transparent; color: var(--primary); font-size: inherit; font-weight: 600; text-decoration: underline; }
+  :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose):hover:not(:disabled) { background: transparent; }
+  :is(.erp-photos, .erp-attachments) button:is(.erp-photos__choose, .erp-attachments__choose):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .erp-attachments__drop:focus-within, .erp-photos__drop:focus-within { border-color: var(--focus-ring); }
+  .erp-attachments__when { font-variant-numeric: tabular-nums; }
   .erp-photos__suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .erp-photos__error, .erp-attachments__error { margin: 0; font-size: 12px; font-weight: 600; color: var(--danger); }
 

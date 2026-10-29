@@ -56,6 +56,7 @@ export function PhotosTab({ entity, recordId, readOnly = false, canRemove = true
   const labels: PhotosLabels = { ...DEFAULT_PHOTOS_LABELS, ...overrides };
   const fetcherRef = useRef<typeof fetch>(injected ?? ((...args) => fetch(...args)));
   fetcherRef.current = injected ?? ((...args) => fetch(...args));
+  const fileInput = useRef<HTMLInputElement>(null);
   const labelsRef = useRef(labels);
   labelsRef.current = labels;
   const changeRef = useRef(onChange);
@@ -280,19 +281,22 @@ export function PhotosTab({ entity, recordId, readOnly = false, canRemove = true
           >
             <div>
               <b>{labels.dropTitle}</b> {labels.dropOr}{" "}
-              <label className="erp-photos__choose">
+              {/* A real button: Tab reaches it, Enter or Space opens the system chooser (rule 22). */}
+              <button type="button" className="erp-photos__choose" onClick={() => fileInput.current?.click()}>
                 {labels.choose}
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  onChange={(event) => {
-                    void upload(Array.from(event.target.files ?? []));
-                    event.target.value = "";
-                  }}
-                />
-              </label>
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                tabIndex={-1}
+                onChange={(event) => {
+                  void upload(Array.from(event.target.files ?? []));
+                  event.target.value = "";
+                }}
+              />
             </div>
             <div className="erp-photos__muted">{labels.dropHint}</div>
           </div>

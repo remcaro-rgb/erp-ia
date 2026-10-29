@@ -53,6 +53,7 @@ export function ImportDialog(props: ImportDialogProps) {
 
 function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, historyHref = "/import", endpoint = "/api/import", fetcher }: ImportDialogProps) {
   const t = useTranslations();
+  const fileInput = useRef<HTMLInputElement>(null);
   const fetchRef = useRef(fetcher ?? ((...args: Parameters<typeof fetch>) => fetch(...args)));
   useEffect(() => {
     fetchRef.current = fetcher ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
@@ -187,18 +188,21 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
             <ImportIcon />
             <div>
               <b>{t("grid.import.drop")}</b> {t("grid.import.drop_or")}{" "}
-              <label className="erp-link">
+              {/* A real button: Tab reaches it, Enter or Space opens the system chooser (rule 20). */}
+              <button type="button" className="erp-link erp-link--inline" onClick={() => fileInput.current?.click()}>
                 {t("grid.import.choose")}
-                <input
-                  type="file"
-                  accept=".xlsx,.csv,text/csv"
-                  hidden
-                  onChange={(event) => {
-                    void choose(event.target.files?.[0]);
-                    event.target.value = "";
-                  }}
-                />
-              </label>
+              </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".xlsx,.csv,text/csv"
+                hidden
+                tabIndex={-1}
+                onChange={(event) => {
+                  void choose(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
             </div>
             <div className="erp-small">{t("grid.import.drop_hint")}</div>
           </div>

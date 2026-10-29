@@ -177,7 +177,11 @@ test.describe("record tabs", () => {
     await tab(page, /Archivos/).click();
     const warning = page.locator(".erp-attachments__warning");
     await expect(warning).toContainText("Mientras falten RUT");
-    await page.locator(".erp-attachments input[type=file]").setInputFiles({ name: "rut.pdf", mimeType: "application/pdf", buffer: PDF });
+    // The chooser is a real button: the keyboard reaches it and Enter opens the system file chooser (rule 22).
+    const chosen = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "elígelos" }).focus();
+    await page.keyboard.press("Enter");
+    await (await chosen).setFiles({ name: "rut.pdf", mimeType: "application/pdf", buffer: PDF });
     // The file name suggests the tag.
     await expect(page.getByLabel("Etiqueta… rut.pdf")).toHaveValue("RUT");
     await page.getByRole("button", { name: /Subir 1 archivo/ }).click();
