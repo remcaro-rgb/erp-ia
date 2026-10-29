@@ -610,6 +610,13 @@
       "message": "No encontramos este registro o no tienes acceso a él",
       "hint": "Puede que lo hayan borrado, que el enlace esté incompleto o que tu rol no incluya este tipo de registro.",
       "home": "Volver al inicio"
+    },
+    "live": {
+      "on": "En vivo",
+      "paused": "En pausa",
+      "error": "Sin conexión",
+      "updated": "Actualizado {time}",
+      "resume": "Reanudar"
     }
   },
   "nav": {

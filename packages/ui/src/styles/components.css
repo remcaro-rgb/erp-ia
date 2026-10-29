@@ -451,6 +451,10 @@
   .erp-wg__hd:active { cursor: grabbing; }
   .erp-wg__hd:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-wg__grip { letter-spacing: -2px; font-size: 14px; opacity: .6; }
+  /* The size hint only while the card is resized or has the caret. */
+  .erp-wg__size { opacity: 0; transition: opacity .12s; }
+  .erp-wg[data-resizing="true"] .erp-wg__size, .erp-wg:focus-within .erp-wg__size { opacity: 1; }
+  .erp-wg__asof { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
   .erp-wg__title { font-weight: 600; color: var(--text); font-size: 12px; }
   .erp-wg__bd { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
   .erp-wg__rs { position: absolute; right: 2px; bottom: 2px; width: 14px; height: 14px; padding: 0; border: 0; cursor: nwse-resize; touch-action: none; background: linear-gradient(135deg, transparent 50%, var(--line) 50%, var(--line) 60%, transparent 60%, transparent 75%, var(--line) 75%); border-radius: 0 0 6px 0; opacity: .8; }
@@ -473,6 +477,11 @@
   .erp-rec__body { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
   .erp-rec__chips { display: flex; gap: 6px; flex-wrap: wrap; }
   .erp-home-list { padding: 4px 0; display: flex; flex-direction: column; }
+  .erp-home-list table { width: 100%; border-collapse: collapse; }
+  .erp-home-list th { position: sticky; top: 0; height: 32px; padding: 0 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); }
+  .erp-home-list td { height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line-2); font-size: 13px; white-space: nowrap; }
+  .erp-home-list :is(th, td).erp-num { text-align: right; }
+  .erp-home-list td.erp-num { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; }
   .erp-home-help { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
   .erp-home-help button { text-align: left; }
 

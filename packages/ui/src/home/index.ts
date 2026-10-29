@@ -1,6 +1,8 @@
 export { Dashboard } from "./Dashboard";
 export type { DashboardProps, DashboardWidget } from "./Dashboard";
 export { Widget } from "./Widget";
+export { UpdatedAt } from "./UpdatedAt";
+export { clockTime } from "./format";
 export type { WidgetProps } from "./Widget";
 export { KpiCard } from "./KpiCard";
 export type { KpiCardProps } from "./KpiCard";

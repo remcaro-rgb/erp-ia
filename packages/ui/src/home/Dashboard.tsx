@@ -24,6 +24,8 @@ export interface DashboardWidget {
   id: string;
   /** Already translated. */
   title: string;
+  /** In the header, right of the title (when the data was read). */
+  meta?: ReactNode;
   content: ReactNode;
 }
 
@@ -203,6 +205,7 @@ export function Dashboard({ userId, companyId, widgets, defaultLayout = DEFAULT_
             <Widget
               key={item.id}
               title={widget.title}
+              meta={widget.meta}
               columns={size.w}
               height={size.h}
               dragging={dragId === item.id}

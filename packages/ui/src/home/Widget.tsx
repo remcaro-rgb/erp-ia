@@ -8,6 +8,8 @@ import { useTranslations } from "next-intl";
 
 export interface WidgetProps {
   title: string;
+  /** Right of the title: when the data was read and the like. */
+  meta?: ReactNode;
   /** Columns spanned and minimum height, as laid out. */
   columns: number;
   height: number;
@@ -30,7 +32,7 @@ export interface WidgetProps {
 const MOVE_KEYS: Record<string, -1 | 1> = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 };
 const RESIZE_KEYS: Record<string, [number, number]> = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] };
 
-export function Widget({ title, columns, height, dragging, over, resizing, children, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onMoveKey, onResizeStart, onResizeKey }: WidgetProps) {
+export function Widget({ title, meta, columns, height, dragging, over, resizing, children, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onMoveKey, onResizeStart, onResizeKey }: WidgetProps) {
   const t = useTranslations("home.dashboard");
   const headerKey = (event: KeyboardEvent<HTMLElement>) => {
     const direction = MOVE_KEYS[event.key];
@@ -71,7 +73,11 @@ export function Widget({ title, columns, height, dragging, over, resizing, child
         <span className="erp-wg__grip" aria-hidden="true">⋮⋮</span>
         <span className="erp-wg__title">{title}</span>
         <span className="erp-grow" />
-        <span className="erp-hint">{t("size", { columns, height })}</span>
+        {meta}
+        {/* Only while the card is resized or has the caret (CSS): nobody needs the number otherwise. */}
+        <span className="erp-hint erp-wg__size" aria-hidden="true">
+          {t("size", { columns, height })}
+        </span>
       </div>
       <div className="erp-wg__bd">{children}</div>
       <button type="button" className="erp-wg__rs" aria-label={t("resize", { title })} title={t("resize", { title })} onPointerDown={onResizeStart} onKeyDown={cornerKey} />

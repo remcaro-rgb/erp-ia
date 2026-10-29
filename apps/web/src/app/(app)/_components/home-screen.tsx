@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Dashboard, HelpWidget, KpisWidget, RecentWidget, RecommendationsWidget, useAskAssistant, type DashboardWidget, type RecommendationItem, type WidgetLayout } from "@erp/ui";
+import { Dashboard, HelpWidget, KpisWidget, RecentWidget, RecommendationsWidget, UpdatedAt, useAskAssistant, type DashboardWidget, type RecommendationItem, type WidgetLayout } from "@erp/ui";
 import { decideRecommendationAction } from "@/lib/home/actions";
 import type { HomeData } from "@/lib/home/load";
 import { createLayoutSaver } from "@/lib/home/layout-save";
@@ -52,12 +52,15 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
     [ask, router, t],
   );
 
+  // The KPIs and the recommendations are a snapshot of the page load: they say when it was read.
+  const asOf = <UpdatedAt at={data.asOf} />;
   const widgets: DashboardWidget[] = [];
-  if (data.kpis) widgets.push({ id: "kpis", title: t("home.widgets.kpis"), content: <KpisWidget kpis={data.kpis} /> });
+  if (data.kpis) widgets.push({ id: "kpis", title: t("home.widgets.kpis"), meta: asOf, content: <KpisWidget kpis={data.kpis} /> });
   if (data.recommendations) {
     widgets.push({
       id: "recommendations",
       title: t("home.widgets.recommendations"),
+      meta: asOf,
       content: (
         <RecommendationsWidget
           items={recommendations}

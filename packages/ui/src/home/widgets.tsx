@@ -101,7 +101,7 @@ export function RecentWidget({ records, onOpen }: RecentWidgetProps) {
             <th>{t("home.recent.columns.record")}</th>
             <th>{t("home.recent.columns.kind")}</th>
             <th>{t("home.recent.columns.action")}</th>
-            <th>{t("home.recent.columns.when")}</th>
+            <th className="erp-num">{t("home.recent.columns.when")}</th>
           </tr>
         </thead>
         <tbody>
@@ -111,7 +111,7 @@ export function RecentWidget({ records, onOpen }: RecentWidgetProps) {
               <tr key={`${record.entity}:${record.id}`}>
                 <td>
                   {record.href ? (
-                    <a className="erp-link" style={{ fontSize: 14 }} href={record.href} aria-label={t("home.recent.open", { title })} onClick={open(record.href)}>
+                    <a className="erp-link" style={{ fontSize: 13 }} href={record.href} aria-label={t("home.recent.open", { title })} onClick={open(record.href)}>
                       {title}
                     </a>
                   ) : (
@@ -120,7 +120,9 @@ export function RecentWidget({ records, onOpen }: RecentWidgetProps) {
                 </td>
                 <td>{t(record.entityLabel)}</td>
                 <td>{t(`home.recent.${record.action}`)}</td>
-                <td className="erp-num">{formatCellValue({ type: "datetime" }, record.at, { yes: "", no: "", timeZone })}</td>
+                <td className="erp-num">
+                  <time dateTime={record.at}>{formatCellValue({ type: "datetime" }, record.at, { yes: "", no: "", timeZone })}</time>
+                </td>
               </tr>
             );
           })}

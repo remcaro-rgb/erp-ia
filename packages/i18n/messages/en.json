@@ -610,6 +610,13 @@
       "message": "We could not find this record, or you do not have access to it",
       "hint": "It may have been removed, the link may be incomplete, or your role may not include this kind of record.",
       "home": "Back to home"
+    },
+    "live": {
+      "on": "Live",
+      "paused": "Paused",
+      "error": "Offline",
+      "updated": "Updated {time}",
+      "resume": "Resume"
     }
   },
   "nav": {

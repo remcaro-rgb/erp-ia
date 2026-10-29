@@ -16,3 +16,8 @@ export function detailParams(locale: string, params: Record<string, string | num
   for (const [key, value] of Object.entries(params)) if (typeof value === "number") out[`${key}_text`] = formatCount(locale, value);
   return out;
 }
+
+/** `10:42` (or `10:42:07`) of an instant, on the 24-hour clock of the company's zone (the runtime's when absent). */
+export function clockTime(locale: string, at: string | Date, timeZone?: string, seconds = false): string {
+  return new Intl.DateTimeFormat(numberLocale(locale), { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hourCycle: "h23", ...(timeZone ? { timeZone } : {}) }).format(new Date(at));
+}

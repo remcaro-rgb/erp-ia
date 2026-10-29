@@ -94,6 +94,10 @@ test.describe("home dashboard", () => {
     await expect(kpis.getByText("Uso de IA del mes")).toBeVisible();
     // No support module here: no ticket card.
     await expect(kpis.getByText("Tickets de soporte")).toHaveCount(0);
+    // A snapshot says when it was read, and the size hint stays out of sight until the card is resized or focused.
+    await expect(kpis.getByText(/^Actualizado \d{2}:\d{2}$/)).toBeVisible();
+    await page.mouse.click(5, 5);
+    await expect(kpis.locator(".erp-wg__size")).toHaveCSS("opacity", "0");
     const recs = page.getByRole("region", { name: "Recomendaciones para ti" });
     await expect(recs.getByText("Registra tu primer cliente")).toBeVisible();
     await expect(recs.getByText("Revisa tus productos")).toBeVisible();

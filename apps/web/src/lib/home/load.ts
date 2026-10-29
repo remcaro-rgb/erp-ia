@@ -20,6 +20,8 @@ export interface HomeData {
   help: HelpShortcut[];
   /** The saved `home_layout` as stored (the dashboard validates it), or null. */
   layout: Saved<unknown> | null;
+  /** When the snapshot was read (ISO): the widgets say "Actualizado hh:mm". */
+  asOf: string;
 }
 
 /** Morning from five to noon, afternoon until six, evening (and the small hours) after, by the clock in the company's time zone. */
@@ -71,5 +73,6 @@ export async function loadHome(shell: ShellData, caller: Caller, now: Date = new
     recent: recent?.records.map((r) => ({ ...r, href: recentHref(r.entity, r.id) })) ?? null,
     help: helpShortcuts(shell.nav.map((item) => item.href)),
     layout: savedFrom(prefs.home_layout),
+    asOf: now.toISOString(),
   };
 }
