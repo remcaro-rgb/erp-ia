@@ -15,7 +15,7 @@ El **Asistente** es el panel de la derecha. Le escribes en español, como le hab
 
 1. Pulsa **Asistente** en la barra superior (el panel mide 400 px y puedes cerrarlo con el mismo botón sin perder la conversación).
 2. Escribe en la caja de abajo y pulsa **Enter** o la flecha **↑**. También puedes escribir una frase en **⌘K** y elegir **Preguntar al asistente**: el panel se abre y la frase se envía.
-3. Mientras responde ves «Pensando…» y el texto va apareciendo. El botón **■** detiene la respuesta.
+3. Mientras responde ves «Pensando…» y el texto va apareciendo. El botón **■** detiene la respuesta. Si subes en la conversación para releer algo, el panel deja de bajar solo mientras llega la respuesta y aparece el botón **Ir al final ↓** para volver abajo; al enviar una pregunta nueva vuelve al final por su cuenta.
 
 El asistente sabe en qué pantalla estás (arriba del panel dice «Contexto: …») y, si estás en un registro, cuál es. Por eso puedes preguntar «¿cuál es su saldo?» estando en la ficha de un tercero.
 

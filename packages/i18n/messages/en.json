@@ -1490,7 +1490,8 @@
         "message_too_long": "The message is too long. Shorten it and try again.",
         "conversation_not_found": "That conversation no longer exists. Start a new one.",
         "history_failed": "We could not load your conversation. You can type to start a new one."
-      }
+      },
+      "jump_latest": "Jump to latest"
     },
     "mock": {
       "card_ready": "I prepared the card: review it and press Confirm to create it.",

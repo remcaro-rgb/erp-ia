@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { ConfirmationCard } from "./ConfirmationCard";
@@ -43,10 +43,32 @@ function answering(messages: UIMessage[]): boolean {
 export function MessageList({ messages, cards, onDecide, onEdit, onNavigate, onOpenGrid, canOpenGrid, columnsOf, working, timeZone, fetcher }: MessageListProps) {
   const t = useTranslations();
   const log = useRef<HTMLDivElement>(null);
-  useEffect(() => {
+  // Follow the bottom only while the reader is there (within 48 px): scrolling up to re-read a table or a card stops the
+  // follow, and "Ir al final" brings it back. A message the user just sent always follows.
+  const pinned = useRef(true);
+  const [away, setAway] = useState(false);
+  const onScroll = () => {
     const el = log.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    pinned.current = atEnd;
+    setAway(!atEnd);
+  };
+  useLayoutEffect(() => {
+    const el = log.current;
+    if (!el) return;
+    if (messages.at(-1)?.role === "user") pinned.current = true;
+    if (pinned.current) {
+      el.scrollTop = el.scrollHeight;
+      setAway(false);
+    }
   }, [messages, working]);
+  const jump = () => {
+    const el = log.current;
+    pinned.current = true;
+    setAway(false);
+    if (el) el.scrollTop = el.scrollHeight;
+  };
 
   const tool = (part: UIMessage["parts"][number], key: string) => {
     if (!isToolUIPart(part)) return null;
@@ -117,7 +139,8 @@ export function MessageList({ messages, cards, onDecide, onEdit, onNavigate, onO
   };
 
   return (
-    <div ref={log} className="erp-chat__log" role="log" aria-live="polite">
+    // aria-busy holds the announcements while a turn streams: the finished answer is read once, not token by token.
+    <div ref={log} className="erp-chat__log" role="log" aria-live="polite" aria-relevant="additions" aria-busy={working ? true : false} onScroll={onScroll}>
       {messages.map((message) =>
         message.role === "user" ? (
           <div key={message.id} className="erp-msg erp-msg--user">
@@ -129,13 +152,21 @@ export function MessageList({ messages, cards, onDecide, onEdit, onNavigate, onO
           </div>
         ) : null,
       )}
-      {working && !answering(messages) && (
-        <div className="erp-typing" role="status">
-          <i />
-          <i />
-          <i />
-          <span>{t("agent.thinking")}</span>
-        </div>
+      {/* Always laid out (18 px): the thinking dots before the first token, nothing after, so the log never jumps. */}
+      <div className="erp-chat__status" aria-hidden="true">
+        {working && !answering(messages) && (
+          <span className="erp-typing">
+            <i />
+            <i />
+            <i />
+            <span>{t("agent.thinking")}</span>
+          </span>
+        )}
+      </div>
+      {away && (
+        <button type="button" className="erp-btn erp-btn--sm erp-chat__jump" onClick={jump}>
+          {t("agent.ui.jump_latest")} ↓
+        </button>
       )}
     </div>
   );

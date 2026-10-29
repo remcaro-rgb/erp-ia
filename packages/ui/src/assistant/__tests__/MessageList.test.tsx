@@ -151,3 +151,65 @@ describe("MessageList: state", () => {
     expect(screen.getByText("Pensando…")).toBeTruthy();
   });
 });
+
+// UI density audit quick win 5 (H6, M15): the log follows the bottom only while the reader is there, offers "Ir al
+// final" when they scrolled up, holds announcements while a turn streams (aria-busy), and keeps a fixed status row.
+describe("MessageList: reading while it streams", () => {
+  const props = { cards: {}, onDecide: vi.fn(), onEdit: vi.fn(), onNavigate: vi.fn() };
+  const user = message("user", [{ type: "text", text: "clientes de Medellín" }], "u1");
+  const answer = (text: string) => message("assistant", [{ type: "text", text }], "a1");
+  /** jsdom lays nothing out: give the log a size. */
+  const sized = (el: HTMLElement, size: { scrollHeight: number; clientHeight: number }) => {
+    Object.defineProperty(el, "scrollHeight", { configurable: true, get: () => size.scrollHeight });
+    Object.defineProperty(el, "clientHeight", { configurable: true, get: () => size.clientHeight });
+  };
+
+  it("follows the bottom while the reader is there, and stops when they scroll up to read", () => {
+    const { rerender } = renderEs(<MessageList messages={[user, answer("Encontré")]} working {...props} />);
+    const log = screen.getByRole("log");
+    const size = { scrollHeight: 1000, clientHeight: 300 };
+    sized(log, size);
+    log.scrollTop = 700;
+    fireEvent.scroll(log);
+    size.scrollHeight = 1200;
+    rerender(<MessageList messages={[user, answer("Encontré 3 clientes")]} working {...props} />);
+    expect(log.scrollTop).toBe(1200);
+    expect(screen.queryByRole("button", { name: /Ir al final/ })).toBeNull();
+
+    // The reader scrolls up: new tokens no longer move the log.
+    log.scrollTop = 100;
+    fireEvent.scroll(log);
+    size.scrollHeight = 1400;
+    rerender(<MessageList messages={[user, answer("Encontré 3 clientes en Medellín")]} working {...props} />);
+    expect(log.scrollTop).toBe(100);
+    fireEvent.click(screen.getByRole("button", { name: /Ir al final/ }));
+    expect(log.scrollTop).toBe(1400);
+    expect(screen.queryByRole("button", { name: /Ir al final/ })).toBeNull();
+  });
+
+  it("a message the user sends always brings the log to the bottom", () => {
+    const { rerender } = renderEs(<MessageList messages={[user, answer("Listo")]} {...props} />);
+    const log = screen.getByRole("log");
+    const size = { scrollHeight: 1000, clientHeight: 300 };
+    sized(log, size);
+    log.scrollTop = 0;
+    fireEvent.scroll(log);
+    size.scrollHeight = 1100;
+    rerender(<MessageList messages={[user, answer("Listo"), message("user", [{ type: "text", text: "¿y en Bogotá?" }], "u2")]} {...props} />);
+    expect(log.scrollTop).toBe(1100);
+  });
+
+  it("is busy while a turn streams, and the status row is always laid out", () => {
+    const { rerender } = renderEs(<MessageList messages={[user]} working {...props} />);
+    const log = screen.getByRole("log");
+    expect(log.getAttribute("aria-busy")).toBe("true");
+    const row = log.querySelector(".erp-chat__status")!;
+    expect(row.textContent).toContain("Pensando…");
+    rerender(<MessageList messages={[user, answer("Encontré")]} working {...props} />);
+    expect(log.querySelector(".erp-chat__status")).toBe(row);
+    expect(row.textContent).toBe("");
+    rerender(<MessageList messages={[user, answer("Encontré 3")]} working={false} {...props} />);
+    expect(log.getAttribute("aria-busy")).toBe("false");
+    expect(log.querySelector(".erp-chat__status")).toBe(row);
+  });
+});

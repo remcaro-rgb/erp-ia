@@ -1490,7 +1490,8 @@
         "message_too_long": "El mensaje es demasiado largo. Acórtalo e inténtalo de nuevo.",
         "conversation_not_found": "Esa conversación ya no existe. Empieza una nueva.",
         "history_failed": "No pudimos cargar tu conversación. Puedes escribir para empezar una nueva."
-      }
+      },
+      "jump_latest": "Ir al final"
     },
     "mock": {
       "card_ready": "Te preparé la tarjeta: revísala y pulsa Confirmar para crearlo.",
