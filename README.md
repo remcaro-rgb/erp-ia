@@ -14,28 +14,29 @@ shadcn + Tailwind v4, TanStack Table, Vitest and Playwright. Node 22.2 or later,
 
 ## Run locally
 
+Since 2026-10-29 development runs against the owner's hosted Supabase project and Vercel previews (option 1 of the
+hosting decision: hosted for development, the Docker stack unchanged in CI). Nothing runs in Docker on your machine.
+
 ```bash
 pnpm install
-cp apps/web/.env.example apps/web/.env.local   # the CLI stack's public demo keys; set a gateway key or AGENT_MODEL=mock
-supabase start        # the local stack: API on 127.0.0.1:55321, database on 127.0.0.1:54322
-pnpm db:reset         # migrations + supabase/seed.sql (tenant, company, roles, entitlements)
-DEMO_SEED=1 pnpm db:seed   # the demo company: Auth users, people and permissions, 40 parties, 25 products, files
-pnpm help:index       # the assistant's help index (deterministic embeddings without AI_GATEWAY_API_KEY)
-pnpm dev              # http://localhost:3000
+cp apps/web/.env.example apps/web/.env.local   # then fill in the hosted project's URL, keys, password and pooler URL
+pnpm db:reset         # migrations + supabase/seed.sql on the database DATABASE_URL names (hosted or local)
+DEMO_SEED=1 DEMO_SEED_REMOTE=1 pnpm db:seed   # the demo company on the shared, wipeable development project
+pnpm dev              # http://localhost:3000 against the hosted project
 ```
 
-The seed has two halves. `supabase/seed.sql` holds what needs no registry and runs with every `supabase db reset` (and
-in the Docker init job). `pnpm db:seed` (`scripts/seed.ts`) does the rest the way the app would: it registers the
-modules' manifests, enables the modules, creates the Auth users through the Auth Admin API, and sets the permissions and
-creates the master data and the required files through the registered processes, signed in as Laura with her TOTP code,
-so the audit, the outbox and the consecutive numbers are real (only Laura's first admin membership is written directly).
-It is idempotent, runs only with `DEMO_SEED=1` and refuses any stack that is not local.
+Migrations are written as before (`pnpm db:migrate:new <module> <topic>`) and applied with `supabase db push --db-url
+"$DATABASE_URL"`; `pnpm db:reset` rebuilds the whole database from them. The hosted project is shared and may be wiped
+at any time by anyone developing on it; it holds demo data only. The Docker stack still works for anyone who prefers it:
+`supabase start` and the local values in `.env.example`.
 
-The assistant's model: set `AI_GATEWAY_API_KEY` to use the AI Gateway with the models of `kernel.model_policies`, or
-`AGENT_MODEL=mock` to run every turn with the AI SDK mock model (a test double, no provider). The mock answers «busca el
-cliente Éxito» and «crea el cliente Panadería La Espiga, NIT 800197268-4» (a wrong DV is refused by the country pack),
-refuses what the user's role may not do, and is metered as `mock/agent` at no cost. A production server refuses it
-unless `ALLOW_MOCK_MODEL=1` (only the Docker test stack sets it).
+Every write of the demo goes through registered processes (`pnpm db:seed`, `scripts/seed.ts`): it registers the
+manifests, enables the modules, creates the Auth users and lets the people, parties and products in through the same
+processes the app uses, so the demo is a faithful sample of what the app can produce.
+
+The assistant needs a model: `AI_GATEWAY_API_KEY` for the AI Gateway (metered per `kernel.model_policies`), or
+`AGENT_MODEL=mock` for the AI SDK mock model, which a production server refuses unless `ALLOW_MOCK_MODEL=1` (only the
+Docker test stack sets it).
 
 ### Demo accounts (local use only)
 

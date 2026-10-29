@@ -82,6 +82,7 @@ async function main(): Promise<void> {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  await import("./env");
   main().catch((error) => {
     console.error(error);
     process.exit(1);

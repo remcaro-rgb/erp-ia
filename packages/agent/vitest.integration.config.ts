@@ -16,5 +16,7 @@ export default defineConfig({
     fileParallelism: false,
     // Workflows retry and hop between steps; give them room.
     testTimeout: 60_000,
+    // Fixture hooks seed through many round trips; against a hosted database (option 1, 2026-10-29) they need minutes.
+    hookTimeout: 180_000,
   },
 });

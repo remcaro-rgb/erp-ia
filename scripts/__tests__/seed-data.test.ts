@@ -109,6 +109,12 @@ describe("assertSeedAllowed", () => {
     expect(() => assertSeedAllowed({ ...cli, supabaseUrl: "https://abcd.supabase.co" }, { DEMO_SEED: "1" })).toThrow(/local/);
     expect(() => assertSeedAllowed({ ...cli, databaseUrl: "postgresql://postgres:x@db.abcd.supabase.co:5432/postgres" }, { DEMO_SEED: "1" })).toThrow(/local/);
   });
+  it("seeds a hosted development project only with DEMO_SEED_REMOTE=1 as well", () => {
+    const hosted = { supabaseUrl: "https://abcd.supabase.co", databaseUrl: "postgresql://postgres.abcd:x@aws-0-us-east-2.pooler.supabase.com:5432/postgres" };
+    expect(() => assertSeedAllowed(hosted, { DEMO_SEED: "1" })).toThrow(/DEMO_SEED_REMOTE=1/);
+    expect(() => assertSeedAllowed(hosted, { DEMO_SEED_REMOTE: "1" })).toThrow(/DEMO_SEED=1/);
+    expect(() => assertSeedAllowed(hosted, { DEMO_SEED: "1", DEMO_SEED_REMOTE: "1" })).not.toThrow();
+  });
 });
 
 describe("the compose files", () => {

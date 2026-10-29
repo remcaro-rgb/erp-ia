@@ -8,5 +8,7 @@ export default defineConfig({
     // All files share one database; run them one at a time.
     fileParallelism: false,
     testTimeout: 60_000,
+    // Fixture hooks seed through many round trips; against a hosted database (option 1, 2026-10-29) they need minutes.
+    hookTimeout: 180_000,
   },
 });

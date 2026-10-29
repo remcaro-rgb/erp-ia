@@ -92,7 +92,9 @@ const isLocalHost = (host: string) => LOCAL_HOSTS.has(host) || host.endsWith(".l
 
 /**
  * Throws unless the run asked for the demo explicitly (DEMO_SEED=1) and both the Supabase API and the database are a
- * local stack: the demo accounts have public passwords and must never reach a stack anyone else uses.
+ * local stack: the demo accounts have public passwords and must never reach a stack anyone else uses. The owner's
+ * hosted development project (2026-10-29, shared and wipeable, demo data only) is the one exception: it takes
+ * DEMO_SEED_REMOTE=1 too, so a production URL in the environment can never be seeded by mistake.
  */
 export function assertSeedAllowed(target: SeedTarget, env: Record<string, string | undefined>): void {
   if (env.DEMO_SEED !== "1") {
@@ -105,7 +107,9 @@ export function assertSeedAllowed(target: SeedTarget, env: Record<string, string
     } catch {
       throw new Error(`db:seed: the ${what} is not a URL`);
     }
-    if (!isLocalHost(host)) throw new Error(`db:seed only seeds a local stack (the demo accounts have public passwords); the ${what} points at ${host}`);
+    if (!isLocalHost(host) && env.DEMO_SEED_REMOTE !== "1") {
+      throw new Error(`db:seed only seeds a local stack (the demo accounts have public passwords); the ${what} points at ${host}. A shared development project the owner may wipe takes DEMO_SEED_REMOTE=1 as well.`);
+    }
   }
 }
 
@@ -442,6 +446,7 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  await import("./env");
   seed(seedEnv(process.env)).catch((error: unknown) => {
     console.error(error);
     process.exit(1);

@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "typecheck": "turbo run typecheck",
     "check:rules": "tsx scripts/check-rules.ts",
-    "db:reset": "supabase db reset",
+    "db:reset": "tsx scripts/db-reset.ts",
     "db:seed": "tsx scripts/seed.ts",
     "db:migrate:new": "tsx scripts/new-migration.ts",
     "help:index": "tsx scripts/help-index.ts",
