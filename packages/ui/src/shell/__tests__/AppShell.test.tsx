@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToString } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
+import { messages } from "@erp/i18n";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { AppShell } from "../AppShell";
 import { GridCell } from "../../grid/GridCell";
@@ -359,5 +362,46 @@ describe("AppShell, the page padding (OD-1)", () => {
     shell(href);
     expect(main().hasAttribute("data-density")).toBe(false);
     expect(main().className).toContain("erp-main");
+  });
+});
+
+// Review fix: with no saved choice the drawer is decided by CSS first (`data-assistant="auto"`), so a laptop never sees it
+// open and then collapse; the client then resolves the explicit state to what the CSS already shows.
+describe("AppShell, the drawer's unset state is CSS-first", () => {
+  const drawer = () => document.getElementById("erp-assistant")!;
+  const ssr = (extra: Partial<ShellProps> = {}) =>
+    renderToString(
+      <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
+        {shellElement("/", vi.fn(), { storage: null, ...extra })}
+      </NextIntlClientProvider>,
+    );
+
+  it("the server markup carries the auto state, not hidden, when no choice is saved", () => {
+    const html = ssr();
+    expect(html).toMatch(/<aside id="erp-assistant"[^>]*data-assistant="auto"/);
+    expect(html).not.toMatch(/<aside id="erp-assistant"[^>]*hidden/);
+  });
+
+  it("a saved choice renders explicitly: no auto state, hidden when closed", () => {
+    expect(ssr({ assistantOpen: { value: false, savedAt: 1 } })).toMatch(/<aside id="erp-assistant"[^>]*hidden=""(?![^>]*data-assistant)|<aside id="erp-assistant"(?![^>]*data-assistant)[^>]*hidden/);
+    expect(ssr({ assistantOpen: { value: true, savedAt: 1 } })).not.toMatch(/data-assistant="auto"/);
+  });
+
+  it("after mounting the auto state is resolved and, when the media state already matches, the drawer is never toggled", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 })));
+    const toggles: string[] = [];
+    const observer = new MutationObserver((records) => records.forEach((r) => toggles.push(`${(r.target as Element).id}:${r.attributeName}`)));
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+    setWidth(1440);
+    shell("/");
+    expect(drawer().hasAttribute("data-assistant")).toBe(false);
+    expect(drawer().hidden).toBe(false);
+    expect(toggles.filter((t) => t.startsWith("erp-assistant"))).toEqual([]);
+    observer.disconnect();
+    cleanup();
+    setWidth(1200);
+    shell("/");
+    expect(drawer().hasAttribute("data-assistant")).toBe(false);
+    expect(drawer().hidden).toBe(true);
   });
 });

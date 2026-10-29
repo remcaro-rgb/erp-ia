@@ -43,6 +43,15 @@ export function Widget({ title, meta, columns, height, dragging, over, resizing,
   useEffect(() => {
     if (moving && document.activeElement === document.body) header.current?.focus({ preventScroll: true });
   });
+  // A press anywhere else (the mouse, a touch) ends the mode as well as the caret leaving does.
+  useEffect(() => {
+    if (!moving) return;
+    const onDown = (event: globalThis.PointerEvent) => {
+      if (!header.current?.contains(event.target as Node)) setMoving(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [moving]);
   const headerKey = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();

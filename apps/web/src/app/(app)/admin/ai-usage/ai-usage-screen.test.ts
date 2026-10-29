@@ -65,4 +65,16 @@ describe("AiUsageScreen allowance", () => {
     expect(html).toMatch(/0[.,]0123/);
     expect(html).toMatch(/12[.,]5000/);
   });
+
+  it("the percentage pill uses tabular figures", () => {
+    expect(render({ ...base, used: 2_100_000 })).toMatch(/erp-pill erp-pill--warn erp-num/);
+    expect(render({ ...base, used: 2_600_000 })).toMatch(/erp-pill erp-pill--danger erp-num/);
+  });
+
+  it("a cap of zero is over the cap, whatever was used", () => {
+    const html = render({ ...base, limit: 0, used: 0 });
+    expect(html).toContain("is-over");
+    expect(html).toMatch(/erp-pill--danger/);
+    expect(text(html)).toContain("límite alcanzado");
+  });
 });

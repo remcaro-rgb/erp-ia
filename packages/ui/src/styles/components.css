@@ -106,6 +106,10 @@
   .erp-live.is-paused i { background: transparent; box-shadow: inset 0 0 0 2px var(--text-muted); }
   .erp-live.is-error i { background: var(--danger); border-radius: 1px; }
 
+  /* The assistant drawer before the user has chosen: the viewport decides in CSS, so the first paint is already right (OD-10).
+     Utilities win over this layer, hence !important. */
+  @media (max-width: 1279px) { #erp-assistant[data-assistant="auto"] { display: none !important; } }
+
   /* popovers (columns, saved views) */
   .erp-pop { position: relative; }
   .erp-pop__panel { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 220px; max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); font-size: 13px; }
@@ -147,8 +151,8 @@
   .erp-lk__mag, .erp-lk__clear { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); display: grid; place-items: center; }
   .erp-lk__mag { right: 4px; }
   .erp-lk__clear { right: 32px; }
-  .erp-lk__mag:hover, .erp-lk__clear:hover { background: var(--head); color: var(--primary); }
-  .erp-lk__mag.is-on { color: var(--primary); background: var(--accent); }
+  .erp-lk__mag:hover, .erp-lk__clear:hover { background: var(--head); color: var(--link); }
+  .erp-lk__mag.is-on { color: var(--link); background: var(--accent); }
   .erp-lk__dd { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 320px; overflow: auto; }
   .erp-lk__dd ul { list-style: none; margin: 0; padding: 0; }
   .erp-lk__item { padding: 8px 10px; cursor: pointer; display: flex; gap: 10px; align-items: center; font-size: 13px; }
@@ -454,7 +458,7 @@
   .erp-meter.is-over .erp-meter__fill { background: var(--danger); }
   .erp-kpi .erp-pill { align-self: flex-start; white-space: normal; margin-right: 0; }
   .erp-meter__tick { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text-muted); }
-  .erp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--primary); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; }
+  .erp-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; overflow: hidden; }
   .erp-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .erp-avatar--lg { width: 72px; height: 72px; font-size: 22px; }
 

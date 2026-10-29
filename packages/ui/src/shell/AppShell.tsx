@@ -175,16 +175,20 @@ function ShellFrame(props: AppShellProps) {
   // The drawer: the user's saved choice when there is one (the server's copy, or this browser's when it is newer), else
   // closed below 1280 px (OD-10). Decided once, on the first mount; the server render and hydration use the saved choice
   // or "open", and a narrow viewport closes it before the first paint. A resize afterwards never moves it.
+  // With no saved choice the drawer renders in the CSS-first `auto` state (hidden under 1280 px by a media query), so the
+  // first paint is right and nothing collapses after hydration; the effect then writes the same state explicitly.
   const [assistantOpen, setAssistantOpen] = useState(props.assistantOpen?.value ?? true);
+  const [assistantAuto, setAssistantAuto] = useState(props.assistantOpen == null);
   useLayoutEffect(() => {
     const saved = newerSaved(props.assistantOpen ?? null, readBooleanPref(storage, assistantOpenStorageKey(user.id), company.id));
-    if (saved) setAssistantOpen(saved.value);
-    else if (window.innerWidth < ASSISTANT_MIN_WIDTH) setAssistantOpen(false);
+    setAssistantAuto(false);
+    setAssistantOpen(saved ? saved.value : window.innerWidth >= ASSISTANT_MIN_WIDTH);
     // Once per mounted shell: the first render's saved copies and viewport decide.
   }, []);
   /** A toggle by the user: remembered for the next visit. (Opening it to answer ⌘K is not a choice and is not saved.) */
   const chooseAssistant = useCallback(
     (open: boolean) => {
+      setAssistantAuto(false);
       setAssistantOpen(open);
       const savedAt = Date.now();
       writeCachedPref(storage, assistantOpenStorageKey(user.id), company.id, { value: open, savedAt });
@@ -218,6 +222,7 @@ function ShellFrame(props: AppShellProps) {
   const [asked, setAsked] = useState<{ text: string; nonce: number } | undefined>(undefined);
   const ask = useCallback((text: string) => {
     if (!text) return;
+    setAssistantAuto(false);
     setAssistantOpen(true);
     setAsked((previous) => ({ text, nonce: (previous?.nonce ?? 0) + 1 }));
   }, []);
@@ -280,6 +285,7 @@ function ShellFrame(props: AppShellProps) {
             </main>
             <AssistantDrawer
               open={assistantOpen}
+              auto={assistantAuto}
               focusInput={focusInput}
               context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
               screen={screenOf(currentHref)}

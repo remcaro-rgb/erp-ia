@@ -105,3 +105,24 @@ describe("Widget header", () => {
     expect(onDragStart).toHaveBeenCalled();
   });
 });
+
+describe("Widget Mover mode, pointer", () => {
+  it("ends on a pointer press outside the header, not on one inside it", () => {
+    const { header } = setup();
+    fireEvent.keyDown(header, { key: "Enter" });
+    fireEvent.pointerDown(header);
+    expect(header.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.pointerDown(screen.getByText("cuerpo"));
+    expect(header.getAttribute("aria-pressed")).toBe("false");
+    expect(hint()?.textContent ?? "").toBe("");
+  });
+
+  it("stops listening once the mode is over", () => {
+    const { header } = setup();
+    const spy = vi.spyOn(document, "removeEventListener");
+    fireEvent.keyDown(header, { key: "Enter" });
+    fireEvent.keyDown(header, { key: "Escape" });
+    expect(spy.mock.calls.some(([type]) => type === "pointerdown")).toBe(true);
+    spy.mockRestore();
+  });
+});

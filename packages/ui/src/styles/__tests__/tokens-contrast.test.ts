@@ -115,3 +115,31 @@ describe("where the tokens are used", () => {
     expect(components).toMatch(/\.erp-main\[data-density="tight"\]\s*\{[^}]*gap:\s*12px;[^}]*padding:\s*12px 16px/);
   });
 });
+
+describe("brand blue used as text or icon (review fix)", () => {
+  const ruleOf = (selector: string) => components.split("\n").find((line) => line.trimStart().startsWith(selector))!;
+
+  it("the lookup magnifier (hover and on) uses --link, which reaches 3:1 on the accent tint and the head", () => {
+    for (const selector of [".erp-lk__mag.is-on", ".erp-lk__mag:hover"]) expect(ruleOf(selector), selector).toMatch(/color:\s*var\(--link\)/);
+    for (const block of [blocks.light, blocks.dark, blocks.forcedDark]) {
+      expect(ratio(hexOf(block, "--link"), hexOf(block, "--accent"))).toBeGreaterThanOrEqual(3);
+      expect(ratio(hexOf(block, "--link"), hexOf(block, "--head"))).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("the avatar initials are white on the primary fill (4.5:1 in every theme), not primary on the tint", () => {
+    const rule = ruleOf(".erp-avatar {");
+    expect(rule).toMatch(/background:\s*var\(--primary\)/);
+    expect(rule).toMatch(/color:\s*#fff/);
+    for (const block of [blocks.light, blocks.dark, blocks.forcedDark]) expect(ratio("#FFFFFF", hexOf(block, "--primary"))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("no rule paints text with the primary fill on a tint or surface any more", () => {
+    const offenders = components.split("\n").filter((line) => /[{;\s]color:\s*var\(--primary\)/.test(line));
+    expect(offenders).toEqual([]);
+  });
+
+  it("the unset drawer hides under 1280 px by CSS alone (no flash before hydration), shows above", () => {
+    expect(components).toMatch(/@media \(max-width: 1279px\)\s*\{\s*#erp-assistant\[data-assistant="auto"\]\s*\{\s*display:\s*none\s*!important/);
+  });
+});

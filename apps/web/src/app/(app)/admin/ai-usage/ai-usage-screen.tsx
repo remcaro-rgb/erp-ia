@@ -18,7 +18,8 @@ export function AiUsageScreen({ data }: { data: AiUsage }) {
   // Fixed decimals, so a column of costs aligns on the decimal separator.
   const usd = new Intl.NumberFormat(locale, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
   const percent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
-  const share = data.limit ? data.used / data.limit : 0;
+  // A cap of zero is already reached, whatever was used.
+  const share = data.limit === null ? 0 : data.limit === 0 ? 1 : data.used / data.limit;
   const over = data.limit !== null && data.used >= data.limit;
   const task = (key: string) => (t.has(`common.admin.ai_usage.tasks.${key}`) ? t(`common.admin.ai_usage.tasks.${key}`) : key);
 
@@ -39,7 +40,7 @@ export function AiUsageScreen({ data }: { data: AiUsage }) {
           {data.limit !== null && (
             <>
               <ShareMeter value={share} label={t("common.admin.ai_usage.bar")} />
-              <span className={over ? "erp-pill erp-pill--danger" : share >= 0.8 ? "erp-pill erp-pill--warn" : "erp-small erp-muted"}>
+              <span className={over ? "erp-pill erp-pill--danger erp-num" : share >= 0.8 ? "erp-pill erp-pill--warn erp-num" : "erp-small erp-muted erp-num"}>
                 <b>{percent.format(share)}</b>
                 {over ? ` · ${t("common.admin.ai_usage.cap_reached")}` : ""}
               </span>
