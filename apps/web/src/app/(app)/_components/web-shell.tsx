@@ -5,6 +5,7 @@ import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
+import { clearCloneHandoff } from "@/lib/records/clone-handoff";
 import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import { installCapture, noteRoute } from "@/lib/support/capture";
@@ -88,10 +89,16 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       onSwitchCompany={async (companyId) => {
         // The pending tabs belong to the company being left: store them there before the claims change.
         await flush();
+        // A copy on its way to a create form ("Duplicar") belongs to the company being left.
+        clearCloneHandoff();
         await setActiveCompany(companyId);
         router.refresh();
       }}
-      signOutAction={signOut}
+      signOutAction={async () => {
+        // Nothing of this session's records stays in the tab's memory.
+        clearCloneHandoff();
+        await signOut();
+      }}
     >
       {children}
     </AppShell>

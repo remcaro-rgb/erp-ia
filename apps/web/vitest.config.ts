@@ -10,7 +10,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
     exclude: ["src/**/*.integration.test.ts", "node_modules/**", ".next/**"],
   },
 });

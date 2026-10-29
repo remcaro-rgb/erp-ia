@@ -9,6 +9,7 @@ import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
 import { fieldOfKey } from "../registry/labels";
 import { AUDIT_FEATURE, type AuditAction } from "./audit";
+import { SECRET_COLUMNS, TECHNICAL_COLUMNS } from "../registry/columns";
 
 // The detail of one audit entry (design §22.13–14, rule 16): every field the entry changed with its previous and new value
 // (from the row trigger's diff), the field's label from the catalogue, what a creation or a refused run received, and the
@@ -20,10 +21,6 @@ import { AUDIT_FEATURE, type AuditAction } from "./audit";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Columns every table carries that say nothing about the record's data. */
-const TECHNICAL = new Set(["id", "company_id", "created_at", "updated_at", "created_by", "updated_by"]);
-/** Never shown, whatever the entity declares (0025's trigger does not record them either). */
-const SECRETS = new Set(["token", "secret", "password"]);
 /** What runProcess records as the input of a refused run (process/run.ts): the reason and the process. */
 const DENIAL_KEYS = new Set(["code", "process_id"]);
 
@@ -260,7 +257,8 @@ export async function describeAuditEntry(tx: Tx, registry: Registry, record: Aud
   const inputEntity = auditEntityOf(registry, record.entity) ?? changedEntity;
   const denied = record.action === "denied";
   const described = (record.diff ? changedEntity : inputEntity) !== undefined;
-  const shown = (name: string) => !TECHNICAL.has(name) && !SECRETS.has(name);
+  // Technical columns say nothing about the record; secret ones are never shown (registry/columns.ts).
+  const shown = (name: string) => !TECHNICAL_COLUMNS.has(name) && !SECRET_COLUMNS.has(name);
 
   const diff = changedEntity ? (record.diff ?? {}) : {};
   const changedColumns = Object.keys(diff).filter((c) => shown(c) && changedEntity!.fields.some((f) => f.name === c));

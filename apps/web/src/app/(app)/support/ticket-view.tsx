@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "@erp/ui/components/ui/sonner";
 import { AttachmentsPanel, ExtraDataTab, extraTabCounts, recordHref, RecordFrame, type RecordTab } from "@erp/ui";
+import { cloneRecordAction } from "@/lib/records/clone";
+import { handOffClone } from "@/lib/records/clone-handoff";
 import { failureText } from "@/lib/support/failure";
 import { closeTicketAction, loadTicketAction, replyTicketAction, type ActionResult, type TicketDetail } from "@/lib/support/actions";
 import { Conversation } from "./conversation";
@@ -21,7 +24,34 @@ const STATUS_TONE: Record<string, string> = { open: "warn", answered: "ok", clos
  */
 export function TicketView({ id, onChanged }: { id: string; onChanged?: () => void }) {
   const t = useTranslations();
+  const router = useRouter();
+  const pathname = usePathname();
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
+  const [duplicating, setDuplicating] = useState(false);
+  const running = useRef(false);
+
+  // "Duplicar" (rule 37): the copy goes to the support screen's "Nuevo ticket" form (the ticket's create form), which
+  // files it through support.ticket.create with this ticket as its source.
+  const duplicate = async () => {
+    if (running.current) return;
+    running.current = true;
+    setDuplicating(true);
+    try {
+      const result = await cloneRecordAction("support.ticket", id);
+      if (!result.ok) {
+        const code = t.has(`errors.${result.code}`) ? result.code : "unknown";
+        toast.error(t("common.record.duplicate_failed", { reason: t(`errors.${code}`) }));
+        return;
+      }
+      handOffClone(result);
+      if (pathname !== "/support") router.push("/support");
+    } catch {
+      toast.error(t("common.record.duplicate_failed", { reason: t("errors.network") }));
+    } finally {
+      running.current = false;
+      setDuplicating(false);
+    }
+  };
 
   // First read when the sheet opens for this ticket; `reload` re-reads after a reply or a closing.
   useEffect(() => {
@@ -53,6 +83,8 @@ export function TicketView({ id, onChanged }: { id: string; onChanged?: () => vo
   return (
     <TicketFrame
       ticket={phase.ticket}
+      onDuplicate={() => void duplicate()}
+      duplicating={duplicating}
       onReply={async (body, isInternal) => {
         const result = await replyTicketAction(phase.ticket.id, body, isInternal);
         if (result.ok) {
@@ -80,7 +112,17 @@ export function TicketView({ id, onChanged }: { id: string; onChanged?: () => vo
   );
 }
 
-function TicketFrame({ ticket, onReply, onClose }: { ticket: TicketDetail; onReply: Parameters<typeof Conversation>[0]["onReply"]; onClose: () => Promise<void> }) {
+export interface TicketFrameProps {
+  ticket: TicketDetail;
+  onReply: Parameters<typeof Conversation>[0]["onReply"];
+  onClose: () => Promise<void>;
+  /** "Duplicar" and Ctrl/⌘+D, offered only when the caller may file a copy (`ticket.canCreate`). */
+  onDuplicate?: () => void;
+  duplicating?: boolean;
+}
+
+/** The loaded ticket in the record frame; exported for its tests. */
+export function TicketFrame({ ticket, onReply, onClose, onDuplicate, duplicating = false }: TicketFrameProps) {
   const t = useTranslations();
   const format = useFormatter();
   const closed = ticket.status === "closed";
@@ -154,6 +196,8 @@ function TicketFrame({ ticket, onReply, onClose }: { ticket: TicketDetail; onRep
       uuid={ticket.id}
       deepLinkHref={recordHref("support.ticket", ticket.id)}
       tabs={tabs}
+      onDuplicate={ticket.canCreate ? onDuplicate : undefined}
+      duplicating={duplicating}
       labels={{
         tabs: {
           datos: t("common.record.tabs.datos"),
@@ -168,6 +212,7 @@ function TicketFrame({ ticket, onReply, onClose }: { ticket: TicketDetail; onRep
         assignedOnCreate: t("common.record.assigned_on_create"),
         openInNewTab: t("common.record.open_in_new_tab"),
         pending: t("common.record.pending"),
+        duplicate: t("common.record.duplicate"),
       }}
       status={ticket.status ? pill(STATUS_TONE[ticket.status] ?? "gray", t(`grid.values.ticket_status.${ticket.status}`)) : undefined}
       footer={

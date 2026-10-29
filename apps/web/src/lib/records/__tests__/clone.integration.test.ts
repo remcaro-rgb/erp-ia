@@ -13,12 +13,13 @@ import { processDeps } from "@/lib/server/runtime";
 import { loadRecord } from "../load";
 import { saveRecordAction } from "../actions";
 import { cloneRecordAction } from "../clone";
+import { createTicketAction, loadTicketAction } from "@/lib/support/actions";
 
 // "Duplicar" wired to the processes (rule 37, design §22.13): the action reads the source through the entity's consult
 // as the session's user and hands the create form its visible data without the identity fields; the save runs the
 // entity's create process with the source recorded in the audit.
 
-const GRANTS = ["core.party.consult", "core.party.create", "core.party.update", "core.product.consult", "core.product.create", "core.contact.list", "kernel.custom_field.list", "kernel.attachment.list"];
+const GRANTS = ["support.ticket.create", "support.ticket.consult", "core.party.consult", "core.party.create", "core.party.update", "core.product.consult", "core.product.create", "core.contact.list", "kernel.custom_field.list", "kernel.attachment.list"];
 
 const juridica = {
   kind: ["customer"],
@@ -57,12 +58,13 @@ beforeAll(async () => {
   reader = await seedAuthUser({ role: "member" });
   companyId = fixture.companyIds[0]!;
   const { sql } = fixture;
-  await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${fixture.tenantId}, 'module:core', 'manual'), (${reader.tenantId}, 'module:core', 'manual')`;
+  await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${fixture.tenantId}, 'module:core', 'manual'), (${fixture.tenantId}, 'module:support', 'manual'), (${reader.tenantId}, 'module:core', 'manual')`;
   const [role] = await sql<{ id: string }[]>`select id from kernel.roles where company_id = ${companyId}`;
   for (const process of GRANTS) await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${role!.id}, ${process})`;
   const roles = [role!.id];
   await sql`insert into kernel.custom_fields(company_id, entity, key, label, type, max_length, required, roles_enter, roles_edit, roles_view)
-            values (${companyId}, 'core.party', 'canal', 'Canal de venta', 'text', 20, false, ${roles}, ${roles}, ${roles})`;
+            values (${companyId}, 'core.party', 'canal', 'Canal de venta', 'text', 20, false, ${roles}, ${roles}, ${roles}),
+                   (${companyId}, 'core.party', 'zona', 'Zona', 'text', 20, false, ${[]}::uuid[], ${[]}::uuid[], ${roles})`;
   const readerCompany = reader.companyIds[0]!;
   const [readerRole] = await sql<{ id: string }[]>`select id from kernel.roles where company_id = ${readerCompany}`;
   for (const process of ["core.party.consult", "core.contact.list", "kernel.attachment.list", "kernel.custom_field.list"]) {
@@ -77,6 +79,7 @@ afterAll(async () => {
   await sql.begin(async (tx) => {
     await tx`set local session_replication_role = replica`;
     await tx`delete from core.parties where company_id = any(${companies}::uuid[])`;
+    await tx`delete from support.tickets where company_id = any(${companies}::uuid[])`;
   });
   await sql`delete from core.entity_sequences where company_id = any(${companies}::uuid[])`;
   await sql`delete from kernel.outbox where company_id = any(${companies}::uuid[])`;
@@ -91,6 +94,9 @@ describe("Duplicar", () => {
   it("hands the create form the source's visible data without its identity, and the save records the source", async () => {
     await signInAs(fixture);
     const { id: sourceId } = await run("core.party.create", { ...juridica, extra: { canal: "Mayoristas" }, extraFree: [{ name: "Ruta", value: "Norte 3" }] });
+    // A value the caller sees but may not enter (an admin wrote it): the copy leaves it out, the create would refuse it.
+    await fixture.sql`update core.parties set extra = extra || '{"zona": "Norte"}'::jsonb where id = ${sourceId}`;
+    expect(((await loadRecord("core.party", sourceId))!.record!.extra as Record<string, unknown>).zona).toBe("Norte");
     expect((await loadRecord("core.party", sourceId))!.can.duplicate).toBe(true);
 
     const clone = await cloneRecordAction("core.party", sourceId);
@@ -141,5 +147,21 @@ describe("Duplicar", () => {
     expect(await cloneRecordAction("core.party", own[0]!.id)).toMatchObject({ ok: false, code: "not_found" });
     expect(await cloneRecordAction("core.nope", sourceId)).toMatchObject({ ok: false, code: "invalid_input" });
     expect(await cloneRecordAction("core.party", "x")).toMatchObject({ ok: false, code: "invalid_input" });
+  });
+
+  it("copies a ticket for the support screen's form, and files it with its source", async () => {
+    await signInAs(fixture);
+    const context = { route: "/parties", selection: "", lastAuditIds: [], consoleErrors: [] };
+    const { id: sourceId } = await run("support.ticket.create", { kind: "question", title: "¿Cómo importo productos?", body: "No encuentro la plantilla.", context });
+    const clone = await cloneRecordAction("support.ticket", sourceId);
+    expect(clone).toMatchObject({ ok: true, entity: "support.ticket", sourceTitle: "¿Cómo importo productos?", values: { kind: "question", title: "¿Cómo importo productos?", context } });
+    if (!clone.ok) throw new Error("clone refused");
+    expect(clone.values).not.toHaveProperty("seq");
+    expect(clone.values).not.toHaveProperty("status");
+    const filed = await createTicketAction({ kind: "question", title: "¿Cómo importo productos?", body: "Otra vez.", context }, { sourceRowId: clone.sourceRowId });
+    expect(filed).toMatchObject({ ok: true });
+    const [entry] = await fixture.sql`select source_row_id from kernel.audit_log where row_id = ${(filed as { id: string }).id} and process_id = 'support.ticket.create' and diff is null`;
+    expect(entry!.source_row_id).toBe(sourceId);
+    expect((await loadTicketAction(sourceId)).ok && (await loadTicketAction(sourceId))).toMatchObject({ ticket: { canCreate: true } });
   });
 });

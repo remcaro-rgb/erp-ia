@@ -3,7 +3,7 @@
 import { ProcessError, runnableProcesses, runProcess } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
 import { processDeps } from "@/lib/server/runtime";
-import { TICKET_CLOSE, TICKET_REPLY } from "./load";
+import { TICKET_CLOSE, TICKET_CREATE, TICKET_REPLY } from "./load";
 
 // The support screen's reads and writes (rule 1): every one is a registered process run as the session's user, so
 // the ownership policy, field masking and permissions apply exactly as for the assistant.
@@ -38,6 +38,8 @@ export interface TicketDetail {
   viewerId: string;
   canReply: boolean;
   canClose: boolean;
+  /** "Duplicar" (rule 37): the caller may open a ticket, so they may file a copy of this one. */
+  canCreate: boolean;
 }
 
 export type DetailResult = { ok: true; ticket: TicketDetail } | { ok: false; code: string };
@@ -45,10 +47,12 @@ export type DetailResult = { ok: true; ticket: TicketDetail } | { ok: false; cod
 const refusal = (error: unknown): ActionResult | null =>
   error instanceof ProcessError ? { ok: false, code: error.code, details: Array.isArray(error.details) ? error.details.map((d) => (typeof d === "string" ? d : ((d as { message?: unknown })?.message ?? "")).toString()) : [] } : null;
 
-async function run(processId: string, input: unknown): Promise<ActionResult> {
+async function run(processId: string, input: unknown, sourceRowId?: string): Promise<ActionResult> {
   const caller = await requireCaller();
   try {
-    const out = (await runProcess(processDeps(), caller, processId, input)) as { id: string };
+    // A copy names its source ("Duplicar", rule 37) once the caller has read it: a ticket they cannot see is refused.
+    if (sourceRowId) await runProcess(processDeps(), caller, "support.ticket.consult", { id: sourceRowId });
+    const out = (await runProcess(processDeps(), caller, processId, input, sourceRowId ? { sourceRowId } : {})) as { id: string };
     return { ok: true, id: out.id };
   } catch (error) {
     const known = refusal(error);
@@ -70,7 +74,7 @@ export async function loadTicketAction(id: string): Promise<DetailResult> {
   try {
     const [row, runnable, defs] = await Promise.all([
       runProcess(deps, caller, "support.ticket.consult", { id }) as Promise<Record<string, unknown> & { messages: Record<string, unknown>[] }>,
-      runnableProcesses(deps.sql, deps.registry, caller.claims, [TICKET_REPLY, TICKET_CLOSE]),
+      runnableProcesses(deps.sql, deps.registry, caller.claims, [TICKET_REPLY, TICKET_CLOSE, TICKET_CREATE]),
       customFieldDefs(caller).catch((error: unknown) => {
         // A role that may not list custom fields sees the tab without them.
         if (error instanceof ProcessError && (error.code === "forbidden" || error.code === "not_entitled")) return [];
@@ -105,6 +109,7 @@ export async function loadTicketAction(id: string): Promise<DetailResult> {
         viewerId: caller.claims.sub,
         canReply: runnable.has(TICKET_REPLY),
         canClose: runnable.has(TICKET_CLOSE),
+        canCreate: runnable.has(TICKET_CREATE),
       },
     };
   } catch (error) {
@@ -113,8 +118,9 @@ export async function loadTicketAction(id: string): Promise<DetailResult> {
   }
 }
 
-export async function createTicketAction(input: { kind: string; title: string; body: string; context?: unknown }): Promise<ActionResult> {
-  return run("support.ticket.create", input);
+/** Files a ticket; `sourceRowId` names the ticket it was copied from ("Duplicar"), which the audit records. */
+export async function createTicketAction(input: { kind: string; title: string; body: string; context?: unknown }, options?: { sourceRowId?: string }): Promise<ActionResult> {
+  return run(TICKET_CREATE, input, typeof options?.sourceRowId === "string" ? options.sourceRowId : undefined);
 }
 
 export async function replyTicketAction(ticketId: string, body: string, isInternal: boolean): Promise<ActionResult> {

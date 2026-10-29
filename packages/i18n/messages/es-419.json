@@ -363,7 +363,8 @@
         "author_agent": "Soporte",
         "loading_failed": "No se pudo cargar el ticket.",
         "reported_by": "Reportado por",
-        "hidden": "Oculto para tu rol"
+        "hidden": "Oculto para tu rol",
+        "copy_note": "Revisa el título y la descripción. Los mensajes y los archivos del ticket no se copian."
       }
     },
     "admin": {

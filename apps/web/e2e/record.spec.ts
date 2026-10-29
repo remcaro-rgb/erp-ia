@@ -259,24 +259,36 @@ test.describe("record tabs", () => {
 // core.party.create and the audit viewer shows where it came from.
 test.describe("Duplicar on the demo company", () => {
   const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
-  // A NIT no seeded party uses: the test removes its own copy before and after.
+  // A NIT no seeded party uses. Cleanup removes only copies of Éxito (rows whose creation the audit records as cloned
+  // from it), never a party found by its NIT alone, so a seeded record can never be lost.
   const NIT = "901777001";
-  const forget = () =>
-    sql.begin(async (tx) => {
-      await tx`set local session_replication_role = replica`;
-      await tx`delete from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NIT}`;
-    });
+  let exitoId = "";
+  const started = new Date();
+  const forgetCopies = (since?: Date) => sql`
+    delete from core.parties
+    where company_id = ${DEMO_COMPANY_ID}
+      and id in (select row_id from kernel.audit_log
+                 where source_row_id = ${exitoId} and process_id = 'core.party.create' and action = 'insert'
+                   and occurred_at >= ${since ?? new Date(0)})
+      ${since ? sql`` : sql`and document_number = ${NIT}`}`;
 
-  test.beforeAll(forget);
+  test.beforeAll(async () => {
+    const [exito] = await sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = '890900608'`;
+    exitoId = exito.id;
+    // A copy an interrupted earlier run left; then the NIT must be free (else the demo data changed: reseed).
+    await forgetCopies();
+    const taken = await sql`select legal_name from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NIT}`;
+    expect(taken, `NIT ${NIT} belongs to a party that is not a copy of Éxito: reseed the demo data`).toHaveLength(0);
+  });
   test.afterAll(async () => {
-    await forget();
+    await forgetCopies(started);
     await sql.end({ timeout: 5 });
   });
 
   test("Duplicar Éxito → a new NIT → saved, and the audit shows clonado desde Almacenes Éxito", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
-    const [exito] = await sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = '890900608'`;
+    const exito = { id: exitoId };
     await page.goto("/login");
     await page.getByLabel("Correo").fill(LAURA.email);
     await page.getByLabel("Contraseña", { exact: true }).fill(LAURA.password);
@@ -285,16 +297,18 @@ test.describe("Duplicar on the demo company", () => {
     await page.getByLabel("Dígito 1").fill(totpCode(LAURA.totpSecret!));
     await expect(page).toHaveURL(/\/$/);
 
-    await page.goto(`/r/core.party/${exito!.id}`);
+    await page.goto(`/r/core.party/${exito.id}`);
     await expect(page.getByRole("heading", { name: "Almacenes Éxito S.A." })).toBeVisible();
     await expect(page.getByRole("button", { name: "Duplicar" })).toHaveAttribute("aria-keyshortcuts", "Control+D Meta+D");
-    await page.getByRole("button", { name: "Duplicar" }).click();
+    // The shortcut, from the page (not from a text box): the browser's bookmark is not what happens.
+    await page.getByRole("heading", { name: "Almacenes Éxito S.A." }).click();
+    await page.keyboard.press("ControlOrMeta+d");
 
     // The create form, prefilled from the copy: the record's data is not in the URL.
     await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
     const banner = page.getByRole("status").filter({ hasText: "Copia de" });
     await expect(banner).toContainText("Copia de Almacenes Éxito S.A.");
-    await expect(banner.getByRole("link", { name: "Almacenes Éxito S.A." })).toHaveAttribute("href", `/r/core.party/${exito!.id}`);
+    await expect(banner.getByRole("link", { name: "Almacenes Éxito S.A." })).toHaveAttribute("href", `/r/core.party/${exito.id}`);
     // The router keeps the source's page alive but hidden: the visible boxes are the copy's.
     await expect(page.getByRole("textbox", { name: /^Razón social/ })).toHaveValue("Almacenes Éxito S.A.");
     const number = page.getByRole("textbox", { name: /^Número/ });
@@ -313,7 +327,7 @@ test.describe("Duplicar on the demo company", () => {
     expect(clone).toMatchObject({ legal_name: "Almacenes Éxito S.A." });
     await expect(page).toHaveURL(new RegExp(`/r/core\\.party/${clone!.id}$`));
     const [entry] = await sql`select source_row_id from kernel.audit_log where row_id = ${clone!.id} and process_id = 'core.party.create' and diff is null`;
-    expect(entry!.source_row_id).toBe(exito!.id);
+    expect(entry!.source_row_id).toBe(exito.id);
     // Contacts and files stay with the source.
     expect((await sql`select 1 from kernel.attachments where record_id = ${clone!.id}`).length).toBe(0);
     expect((await sql`select 1 from core.party_contacts where party_id = ${clone!.id}`).length).toBe(0);
@@ -325,6 +339,6 @@ test.describe("Duplicar on the demo company", () => {
     await expect(row).toContainText("clonado desde Almacenes Éxito");
     // Registro is the copy (same name) and the origin links the source.
     await expect(row.locator(`a[href="/r/core.party/${clone!.id}"]`)).toHaveText("Almacenes Éxito S.A.");
-    await expect(row.locator(`a[href="/r/core.party/${exito!.id}"]`)).toHaveText("Almacenes Éxito S.A.");
+    await expect(row.locator(`a[href="/r/core.party/${exito.id}"]`)).toHaveText("Almacenes Éxito S.A.");
   });
 });

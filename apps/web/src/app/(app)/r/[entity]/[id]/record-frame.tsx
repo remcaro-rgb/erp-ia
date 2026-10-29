@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyn
 import { useTranslations } from "next-intl";
 import { RecordFrame, recordHref, useTabs, type RecordFrameProps } from "@erp/ui";
 import { cloneRecordAction } from "@/lib/records/clone";
-import { handOffClone, pendingClone, releaseClone, subscribeClones, type CloneHandoff } from "@/lib/records/clone-handoff";
+import { currentClone, finishClone, handOffClone, leaveClone, subscribeClones, takeClone, type CloneHandoff } from "@/lib/records/clone-handoff";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
 
 // The record frame of the app (rule 37): on a stored record the caller may copy, "Duplicar" (or Ctrl+D / ⌘+D) reads
@@ -14,7 +14,7 @@ import { NEW_RECORD_ID } from "@/lib/records/entities";
 interface RecordClone {
   /** The copy the new record's form starts from, when it was opened by "Duplicar". */
   clone: CloneHandoff | null;
-  /** The copy was saved: the form starts empty the next time it is shown. */
+  /** The copy was saved: it goes, and the form starts empty the next time it is shown. */
   done: () => void;
 }
 
@@ -37,14 +37,18 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
   const open = useTabs((s) => s.open);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  // The create form takes the copy waiting for its entity. The router keeps a visited page alive while hidden; a hidden
-  // page is not subscribed, and when it is shown again it reads the store and adopts a newer copy (a new "Duplicar").
-  const waiting = useSyncExternalStore(subscribeClones, () => (recordId === null ? pendingClone(entity) : null), () => null);
-  const [clone, setClone] = useState(waiting);
-  if (waiting && waiting !== clone) setClone(waiting);
-  // Taken: it no longer waits (a later "Nuevo" opens an empty form), and this frame keeps it until it is saved.
-  useEffect(() => releaseClone(waiting), [waiting]);
-  const shared = useMemo<RecordClone>(() => ({ clone, done: () => setClone(null) }), [clone]);
+  // The create form shows the copy handed to its entity and takes it once shown; leaving the form (the router hides a
+  // visited page) lets the copy go, so the form shown again later without a fresh "Duplicar" is empty.
+  const clone = useSyncExternalStore(subscribeClones, () => (recordId === null ? currentClone(entity) : null), () => null);
+  useEffect(() => {
+    if (recordId !== null) return;
+    takeClone(entity);
+  }, [entity, recordId, clone]);
+  useEffect(() => {
+    if (recordId !== null) return;
+    return () => leaveClone(entity);
+  }, [entity, recordId]);
+  const shared = useMemo<RecordClone>(() => ({ clone, done: () => finishClone(entity) }), [clone, entity]);
   const running = useRef(false);
 
   const duplicate = async () => {

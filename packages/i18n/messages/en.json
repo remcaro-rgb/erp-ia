@@ -363,7 +363,8 @@
         "author_agent": "Support",
         "loading_failed": "The ticket could not be loaded.",
         "reported_by": "Reported by",
-        "hidden": "Hidden for your role"
+        "hidden": "Hidden for your role",
+        "copy_note": "Check the title and the description. The ticket's messages and files are not copied."
       }
     },
     "admin": {

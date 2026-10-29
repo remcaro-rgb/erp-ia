@@ -50,11 +50,11 @@ Tus pestañas se guardan en tu usuario, por empresa: al volver a ingresar, o des
 Para crear un registro parecido a uno que ya existe (un tercero de la misma cadena, un producto en otra presentación, una categoría con los mismos impuestos), ábrelo y pulsa **Duplicar**, arriba a la derecha junto a «Abrir en una pestaña nueva», o usa **Ctrl+D** (en Mac, **⌘D**) mientras el registro está abierto.
 
 - Se abre la pestaña «Crear …» con el formulario lleno con los datos **guardados** del registro de origen (lo que estabas cambiando sin guardar no pasa a la copia), y un aviso **«Copia de <nombre>»** con un enlace al original.
-- Quedan vacíos los datos que identifican al registro, para que escribas los del nuevo: en un tercero, el **número de documento** y su **DV**; en un producto, el **código interno (SKU)**; en una categoría, el **nombre**. El **N.º** consecutivo, el estado DIAN y «Listo para facturar» se calculan de nuevo al crear.
+- Quedan vacíos los datos que identifican al registro, para que escribas los del nuevo: en un tercero, el **número de documento** y su **DV**; en un producto, el **código interno (SKU)**; en una categoría, el **nombre**; un ticket de soporte se copia al formulario **Nuevo ticket** y queda **Abierto**. El **N.º** consecutivo, el estado DIAN y «Listo para facturar» se calculan de nuevo al crear.
 - No se copian los **contactos**, las **fotos** ni los **archivos**: quedan en el registro de origen. Los datos adicionales que puedes ver sí se copian.
-- Solo se copia lo que tu rol puede ver: un campo enmascarado u oculto para ti (por ejemplo, el cupo de crédito) queda vacío en la copia.
+- Solo se copia lo que tu rol puede ver, y de los datos adicionales solo los que tu rol puede ingresar: un campo enmascarado u oculto para ti (por ejemplo, el cupo de crédito) queda vacío en la copia.
 - Revisa y pulsa **Crear**. La copia pasa por las mismas validaciones, permisos y código de verificación que un registro nuevo: si dejas vacío el número de documento, o escribes el de un tercero que ya existe, el sistema lo rechaza igual.
-- **Duplicar** aparece solo si tu rol puede crear registros de ese tipo. La auditoría muestra el nuevo registro con «clonado desde <nombre del original>».
+- **Duplicar** aparece solo si tu rol puede crear registros de ese tipo. Mientras escribes en un cuadro de texto, o con una ventana abierta encima, **Ctrl+D** no duplica. Si sales del formulario de la copia sin guardarla, la copia se descarta: al volver, el formulario está vacío. La auditoría muestra el nuevo registro con «clonado desde <nombre del original>».
 
 ## La paleta de comandos (⌘K)
 

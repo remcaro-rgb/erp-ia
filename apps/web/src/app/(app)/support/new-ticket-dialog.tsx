@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@erp/ui/components/ui/dialog";
+import { recordHref } from "@erp/ui";
+import type { CloneHandoff } from "@/lib/records/clone-handoff";
 import { captureContext } from "@/lib/support/capture";
 import type { CapturedContext } from "@/lib/support/capture-model";
 import { failureText } from "@/lib/support/failure";
@@ -16,6 +18,8 @@ export interface NewTicketDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Called with the id of the ticket just filed. */
   onCreated: (id: string) => void;
+  /** A copy of a ticket ("Duplicar", rule 37): the form starts from it and files it with the source. */
+  copy?: CloneHandoff | null;
 }
 
 /** "Nuevo ticket": kind, title and description, with the screen context the shell captured shown and removable. */
@@ -31,21 +35,33 @@ export function NewTicketDialog(props: NewTicketDialogProps) {
             ✕
           </button>
         </div>
-        {props.open && <NewTicketForm {...props} />}
+        {props.open && <NewTicketForm key={props.copy ? `copy-${props.copy.handoffId}` : "new"} {...props} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function NewTicketForm({ onOpenChange, onCreated }: NewTicketDialogProps) {
+const text = (value: unknown): string => (typeof value === "string" ? value : "");
+const texts = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
+
+/** The copied ticket's context as the form shows it; null when the copy has none (the caller may not see it). */
+function copiedContext(copy: CloneHandoff | null | undefined): CapturedContext | null {
+  const value = copy?.values.context;
+  if (typeof value !== "object" || value === null) return null;
+  const c = value as Record<string, unknown>;
+  return { route: text(c.route), selection: text(c.selection), lastAuditIds: texts(c.lastAuditIds), consoleErrors: texts(c.consoleErrors) };
+}
+
+function NewTicketForm({ onOpenChange, onCreated, copy }: NewTicketDialogProps) {
   const t = useTranslations();
   const pathname = usePathname();
   const base = useId();
-  // Captured when the form opens: what the user selected and the errors seen so far describe the screen before it.
-  const [context] = useState<CapturedContext>(() => captureContext(pathname));
-  const [kind, setKind] = useState<(typeof KINDS)[number]>("bug");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  // Captured when the form opens: what the user selected and the errors seen so far describe the screen before it. A
+  // copy keeps the source's context instead (its visible data, rule 37).
+  const [context] = useState<CapturedContext>(() => copiedContext(copy) ?? captureContext(pathname));
+  const [kind, setKind] = useState<(typeof KINDS)[number]>(() => KINDS.find((k) => k === copy?.values.kind) ?? "bug");
+  const [title, setTitle] = useState(() => text(copy?.values.title));
+  const [body, setBody] = useState(() => text(copy?.values.body));
   const [attach, setAttach] = useState(true);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -55,7 +71,7 @@ function NewTicketForm({ onOpenChange, onCreated }: NewTicketDialogProps) {
     setBusy(true);
     setProblem(null);
     try {
-      const result = await createTicketAction({ kind, title, body, ...(attach ? { context } : {}) });
+      const result = await createTicketAction({ kind, title, body, ...(attach ? { context } : {}) }, copy ? { sourceRowId: copy.sourceRowId } : undefined);
       if (result.ok) {
         onOpenChange(false);
         onCreated(result.id);
@@ -70,8 +86,19 @@ function NewTicketForm({ onOpenChange, onCreated }: NewTicketDialogProps) {
   };
 
   const hasContext = context.route !== "" || context.selection !== "" || context.consoleErrors.length > 0;
+  const [copyBefore, copyAfter = ""] = (t.raw("common.record.copy_of") as string).split("{name}");
   return (
     <form onSubmit={submit} className="erp-dialog__body">
+      {copy && (
+        <div role="status" className="erp-dian erp-dian--info">
+          <strong>
+            {copyBefore}
+            <a href={recordHref("support.ticket", copy.sourceRowId)}>{copy.sourceTitle}</a>
+            {copyAfter}
+          </strong>{" "}
+          {t("common.support.ui.copy_note")}
+        </div>
+      )}
       <div className="erp-field">
         <label htmlFor={`${base}-kind`}>{t("common.support.ui.kind")}</label>
         <select id={`${base}-kind`} value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}>

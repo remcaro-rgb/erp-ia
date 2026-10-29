@@ -148,6 +148,56 @@ describe("RecordFrame Duplicar (rule 37)", () => {
     expect(onDuplicate).toHaveBeenCalledTimes(2);
   });
 
+  it("leaves Ctrl/⌘+D to text boxes and to a dialog opened over the page, but answers it inside a frame shown in a dialog", () => {
+    const onDuplicate = vi.fn();
+    render(
+      <>
+        {existing(onDuplicate)}
+        <input aria-label="caja" />
+        <textarea aria-label="nota" />
+        <select aria-label="lista">
+          <option>a</option>
+        </select>
+        <div aria-label="editable" contentEditable suppressContentEditableWarning />
+      </>,
+    );
+    const press = (target: Element, init: KeyboardEventInit = { ctrlKey: true }) => {
+      const event = new KeyboardEvent("keydown", { key: "d", bubbles: true, cancelable: true, ...init });
+      target.dispatchEvent(event);
+      return event;
+    };
+    for (const name of ["caja", "nota", "lista", "editable"]) {
+      expect(press(screen.getByLabelText(name)).defaultPrevented).toBe(false);
+      expect(press(screen.getByLabelText(name), { metaKey: true }).defaultPrevented).toBe(false);
+    }
+    expect(onDuplicate).not.toHaveBeenCalled();
+    // ⌘D outside a text box still duplicates.
+    expect(press(document.body, { metaKey: true }).defaultPrevented).toBe(true);
+    expect(onDuplicate).toHaveBeenCalledTimes(1);
+    // A modal over the page (the step-up prompt, the advanced filter…) keeps its keys.
+    const modal = document.createElement("div");
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    document.body.appendChild(modal);
+    expect(press(modal).defaultPrevented).toBe(false);
+    expect(press(document.body).defaultPrevented).toBe(false);
+    modal.remove();
+    expect(onDuplicate).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers Ctrl+D when the frame itself is shown in a dialog (the ticket sheet)", () => {
+    const onDuplicate = vi.fn();
+    render(
+      <div role="dialog" aria-modal="true">
+        {existing(onDuplicate)}
+      </div>,
+    );
+    const event = new KeyboardEvent("keydown", { key: "d", ctrlKey: true, bubbles: true, cancelable: true });
+    screen.getByRole("tab", { name: /^Datos$/ }).dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(onDuplicate).toHaveBeenCalledTimes(1);
+  });
+
   it("does nothing while a duplicate is under way, and stops listening once unmounted", () => {
     const onDuplicate = vi.fn();
     const { unmount } = render(existing(onDuplicate, { duplicating: true }));

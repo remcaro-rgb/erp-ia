@@ -47,7 +47,9 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
   const [selected, setSelected] = useState<RecordTabId | undefined>(initialTab ?? first);
   const active = tabs.some((t) => t.id === selected) ? selected : first;
 
-  // Ctrl+D / ⌘+D anywhere on the page while the frame shows a record that can be duplicated.
+  // Ctrl+D / ⌘+D on the page while the frame shows a record that can be duplicated; not inside a text box (Ctrl+D is
+  // forward delete there on a Mac) and not while a dialog opened over the frame holds the keys.
+  const root = useRef<HTMLElement>(null);
   const duplicate = useRef({ onDuplicate, duplicating });
   duplicate.current = { onDuplicate, duplicating };
   const canDuplicate = onDuplicate !== undefined;
@@ -55,6 +57,7 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
     if (!canDuplicate) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "d") return;
+      if (isEditable(event.target) || dialogOver(root.current)) return;
       event.preventDefault();
       const { onDuplicate: run, duplicating: busy } = duplicate.current;
       if (run && !busy && !event.repeat) run();
@@ -80,7 +83,7 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
   };
 
   return (
-    <section className={["erp-record", className].filter(Boolean).join(" ")}>
+    <section ref={root} className={["erp-record", className].filter(Boolean).join(" ")}>
       {/* Title and tabs stay in view while a long Datos form scrolls (the shell's <main> is the scroller). */}
       <div className="erp-record__top">
         <header className="erp-record__header">
@@ -144,4 +147,17 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
       </footer>
     </section>
   );
+}
+
+/** A text box, list or editable region: its own keys win over the frame's shortcut. */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest("input, textarea, select")) return true;
+  const editable = target.closest("[contenteditable]");
+  return editable !== null && editable.getAttribute("contenteditable") !== "false";
+}
+
+/** An open dialog that does not contain the frame (a frame shown in a sheet still answers its shortcut). */
+function dialogOver(frame: HTMLElement | null): boolean {
+  return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')].some((dialog) => !frame || !dialog.contains(frame));
 }

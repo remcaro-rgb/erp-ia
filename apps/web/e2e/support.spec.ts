@@ -188,4 +188,34 @@ test.describe("support tickets", () => {
     await mine.context().close();
     await theirs.context().close();
   });
+
+  test("Duplicar on a ticket opens Nuevo ticket with the copy, and the new ticket names its source in the audit", async ({ browser }) => {
+    const { sql } = reporter;
+    const context = { route: "/parties", selection: "", lastAuditIds: [], consoleErrors: [] };
+    const [source] = await sql<{ id: string }[]>`
+      insert into support.tickets(company_id, reporter_user_id, kind, title, body, context, status)
+      values (${companyId}, ${reporter.userId}, 'request', 'Necesito otra lista de precios', 'Para mayoristas.', ${sql.json(context)}, 'answered') returning id`;
+    const mine = await signedInPage(browser, reporter.email, reporter.password);
+    await mine.goto("/support");
+    const grid = mine.getByRole("region", { name: "Soporte" });
+    await grid.locator("tbody tr.erp-row-link").filter({ hasText: "Necesito otra lista de precios" }).click();
+    const sheet = mine.getByRole("dialog").filter({ hasText: "Necesito otra lista de precios" });
+    await sheet.getByRole("button", { name: "Duplicar" }).click();
+
+    const dialog = mine.getByRole("dialog", { name: "Nuevo ticket de soporte" });
+    await expect(dialog.getByRole("status")).toContainText("Copia de Necesito otra lista de precios");
+    await expect(dialog.getByRole("status").getByRole("link")).toHaveAttribute("href", `/r/support.ticket/${source!.id}`);
+    await expect(dialog.getByLabel("Tipo")).toHaveValue("request");
+    await expect(dialog.getByLabel("Título")).toHaveValue("Necesito otra lista de precios");
+    await expect(dialog.locator("dd.erp-mono").first()).toHaveText("/parties");
+    await dialog.getByLabel("Título").fill("Necesito otra lista de precios para distribuidores");
+    await dialog.getByRole("button", { name: "Enviar ticket" }).click();
+
+    await expect.poll(async () => (await sql`select 1 from support.tickets where title = 'Necesito otra lista de precios para distribuidores'`).length).toBe(1);
+    const [copy] = await sql<{ id: string; status: string; context: unknown }[]>`select id, status, context from support.tickets where title = 'Necesito otra lista de precios para distribuidores'`;
+    expect(copy).toMatchObject({ status: "open", context });
+    const [entry] = await sql`select source_row_id from kernel.audit_log where row_id = ${copy!.id} and process_id = 'support.ticket.create' and diff is null`;
+    expect(entry!.source_row_id).toBe(source!.id);
+    await mine.context().close();
+  });
 });

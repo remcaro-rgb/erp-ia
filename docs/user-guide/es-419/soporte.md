@@ -21,6 +21,8 @@ Si algo no funciona, tienes una duda o necesitas que cambien algo, abre un **tic
 4. Escribe un **Título** corto y cuenta qué pasó o qué necesitas.
 5. Pulsa **Enviar ticket**. El ticket se abre a la derecha con su número (N.º) y su identificador.
 
+Para abrir un ticket parecido a otro, ábrelo y pulsa **Duplicar** (o **Ctrl+D**, en Mac **⌘D**): el formulario **Nuevo ticket** se abre con su tipo, título, descripción y contexto, y el aviso «Copia de <título>»; el nuevo ticket queda **Abierto** con su propio N.º, sin los mensajes ni los archivos del original, y la auditoría lo muestra «clonado desde» el original (guía **Moverse por el sistema**, «Duplicar un registro»).
+
 ## El contexto que se adjunta
 
 Para que soporte entienda el caso sin preguntarte todo, el ticket lleva, si no lo quitas:
