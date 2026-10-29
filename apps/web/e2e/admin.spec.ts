@@ -221,6 +221,12 @@ test.describe("administration", () => {
     await leave.getByRole("button", { name: "Seguir editando" }).click();
     await expect(leave).toHaveCount(0);
     await expect(page).toHaveURL(/\/admin\/permissions$/);
+    // So does the browser's Back.
+    await page.goBack();
+    await expect(leave).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/permissions$/);
+    await leave.getByRole("button", { name: "Seguir editando" }).click();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("3 cambios sin aplicar");
 
     // One apply, one code, one batch.
     const before = await stepUps();
@@ -249,32 +255,55 @@ test.describe("administration", () => {
     await bar.getByRole("button", { name: "Descartar" }).click();
     await expect(cell(page, "core.party.create")).toBeChecked();
     await expect(page.locator("td.is-dirty")).toHaveCount(0);
+
+    // Sistema: the administration processes are the admin role's only, locked for Despachos and left out of "todos",
+    // so the module applies cleanly and the button turns into "ninguno".
+    await expect(cell(page, "kernel.admin.role.create")).toBeDisabled();
+    await expect(page.getByRole("row").filter({ hasText: "kernel.admin.role.create" }).locator("label[title='Solo el rol admin ejecuta los procesos de administración']")).toHaveCount(3);
+    await page.getByRole("button", { name: "Dar a Despachos todos los procesos de Sistema" }).click();
+    await expect(cell(page, "kernel.admin.role.create")).not.toBeChecked();
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.getByText("Cambios guardados")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Quitar a Despachos todos los procesos de Sistema" })).toBeVisible();
+    const held = await grantsOf(despachos);
+    expect(held).toContain("kernel.audit.consult");
+    expect(held.filter((id) => id.startsWith("kernel.admin.") || id.startsWith("kernel.required_file.") || id === "kernel.verifier.set")).toEqual([]);
   });
 
   test("an invalid batch marks the refused cell, keeps the changes staged and applies nothing", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
+    const { sql } = fixture;
+    // A role that disappears while its cell is staged: the batch is refused at that change, whatever else it carries.
+    const [temporary] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'Temporal') returning id`;
     await signInWithCode(page, fixture.email, fixture.password, secret);
     await page.goto("/admin/permissions");
     const before = await grantsOf(despachos);
     const bar = page.locator(".erp-admin__bar");
 
     await cell(page, "core.product.create").check();
-    // An administration process is never given to another role: the whole batch is refused.
-    await cell(page, "kernel.admin.role.create").check();
+    await cell(page, "core.party.consult", "Temporal").check();
     await cell(page, "core.product.update").check();
+    await sql`delete from kernel.roles where id = ${temporary!.id}`;
     await bar.getByRole("button", { name: "Aplicar cambios" }).click();
     await confirmStepUp(page, secret);
-    await expect(bar.getByRole("alert")).toContainText("Los procesos de administración son solo del rol admin");
+    await expect(bar.getByRole("alert")).toContainText("El rol no pertenece a la empresa");
     await expect(page.locator("td.is-refused")).toHaveCount(1);
-    await expect(page.getByRole("row").filter({ hasText: "kernel.admin.role.create" }).locator("td.is-refused").filter({ has: page.getByRole("checkbox", { name: /^Despachos / }) })).toHaveCount(1);
-    await expect(cell(page, "kernel.admin.role.create")).toHaveAttribute("aria-invalid", "true");
+    const refused = cell(page, "core.party.consult", "Temporal");
+    await expect(page.getByRole("row").filter({ hasText: "core.party.consult" }).locator("td.is-refused").filter({ has: page.getByRole("checkbox", { name: /^Temporal / }) })).toHaveCount(1);
+    await expect(refused).toHaveAttribute("aria-invalid", "true");
+    await expect(refused).toHaveAccessibleDescription("El rol no pertenece a la empresa");
+    await expect(bar.locator(".erp-admin__refused")).toHaveText("1 cambio rechazado");
     await expect(bar.locator(".erp-admin__pending")).toHaveText("3 cambios sin aplicar");
     expect(await grantsOf(despachos)).toEqual(before);
 
-    // Unticking the refused cell clears its mark; the other two apply with a new code.
-    await cell(page, "kernel.admin.role.create").uncheck();
+    // Staging the cell again (here through the module's "todos") clears its mark; "ninguno" takes those cells back.
+    await page.getByRole("button", { name: "Dar a Temporal todos los procesos de Núcleo" }).click();
     await expect(page.locator("td.is-refused")).toHaveCount(0);
+    await expect(bar.locator(".erp-admin__refused")).toHaveCount(0);
+    await page.getByRole("button", { name: "Quitar a Temporal todos los procesos de Núcleo" }).click();
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
     await bar.getByRole("button", { name: "Aplicar cambios" }).click();
     await confirmStepUp(page, secret);
     await expect(bar.getByText("Cambios guardados")).toBeVisible();
@@ -285,9 +314,25 @@ test.describe("administration", () => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await signInWithCode(page, fixture.email, fixture.password, secret);
+    const { sql } = fixture;
+    const [fleeting] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'Efímero') returning id`;
     await page.goto("/admin/fields");
     const bar = page.locator(".erp-admin__bar");
-    const field = (name: string) => page.getByRole("row").filter({ hasText: name }).getByRole("combobox", { name: /^Despachos / });
+    const field = (name: string, role = "Despachos") => page.getByRole("row").filter({ hasText: name }).getByRole("combobox", { name: new RegExp(`^${role} `) });
+    const entity = page.getByLabel("Entidad", { exact: true });
+
+    // A refused cell of an entity no longer on screen: the bar says how many and where.
+    await field("credit_limit", "Efímero").selectOption("hidden");
+    await entity.selectOption("core.product");
+    await field("brand").selectOption("masked");
+    await sql`delete from kernel.roles where id = ${fleeting!.id}`;
+    await bar.getByRole("button", { name: "Aplicar cambios" }).click();
+    await confirmStepUp(page, secret);
+    await expect(bar.locator(".erp-admin__refused")).toHaveText("1 cambio rechazado · también en Tercero");
+    await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
+    await bar.getByRole("button", { name: "Descartar" }).click();
+    await expect(bar.locator(".erp-admin__refused")).toHaveCount(0);
+    await entity.selectOption("core.party");
     await field("credit_limit").selectOption("hidden");
     await field("trade_name").selectOption("masked");
     await expect(bar.locator(".erp-admin__pending")).toHaveText("2 cambios sin aplicar");
@@ -306,6 +351,17 @@ test.describe("administration", () => {
     await page.reload();
     await expect(field("credit_limit")).toHaveValue("hidden");
     await expect(field("trade_name")).toHaveValue("masked");
+
+    // Back with a staged change asks; leaving drops it.
+    await field("trade_name").selectOption("visible");
+    await page.goBack();
+    const leave = page.getByRole("alertdialog", { name: "Hay cambios sin aplicar" });
+    await expect(leave).toBeVisible();
+    await expect(page).toHaveURL(/\/admin\/fields$/);
+    await leave.getByRole("button", { name: "Salir sin aplicar" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    const [kept] = await sql<{ mode: string }[]>`select mode from kernel.field_permissions where role_id = ${despachos} and entity = 'core.party' and field = 'trade_name'`;
+    expect(kept!.mode).toBe("masked");
   });
 
   test("every administration section opens for the admin; a member is told they may not administer", async ({ page, browser }) => {

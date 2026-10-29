@@ -380,6 +380,8 @@
       "leave_body": "{count, plural, one {# cambio se pierde} other {# cambios se pierden}} si sales sin aplicarlos.",
       "leave_stay": "Seguir editando",
       "leave_go": "Salir sin aplicar",
+      "refused_changes": "{count, plural, one {# cambio rechazado} other {# cambios rechazados}}",
+      "refused_elsewhere": "también en {entities}",
       "kind": {
         "create": "crear",
         "update": "actualizar",
@@ -408,7 +410,8 @@
         "admin_locked": "El rol admin tiene todos los permisos",
         "all": "todos",
         "none": "ninguno",
-        "grant_module": "{mode, select, none {Quitar a {role} todos los procesos de {module}} other {Dar a {role} todos los procesos de {module}}}"
+        "grant_module": "{mode, select, none {Quitar a {role} todos los procesos de {module}} other {Dar a {role} todos los procesos de {module}}}",
+        "admin_only": "Solo el rol admin ejecuta los procesos de administración"
       },
       "roles": {
         "title": "Roles",

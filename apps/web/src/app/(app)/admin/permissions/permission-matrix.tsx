@@ -14,7 +14,8 @@ const cellKey = (roleId: string, processId: string) => `${roleId}:${processId}`;
  * Roles as columns, the processes of the company's modules as rows grouped by module, each with the entity it acts on
  * (its name beside the id, design §6). A click stages the cell; the staged cells are applied together with one step-up
  * through kernel.admin.permission.set_many (OD-7). Each module row offers "todos / ninguno" per role. The system admin
- * role holds everything and is not edited here.
+ * role holds everything and is not edited here; the administration processes are its own, so their cells are locked for
+ * every other role and the module buttons leave them out.
  */
 export function PermissionMatrix({ data }: { data: PermissionsData }) {
   const t = useTranslations();
@@ -60,15 +61,17 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
           <tbody>
             {modules.map((moduleId) => {
               const processes = data.processes.filter((p) => p.module === moduleId);
+              // What a module's "todos / ninguno" may change: never an administration process.
+              const grantable = processes.filter((p) => !p.admin);
               const moduleName = t(`nav.modules.${moduleId}`);
               return (
                 <Fragment key={moduleId}>
                   <tr className="erp-matrix__group">
                     <td className="erp-matrix__left">{moduleName}</td>
                     {data.roles.map((role) => {
-                      if (role.isSystemAdmin) return <td key={role.id} />;
+                      if (role.isSystemAdmin || grantable.length === 0) return <td key={role.id} />;
                       // Everything given → "ninguno" takes it all back; otherwise "todos" gives every process of the module.
-                      const target = moduleTarget(processes.map((p) => granted(role.id, p.id)));
+                      const target = moduleTarget(grantable.map((p) => granted(role.id, p.id)));
                       return (
                         <td key={role.id}>
                           <button
@@ -76,7 +79,7 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
                             className="erp-link"
                             disabled={staged.busy}
                             aria-label={t("common.admin.permissions.grant_module", { mode: target ? "all" : "none", role: role.name, module: moduleName })}
-                            onClick={() => staged.setAll(processes.map((p) => ({ key: cellKey(role.id, p.id), value: target, stored: storedOf(role.id, p.id) })))}
+                            onClick={() => staged.setAll(grantable.map((p) => ({ key: cellKey(role.id, p.id), value: target, stored: storedOf(role.id, p.id) })))}
                           >
                             {target ? t("common.admin.permissions.all") : t("common.admin.permissions.none")}
                           </button>
@@ -106,19 +109,24 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
                         const label = `${role.name} ${process.id}`;
                         const isStaged = staged.isStaged(key);
                         const refusal = staged.refusal(key);
+                        // Only the admin role holds an administration process; one another role still holds (granted
+                        // before the rule) can be taken away.
+                        const locked = !role.isSystemAdmin && process.admin && !storedOf(role.id, process.id);
                         return (
                           <td key={role.id} className={refusal ? "is-refused" : isStaged ? "is-dirty" : undefined}>
                             {/* The whole cell is the target; Space toggles the focused checkbox. */}
-                            <label className="erp-matrix__hit" title={refusal}>
+                            <label className="erp-matrix__hit" title={refusal ?? (locked ? t("common.admin.permissions.admin_only") : undefined)}>
                               <input
                                 type="checkbox"
                                 aria-label={isStaged ? t("common.admin.pending_cell", { label }) : label}
                                 aria-invalid={refusal ? true : undefined}
+                                aria-describedby={refusal ? staged.reasonId(key) : undefined}
                                 checked={role.isSystemAdmin || granted(role.id, process.id)}
-                                disabled={role.isSystemAdmin || staged.busy}
+                                disabled={role.isSystemAdmin || locked || staged.busy}
                                 onChange={(event) => toggle(role.id, process.id, event.target.checked)}
                               />
                             </label>
+                            {staged.reason(key)}
                           </td>
                         );
                       })}

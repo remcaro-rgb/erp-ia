@@ -1,5 +1,6 @@
 import type { Registry } from "../registry";
 import type { ProcessDef, ProcessKind } from "../registry/types";
+import { ADMIN_FEATURE } from "./common";
 
 // What the permission matrix shows for each process (design §6: "the permission matrix shows the entity name next to
 // each process id"): the module it belongs to, the entity it acts on and the i18n key naming that entity.
@@ -17,6 +18,8 @@ export interface MatrixProcess {
   entityLabel: string;
   /** The process always asks for the step-up (its definition says so); the admin cannot lower it. */
   stepUp: boolean;
+  /** An administration process (feature kernel.admin): only the system admin role holds it, never given to another role. */
+  admin: boolean;
 }
 
 /** The entity and its label key for one process of the registry. */
@@ -32,6 +35,7 @@ export function matrixProcess(registry: Registry, process: ProcessDef): MatrixPr
     entity,
     entityLabel: registered?.label ?? feature?.label ?? `nav.modules.${process.module}`,
     stepUp: process.sensitivity === "step-up",
+    admin: process.feature === ADMIN_FEATURE,
   };
 }
 

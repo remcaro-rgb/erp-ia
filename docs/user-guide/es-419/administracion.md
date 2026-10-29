@@ -86,18 +86,18 @@ Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuari
 
 Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**. Con el teclado, ve a la casilla con **Tab** y pulsa **Espacio**. Los cambios no se guardan uno por uno: cada casilla cambiada queda **pendiente** (con un borde de color) y la barra fija debajo de la matriz cuenta cuántos hay, por ejemplo «3 cambios sin aplicar». Si vuelves a dejar una casilla como estaba, deja de contar.
 
-Para un rol nuevo, usa **todos** en la fila de un módulo: marca de una vez todos los procesos de ese módulo para ese rol. Si el rol ya los tiene todos, el mismo botón dice **ninguno** y los quita.
+Para un rol nuevo, usa **todos** en la fila de un módulo: marca de una vez todos los procesos de ese módulo para ese rol (menos los de administración, que son solo del rol admin). Si el rol ya los tiene todos, el mismo botón dice **ninguno** y los quita.
 
 Cuando termines:
 
 1. Pulsa **Aplicar cambios** e ingresa tu código. Todos los cambios se aplican juntos, con **un solo código**, y quedan en la auditoría como una sola acción con la lista de cambios (`kernel.admin.permission.set_many`).
 2. O pulsa **Descartar** para dejar la matriz como estaba.
 
-Si algún cambio no se puede aplicar, **no se aplica ninguno**: la casilla con el problema queda marcada en rojo, el motivo aparece en la barra y los demás cambios siguen pendientes. Corrige esa casilla y vuelve a pulsar **Aplicar cambios**. Si sales de la pantalla con cambios pendientes, el sistema te pregunta si quieres **Seguir editando** o **Salir sin aplicar**.
+Si algún cambio no se puede aplicar (por ejemplo, porque otro administrador quitó ese rol mientras tanto), **no se aplica ninguno**: la casilla con el problema queda marcada en rojo, la barra dice cuántos cambios se rechazaron y por qué, y los demás cambios siguen pendientes. Corrige esa casilla y vuelve a pulsar **Aplicar cambios**. Si sales de la pantalla con cambios pendientes (con un enlace, el menú, las pestañas o el botón **Atrás** del navegador), el sistema te pregunta si quieres **Seguir editando** o **Salir sin aplicar**; al recargar o cerrar la pestaña pregunta el navegador.
 
 El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
 
-La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: no se pueden dar a otro rol (si los marcas, al aplicar se rechaza el lote y esas casillas quedan en rojo). Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
+La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: sus casillas están bloqueadas en los demás roles. Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
 
 El asistente también puede cambiar un permiso o la visibilidad de un campo, de a uno, con tu confirmación y tu código.
 
@@ -108,7 +108,7 @@ Elige la **Entidad** (Tercero, Producto…) y, para cada campo y cada rol, si se
 - **Enmascarado**: el campo aparece pero sin su valor.
 - **Oculto**: el campo no aparece.
 
-Como en **Permisos**, cada cambio queda pendiente hasta que pulsas **Aplicar cambios** e ingresas tu código: puedes cambiar campos de varias entidades y aplicarlos todos juntos (`kernel.admin.field_permission.set_many`), o **Descartar**.
+Como en **Permisos**, cada cambio queda pendiente hasta que pulsas **Aplicar cambios** e ingresas tu código: puedes cambiar campos de varias entidades y aplicarlos todos juntos (`kernel.admin.field_permission.set_many`), o **Descartar**. Si se rechaza un cambio de una entidad que no estás viendo, la barra dice en cuál está.
 
 Aplica igual en los listados, los formularios, las exportaciones y las respuestas del asistente. Un campo enmascarado u oculto no se puede usar para ordenar ni filtrar. Los campos marcados **confidencial** empiezan enmascarados en cada rol nuevo y en los roles que ya existían cuando el campo apareció. El rol admin ve todos los campos, aunque tenga además otro rol que los enmascare.
 

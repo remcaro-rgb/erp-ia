@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useLeaveGuard } from "../../_components/leave-guard";
 import { useAdminAction } from "./use-admin-action";
@@ -13,6 +13,10 @@ export interface StagedChanges<V> {
   isStaged: (key: string) => boolean;
   /** Why the last batch refused this cell, if it did. */
   refusal: (key: string) => string | undefined;
+  /** The id of the element that reads the refusal, for the cell's `aria-describedby` (render it with `reason`). */
+  reasonId: (key: string) => string;
+  /** The refusal of the cell as a visually hidden element the control points to, or null. */
+  reason: (key: string) => ReactNode;
   /** Stages a cell (or drops it when it is back to `stored`). */
   set: (key: string, value: V, stored: V) => void;
   /** Stages several cells at once. */
@@ -20,8 +24,11 @@ export interface StagedChanges<V> {
   count: number;
   /** A batch is being applied: the cells and buttons wait. */
   busy: boolean;
-  /** The fixed bar under the matrix: the pending count (a live region), the outcome, Descartar and Aplicar cambios. */
-  bar: (idle: ReactNode) => ReactNode;
+  /**
+   * The fixed bar under the matrix: the pending count (a live region), the count of refused cells (and where the ones
+   * out of sight are: `elsewhere` names them from their keys), the outcome, Descartar and Aplicar cambios.
+   */
+  bar: (idle: ReactNode, options?: { elsewhere?: (refusedKeys: string[]) => string[] }) => ReactNode;
   /** The step-up prompt while the batch waits for the code. */
   prompt: ReactNode;
 }
@@ -44,6 +51,7 @@ interface Options<V, C> {
  */
 export function useStagedChanges<V, C>({ data, stored, processId, change }: Options<V, C>): StagedChanges<V> {
   const t = useTranslations();
+  const base = useId();
   const { perform, prompt, status, busy, reset } = useAdminAction();
   const [pending, setPending] = useState<Staged<V>>({});
   const [applied, setApplied] = useState<Staged<V>>({});
@@ -69,6 +77,12 @@ export function useStagedChanges<V, C>({ data, stored, processId, change }: Opti
   };
   const setAll = (cells: { key: string; value: V; stored: V }[]) => {
     setPending((p) => stageAll(p, cells));
+    // A cell staged again is no longer the refused one.
+    setRefused((r) => {
+      const next = { ...r };
+      for (const cell of cells) delete next[cell.key];
+      return next;
+    });
     reset();
   };
   const discard = () => {
@@ -89,34 +103,52 @@ export function useStagedChanges<V, C>({ data, stored, processId, change }: Opti
     }
   };
 
-  const bar = (idle: ReactNode) => (
-    <div className="erp-admin__bar">
-      {/* Always mounted, so a screen reader hears the count change. */}
-      <span role="status" className="erp-admin__pending">
-        {count > 0 ? <span className="erp-pill erp-pill--warn">{t("common.admin.pending_changes", { count })}</span> : null}
-      </span>
-      {leave ?? (
-        <>
-          {status ?? <span className="erp-small erp-muted erp-grow">{count > 0 ? t("common.admin.batch_note") : idle}</span>}
-          {count > 0 && (
-            <>
-              <button type="button" className="erp-btn" onClick={discard} disabled={busy}>
-                {t("common.admin.discard_changes")}
-              </button>
-              <button type="button" className="erp-btn erp-btn--primary" onClick={() => void apply()} disabled={busy}>
-                {t("common.admin.apply_changes")}
-              </button>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
+  const refusedKeys = Object.keys(refused);
+  const reasonId = (key: string) => `${base}-reason-${key}`;
+  const bar = (idle: ReactNode, options?: { elsewhere?: (refusedKeys: string[]) => string[] }) => {
+    const elsewhere = refusedKeys.length > 0 ? (options?.elsewhere?.(refusedKeys) ?? []) : [];
+    return (
+      <div className="erp-admin__bar">
+        {/* Always mounted, so a screen reader hears the count change. */}
+        <span role="status" className="erp-admin__pending">
+          {count > 0 ? <span className="erp-pill erp-pill--warn">{t("common.admin.pending_changes", { count })}</span> : null}
+        </span>
+        {refusedKeys.length > 0 && (
+          <span className="erp-pill erp-pill--danger erp-admin__refused">
+            {t("common.admin.refused_changes", { count: refusedKeys.length })}
+            {elsewhere.length > 0 && ` · ${t("common.admin.refused_elsewhere", { entities: elsewhere.join(", ") })}`}
+          </span>
+        )}
+        {leave ?? (
+          <>
+            {status ?? <span className="erp-small erp-muted erp-grow">{count > 0 ? t("common.admin.batch_note") : idle}</span>}
+            {count > 0 && (
+              <>
+                <button type="button" className="erp-btn" onClick={discard} disabled={busy}>
+                  {t("common.admin.discard_changes")}
+                </button>
+                <button type="button" className="erp-btn erp-btn--primary" onClick={() => void apply()} disabled={busy}>
+                  {t("common.admin.apply_changes")}
+                </button>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
 
   return {
     value: (key, storedValue) => (key in pending ? pending[key]! : key in applied ? applied[key]! : storedValue),
     isStaged: (key) => key in pending,
     refusal: (key) => refused[key],
+    reasonId,
+    reason: (key) =>
+      refused[key] ? (
+        <span id={reasonId(key)} className="sr-only">
+          {refused[key]}
+        </span>
+      ) : null,
     set,
     setAll,
     count,

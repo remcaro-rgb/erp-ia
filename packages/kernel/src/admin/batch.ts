@@ -61,8 +61,10 @@ async function checkAll<C>(ctx: ProcessContext, changes: C[], check: (ctx: Proce
   }
 }
 
-const permissionBatch = batchOf(permissionChange, (c) => `${c.roleId}:${c.processId}`, "Ese permiso está repetido en la lista de cambios");
-const fieldBatch = batchOf(fieldPermissionChange, (c) => `${c.roleId}:${c.entity}.${c.field}`, "Ese campo está repetido en la lista de cambios");
+// A uuid names the same role in either case: the key is lower-cased, so two spellings of one cell are refused here
+// instead of reaching the upsert twice (a SQL error).
+const permissionBatch = batchOf(permissionChange, (c) => `${c.roleId.toLowerCase()}:${c.processId}`, "Ese permiso está repetido en la lista de cambios");
+const fieldBatch = batchOf(fieldPermissionChange, (c) => `${c.roleId.toLowerCase()}:${c.entity}.${c.field}`, "Ese campo está repetido en la lista de cambios");
 const batchOutput = z.object({ count: z.number().int() });
 
 export const permissionSetMany = defineProcess({

@@ -95,6 +95,7 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
                         <select
                           aria-label={isStaged ? t("common.admin.pending_cell", { label: name }) : name}
                           aria-invalid={refusal ? true : undefined}
+                          aria-describedby={refusal ? staged.reasonId(key) : undefined}
                           className={mode === "masked" ? "is-masked" : mode === "hidden" ? "is-hidden" : undefined}
                           value={mode}
                           disabled={staged.busy}
@@ -106,6 +107,7 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
                             </option>
                           ))}
                         </select>
+                        {staged.reason(key)}
                       </td>
                     );
                   })}
@@ -116,7 +118,13 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
         </div>
       )}
       {/* One fixed bar under the matrix holds the pending changes and the outcome: nothing above the table ever moves it. */}
-      {staged.bar(t("common.admin.fields.admin_note"))}
+      {staged.bar(t("common.admin.fields.admin_note"), {
+        // A refused cell of an entity not on screen: say which entity, since its mark is out of sight.
+        elsewhere: (keys) => [...new Set(keys.map((key) => parse(key).entity).filter((id) => id !== entityId))].map((id) => {
+          const other = data.entities.find((e) => e.id === id);
+          return other ? label(other.label, other.id) : id;
+        }),
+      })}
       <StepUpDock prompt={staged.prompt} />
     </section>
   );

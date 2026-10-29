@@ -19,12 +19,14 @@ const data: PermissionsData = {
     { id: "r-ventas", name: "Ventas", description: "Vende", isSystemAdmin: false, partyScope: "clientes" },
   ],
   processes: [
-    { id: "core.party.consult", module: "core", kind: "consult", entity: "core.party", entityLabel: "entity.core.party", stepUp: false },
-    { id: "core.party.create", module: "core", kind: "create", entity: "core.party", entityLabel: "entity.core.party", stepUp: false },
+    { id: "core.party.consult", module: "core", kind: "consult", entity: "core.party", entityLabel: "entity.core.party", stepUp: false, admin: false },
+    { id: "core.party.create", module: "core", kind: "create", entity: "core.party", entityLabel: "entity.core.party", stepUp: false, admin: false },
+    { id: "kernel.admin.role.create", module: "kernel", kind: "create", entity: "kernel.admin.role", entityLabel: "feature.kernel.admin", stepUp: true, admin: true },
+    { id: "kernel.import.run", module: "kernel", kind: "create", entity: "kernel.import", entityLabel: "entity.kernel.import", stepUp: false, admin: false },
   ],
-  grants: { "r-admin": [], "r-ventas": ["core.party.consult"] },
+  grants: { "r-admin": [], "r-ventas": ["core.party.consult", "kernel.import.run"] },
 };
-const allGranted: PermissionsData = { ...data, grants: { ...data.grants, "r-ventas": ["core.party.consult", "core.party.create"] } };
+const allGranted: PermissionsData = { ...data, grants: { ...data.grants, "r-ventas": ["core.party.consult", "core.party.create", "kernel.import.run"] } };
 
 const render = (d: PermissionsData) =>
   renderToStaticMarkup(
@@ -36,11 +38,26 @@ describe("PermissionMatrix staging", () => {
     const html = render(data);
     expect(html).toContain('aria-label="Dar a Ventas todos los procesos de Núcleo"');
     expect(html).not.toContain("Dar a admin");
-    expect((html.match(/>todos</g) ?? []).length).toBe(1);
+    expect(html).toContain('aria-label="Dar a Ventas todos los procesos de Núcleo"');
+  });
+
+  it("locks the administration processes for other roles, and the module button leaves them out", () => {
+    const html = render(data);
+    // Ventas holds every process of Sistema it may hold (kernel.import.run): the button takes them away, it never
+    // offers an administration process.
+    expect(html).toContain('aria-label="Quitar a Ventas todos los procesos de Sistema"');
+    expect(html).toMatch(/<label class="erp-matrix__hit" title="Solo el rol admin ejecuta los procesos de administración"><input type="checkbox" aria-label="Ventas kernel.admin.role.create" disabled=""/);
+  });
+
+  it("offers no module button when every process of the module is an administration one", () => {
+    const onlyAdmin: PermissionsData = { ...data, processes: data.processes.filter((p) => p.admin), grants: { "r-admin": [], "r-ventas": [] } };
+    const html = render(onlyAdmin);
+    expect(html).not.toContain("todos los procesos de Sistema");
   });
 
   it("offers 'ninguno' once the role holds every process of the module", () => {
     expect(render(allGranted)).toContain('aria-label="Quitar a Ventas todos los procesos de Núcleo"');
+    expect(render(allGranted)).toContain('aria-label="Quitar a Ventas todos los procesos de Sistema"');
   });
 
   it("starts with nothing staged: an empty live region, the idle note and no apply button", () => {

@@ -1,18 +1,27 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 // Leaving a screen with staged changes asks first (OD-7: the admin matrices stage their cells). Inside the app the
-// question is asked in the page, never with confirm(): a link click is held back, and the shell's own navigation (menus,
-// tabs, ⌘K) goes through `guardedNavigate`. Reloading or closing the tab can only ask through the browser
+// question is asked in the page, never with confirm(): a link click is held back, the shell's own navigation (menus,
+// tabs, ⌘K) goes through `guardedNavigate`, and the browser's Back lands on a history entry the guard pushed for the
+// screen (same URL), so going back first asks too. Reloading or closing the tab can only ask through the browser
 // (`beforeunload`).
 
 type Guard = (go: () => void) => void;
 
 /** The screen's guard while it holds staged changes (one screen at a time). */
 let active: Guard | null = null;
+
+/** Marks the history entry the guard pushed: true while it guards, false once spent (reused by the next guard). */
+const SENTINEL = "erpLeaveGuard";
+
+type HistoryState = Record<string, unknown> | null;
+const historyState = (): HistoryState => (window.history.state as HistoryState) ?? null;
+/** The entry keeps the router's own state (Next reads it on Back/Forward); only the flag is ours. */
+const withFlag = (on: boolean) => ({ ...(historyState() ?? {}), [SENTINEL]: on });
 
 /** Runs `go` (a navigation) at once, or after the screen with staged changes lets it. */
 export function guardedNavigate(go: () => void): void {
@@ -29,20 +38,38 @@ export function useLeaveGuard(count: number): ReactNode {
   const router = useRouter();
   const base = useId();
   const [waiting, setWaiting] = useState<{ go: () => void } | null>(null);
+  /** Set once the user chose to leave: nothing asks again on the way out. */
+  const released = useRef(false);
   const dirty = count > 0;
+  // Nothing staged any more (applied or discarded): a question still open has no reason left.
+  if (!dirty && waiting) setWaiting(null);
 
   useEffect(() => {
     if (!dirty) return;
+    released.current = false;
     const guard: Guard = (go) => setWaiting({ go });
     active = guard;
+
+    // The entry Back leaves first: same URL, so the router stays on the screen and the guard can ask.
+    if (historyState()?.[SENTINEL] === undefined) window.history.pushState(withFlag(true), "", window.location.href);
+    else window.history.replaceState(withFlag(true), "", window.location.href);
+    const onPopState = (event: PopStateEvent) => {
+      if (released.current) return;
+      const state = event.state as HistoryState;
+      if (state?.[SENTINEL] !== undefined) return;
+      // Back from the guard's entry: stand on it again and ask; leaving goes back past the screen.
+      window.history.pushState(withFlag(true), "", window.location.href);
+      setWaiting({ go: () => window.history.go(-2) });
+    };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (released.current) return;
       event.preventDefault();
       // Older browsers ask only when returnValue is set.
       event.returnValue = "";
     };
     // Capture phase on the document: runs before the router's link handler, which then sees defaultPrevented.
     const onClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (released.current || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!(link instanceof HTMLAnchorElement) || (link.target && link.target !== "_self") || link.hasAttribute("download")) return;
       const url = new URL(link.href, window.location.href);
@@ -52,12 +79,16 @@ export function useLeaveGuard(count: number): ReactNode {
       const href = `${url.pathname}${url.search}${url.hash}`;
       setWaiting({ go: () => router.push(href) });
     };
+    window.addEventListener("popstate", onPopState);
     window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("click", onClick, true);
     return () => {
       if (active === guard) active = null;
+      window.removeEventListener("popstate", onPopState);
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onClick, true);
+      // Still on the guard's entry (the changes were applied or discarded): it stays, spent, for the next guard.
+      if (historyState()?.[SENTINEL] === true) window.history.replaceState(withFlag(false), "", window.location.href);
     };
   }, [dirty, router]);
 
@@ -65,8 +96,9 @@ export function useLeaveGuard(count: number): ReactNode {
   const stay = () => setWaiting(null);
   const leave = () => {
     const { go } = waiting;
-    setWaiting(null);
+    released.current = true;
     active = null;
+    setWaiting(null);
     go();
   };
   return (

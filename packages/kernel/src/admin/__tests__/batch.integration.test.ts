@@ -182,11 +182,32 @@ describe("kernel admin: batch changes with one step-up (OD-7)", () => {
     const error = await run(admin, "kernel.admin.permission.set_many", { changes: twice }).catch((e: unknown) => e);
     expect(error).toMatchObject({ code: "invalid_input" });
     expect(JSON.stringify((error as { details: unknown }).details)).toMatch(/repetid/);
+    // The same role written in another case is the same cell (the uuid column does not care): refused, not a SQL error.
+    const mixedCase = [
+      { roleId: memberRole.toLowerCase(), processId, allowed: true },
+      { roleId: memberRole.toUpperCase(), processId, allowed: false },
+    ];
+    await expect(run(admin, "kernel.admin.permission.set_many", { changes: mixedCase })).rejects.toMatchObject({ code: "invalid_input" });
+    const fieldMixedCase = [
+      { roleId: memberRole.toLowerCase(), entity: "batchprobe.thing", field: "price", mode: "masked" },
+      { roleId: memberRole.toUpperCase(), entity: "batchprobe.thing", field: "price", mode: "hidden" },
+    ];
+    await expect(run(admin, "kernel.admin.field_permission.set_many", { changes: fieldMixedCase })).rejects.toMatchObject({ code: "invalid_input" });
     const fieldTwice = [
       { roleId: memberRole, entity: "batchprobe.thing", field: "price", mode: "masked" },
       { roleId: memberRole, entity: "batchprobe.thing", field: "price", mode: "hidden" },
     ];
     await expect(run(admin, "kernel.admin.field_permission.set_many", { changes: fieldTwice })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("the matrix marks the administration processes, which only the admin role holds", async () => {
+    const matrix = (await runProcess({ sql, registry }, admin, "kernel.admin.permission.matrix", {})) as { processes: { id: string; admin: boolean }[] };
+    const adminOf = (id: string) => matrix.processes.find((p) => p.id === id)?.admin;
+    expect(adminOf("kernel.admin.role.create")).toBe(true);
+    expect(adminOf("kernel.admin.permission.set_many")).toBe(true);
+    expect(adminOf("kernel.required_file.set")).toBe(true);
+    expect(adminOf("kernel.import.run")).toBe(false);
+    expect(adminOf("batchprobe.thing.create")).toBe(false);
   });
 
   it("a member is refused, even holding a grant of the batch process", async () => {

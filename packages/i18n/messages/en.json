@@ -380,6 +380,8 @@
       "leave_body": "{count, plural, one {# change is lost} other {# changes are lost}} if you leave without applying them.",
       "leave_stay": "Keep editing",
       "leave_go": "Leave without applying",
+      "refused_changes": "{count, plural, one {# change refused} other {# changes refused}}",
+      "refused_elsewhere": "also in {entities}",
       "kind": {
         "create": "create",
         "update": "update",
@@ -408,7 +410,8 @@
         "admin_locked": "The admin role holds every permission",
         "all": "all",
         "none": "none",
-        "grant_module": "{mode, select, none {Take from {role} every process of {module}} other {Give {role} every process of {module}}}"
+        "grant_module": "{mode, select, none {Take from {role} every process of {module}} other {Give {role} every process of {module}}}",
+        "admin_only": "Only the admin role runs the administration processes"
       },
       "roles": {
         "title": "Roles",

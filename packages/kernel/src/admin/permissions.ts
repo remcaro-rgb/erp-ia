@@ -72,7 +72,7 @@ export const permissionSet = defineProcess({
 const matrixOutput = z.object({
   roles: z.array(z.object({ id: z.string(), name: z.string(), description: z.string(), isSystemAdmin: z.boolean(), partyScope: z.string() })),
   processes: z.array(
-    z.object({ id: z.string(), module: z.string(), kind: z.string(), entity: z.string(), entityLabel: z.string(), stepUp: z.boolean() }),
+    z.object({ id: z.string(), module: z.string(), kind: z.string(), entity: z.string(), entityLabel: z.string(), stepUp: z.boolean(), admin: z.boolean() }),
   ),
   /** Process ids each role (by id) may run. */
   grants: z.record(z.string(), z.array(z.string())),
