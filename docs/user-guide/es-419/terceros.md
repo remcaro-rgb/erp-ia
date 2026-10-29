@@ -83,5 +83,6 @@ Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar t
 ## Más
 
 - Pestañas del registro: **Datos · Contactos · Datos adicionales · Archivos**.
+- **Duplicar** (o **Ctrl+D**) crea un tercero nuevo a partir de este, sin número de documento ni DV, contactos ni archivos (guía **Moverse por el sistema**, «Duplicar un registro»).
 - Cada acción (crear, actualizar, desactivar) queda en la auditoría con quién la hizo y desde dónde.
 - Para cargar muchos terceros de una vez, usa **Importar** (guía **Importar datos**).

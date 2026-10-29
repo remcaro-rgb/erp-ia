@@ -40,6 +40,8 @@ export interface PartyFormProps {
   save: SaveRecord;
   requestStepUp?: RequestStepUp;
   /** After a save: the record's id and whether it was created. */
+  /** A new record started from a copy ("Duplicar", rule 37): the copy's values by field name, as a consult row has them. Ignored for a stored record. */
+  initial?: Readonly<Record<string, unknown>> | null;
   onSaved?: (id: string, created: boolean) => void;
 }
 
@@ -78,18 +80,18 @@ const rutKey = (code: string) => `rut_${code.toLowerCase().replace(/[^a-z0-9]/g,
  * DANE codes, commercial data, the e-mails each relation needs and the phone, then the DIAN and invoice-ready panels.
  * Saves through `core.party.create` / `core.party.update`; the process's messages are the validation messages.
  */
-export function PartyForm({ record, tables, modes, readOnly = false, save, requestStepUp, onSaved }: PartyFormProps) {
+export function PartyForm({ record, initial: copy, tables, modes, readOnly = false, save, requestStepUp, onSaved }: PartyFormProps) {
   const t = useTranslations("common.party_form");
   const tf = useTranslations("common.forms");
   const errorText = useErrorText();
   const fieldLabels = useFieldLabels();
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
   const [seen, setSeen] = useState(recordKey);
-  const [initial, setInitial] = useState(() => partyDraft(record, tables));
+  const [initial, setInitial] = useState(() => partyDraft(record ?? copy ?? null, tables));
   const [draft, setDraft] = useState(initial);
   if (seen !== recordKey) {
     // The page reloaded the record after a save: start over from it.
-    const next = partyDraft(record, tables);
+    const next = partyDraft(record ?? copy ?? null, tables);
     setSeen(recordKey);
     setInitial(next);
     setDraft(next);

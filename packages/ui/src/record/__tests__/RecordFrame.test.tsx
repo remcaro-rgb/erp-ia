@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { RecordFrame, recordHref, recordTabIds, shortId, type RecordTab } from "../../index";
 
@@ -111,6 +111,75 @@ describe("RecordFrame", () => {
     render(<RecordFrame title="Party" seq={1} uuid={id} deepLinkHref="/r/core.party/x" tabs={[tab("datos", { label: "Data" })]} labels={{ openInNewTab: "Open in a new tab" }} />);
     expect(screen.getByRole("tab", { name: "Data" })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Open in a new tab/ })).toBeTruthy();
+  });
+});
+
+describe("RecordFrame Duplicar (rule 37)", () => {
+  const existing = (onDuplicate?: () => void, extra: Record<string, unknown> = {}) => (
+    <RecordFrame title="Almacenes Éxito S.A." seq={7} uuid={id} deepLinkHref={recordHref("core.party", id)} tabs={[tab("datos")]} onDuplicate={onDuplicate} {...extra} />
+  );
+
+  it("offers Duplicar on an existing record and runs it on click", () => {
+    const onDuplicate = vi.fn();
+    render(existing(onDuplicate));
+    const button = screen.getByRole("button", { name: "Duplicar" });
+    expect(button.getAttribute("aria-keyshortcuts")).toBe("Control+D Meta+D");
+    fireEvent.click(button);
+    expect(onDuplicate).toHaveBeenCalledTimes(1);
+  });
+
+  it("Ctrl+D and ⌘+D duplicate and never reach the browser's bookmark", () => {
+    const onDuplicate = vi.fn();
+    render(existing(onDuplicate));
+    const ctrl = new KeyboardEvent("keydown", { key: "d", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(ctrl);
+    expect(ctrl.defaultPrevented).toBe(true);
+    const meta = new KeyboardEvent("keydown", { key: "D", metaKey: true, bubbles: true, cancelable: true });
+    screen.getByRole("tab", { name: /^Datos$/ }).dispatchEvent(meta);
+    expect(meta.defaultPrevented).toBe(true);
+    expect(onDuplicate).toHaveBeenCalledTimes(2);
+    // Other chords are left alone.
+    const plain = new KeyboardEvent("keydown", { key: "d", bubbles: true, cancelable: true });
+    const shifted = new KeyboardEvent("keydown", { key: "D", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(plain);
+    document.body.dispatchEvent(shifted);
+    expect(plain.defaultPrevented).toBe(false);
+    expect(shifted.defaultPrevented).toBe(false);
+    expect(onDuplicate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does nothing while a duplicate is under way, and stops listening once unmounted", () => {
+    const onDuplicate = vi.fn();
+    const { unmount } = render(existing(onDuplicate, { duplicating: true }));
+    expect(screen.getByRole("button", { name: "Duplicar" }).hasAttribute("disabled")).toBe(true);
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "d", ctrlKey: true, bubbles: true, cancelable: true }));
+    expect(onDuplicate).not.toHaveBeenCalled();
+    unmount();
+    const after = new KeyboardEvent("keydown", { key: "d", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(after);
+    expect(after.defaultPrevented).toBe(false);
+  });
+
+  it("offers no Duplicar (and leaves Ctrl+D to the browser) without onDuplicate, e.g. on a new record", () => {
+    render(<RecordFrame title="Crear tercero" tabs={[tab("datos")]} />);
+    expect(screen.queryByRole("button", { name: "Duplicar" })).toBeNull();
+    const ctrl = new KeyboardEvent("keydown", { key: "d", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(ctrl);
+    expect(ctrl.defaultPrevented).toBe(false);
+  });
+
+  it("a new record made from a copy shows the banner \"Copia de <nombre>\" with a link to the source", () => {
+    render(<RecordFrame title="Crear tercero" tabs={[tab("datos")]} copyOf={{ title: "Almacenes Éxito S.A.", href: recordHref("core.party", id) }} />);
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("Copia de Almacenes Éxito S.A.");
+    expect(within(banner).getByRole("link", { name: "Almacenes Éxito S.A." }).getAttribute("href")).toBe(`/r/core.party/${id}`);
+    expect(screen.queryByRole("button", { name: "Duplicar" })).toBeNull();
+  });
+
+  it("takes the banner's copy from labels", () => {
+    render(<RecordFrame title="New party" tabs={[tab("datos")]} copyOf={{ title: "Éxito" }} labels={{ copyOf: "Copy of {name}", copyNote: "Fill in what identifies it." }} />);
+    expect(screen.getByRole("status").textContent).toContain("Copy of Éxito");
+    expect(screen.getByRole("status").textContent).toContain("Fill in what identifies it.");
   });
 });
 

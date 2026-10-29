@@ -57,6 +57,8 @@ export interface ProductFormProps {
   readOnly?: boolean;
   save: SaveRecord;
   requestStepUp?: RequestStepUp;
+  /** A new record started from a copy ("Duplicar", rule 37): the copy's values by field name, as a consult row has them. Ignored for a stored record. */
+  initial?: Readonly<Record<string, unknown>> | null;
   onSaved?: (id: string, created: boolean) => void;
   /** The supplier lookup: parties of kind supplier through the grid route. */
   supplier: {
@@ -75,18 +77,18 @@ export interface ProductFormProps {
  * with the free-sample reference price, inventory, then the DIAN and invoice-ready panels. Saves through
  * `core.product.create` / `core.product.update`.
  */
-export function ProductForm({ record, tables, categories, modes, readOnly = false, save, requestStepUp, onSaved, supplier }: ProductFormProps) {
+export function ProductForm({ record, initial: copy, tables, categories, modes, readOnly = false, save, requestStepUp, onSaved, supplier }: ProductFormProps) {
   const t = useTranslations("common.product_form");
   const tf = useTranslations("common.forms");
   const errorText = useErrorText();
   const isNew = record === null;
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
   const [seen, setSeen] = useState(recordKey);
-  const [initial, setInitial] = useState(() => productDraft(record));
+  const [initial, setInitial] = useState(() => productDraft(record ?? copy ?? null));
   const [draft, setDraft] = useState(initial);
   const [supplierLabel, setSupplierLabel] = useState(supplier.label);
   if (seen !== recordKey) {
-    const next = productDraft(record);
+    const next = productDraft(record ?? copy ?? null);
     setSeen(recordKey);
     setInitial(next);
     setDraft(next);

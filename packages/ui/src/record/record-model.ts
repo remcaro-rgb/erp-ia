@@ -24,6 +24,12 @@ export interface RecordLabels {
   assignedOnCreate: string;
   openInNewTab: string;
   pending: string;
+  /** The action that starts a new record from this one (rule 37). */
+  duplicate: string;
+  /** Banner of a new record started from a copy; `{name}` is where the source's name (a link to it) goes. */
+  copyOf: string;
+  /** What the person still has to do on the copy. */
+  copyNote: string;
 }
 
 export const DEFAULT_RECORD_LABELS: RecordLabels = {
@@ -33,6 +39,9 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
   assignedOnCreate: "N.º y uuid se asignan al crear",
   openInNewTab: "Abrir en una pestaña nueva",
   pending: "Pendientes",
+  duplicate: "Duplicar",
+  copyOf: "Copia de {name}",
+  copyNote: "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
 };
 
 /** Deep link of a record: `/r/<entity id>/<record id>`, the same form as a full page. */

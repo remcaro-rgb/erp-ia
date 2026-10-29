@@ -41,4 +41,4 @@ Dos categorías no pueden llamarse igual en la misma empresa, sin importar mayú
 
 ## Permisos
 
-Crear, actualizar y consultar categorías son permisos distintos por rol; sin el de actualizar, el formulario es de solo lectura. Las categorías no se borran: se marcan **Inactiva**. Pestañas del registro: **Datos · Datos adicionales · Archivos**.
+Crear, actualizar y consultar categorías son permisos distintos por rol; sin el de actualizar, el formulario es de solo lectura. Las categorías no se borran: se marcan **Inactiva**. Pestañas del registro: **Datos · Datos adicionales · Archivos**. **Duplicar** (o **Ctrl+D**) crea una categoría nueva con los mismos impuestos y el nombre vacío (guía **Moverse por el sistema**, «Duplicar un registro»).

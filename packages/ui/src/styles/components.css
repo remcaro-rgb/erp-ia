@@ -249,6 +249,9 @@
   .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1; }
   .erp-record__ids { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); }
   .erp-record__open { font-size: 12px; color: var(--link); }
+  /* a new record started from a copy (rule 37): "Copia de <nombre>" above the tabs' panels */
+  .erp-record__copy { margin: 12px 18px 0; }
+  .erp-record__copy a { color: inherit; text-decoration: underline; }
   .erp-record__top { position: sticky; top: 0; z-index: 5; background: var(--surface); border-radius: 8px 8px 0 0; }
   .erp-record__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; }
   .erp-record__tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 4px; }

@@ -77,3 +77,4 @@ Abre el producto, modifica y pulsa **Guardar** (o **Descartar cambios**). Cambia
 - Crear, actualizar, desactivar y consultar son permisos separados por rol. Sin el de actualizar, el formulario es de solo lectura.
 - El **Costo estándar** puede estar enmascarado (••••••) u oculto para tu rol; en ese caso el margen no se calcula y el campo no se puede filtrar ni ordenar.
 - Pestañas del registro: **Datos · Fotos · Datos adicionales · Archivos**.
+- **Duplicar** (o **Ctrl+D**) crea un producto nuevo a partir de este, sin SKU, fotos ni archivos (guía **Moverse por el sistema**, «Duplicar un registro»).

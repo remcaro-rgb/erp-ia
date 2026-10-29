@@ -10,6 +10,7 @@ export { countryPackOf, fieldOfKey, valueText } from "./registry/labels";
 export type { LabelledField, Translate, ValueLabels } from "./registry/labels";
 export { recordTitles } from "./records/titles";
 export type { RecordRef } from "./records/titles";
+export { cloneDraft, draftValues } from "./records/clone";
 export { enqueueEvent } from "./events/outbox";
 export type { OutboxEvent } from "./events/outbox";
 export { consumers, ConsumerRegistry, SYSTEM_USER_ID } from "./events/consumers";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { DEFAULT_RECORD_LABELS, shortId, type RecordLabels, type RecordTab, type RecordTabId } from "./record-model";
 
 export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
@@ -22,6 +22,15 @@ export interface RecordFrameProps {
   initialTab?: RecordTabId;
   onTabChange?: (tab: RecordTabId) => void;
   labels?: Partial<Omit<RecordLabels, "tabs">> & { tabs?: Partial<RecordLabels["tabs"]> };
+  /**
+   * "Duplicar" (rule 37): given on a stored record the caller may create a copy of, it shows the action in the header
+   * and answers Ctrl+D / ⌘+D (the browser's bookmark is prevented) while the frame is mounted. Absent on a new record.
+   */
+  onDuplicate?: () => void;
+  /** A duplicate is under way: the action waits. */
+  duplicating?: boolean;
+  /** A new record started from a copy: the banner "Copia de <nombre>" names the source, linked when `href` is given. */
+  copyOf?: { title: string; href?: string } | null;
   /** Appended to the root's `erp-record` class. Parts are `erp-record__*`. */
   className?: string;
 }
@@ -31,12 +40,29 @@ export interface RecordFrameProps {
  * link, the tabs the entity needs, and the status footer. Panels stay mounted when hidden, so a form that is
  * half filled or an upload that is staged survives a change of tab.
  */
-export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className }: RecordFrameProps) {
+export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, copyOf }: RecordFrameProps) {
   const labels: RecordLabels = { ...DEFAULT_RECORD_LABELS, ...overrides, tabs: { ...DEFAULT_RECORD_LABELS.tabs, ...overrides?.tabs } };
   const base = useId();
   const first = tabs[0]?.id;
   const [selected, setSelected] = useState<RecordTabId | undefined>(initialTab ?? first);
   const active = tabs.some((t) => t.id === selected) ? selected : first;
+
+  // Ctrl+D / ⌘+D anywhere on the page while the frame shows a record that can be duplicated.
+  const duplicate = useRef({ onDuplicate, duplicating });
+  duplicate.current = { onDuplicate, duplicating };
+  const canDuplicate = onDuplicate !== undefined;
+  useEffect(() => {
+    if (!canDuplicate) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== "d") return;
+      event.preventDefault();
+      const { onDuplicate: run, duplicating: busy } = duplicate.current;
+      if (run && !busy && !event.repeat) run();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [canDuplicate]);
+  const [copyBefore, copyAfter = ""] = labels.copyOf.split("{name}");
 
   const select = (id: RecordTabId) => {
     setSelected(id);
@@ -65,6 +91,11 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
               {labels.openInNewTab} ↗
             </a>
           )}
+          {onDuplicate && (
+            <button type="button" className="erp-btn erp-btn--sm" onClick={onDuplicate} disabled={duplicating} aria-keyshortcuts="Control+D Meta+D">
+              {labels.duplicate}
+            </button>
+          )}
         </header>
         <div role="tablist" className="erp-record__tabs">
           {tabs.map((tab, index) => (
@@ -92,6 +123,16 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
           ))}
         </div>
       </div>
+      {copyOf && (
+        <div role="status" className="erp-dian erp-dian--info erp-record__copy">
+          <strong>
+            {copyBefore}
+            {copyOf.href ? <a href={copyOf.href}>{copyOf.title}</a> : copyOf.title}
+            {copyAfter}
+          </strong>{" "}
+          {labels.copyNote}
+        </div>
+      )}
       {tabs.map((tab) => (
         <div key={tab.id} id={`${base}-panel-${tab.id}`} role="tabpanel" aria-labelledby={`${base}-tab-${tab.id}`} hidden={tab.id !== active} className="erp-record__panel">
           {tab.content}

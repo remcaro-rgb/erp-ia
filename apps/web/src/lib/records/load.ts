@@ -41,6 +41,8 @@ export interface RecordAbilities {
   reorder: boolean;
   /** "Sugerir foto con IA". */
   suggest: boolean;
+  /** "Duplicar" (rule 37): a stored record the caller may create a copy of through the entity's create process. */
+  duplicate: boolean;
 }
 
 /** A file as `kernel.attachment.list` answers it. */
@@ -137,7 +139,7 @@ async function orNull<T>(read: Promise<T[]>): Promise<T[] | null> {
 }
 
 /** Rows of another entity's grid as the caller sees them; none when the caller may not read that grid. */
-async function gridRows(caller: Caller, entityId: string, state: Parameters<typeof runGridQuery>[3]) {
+export async function gridRows(caller: Caller, entityId: string, state: Parameters<typeof runGridQuery>[3]) {
   const deps = processDeps();
   const entity = gridEntity(deps.registry, entityId);
   if (!entity || (await gridDenial(deps, caller.claims, entity))) return { rows: [], total: 0 };
@@ -209,7 +211,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   const [defs, partyContacts, runnable, required, files] = await Promise.all([
     record ? orEmpty(customFields(caller, entity.id)) : Promise.resolve([]),
     record && entity.id === "core.party" ? orEmpty(contacts(caller, record.id)) : Promise.resolve([]),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, ...TAB_PROCESSES]),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, entity.create, ...TAB_PROCESSES]),
     record ? requiredTagsFor(deps.sql, caller.claims, entity.id, factsOf(entity.id, record, access.modes)) : Promise.resolve([]),
     record ? orNull(attachments(caller, entity.id, record.id)) : Promise.resolve([]),
   ]);
@@ -230,6 +232,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     removeFile: may("kernel.attachment.remove"),
     reorder: may("kernel.attachment.reorder"),
     suggest: may("kernel.ai.image_suggest"),
+    duplicate: record !== null && runnable.has(entity.create),
   };
   return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, form: await formData(caller, entity, record) };
 }

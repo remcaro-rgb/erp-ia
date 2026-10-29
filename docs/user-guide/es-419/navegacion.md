@@ -4,6 +4,9 @@ routes:
   - /
 processes:
   - kernel.user_prefs.set
+  - core.party.create
+  - core.product.create
+  - core.category.create
 ---
 
 # Moverse por el sistema
@@ -42,6 +45,17 @@ Cada pantalla que abres queda en una pestaña de la fila que está debajo de la 
 
 Tus pestañas se guardan en tu usuario, por empresa: al volver a ingresar, o desde otro computador, encuentras las mismas.
 
+## Duplicar un registro
+
+Para crear un registro parecido a uno que ya existe (un tercero de la misma cadena, un producto en otra presentación, una categoría con los mismos impuestos), ábrelo y pulsa **Duplicar**, arriba a la derecha junto a «Abrir en una pestaña nueva», o usa **Ctrl+D** (en Mac, **⌘D**) mientras el registro está abierto.
+
+- Se abre la pestaña «Crear …» con el formulario lleno con los datos **guardados** del registro de origen (lo que estabas cambiando sin guardar no pasa a la copia), y un aviso **«Copia de <nombre>»** con un enlace al original.
+- Quedan vacíos los datos que identifican al registro, para que escribas los del nuevo: en un tercero, el **número de documento** y su **DV**; en un producto, el **código interno (SKU)**; en una categoría, el **nombre**. El **N.º** consecutivo, el estado DIAN y «Listo para facturar» se calculan de nuevo al crear.
+- No se copian los **contactos**, las **fotos** ni los **archivos**: quedan en el registro de origen. Los datos adicionales que puedes ver sí se copian.
+- Solo se copia lo que tu rol puede ver: un campo enmascarado u oculto para ti (por ejemplo, el cupo de crédito) queda vacío en la copia.
+- Revisa y pulsa **Crear**. La copia pasa por las mismas validaciones, permisos y código de verificación que un registro nuevo: si dejas vacío el número de documento, o escribes el de un tercero que ya existe, el sistema lo rechaza igual.
+- **Duplicar** aparece solo si tu rol puede crear registros de ese tipo. La auditoría muestra el nuevo registro con «clonado desde <nombre del original>».
+
 ## La paleta de comandos (⌘K)
 
 Pulsa **⌘K** (en Windows y Linux, **Ctrl+K**) o haz clic en la caja de la barra. Se abre una ventana para escribir:
@@ -70,4 +84,5 @@ En pantallas angostas (menos de 1280 píxeles de ancho, como un portátil de 136
 - El elemento que tiene el cursor siempre se ve con un borde azul.
 - **⌘K** o **Ctrl+K** abre la paleta de comandos; **Ctrl+/** o **⌘/** abre o cierra el asistente.
 - **La fila de pestañas** es una sola parada de **Tab** (la pestaña activa). Con **← →** pasas de una pestaña a otra, **Enter** la abre y **Supr** (Delete) cierra la que tiene el cursor (Inicio no se cierra); el cursor queda en la pestaña vecina. La ✕ de cada pestaña sigue funcionando con el mouse.
+- **Ctrl+D** (en Mac, **⌘D**) en un registro abierto lo duplica (ver «Duplicar un registro»), en lugar de agregar la página a los favoritos del navegador.
 - **Las pestañas de un registro** (Datos, Contactos, Fotos, Datos adicionales, Archivos) se recorren con **← →**, e **Inicio** y **Fin** van a la primera y la última. El título del registro y sus pestañas quedan siempre visibles arriba mientras bajas por un formulario largo.

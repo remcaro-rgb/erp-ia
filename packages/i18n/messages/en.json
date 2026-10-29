@@ -67,6 +67,10 @@
       "assigned_on_create": "No. and uuid are assigned on creation",
       "open_in_new_tab": "Open in a new tab",
       "pending": "Pending",
+      "duplicate": "Duplicate",
+      "copy_of": "Copy of {name}",
+      "copy_note": "Fill in what identifies the record. Contacts, photos and files are not copied.",
+      "duplicate_failed": "The record could not be duplicated: {reason}",
       "dian": {
         "complete": "DIAN: complete",
         "missing": "DIAN: {count, plural, one {# item missing} other {# items missing}}",

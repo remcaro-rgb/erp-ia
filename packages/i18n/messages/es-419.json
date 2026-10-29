@@ -67,6 +67,10 @@
       "assigned_on_create": "N.º y uuid se asignan al crear",
       "open_in_new_tab": "Abrir en una pestaña nueva",
       "pending": "Pendientes",
+      "duplicate": "Duplicar",
+      "copy_of": "Copia de {name}",
+      "copy_note": "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
+      "duplicate_failed": "No se pudo duplicar el registro: {reason}",
       "dian": {
         "complete": "DIAN: completo",
         "missing": "DIAN: {count, plural, one {falta # dato} other {faltan # datos}}",
