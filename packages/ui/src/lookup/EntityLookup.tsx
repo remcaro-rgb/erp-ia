@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Search, X } from "lucide-react";
+import { ArrowUpRight, Search, X } from "lucide-react";
 import { AdvancedFilter } from "../grid/AdvancedFilter";
 import { ConditionChips } from "../grid/ConditionChips";
 import { dianPill, stateFilters } from "../grid/grid-model";
@@ -27,6 +27,11 @@ export interface EntityLookupProps {
   describe: (row: GridRow) => { label: string; sub?: string };
   /** The record chosen, as the box shows it. */
   value?: { id: string; label: string } | null;
+  /**
+   * The page of the chosen record when the viewer may open it (`recordHref`, rule 21): a link beside the magnifier opens
+   * it in the same browser tab (Ctrl/⌘-click, a new one). Null or absent: no link.
+   */
+  href?: string | null;
   /** A record was chosen, or the choice was cleared (null). */
   onPick: (row: GridRow | null) => void;
   /** Records that are not invoice-ready show disabled with their reasons (design §5.17). */
@@ -46,7 +51,7 @@ export interface EntityLookupProps {
  * Enter, and the magnifier at the right that opens the advanced filter to pick a record without leaving the form.
  */
 export function EntityLookup(props: EntityLookupProps) {
-  const { fetcher, fields, describe, value, onPick, forInvoice = false, baseFilters, disabled, limit = 8, debounceMs = 200 } = props;
+  const { fetcher, fields, describe, value, href, onPick, forInvoice = false, baseFilters, disabled, limit = 8, debounceMs = 200 } = props;
   const t = useTranslations();
   const listId = useId();
   const [text, setText] = useState<string | null>(null);
@@ -135,7 +140,7 @@ export function EntityLookup(props: EntityLookupProps) {
   const list = items ?? [];
   const optionId = (i: number) => `${listId}-option-${i}`;
   return (
-    <div className="erp-lk">
+    <div className={value && href ? "erp-lk erp-lk--linked" : "erp-lk"}>
       <input
         id={props.id}
         role="combobox"
@@ -162,6 +167,11 @@ export function EntityLookup(props: EntityLookupProps) {
         <button type="button" className="erp-lk__clear" aria-label={t("grid.lookup.clear")} onMouseDown={(e) => e.preventDefault()} onClick={() => (setText(""), onPick(null))}>
           <X aria-hidden="true" className="erp-icon" />
         </button>
+      )}
+      {value && href && (
+        <a className="erp-lk__open" href={href} aria-label={t("grid.open_record", { label: value.label })} title={t("grid.open_record", { label: value.label })}>
+          <ArrowUpRight aria-hidden="true" className="erp-icon" />
+        </a>
       )}
       <button
         type="button"

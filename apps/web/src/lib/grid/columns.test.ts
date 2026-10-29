@@ -37,6 +37,15 @@ describe("grid columns", () => {
     expect(titled.filter((c) => c.identity).map((c) => c.field)).toEqual(["seq"]);
   });
 
+  it("carries each reference's target, and whether the viewer may open it, to the cell that links it (rule 21)", () => {
+    const product = CORE_ENTITIES.find((e) => e.id === "core.product")!;
+    const columns = buildColumns(product, { modes: {}, extras: [], timeZone: "America/Bogota" }, presentationOf("core.product"), t, {}, new Set(["core.party"]));
+    expect(columns.find((c) => c.field === "supplier_id")).toMatchObject({ ref: { entity: "core.party", display: "legal_name" }, linkable: true });
+    expect(columns.find((c) => c.field === "category_id")).toMatchObject({ ref: { entity: "core.product_category", display: "name" } });
+    expect(columns.find((c) => c.field === "category_id")!.linkable).toBeUndefined();
+    expect(columns.find((c) => c.field === "sku")!.ref).toBeUndefined();
+  });
+
   it("adds the admin-defined fields, hidden when the caller's roles may not view them", () => {
     const columns = buildColumns(
       party,

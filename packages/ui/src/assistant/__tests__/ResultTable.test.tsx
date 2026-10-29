@@ -101,6 +101,27 @@ describe("ResultTable", () => {
     expect(onOpenGrid).toHaveBeenCalledWith("core.party", state);
   });
 
+  it("links each row's name to its record and a reference to the referenced record, by its label (rule 21)", () => {
+    const supplier = "0199a2b3-c4d5-7e6f-8a9b-0c1d2e3f4a5b";
+    const cols = [
+      { field: "description", label: "Descripción", type: "text", mode: "visible" as const, identity: true, linkable: true },
+      { field: "supplier_id", label: "Proveedor", type: "ref", mode: "visible" as const, ref: { entity: "core.party", display: "legal_name" }, linkable: true },
+      { field: "category_id", label: "Categoría", type: "ref", mode: "visible" as const, ref: { entity: "core.product_category", display: "name" } },
+    ];
+    const data = [{ id: "p1", description: "Café en grano 500 g", supplier_id: supplier, supplier_id_label: "Café del Norte S.A.S.", category_id: "c1", category_id_label: "Café" }];
+    renderEs(<ResultTable entity="core.product" rows={data} columns={cols} state={state} />);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Descripción", "Proveedor", "Categoría"]);
+    expect(screen.getByRole("link", { name: "Café en grano 500 g" }).getAttribute("href")).toBe("/r/core.product/p1");
+    expect(screen.getByRole("link", { name: "Café del Norte S.A.S." }).getAttribute("href")).toBe(`/r/core.party/${supplier}`);
+    // A reference the caller may not open names its record without a link.
+    expect(screen.getByText("Café").closest("a")).toBeNull();
+  });
+
+  it("without the host's metadata a reference's label is not a column of its own", () => {
+    renderEs(<ResultTable entity="core.product" rows={[{ id: "p1", supplier_id: "s1", supplier_id_label: "Café del Norte S.A.S." }]} state={state} />);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["supplier id"]);
+  });
+
   it("Abrir como grid is not offered for an entity without a grid screen", () => {
     renderEs(<ResultTable entity="core.party" rows={rows} columns={columns} total={2} state={state} />);
     expect(screen.queryByRole("button", { name: "Abrir como grid" })).toBeNull();

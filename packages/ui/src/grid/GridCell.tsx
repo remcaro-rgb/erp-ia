@@ -1,7 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { refLabelKey } from "@erp/kernel/query";
 import { cn } from "@erp/ui/lib/utils";
+import { RecordLink } from "../record/RecordLink";
+import { shortId } from "../record/record-model";
 import { formatCellValue, isEmptyCell, useCellTimeZone } from "./cell-format";
 import { cellValue, dianPill } from "./grid-model";
 import type { GridColumn, GridRow, PillTone } from "./types";
@@ -47,6 +50,24 @@ export function GridCell({ column, row, className, render }: { column: GridColum
   const custom = render?.(column, row);
   if (custom !== undefined) return <td className={base}>{custom}</td>;
   const value = cellValue(row, column.field);
+  if (column.ref && typeof value === "string" && value !== "") {
+    // A reference names its record (the row's `<field>_label`, else the column's option, else the short id) and links
+    // to the record's page when the viewer may open it (rule 21).
+    const named = row[refLabelKey(column.field)];
+    const label = typeof named === "string" && named !== "" ? named : column.options?.some((o) => o.value === value) ? text(column, value) : null;
+    const shown = label ?? shortId(value);
+    return (
+      <td className={base}>
+        {column.linkable ? (
+          <RecordLink entity={column.ref.entity} id={value} label={shown} mono={label === null} />
+        ) : (
+          <span className={label === null ? "erp-mono" : undefined} title={label === null ? value : undefined}>
+            {shown}
+          </span>
+        )}
+      </td>
+    );
+  }
   if (column.display === "dian") {
     const pill = dianPill(value);
     return <td className={className}>{pill ? <Pill tone={pill.tone}>{t(`grid.dian.${pill.key}`, { count: pill.count })}</Pill> : <span className="erp-muted">—</span>}</td>;

@@ -110,4 +110,17 @@ describe("EntityLookup", () => {
     fireEvent.click(screen.getByRole("button", { name: "Quitar la selección" }));
     expect(onPick).toHaveBeenCalledWith(null);
   });
+
+  it("links the chosen record to its page beside the magnifier when the viewer may open it (rule 21)", () => {
+    setup({ value: { id: "a", label: "Café del Norte S.A.S." }, href: "/r/core.party/a" });
+    const link = screen.getByRole("link", { name: "Abrir Café del Norte S.A.S." });
+    expect(link.getAttribute("href")).toBe("/r/core.party/a");
+    cleanup();
+    // No link without a choice, nor when the viewer may not open the record.
+    setup({ value: null, href: "/r/core.party/a" });
+    expect(screen.queryByRole("link")).toBeNull();
+    cleanup();
+    setup({ value: { id: "a", label: "Café del Norte S.A.S." }, href: null });
+    expect(screen.queryByRole("link")).toBeNull();
+  });
 });

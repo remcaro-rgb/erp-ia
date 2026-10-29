@@ -44,8 +44,12 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
   copyNote: "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
 };
 
-/** Deep link of a record: `/r/<entity id>/<record id>`, the same form as a full page. */
-export const recordHref = (entity: string, recordId: string): string => `/r/${entity}/${recordId}`;
+/**
+ * The page of a record (rule 21, design §22.15), the one place that says where a record of an entity opens: a user at
+ * their page under Administración › Usuarios, any other record in its frame at `/r/<entity id>/<record id>`. Every link
+ * to a record (grids, forms, the audit, the assistant's results, the home) is built here.
+ */
+export const recordHref = (entity: string, recordId: string): string => (entity === "kernel.user" ? `/admin/users/${recordId}` : `/r/${entity}/${recordId}`);
 
 /** First 8 characters of the UUID, as the prototype shows it. */
 export const shortId = (uuid: string): string => uuid.slice(0, 8);

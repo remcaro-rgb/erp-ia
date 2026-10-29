@@ -8,6 +8,9 @@ describe("recentHref", () => {
     expect(recentHref("core.party", "p1")).toBe("/r/core.party/p1");
     expect(recentHref("core.product_category", "c1")).toBe("/r/core.product_category/c1");
     expect(recentHref("kernel.export_job", "j1")).toBeNull();
+    // Every record with a page links there (rule 21): a ticket in its frame, a user under Administración › Usuarios.
+    expect(recentHref("support.ticket", "t1")).toBe("/r/support.ticket/t1");
+    expect(recentHref("kernel.user", "u1")).toBe("/admin/users/u1");
   });
 });
 

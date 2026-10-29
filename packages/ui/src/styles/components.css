@@ -186,6 +186,12 @@
   .erp-lk__mag { right: 4px; }
   .erp-lk__clear { right: 32px; }
   .erp-lk__mag:hover, .erp-lk__clear:hover { background: var(--head); color: var(--link); }
+  /* The chosen record's page (rule 21): left of the clear button, or of the magnifier when there is none to clear. */
+  .erp-lk--linked .erp-lk__input { padding-right: 92px; }
+  .erp-lk__open { position: absolute; top: 50%; transform: translateY(-50%); right: 32px; width: 28px; height: 28px; border-radius: 4px; color: var(--link); display: grid; place-items: center; }
+  .erp-lk__clear ~ .erp-lk__open { right: 60px; }
+  .erp-lk__open:hover { background: var(--head); }
+  .erp-lk__open:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-lk__mag.is-on { color: var(--link); background: var(--accent); }
   .erp-lk__dd { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 320px; overflow: auto; }
   .erp-lk__dd ul { list-style: none; margin: 0; padding: 0; }

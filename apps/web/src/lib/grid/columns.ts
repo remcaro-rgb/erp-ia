@@ -11,7 +11,11 @@ import type { GridPresentation } from "./presentation";
 export type Translate = (key: string) => string;
 export type CodeTables = Record<string, readonly { value: string; label: string }[]>;
 
-export function buildColumns(entity: EntityDef, access: GridAccess, presentation: GridPresentation, t: Translate, tables: CodeTables = {}): GridColumn[] {
+/**
+ * `linkable`: the entities whose records the viewer may open (`linkableEntities`); a reference to one of them is drawn as
+ * a link to its record (rule 21), any other as plain text.
+ */
+export function buildColumns(entity: EntityDef, access: GridAccess, presentation: GridPresentation, t: Translate, tables: CodeTables = {}, linkable: ReadonlySet<string> = new Set()): GridColumn[] {
   const fields = entity.fields.filter((f) => !presentation.exclude.includes(f.name));
   const shown = presentation.shown.filter((name) => fields.some((f) => f.name === name));
   const ordered = [...shown.map((name) => fields.find((f) => f.name === name)!), ...fields.filter((f) => !shown.includes(f.name))];
@@ -34,6 +38,8 @@ export function buildColumns(entity: EntityDef, access: GridAccess, presentation
       ...(p.pills ? { pills: p.pills } : {}),
       ...(p.display ? { display: p.display } : {}),
       ...(shown.length > 0 && !shown.includes(f.name) ? { hiddenByDefault: true } : {}),
+      // A reference to another entity's record: named by its label and linked to its page when the viewer may open it.
+      ...(f.type === "ref" && f.ref ? { ref: { entity: f.ref.entity, display: f.ref.display }, ...(linkable.has(f.ref.entity) ? { linkable: true } : {}) } : {}),
       // The grid's identity column: first, pinned and never moved (OD-4).
       ...(f.name === (presentation.title ?? entity.displayField) ? { identity: true } : {}),
     };

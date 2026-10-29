@@ -32,3 +32,9 @@ export const NEW_RECORD_ID = "new";
 
 /** The entity config, or null for an entity that has no full page (also for inherited object keys). */
 export const recordEntity = (id: string): RecordEntity | null => RECORD_ENTITIES.find((e) => e.id === id) ?? null;
+
+/**
+ * Whether a record of `entity` has a page a link can open (rule 21): the full-page records above, a support ticket (its
+ * frame at /r/support.ticket/<id>) and a user (Administración › Usuarios). `recordHref` (@erp/ui) says where it is.
+ */
+export const hasRecordPage = (entity: string): boolean => recordEntity(entity) !== null || entity === "support.ticket" || entity === "kernel.user";

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { FieldMode, GridColumn, GridFetcher, GridRow, GridStateInput } from "../grid/types";
 import { EntityLookup } from "../lookup/EntityLookup";
 import { MoneyInput } from "../money/MoneyInput";
+import { recordHref } from "../record/record-model";
 import { Checks, RecordForm, DianPanel, failureMessages, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText } from "./form-parts";
 import {
   margin,
@@ -67,6 +68,8 @@ export interface ProductFormProps {
     entityLabel: string;
     /** How the current supplier reads, when there is one. */
     label: string | null;
+    /** The viewer may open a party's page: the chosen supplier links to it (rule 21). */
+    linkable?: boolean;
     baseFilters?: Filter[];
   };
 }
@@ -179,6 +182,7 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
                 placeholder={t("supplier_placeholder")}
                 disabled={dis}
                 value={draft.supplierId ? { id: draft.supplierId, label: supplierLabel ?? draft.supplierId } : null}
+                href={supplier.linkable && draft.supplierId ? recordHref("core.party", draft.supplierId) : null}
                 describe={(row: GridRow) => ({ label: String(row.legal_name ?? row.id), sub: [row.document_number, row.trade_name].filter(Boolean).join(" · ") })}
                 onPick={(row) => {
                   setSupplierLabel(row ? String(row.legal_name ?? row.id) : null);

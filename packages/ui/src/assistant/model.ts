@@ -72,6 +72,12 @@ export interface ResultColumn {
   type?: string;
   /** The caller's access to the field, as the grid has it: a masked field shows ••••••, a hidden one has no column. */
   mode?: "visible" | "masked" | "hidden";
+  /** The entity's identity column (its display field): with `linkable`, each row's name links to the row's record. */
+  identity?: boolean;
+  /** A reference to another entity's record: the cell shows the row's `<field>_label` and, with `linkable`, links to it. */
+  ref?: { entity: string; display: string };
+  /** The viewer may open the records this column names (rule 21). */
+  linkable?: boolean;
 }
 
 export interface QueryResult {

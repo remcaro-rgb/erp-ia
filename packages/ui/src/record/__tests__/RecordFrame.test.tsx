@@ -236,6 +236,8 @@ describe("RecordFrame Duplicar (rule 37)", () => {
 describe("record model", () => {
   it("builds the deep link from the entity id and the record id", () => {
     expect(recordHref("core.product", id)).toBe(`/r/core.product/${id}`);
+    // A user has no record frame: their page is under Administración › Usuarios (design §22.15).
+    expect(recordHref("kernel.user", id)).toBe(`/admin/users/${id}`);
   });
 
   it("parties show Contactos, products show Fotos, every record shows Datos adicionales and Archivos", () => {

@@ -4,6 +4,7 @@ import type { CategoryOption, GridColumn, PartyTables, ProductTables } from "@er
 import { requireCaller } from "@/lib/auth/claims";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
 import { buildColumns } from "@/lib/grid/columns";
+import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
@@ -20,7 +21,7 @@ export type FormData =
       kind: "product";
       tables: ProductTables;
       categories: CategoryOption[];
-      supplier: { fields: GridColumn[]; label: string | null; entityLabel: string };
+      supplier: { fields: GridColumn[]; label: string | null; entityLabel: string; linkable: boolean };
     }
   | { kind: "category"; tables: ProductTables; productCount: number };
 
@@ -159,10 +160,11 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   const t = await getTranslations();
   const party = gridEntity(deps.registry, "core.party")!;
   const supplierId = typeof record?.supplier_id === "string" ? record.supplier_id : null;
-  const [categories, partyAccess, supplier] = await Promise.all([
+  const [categories, partyAccess, supplier, linkable] = await Promise.all([
     gridRows(caller, "core.product_category", { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "status"] }),
     gridPageAccess(deps.sql, caller.claims, party),
     supplierId ? gridRows(caller, "core.party", { filters: [{ field: "id", op: "eq", value: supplierId }], sort: [], page: 1, pageSize: 1, columns: ["legal_name"] }) : null,
+    linkableEntities(deps, caller.claims, [party.id]),
   ]);
   return {
     kind: "product",
@@ -180,6 +182,8 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
       fields: buildColumns(party, partyAccess, presentationOf(party.id), (key) => t(key)),
       label: supplier?.rows[0] ? String(supplier.rows[0].legal_name ?? supplierId) : null,
       entityLabel: t(party.label),
+      // The chosen supplier links to its page when the caller may open parties (rule 21).
+      linkable: linkable.has(party.id),
     },
   };
 }

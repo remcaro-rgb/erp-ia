@@ -430,5 +430,25 @@ test.describe("universal grid", () => {
       .toBe(norteId);
     await page.reload();
     await expect(page.getByRole("combobox", { name: "Proveedor principal" })).toHaveValue("Café del Norte S.A.S.");
+    // The chosen supplier links to its page beside the magnifier (rule 21).
+    await expect(page.getByRole("link", { name: "Abrir Café del Norte S.A.S." })).toHaveAttribute("href", `/r/core.party/${norteId}`);
+  });
+
+  test("the supplier on the Productos grid is a link to the party's record (rule 21)", async ({ page }) => {
+    await fixture.sql`update core.products set supplier_id = ${norteId} where id = ${productId}`;
+    await signIn(page, fixture);
+    await page.goto("/products");
+    const productos = grid(page, "Productos");
+    await expect(bodyRows(page)).toHaveCount(1);
+    // Proveedor is in the column chooser; shown, it names the party by its legal name and links to its page.
+    await productos.getByRole("button", { name: "Columnas" }).click();
+    await page.getByRole("group", { name: "Columnas" }).getByLabel("Proveedor", { exact: true }).check();
+    await page.keyboard.press("Escape");
+    const link = productos.getByRole("link", { name: "Café del Norte S.A.S." });
+    await expect(link).toHaveAttribute("href", `/r/core.party/${norteId}`);
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`/r/core\\.party/${norteId}$`));
+    await expect(page.getByRole("heading", { name: "Café del Norte S.A.S." })).toBeVisible();
   });
 });
+

@@ -139,6 +139,7 @@ describe("links", () => {
     expect(auditRecordHref("core.product_category", "c1")).toBe("/r/core.product_category/c1");
     expect(auditRecordHref("support.ticket", "t1")).toBe("/r/support.ticket/t1");
     expect(auditRecordHref("kernel.audit", "a1")).toBeNull();
+    expect(auditRecordHref("kernel.user", "u1")).toBe("/admin/users/u1");
     expect(auditRecordHref(null, "a1")).toBeNull();
     expect(auditRecordHref("core.party", null)).toBeNull();
     expect(actorHref("u1")).toBe("/admin/users/u1");

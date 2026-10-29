@@ -39,6 +39,13 @@ export interface GridColumn {
    * selection column while the grid scrolls sideways, and never moved behind other columns (OD-4).
    */
   identity?: boolean;
+  /** A reference to a record of another entity (`ref` field): the cell shows its name (`<field>_label`) and links to it. */
+  ref?: { entity: string; display: string };
+  /**
+   * The viewer may open the records of this column (rule 21): a reference's target, or for the identity column the row's
+   * own record. Absent: the name is plain text.
+   */
+  linkable?: boolean;
 }
 
 export type GridRow = Record<string, unknown> & { id: string };

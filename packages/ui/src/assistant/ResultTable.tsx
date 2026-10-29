@@ -1,10 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { refLabelKey } from "@erp/kernel/query";
 import { formatCellValue, isEmptyCell, useCellTimeZone } from "../grid/cell-format";
 import { browserDownload, useGridExport } from "../grid/use-grid-export";
 import type { ExportResult } from "../grid/export-client";
 import type { GridStateInput } from "../grid/types";
+import { RecordLink } from "../record/RecordLink";
+import { shortId } from "../record/record-model";
 import type { ResultColumn } from "./model";
 
 export interface ResultTableProps {
@@ -36,7 +39,10 @@ const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
  */
 function columnsOf(rows: Record<string, unknown>[], given?: ResultColumn[]): ResultColumn[] {
   const known = given && given.length > 0 ? new Map(given.map((column) => [column.field, column])) : null;
-  const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter((key) => key !== "id");
+  const all = new Set(rows.flatMap((row) => Object.keys(row)));
+  // A reference's name (`<field>_label`) is shown in its reference's column, never as a column of its own.
+  const isLabel = (key: string) => [...all].some((field) => field !== key && refLabelKey(field) === key);
+  const keys = [...all].filter((key) => key !== "id" && !isLabel(key));
   return keys.flatMap((field): ResultColumn[] => {
     if (known) {
       const meta = known.get(field);
@@ -61,6 +67,21 @@ export function ResultTable({ entity, rows, columns, total, truncated, state, on
   const companyZone = useCellTimeZone();
   const zone = timeZone ?? companyZone;
   const text = (column: ResultColumn, value: unknown) => formatCellValue({ type: column.type ?? "text" }, value, { yes: t("common.yes"), no: t("common.no"), timeZone: zone });
+
+  /**
+   * A cell's content (rule 21): a reference names its record (`<field>_label`, else its short id) and the identity column
+   * names the row, each a link to the record's page when the viewer may open it; anything else is its text.
+   */
+  const linked = (column: ResultColumn, row: Record<string, unknown>, value: unknown) => {
+    if (column.ref && typeof value === "string") {
+      const named = row[refLabelKey(column.field)];
+      const label = typeof named === "string" && named !== "" ? named : null;
+      if (column.linkable) return <RecordLink entity={column.ref.entity} id={value} label={label ?? shortId(value)} mono={label === null} />;
+      return label ?? <span className="erp-mono">{shortId(value)}</span>;
+    }
+    if (column.identity && column.linkable && typeof row.id === "string") return <RecordLink entity={entity} id={row.id} label={text(column, value)} />;
+    return text(column, value);
+  };
 
   const failure = exporter.status.phase === "failed" ? exporter.status.code : null;
   return (
@@ -95,7 +116,7 @@ export function ResultTable({ entity, rows, columns, total, truncated, state, on
                     }
                     return (
                       <td key={column.field} className={numeric ? "erp-num text-right" : undefined}>
-                        {isEmptyCell({ type: column.type ?? "text" }, value) ? <span className="erp-muted">—</span> : text(column, value)}
+                        {isEmptyCell({ type: column.type ?? "text" }, value) ? <span className="erp-muted">—</span> : linked(column, row, value)}
                       </td>
                     );
                   })}

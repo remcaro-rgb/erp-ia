@@ -26,6 +26,16 @@ Los importes se muestran como `$ 1.234.567,00`, alineados a la derecha. Un valor
 
 Haz clic en una fila (o enfócala y pulsa Enter) para abrir el registro en su propia pestaña.
 
+## Enlaces a registros
+
+Cuando una columna muestra **otro registro** (el **Proveedor** o la **Categoría** de un producto, el **Solicitante** de un ticket), ves su nombre subrayado como enlace: un clic abre la página de ese registro en la misma pestaña del navegador, sin abrir la fila; con **Ctrl** (o **⌘** en Mac) se abre en una pestaña nueva. Un usuario se abre en su página de **Administración › Usuarios**.
+
+- Si tu rol no puede consultar ese tipo de registro, la celda muestra los primeros 8 caracteres de su identificador, sin enlace.
+- Si puedes consultarlo pero no ves su nombre (tu rol no ve ese tercero, o tiene enmascarado el dato que lo nombra), el enlace muestra esos 8 caracteres.
+- Las columnas de otro registro se ordenan y filtran como las demás.
+
+En los formularios pasa lo mismo: junto a la lupa de un campo que apunta a otro registro (el **Proveedor principal** de un producto) aparece una flecha ↗ «Abrir …» que abre el registro elegido.
+
 ## Usar el listado con el teclado
 
 Las filas son **una sola parada** de **Tab**: desde la fila de filtros, **Tab** te lleva a la fila activa y el siguiente **Tab** sale de la tabla hacia el pie. Dentro de las filas:
