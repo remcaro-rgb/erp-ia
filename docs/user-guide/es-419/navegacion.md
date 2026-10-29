@@ -37,6 +37,7 @@ Cada pantalla que abres queda en una pestaña de la fila que está debajo de la 
 - La **✕** de cada pestaña la cierra. Al cerrar la pestaña activa pasas a la vecina.
 - El botón **+** abre la paleta de comandos para elegir la pantalla de una pestaña nueva.
 - **Cerrar todas ✕** (a la derecha, solo aparece si hay pestañas que cerrar) cierra todas menos Inicio. Antes pide confirmación y te dice cuáles se cerrarán: «Los formularios sin guardar se perderían».
+- Si las pestañas no caben en el ancho, la fila se desplaza de lado y la pestaña activa siempre queda a la vista; **+** y **Cerrar todas ✕** se quedan fijos a la derecha.
 - Se mantienen hasta 30 pestañas; si abres más, se cierran las más antiguas.
 
 Tus pestañas se guardan en tu usuario, por empresa: al volver a ingresar, o desde otro computador, encuentras las mismas.
@@ -58,6 +59,8 @@ El botón de tema de la barra (y la opción **Tema** del menú de tu usuario) va
 ## El panel del asistente
 
 El botón **Asistente** abre o cierra un panel a la derecha. Muestra el contexto de la pantalla en que estás y la conversación con el asistente; cerrarlo no la pierde. Cómo usarlo está en [El asistente](asistente.md).
+
+En pantallas angostas (menos de 1280 píxeles de ancho, como un portátil de 1366 con la ventana reducida) el panel se abre cerrado, para no quitarle espacio a los formularios; en pantallas anchas se abre abierto. Cuando lo abres o lo cierras tú, el sistema lo recuerda para tu usuario y tu empresa, y esa elección manda sobre el ancho de la pantalla.
 
 **Ctrl+/** (en Mac, **⌘/**) hace lo mismo desde cualquier pantalla: si el panel está cerrado lo abre con el cursor listo en la caja para escribir; si está abierto lo cierra y el cursor vuelve a la pantalla.
 

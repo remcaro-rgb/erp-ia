@@ -76,10 +76,12 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       commands={data.commands}
       assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity], ...(data.company.timeZone ? { timeZone: data.company.timeZone } : {}) }}
       theme={data.theme}
+      assistantOpen={data.assistantOpen}
       initialTabs={data.tabs}
       currentHref={pathname}
       navigate={(href) => router.push(href)}
       onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}
+      onAssistantOpenChange={(open, savedAt) => void saveShellPrefAction({ key: "assistant.open", value: open, savedAt })}
       onTabsChange={saveTabs}
       onSwitchCompany={async (companyId) => {
         // The pending tabs belong to the company being left: store them there before the claims change.

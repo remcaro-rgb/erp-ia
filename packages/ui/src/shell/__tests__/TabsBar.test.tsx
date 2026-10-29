@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { TabsBar } from "../TabsBar";
 import { createTabsStore, HOME_TAB_ID, TabsProvider } from "../tabs-store";
 import { renderEs, stubLayoutApis } from "./intl";
@@ -92,5 +92,61 @@ describe("TabsBar", () => {
     fireEvent.keyDown(title("Terceros"), { key: "Delete" });
     expect(store.getState().tabs.map((t) => t.href)).toEqual(["/", "/products"]);
     expect(document.activeElement).toBe(title("Productos"));
+  });
+});
+
+// Phase 1b task 1 (OD-6): the row scrolls sideways instead of clipping; the active tab is kept in view; "+" and
+// "Cerrar todas" stay pinned at the right, outside the scrolling area.
+describe("TabsBar with many tabs", () => {
+  const many = (count: number, active: number) => {
+    const store = createTabsStore();
+    for (let i = 1; i <= count; i++) store.getState().open({ title: `Pantalla ${i}`, href: `/p${i}`, kind: "grid" });
+    store.getState().activate(`/p${active}`);
+    renderEs(
+      <TabsProvider store={store}>
+        <TabsBar onNew={vi.fn()} />
+      </TabsProvider>,
+    );
+    return store;
+  };
+  const scroller = () => document.querySelector<HTMLElement>("[data-tabs-scroll]")!;
+
+  it("scrolls the tabs sideways (no clipping) and keeps the active tab in view", () => {
+    const spy = vi.spyOn(Element.prototype, "scrollIntoView");
+    const store = many(20, 18);
+    expect(scroller().className).toContain("overflow-x-auto");
+    expect(scroller().className).not.toContain("overflow-hidden");
+    const shown = spy.mock.contexts.map((el) => (el as HTMLElement).getAttribute("data-tab"));
+    expect(shown).toContain("/p18");
+    expect(spy.mock.calls.at(-1)![0]).toEqual({ block: "nearest", inline: "nearest" });
+    // Activating another tab scrolls to that one.
+    spy.mockClear();
+    act(() => store.getState().activate("/p3"));
+    expect((spy.mock.contexts.at(-1) as HTMLElement).getAttribute("data-tab")).toBe("/p3");
+    spy.mockRestore();
+  });
+
+  it("keeps + and Cerrar todas pinned at the right, outside the scrolling area, and visible", () => {
+    many(20, 20);
+    const plus = screen.getByRole("button", { name: "Nueva pestaña" });
+    const closeAll = screen.getByRole("button", { name: /Cerrar todas/ });
+    expect(scroller().contains(plus)).toBe(false);
+    expect(scroller().contains(closeAll)).toBe(false);
+    expect(scroller().contains(screen.getByRole("button", { name: "Pantalla 20" }))).toBe(true);
+    expect(plus.closest("[data-tabs-row]")).toBe(scroller().closest("[data-tabs-row]"));
+    expect(plus.className).toContain("shrink-0");
+    expect(closeAll.className).toContain("shrink-0");
+  });
+
+  it("keeps the keyboard behaviour: one tab stop, ← → move, Delete closes", () => {
+    const store = many(20, 5);
+    const title = (name: string) => screen.getByRole("button", { name });
+    expect(title("Pantalla 5").tabIndex).toBe(0);
+    expect(title("Pantalla 6").tabIndex).toBe(-1);
+    title("Pantalla 5").focus();
+    fireEvent.keyDown(title("Pantalla 5"), { key: "ArrowRight" });
+    expect(document.activeElement).toBe(title("Pantalla 6"));
+    fireEvent.keyDown(title("Pantalla 6"), { key: "Delete" });
+    expect(store.getState().tabs.some((t) => t.href === "/p6")).toBe(false);
   });
 });

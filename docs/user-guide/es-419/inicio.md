@@ -74,7 +74,7 @@ Atajos para preguntarle al asistente cómo hacer algo (crear un tercero, importa
 
 Inicio es tuyo: cada cambio se guarda para tu usuario y tu empresa, y nadie lo mueve por ti.
 
-- **Mover**: arrastra una tarjeta por su encabezado (la barra con los puntos ⋮⋮) y suéltala sobre otra; toma su lugar. Con el teclado, enfoca el encabezado y pulsa **Alt + flecha izquierda o derecha**.
+- **Mover**: arrastra una tarjeta por su encabezado (la barra con los puntos ⋮⋮) y suéltala sobre otra; toma su lugar. Con el teclado, enfoca el encabezado y pulsa **Enter** o **Espacio**: aparece el aviso «Modo mover» y las **flechas** mueven la tarjeta (izquierda y arriba la adelantan, derecha y abajo la atrasan); **Mayús + flechas** cambian su tamaño (izquierda y derecha las columnas, arriba y abajo el alto); **Esc** (o **Enter** otra vez) termina. **Alt + flecha izquierda o derecha** también mueve la tarjeta sin entrar al modo.
 - **Cambiar el tamaño**: arrastra la esquina inferior derecha de la tarjeta. El ancho se ajusta a 1, 2, 3 o 4 columnas y el alto es libre (mínimo 160 px). Mientras cambias el tamaño (o cuando la tarjeta tiene el cursor del teclado), el encabezado muestra el tamaño actual, por ejemplo «2/4 · 300 px». Con el teclado, enfoca la esquina y usa las **flechas**: izquierda y derecha cambian las columnas, arriba y abajo el alto.
 - **Restablecer tarjetas** (arriba a la derecha) devuelve todas las tarjetas a su orden y tamaño originales.
 

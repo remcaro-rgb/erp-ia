@@ -49,6 +49,8 @@
   --color-text-muted: var(--text-muted);
   --color-line: var(--line);
   --color-line-2: var(--line-2);
+  --color-line-input: var(--line-input);
+  --color-link: var(--link);
   --color-ok: var(--ok);
   --color-ok-bg: var(--ok-bg);
   --color-warn: var(--warn);

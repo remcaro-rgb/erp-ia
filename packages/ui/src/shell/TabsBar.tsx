@@ -18,7 +18,8 @@ export interface TabsBarProps {
 /**
  * The open-tabs row under the top bar (design §19a, prototype `renderTabs`): a tinted band (`--tabrow`), the
  * active tab takes the page background, every tab but Inicio closes, "+" opens the palette and
- * "Cerrar todas" closes everything but Inicio after a confirmation.
+ * "Cerrar todas" closes everything but Inicio after a confirmation. The tabs scroll sideways when they do not fit
+ * (OD-6) and the active one is kept in view; "+" and "Cerrar todas" stay pinned at the right, outside the scroll.
  */
 export function TabsBar({ onNew, onActivate }: TabsBarProps) {
   const t = useTranslations("nav.shell");
@@ -36,6 +37,11 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
     focusTab(focusAfterClose.current);
     focusAfterClose.current = null;
   }, [tabs]);
+  // The active tab is always in view (a tab opened or activated past the edge, a long row after a reload).
+  useEffect(() => {
+    if (activeId === null) return;
+    row.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(activeId)}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeId, tabs.length]);
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.altKey || event.ctrlKey || event.metaKey || tabs.length === 0) return;
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -62,53 +68,55 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
       ref={row}
       data-tabs-row=""
       aria-label={t("tabs.label")}
-      className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-hidden border-b border-tabrow-line bg-tabrow px-3"
+      className="flex h-9 shrink-0 items-stretch gap-0.5 border-b border-tabrow-line bg-tabrow px-3"
     >
-      {tabs.map((tab, index) => {
-        const on = tab.id === activeId;
-        return (
-          <div
-            key={tab.id}
-            data-tab={tab.id}
-            className={cn(
-              "mt-[5px] flex items-center gap-1.5 rounded-t-md border border-b-0 border-transparent px-3.5 text-[13px] whitespace-nowrap text-tabrow-text hover:bg-tabrow-hover",
-              on && "border-tabrow-line bg-page font-semibold text-text shadow-[0_1px_0_var(--bg)] hover:bg-page",
-            )}
-          >
-            <button
-              type="button"
-              aria-current={on ? "page" : undefined}
-              aria-keyshortcuts={tab.pinned ? undefined : "Delete"}
-              tabIndex={on ? 0 : -1}
-              onKeyDown={(event) => onTabKey(event, index)}
-              onClick={() => {
-                activate(tab.id);
-                onActivate?.(tab);
-              }}
-              className="h-full rounded-sm bg-transparent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+      <div data-tabs-scroll="" className="-mb-px flex min-w-0 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {tabs.map((tab, index) => {
+          const on = tab.id === activeId;
+          return (
+            <div
+              key={tab.id}
+              data-tab={tab.id}
+              className={cn(
+                "mt-[5px] flex shrink-0 items-center gap-1.5 rounded-t-md border border-b-0 border-transparent px-3.5 text-[13px] whitespace-nowrap text-tabrow-text hover:bg-tabrow-hover",
+                on && "border-tabrow-line bg-page font-semibold text-text shadow-[0_1px_0_var(--bg)] hover:bg-page",
+              )}
             >
-              {titleOf(tab)}
-            </button>
-            {!tab.pinned && (
               <button
                 type="button"
-                aria-label={t("tabs.close", { title: titleOf(tab) })}
-                // A 20 px mouse target; from the keyboard, Delete on the tab closes it (one stop per tab, not two).
-                tabIndex={-1}
-                onClick={() => close(tab.id)}
-                className="-mr-1.5 grid size-5 place-items-center rounded-sm text-xs opacity-60 hover:bg-tabrow-hover hover:opacity-100"
+                aria-current={on ? "page" : undefined}
+                aria-keyshortcuts={tab.pinned ? undefined : "Delete"}
+                tabIndex={on ? 0 : -1}
+                onKeyDown={(event) => onTabKey(event, index)}
+                onClick={() => {
+                  activate(tab.id);
+                  onActivate?.(tab);
+                }}
+                className="h-full rounded-sm bg-transparent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
               >
-                ✕
+                {titleOf(tab)}
               </button>
-            )}
-          </div>
-        );
-      })}
+              {!tab.pinned && (
+                <button
+                  type="button"
+                  aria-label={t("tabs.close", { title: titleOf(tab) })}
+                  // A 20 px mouse target; from the keyboard, Delete on the tab closes it (one stop per tab, not two).
+                  tabIndex={-1}
+                  onClick={() => close(tab.id)}
+                  className="-mr-1.5 grid size-5 place-items-center rounded-sm text-xs opacity-60 hover:bg-tabrow-hover hover:opacity-100"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
       <button
         type="button"
         aria-label={t("tabs.new")}
         onClick={onNew}
-        className="mt-[5px] flex items-center rounded-t-md px-3.5 text-base text-tabrow-text hover:bg-tabrow-hover"
+        className="mt-[5px] flex shrink-0 items-center rounded-t-md px-3.5 text-base text-tabrow-text hover:bg-tabrow-hover"
       >
         +
       </button>
@@ -117,7 +125,7 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
           type="button"
           title={t("tabs.close_all_hint")}
           onClick={() => setConfirming(true)}
-          className="ml-auto self-center rounded-sm border border-transparent px-2 py-1 text-xs whitespace-nowrap text-tabrow-text hover:border-tabrow-line hover:bg-tabrow-hover"
+          className="ml-auto shrink-0 self-center rounded-sm border border-transparent px-2 py-1 text-xs whitespace-nowrap text-tabrow-text hover:border-tabrow-line hover:bg-tabrow-hover"
         >
           {t("tabs.close_all")} ✕
         </button>

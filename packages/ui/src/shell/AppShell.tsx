@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useStore } from "zustand";
 import { Toaster } from "@erp/ui/components/ui/sonner";
@@ -13,7 +13,7 @@ import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
-import { browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+import { assistantOpenStorageKey, browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
@@ -50,6 +50,10 @@ export interface AppShellProps {
   theme?: Saved<ThemeMode> | null;
   /** A theme change with its time, to save it (the shell already caches it in localStorage). */
   onThemeChange?: (mode: ThemeMode, savedAt: number) => void;
+  /** The user's saved choice of showing the assistant drawer (`kernel.user_prefs`, key `assistant.open`), or null: then the viewport decides. */
+  assistantOpen?: Saved<boolean> | null;
+  /** The user opened or closed the drawer, with the time, to save it (the shell already caches it in localStorage). */
+  onAssistantOpenChange?: (open: boolean, savedAt: number) => void;
   /** The user's saved tabs in this company (`kernel.user_prefs`, key `tabs`), or null. */
   initialTabs?: Saved<unknown> | null;
   /** Every change of the tabs with its time, to save them (the shell already caches them in localStorage). */
@@ -58,6 +62,17 @@ export interface AppShellProps {
   signOutAction?: () => void | Promise<void>;
   /** The preference cache; the browser's localStorage by default. */
   storage?: Storage | null;
+}
+
+/** Below this viewport width the assistant drawer starts closed (OD-10: it would leave the page under ~920 px at 1366). */
+const ASSISTANT_MIN_WIDTH = 1280;
+
+/** Grid and admin routes use the tighter page padding (OD-1); the home and the record page keep v5's. */
+const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/");
+
+function readBooleanPref(storage: Storage | null, key: string, companyId: string): Saved<boolean> | null {
+  const cached = readCachedPref(storage, key, companyId);
+  return cached && typeof cached.value === "boolean" ? { value: cached.value, savedAt: cached.savedAt } : null;
 }
 
 /**
@@ -157,7 +172,26 @@ function ShellFrame(props: AppShellProps) {
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(true);
+  // The drawer: the user's saved choice when there is one (the server's copy, or this browser's when it is newer), else
+  // closed below 1280 px (OD-10). Decided once, on the first mount; the server render and hydration use the saved choice
+  // or "open", and a narrow viewport closes it before the first paint. A resize afterwards never moves it.
+  const [assistantOpen, setAssistantOpen] = useState(props.assistantOpen?.value ?? true);
+  useLayoutEffect(() => {
+    const saved = newerSaved(props.assistantOpen ?? null, readBooleanPref(storage, assistantOpenStorageKey(user.id), company.id));
+    if (saved) setAssistantOpen(saved.value);
+    else if (window.innerWidth < ASSISTANT_MIN_WIDTH) setAssistantOpen(false);
+    // Once per mounted shell: the first render's saved copies and viewport decide.
+  }, []);
+  /** A toggle by the user: remembered for the next visit. (Opening it to answer ⌘K is not a choice and is not saved.) */
+  const chooseAssistant = useCallback(
+    (open: boolean) => {
+      setAssistantOpen(open);
+      const savedAt = Date.now();
+      writeCachedPref(storage, assistantOpenStorageKey(user.id), company.id, { value: open, savedAt });
+      latest.current.onAssistantOpenChange?.(open, savedAt);
+    },
+    [storage, user.id, company.id],
+  );
   // Ctrl+/ (⌘/ on a Mac) shows the assistant with the caret in its input, or hides it and returns the caret to the page.
   const openRef = useRef(assistantOpen);
   useEffect(() => {
@@ -172,15 +206,15 @@ function ShellFrame(props: AppShellProps) {
       event.preventDefault();
       if (openRef.current) {
         document.getElementById("erp-main")?.focus({ preventScroll: true });
-        setAssistantOpen(false);
+        chooseAssistant(false);
       } else {
-        setAssistantOpen(true);
+        chooseAssistant(true);
         setFocusInput((n) => n + 1);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [chooseAssistant]);
   const [asked, setAsked] = useState<{ text: string; nonce: number } | undefined>(undefined);
   const ask = useCallback((text: string) => {
     if (!text) return;
@@ -217,7 +251,7 @@ function ShellFrame(props: AppShellProps) {
         <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
           <a
             href="#erp-main"
-            className="sr-only rounded-md bg-surface px-3 py-2 text-[13px] font-semibold text-primary focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:shadow-[0_10px_30px_var(--shadow)]"
+            className="sr-only rounded-md bg-surface px-3 py-2 text-[13px] font-semibold text-link focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:shadow-[0_10px_30px_var(--shadow)]"
           >
             {t("nav.shell.skip_to_content")}
           </a>
@@ -235,13 +269,13 @@ function ShellFrame(props: AppShellProps) {
             onThemeChange={(mode) => changeTheme(mode)}
             onOpenPalette={() => setPaletteOpen(true)}
             assistantOpen={assistantOpen}
-            onToggleAssistant={() => setAssistantOpen((open) => !open)}
+            onToggleAssistant={() => chooseAssistant(!assistantOpen)}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
           />
           <TabsBar onNew={() => setPaletteOpen(true)} />
           <div className="flex min-h-0 flex-1">
-            <main id="erp-main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col gap-4 overflow-auto px-6 py-5">
+            <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
               <AskAssistantProvider ask={ask}>{props.children}</AskAssistantProvider>
             </main>
             <AssistantDrawer

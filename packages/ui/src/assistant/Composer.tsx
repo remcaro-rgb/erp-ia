@@ -47,7 +47,7 @@ export function Composer({ onSend, working, onStop, disabled, focusNonce }: Comp
           if (event.key === "Enter" && !event.nativeEvent.isComposing) send();
         }}
         placeholder={t("drawer.input")}
-        className="min-w-0 flex-1 rounded-md border border-line bg-surface px-3 py-2.5 text-[13px] text-text outline-none focus:outline-2 focus:outline-focus-ring disabled:opacity-60"
+        className="min-w-0 flex-1 rounded-md border border-line-input bg-surface px-3 py-2.5 text-[13px] text-text outline-none focus:outline-2 focus:outline-focus-ring disabled:opacity-60"
       />
       {working ? (
         <button type="button" aria-label={tAgent("stop")} onClick={onStop} className="grid w-10 place-items-center rounded-md border border-line bg-surface text-base">

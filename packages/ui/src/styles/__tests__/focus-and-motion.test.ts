@@ -21,7 +21,7 @@ describe("focus ring token", () => {
   it("keeps the v5 brand blue and the layout tokens untouched", () => {
     expect(tokens).toMatch(/--focus:\s*#93C5FD/);
     expect(tokens).toMatch(/--primary:\s*#1D4ED8/);
-    expect(tokens).toMatch(/--input:\s*var\(--line\)/);
+    expect(tokens).toMatch(/--input:\s*var\(--line-input\)/);
   });
 
   it("is a Tailwind colour and the base rule paints it at full strength on every :focus-visible", () => {

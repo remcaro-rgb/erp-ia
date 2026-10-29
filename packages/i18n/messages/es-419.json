@@ -578,6 +578,8 @@
         "limit": "Tope de la empresa",
         "limit_none": "Sin tope",
         "limit_note": "al superarlo el asistente responde solo consultas sin el modelo",
+        "cap_reached": "límite alcanzado: el asistente solo responde consultas",
+        "warn_at": "aviso al 80 %",
         "per_user": "Por usuario",
         "per_model": "Por modelo",
         "col_user": "Usuario",
@@ -1132,6 +1134,7 @@
       "saved": "Vista guardada: {name}",
       "none": "Sin vistas guardadas",
       "remove": "Borrar la vista {name}",
+      "confirm_remove": "¿Eliminar {name}?",
       "apply": "Aplicar la vista {name}",
       "is_default": "por defecto",
       "failed": "No se pudo guardar la vista"
@@ -1357,6 +1360,7 @@
       "resize": "Cambiar tamaño de {title}",
       "move": "Mover {title}",
       "move_hint": "Arrastra para mover. También: Alt + flechas",
+      "mode_hint": "Modo mover: las flechas mueven la tarjeta, Mayús + flechas cambian su tamaño, Esc termina.",
       "size": "{columns}/4 · {height} px",
       "reset_done": "Tarjetas restablecidas"
     },

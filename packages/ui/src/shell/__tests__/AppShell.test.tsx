@@ -1,13 +1,19 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { AppShell } from "../AppShell";
 import { GridCell } from "../../grid/GridCell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
+import { assistantOpenStorageKey, readCachedPref, writeCachedPref } from "../prefs-cache";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
+// jsdom's window is 1024 px wide; the drawer starts closed below 1280 px (OD-10), so tests that need it open use a laptop-plus width.
+const setWidth = (width: number) => {
+  window.innerWidth = width;
+};
+beforeEach(() => setWidth(1440));
 afterEach(() => {
   cleanup();
   document.documentElement.removeAttribute("data-theme");
@@ -254,5 +260,104 @@ describe("AppShell", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+// Phase 1b task 1 (OD-10): the drawer starts closed below 1280 px, evaluated once on first mount; a stored
+// `assistant.open` preference (server copy or this browser's newer cache) always wins; only a user's toggle is saved.
+describe("AppShell, the assistant drawer's default (OD-10)", () => {
+  const drawer = () => document.getElementById("erp-assistant")!;
+  const fetchStub = () => vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 })));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is closed at 1200 px and open at 1400 px", () => {
+    fetchStub();
+    setWidth(1200);
+    shell("/");
+    expect(drawer().hidden).toBe(true);
+    expect(screen.getByRole("button", { name: "Asistente" }).getAttribute("aria-expanded")).toBe("false");
+    cleanup();
+    setWidth(1400);
+    shell("/");
+    expect(drawer().hidden).toBe(false);
+    cleanup();
+    setWidth(1280);
+    shell("/");
+    expect(drawer().hidden).toBe(false);
+  });
+
+  it("a stored preference wins over the width, both ways", () => {
+    fetchStub();
+    setWidth(1200);
+    shell("/", vi.fn(), { assistantOpen: { value: true, savedAt: 1 } });
+    expect(drawer().hidden).toBe(false);
+    cleanup();
+    setWidth(1600);
+    shell("/", vi.fn(), { assistantOpen: { value: false, savedAt: 1 } });
+    expect(drawer().hidden).toBe(true);
+  });
+
+  it("this browser's cache wins over the server's copy when it is newer", () => {
+    fetchStub();
+    setWidth(1600);
+    const storage = memoryStorage();
+    writeCachedPref(storage, assistantOpenStorageKey("u1"), "c1", { value: false, savedAt: 50 });
+    shell("/", vi.fn(), { assistantOpen: { value: true, savedAt: 10 }, storage });
+    expect(drawer().hidden).toBe(true);
+  });
+
+  it("is evaluated once: a later resize does not move it", () => {
+    fetchStub();
+    setWidth(1440);
+    shell("/");
+    setWidth(1000);
+    fireEvent(window, new Event("resize"));
+    expect(drawer().hidden).toBe(false);
+  });
+
+  it("saves a user's toggle (button and Ctrl+/) with its time and caches it, but not the default", () => {
+    fetchStub();
+    setWidth(1200);
+    const onAssistantOpenChange = vi.fn();
+    const storage = memoryStorage();
+    shell("/", vi.fn(), { onAssistantOpenChange, storage });
+    expect(onAssistantOpenChange).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Asistente" }));
+    expect(drawer().hidden).toBe(false);
+    expect(onAssistantOpenChange).toHaveBeenLastCalledWith(true, expect.any(Number));
+    expect(readCachedPref(storage, assistantOpenStorageKey("u1"), "c1")?.value).toBe(true);
+    fireEvent.keyDown(document, { key: "/", ctrlKey: true });
+    expect(drawer().hidden).toBe(true);
+    expect(onAssistantOpenChange).toHaveBeenLastCalledWith(false, expect.any(Number));
+    expect(readCachedPref(storage, assistantOpenStorageKey("u1"), "c1")?.value).toBe(false);
+  });
+
+  it("⌘K asking the assistant opens it without saving a preference", () => {
+    fetchStub();
+    setWidth(1200);
+    const onAssistantOpenChange = vi.fn();
+    shell("/", vi.fn(), { onAssistantOpenChange });
+    fireEvent.click(screen.getByLabelText("Comando"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "ventas de hoy" } });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(drawer().hidden).toBe(false);
+    expect(onAssistantOpenChange).not.toHaveBeenCalled();
+  });
+});
+
+// Phase 1b task 1 (OD-1): grid and admin routes use the tighter page padding; home and the record page keep v5's.
+describe("AppShell, the page padding (OD-1)", () => {
+  const main = () => screen.getByRole("main");
+
+  it.each(["/parties", "/admin/permissions", "/products"])("%s is dense", (href) => {
+    shell(href);
+    expect(main().getAttribute("data-density")).toBe("tight");
+    expect(main().className).toContain("erp-main");
+  });
+
+  it.each(["/", "/r/core.party/0197a1b2-0000-7000-8000-0000000000c1"])("%s keeps the v5 spacing", (href) => {
+    shell(href);
+    expect(main().hasAttribute("data-density")).toBe(false);
+    expect(main().className).toContain("erp-main");
   });
 });

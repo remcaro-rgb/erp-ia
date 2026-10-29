@@ -578,6 +578,8 @@
         "limit": "Company cap",
         "limit_none": "No cap",
         "limit_note": "above it the assistant answers consult questions only, without the model",
+        "cap_reached": "cap reached: the assistant answers questions only",
+        "warn_at": "warning at 80 %",
         "per_user": "By user",
         "per_model": "By model",
         "col_user": "User",
@@ -1132,6 +1134,7 @@
       "saved": "View saved: {name}",
       "none": "No saved views",
       "remove": "Delete the view {name}",
+      "confirm_remove": "Delete {name}?",
       "apply": "Apply the view {name}",
       "is_default": "default",
       "failed": "The view could not be saved"
@@ -1357,6 +1360,7 @@
       "resize": "Resize {title}",
       "move": "Move {title}",
       "move_hint": "Drag to move. Also: Alt + arrow keys",
+      "mode_hint": "Move mode: arrows move the card, Shift + arrows resize it, Esc ends.",
       "size": "{columns}/4 · {height} px",
       "reset_done": "Cards reset"
     },

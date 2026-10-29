@@ -130,7 +130,7 @@ Cambia la **razón social**, el **nombre comercial** y la **zona horaria** de la
 
 Muestra, para el mes elegido (en la zona horaria de la empresa):
 
-- **Tokens del mes** con la barra frente al **tope mensual** de la empresa.
+- **Tokens del mes** con una barra frente al **tope mensual** de la empresa: dos marcas señalan el 80 % (aviso) y el 100 % (tope), y el porcentaje está escrito al lado. Al llegar al tope la barra se pone roja y el texto dice «límite alcanzado: el asistente solo responde consultas».
 - **Costo estimado** en dólares.
 - El detalle **por usuario** (llamadas, tokens y costo) y **por modelo**.
 

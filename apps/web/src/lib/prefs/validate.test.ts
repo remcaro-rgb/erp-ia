@@ -50,6 +50,19 @@ describe("parseShellPref, the home layout", () => {
   });
 });
 
+describe("parseShellPref, the assistant drawer", () => {
+  it("accepts a boolean with its save time under the key assistant.open", () => {
+    expect(parseShellPref({ key: "assistant.open", value: true, savedAt: now }, now)).toEqual({ key: "assistant.open", stored: { value: true, savedAt: now } });
+    expect(parseShellPref({ key: "assistant.open", value: false, savedAt: now }, now)).toEqual({ key: "assistant.open", stored: { value: false, savedAt: now } });
+  });
+
+  it("refuses anything that is not a boolean, and absurd times", () => {
+    for (const value of ["true", 1, 0, null, undefined, {}, []]) expect(parseShellPref({ key: "assistant.open", value, savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "assistant.open", value: true }, now)).toBeNull();
+    expect(parseShellPref({ key: "assistant.open", value: true, savedAt: now + 2 * 86_400_000 }, now)).toBeNull();
+  });
+});
+
 describe("savedFrom", () => {
   it("reads the stored envelope; a bare legacy value takes the row's time", () => {
     const updatedAt = new Date(now);

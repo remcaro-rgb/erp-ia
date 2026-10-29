@@ -3,18 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { AiUsage } from "@erp/kernel";
+import { ShareMeter } from "@erp/ui";
 
 /**
- * Uso de IA (rule 27, design §20.2): the month's tokens against the company's allowance with its bar, the estimated
- * cost, and the breakdown per user and per model. Above the allowance the assistant answers without the model.
+ * Uso de IA (rule 27, design §20.2): the month's tokens against the company's allowance with its meter (ticks at 80 % and
+ * 100 %, the percentage written, the cap said in words), the estimated cost, and the breakdown per user and per model.
+ * Above the allowance the assistant answers without the model.
  */
 export function AiUsageScreen({ data }: { data: AiUsage }) {
   const t = useTranslations();
   const locale = useLocale();
   const router = useRouter();
   const tokens = new Intl.NumberFormat(locale);
-  const usd = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-  const share = data.limit ? Math.min(100, Math.round((data.used / data.limit) * 100)) : 0;
+  // Fixed decimals, so a column of costs aligns on the decimal separator.
+  const usd = new Intl.NumberFormat(locale, { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const percent = new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 });
+  const share = data.limit ? data.used / data.limit : 0;
   const over = data.limit !== null && data.used >= data.limit;
   const task = (key: string) => (t.has(`common.admin.ai_usage.tasks.${key}`) ? t(`common.admin.ai_usage.tasks.${key}`) : key);
 
@@ -33,19 +37,16 @@ export function AiUsageScreen({ data }: { data: AiUsage }) {
           <span className="erp-kpi__label">{t("common.admin.ai_usage.tokens_month")}</span>
           <span className="erp-kpi__value">{tokens.format(data.used)}</span>
           {data.limit !== null && (
-            <div
-              className={`erp-bar${over ? " is-over" : ""}`}
-              role="meter"
-              aria-label={t("common.admin.ai_usage.bar")}
-              aria-valuemin={0}
-              aria-valuemax={data.limit}
-              aria-valuenow={Math.min(data.used, data.limit)}
-            >
-              <i style={{ width: `${share}%` }} />
-            </div>
+            <>
+              <ShareMeter value={share} label={t("common.admin.ai_usage.bar")} />
+              <span className={over ? "erp-pill erp-pill--danger" : share >= 0.8 ? "erp-pill erp-pill--warn" : "erp-small erp-muted"}>
+                <b>{percent.format(share)}</b>
+                {over ? ` · ${t("common.admin.ai_usage.cap_reached")}` : ""}
+              </span>
+            </>
           )}
           <span className="erp-small erp-muted">
-            {data.limit !== null ? t("common.admin.ai_usage.of_limit", { limit: tokens.format(data.limit) }) : t("common.admin.ai_usage.no_limit")}
+            {data.limit !== null ? `${t("common.admin.ai_usage.of_limit", { limit: tokens.format(data.limit) })} · ${t("common.admin.ai_usage.warn_at")}` : t("common.admin.ai_usage.no_limit")}
           </span>
         </div>
         <div className="erp-card erp-kpi">

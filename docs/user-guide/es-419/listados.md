@@ -104,7 +104,7 @@ Una **vista** guarda cómo dejaste el listado: los filtros por columna, el filtr
 3. Escribe el **Nombre de la vista** (hasta 80 caracteres). Marca **Usarla como vista por defecto** si quieres que el listado se abra así siempre.
 4. Pulsa **Guardar**. Verás «Vista guardada: [nombre]».
 
-Para usar una vista, abre el panel **Vistas** y pulsa su nombre. La vista por defecto lleva una estrella ★. Con la ✕ de cada fila la borras. Si guardas otra vista con el mismo nombre, reemplaza la anterior; solo una vista puede ser la predeterminada por listado.
+Para usar una vista, abre el panel **Vistas** y pulsa su nombre. La vista por defecto lleva una estrella ★. Con la ✕ de cada fila la borras: antes pregunta en el mismo lugar «¿Eliminar [nombre]?»; confirma con ese botón (o **Enter**), y si no haces nada se vuelve a la ✕ a los 4 segundos. Al abrir el panel (igual que el de **Columnas**) el cursor queda en su primer control; **Esc** lo cierra y devuelve el cursor al botón, y si pasas con **Tab** a otro control el panel se cierra solo. Si guardas otra vista con el mismo nombre, reemplaza la anterior; solo una vista puede ser la predeterminada por listado.
 
 Las vistas son **tuyas**: son por usuario y por empresa, y nadie más las ve ni las puede cambiar. Guardar, listar y borrar vistas son permisos que tiene cada rol; si tu rol no los tiene, el botón **Guardar vista** no sirve.
 
