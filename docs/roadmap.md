@@ -31,7 +31,7 @@ Goal: the kernel every module will stand on, plus the parts of the core a compan
 
 **Core module**: terceros (contacts, dual e-mails, phone with country code, party scope by role), productos, categorías with inherited taxes, product photos with AI suggestion.
 
-**Shell and UI** (prototype v5 is the contract): navy top bar with module menu and module items, tabs row, dark mode, record frame with tabs and open-in-new-tab, universal DataGrid (sort, filter, advanced filter popup with Y/O, pagination, column visibility, export PDF/Excel/CSV, import), entity lookup with magnifier, home with draggable and resizable widgets, ⌘K palette.
+**Shell and UI** (prototype v5 is the contract; the 2026-10-29 density decisions of design §22.11–16 extend it: movable columns, sticky identity column, tfoot totals, scrolling tabs, batch admin changes, cloning, audit before/after, entity links, editable users): navy top bar with module menu and module items, tabs row, dark mode, record frame with tabs and open-in-new-tab, universal DataGrid (sort, filter, advanced filter popup with Y/O, pagination, column visibility, export PDF/Excel/CSV, import), entity lookup with magnifier, home with draggable and resizable widgets, ⌘K palette.
 
 **Security**: login + optional TOTP, step-up for sensitive processes (5-minute freshness), roles created by the admin with party scope, users with e-mail, cellphone, roles and photo, permission matrix with entity names, field visibility matrix, sensitive processes, modules on/off.
 
