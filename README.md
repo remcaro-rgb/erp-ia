@@ -86,6 +86,26 @@ pnpm docker:down      # stop and drop the volumes
 `pnpm docker:up` starts the production stack: no published test ports, no demo, the gateway for the assistant (set
 `AI_GATEWAY_API_KEY` in `.env.docker`; `AGENT_MODEL=mock` makes the web app refuse to start there).
 
+### Base images and the GHCR mirror (CI)
+
+The compose files and Dockerfiles pull their base images from the public registries by default (`public.ecr.aws/supabase/*`,
+`nginx`, `node`), so a developer needs nothing else. GitHub's shared runners exhaust the anonymous pull quota of those
+registries, so CI pulls from a mirror in GHCR instead: `ghcr.io/remcaro-rgb/erp-ia/<name>:<tag>`, filled from
+`docker/images.txt` (one `<source image> <mirror name>` per line) by the `Mirror base images` workflow. Three variables
+select the mirror; `docker-compose.yml` documents them and `ci.yml` sets them:
+
+```bash
+SUPABASE_IMAGE_PREFIX=ghcr.io/remcaro-rgb/erp-ia/supabase-   # default public.ecr.aws/supabase/
+NGINX_IMAGE=ghcr.io/remcaro-rgb/erp-ia/nginx:1.27-alpine      # default nginx:1.27-alpine
+NODE_IMAGE=ghcr.io/remcaro-rgb/erp-ia/node:22-bookworm-slim   # default node:22-bookworm-slim
+```
+
+When an image version bumps: change the tag in `docker-compose.yml` (or the `NODE_IMAGE` default in `Dockerfile.web` and
+`Dockerfile.worker`), then the same tag in `docker/images.txt` and in the three variables in `ci.yml`. Push to `main`
+(the workflow runs on changes to `docker/images.txt`) or run `Mirror base images` from the Actions tab, and only then
+run CI: the docker job fails on a tag that is not mirrored yet. The workflow logs in to GHCR with `GITHUB_TOKEN`
+(`packages: write`); the CI docker job reads with `packages: read`.
+
 ### Producción con Docker (fase 6)
 
 El compose de producción arranca, pero todavía no se puede operar por sí solo: ningún camino crea el primer tenant, su

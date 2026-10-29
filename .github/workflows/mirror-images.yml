@@ -1,0 +1,54 @@
+name: Mirror base images
+
+# Copies the public base images listed in docker/images.txt to GHCR (ghcr.io/<owner>/erp-ia/<name>:<tag>) so the CI
+# docker job does not hit the anonymous pull limits of Docker Hub and ECR Public from GitHub's shared runner IPs
+# (design §21, rule 6). Run it once from the Actions tab before the first CI run that uses the mirror, and again
+# whenever docker/images.txt changes (it also runs on a push to main that touches the list).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [docker/images.txt]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: mirror-images
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # `imagetools create` copies the manifest list registry to registry (every platform, no local pull), and
+      # `imagetools inspect` on the target fails the step if the copy is not there.
+      - name: Copy each listed image
+        run: |
+          set -euo pipefail
+          prefix="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          count=0
+          while read -r source name extra; do
+            case "${source}" in ''|\#*) continue ;; esac
+            if [ -z "${name:-}" ] || [ -n "${extra:-}" ]; then
+              echo "docker/images.txt: expected '<source image> <mirror name>', got: ${source} ${name:-} ${extra:-}" >&2
+              exit 1
+            fi
+            tag="${source##*:}"
+            target="${prefix}/${name}:${tag}"
+            echo "::group::${source} -> ${target}"
+            docker buildx imagetools create --tag "${target}" "${source}"
+            docker buildx imagetools inspect "${target}"
+            echo "::endgroup::"
+            count=$((count + 1))
+          done < docker/images.txt
+          echo "Mirrored ${count} images to ${prefix}"

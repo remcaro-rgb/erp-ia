@@ -12,6 +12,12 @@
 # Only the edge is published (127.0.0.1:56300). It refuses /.well-known/workflow/* (the Postgres World's flow route has
 # no authentication) and /api/internal/* without `x-workflow-internal-token` (docker/edge/default.conf.template). The
 # web app has no published port; the worker and the web app's own deliveries reach it on the private network.
+#
+# Base images come from public registries by default. CI (and anyone behind a pull limit) points them at the GHCR mirror
+# that .github/workflows/mirror-images.yml fills from docker/images.txt, through three variables (shell or .env.docker):
+#   SUPABASE_IMAGE_PREFIX  default public.ecr.aws/supabase/   mirror: ghcr.io/<owner>/erp-ia/supabase-
+#   NGINX_IMAGE            default nginx:1.27-alpine          mirror: ghcr.io/<owner>/erp-ia/nginx:1.27-alpine
+#   NODE_IMAGE             default node:22-bookworm-slim      mirror: ghcr.io/<owner>/erp-ia/node:22-bookworm-slim
 name: erp-ia-stack
 
 x-supabase-env: &supabase-db-env
@@ -19,7 +25,7 @@ x-supabase-env: &supabase-db-env
 
 services:
   db:
-    image: public.ecr.aws/supabase/postgres:17.6.1.167
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}postgres:17.6.1.167
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal"]
     environment:
       <<: *supabase-db-env
@@ -40,7 +46,7 @@ services:
     networks: [internal]
 
   auth:
-    image: public.ecr.aws/supabase/gotrue:v2.196.0
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}gotrue:v2.196.0
     depends_on:
       db: { condition: service_healthy }
     environment:
@@ -97,7 +103,7 @@ services:
     networks: [internal]
 
   rest:
-    image: public.ecr.aws/supabase/postgrest:v14.17
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}postgrest:v14.17
     depends_on:
       db: { condition: service_healthy }
     restart: unless-stopped
@@ -119,7 +125,7 @@ services:
     networks: [internal]
 
   storage:
-    image: public.ecr.aws/supabase/storage-api:v1.72.1
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}storage-api:v1.72.1
     depends_on:
       db: { condition: service_healthy }
       rest: { condition: service_healthy }
@@ -147,7 +153,7 @@ services:
     networks: [internal]
 
   kong:
-    image: public.ecr.aws/supabase/kong:2.8.1
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}kong:2.8.1
     depends_on:
       auth: { condition: service_healthy }
       storage: { condition: service_healthy }
@@ -168,13 +174,13 @@ services:
     networks: [internal]
 
   mail:
-    image: public.ecr.aws/supabase/mailpit:v1.30.2
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}mailpit:v1.30.2
     networks: [internal]
 
   # One-shot: the app's migrations, once Auth and Storage created their schemas (docker/db-init.sh). supabase/seed.sql
   # (the demo company) is mounted only by docker-compose.test.yml; without it the job applies no seed.
   db-init:
-    image: public.ecr.aws/supabase/postgres:17.6.1.167
+    image: ${SUPABASE_IMAGE_PREFIX:-public.ecr.aws/supabase/}postgres:17.6.1.167
     entrypoint: ["bash", "/docker/db-init.sh"]
     depends_on:
       auth: { condition: service_healthy }
@@ -192,7 +198,7 @@ services:
 
   # One-shot: the Workflow Postgres World's schema (`bootstrap`, node_modules/workflow/docs/worlds/postgres.mdx).
   workflow-init:
-    build: { context: ., dockerfile: Dockerfile.worker, target: runner }
+    build: { context: ., dockerfile: Dockerfile.worker, target: runner, args: { NODE_IMAGE: "${NODE_IMAGE:-node:22-bookworm-slim}" } }
     image: erp-ia/worker:local
     command: ["./node_modules/.bin/bootstrap"]
     depends_on:
@@ -207,7 +213,7 @@ services:
   # One-shot: the assistant's help index (`pnpm help:index`; FakeEmbedder unless AI_GATEWAY_API_KEY is set), so the
   # help tool answers on this stack.
   help-index:
-    build: { context: ., dockerfile: Dockerfile.worker, target: tools }
+    build: { context: ., dockerfile: Dockerfile.worker, target: tools, args: { NODE_IMAGE: "${NODE_IMAGE:-node:22-bookworm-slim}" } }
     image: erp-ia/tools:local
     command: ["pnpm", "help:index"]
     depends_on:
@@ -219,7 +225,7 @@ services:
     networks: [internal]
 
   web:
-    build: { context: ., dockerfile: Dockerfile.web }
+    build: { context: ., dockerfile: Dockerfile.web, args: { NODE_IMAGE: "${NODE_IMAGE:-node:22-bookworm-slim}" } }
     image: erp-ia/web:local
     restart: unless-stopped
     depends_on:
@@ -267,7 +273,7 @@ services:
 
   # The only published service: the app through nginx, with the workflow and internal routes behind a token.
   edge:
-    image: nginx:1.27-alpine
+    image: ${NGINX_IMAGE:-nginx:1.27-alpine}
     restart: unless-stopped
     depends_on:
       web: { condition: service_healthy }

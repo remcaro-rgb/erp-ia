@@ -1,8 +1,9 @@
-# syntax=docker/dockerfile:1.7
 # The web app for the Docker target (design §21): Next.js `output: "standalone"` in a Node 22 container. Build
 # context: the repository root. The Workflow World is chosen at run time by WORKFLOW_TARGET_WORLD (compose: the
 # Postgres World); the image itself is the same for every target.
 
+# No `# syntax=` directive: it makes BuildKit pull docker/dockerfile from Docker Hub (the pull limit CI avoids); the
+# built-in frontend already supports the cache mounts used here. NODE_IMAGE: compose build.args, mirror in CI.
 ARG NODE_IMAGE=node:22-bookworm-slim
 
 FROM ${NODE_IMAGE} AS base

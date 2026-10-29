@@ -1,0 +1,14 @@
+# Base images the Docker stack and CI pull from public registries (design §21, rule 6). The mirror-images workflow
+# copies each one to ghcr.io/<owner>/erp-ia/<mirror name>:<tag> (same tag), so CI never depends on the anonymous pull
+# quota of Docker Hub or ECR Public. Format: <source image> <mirror name>. Edit this file when a compose image or a
+# Dockerfile base image changes version, push to main (the workflow runs) or run it by hand from the Actions tab.
+#
+# These tags must equal the defaults in docker-compose.yml and Dockerfile.web / Dockerfile.worker.
+public.ecr.aws/supabase/postgres:17.6.1.167 supabase-postgres
+public.ecr.aws/supabase/gotrue:v2.196.0 supabase-gotrue
+public.ecr.aws/supabase/postgrest:v14.17 supabase-postgrest
+public.ecr.aws/supabase/storage-api:v1.72.1 supabase-storage-api
+public.ecr.aws/supabase/kong:2.8.1 supabase-kong
+public.ecr.aws/supabase/mailpit:v1.30.2 supabase-mailpit
+nginx:1.27-alpine nginx
+node:22-bookworm-slim node

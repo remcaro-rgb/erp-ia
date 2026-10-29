@@ -1,9 +1,10 @@
-# syntax=docker/dockerfile:1.7
 # The Workflow worker for the Docker target (design §21, apps/worker): a long-running Node 22 process that registers
 # the modules' manifests, starts the Workflow Postgres World (its graphile-worker queue) and ticks the outbox. Build
 # context: the repository root. The same image runs the World's schema bootstrap (compose `workflow-init`); the
 # `tools` stage runs the help index (compose `help-index`). `runner` is the last stage, the default target.
 
+# No `# syntax=` directive: it makes BuildKit pull docker/dockerfile from Docker Hub (the pull limit CI avoids); the
+# built-in frontend already supports the cache mounts used here. NODE_IMAGE: compose build.args, mirror in CI.
 ARG NODE_IMAGE=node:22-bookworm-slim
 
 FROM ${NODE_IMAGE} AS base
