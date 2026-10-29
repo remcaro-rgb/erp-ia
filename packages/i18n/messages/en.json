@@ -625,6 +625,7 @@
         "detail": {
           "changes": "Changes",
           "no_changes": "This entry changed no field.",
+          "no_fields": "No field detail: an internal system table without a field catalogue.",
           "input": "Data received",
           "code": "Reason",
           "source": "Cloned from",

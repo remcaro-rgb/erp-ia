@@ -183,6 +183,8 @@ El guion (**—**) significa que el campo estaba vacío. Los valores se leen com
 
 En una creación o en un intento denegado aparece también **Datos recibidos**: lo que se envió al crear el registro, o el motivo del rechazo (por ejemplo «No tienes permiso para hacer esto.») y el proceso que se intentó.
 
+Las entradas de tablas internas del sistema (por ejemplo, las tarjetas de confirmación del asistente) dicen **Sin detalle de campos**: no tienen un catálogo de campos ni reglas de visibilidad, así que el detalle no muestra sus valores. Los códigos de acceso, claves y contraseñas nunca quedan en la auditoría.
+
 Los valores respetan la visibilidad de campos de quien consulta: un campo enmascarado para su rol se ve como **••••••** antes y después, y un campo oculto no aparece. Pulsa **Esc** o **✕** para cerrar el detalle.
 
 ### Buscar y exportar

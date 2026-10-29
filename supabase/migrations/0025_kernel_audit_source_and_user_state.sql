@@ -9,7 +9,8 @@
 --     before/after), its `input` and its `source_row_id`, still to the company admin only. The registry entity
 --     `kernel.audit` does not declare diff or input: the grid, its exports and kernel.audit.consult select registry fields
 --     only, so they never carry them; kernel.audit.entry reads them for one entry and applies the viewer's field
---     visibility (kernel.field_mode, kernel.mask_extra) before anything leaves the database session.
+--     visibility (kernel.field_mode, kernel.mask_extra) before anything leaves the database session. The existing system
+--     admin roles are granted kernel.audit.entry; the row trigger never records a `token`, `secret` or `password` column.
 --   * Editable users (Task 7). kernel.memberships.is_active: a deactivated membership keeps its history and its roles but
 --     stops counting: kernel.current_role_ids() (0024) ignores it, so every helper built on it (is_company_admin,
 --     can_run_process, field_mode, mask_extra, party_scope, the recommendation policies) refuses at once.
@@ -20,15 +21,19 @@
 -- ---------------------------------------------------------------------------------------------
 alter table kernel.audit_log add column source_row_id uuid;
 
--- Same body as 0002 with the source of a cloned creation: an insert entry carries `erp.audit_source_row_id` when the
--- process transaction set it; updates and deletes never do.
+-- Same body as 0002 with two changes:
+--   * the source of a cloned creation: an insert entry carries `erp.audit_source_row_id` when the process transaction set
+--     it; updates and deletes never do;
+--   * secrets never reach the log (review of Task 4, defence in depth): a column named `token`, `secret` or `password`
+--     (kernel.agent_confirmations.token is a bearer secret 0020 hides from every reader) is left out of the recorded
+--     diff, on every audited table, whether or not its value changed.
 create or replace function kernel.audit_row_change() returns trigger
 language plpgsql security definer
 set search_path = ''
 as $$
 declare
-  old_json jsonb := case when tg_op = 'INSERT' then '{}'::jsonb else to_jsonb(old) end;
-  new_json jsonb := case when tg_op = 'DELETE' then '{}'::jsonb else to_jsonb(new) end;
+  old_json jsonb := case when tg_op = 'INSERT' then '{}'::jsonb else to_jsonb(old) - array['token', 'secret', 'password'] end;
+  new_json jsonb := case when tg_op = 'DELETE' then '{}'::jsonb else to_jsonb(new) - array['token', 'secret', 'password'] end;
   row_json jsonb := case when tg_op = 'DELETE' then old_json else new_json end;
   changes  jsonb;
 begin
@@ -87,6 +92,32 @@ where (select kernel.is_company_admin());
 
 -- The detail of an update gathers the row changes of its run: same chain, same record.
 create index if not exists audit_log_chain_row_idx on kernel.audit_log (chain_id, row_id);
+
+-- ---------------------------------------------------------------------------------------------
+-- The detail's consult (kernel.audit.entry) for the system admin roles that already exist: kernel.seed_role_defaults
+-- (0021) gives a new admin role every registered process, but a database seeded before this migration has admin roles
+-- without the new process in their matrix. Service role and migrations only; idempotent (returns the grants added).
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.grant_process_to_system_admins(p_process text) returns integer
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_added integer;
+begin
+  insert into kernel.process_permissions (company_id, role_id, process_id)
+  select r.company_id, r.id, p_process
+  from kernel.roles r
+  where r.is_system and r.name = 'admin'
+  on conflict (company_id, role_id, process_id) do nothing;
+  get diagnostics v_added = row_count;
+  return v_added;
+end;
+$$;
+revoke execute on function kernel.grant_process_to_system_admins(text) from public, anon, authenticated;
+grant execute on function kernel.grant_process_to_system_admins(text) to service_role;
+
+select kernel.grant_process_to_system_admins('kernel.audit.entry');
 
 -- ---------------------------------------------------------------------------------------------
 -- Membership state (Task 7 deactivates through kernel.admin.user.update).

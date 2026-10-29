@@ -73,7 +73,9 @@ function Detail({ view, catalogue }: { view: AuditDetailView; catalogue: AuditCa
       </dl>
 
       <h3 className="erp-audit-detail__heading">{t("common.admin.audit.detail.changes")}</h3>
-      {view.changes.length === 0 ? (
+      {!view.described ? (
+        <p className="erp-small erp-muted">{t("common.admin.audit.detail.no_fields")}</p>
+      ) : view.changes.length === 0 ? (
         <p className="erp-small erp-muted">{t("common.admin.audit.detail.no_changes")}</p>
       ) : (
         <ul className="erp-audit-detail__list">

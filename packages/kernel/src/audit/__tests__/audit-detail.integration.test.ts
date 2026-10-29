@@ -37,6 +37,8 @@ const PROBE = defineEntity({
     { name: "name", type: "text", label: "field.kernel.audit_probe.name" },
     { name: "kind", type: "enum", label: "field.kernel.audit_probe.kind", enumValues: ["customer", "supplier"], valuesKey: "grid.values.party_kind" },
     { name: "credit", type: "money", label: "field.kernel.audit_probe.credit", sensitivity: "confidential" },
+    { name: "pin", type: "text", label: "field.kernel.audit_probe.pin" },
+    // Declared, but a column named `secret` (or `token`, `password`) never reaches the audit (0025's trigger).
     { name: "secret", type: "text", label: "field.kernel.audit_probe.secret" },
     { name: "extra", type: "json", label: "field.kernel.audit_probe.extra", sortable: false },
   ],
@@ -46,7 +48,10 @@ const probeInput = z.object({
   name: z.string().min(1),
   kind: z.enum(["customer", "supplier"]).default("customer"),
   credit: z.number().optional(),
+  pin: z.string().optional(),
   secret: z.string().optional(),
+  // Not a field of the entity: the detail never shows it (fail closed).
+  memo: z.string().optional(),
 });
 
 const probeCreate = defineProcess({
@@ -58,8 +63,8 @@ const probeCreate = defineProcess({
   output: z.object({ id: z.string() }),
   handler: async (ctx, input) => {
     const [row] = await ctx.tx<{ id: string }[]>`
-      insert into kernel.audit_probe (company_id, name, kind, credit, secret)
-      values (${ctx.companyId}, ${input.name}, ${input.kind}, ${input.credit ?? null}, ${input.secret ?? null}) returning id`;
+      insert into kernel.audit_probe (company_id, name, kind, credit, pin, secret)
+      values (${ctx.companyId}, ${input.name}, ${input.kind}, ${input.credit ?? null}, ${input.pin ?? null}, ${input.secret ?? null}) returning id`;
     return { id: row!.id };
   },
 });
@@ -69,10 +74,10 @@ const probeUpdate = defineProcess({
   module: "kernel",
   kind: "update",
   description: "Cambia un registro de prueba de la auditoría",
-  input: z.object({ id: z.uuid(), name: z.string(), credit: z.number(), secret: z.string(), extra: z.record(z.string(), z.unknown()).default({}) }),
+  input: z.object({ id: z.uuid(), name: z.string(), credit: z.number(), pin: z.string(), extra: z.record(z.string(), z.unknown()).default({}) }),
   output: z.object({ id: z.string() }),
   handler: async (ctx, input) => {
-    await ctx.tx`update kernel.audit_probe set name = ${input.name}, credit = ${input.credit}, secret = ${input.secret}, extra = ${ctx.tx.json(input.extra as never)}
+    await ctx.tx`update kernel.audit_probe set name = ${input.name}, credit = ${input.credit}, pin = ${input.pin}, extra = ${ctx.tx.json(input.extra as never)}
       where id = ${input.id}`;
     return { id: input.id };
   },
@@ -111,14 +116,21 @@ describe("kernel audit detail: before/after per field, source record, membership
 
   beforeAll(async () => {
     sql = testDb();
+    // Test-only table, recreated each run (its columns change with the suite).
+    // Checked first so a fresh database prints no "does not exist, skipping" notice.
     const [exists] = await sql<{ exists: boolean }[]>`select to_regclass('kernel.audit_probe') is not null as exists`;
-    if (!exists!.exists) {
+    if (exists!.exists) {
+      await sql`drop view if exists kernel.v_audit_probe`;
+      await sql`drop table kernel.audit_probe`;
+    }
+    {
       await sql`create table kernel.audit_probe (
         id uuid primary key default kernel.uuid_v7(),
         company_id uuid not null,
         name text,
         kind text,
         credit numeric(18, 4),
+        pin text,
         secret text,
         extra jsonb not null default '{}'::jsonb
       )`;
@@ -140,10 +152,10 @@ describe("kernel audit detail: before/after per field, source record, membership
     member = { claims: seed.claimsFor(seed.users.member!, companyId), origin: "ui" };
     await syncRegistry(sql, registry);
     await sql`select kernel.seed_company_defaults(${companyId})`;
-    // The member's role sees the credit masked and the secret not at all; the admin-defined `canal` is the admin's only.
+    // The member's role sees the credit masked and the pin not at all; the admin-defined `canal` is the admin's only.
     await sql`insert into kernel.field_permissions (company_id, role_id, entity, field, mode) values
       (${companyId}, ${memberRoleId}, 'kernel.audit_probe', 'credit', 'masked'),
-      (${companyId}, ${memberRoleId}, 'kernel.audit_probe', 'secret', 'hidden')`;
+      (${companyId}, ${memberRoleId}, 'kernel.audit_probe', 'pin', 'hidden')`;
     const adminRoles = [seed.companies[0]!.adminRoleId];
     // The test entity's module ships no custom-field hook: the definition is stored without its triggers.
     await sql.begin(async (tx) => {
@@ -152,9 +164,9 @@ describe("kernel audit detail: before/after per field, source record, membership
         values (${companyId}, 'kernel.audit_probe', 'canal', 'Canal de venta', 'text', 20, false, ${adminRoles}, ${adminRoles}, ${adminRoles})`;
     });
 
-    ({ id: sourceId } = await runProcess({ sql, registry }, admin, "kernel.audit_probe.create", { name: "Origen", secret: "s1" }));
-    ({ id: cloneId } = await runProcess({ sql, registry }, admin, "kernel.audit_probe.create", { name: "Copia", kind: "supplier", credit: 250000, secret: "s2" }, { sourceRowId: sourceId }));
-    await runProcess({ sql, registry }, admin, "kernel.audit_probe.update", { id: sourceId, name: "Bosque QA", credit: 1500000, secret: "s9", extra: { canal: "Norte" } });
+    ({ id: sourceId } = await runProcess({ sql, registry }, admin, "kernel.audit_probe.create", { name: "Origen", pin: "p1", secret: "hunter2-origen" }));
+    ({ id: cloneId } = await runProcess({ sql, registry }, admin, "kernel.audit_probe.create", { name: "Copia", kind: "supplier", credit: 250000, pin: "p2", secret: "hunter2-copia", memo: "nota-libre" }, { sourceRowId: sourceId }));
+    await runProcess({ sql, registry }, admin, "kernel.audit_probe.update", { id: sourceId, name: "Bosque QA", credit: 1500000, pin: "p9", extra: { canal: "Norte" } });
   });
 
   afterAll(async () => {
@@ -186,7 +198,7 @@ describe("kernel audit detail: before/after per field, source record, membership
     it("is refused when it is not a record id, or on a process that creates nothing", async () => {
       await expect(runProcess({ sql, registry }, admin, "kernel.audit_probe.create", { name: "X" }, { sourceRowId: "not-a-uuid" })).rejects.toMatchObject({ code: "invalid_input" });
       await expect(
-        runProcess({ sql, registry }, admin, "kernel.audit_probe.update", { id: sourceId, name: "Bosque QA", credit: 1500000, secret: "s9", extra: { canal: "Norte" } }, { sourceRowId: cloneId }),
+        runProcess({ sql, registry }, admin, "kernel.audit_probe.update", { id: sourceId, name: "Bosque QA", credit: 1500000, pin: "p9", extra: { canal: "Norte" } }, { sourceRowId: cloneId }),
       ).rejects.toMatchObject({ code: "invalid_input" });
     });
   });
@@ -221,7 +233,7 @@ describe("kernel audit detail: before/after per field, source record, membership
         const out = await detail(admin, id);
         expect(out.entry).toMatchObject({ id, processId: "kernel.audit_probe.update", entityId: "kernel.audit_probe", entityLabel: "entity.kernel.audit_probe", rowId: sourceId, rowTitle: "Bosque QA", action: "update", sourceRowId: null });
         const byField = Object.fromEntries(out.changes.map((c) => [c.field, c]));
-        expect(Object.keys(byField).sort()).toEqual(["credit", "extra.canal", "name", "secret"]);
+        expect(Object.keys(byField).sort()).toEqual(["credit", "extra.canal", "name", "pin"]);
         expect(byField.name).toEqual({ field: "name", labelKey: "field.kernel.audit_probe.name", type: "text", masked: false, before: "Origen", after: "Bosque QA" });
         expect(byField.credit).toMatchObject({ labelKey: "field.kernel.audit_probe.credit", type: "money", masked: false, before: null, after: 1500000 });
         expect(byField["extra.canal"]).toMatchObject({ labelKey: null, labelText: "Canal de venta", masked: false, before: null, after: "Norte" });
@@ -240,10 +252,55 @@ describe("kernel audit detail: before/after per field, source record, membership
           expect.objectContaining({ key: "kind", valuesKey: "grid.values.party_kind", value: "supplier" }),
         ]),
       );
+      // Fail closed: a key the entity does not declare is not shown, and a secret column never is.
+      expect(out.input!.map((i) => i.key).sort()).toEqual(["credit", "kind", "name", "pin"]);
+      expect(JSON.stringify(out)).not.toContain("nota-libre");
+      expect(JSON.stringify(out)).not.toContain("hunter2");
+    });
+
+    it("never records a column named secret, token or password in a row change's diff", async () => {
+      const rows = await sql<{ diff: Record<string, unknown> }[]>`select diff from kernel.audit_log where row_id = ${cloneId} and diff is not null`;
+      expect(rows).toHaveLength(1);
+      expect(Object.keys(rows[0]!.diff)).toEqual(expect.arrayContaining(["name", "pin"]));
+      expect(rows[0]!.diff).not.toHaveProperty("secret");
+      expect(JSON.stringify(rows)).not.toContain("hunter2");
+    });
+
+    it("describes no field of a platform table without a registered entity (fail closed), and never its token", async () => {
+      // An assistant confirmation card (0019): its bearer token is what 0020 hides from every reader.
+      const token = `tok-${randomUUID()}-${randomUUID()}`;
+      const [conversation] = await sql<{ id: string }[]>`
+        insert into kernel.agent_conversations (company_id, user_id) values (${companyId}, ${seed.users.both}) returning id`;
+      const [card] = await sql<{ id: string }[]>`
+        insert into kernel.agent_confirmations (company_id, conversation_id, user_id, process_id, input, token)
+        values (${companyId}, ${conversation!.id}, ${seed.users.both}, 'kernel.audit_probe.create', ${sql.json({ name: "X" })}, ${token}) returning id`;
+      const [change] = await sql<{ id: string; diff: Record<string, unknown> }[]>`select id, diff from kernel.audit_log where row_id = ${card!.id} and action = 'insert'`;
+      expect(change!.diff).not.toHaveProperty("token");
+      expect(change!.diff).toHaveProperty("process_id");
+      const out = await detail(admin, change!.id);
+      expect(out.described).toBe(false);
+      expect(out.changes).toEqual([]);
+      expect(out.input).toBeNull();
+      expect(JSON.stringify(out)).not.toContain(token);
+      await sql`delete from kernel.agent_conversations where id = ${conversation!.id}`;
+    });
+
+    it("keeps two runs of one process on one record in one chain apart", async () => {
+      const chainId = randomUUID();
+      const inChain: Caller = { ...admin, chainId };
+      const base = { id: cloneId, name: "Copia", credit: 250000, extra: {} };
+      await runProcess({ sql, registry }, inChain, "kernel.audit_probe.update", { ...base, pin: "run-1" });
+      await runProcess({ sql, registry }, inChain, "kernel.audit_probe.update", { ...base, pin: "run-2" });
+      const runs = await sql<{ id: string }[]>`
+        select id from kernel.audit_log where chain_id = ${chainId} and process_id = 'kernel.audit_probe.update' and diff is null order by occurred_at`;
+      expect(runs).toHaveLength(2);
+      const [first, second] = [await detail(admin, runs[0]!.id), await detail(admin, runs[1]!.id)];
+      expect(first.changes.map((c) => [c.field, c.before, c.after])).toEqual([["pin", "p2", "run-1"]]);
+      expect(second.changes.map((c) => [c.field, c.before, c.after])).toEqual([["pin", "run-1", "run-2"]]);
     });
 
     it("shows a refusal's input: the code and the process it was refused", async () => {
-      await expect(runProcess({ sql, registry }, member, "kernel.audit_probe.update", { id: sourceId, name: "Nope", credit: 1, secret: "x" })).rejects.toMatchObject({ code: "forbidden" });
+      await expect(runProcess({ sql, registry }, member, "kernel.audit_probe.update", { id: sourceId, name: "Nope", credit: 1, pin: "x" })).rejects.toMatchObject({ code: "forbidden" });
       const [denied] = await sql<{ id: string }[]>`
         select id from kernel.audit_log where company_id = ${companyId} and process_id = 'kernel.audit_probe.update' and action = 'denied' order by occurred_at desc limit 1`;
       const out = await detail(admin, denied!.id);
@@ -260,7 +317,7 @@ describe("kernel audit detail: before/after per field, source record, membership
 
     it("applies the viewer's field visibility: a masked field carries no values, a hidden one is left out", async () => {
       // The view is the admin's: the entry is read as the admin, then described as a member whose role masks the credit,
-      // hides the secret and may not view `canal` (what a viewer who is not the admin would get).
+      // hides the pin and may not view `canal` (what a viewer who is not the admin would get).
       const updateId = await entryOf({ processId: "kernel.audit_probe.update", rowId: sourceId, processRow: true });
       const createId = await entryOf({ processId: "kernel.audit_probe.create", rowId: cloneId, processRow: true });
       const [updated, created] = await withClaims(sql, admin.claims, async (tx) => [(await readAuditEntry(tx, updateId))!, (await readAuditEntry(tx, createId))!]);
@@ -269,11 +326,27 @@ describe("kernel audit detail: before/after per field, source record, membership
       expect(update!.changes.map((c) => c.field).sort()).toEqual(["credit", "name"]);
       expect(update!.changes.find((c) => c.field === "credit")).toEqual({ field: "credit", labelKey: "field.kernel.audit_probe.credit", type: "money", masked: true, before: null, after: null });
       expect(JSON.stringify(update)).not.toContain("1500000");
-      expect(JSON.stringify(update)).not.toContain("s9");
+      expect(JSON.stringify(update)).not.toContain("p9");
       expect(JSON.stringify(update)).not.toContain("Norte");
       expect(create!.input!.map((i) => i.key).sort()).toEqual(["credit", "kind", "name"]);
       expect(create!.input!.find((i) => i.key === "credit")).toMatchObject({ masked: true, value: null });
       expect(JSON.stringify(create)).not.toContain("250000");
+    });
+  });
+
+  describe("kernel.audit.entry granted to the system admin roles that already exist (0025)", () => {
+    it("grants the process to a system admin role created before the migration, only to it, once", async () => {
+      const adminRoleId = seed.companies[0]!.adminRoleId;
+      await sql`delete from kernel.process_permissions where company_id = ${companyId} and process_id = 'kernel.audit.entry'`;
+      const grants = () => sql<{ role_id: string }[]>`select role_id from kernel.process_permissions where company_id = ${companyId} and process_id = 'kernel.audit.entry' and allowed`;
+      expect(await grants()).toEqual([]);
+      // What 0025 runs for every company: the existing admin roles get the new process, a plain role does not.
+      await sql`select kernel.grant_process_to_system_admins('kernel.audit.entry')`;
+      expect(await grants()).toEqual([{ role_id: adminRoleId }]);
+      await sql`select kernel.grant_process_to_system_admins('kernel.audit.entry')`;
+      expect(await grants()).toHaveLength(1);
+      // Users cannot call it.
+      await expect(withClaims(sql, admin.claims, (tx) => tx`select kernel.grant_process_to_system_admins('kernel.audit.entry')`)).rejects.toThrow(/permission denied/);
     });
   });
 

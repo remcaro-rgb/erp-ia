@@ -22,6 +22,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Columns every table carries that say nothing about the record's data. */
 const TECHNICAL = new Set(["id", "company_id", "created_at", "updated_at", "created_by", "updated_by"]);
+/** Never shown, whatever the entity declares (0025's trigger does not record them either). */
+const SECRETS = new Set(["token", "secret", "password"]);
+/** What runProcess records as the input of a refused run (process/run.ts): the reason and the process. */
+const DENIAL_KEYS = new Set(["code", "process_id"]);
 
 type Diff = Record<string, { old: unknown; new: unknown }>;
 
@@ -92,6 +96,11 @@ export interface AuditEntryDetail {
   changes: AuditFieldChange[];
   /** What a creation or a refused run received; null for any other entry. */
   input: AuditInputValue[] | null;
+  /**
+   * False when the entry acts on a table no registered entity declares (a platform table): its fields have no catalogue
+   * and no visibility rules, so none is described (fail closed) and the viewer says so.
+   */
+  described: boolean;
 }
 
 /** The last name segment of an entity id: `core.product_category` → `category`, as the module names its processes. */
@@ -157,10 +166,20 @@ export async function readAuditEntry(tx: Tx, id: string): Promise<AuditRecord | 
   let diff = isDiff(row.diff) ? row.diff : null;
   let diffEntity = diff ? row.entity : null;
   if (!diff && row.row_id && row.process_id && ["insert", "update", "delete"].includes(row.action)) {
+    // The run's own row changes: written in its transaction before its process entry and after the previous process
+    // entry of the same process on the same record in the chain, so two runs in one chain never merge.
+    // Compared in SQL: the timestamps keep their microseconds.
     const changes = await tx<{ entity: string; diff: Diff }[]>`
-      select entity, diff from kernel.v_audit_entries
-      where chain_id = ${row.chain_id} and row_id = ${row.row_id} and process_id = ${row.process_id} and diff is not null and id <> ${row.id}
-      order by occurred_at, id`;
+      with e as (select chain_id, row_id, process_id, occurred_at from kernel.v_audit_entries where id = ${row.id})
+      select c.entity, c.diff from kernel.v_audit_entries c, e
+      where c.chain_id = e.chain_id and c.row_id = e.row_id and c.process_id = e.process_id and c.diff is not null
+        and c.occurred_at <= e.occurred_at
+        and c.occurred_at > coalesce((
+          select max(p.occurred_at) from kernel.v_audit_entries p
+          where p.chain_id = e.chain_id and p.row_id = e.row_id and p.process_id = e.process_id and p.diff is null
+            and p.occurred_at < e.occurred_at
+        ), '-infinity'::timestamptz)
+      order by c.occurred_at, c.id`;
     if (changes.length > 0) {
       diff = mergeDiffs(changes.map((c) => c.diff).filter(isDiff));
       diffEntity = changes[0]!.entity;
@@ -194,11 +213,9 @@ async function modesOf(tx: Tx, entity: ResolvedEntityDef | undefined, fields: st
   return new Map(rows.map((r) => [r.field, r.mode]));
 }
 
-/** What `fieldName` of `entity` needs to be read, or null when the entity does not declare it. */
-function infoOf(entity: ResolvedEntityDef | undefined, fieldName: string, masked: boolean): FieldInfo | null {
-  if (!entity) return { field: fieldName, labelKey: null, type: null, masked };
-  const field = entity.fields.find((f) => f.name === fieldName);
-  if (!field) return null;
+/** What the declared field `fieldName` of `entity` needs to be read. */
+function infoOf(entity: ResolvedEntityDef, fieldName: string, masked: boolean): FieldInfo {
+  const field = entity.fields.find((f) => f.name === fieldName)!;
   return {
     field: field.name,
     labelKey: field.label,
@@ -232,32 +249,47 @@ const extraInfo = (key: string, definition: { label: string; type: string } | un
 const empty = (value: unknown) => value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
 
 /**
- * The changed fields and the input of `record` as the caller may see them (their field visibility, in `tx`): the record's
- * own columns only (not the technical ones), admin-defined data per key, masked fields without values, hidden ones left
- * out. The input is given for a creation (`insert`) and a refused run (`denied`) only.
+ * The changed fields and the input of `record` as the caller may see them (their field visibility, in `tx`). Fail closed:
+ * only the fields the registered entity declares (not the technical ones, never a `token`, `secret` or `password`),
+ * admin-defined data per key, masked fields without values, hidden ones left out; an entry on a table no entity declares
+ * describes nothing (`described: false`). The input is given for a creation (`insert`: its declared fields) and a refused
+ * run (`denied`: the reason and the process).
  */
-export async function describeAuditEntry(tx: Tx, registry: Registry, record: AuditRecord): Promise<Pick<AuditEntryDetail, "changes" | "input">> {
+export async function describeAuditEntry(tx: Tx, registry: Registry, record: AuditRecord): Promise<Pick<AuditEntryDetail, "changes" | "input" | "described">> {
   const changedEntity = auditEntityOf(registry, record.diffEntity ?? record.entity);
   const inputEntity = auditEntityOf(registry, record.entity) ?? changedEntity;
-  const diff = record.diff ?? {};
-  const showInput = (record.action === "insert" || record.action === "denied") && isDiff(record.input);
-  const inputs = showInput ? Object.entries(record.input as Record<string, unknown>).filter(([, value]) => !empty(value)) : [];
+  const denied = record.action === "denied";
+  const described = (record.diff ? changedEntity : inputEntity) !== undefined;
+  const shown = (name: string) => !TECHNICAL.has(name) && !SECRETS.has(name);
 
-  const changedColumns = Object.keys(diff).filter((c) => !TECHNICAL.has(c));
-  const inputFields = inputEntity ? inputs.map(([key]) => fieldOfKey(inputEntity.fields, key)?.name).filter((f): f is string => f !== undefined) : [];
+  const diff = changedEntity ? (record.diff ?? {}) : {};
+  const changedColumns = Object.keys(diff).filter((c) => shown(c) && changedEntity!.fields.some((f) => f.name === c));
+
+  const rawInput = (record.action === "insert" && inputEntity) || denied ? (isDiff(record.input) ? (record.input as Record<string, unknown>) : null) : null;
+  const inputs: [string, unknown, ResolvedEntityDef["fields"][number] | undefined][] = [];
+  for (const [key, value] of Object.entries(rawInput ?? {})) {
+    if (empty(value)) continue;
+    if (denied) {
+      if (DENIAL_KEYS.has(key)) inputs.push([key, value, undefined]);
+      continue;
+    }
+    const field = fieldOfKey(inputEntity!.fields, key);
+    if (field && shown(field.name)) inputs.push([key, value, field]);
+  }
+
   const changeModes = await modesOf(tx, changedEntity, changedColumns);
-  const inputModes = inputEntity === changedEntity ? changeModes : new Map<string, string>();
+  const inputFields = inputs.flatMap(([, , field]) => (field ? [field.name] : []));
+  const inputModes = inputEntity === changedEntity ? new Map(changeModes) : new Map<string, string>();
   for (const [field, mode] of await modesOf(tx, inputEntity, inputFields.filter((f) => !inputModes.has(f)))) inputModes.set(field, mode);
 
   const changes: AuditFieldChange[] = [];
   for (const column of changedColumns) {
     const mode = changeModes.get(column) ?? "visible";
     if (mode === "hidden") continue;
-    const info = infoOf(changedEntity, column, mode === "masked");
-    if (!info) continue;
+    const info = infoOf(changedEntity!, column, mode === "masked");
     const change = diff[column]!;
-    if (column === "extra" && changedEntity && !info.masked) {
-      const { values, fields } = await visibleExtra(tx, changedEntity, [change.old, change.new]);
+    if (column === "extra" && !info.masked) {
+      const { values, fields } = await visibleExtra(tx, changedEntity!, [change.old, change.new]);
       const [before, after] = values as [Record<string, unknown>, Record<string, unknown>];
       for (const key of [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()) {
         if (!same(before[key], after[key])) changes.push({ ...extraInfo(key, fields.get(key)), before: before[key] ?? null, after: after[key] ?? null });
@@ -268,17 +300,16 @@ export async function describeAuditEntry(tx: Tx, registry: Registry, record: Aud
   }
 
   let input: AuditInputValue[] | null = null;
-  if (showInput) {
+  if (rawInput) {
     input = [];
-    for (const [key, value] of inputs) {
-      const field = inputEntity ? fieldOfKey(inputEntity.fields, key) : undefined;
+    for (const [key, value, field] of inputs) {
       if (!field) {
         input.push({ key, field: null, labelKey: null, type: null, masked: false, value });
         continue;
       }
       const mode = inputModes.get(field.name) ?? "visible";
       if (mode === "hidden") continue;
-      const { field: name, ...info } = infoOf(inputEntity, field.name, mode === "masked")!;
+      const { field: name, ...info } = infoOf(inputEntity!, field.name, mode === "masked");
       if (name === "extra" && !info.masked && isDiff(value)) {
         const { values, fields } = await visibleExtra(tx, inputEntity!, [value]);
         for (const [extraKey, extraValue] of Object.entries(values[0]!)) {
@@ -290,7 +321,7 @@ export async function describeAuditEntry(tx: Tx, registry: Registry, record: Aud
       input.push({ key, field: name, ...info, value: info.masked ? null : value });
     }
   }
-  return { changes, input };
+  return { changes, input, described };
 }
 
 /** The process that wrote the entry, when the registry still knows it. */
@@ -370,6 +401,7 @@ export const auditEntryRead = defineProcess({
     }),
     changes: z.array(fieldValue.extend({ field: z.string(), before: z.unknown(), after: z.unknown() })),
     input: z.array(fieldValue.extend({ key: z.string(), field: z.string().nullable(), value: z.unknown() })).nullable(),
+    described: z.boolean(),
   }),
   handler: async (ctx, { id }) => {
     // The role matrix lets the process run; administering the company is what may read its log.

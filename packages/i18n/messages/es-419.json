@@ -625,6 +625,7 @@
         "detail": {
           "changes": "Cambios",
           "no_changes": "Esta entrada no cambió ningún campo.",
+          "no_fields": "Sin detalle de campos: es una tabla interna del sistema, sin catálogo de campos.",
           "input": "Datos recibidos",
           "code": "Motivo",
           "source": "Clonado desde",

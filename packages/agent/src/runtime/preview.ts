@@ -34,11 +34,19 @@ function entityOf(registry: Registry, def: ProcessDef) {
   return registry.entities().find((e) => e.id === id);
 }
 
-/** The card of a proposed run of `def` with `input` (already validated by the process's schema); `country` is the company's (its pack labels the fiscal codes). */
-export function buildPreview(registry: Registry, def: ProcessDef, input: unknown, options: { locale: string; stepUp: boolean; country?: string }): ConfirmationPreview {
+/**
+ * The card of a proposed run of `def` with `input` (already validated by the process's schema); `country` and `timeZone`
+ * are the company's (its pack labels the fiscal codes; a date and time reads as the wall clock there).
+ */
+export function buildPreview(
+  registry: Registry,
+  def: ProcessDef,
+  input: unknown,
+  options: { locale: string; stepUp: boolean; country?: string | undefined; timeZone?: string | undefined },
+): ConfirmationPreview {
   const catalogue = catalogueOf(options.locale);
   // The label helper the audit viewer shares (kernel registry/labels.ts): option labels, the pack's codes, money, Sí / No.
-  const labels: ValueLabels = { t: (key) => message(catalogue, key), locale: options.locale, pack: countryPackOf(options.country) };
+  const labels: ValueLabels = { t: (key) => message(catalogue, key), locale: options.locale, pack: countryPackOf(options.country), timeZone: options.timeZone };
   const entity = entityOf(registry, def);
   const fieldOf = (key: string) => (entity ? fieldOfKey(entity.fields, key) : undefined);
   const label = (key: string): string => {

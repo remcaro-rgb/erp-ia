@@ -52,10 +52,13 @@ async function needsStepUp(deps: RunProcessDeps, companyId: string, def: Process
   return row!.sensitive;
 }
 
-/** The active company's country (`kernel.companies.country_code`): its pack labels the card's fiscal codes. */
-async function companyCountry(deps: RunProcessDeps, companyId: string): Promise<string | undefined> {
-  const [row] = await deps.sql<{ country_code: string }[]>`select country_code from kernel.companies where id = ${companyId}`;
-  return row?.country_code;
+/**
+ * The active company's country and time zone (`kernel.companies`): its pack labels the card's fiscal codes, and a date and
+ * time reads in its zone.
+ */
+async function companyPlace(deps: RunProcessDeps, companyId: string): Promise<{ country: string | undefined; timeZone: string | undefined }> {
+  const [row] = await deps.sql<{ country_code: string; timezone: string }[]>`select country_code, timezone from kernel.companies where id = ${companyId}`;
+  return { country: row?.country_code, timeZone: row?.timezone };
 }
 
 /**
@@ -72,7 +75,7 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
   const preview = buildPreview(deps.registry, def, parsed.data, {
     locale: claims.locale,
     stepUp: await needsStepUp(deps, claims.active_company_id, def),
-    country: await companyCountry(deps, claims.active_company_id),
+    ...(await companyPlace(deps, claims.active_company_id)),
   });
   const token = randomBytes(32).toString("base64url");
   const [inserted] = await deps.sql<{ id: string }[]>`

@@ -59,6 +59,7 @@ describe("presentAuditDetail", () => {
           { field: "status_code", labelKey: null, type: null, masked: false, before: "a", after: "b" },
         ],
         input: null,
+        described: true,
       },
       labels,
     );
@@ -75,7 +76,7 @@ describe("presentAuditDetail", () => {
 
   it("shows •••••• in before and after for a masked field, and nothing of its values", () => {
     const view = presentAuditDetail(
-      { entry: entry(), changes: [{ field: "credit_limit", labelKey: "field.core.party.credit_limit", type: "money", masked: true, before: null, after: null }], input: null },
+      { entry: entry(), changes: [{ field: "credit_limit", labelKey: "field.core.party.credit_limit", type: "money", masked: true, before: null, after: null }], input: null, described: true },
       labels,
     );
     expect(view.changes).toEqual([{ field: "credit_limit", label: "Cupo de crédito", before: "••••••", after: "••••••", masked: true }]);
@@ -91,6 +92,7 @@ describe("presentAuditDetail", () => {
           { key: "legalName", field: "legal_name", labelKey: "field.core.party.legal_name", type: "text", masked: false, value: "Bosque QA S.A.S." },
           { key: "creditLimit", field: "credit_limit", labelKey: "field.core.party.credit_limit", type: "money", masked: true, value: null },
         ],
+        described: true,
       },
       labels,
     );
@@ -111,6 +113,7 @@ describe("presentAuditDetail", () => {
           { key: "code", field: null, labelKey: null, type: null, masked: false, value: "forbidden" },
           { key: "process_id", field: null, labelKey: null, type: null, masked: false, value: "core.party.update" },
         ],
+        described: true,
       },
       labels,
     );
@@ -118,6 +121,15 @@ describe("presentAuditDetail", () => {
       { key: "code", label: "Motivo", value: "No tienes permiso para hacer esto.", masked: false },
       { key: "process_id", label: "Proceso", value: "core.party.update", masked: false },
     ]);
+  });
+});
+
+describe("presentAuditDetail on a platform table", () => {
+  it("says the entry has no field detail instead of listing values", () => {
+    const view = presentAuditDetail({ entry: entry({ entity: "kernel.agent_confirmations", entityId: null, entityLabel: null }), changes: [], input: null, described: false }, labels);
+    expect(view.described).toBe(false);
+    expect(view.changes).toEqual([]);
+    expect(view.rowHref).toBeNull();
   });
 });
 

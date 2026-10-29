@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { kernelModule, loadModules, registerCountryPack, Registry } from "@erp/kernel";
+import { z } from "zod";
+import { defineEntity, defineProcess, kernelModule, loadModules, registerCountryPack, Registry } from "@erp/kernel";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
@@ -129,6 +130,32 @@ describe("confirmation preview", () => {
     expect(en.effects.find((e) => e.value.startsWith("Customer"))?.value).toBe("Customer, Supplier");
     expect(en.effects.map((e) => e.value)).toContain("99999");
     expect(en.effects.map((e) => e.value)).toContain("Legal entity");
+  });
+
+  it("reads a date and time in the company's zone and money as $ 1.234.567,00 (the shared label helper)", () => {
+    const local = new Registry();
+    local.registerEntity(
+      defineEntity({
+        id: "test.visit",
+        module: "test",
+        schema: "test",
+        table: "visits",
+        label: "entity.test.visit",
+        displayField: "at",
+        defaultSort: { field: "at", dir: "asc" },
+        fields: [
+          { name: "at", type: "datetime", label: "field.test.visit.at" },
+          { name: "fee", type: "money", label: "field.test.visit.fee" },
+        ],
+      }),
+    );
+    const def = defineProcess({ id: "test.visit.create", module: "test", kind: "create", description: "Agenda una visita", input: z.object({ at: z.string(), fee: z.number() }), output: z.object({}), handler: async () => ({}) });
+    local.registerProcess(def);
+    const preview = buildPreview(local, def, { at: "2026-10-29T15:30:00Z", fee: 1234567 }, { locale: "es-419", stepUp: false, timeZone: "America/Bogota" });
+    expect(preview.effects).toEqual([
+      { label: "at", value: "29/10/2026 10:30" },
+      { label: "fee", value: "$ 1.234.567,00" },
+    ]);
   });
 
   it("falls back to the input key when no field label exists, and renders booleans in Spanish", () => {

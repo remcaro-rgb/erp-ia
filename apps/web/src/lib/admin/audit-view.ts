@@ -29,6 +29,8 @@ export interface AuditDetailView {
   source: { id: string; title: string | null; href: string | null } | null;
   actor: { userId: string | null; email: string | null; href: string | null };
   chainId: string;
+  /** False for an entry on a platform table: no field is described (the sheet says "sin detalle de campos"). */
+  described: boolean;
   changes: { field: string; label: string; before: string; after: string; masked: boolean }[];
   input: { key: string; label: string; value: string; masked: boolean }[] | null;
 }
@@ -60,6 +62,7 @@ export function presentAuditDetail(detail: AuditEntryDetail, labels: ValueLabels
     source: entry.sourceRowId ? { id: entry.sourceRowId, title: entry.sourceTitle, href: auditRecordHref(entry.entityId, entry.sourceRowId) } : null,
     actor: { userId: entry.actorUserId, email: entry.actor, href: actorHref(entry.actorUserId) },
     chainId: entry.chainId,
+    described: detail.described,
     changes: detail.changes
       .map((c) => ({ field: c.field, label: labelOf(c, c.field), before: text(c, c.before), after: text(c, c.after), masked: c.masked }))
       // Stored differently but read the same (no value and an empty list): nothing a person would call a change.
