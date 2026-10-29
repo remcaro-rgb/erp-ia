@@ -68,6 +68,22 @@ describe("DataGrid", () => {
     expect(lastState(fetcher).columns).toEqual(["seq", "legal_name", "kind", "credit_limit", "balance", "notes", "dian_status"]);
   });
 
+  it("while the first page loads it says Cargando… with skeleton rows, never 0 registros or an empty body", async () => {
+    let resolve!: (page: { rows: GridRow[]; total: number }) => void;
+    const fetcher = vi.fn<GridFetcher>(() => new Promise((r) => (resolve = r)));
+    renderEs(<DataGrid entity="core.party" title="Terceros" columns={columns} fetcher={fetcher} debounceMs={20} />);
+    const grid = screen.getByRole("region", { name: "Terceros" });
+    expect(within(grid).getByText("Cargando…")).toBeTruthy();
+    expect(within(grid).queryByText(/0 registros/)).toBeNull();
+    expect(within(grid).queryByText("Sin resultados")).toBeNull();
+    expect(grid.querySelectorAll("tbody tr.erp-grid__skeleton").length).toBeGreaterThan(0);
+    await waitFor(() => expect(fetcher).toHaveBeenCalled());
+    resolve({ rows, total: 2 });
+    await within(grid).findByText("2 registros");
+    expect(within(grid).queryByText("Cargando…")).toBeNull();
+    expect(grid.querySelectorAll("tbody tr.erp-grid__skeleton")).toHaveLength(0);
+  });
+
   it("typing in a filter calls the fetcher with the new state after debounce", async () => {
     const { fetcher } = setup();
     await screen.findByText("Almacenes Éxito S.A.");

@@ -171,6 +171,9 @@ test.describe("record tabs", () => {
     await page.goto(`/r/core.party/${partyId}`);
     const status = page.getByTestId("record-status");
     await expect(status).toContainText("No se puede usar en facturas");
+    // The DIAN status in words from the catalogue, never the stored code (`complete`, `missing: 4`).
+    await expect(status).toContainText(/DIAN: (completo|faltan? \d+ datos?)/);
+    await expect(status).not.toContainText(/complete|missing/);
     await tab(page, /Archivos/).click();
     const warning = page.locator(".erp-attachments__warning");
     await expect(warning).toContainText("Mientras falten RUT");
@@ -228,5 +231,18 @@ test.describe("record tabs", () => {
     await expect(badge).not.toContainText("sugerida por IA");
     const [approved] = await fixture.sql`select suggested from kernel.attachments where record_id = ${productId} and tag = 'Foto · IA'`;
     expect(approved!.suggested).toBe(false);
+  });
+
+  test("an unknown record, or one the role may not see, shows the Spanish not-found page inside the shell", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto("/r/core.party/0190d8b2-1c1e-7000-8000-000000000000");
+    await expect(page.getByRole("heading", { name: "No encontrado" })).toBeVisible();
+    await expect(page.getByText("No encontramos este registro o no tienes acceso a él")).toBeVisible();
+    await expect(page.getByText("This page could not be found")).toHaveCount(0);
+    // Inside the shell: the active tab says what happened, not "Registro".
+    const tabs = page.getByRole("navigation", { name: "Pestañas abiertas" });
+    await expect(tabs.locator('[aria-current="page"]')).toHaveAccessibleName("No encontrado");
+    await page.getByRole("link", { name: "Volver al inicio" }).click();
+    await expect(page).toHaveURL(/\/$/);
   });
 });

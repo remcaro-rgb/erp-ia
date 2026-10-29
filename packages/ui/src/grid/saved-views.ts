@@ -1,5 +1,5 @@
 import { orGroups } from "@erp/kernel/query";
-import { initialView, stateFilters } from "./grid-model";
+import { initialView, viewFilters } from "./grid-model";
 import type { Condition, GridColumn, GridStateInput, GridView, SortEntry } from "./types";
 
 // Saved views (design §9, rule 20): what a view keeps of a grid (filters with their Y / O joins, sort, page size and
@@ -24,9 +24,9 @@ export interface SavedViewItem {
   state: SavedGridState;
 }
 
-/** What to store for the grid as it is now. */
+/** What to store for the grid as it is now: the filters as typed (a coded column keeps its label, rule 20). */
 export function savedStateOf(columns: readonly GridColumn[], view: GridView): SavedGridState {
-  return { filters: stateFilters(columns, view), sort: view.sort, pageSize: view.pageSize, columns: view.columns };
+  return { filters: viewFilters(columns, view), sort: view.sort, pageSize: view.pageSize, columns: view.columns };
 }
 
 /** The grid view a saved state comes back as; fields the caller no longer sees are dropped. */

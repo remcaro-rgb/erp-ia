@@ -9,6 +9,7 @@ const fake: CountryPack = {
   locale: "es-CO",
   validateParty: (input) => ({ errors: [], missing: [], normalized: { ...input, checkDigit: null, legalName: "" } }),
   validateProduct: (input) => ({ errors: [], missing: [], normalized: input }),
+  codeLabel: (_table, code) => code,
 };
 
 describe("country pack registry", () => {

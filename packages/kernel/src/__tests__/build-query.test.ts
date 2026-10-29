@@ -119,6 +119,31 @@ describe("buildQuery", () => {
     expect(q.sql).toMatch(/"name" ilike \$1 and "name" ilike \$2 and "name" ilike \$3 and not \("name" ilike \$4\) and nullif\("name", ''\) is null/);
   });
 
+  it("a text field takes a code set: in / nin over the codes a label matched (a coded column filtered by what the user sees)", () => {
+    const q = buildQuery(
+      partyEntity,
+      state({ filters: [{ field: "document_number", op: "in", value: ["05001", "11001"] }, { field: "name", op: "nin", value: ["a%b"] }] }),
+      all,
+    );
+    expect(q.sql).toMatch(/"document_number" = any\(\$1::text\[\]\)/);
+    // Like the other negative text rules, an empty value never matches a "not" rule.
+    expect(q.sql).toMatch(/nullif\("name", ''\) is not null and not \("name" = any\(\$2::text\[\]\)\)/);
+    expect(q.params).toEqual([["05001", "11001"], ["a%b"]]);
+    // No label matched: the set is empty and selects nothing; its negation keeps every row with a value.
+    const none = buildQuery(partyEntity, state({ filters: [{ field: "document_number", op: "in", value: [] }, { field: "name", op: "nin", value: [] }] }), all);
+    expect(none.sql).toMatch(/where \(\(false and nullif\("name", ''\) is not null\)\)/);
+    expect(none.params).toEqual([]);
+    // A municipality label can match hundreds of DANE codes: the set takes up to 2000.
+    const many = Array.from({ length: 1500 }, (_, i) => String(i).padStart(5, "0"));
+    expect(buildQuery(partyEntity, state({ filters: [{ field: "document_number", op: "in", value: many }] }), all).params).toEqual([many]);
+    expect(codeOf(() => buildQuery(partyEntity, state({ filters: [{ field: "document_number", op: "in", value: [...many, ...many] }] }), all))).toBe("bad_value");
+    expect(codeOf(() => buildQuery(partyEntity, state({ filters: [{ field: "document_number", op: "in", value: "05001" }] }), all))).toBe("bad_value");
+    expect(codeOf(() => buildQuery(partyEntity, state({ filters: [{ field: "document_number", op: "in", value: [{}] }] }), all))).toBe("bad_value");
+    // The set is a text rule only, and the filter builder never offers it (the grid sends it).
+    expect(codeOf(() => buildQuery(partyEntity, state({ filters: [{ field: "credit_limit", op: "nin", value: [1] }] }), all))).toBe("bad_operator");
+    expect(operatorsFor("text")).not.toContain("in");
+  });
+
   it("enum filters work on scalar and array columns (a party's kind is text[])", () => {
     const q = buildQuery(partyEntity, state({ filters: [{ field: "kind", op: "in", value: ["customer", "supplier"] }, { field: "is_active", op: "eq", value: true }] }), all);
     expect(q.sql).toMatch(/exists \(select 1 from unnest\(\$1::text\[\]\) as v\(x\) where to_jsonb\("kind"\) @> to_jsonb\(v\.x\)\)/);

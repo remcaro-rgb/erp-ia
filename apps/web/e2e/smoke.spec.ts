@@ -244,5 +244,14 @@ test.describe("phase 1 smoke on the demo company", () => {
     await expect(page.getByRole("alert").getByText("No tienes permiso.")).toBeVisible();
     const auditApi = await page.request.post("/api/grid/kernel.audit", { data: { filters: [], sort: [], page: 1, pageSize: 10 } });
     expect(auditApi.status()).toBe(403);
+
+    // A supplier's record (her role's party scope is customers only): the Spanish not-found page inside the shell.
+    const [supplier] = await sql<{ id: string }[]>`
+      select id from core.parties where company_id = ${DEMO_COMPANY_ID} and not kind @> array['customer'] order by seq limit 1`;
+    await page.goto(`/r/core.party/${supplier!.id}`);
+    await expect(page.getByRole("heading", { name: "No encontrado" })).toBeVisible();
+    await expect(page.getByText("No encontramos este registro o no tienes acceso a él")).toBeVisible();
+    await expect(page.getByText("This page could not be found")).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).locator('[aria-current="page"]')).toHaveAccessibleName("No encontrado");
   });
 });

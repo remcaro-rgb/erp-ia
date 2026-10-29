@@ -21,6 +21,8 @@ import type { Condition, ExportFormat, GridColumn, GridFetcher, GridRow, GridSta
 type Filter = NonNullable<GridStateInput["filters"]>[number];
 
 const NO_ROWS: GridRow[] = [];
+/** Placeholder rows while the first page loads. */
+const SKELETON_ROWS = 6;
 
 const FORMAT_LABEL = { pdf: "pdf", xlsx: "excel", csv: "csv" } as const;
 
@@ -99,6 +101,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const shown = shownColumns(columns, view);
   const rows = data.page?.rows ?? NO_ROWS;
   const total = data.page?.total ?? 0;
+  // Nothing has come back yet: the count would read "0 registros" and the body would be empty.
+  const firstLoad = data.loading && !data.page;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rowsSeen, setRowsSeen] = useState(rows);
@@ -150,7 +154,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       <div className="erp-grid__hd">
         <h2>{title}</h2>
         <span className="erp-small erp-muted">
-          {t("grid.count", { count: total })}
+          {firstLoad ? t("grid.loading") : t("grid.count", { count: total })}
           {(hiddenCount > 0 || maskedCount > 0) && (
             <span title={t("grid.visibility_title")}>
               {" · "}
@@ -257,6 +261,17 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                 ))}
               </tr>
             ))}
+            {firstLoad &&
+              Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                <tr key={`skeleton-${i}`} className="erp-grid__skeleton" aria-hidden="true">
+                  <td className="erp-grid__check" />
+                  {shown.map((column) => (
+                    <td key={column.field}>
+                      <span />
+                    </td>
+                  ))}
+                </tr>
+              ))}
             {!data.loading && rows.length === 0 && (
               <tr>
                 <td colSpan={shown.length + 1} className="erp-muted erp-grid__empty">
@@ -271,6 +286,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         page={view.page}
         pageSize={view.pageSize}
         total={total}
+        loading={firstLoad}
         onPage={grid.setPage}
         onPageSize={grid.setPageSize}
         sums={sums}

@@ -33,6 +33,7 @@ Cada pantalla que abres queda en una pestaña de la fila que está debajo de la 
 - **Inicio** es fija: no se cierra.
 - Al abrir una opción del menú se abre su pestaña. Si ya estaba abierta, el sistema te lleva a ella en lugar de abrir otra.
 - Al hacer clic en una fila de un listado, el registro se abre en una pestaña propia con el nombre del registro. **Nuevo** abre una pestaña «Crear …» con el formulario vacío.
+- Si el registro no existe o tu rol no tiene acceso a él (por ejemplo, un proveedor cuando tu rol solo ve clientes), la pestaña dice «No encontrado» y la página explica «No encontramos este registro o no tienes acceso a él», con el botón **Volver al inicio**.
 - La **✕** de cada pestaña la cierra. Al cerrar la pestaña activa pasas a la vecina.
 - El botón **+** abre la paleta de comandos para elegir la pantalla de una pestaña nueva.
 - **Cerrar todas ✕** (a la derecha, solo aparece si hay pestañas que cerrar) cierra todas menos Inicio. Antes pide confirmación y te dice cuáles se cerrarán: «Los formularios sin guardar se perderían».

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { kernelModule, loadModules, Registry } from "@erp/kernel";
+import { kernelModule, loadModules, registerCountryPack, Registry } from "@erp/kernel";
+import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { BUILTIN_TOOLS } from "../tools/builtin";
@@ -15,6 +16,7 @@ import type { ToolDescriptor } from "../tools/descriptor";
 
 const registry = new Registry();
 loadModules(registry, [kernelModule, core, support]);
+registerCountryPack(co);
 
 describe("tool names", () => {
   it("a process id becomes a provider-safe tool name and back", () => {
@@ -82,6 +84,7 @@ describe("confirmation preview", () => {
     const preview = buildPreview(registry, def, def.input.parse({ kind: ["customer"], personType: "1", documentType: "31", documentNumber: "900373115", legalName: "Éxito", taxResponsibilities: ["R-99-PN"] }), {
       locale: "es-419",
       stepUp: false,
+      country: "CO",
     });
     expect(preview.title).toBe(def.description);
     expect(preview.permission).toBe("core.party.create");
@@ -90,9 +93,42 @@ describe("confirmation preview", () => {
       expect.arrayContaining([
         { label: "Razón social", value: "Éxito" },
         { label: "Número de documento", value: "900373115" },
-        { label: "Responsabilidades fiscales", value: "R-99-PN" },
+        { label: "Responsabilidades fiscales", value: "R-99-PN · No responsable · no aplica" },
       ]),
     );
+  });
+
+  it("shows values by their labels, never the raw codes: enums from the catalogue, fiscal codes from the country pack (code kept)", () => {
+    const def = registry.process("core.party.create");
+    const input = def.input.parse({
+      kind: ["customer", "supplier"],
+      personType: "1",
+      documentType: "31",
+      documentNumber: "900373115",
+      legalName: "Éxito",
+      taxResponsibilities: ["O-13", "R-99-PN"],
+      taxScheme: "ZZ",
+      countryCode: "CO",
+      departmentCode: "05",
+      municipalityCode: "05001",
+    });
+    const preview = buildPreview(registry, def, input, { locale: "es-419", stepUp: false, country: "CO" });
+    const value = (label: string) => preview.effects.find((e) => e.label === label)?.value;
+    expect(value("Tipo de tercero")).toBe("Cliente, Proveedor");
+    expect(value("Tipo de persona")).toBe("Jurídica");
+    expect(value("Tipo de documento")).toBe("31 · NIT");
+    expect(value("Régimen tributario")).toBe("ZZ · No aplica");
+    expect(value("País")).toBe("Colombia");
+    expect(value("Departamento")).toBe("Antioquia");
+    expect(value("Municipio")).toBe("Medellín");
+    expect(value("Responsabilidades fiscales")).toBe("O-13 · Gran contribuyente, R-99-PN · No responsable · no aplica");
+    // Free text and numbers stay as typed.
+    expect(value("Número de documento")).toBe("900373115");
+    // A code the pack does not know stays as it is; in English the catalogue's words.
+    const en = buildPreview(registry, def, { ...(input as Record<string, unknown>), municipalityCode: "99999" }, { locale: "en", stepUp: false, country: "CO" });
+    expect(en.effects.find((e) => e.value.startsWith("Customer"))?.value).toBe("Customer, Supplier");
+    expect(en.effects.map((e) => e.value)).toContain("99999");
+    expect(en.effects.map((e) => e.value)).toContain("Legal entity");
   });
 
   it("falls back to the input key when no field label exists, and renders booleans in Spanish", () => {

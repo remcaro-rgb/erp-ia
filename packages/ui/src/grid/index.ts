@@ -35,8 +35,10 @@ export {
   shownColumns,
   stateFilters,
   toggleSort,
+  viewFilters,
   toGridState,
 } from "./grid-model";
+export { codeFilter, foldText, serverFilters } from "./code-filter";
 export { useGrid } from "./use-grid";
 export { browserDownload, useGridExport } from "./use-grid-export";
 export type { ExportStatus, UseGridExportOptions } from "./use-grid-export";

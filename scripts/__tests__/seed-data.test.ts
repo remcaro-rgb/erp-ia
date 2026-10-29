@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { co } from "@erp/loc-co";
 import { CATEGORIES, INVOICE_READY_PARTIES, landlineIndicative, PARTIES, PRODUCTS } from "../demo/data";
 import { DEMO_COMPANY, DEMO_COMPANY_ID, DEMO_ROLE_IDS, DEMO_TENANT_ID, LAURA, MARCELA } from "../demo/accounts";
-import { assertSeedAllowed, seedSqlIds } from "../seed";
+import { adminProfile, assertSeedAllowed, seedSqlIds } from "../seed";
 
 // The demo company's data (Task 22, rule 10): what `pnpm db:seed` sends to core.party.create / core.product.create must
 // pass the Colombian pack with nothing missing, so every seeded party and product is DIAN-complete; the ids the SQL seed
@@ -55,6 +55,18 @@ describe("the demo master data", () => {
     expect(LAURA.roles).toEqual(["admin", "gerente_comercial"]);
     expect(MARCELA.roles).toEqual(["cajero"]);
     expect(LAURA.totpSecret).toMatch(/^[A-Z2-7]{32}$/);
+  });
+
+  it("gives both accounts a Colombian mobile, and writes the admin's into her profile (the users page shows it)", () => {
+    for (const account of [LAURA, MARCELA]) expect(account.mobile, account.email).toMatch(/^3\d{9}$/);
+    // Laura is bootstrapped directly (the admin processes need an admin): her profile row carries the mobile too.
+    expect(adminProfile("019a2c4e-0000-7000-8000-0000000000aa", LAURA)).toEqual({
+      id: "019a2c4e-0000-7000-8000-0000000000aa",
+      email: "laura@demo.local",
+      full_name: "Laura Méndez",
+      mobile_cc: "57",
+      mobile: "3157654321",
+    });
   });
 });
 

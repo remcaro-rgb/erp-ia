@@ -148,12 +148,20 @@ async function ensureAuthUser(sql: Sql, admin: SupabaseClient, account: DemoAcco
   return userId;
 }
 
+/** The admin's `kernel.users` row: her name and her mobile (+57), as kernel.admin.user.create writes the others'. */
+export function adminProfile(userId: string, account: DemoAccount) {
+  return { id: userId, email: account.email, full_name: account.fullName, mobile_cc: "57", mobile: account.mobile };
+}
+
 /**
  * The company's first admin: profile, membership and the system admin role, written directly (the bootstrap: the admin
- * processes need an admin to run). Everything else about people goes through kernel.admin.* as this admin.
+ * processes need an admin to run). Everything else about people goes through kernel.admin.* as this admin. A profile
+ * from an earlier run without a mobile gets it; one the admin changed keeps hers.
  */
 async function bootstrapAdmin(sql: Sql, userId: string, account: DemoAccount): Promise<void> {
-  await sql`insert into kernel.users (id, email, full_name) values (${userId}, ${account.email}, ${account.fullName}) on conflict (id) do nothing`;
+  await sql`
+    insert into kernel.users ${sql(adminProfile(userId, account))}
+    on conflict (id) do update set mobile_cc = coalesce(kernel.users.mobile_cc, excluded.mobile_cc), mobile = coalesce(kernel.users.mobile, excluded.mobile)`;
   await sql`insert into kernel.memberships (user_id, company_id) values (${userId}, ${DEMO_COMPANY_ID}) on conflict (user_id, company_id) do nothing`;
   const [membership] = await sql<{ id: string }[]>`select id from kernel.memberships where user_id = ${userId} and company_id = ${DEMO_COMPANY_ID}`;
   await sql`insert into kernel.membership_roles (membership_id, role_id) values (${membership!.id}, ${DEMO_ROLE_IDS.admin}) on conflict do nothing`;

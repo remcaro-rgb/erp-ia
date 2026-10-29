@@ -66,7 +66,12 @@
       "uuid": "uuid",
       "assigned_on_create": "N.º y uuid se asignan al crear",
       "open_in_new_tab": "Abrir en una pestaña nueva",
-      "pending": "Pendientes"
+      "pending": "Pendientes",
+      "dian": {
+        "complete": "DIAN: completo",
+        "missing": "DIAN: {count, plural, one {falta # dato} other {faltan # datos}}",
+        "errors": "DIAN: con errores"
+      }
     },
     "contacts": {
       "title": "Contactos",
@@ -598,6 +603,12 @@
       "audit": {
         "hint": "Tabla kernel.audit_log · solo inserción, trigger por fila, cadena causal. Cada acción de la interfaz, del asistente, del programador y de los eventos deja rastro con su origen."
       }
+    },
+    "not_found": {
+      "title": "No encontrado",
+      "message": "No encontramos este registro o no tienes acceso a él",
+      "hint": "Puede que lo hayan borrado, que el enlace esté incompleto o que tu rol no incluya este tipo de registro.",
+      "home": "Volver al inicio"
     }
   },
   "nav": {

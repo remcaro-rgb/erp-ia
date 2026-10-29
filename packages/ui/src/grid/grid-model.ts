@@ -1,5 +1,6 @@
 import { NO_VALUE_OPS, OPERATORS, orGroups } from "@erp/kernel/query";
 import { parseMoney } from "../money/format";
+import { serverFilters } from "./code-filter";
 import type { ColumnFilterValue, Condition, FilterOp, GridColumn, GridRow, GridStateInput, GridView, PillTone, SortEntry } from "./types";
 
 // Pure rules of the DataGrid (design §9, prototype `gridHtml` / `setFilter` / `sortBy` / the pager): what the filter
@@ -101,11 +102,20 @@ export function conditionReady(c: Condition): boolean {
 export const readyConditions = (conditions: readonly Condition[]): Condition[] => conditions.filter(conditionReady);
 
 /**
- * The flat filter list of the server's grid state. Fixed filters (`base`: the party switches) and the filter row
+ * The flat filter list of the server's grid state: the view's filters (`viewFilters`) with the text rules on coded
+ * columns turned into code sets (`code-filter.ts`, rule 20). The grid's page, its export, the advanced filter's live
+ * results and the lookups all ask through here.
+ */
+export function stateFilters(columns: readonly GridColumn[], view: Pick<GridView, "columnFilters" | "conditions">, base: readonly Filter[] = []): Filter[] {
+  return serverFilters(columns, viewFilters(columns, view, base));
+}
+
+/**
+ * The view's filters as the user typed them (what a saved view keeps). Fixed filters (`base`: the party switches) and the filter row
  * apply to every result, so they are put in front of each OR-group of the advanced conditions:
  * `P y (G1 o G2)` is sent as `P y G1 o P y G2`, which AND-before-OR evaluates the same.
  */
-export function stateFilters(columns: readonly GridColumn[], view: Pick<GridView, "columnFilters" | "conditions">, base: readonly Filter[] = []): Filter[] {
+export function viewFilters(columns: readonly GridColumn[], view: Pick<GridView, "columnFilters" | "conditions">, base: readonly Filter[] = []): Filter[] {
   const byField = new Map(columns.map((c) => [c.field, c]));
   const prefix: Filter[] = [...base];
   for (const [field, value] of Object.entries(view.columnFilters)) {

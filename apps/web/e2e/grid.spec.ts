@@ -76,7 +76,8 @@ test.describe("universal grid", () => {
     await party("Almacenes Éxito S.A.", "890900608", ["customer"], { credit_limit: 5_000_000 });
     norteId = await party("Café del Norte S.A.S.", "900373115", ["customer", "supplier"]);
     await party("Tostadora Pérez", "800123456", ["supplier"], { dian_status: "missing: 1", dian_missing: ["Correo para enviar documentos al proveedor"] });
-    for (let i = 0; i < 9; i++) await party(`Cliente de prueba ${i + 1}`, `90000000${i}`, ["customer"]);
+    // Six customers in Medellín, the rest in Bogotá: the Municipio column shows DANE names over stored codes.
+    for (let i = 0; i < 9; i++) await party(`Cliente de prueba ${i + 1}`, `90000000${i}`, ["customer"], i < 6 ? { department_code: "05", municipality_code: "05001" } : {});
     const [category] = await sql<{ id: string }[]>`
       insert into core.product_categories (company_id, name, iva_rate, default_uom) values (${companyId}, 'Café', '5', 'KGM') returning id`;
     const [product] = await sql<{ id: string }[]>`
@@ -235,6 +236,43 @@ test.describe("universal grid", () => {
     await expect
       .poll(async () => (await fixture.sql`select name from kernel.saved_views where company_id = ${companyId}`).map((r) => r.name))
       .toEqual(["Éxito o Tostadora"]);
+  });
+
+  test("a coded column filters by the label it shows: Municipio contiene Medell (rule 20)", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto("/parties");
+    const terceros = grid(page, "Terceros");
+    await expect(bodyRows(page)).toHaveCount(10);
+    // The cell shows the DANE name; the filter row takes that name, without the accent, and still the code.
+    await terceros.getByLabel("Filtrar Municipio").fill("Medell");
+    await expect(terceros.getByText("6 registros", { exact: true })).toBeVisible();
+    await expect(bodyRows(page)).toHaveCount(6);
+    await expect(bodyRows(page).first()).toContainText("Medellín");
+    await terceros.getByLabel("Filtrar Municipio").fill("medellin");
+    await expect(terceros.getByText("6 registros", { exact: true })).toBeVisible();
+    await terceros.getByLabel("Filtrar Municipio").fill("05001");
+    await expect(terceros.getByText("6 registros", { exact: true })).toBeVisible();
+    await terceros.getByLabel("Filtrar Municipio").fill("");
+    await expect(terceros.getByText("12 registros", { exact: true })).toBeVisible();
+
+    // The advanced filter goes through the same translation: Bogotá O Medellín is every party.
+    await terceros.getByRole("button", { name: "Filtro avanzado" }).click();
+    const dialog = page.getByRole("dialog", { name: "Filtro avanzado · Terceros" });
+    const first = dialog.getByRole("group", { name: "Condición 1" });
+    await first.getByLabel("Campo").selectOption("municipality_code");
+    await first.getByLabel("Valor").fill("Bogotá");
+    await dialog.getByRole("button", { name: "+ Condición" }).click();
+    const second = dialog.getByRole("group", { name: "Condición 2" });
+    await second.getByLabel("Operador lógico").selectOption("or");
+    await second.getByLabel("Campo").selectOption("municipality_code");
+    await second.getByLabel("Valor").fill("Medellín");
+    await expect(dialog.getByText("12 registros cumplen las condiciones")).toBeVisible();
+    await dialog.getByRole("button", { name: "Aplicar" }).click();
+    await expect(terceros.getByText("12 registros", { exact: true })).toBeVisible();
+    // The chips read as typed: the label, not a list of codes.
+    const chips = terceros.getByRole("list", { name: "Condiciones activas" });
+    await expect(chips.getByText(/Municipio contiene Bogotá/)).toBeVisible();
+    await expect(chips.getByText(/Municipio contiene Medellín/)).toBeVisible();
   });
 
   test("Nuevo opens an empty party form that creates through core.party.create", async ({ page }) => {

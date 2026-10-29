@@ -66,7 +66,7 @@ Un tercero está **Listo para facturar** solo cuando cumple las tres condiciones
 
 Si además tu empresa definió **datos adicionales obligatorios**, uno que falte aparece como «Dato adicional: …» en los datos pendientes.
 
-Mientras no esté listo para facturar, el tercero no se puede elegir en una factura. En la parte baja del formulario, el panel **No se puede usar en facturas** te dice por qué.
+Mientras no esté listo para facturar, el tercero no se puede elegir en una factura. En la parte baja del formulario, el panel **No se puede usar en facturas** te dice por qué. El pie del registro repite las dos cosas: «✓ Se puede usar en facturas» o «✕ No se puede usar en facturas», y el estado DIAN en palabras («DIAN: completo», «DIAN: faltan 4 datos»).
 
 ## Cambiar un tercero
 

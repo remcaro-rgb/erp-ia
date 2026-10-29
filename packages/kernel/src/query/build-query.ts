@@ -3,6 +3,7 @@ import type { EntityDef } from "../registry/entities";
 import { IDENTIFIER, type FieldDef, type FieldType } from "../registry/fields";
 import { QueryError } from "./errors";
 import {
+  CODE_SET_OPS,
   customFilterKind,
   EXTRA_KEY,
   EXTRA_PREFIX,
@@ -76,6 +77,8 @@ const NUMBER = /^-?\d+(\.\d+)?$/;
 const TIME_ZONE = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/;
 const MAX_TEXT = 500;
 const MAX_LIST = 100;
+/** A label can match many codes ("san" matches dozens of DANE municipalities); Colombia has about 1100. */
+const MAX_CODES = 2000;
 
 const quote = (name: string) => `"${name}"`;
 
@@ -195,10 +198,12 @@ export function buildQuery(
     const found = target(filter.field);
     if (!found.filterable) throw new QueryError("field_not_filterable", found.name);
     const op: FilterOp = filter.op;
-    if (!OPERATORS[found.kind].includes(op)) throw new QueryError("bad_operator", found.name, `${op} does not apply to ${found.kind}`);
+    const codeSet = found.kind === "text" && CODE_SET_OPS.has(op);
+    if (!codeSet && !OPERATORS[found.kind].includes(op)) throw new QueryError("bad_operator", found.name, `${op} does not apply to ${found.kind}`);
     const t: Bound = { ...found, expr: found.filterExpr() };
     if (NO_VALUE_OPS.has(op)) return nullTest(t, op === "is_null");
     const { value, value2 } = filter;
+    if (codeSet) return codeSetPredicate(t, op, value);
     switch (t.kind) {
       case "text":
       case "json":
@@ -235,6 +240,16 @@ export function buildQuery(
     const pattern = op === "contains" || op === "ncontains" ? `%${escaped}%` : op === "starts" ? `${escaped}%` : op === "ends" ? `%${escaped}` : escaped;
     const like = `${t.expr} ilike ${param(pattern)}`;
     return op === "ncontains" || op === "neq" ? `not (${like})` : like;
+  };
+
+  /** `in`: the field holds one of the codes (none: nothing matches). `nin`: it holds a value that is none of them. */
+  const codeSetPredicate = (t: Bound, op: FilterOp, value: unknown): string => {
+    if (!Array.isArray(value) || value.length > MAX_CODES) return bad(t, `a list of up to ${MAX_CODES} codes expected`);
+    const codes = value.map((v) => textValue(t, v));
+    const present = `nullif(${t.expr}, '') is not null`;
+    if (codes.length === 0) return op === "in" ? "false" : present;
+    const member = `${t.expr} = any(${param(codes)}::text[])`;
+    return op === "in" ? member : `${present} and not (${member})`;
   };
 
   const enumPredicate = (t: Bound, op: FilterOp, value: unknown): string => {

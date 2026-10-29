@@ -1,3 +1,5 @@
+import type { CodeTable } from "../localization/country-pack";
+
 export type FieldType =
   | "text"
   | "number"
@@ -29,6 +31,10 @@ export interface FieldDef {
   exportable?: boolean;
   /** Default false; searchable fields feed the entity lookup (magnifier). */
   searchable?: boolean;
+  /** i18n key prefix of the labels of the field's values (`grid.values.party_kind` → `.customer`). */
+  valuesKey?: string;
+  /** The field holds a code of this country-pack table: its label comes from the pack (`CountryPack.codeLabel`). */
+  codes?: CodeTable;
 }
 
 /** A field with every default applied. */

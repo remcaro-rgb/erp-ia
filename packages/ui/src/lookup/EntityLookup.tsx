@@ -70,7 +70,7 @@ export function EntityLookup(props: EntityLookupProps) {
   }
 
   const shown = text ?? value?.label ?? "";
-  const filters = stateFilters([], { columnFilters: {}, conditions }, baseFilters);
+  const filters = stateFilters(fields, { columnFilters: {}, conditions }, baseFilters);
   const query = JSON.stringify({ search: open ? shown.trim() : null, filters });
 
   useEffect(() => {
@@ -229,7 +229,7 @@ export function EntityLookup(props: EntityLookupProps) {
         fields={fields}
         conditions={conditions}
         onApply={setConditions}
-        preview={(conds) => fetcher({ filters: stateFilters([], { columnFilters: {}, conditions: conds }, baseFilters), sort: [], page: 1, pageSize: 50 })}
+        preview={(conds) => fetcher({ filters: stateFilters(fields, { columnFilters: {}, conditions: conds }, baseFilters), sort: [], page: 1, pageSize: 50 })}
         previewColumns={props.previewColumns ?? fields.filter((f) => !f.filterOnly && f.mode !== "hidden")}
         mode="pick"
         onPickRow={choose}

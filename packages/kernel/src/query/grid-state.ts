@@ -5,7 +5,7 @@ import type { FieldType } from "../registry/fields";
 // What a grid asks the server for (design §9): filters, sort, page and the rest of a view. Dependency-free
 // (zod only) so the browser builds the same state and offers the same operators as the server accepts.
 
-export const FILTER_OPS = ["eq", "neq", "contains", "ncontains", "starts", "ends", "gt", "gte", "lt", "lte", "between", "in", "is_null", "not_null"] as const;
+export const FILTER_OPS = ["eq", "neq", "contains", "ncontains", "starts", "ends", "gt", "gte", "lt", "lte", "between", "in", "nin", "is_null", "not_null"] as const;
 export type FilterOp = (typeof FILTER_OPS)[number];
 
 export const GridFilter = z.object({
@@ -84,6 +84,12 @@ export const customFilterKind = (type: CustomFieldType): FilterKind => KIND_OF_C
 
 /** The operators a registry field type takes. */
 export const operatorsFor = (type: FieldType): readonly FilterOp[] => OPERATORS[filterKind(type)];
+
+/**
+ * Code sets on a text field: `in` / `nin` over a list of stored codes. The filter builder never offers them; the grid
+ * sends them when the user filters a coded column (municipality, document type…) by the label it shows (rule 20).
+ */
+export const CODE_SET_OPS: ReadonlySet<FilterOp> = new Set(["in", "nin"]);
 
 /** Operators that take no value. */
 export const NO_VALUE_OPS: ReadonlySet<FilterOp> = new Set(["is_null", "not_null"]);

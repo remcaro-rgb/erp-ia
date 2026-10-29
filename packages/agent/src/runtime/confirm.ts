@@ -52,6 +52,12 @@ async function needsStepUp(deps: RunProcessDeps, companyId: string, def: Process
   return row!.sensitive;
 }
 
+/** The active company's country (`kernel.companies.country_code`): its pack labels the card's fiscal codes. */
+async function companyCountry(deps: RunProcessDeps, companyId: string): Promise<string | undefined> {
+  const [row] = await deps.sql<{ country_code: string }[]>`select country_code from kernel.companies where id = ${companyId}`;
+  return row?.country_code;
+}
+
 /**
  * Stores a pending card for a write-kind run of `def` proposed in the caller's conversation and returns it. Invalid
  * input stores nothing and comes back as an `invalid_input` refusal with the issues, for the model to correct.
@@ -63,7 +69,11 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
   const parsed = def.input.safeParse(input);
   if (!parsed.success) return refusal("invalid_input", { details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
 
-  const preview = buildPreview(deps.registry, def, parsed.data, { locale: claims.locale, stepUp: await needsStepUp(deps, claims.active_company_id, def) });
+  const preview = buildPreview(deps.registry, def, parsed.data, {
+    locale: claims.locale,
+    stepUp: await needsStepUp(deps, claims.active_company_id, def),
+    country: await companyCountry(deps, claims.active_company_id),
+  });
   const token = randomBytes(32).toString("base64url");
   const [inserted] = await deps.sql<{ id: string }[]>`
     insert into kernel.agent_confirmations (company_id, conversation_id, user_id, process_id, input, preview, token, expires_at, created_by)

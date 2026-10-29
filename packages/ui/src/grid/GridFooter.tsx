@@ -9,6 +9,8 @@ export interface GridFooterProps {
   page: number;
   pageSize: number;
   total: number;
+  /** The first page has not come back yet: no "0 de 0". */
+  loading?: boolean;
   onPage: (page: number) => void;
   onPageSize: (size: number) => void;
   /** Sums of the whole filter per money column (`sum:<field>` aggregates). */
@@ -18,14 +20,14 @@ export interface GridFooterProps {
 }
 
 /** The grid footer (prototype `.grid-ft`): rows shown, the pager with 10 / 25 / 50 / 100 per page, and the money totals. */
-export function GridFooter({ page, pageSize, total, onPage, onPageSize, sums = [], selection }: GridFooterProps) {
+export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, sums = [], selection }: GridFooterProps) {
   const t = useTranslations();
   const pages = pageCount(total, pageSize);
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   return (
     <div className="erp-grid__ft">
-      <span>{t("grid.rows", { from, to, total })}</span>
+      <span>{loading ? "" : t("grid.rows", { from, to, total })}</span>
       <nav className="erp-pager" aria-label={t("grid.page", { page, pages })}>
         <button type="button" aria-label={t("grid.previous")} disabled={page <= 1} onClick={() => onPage(page - 1)}>
           ‹

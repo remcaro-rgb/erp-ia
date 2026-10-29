@@ -19,6 +19,8 @@ export interface TabsActions {
   /** Closes a tab (never a pinned one); closing the active tab activates its neighbour. */
   close(id: string): void;
   activate(id: string): void;
+  /** Retitles the tab showing `href` (a page that learns its own name, e.g. a record that is not found). */
+  rename(href: string, title: string): void;
   /** Keeps only the pinned tabs (Inicio) and activates Inicio. */
   closeAll(): void;
   /** Replaces the state with a saved one, repaired (home first, no duplicate hrefs, an existing active tab). */
@@ -71,6 +73,11 @@ export function createTabsStore(options: TabsStoreOptions = {}): TabsStore {
     },
     activate(id) {
       if (get().tabs.some((t) => t.id === id) && get().activeId !== id) set({ activeId: id });
+    },
+    rename(href, title) {
+      const tabs = get().tabs;
+      if (!tabs.some((t) => t.href === href && t.title !== title)) return;
+      set({ tabs: tabs.map((t) => (t.href === href ? { ...t, title } : t)) });
     },
     closeAll() {
       set({ tabs: get().tabs.filter((t) => t.pinned), activeId: HOME_TAB_ID });

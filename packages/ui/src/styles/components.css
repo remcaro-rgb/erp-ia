@@ -69,6 +69,10 @@
   .erp-grid__check { width: 36px; padding-right: 0 !important; }
   .erp-grid__check input { accent-color: var(--primary); }
   .erp-grid__empty { height: 80px !important; text-align: center !important; }
+  .erp-grid__skeleton td span { display: block; height: 12px; width: 70%; border-radius: 4px; background: linear-gradient(90deg, var(--line-2) 25%, var(--head) 50%, var(--line-2) 75%); background-size: 200% 100%; animation: erp-skeleton 1.2s ease-in-out infinite; }
+  .erp-grid__skeleton:nth-child(even) td span { width: 55%; }
+  @keyframes erp-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .erp-grid__skeleton td span { animation: none; } }
   .erp-row-link { cursor: pointer; }
   .erp-row-link:hover td { background: var(--hover); }
   .erp-row-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
@@ -195,6 +199,115 @@
   .erp-record__count--warn { background: var(--warn-bg); color: var(--warn); }
   .erp-record__panel { padding: 18px; }
   .erp-record__footer { display: flex; gap: 8px; justify-content: space-between; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 12px; color: var(--text-muted); border-radius: 0 0 8px 8px; }
+  .erp-record__status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+  .erp-record__status .erp-pill { margin-right: 0; }
+  .erp-record__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+  .erp-record__actions:empty { display: none; }
+
+  /* the record tabs (design §5.16, prototype v5 record frame): Contactos, Fotos, Datos adicionales, Archivos.
+     Sections like the Datos form's `.sec`, buttons like `.btn`, 36 px rows, dashed drop zones; tokens only, so dark
+     follows. Their plain <button>s take the button look here (`:where` keeps it weak, so the specific rules win). */
+  .erp-contacts, .erp-photos, .erp-extra, .erp-attachments { display: flex; flex-direction: column; gap: 16px; font-size: 13px; color: var(--text); min-width: 0; }
+  .erp-contacts > section, .erp-extra > section, .erp-attachments > section { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--line-2); min-width: 0; }
+  .erp-contacts > section:last-child, .erp-extra > section:last-child, .erp-attachments > section:last-child { border-bottom: 0; padding-bottom: 0; }
+  .erp-contacts h3, .erp-extra h3, .erp-attachments h3 { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:where(:not(.erp-contacts__edit, .erp-photos__thumb)) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+  :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:where(:not(.erp-contacts__edit, .erp-photos__thumb)):hover:not(:disabled) { background: var(--head); }
+  :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:disabled { opacity: .5; cursor: not-allowed; }
+  :is(.erp-contacts, .erp-extra, .erp-attachments) table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  :is(.erp-contacts, .erp-extra, .erp-attachments) th { height: 32px; padding: 0 10px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  :is(.erp-contacts, .erp-extra, .erp-attachments) td { height: 36px; padding: 0 10px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+  :is(.erp-contacts, .erp-extra) td:last-child { width: 1%; text-align: right; }
+
+  /* Contactos: the form in the Datos form's field grid, the list as a 36 px table */
+  .erp-contacts__form { background: var(--head); border: 1px solid var(--line-2); border-radius: 8px; padding: 14px; }
+  .erp-contacts > .erp-contacts__form { border-bottom: 1px solid var(--line-2); padding-bottom: 14px; }
+  .erp-contacts__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .erp-contacts__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+  .erp-contacts__actions button:last-child { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+  .erp-contacts__actions button:last-child:hover:not(:disabled) { background: var(--primary-h); }
+  .erp-contacts__head { display: flex; align-items: center; gap: 8px; }
+  .erp-contacts__head h3 { flex-grow: 1; }
+  .erp-contacts__list { overflow-x: auto; }
+  .erp-contacts__muted, .erp-extra__muted, .erp-photos__muted, .erp-attachments__muted { margin: 0; color: var(--text-muted); font-size: 12px; }
+  .erp-contacts__row--clickable { cursor: pointer; }
+  .erp-contacts__row--clickable:hover td { background: var(--hover); }
+  .erp-contacts__edit { border: 0; background: transparent; padding: 0; color: var(--primary); font: inherit; text-align: left; cursor: pointer; }
+  .erp-contacts__edit:hover { text-decoration: underline; }
+  .erp-contacts tr[role="alertdialog"] td { background: var(--danger-bg); color: var(--danger); white-space: normal; padding: 6px 10px; }
+
+  /* Fotos: the carousel, its thumbnails and the drop zone */
+  .erp-photos__carousel { position: relative; height: 260px; background: var(--head); border: 1px solid var(--line-2); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
+  .erp-photos__carousel img { width: 100%; height: 100%; object-fit: contain; }
+  .erp-photos .erp-photos__carousel > button { position: absolute; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; font-size: 18px; box-shadow: 0 1px 3px var(--shadow); }
+  .erp-photos .erp-photos__carousel > button:first-of-type { left: 8px; }
+  .erp-photos .erp-photos__carousel > button:last-of-type { right: 8px; }
+  .erp-photos__carousel > .erp-pill { position: absolute; left: 8px; bottom: 8px; margin: 0; }
+  .erp-photos__strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .erp-photos__strip [role="alertdialog"] { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; background: var(--danger-bg); color: var(--danger); }
+  .erp-photos__thumbs { display: flex; flex-wrap: wrap; gap: 8px; flex-grow: 1; }
+  .erp-photos__thumb { width: 96px; height: 96px; padding: 0; border: 2px solid transparent; border-radius: 8px; background: var(--head); overflow: hidden; cursor: pointer; flex: 0 0 auto; }
+  .erp-photos__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .erp-photos__thumb:hover { border-color: var(--line); }
+  .erp-photos__thumb:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-photos__thumb--on, .erp-photos__thumb--on:hover { border-color: var(--primary); }
+  .erp-photos__drop, .erp-attachments__drop { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--text-muted); font-size: 13px; background: var(--head); transition: border-color .15s, background .15s, color .15s; }
+  .erp-photos__drop--over, .erp-attachments__drop--over { border-color: var(--primary); background: var(--accent); color: var(--text); }
+  .erp-photos__drop--disabled, .erp-attachments__drop--disabled { opacity: .7; cursor: not-allowed; }
+  .erp-photos__choose, .erp-attachments__choose { color: var(--primary); text-decoration: underline; cursor: pointer; font-weight: 600; }
+  .erp-photos__choose:focus-within, .erp-attachments__choose:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+  .erp-photos__suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .erp-photos__error, .erp-attachments__error { margin: 0; font-size: 12px; font-weight: 600; color: var(--danger); }
+
+  /* Datos adicionales: the admin's fields in the Datos form's grid, the free data as a table */
+  .erp-extra__defined, .erp-extra__free { min-width: 0; }
+  .erp-extra__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .erp-extra__free table input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
+  .erp-extra__free table input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-extra__free table input:disabled { background: var(--head); color: var(--text-muted); }
+  .erp-extra__free td { padding: 4px 6px; }
+  .erp-extra__free > button { align-self: flex-start; }
+  .erp-input--number { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Archivos: required files, the drop zone, the files to upload and the list (prototype `.att-row`) */
+  .erp-attachments__required ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .erp-attachments__required li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 28px; }
+  .erp-attachments__warning { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-size: 12px; }
+  .erp-attachments__stage, .erp-attachments__list { min-width: 0; }
+  .erp-attachments__row { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 0; border-bottom: 1px dashed var(--line-2); font-size: 13px; min-width: 0; flex-wrap: wrap; }
+  .erp-attachments__row:last-child { border-bottom: 0; }
+  .erp-attachments__row > span[aria-hidden="true"] { font-size: 18px; width: 24px; text-align: center; flex: 0 0 auto; }
+  .erp-attachments__row select, .erp-attachments__row input:not([type="file"]) { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; min-width: 0; }
+  .erp-attachments__row select { width: 200px; }
+  .erp-attachments__row--confirm { background: var(--danger-bg); color: var(--danger); padding: 6px 10px; border-radius: 6px; border-bottom: 0; }
+  .erp-attachments__row--confirm button:first-of-type { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
+  .erp-attachments__stage > .erp-attachments__row:last-child button { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+  .erp-attachments__name { flex: 1 1 200px; min-width: 0; }
+  .erp-attachments__name > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .erp-attachments__grow { flex-grow: 1; min-width: 0; }
+  .erp-attachments__row > .erp-attachments__error { flex-basis: 100%; padding-left: 34px; }
+
+  /* 44 px targets on touch screens (rule 24) */
+  @media (pointer: coarse) {
+    :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:where(:not(.erp-photos__thumb)) { min-height: 44px; min-width: 44px; }
+    .erp-photos .erp-photos__carousel > button { width: 44px; height: 44px; }
+    .erp-contacts__edit { min-height: 44px; }
+    .erp-photos__choose, .erp-attachments__choose { display: inline-flex; align-items: center; min-height: 44px; }
+    :is(.erp-contacts, .erp-extra, .erp-attachments) td { height: 44px; }
+  }
+  @media (max-width: 720px) {
+    .erp-contacts__fields, .erp-extra__fields { grid-template-columns: minmax(0, 1fr); }
+    .erp-photos__carousel { height: 200px; }
+  }
+
+  /* not found (the record page's notFound(), unknown addresses) */
+  .erp-notfound { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 24px 28px; margin-top: 24px; }
+  .erp-notfound h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
+  .erp-notfound__message { margin: 0; font-size: 14px; color: var(--text); }
+  .erp-notfound .erp-btn { margin-top: 6px; min-height: 36px; text-decoration: none; }
+  .erp-notfound-page { min-height: 100dvh; display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; background: var(--bg); color: var(--text); }
+  .erp-notfound-page .erp-notfound { width: min(560px, 100%); }
 
   /* mass import (design §9, prototype "Importar"): dialog, drop zone, preview table, entity cards */
   .erp-row--wrap { flex-wrap: wrap; }

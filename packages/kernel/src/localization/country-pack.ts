@@ -71,6 +71,26 @@ export type ProductValidation = {
   normalized: ProductFiscalInput;
 };
 
+/**
+ * The pack's code tables a field can hold a code of (design §5.8a, §5.8b). Country-neutral names: each pack fills
+ * them with its own codes (DIAN tables and DANE for Colombia).
+ */
+export const CODE_TABLES = [
+  "documentTypes",
+  "taxSchemes",
+  "responsibilities",
+  "countries",
+  "departments",
+  "municipalities",
+  "idSchemes",
+  "uoms",
+  "ivaRates",
+  "incRates",
+  "otherTaxes",
+  "priceTypes",
+] as const;
+export type CodeTable = (typeof CODE_TABLES)[number];
+
 export interface CountryPack {
   code: "CO";
   validateTaxId(id: string, type: DocumentType): TaxIdResult;
@@ -79,6 +99,11 @@ export interface CountryPack {
   locale: "es-CO";
   validateParty(input: PartyFiscalInput): PartyValidation;
   validateProduct(input: ProductFiscalInput): ProductValidation;
+  /**
+   * How a code of one of the pack's tables reads for a person (`locale`, `es-419` or `en`): "31 · NIT", "Medellín",
+   * "Colombia". A fiscal code keeps the code in front of its name; places read by name. Undefined for an unknown code.
+   */
+  codeLabel(table: CodeTable, code: string, locale: string): string | undefined;
   // phase 2 adds taxes, sequences, eInvoicing, payroll hooks
 }
 

@@ -40,7 +40,7 @@ Cuando preguntas por datos (`kernel.data.query`), el asistente responde con una 
 
 ## Pedir una acción: la tarjeta de confirmación
 
-El asistente **nunca cambia nada por su cuenta**. Si le pides crear, modificar o eliminar algo, te muestra una **tarjeta de confirmación** con un encabezado azul claro, lo que va a hacer línea por línea y el permiso con el que se ejecuta:
+El asistente **nunca cambia nada por su cuenta**. Si le pides crear, modificar o eliminar algo, te muestra una **tarjeta de confirmación** con un encabezado azul claro, lo que va a hacer línea por línea y el permiso con el que se ejecuta. Los valores se leen como en los formularios: «Tipo de tercero: Cliente», «Municipio: Medellín»; los códigos fiscales conservan su código delante del nombre («Tipo de documento: 31 · NIT», «Responsabilidades fiscales: R-99-PN · No responsable · no aplica»).
 
 - **Confirmar**: ejecuta la acción, una sola vez aunque pulses dos veces, y queda registrada en la auditoría con el origen «asistente».
 - **Editar**: los valores de la tarjeta se vuelven campos. Cambia los que quieras y pulsa **Enviar cambios**: el asistente recibe «Cambia Ciudad a Medellín» como un mensaje nuevo y te prepara una tarjeta nueva. Editar no ejecuta nada, y la tarjeta anterior queda cancelada. **Volver** cierra la edición sin cambios.

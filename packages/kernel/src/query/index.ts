@@ -7,6 +7,7 @@ export { QueryError } from "./errors";
 export type { QueryErrorCode } from "./errors";
 export {
   AGGREGATE_FNS,
+  CODE_SET_OPS,
   customFilterKind,
   EXTRA_KEY,
   EXTRA_PREFIX,

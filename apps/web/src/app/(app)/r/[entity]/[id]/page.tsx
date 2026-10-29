@@ -10,6 +10,7 @@ import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
 import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
+import { RecordStatus } from "./record-status";
 import { TicketView } from "../../../support/ticket-view";
 
 // Full-page record (design §5.16): /r/<entity>/<id> renders the record frame with the entity's Datos form (party,
@@ -90,27 +91,6 @@ async function RecordView({ params }: { params: Params }) {
         status={<RecordStatus record={record} t={t} />}
       />
     </div>
-  );
-}
-
-/**
- * The footer's status: whether the record can go on an invoice (design §5.17: DIAN complete, required files present,
- * active) and its DIAN status. The page reloads after a file is added or removed, so this follows the files.
- */
-function RecordStatus({ record, t }: { record: Record<string, unknown>; t: Awaited<ReturnType<typeof getTranslations>> }) {
-  const ready = typeof record.invoice_ready === "boolean" ? record.invoice_ready : null;
-  const dian = typeof record.dian_status === "string" ? record.dian_status : null;
-  if (ready === null && dian === null) return null;
-  return (
-    <span data-testid="record-status">
-      {ready !== null && <span className={`erp-pill erp-pill--${ready ? "ok" : "danger"}`}>{t(ready ? "common.forms.invoice_ok" : "common.forms.invoice_no")}</span>}
-      {dian !== null && (
-        <>
-          {" "}
-          <span className="erp-mono">{dian}</span>
-        </>
-      )}
-    </span>
   );
 }
 

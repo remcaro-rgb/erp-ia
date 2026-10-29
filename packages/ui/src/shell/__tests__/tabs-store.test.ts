@@ -30,6 +30,20 @@ describe("tabs store", () => {
     expect(tabs.find((t) => t.id === activeId)!.href).toBe("/parties");
   });
 
+  it("rename retitles the tab showing an href (a record that turned out not found), and leaves the others alone", () => {
+    const store = createTabsStore();
+    store.getState().open(parties);
+    store.getState().open({ title: "Registro", href: "/r/core.party/x", kind: "record" });
+    store.getState().rename("/r/core.party/x", "No encontrado");
+    store.getState().rename("/nowhere", "Nada");
+    expect(store.getState().tabs.find((t) => t.href === "/r/core.party/x")!.title).toBe("No encontrado");
+    expect(store.getState().tabs.find((t) => t.href === "/parties")!.title).toBe("Terceros");
+    // Same title: no change is reported.
+    const before = store.getState().tabs;
+    store.getState().rename("/r/core.party/x", "No encontrado");
+    expect(store.getState().tabs).toBe(before);
+  });
+
   it("closing the active tab activates its neighbour (the next one, else the previous one)", () => {
     const store = createTabsStore();
     for (const tab of [parties, products, categories]) store.getState().open(tab);

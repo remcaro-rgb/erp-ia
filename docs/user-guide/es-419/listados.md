@@ -17,7 +17,7 @@ Terceros, Productos, Categorías y Soporte son **listados** que funcionan igual.
 
 ## Qué ves
 
-- El **título** del listado y, a su lado, cuántos registros hay con los filtros actuales («124 registros»). Si tu rol tiene columnas ocultas o enmascaradas, también lo dice («2 ocultas, 1 enmascarada»).
+- El **título** del listado y, a su lado, cuántos registros hay con los filtros actuales («124 registros»). Mientras llega la primera página dice «Cargando…» y la tabla muestra filas grises de espera. Si tu rol tiene columnas ocultas o enmascaradas, también lo dice («2 ocultas, 1 enmascarada»).
 - Una **barra de botones**: **Nuevo** y **Importar** (si tu rol puede crear e importar), **Columnas**, **Guardar vista**, **Filtro avanzado**, los botones de exportar **PDF**, **Excel** y **CSV**, y **Limpiar filtros** cuando hay algo aplicado.
 - La **tabla**: una fila por registro, con los encabezados que ordenan y, debajo de ellos, una fila de cajas para filtrar cada columna.
 - El **pie**: las filas que estás viendo, las páginas y los totales.
@@ -37,6 +37,7 @@ Haz clic en una fila (o enfócala y pulsa Enter) para abrir el registro en su pr
 La fila de cajas bajo los encabezados filtra mientras escribes, según el tipo de columna:
 
 - **Texto**: escribe una parte de lo que buscas («contiene…»).
+- **Columnas con códigos** (municipio, departamento, país, régimen, tipo de documento, tarifa de IVA, unidad…): filtra por lo que ves en la celda, sin importar tildes ni mayúsculas: «medell» encuentra Medellín. También sirve el código («05001»).
 - **Números e importes**: escribe una comparación, como `>= 1000`, `< 500` o `= 3`, o un rango como `1000..5000`. Un número solo significa «mayor o igual».
 - **Fechas**: elige **Desde** y **Hasta**.
 - **Listas y Sí / No** (tipo de tercero, estado, activo…): elige un valor del menú, o **Todos**.
@@ -62,7 +63,7 @@ Cuando los filtros por columna no alcanzan, pulsa **Filtro avanzado**. Se abre u
 
 1. Cada condición tiene **Campo · Regla · Valor**. La primera empieza con «Donde».
 2. Las reglas dependen del tipo del campo:
-   - Texto: contiene, no contiene, empieza con, termina con, igual a, distinto de, está vacío, no está vacío.
+   - Texto: contiene, no contiene, empieza con, termina con, igual a, distinto de, está vacío, no está vacío. En los campos con códigos (municipio, país, régimen…) la regla se compara con el nombre que ves y con el código: «Municipio contiene Bogotá» O «Municipio contiene Medellín» trae los terceros de las dos ciudades.
    - Números e importes: =, ≠, mayor que, mayor o igual, menor que, menor o igual, entre (con un segundo valor «Hasta»), está vacío, no está vacío.
    - Listas: igual a, distinto de, es uno de (puedes elegir varios).
    - Fechas: el día, después de, antes de, entre.
