@@ -19,8 +19,10 @@ processes:
   - kernel.admin.user_role.set
   - kernel.admin.user.create
   - kernel.admin.permission.set
+  - kernel.admin.permission.set_many
   - kernel.admin.permission.matrix
   - kernel.admin.field_permission.set
+  - kernel.admin.field_permission.set_many
   - kernel.admin.sensitive_process.set
   - kernel.admin.module.enable
   - kernel.admin.module.disable
@@ -43,6 +45,8 @@ Solo la ve quien tiene el rol **admin** de la empresa. Ábrela desde el menú **
 ## Cada cambio pide tu código
 
 Todos los cambios de administración son **acciones sensibles**: al guardar, el sistema te pide el **código de 6 dígitos** de tu app de autenticación (guía **Ingresar y verificación en dos pasos**). El cursor queda en la caja del código y al sexto dígito se envía solo; **Esc** cancela. Cada código vale para una sola acción, durante 5 minutos, y solo para ti. Todos los cambios quedan en la **auditoría** con quién, cuándo y qué cambió.
+
+En las matrices de **Permisos** y **Visibilidad de campos** los cambios se acumulan y se aplican juntos: un solo código para todas las casillas que marcaste (ver abajo).
 
 Consultar las pantallas no pide código: solo cambiar. Tampoco lo piden la matriz de permisos ni el informe de uso de IA cuando se los pides al asistente.
 
@@ -78,11 +82,24 @@ Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuari
 
 ## Permisos
 
-**Permisos** es la matriz de procesos por rol: cada fila es un proceso (agrupados por módulo), con su identificador, la acción (crear, actualizar, eliminar, consultar) y debajo la **entidad** sobre la que actúa (Tercero, Producto, Importación…). Cada columna es un rol. La columna del proceso queda fija a la izquierda cuando desplazas los roles hacia los lados, y el resultado de cada cambio («Cambios guardados» o el motivo del rechazo) aparece en la barra fija debajo de la matriz, así la tabla no se mueve mientras marcas casillas. La matriz de **Visibilidad de campos** funciona igual.
+**Permisos** es la matriz de procesos por rol: cada fila es un proceso (agrupados por módulo), con su identificador, la acción (crear, actualizar, eliminar, consultar) y debajo la **entidad** sobre la que actúa (Tercero, Producto, Importación…). Cada columna es un rol. La columna del proceso queda fija a la izquierda cuando desplazas los roles hacia los lados, y toda la celda sirve para marcar la casilla.
 
-Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**, e ingresa tu código. El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
+Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**. Con el teclado, ve a la casilla con **Tab** y pulsa **Espacio**. Los cambios no se guardan uno por uno: cada casilla cambiada queda **pendiente** (con un borde de color) y la barra fija debajo de la matriz cuenta cuántos hay, por ejemplo «3 cambios sin aplicar». Si vuelves a dejar una casilla como estaba, deja de contar.
 
-La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: no se pueden dar a otro rol. Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
+Para un rol nuevo, usa **todos** en la fila de un módulo: marca de una vez todos los procesos de ese módulo para ese rol. Si el rol ya los tiene todos, el mismo botón dice **ninguno** y los quita.
+
+Cuando termines:
+
+1. Pulsa **Aplicar cambios** e ingresa tu código. Todos los cambios se aplican juntos, con **un solo código**, y quedan en la auditoría como una sola acción con la lista de cambios (`kernel.admin.permission.set_many`).
+2. O pulsa **Descartar** para dejar la matriz como estaba.
+
+Si algún cambio no se puede aplicar, **no se aplica ninguno**: la casilla con el problema queda marcada en rojo, el motivo aparece en la barra y los demás cambios siguen pendientes. Corrige esa casilla y vuelve a pulsar **Aplicar cambios**. Si sales de la pantalla con cambios pendientes, el sistema te pregunta si quieres **Seguir editando** o **Salir sin aplicar**.
+
+El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
+
+La columna del rol **admin** no se edita: el administrador puede ejecutar todos los procesos, también los que lleguen con módulos nuevos. Los procesos de **administración** solo los tiene el rol admin: no se pueden dar a otro rol (si los marcas, al aplicar se rechaza el lote y esas casillas quedan en rojo). Los procesos marcados **2FA** siempre piden la verificación en dos pasos.
+
+El asistente también puede cambiar un permiso o la visibilidad de un campo, de a uno, con tu confirmación y tu código.
 
 ## Visibilidad de campos
 
@@ -90,6 +107,8 @@ Elige la **Entidad** (Tercero, Producto…) y, para cada campo y cada rol, si se
 
 - **Enmascarado**: el campo aparece pero sin su valor.
 - **Oculto**: el campo no aparece.
+
+Como en **Permisos**, cada cambio queda pendiente hasta que pulsas **Aplicar cambios** e ingresas tu código: puedes cambiar campos de varias entidades y aplicarlos todos juntos (`kernel.admin.field_permission.set_many`), o **Descartar**.
 
 Aplica igual en los listados, los formularios, las exportaciones y las respuestas del asistente. Un campo enmascarado u oculto no se puede usar para ordenar ni filtrar. Los campos marcados **confidencial** empiezan enmascarados en cada rol nuevo y en los roles que ya existían cuando el campo apareció. El rol admin ve todos los campos, aunque tenga además otro rol que los enmascare.
 
@@ -161,6 +180,8 @@ La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, pu
 ## Preguntas frecuentes
 
 **¿Por qué no veo Administración?** Solo la ve quien tiene el rol admin de la empresa.
+
+**Marqué varias casillas y no pasó nada.** Los cambios de las matrices quedan pendientes hasta que pulsas **Aplicar cambios** en la barra de abajo e ingresas tu código.
 
 **Le di un permiso a un rol y la persona no lo ve.** Pídele que recargue la página. Si le asignaste un rol nuevo, debe salir e iniciar sesión de nuevo.
 

@@ -476,6 +476,19 @@
   .erp-matrix select { padding: 3px 6px; border: 1px solid var(--line-input); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); }
   .erp-matrix select.is-masked { background: var(--warn-bg); color: var(--warn); }
   .erp-matrix select.is-hidden { background: var(--danger-bg); color: var(--danger); }
+  /* Staged cells (OD-7): a pending change has a warn inset ring, a cell the last batch refused a danger one; the shape
+     cue goes with the colour. The whole cell is the checkbox's target, and the row under the pointer is tinted. */
+  .erp-matrix td.is-dirty { box-shadow: inset 0 0 0 2px var(--warn); }
+  .erp-matrix td.is-refused { box-shadow: inset 0 0 0 2px var(--danger); background: var(--danger-bg); }
+  .erp-matrix tbody tr:not(.erp-matrix__group):hover > td:not(.is-refused) { background: var(--hover); }
+  .erp-matrix td:has(> .erp-matrix__hit) { padding: 0; }
+  .erp-matrix__hit { display: grid; place-items: center; min-width: 44px; min-height: 32px; cursor: pointer; }
+  .erp-matrix__hit:has(:disabled) { cursor: not-allowed; }
+  .erp-matrix__hit:has(:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .erp-matrix__group .erp-link { text-transform: none; letter-spacing: 0; }
+  .erp-admin__bar .erp-btn { flex-shrink: 0; }
+  /* Leaving with staged changes asks in the bar itself. */
+  .erp-admin__leave { display: flex; flex-grow: 1; flex-wrap: wrap; align-items: center; gap: 8px; }
   .erp-admin__row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
   .erp-admin__row:last-child { border-bottom: 0; }
   .erp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }

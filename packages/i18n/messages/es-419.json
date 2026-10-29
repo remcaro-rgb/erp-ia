@@ -370,7 +370,16 @@
       "saved": "Cambios guardados",
       "failed": "No se pudo guardar: {reason}",
       "process": "Proceso {process}",
-      "step_up_note": "Cada cambio pide el código de 6 dígitos de tu app de autenticación y queda en la auditoría.",
+      "pending_changes": "{count, plural, one {# cambio sin aplicar} other {# cambios sin aplicar}}",
+      "pending_cell": "{label} (sin aplicar)",
+      "apply_changes": "Aplicar cambios",
+      "discard_changes": "Descartar",
+      "batch_note": "Se aplican juntos con un código de verificación y quedan en la auditoría.",
+      "no_pending": "Sin cambios pendientes · los cambios se acumulan y se aplican juntos con un código de verificación.",
+      "leave_title": "Hay cambios sin aplicar",
+      "leave_body": "{count, plural, one {# cambio se pierde} other {# cambios se pierden}} si sales sin aplicarlos.",
+      "leave_stay": "Seguir editando",
+      "leave_go": "Salir sin aplicar",
       "kind": {
         "create": "crear",
         "update": "actualizar",
@@ -396,7 +405,10 @@
         "col_kind": "Acción",
         "step_up": "2FA",
         "step_up_title": "Este proceso siempre pide la verificación en dos pasos",
-        "admin_locked": "El rol admin tiene todos los permisos"
+        "admin_locked": "El rol admin tiene todos los permisos",
+        "all": "todos",
+        "none": "ninguno",
+        "grant_module": "{mode, select, none {Quitar a {role} todos los procesos de {module}} other {Dar a {role} todos los procesos de {module}}}"
       },
       "roles": {
         "title": "Roles",

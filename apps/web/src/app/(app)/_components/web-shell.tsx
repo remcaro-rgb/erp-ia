@@ -9,6 +9,7 @@ import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import { installCapture, noteRoute } from "@/lib/support/capture";
 import type { ShellData } from "@/lib/shell/load";
+import { guardedNavigate } from "./leave-guard";
 
 /** Tabs change in bursts (open, open, close): save the last state once things settle. */
 const SAVE_TABS_AFTER_MS = 800;
@@ -79,7 +80,8 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       assistantOpen={data.assistantOpen}
       initialTabs={data.tabs}
       currentHref={pathname}
-      navigate={(href) => router.push(href)}
+      // A screen with staged changes (the admin matrices) may ask before the shell leaves it.
+      navigate={(href) => guardedNavigate(() => router.push(href))}
       onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}
       onAssistantOpenChange={(open, savedAt) => void saveShellPrefAction({ key: "assistant.open", value: open, savedAt })}
       onTabsChange={saveTabs}

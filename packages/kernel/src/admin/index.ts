@@ -1,3 +1,4 @@
+import { BATCH_PROCESSES } from "./batch";
 import { MODULE_PROCESSES } from "./modules";
 import { PERMISSION_PROCESSES } from "./permissions";
 import { ROLE_PROCESSES } from "./roles";
@@ -8,7 +9,7 @@ import { USER_PROCESSES } from "./users";
 // Administration (design §6, §5.12–§5.18): the kernel.admin.* processes and the admin's settings processes
 // (kernel.required_file.*, kernel.verifier.set), all of feature kernel.admin and all asking for the step-up (rule 15).
 
-export const ADMIN_PROCESSES = [...ROLE_PROCESSES, ...USER_PROCESSES, ...PERMISSION_PROCESSES, ...MODULE_PROCESSES, ...USAGE_PROCESSES, ...SETTINGS_PROCESSES];
+export const ADMIN_PROCESSES = [...ROLE_PROCESSES, ...USER_PROCESSES, ...PERMISSION_PROCESSES, ...BATCH_PROCESSES, ...MODULE_PROCESSES, ...USAGE_PROCESSES, ...SETTINGS_PROCESSES];
 
 export { ADMIN_FEATURE } from "./common";
 export { authAdmin, setAuthAdmin } from "./auth-admin";

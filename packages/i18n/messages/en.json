@@ -370,7 +370,16 @@
       "saved": "Changes saved",
       "failed": "Could not save: {reason}",
       "process": "Process {process}",
-      "step_up_note": "Every change asks for the 6-digit code of your authenticator app and is recorded in the audit log.",
+      "pending_changes": "{count, plural, one {# change not applied} other {# changes not applied}}",
+      "pending_cell": "{label} (not applied)",
+      "apply_changes": "Apply changes",
+      "discard_changes": "Discard",
+      "batch_note": "They are applied together with one verification code and recorded in the audit log.",
+      "no_pending": "No pending changes · changes add up and are applied together with one verification code.",
+      "leave_title": "There are changes not applied",
+      "leave_body": "{count, plural, one {# change is lost} other {# changes are lost}} if you leave without applying them.",
+      "leave_stay": "Keep editing",
+      "leave_go": "Leave without applying",
       "kind": {
         "create": "create",
         "update": "update",
@@ -396,7 +405,10 @@
         "col_kind": "Action",
         "step_up": "2FA",
         "step_up_title": "This process always asks for two-step verification",
-        "admin_locked": "The admin role holds every permission"
+        "admin_locked": "The admin role holds every permission",
+        "all": "all",
+        "none": "none",
+        "grant_module": "{mode, select, none {Take from {role} every process of {module}} other {Give {role} every process of {module}}}"
       },
       "roles": {
         "title": "Roles",
