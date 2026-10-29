@@ -114,6 +114,17 @@ empresa y su administrador (no hay bootstrap del primer tenant); los enlaces de 
 el host interno (`kong:8000`). Úsalo para probar el arranque, no para atender usuarios. La entrega on-premise (bootstrap,
 registro cerrado, URL externas detrás del edge) es la fase 6 del [roadmap](docs/roadmap.md).
 
+Run the mirror from a developer machine, not from a runner: the public registries throttle GitHub's shared runner IPs
+during the copy as well (both mirror runs of 2026-10-29 failed on it). Once, with a token that can write packages:
+
+```bash
+gh auth refresh -h github.com -s write:packages
+gh auth token | docker login ghcr.io -u "$(gh api user --jq .login)" --password-stdin
+docker/mirror-images.sh        # copies every image in docker/images.txt to ghcr.io/<owner>/erp-ia/<name>:<tag>
+```
+
+`mirror-images.yml` remains for a manual retry from the Actions tab.
+
 ## Deploy on Vercel
 
 The Vercel project's root directory is `apps/web` (the Next app). Its `vercel.json` lives there and registers the cron
