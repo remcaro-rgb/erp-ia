@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getServiceDb, membershipInactive, type JwtClaims } from "@erp/kernel";
 import { setRememberCookies, rememberMode, type CookieJar } from "@/lib/supabase/cookies";
 import { createSupabase } from "@/lib/supabase/server";
 import { recordLogin } from "./audit";
@@ -10,7 +11,16 @@ import { isAcceptableEmail, loginKey, mfaKey, resetAttempts, takeAttempt } from 
 // answers where the browser goes next; the server actions only turn that into a redirect. Every attempt is
 // counted per account before Auth is called (./limiter) and a success clears the count.
 
-export type LoginError = "invalid_credentials" | "no_company" | "invalid_code" | "no_session" | "no_factor" | "mfa_required" | "too_many_attempts" | "unavailable";
+export type LoginError =
+  | "invalid_credentials"
+  | "no_company"
+  | "invalid_code"
+  | "no_session"
+  | "no_factor"
+  | "mfa_required"
+  | "too_many_attempts"
+  | "unavailable"
+  | "account_disabled";
 export type StepResult<T = object> = ({ ok: true } & T) | { ok: false; error: LoginError };
 export type Next = "/" | "/mfa/verify" | "/mfa/enroll";
 
@@ -25,6 +35,16 @@ const HOME = "/";
 function failure(error: { status?: number; code?: string } | null, refused: LoginError): { ok: false; error: LoginError } {
   const kind = error ? authFailureOf(error) : "rejected";
   return { ok: false, error: kind === "rate_limited" ? "too_many_attempts" : kind === "unavailable" ? "unavailable" : refused };
+}
+
+/**
+ * A session whose membership in its company the admin deactivated (kernel.admin.user.update, design §22.16) is not kept:
+ * Auth knows nothing of it, so the refusal is ours, at each step that issues a session.
+ */
+async function refuseDisabled(supabase: SupabaseClient, claims: JwtClaims): Promise<{ ok: false; error: LoginError } | null> {
+  if (!(await membershipInactive(getServiceDb(), claims))) return null;
+  await supabase.auth.signOut({ scope: "local" });
+  return { ok: false, error: "account_disabled" };
 }
 
 /** E-mail + password. A session is created at once; whether it is complete depends on the account's MFA. */
@@ -45,6 +65,8 @@ export async function loginWithPassword(jar: CookieJar, input: { email: string; 
     await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "no_company" };
   }
+  const disabled = await refuseDisabled(supabase, state.claims);
+  if (disabled) return disabled;
   setRememberCookies(jar, input.remember, email);
   const step = mfaStep(state);
   if (step === "verify") return { ok: true, next: "/mfa/verify" };
@@ -72,6 +94,8 @@ async function verifyCode(jar: CookieJar, supabase: SupabaseClient, userId: stri
     await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "no_company" };
   }
+  const disabled = await refuseDisabled(supabase, state.claims);
+  if (disabled) return disabled;
   await recordLogin(state.claims, { remember: rememberMode(jar), mfa: "totp" });
   return { ok: true, next: HOME };
 }

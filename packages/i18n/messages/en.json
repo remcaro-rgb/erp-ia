@@ -465,11 +465,37 @@
         "create": "Create and invite",
         "create_hint": "An invitation is sent by e-mail: the person sets their password and turns on two-step verification in their profile.",
         "edit_title": "User · {name}",
-        "edit_roles": "Edit roles",
-        "edit_hint": "Role changes apply at the user's next sign-in.",
+        "edit_hint": "Details and status change at once; new roles apply at the user's next sign-in.",
         "save": "Save",
         "created": "User created and invitation sent to {email}",
-        "name_required": "The name is required"
+        "name_required": "The name is required",
+        "edit": "Edit",
+        "locale": "Language",
+        "locale_es_419": "Spanish (Latin America)",
+        "locale_en": "English",
+        "col_state": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "deactivate": "Deactivate",
+        "reactivate": "Reactivate",
+        "deactivate_title": "Deactivate {name}?",
+        "deactivate_body": "{name} will not be able to sign in or do anything in the company. Their roles and history are kept, and you can reactivate them at any time.",
+        "reactivate_title": "Reactivate {name}?",
+        "reactivate_body": "{name} will be able to sign in again, with the same roles as before.",
+        "deactivate_self": "You cannot deactivate your own account",
+        "nothing_changed": "You did not change anything",
+        "open": "Open the page of {name}",
+        "page": {
+          "data": "Details",
+          "access": "Access",
+          "mfa": "Two-step verification",
+          "mfa_on": "On",
+          "mfa_off": "Not set up",
+          "last_activity": "Last activity",
+          "no_activity": "No activity recorded",
+          "back": "Users",
+          "photo_alt": "Photo of {name}"
+        }
       },
       "fields": {
         "title": "Visibility by field and role",
@@ -994,7 +1020,8 @@
         "email": "Email",
         "locale": "Language",
         "mobile": "Mobile",
-        "created_at": "Created"
+        "created_at": "Created",
+        "is_active": "Active"
       }
     },
     "support": {
@@ -1599,7 +1626,8 @@
       "no_factor": "You do not have a second step turned on.",
       "mfa_required": "Verify your second step first to change it.",
       "too_many_attempts": "Too many attempts, wait a few minutes.",
-      "unavailable": "We could not reach the sign-in service. Please try again."
+      "unavailable": "We could not reach the sign-in service. Please try again.",
+      "account_disabled": "Account disabled. Contact an administrator."
     }
   },
   "errors": {

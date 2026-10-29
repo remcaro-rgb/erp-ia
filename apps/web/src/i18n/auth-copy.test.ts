@@ -32,6 +32,7 @@ describe("auth copy", () => {
       mfa_required: true,
       too_many_attempts: true,
       unavailable: true,
+      account_disabled: true,
     };
     for (const code of Object.keys(codes)) {
       expect(at(messages("es-419"), `auth.errors.${code}`), `es-419 auth.errors.${code}`).toBeTruthy();

@@ -11,7 +11,7 @@ async function LoginView({ searchParams }: { searchParams: Promise<{ error?: str
   const [jar, { error }] = await Promise.all([cookies(), searchParams]);
   const email = jar.get(REMEMBER_EMAIL_COOKIE)?.value ?? "";
   // `key`: the fields are uncontrolled, so a changed prefill (a device just remembered or forgotten) needs a fresh form.
-  return <LoginForm key={email} defaultEmail={email} defaultRemember={email !== ""} initialError={error === "no_company" ? "no_company" : null} />;
+  return <LoginForm key={email} defaultEmail={email} defaultRemember={email !== ""} initialError={error === "no_company" || error === "account_disabled" ? error : null} />;
 }
 
 export default function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {

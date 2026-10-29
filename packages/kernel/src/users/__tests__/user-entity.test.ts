@@ -13,12 +13,13 @@ describe("kernel.user entity", () => {
   const registry = new Registry();
   loadModules(registry, [kernelModule]);
 
-  it("is registered by the kernel over kernel.v_users, named by full_name, with the mobile confidential", () => {
+  it("is registered by the kernel over kernel.v_users, named by full_name, with the mobile confidential and the member's state", () => {
     const user = registry.entity("kernel.user");
     expect(user.module).toBe("kernel");
     expect(`${user.schema}.v_${user.table}`).toBe("kernel.v_users");
     expect(user.displayField).toBe("full_name");
-    expect(user.fields.map((f) => f.name)).toEqual(["full_name", "email", "locale", "mobile", "created_at"]);
+    expect(user.fields.map((f) => f.name)).toEqual(["full_name", "email", "locale", "mobile", "created_at", "is_active"]);
+    expect(user.fields.find((f) => f.name === "is_active")?.type).toBe("boolean");
     expect(user.fields.find((f) => f.name === "mobile")?.sensitivity).toBe("confidential");
     expect(user.fields.filter((f) => f.searchable).map((f) => f.name)).toEqual(["full_name", "email"]);
   });

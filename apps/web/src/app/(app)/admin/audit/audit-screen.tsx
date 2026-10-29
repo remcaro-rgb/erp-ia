@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { DataGrid, defaultView, gridFetcher, Pill, shortId, viewFromSaved, type CellRenderer, type GridFetcher, type GridRow, type SavedGridState } from "@erp/ui";
+import { USER_ENTITY } from "@erp/kernel/href";
+import { DataGrid, defaultView, gridFetcher, Pill, RecordLink, shortId, viewFromSaved, type CellRenderer, type GridFetcher, type GridRow, type SavedGridState } from "@erp/ui";
 import { auditTitlesAction } from "@/lib/admin/audit-actions";
 import { actorHref, auditRecordHref, SYSTEM_ACTOR, type AuditCatalogue } from "@/lib/admin/audit-links";
 import type { AuditPageData } from "@/lib/admin/load";
@@ -13,15 +14,6 @@ import { AuditDetailSheet } from "./audit-detail-sheet";
 const ROW_FIELDS = ["process_id", "entity", "row_id", "actor", "actor_user_id", "source_row_id"];
 
 const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
-
-/** A link inside a row: it opens its page, not the row's detail. */
-function CellLink({ href, children, title }: { href: string; children: React.ReactNode; title?: string }) {
-  return (
-    <a className="erp-link erp-link--inline" href={href} title={title} onClick={(event: MouseEvent) => event.stopPropagation()}>
-      {children}
-    </a>
-  );
-}
 
 /**
  * The audit grid (prototype v5 renderAudit, design §22.14): the universal DataGrid over `kernel.audit`, newest first, with
@@ -66,12 +58,11 @@ export function AuditScreen({ data }: { data: AuditPageData }) {
 
   const recordLink = useCallback(
     (entity: string | null, id: string) => {
-      const href = auditRecordHref(entity ? catalogue.entities[entity] : null, id);
+      const named = entity ? catalogue.entities[entity] : null;
       const label = titles[id] ?? shortId(id);
-      return href ? (
-        <CellLink href={href} title={id}>
-          {label}
-        </CellLink>
+      // A link inside a row (rule 21): it opens its own page, not the row's detail, and stays out of the tab order.
+      return auditRecordHref(named, id) && named ? (
+        <RecordLink entity={named.id} id={id} label={label} mono={!titles[id]} inRow />
       ) : (
         <span className={titles[id] ? undefined : "erp-mono"} title={id}>
           {label}
@@ -115,7 +106,7 @@ export function AuditScreen({ data }: { data: AuditPageData }) {
           const href = actorHref(userId);
           return (
             <span className="erp-cell-stack">
-              <span className="erp-cell-stack__main">{href ? <CellLink href={href}>{name}</CellLink> : name}</span>
+              <span className="erp-cell-stack__main">{href && userId ? <RecordLink entity={USER_ENTITY} id={userId} label={name} inRow /> : name}</span>
               {email && email !== name && <span className="erp-cell-stack__sub">{email}</span>}
             </span>
           );

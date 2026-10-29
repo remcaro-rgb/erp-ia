@@ -29,6 +29,8 @@ export const userEntity = defineEntity({
     { name: "locale", type: "text", label: "field.kernel.user.locale" },
     { name: "mobile", type: "text", label: "field.kernel.user.mobile", sensitivity: "confidential" },
     { name: "created_at", type: "datetime", label: "field.kernel.user.created_at" },
+    // The member's state in the active company (kernel.admin.user.update, design §22.16): a deactivated user stays listed.
+    { name: "is_active", type: "boolean", label: "field.kernel.user.is_active" },
   ],
 });
 
@@ -37,7 +39,7 @@ export const userConsult = defineProcess({
   module: "kernel",
   kind: "consult",
   feature: USERS_FEATURE,
-  description: "Consulta un usuario de la empresa (nombre, correo, idioma y celular) con los campos que el rol puede ver",
+  description: "Consulta un usuario de la empresa (nombre, correo, idioma, celular y si está activo) con los campos que el rol puede ver",
   input: z.object({ id: z.uuid() }),
   output: z.object({
     id: z.string(),
@@ -46,10 +48,11 @@ export const userConsult = defineProcess({
     locale: z.string().nullable(),
     mobile: z.string().nullable(),
     created_at: z.union([z.date(), z.string()]).nullable(),
+    is_active: z.boolean().nullable(),
   }),
   handler: async (ctx, { id }) => {
-    const [row] = await ctx.tx<{ id: string; full_name: string | null; email: string | null; locale: string | null; mobile: string | null; created_at: Date | null }[]>`
-      select id, full_name, email, locale, mobile, created_at from kernel.v_users where id = ${id}`;
+    const [row] = await ctx.tx<{ id: string; full_name: string | null; email: string | null; locale: string | null; mobile: string | null; created_at: Date | null; is_active: boolean | null }[]>`
+      select id, full_name, email, locale, mobile, created_at, is_active from kernel.v_users where id = ${id}`;
     if (!row) throw new ProcessError("not_found", `kernel.user ${id} not found`);
     return { ...row };
   },

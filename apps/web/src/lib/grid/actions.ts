@@ -3,6 +3,7 @@
 import { ProcessError, runProcess } from "@erp/kernel";
 import type { SavedGridState, SavedViewItem } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { processDeps } from "@/lib/server/runtime";
 
 // Saved views of a grid (design §9, rule 20), as the session's user through kernel.saved_view.* (audited). Each
@@ -16,6 +17,7 @@ async function run(entity: string, change: (caller: Awaited<ReturnType<typeof re
     await change(caller);
     return { ok: true, views: await runProcess(processDeps(), caller, "kernel.saved_view.list", { entity }) };
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code };
     throw error;
   }

@@ -7,7 +7,7 @@ import { serverSupabase } from "@/lib/supabase/server";
 // verified by Supabase Auth. `getCallerClaims()` / `requireCaller()` are the only way route handlers and
 // pages learn who is calling; they refuse a session that has not completed the MFA the account demands.
 
-export type UnauthenticatedReason = "no_session" | "no_company" | "mfa_required" | "mfa_enrollment_required";
+export type UnauthenticatedReason = "no_session" | "no_company" | "mfa_required" | "mfa_enrollment_required" | "account_disabled";
 
 /** No usable session for this request. Route handlers map it to 401, pages to a redirect (`redirectPathFor`). */
 export class Unauthenticated extends Error {
@@ -28,6 +28,9 @@ export function redirectPathFor(reason: UnauthenticatedReason): string {
       return "/mfa/enroll";
     case "no_company":
       return "/login?error=no_company";
+    // The admin deactivated the membership (design §22.16): signed out by the route, then the sign-in page says why.
+    case "account_disabled":
+      return "/api/auth/disabled";
     default:
       return "/login";
   }

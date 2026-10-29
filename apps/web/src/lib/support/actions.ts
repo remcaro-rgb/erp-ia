@@ -2,6 +2,7 @@
 
 import { ProcessError, runnableProcesses, runProcess } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { processDeps } from "@/lib/server/runtime";
 import { TICKET_CLOSE, TICKET_CREATE, TICKET_REPLY } from "./load";
 
@@ -55,6 +56,7 @@ async function run(processId: string, input: unknown, sourceRowId?: string): Pro
     const out = (await runProcess(processDeps(), caller, processId, input, sourceRowId ? { sourceRowId } : {})) as { id: string };
     return { ok: true, id: out.id };
   } catch (error) {
+    await signOutIfDisabled(error);
     const known = refusal(error);
     if (known) return known;
     throw error;
@@ -113,6 +115,7 @@ export async function loadTicketAction(id: string): Promise<DetailResult> {
       },
     };
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code };
     throw error;
   }

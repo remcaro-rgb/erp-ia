@@ -18,6 +18,7 @@ processes:
   - kernel.admin.role.update
   - kernel.admin.user_role.set
   - kernel.admin.user.create
+  - kernel.admin.user.update
   - kernel.admin.permission.set
   - kernel.admin.permission.set_many
   - kernel.admin.permission.matrix
@@ -79,7 +80,40 @@ La persona recibe una **invitación por correo**: con el enlace define su contra
 - Si la persona ya es usuaria de **otra empresa de tu misma organización**, no se le envía otra invitación: se le agrega a esta empresa con los roles elegidos y conserva sus datos (nombre, celular, foto).
 - Si el correo ya pertenece a **otra organización**, el sistema no lo agrega y responde «Ese correo ya pertenece a otra organización». Cada cuenta pertenece a una sola organización.
 
-Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuario conserva siempre al menos un rol, y nadie puede quitarse su propio rol admin. Los cambios de rol aplican la próxima vez que la persona inicia sesión.
+En la lista, el nombre de cada persona abre su **página de usuario**, y la columna **Estado** dice si está **Activo** o **Inactivo**.
+
+## Usuarios: editar y desactivar
+
+### La página de un usuario
+
+Ábrela con el nombre de la persona en **Usuarios**, o con cualquier enlace a ella: el **Actor** de la auditoría, quien reportó un ticket. Muestra:
+
+- **Datos**: nombre, correo (con él inicia sesión), celular e idioma, con su foto arriba.
+- **Acceso**: sus **roles** (cada uno con enlace a **Roles**), si tiene la **verificación en dos pasos** (**Activa** o **No configurada**), su **estado** y su **última actividad**: la fecha y hora de lo último que hizo en la empresa según la auditoría (por ejemplo, su último inicio de sesión). Si nunca hizo nada, dice «Sin actividad registrada».
+
+Solo el administrador ve estas páginas.
+
+### Editar
+
+1. Pulsa **Editar** en la página del usuario, o en su fila de **Usuarios**.
+2. Cambia lo que necesites: **Nombre completo**, **Celular** (con su indicativo), **Idioma**, **Foto** (o **Quitar la foto**) y los **roles** (al menos uno). El correo no se cambia: es con lo que la persona inicia sesión.
+3. Pulsa **Guardar** e ingresa tu código.
+
+Solo se guarda lo que cambiaste, y la auditoría registra cada dato con su valor anterior y el nuevo (la foto aparece como «(foto)», nunca la imagen). Mientras no cambies nada, **Guardar** sigue apagado. Cada usuario conserva siempre al menos un rol, y nadie puede quitarse su propio rol admin. Los datos cambian de inmediato; un rol nuevo aplica la próxima vez que la persona inicia sesión, y uno que le quitas deja de valer al momento.
+
+### Desactivar y reactivar
+
+Cuando una persona deja la empresa, o no debe entrar por un tiempo, **desactívala**:
+
+1. En su página pulsa **Desactivar**.
+2. Confirma en «¿Desactivar a …?» con **Desactivar** e ingresa tu código.
+
+Desde ese momento la persona **no puede iniciar sesión** («Cuenta desactivada. Contacta a un administrador.») y, si tenía una sesión abierta, ya no puede hacer nada: al cambiar de pantalla o guardar algo, el sistema la saca con el mismo aviso. No se borra nada: conserva sus roles, su nombre sigue en los registros y en la auditoría, y su página la muestra **Inactivo**.
+
+Para devolverle el acceso, pulsa **Reactivar** en su página, confirma e ingresa tu código: vuelve a entrar con los mismos roles que tenía.
+
+- **No puedes desactivar tu propia cuenta**: el botón aparece apagado en tu página.
+- La empresa necesita **al menos un administrador activo**: no se puede desactivar al último que tiene el rol admin.
 
 ## Permisos
 
@@ -205,6 +239,6 @@ La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, pu
 
 **Le di un permiso a un rol y la persona no lo ve.** Pídele que recargue la página. Si le asignaste un rol nuevo, debe salir e iniciar sesión de nuevo.
 
-**¿Puedo borrar un rol o un usuario?** En esta versión no: quita los permisos del rol o los roles del usuario.
+**¿Puedo borrar un rol o un usuario?** En esta versión no. A un usuario lo **desactivas** (pierde el acceso y conserva su historial); a un rol le quitas sus permisos.
 
 **¿Puedo borrar o corregir una entrada de la auditoría?** No. La auditoría es de solo inserción para todos; si algo se hizo mal, corrígelo en el registro y la corrección quedará como una entrada nueva.

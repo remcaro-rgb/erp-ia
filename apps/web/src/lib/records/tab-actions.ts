@@ -3,6 +3,7 @@
 import { ProcessError, runProcess } from "@erp/kernel";
 import type { ContactDraft, SaveIssue } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { processDeps } from "@/lib/server/runtime";
 import { issuesOf } from "./issues";
 
@@ -27,6 +28,7 @@ async function perform<O, T>(processId: string, input: unknown, answer: (output:
   try {
     return { ok: true, ...answer((await runProcess(processDeps(), caller, processId, input)) as O) };
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code, details: issuesOf(error.details) };
     throw error;
   }

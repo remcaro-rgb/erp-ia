@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import postgres from "postgres";
+import { DEMO_COMPANY_ID, LAURA, MARCELA } from "../../../scripts/demo/accounts";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
+import { testEnv } from "../test-support/env";
 
 // Administration in a real browser (design §6, prototype v5 "Administración"): the admin creates a role, assigns a
 // user to it from the role's side and toggles a permission in the matrix, each change confirmed with the step-up code;
 // the assigned user sees the menu item the permission unlocks appear, and disappear again when it is revoked. The
-// matrices stage their cells and apply them together with one code (OD-7, kernel.admin.*.set_many).
+// matrices stage their cells and apply them together with one code (OD-7, kernel.admin.*.set_many). On the demo company,
+// Laura edits Marcela's mobile and deactivates her (kernel.admin.user.update, design §22.16): Marcela's sign-in is refused
+// until Laura reactivates her.
 
 /** The admin processes the system admin role holds (the company defaults grant it every process). */
 const ADMIN_PROCESSES = [
@@ -13,6 +18,7 @@ const ADMIN_PROCESSES = [
   "kernel.admin.role.update",
   "kernel.admin.user_role.set",
   "kernel.admin.user.create",
+  "kernel.admin.user.update",
   "kernel.admin.permission.set",
   "kernel.admin.permission.matrix",
   "kernel.admin.field_permission.set",
@@ -187,8 +193,9 @@ test.describe("administration", () => {
 
   const cell = (page: Page, processId: string, role = "Despachos") => page.getByRole("row").filter({ hasText: processId }).getByRole("checkbox", { name: `${role} ${processId}` });
   const stepUps = async () => Number((await fixture.sql<{ n: string }[]>`select count(*) as n from kernel.step_up_verifications where company_id = ${companyId}`)[0]!.n);
+  // Sorted here, not by the database: its collation orders `kernel.user.consult` / `kernel.user_prefs.set` unlike JavaScript.
   const grantsOf = async (roleId: string) =>
-    (await fixture.sql<{ process_id: string }[]>`select process_id from kernel.process_permissions where role_id = ${roleId} and allowed order by process_id`).map((r) => r.process_id);
+    (await fixture.sql<{ process_id: string }[]>`select process_id from kernel.process_permissions where role_id = ${roleId} and allowed`).map((r) => r.process_id).sort();
 
   test("the matrix stages three cells and applies them with one code; a reload shows them", async ({ page }) => {
     test.setTimeout(120_000);
@@ -434,5 +441,84 @@ test.describe("administration", () => {
     await expect(sheet.getByRole("link", { name: "Bosque Andino S.A.S." })).toHaveAttribute("href", `/r/core.party/${party!.id}`);
     await page.keyboard.press("Escape");
     await expect(sheet).toBeHidden();
+  });
+});
+
+test.describe("editable users on the demo company", () => {
+  const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
+  /** Marcela as the seed leaves her: active, with her documented mobile. */
+  const restoreMarcela = async () => {
+    await sql`update kernel.users set mobile_cc = '57', mobile = ${MARCELA.mobile} where email = ${MARCELA.email}`;
+    await sql`update kernel.memberships set is_active = true where company_id = ${DEMO_COMPANY_ID} and user_id = (select id from kernel.users where email = ${MARCELA.email})`;
+  };
+
+  test.beforeAll(restoreMarcela);
+  test.afterAll(async () => {
+    await restoreMarcela();
+    await sql.end({ timeout: 5 });
+  });
+
+  test("Laura edits Marcela's mobile, deactivates her so her sign-in is refused, and reactivates her", async ({ page, browser }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signInWithCode(page, LAURA.email, LAURA.password, LAURA.totpSecret!);
+
+    // Editar from the list: the same dialog as on the user's page; the save asks for the code.
+    await page.goto("/admin/users");
+    const row = page.getByRole("row", { name: /Marcela Rojas/ });
+    await row.getByRole("button", { name: "Editar" }).click();
+    const dialog = page.getByRole("dialog", { name: "Usuario · Marcela Rojas" });
+    await dialog.getByLabel(/^Celular/).fill("3001112233");
+    await dialog.getByRole("button", { name: "Guardar" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(dialog).toBeHidden();
+    await expect.poll(async () => (await sql`select mobile from kernel.users where email = ${MARCELA.email}`)[0]?.mobile).toBe("3001112233");
+
+    // Marcela is working in another browser when Laura deactivates her.
+    const marcelaContext = await browser.newContext();
+    const marcela = await marcelaContext.newPage();
+    await signIn(marcela, MARCELA.email, MARCELA.password);
+
+    // Her page: data, roles, 2FA state, last activity; Desactivar asks to confirm, then for the code.
+    await row.getByRole("link", { name: "Marcela Rojas" }).click();
+    await expect(page).toHaveURL(/\/admin\/users\/[0-9a-f-]{36}$/);
+    const user = page.getByRole("region", { name: "Marcela Rojas" });
+    await expect(user).toContainText("+57 3001112233");
+    await expect(user.getByRole("link", { name: "cajero" })).toHaveAttribute("href", "/admin/roles");
+    await expect(user).toContainText("No configurada");
+    await user.getByRole("button", { name: "Desactivar" }).click();
+    const confirm = page.getByRole("dialog", { name: "¿Desactivar a Marcela Rojas?" });
+    await confirm.getByRole("button", { name: "Desactivar" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(user.getByRole("button", { name: "Reactivar" })).toBeVisible();
+    await expect(user).toContainText("Inactivo");
+
+    // Her open session ends at her next screen: signed out, the sign-in page says why.
+    await marcela.goto("/parties");
+    await expect(marcela).toHaveURL(/\/login\?error=account_disabled$/);
+    await expect(marcela.getByRole("alert").filter({ hasText: "Cuenta desactivada" })).toHaveText("Cuenta desactivada. Contacta a un administrador.");
+    expect((await marcelaContext.cookies()).filter((c) => /^sb-.*-auth-token/.test(c.name) && c.value !== "")).toEqual([]);
+
+    // Signing in again is refused with the same copy; nothing of the app opens.
+    await marcela.goto("/login");
+    await marcela.getByLabel("Correo").fill(MARCELA.email);
+    await marcela.getByLabel("Contraseña", { exact: true }).fill(MARCELA.password);
+    await marcela.getByRole("button", { name: "Entrar" }).click();
+    await expect(marcela.getByRole("alert").filter({ hasText: "Cuenta desactivada" })).toHaveText("Cuenta desactivada. Contacta a un administrador.");
+    await expect(marcela).toHaveURL(/\/login/);
+    await marcela.goto("/");
+    await expect(marcela).toHaveURL(/\/login/);
+
+    // Laura signs in again and reactivates her; Marcela's sign-in works again.
+    await page.context().clearCookies();
+    await signInWithCode(page, LAURA.email, LAURA.password, LAURA.totpSecret!);
+    await page.goto("/admin/users");
+    await page.getByRole("row", { name: /Marcela Rojas/ }).getByRole("link", { name: "Marcela Rojas" }).click();
+    await page.getByRole("region", { name: "Marcela Rojas" }).getByRole("button", { name: "Reactivar" }).click();
+    await page.getByRole("dialog", { name: "¿Reactivar a Marcela Rojas?" }).getByRole("button", { name: "Reactivar" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(page.getByRole("region", { name: "Marcela Rojas" }).getByRole("button", { name: "Desactivar" })).toBeVisible();
+    await signIn(marcela, MARCELA.email, MARCELA.password);
+    await marcelaContext.close();
   });
 });

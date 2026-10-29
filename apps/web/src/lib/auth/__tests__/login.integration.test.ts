@@ -194,3 +194,45 @@ describe("a user who enrolled TOTP is asked for it whatever their role", () => {
     for (const [, cookie] of sessionCookies(jar)) expect(cookie.options.maxAge).toBe(THIRTY_DAYS);
   });
 });
+
+describe("a member whose membership in the company is inactive (kernel.admin.user.update active=false)", () => {
+  let fixture: AuthFixture;
+  let secret: string;
+  const setActive = (active: boolean) => fixture.sql`update kernel.memberships set is_active = ${active} where user_id = ${fixture.userId}`;
+  beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "member" });
+  });
+  afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  it("is refused at the password step with account_disabled, without a session or a login audit row", async () => {
+    await setActive(false);
+    try {
+      const jar = new MemoryJar();
+      state.jar = jar;
+      expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: true })).toEqual({ ok: false, error: "account_disabled" });
+      expect(sessionCookies(jar)).toHaveLength(0);
+      await expect(getCallerClaims()).rejects.toBeInstanceOf(Unauthenticated);
+      expect(await loginAudit(fixture)).toHaveLength(0);
+    } finally {
+      await setActive(true);
+    }
+    // Reactivated, the same credentials open the session again.
+    expect(await loginWithPassword(new MemoryJar(), { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+  });
+
+  it("is refused at the second step too when the membership was deactivated in between", async () => {
+    secret = await enrolTotp(fixture);
+    const jar = new MemoryJar();
+    state.jar = jar;
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/mfa/verify" });
+    await setActive(false);
+    try {
+      expect(await completeMfa(jar, { code: totpCode(secret) })).toEqual({ ok: false, error: "account_disabled" });
+      expect(sessionCookies(jar).filter(([, c]) => c.value !== "")).toHaveLength(0);
+    } finally {
+      await setActive(true);
+    }
+  });
+});

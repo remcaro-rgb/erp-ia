@@ -46,6 +46,10 @@ export interface AdminMember {
   photo: string | null;
   roleIds: string[];
   mfaEnrolled: boolean;
+  /** The language the person uses the application in (`es-419`, `en`). */
+  locale: string;
+  /** False once the admin deactivated the membership (kernel.admin.user.update, design §22.16). */
+  isActive: boolean;
 }
 
 /** An entity of the modules the company uses, with the fields the visibility editor lists. */
@@ -80,11 +84,23 @@ async function roles(tx: Tx): Promise<AdminRole[]> {
   return rows.map((r) => ({ id: r.id, name: r.name, description: r.description, partyScope: r.party_scope, isSystemAdmin: r.system_admin }));
 }
 
-async function members(tx: Tx): Promise<AdminMember[]> {
-  const rows = await tx<
-    { user_id: string; full_name: string | null; email: string; mobile_cc: string | null; mobile: string | null; photo: string | null; role_ids: string[]; mfa_enrolled: boolean | null }[]
-  >`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled
-    from kernel.v_memberships where company_id = kernel.current_company_id() order by full_name, email`;
+type MemberRow = {
+  user_id: string;
+  full_name: string | null;
+  email: string;
+  mobile_cc: string | null;
+  mobile: string | null;
+  photo: string | null;
+  role_ids: string[];
+  mfa_enrolled: boolean | null;
+  locale: string | null;
+  is_active: boolean;
+};
+
+async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
+  const rows = await tx<MemberRow[]>`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled, locale, is_active
+    from kernel.v_memberships where company_id = kernel.current_company_id() and (${userId ?? null}::uuid is null or user_id = ${userId ?? null}::uuid)
+    order by full_name, email`;
   return rows.map((r) => ({
     userId: r.user_id,
     name: r.full_name ?? r.email,
@@ -94,6 +110,8 @@ async function members(tx: Tx): Promise<AdminMember[]> {
     photo: r.photo,
     roleIds: r.role_ids,
     mfaEnrolled: r.mfa_enrolled === true,
+    locale: r.locale ?? "es-419",
+    isActive: r.is_active,
   }));
 }
 
@@ -133,6 +151,30 @@ export interface UsersData {
 }
 
 export const loadUsers = (): Promise<UsersData | null> => asAdmin(async (tx) => ({ roles: await roles(tx), members: await members(tx) }));
+
+/** A user's page (design §22.16): the member, the company's roles (to name theirs and edit them) and their last activity. */
+export interface UserPageData {
+  member: AdminMember;
+  roles: AdminRole[];
+  /** When the newest audit entry of theirs in the company happened (ISO), or null. */
+  lastActivity: string | null;
+  /** The page is the caller's own: they cannot deactivate themselves. */
+  self: boolean;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The page of a member of the active company: null for anyone but its admin, `{ member: null }` for a non-member. */
+export const loadUser = (userId: string): Promise<UserPageData | { member: null } | null> =>
+  asAdmin(async (tx, { caller }) => {
+    if (!UUID.test(userId)) return { member: null };
+    const [member] = await members(tx, userId);
+    if (!member) return { member: null };
+    const [last] = await tx<{ occurred_at: Date }[]>`
+      select occurred_at from kernel.v_audit_entries
+      where company_id = kernel.current_company_id() and actor_user_id = ${userId} order by occurred_at desc limit 1`;
+    return { member, roles: await roles(tx), lastActivity: last ? last.occurred_at.toISOString() : null, self: userId === caller.claims.sub };
+  });
 
 export interface FieldsData {
   roles: AdminRole[];

@@ -2,6 +2,7 @@
 
 import { cloneDraft, draftValues, gridPageAccess, ProcessError, runnableProcesses, runProcess } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { gridEntity } from "@/lib/grid/access";
 import { processDeps } from "@/lib/server/runtime";
 import { recordEntity } from "./entities";
@@ -57,6 +58,7 @@ export async function cloneRecordAction(entityId: string, id: string): Promise<C
   try {
     record = (await runProcess(deps, caller, entity.consult, { id })) as Record<string, unknown>;
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code };
     throw error;
   }

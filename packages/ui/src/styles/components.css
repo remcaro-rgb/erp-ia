@@ -41,6 +41,9 @@
   .erp-btn--primary:hover:not(:disabled) { background: var(--primary-h); }
   .erp-btn--ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
   .erp-btn--sm { padding: 5px 9px; font-size: 12px; }
+  /* A change that removes access (Desactivar): the danger text on the surface, never a filled red. */
+  .erp-btn--danger { color: var(--danger); border-color: var(--danger); font-weight: 600; }
+  .erp-btn--danger:hover:not(:disabled) { background: var(--danger-bg); }
 
   /* pills */
   .erp-pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; margin-right: 4px; }
@@ -517,6 +520,13 @@
   .erp-admin__leave { display: flex; flex-grow: 1; flex-wrap: wrap; align-items: center; gap: 8px; }
   .erp-admin__row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); }
   .erp-admin__row:last-child { border-bottom: 0; }
+  /* A user's page (Administración › Usuarios › <name>): the person, then label/value pairs per section. */
+  .erp-user { display: flex; flex-direction: column; }
+  .erp-user__body { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; padding: 12px 14px; }
+  .erp-user__body h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+  .erp-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  .erp-facts dt { color: var(--text-muted); }
+  .erp-facts dd { margin: 0; overflow-wrap: anywhere; }
   .erp-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
   .erp-kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
   .erp-kpi__label { font-size: 12px; color: var(--text-muted); }

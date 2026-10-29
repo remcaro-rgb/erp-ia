@@ -87,6 +87,73 @@ async function memberships(ctx: ProcessContext, userIds: string[]): Promise<Map<
   return new Map(rows.map((r) => [r.user_id, r.id]));
 }
 
+/** Who gets which roles: one user's roles, or one role's holders (the two shapes of kernel.admin.user_role.set). */
+export type UserRolesChange = { userId: string; roleIds: string[] } | { roleId: string; userIds: string[] };
+
+/**
+ * Replaces one user's roles or one role's holders in the active company: the rules of design §6 shared by
+ * kernel.admin.user_role.set and kernel.admin.user.update. Every role must be the company's, every user a member; the admin
+ * never takes their own admin role away; every member keeps at least one role. The caller (the handler) checked the admin;
+ * the writes need the process's audit context (0021/0027 policies of kernel.membership_roles).
+ */
+export async function setUserRoles(ctx: ProcessContext, input: UserRolesChange): Promise<{ added: number; removed: number }> {
+  // The wanted (membership, role) pairs and the scope they replace: one user's roles, or one role's holders.
+  let wanted: { membershipId: string; roleId: string }[];
+  let scope: { membershipIds: string[]; roleIds: string[] | null };
+  if ("userId" in input) {
+    const roleIds = [...new Set(input.roleIds)];
+    if (roleIds.length === 0) throw invalid("a user needs a role", "Elige al menos un rol");
+    for (const roleId of roleIds) await companyRole(ctx, roleId);
+    const userId = input.userId;
+    const membershipId = (await memberships(ctx, [userId])).get(userId);
+    if (!membershipId) throw invalid(`user ${userId} is not a member`, "El usuario no pertenece a la empresa");
+    wanted = roleIds.map((roleId) => ({ membershipId, roleId }));
+    scope = { membershipIds: [membershipId], roleIds: null };
+  } else {
+    const roleId = input.roleId;
+    await companyRole(ctx, roleId);
+    const userIds = [...new Set(input.userIds)];
+    const byUser = await memberships(ctx, userIds);
+    const outsider = userIds.find((id) => !byUser.has(id));
+    if (outsider) throw invalid(`user ${outsider} is not a member`, "Un usuario indicado no pertenece a la empresa");
+    wanted = [...byUser.values()].map((membershipId) => ({ membershipId, roleId }));
+    const holders = await ctx.tx<{ membership_id: string }[]>`
+      select mr.membership_id from kernel.membership_roles mr
+      join kernel.memberships m on m.id = mr.membership_id
+      where m.company_id = ${ctx.companyId} and mr.role_id = ${roleId}`;
+    scope = { membershipIds: [...new Set([...byUser.values(), ...holders.map((h) => h.membership_id)])], roleIds: [roleId] };
+  }
+
+  const current = await ctx.tx<{ membership_id: string; role_id: string }[]>`
+    select membership_id, role_id from kernel.membership_roles
+    where membership_id = any(${scope.membershipIds}::uuid[]) and (${scope.roleIds}::uuid[] is null or role_id = any(${scope.roleIds}::uuid[]))`;
+  const key = (p: { membershipId: string; roleId: string }) => `${p.membershipId}:${p.roleId}`;
+  const want = new Set(wanted.map(key));
+  const have = new Set(current.map((c) => key({ membershipId: c.membership_id, roleId: c.role_id })));
+  const toAdd = wanted.filter((p) => !have.has(key(p)));
+  const toRemove = current.map((c) => ({ membershipId: c.membership_id, roleId: c.role_id })).filter((p) => !want.has(key(p)));
+
+  // The admin never takes their own admin role away (they would lock the company out of its administration).
+  const [own] = await ctx.tx<{ id: string }[]>`select id from kernel.memberships where company_id = ${ctx.companyId} and user_id = ${ctx.userId}`;
+  for (const pair of toRemove) {
+    if (pair.membershipId === own?.id && (await companyRole(ctx, pair.roleId)).isSystemAdmin) {
+      throw invalid("the admin keeps their own admin role", "No puedes quitarte tu propio rol admin");
+    }
+  }
+  for (const pair of toAdd) {
+    await ctx.tx`insert into kernel.membership_roles (membership_id, role_id) values (${pair.membershipId}, ${pair.roleId}) on conflict do nothing`;
+  }
+  for (const pair of toRemove) {
+    await ctx.tx`delete from kernel.membership_roles where membership_id = ${pair.membershipId} and role_id = ${pair.roleId}`;
+  }
+  // Every member keeps at least one role (design §6: a user holds one or more roles).
+  const [orphan] = await ctx.tx<{ id: string }[]>`
+    select m.id from kernel.memberships m
+    where m.id = any(${scope.membershipIds}::uuid[]) and not exists (select 1 from kernel.membership_roles mr where mr.membership_id = m.id)`;
+  if (orphan) throw invalid("a user would be left without roles", "Cada usuario debe conservar al menos un rol");
+  return { added: toAdd.length, removed: toRemove.length };
+}
+
 export const userRoleSet = defineProcess({
   id: "kernel.admin.user_role.set",
   module: "kernel",
@@ -98,61 +165,7 @@ export const userRoleSet = defineProcess({
   output: z.object({ added: z.number(), removed: z.number() }),
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
-    // The wanted (membership, role) pairs and the scope they replace: one user's roles, or one role's holders.
-    let wanted: { membershipId: string; roleId: string }[];
-    let scope: { membershipIds: string[]; roleIds: string[] | null };
-    if (input.userId !== undefined) {
-      const roleIds = [...new Set(input.roleIds)];
-      if (roleIds.length === 0) throw invalid("a user needs a role", "Elige al menos un rol");
-      for (const roleId of roleIds) await companyRole(ctx, roleId);
-      const userId = input.userId;
-      const membershipId = (await memberships(ctx, [userId])).get(userId);
-      if (!membershipId) throw invalid(`user ${userId} is not a member`, "El usuario no pertenece a la empresa");
-      wanted = roleIds.map((roleId) => ({ membershipId, roleId }));
-      scope = { membershipIds: [membershipId], roleIds: null };
-    } else {
-      const roleId = input.roleId!;
-      await companyRole(ctx, roleId);
-      const userIds = [...new Set(input.userIds)];
-      const byUser = await memberships(ctx, userIds);
-      const outsider = userIds.find((id) => !byUser.has(id));
-      if (outsider) throw invalid(`user ${outsider} is not a member`, "Un usuario indicado no pertenece a la empresa");
-      wanted = [...byUser.values()].map((membershipId) => ({ membershipId, roleId }));
-      const holders = await ctx.tx<{ membership_id: string }[]>`
-        select mr.membership_id from kernel.membership_roles mr
-        join kernel.memberships m on m.id = mr.membership_id
-        where m.company_id = ${ctx.companyId} and mr.role_id = ${roleId}`;
-      scope = { membershipIds: [...new Set([...byUser.values(), ...holders.map((h) => h.membership_id)])], roleIds: [roleId] };
-    }
-
-    const current = await ctx.tx<{ membership_id: string; role_id: string }[]>`
-      select membership_id, role_id from kernel.membership_roles
-      where membership_id = any(${scope.membershipIds}::uuid[]) and (${scope.roleIds}::uuid[] is null or role_id = any(${scope.roleIds}::uuid[]))`;
-    const key = (p: { membershipId: string; roleId: string }) => `${p.membershipId}:${p.roleId}`;
-    const want = new Set(wanted.map(key));
-    const have = new Set(current.map((c) => key({ membershipId: c.membership_id, roleId: c.role_id })));
-    const toAdd = wanted.filter((p) => !have.has(key(p)));
-    const toRemove = current.map((c) => ({ membershipId: c.membership_id, roleId: c.role_id })).filter((p) => !want.has(key(p)));
-
-    // The admin never takes their own admin role away (they would lock the company out of its administration).
-    const [own] = await ctx.tx<{ id: string }[]>`select id from kernel.memberships where company_id = ${ctx.companyId} and user_id = ${ctx.userId}`;
-    for (const pair of toRemove) {
-      if (pair.membershipId === own?.id && (await companyRole(ctx, pair.roleId)).isSystemAdmin) {
-        throw invalid("the admin keeps their own admin role", "No puedes quitarte tu propio rol admin");
-      }
-    }
-    for (const pair of toAdd) {
-      await ctx.tx`insert into kernel.membership_roles (membership_id, role_id) values (${pair.membershipId}, ${pair.roleId}) on conflict do nothing`;
-    }
-    for (const pair of toRemove) {
-      await ctx.tx`delete from kernel.membership_roles where membership_id = ${pair.membershipId} and role_id = ${pair.roleId}`;
-    }
-    // Every member keeps at least one role (design §6: a user holds one or more roles).
-    const [orphan] = await ctx.tx<{ id: string }[]>`
-      select m.id from kernel.memberships m
-      where m.id = any(${scope.membershipIds}::uuid[]) and not exists (select 1 from kernel.membership_roles mr where mr.membership_id = m.id)`;
-    if (orphan) throw invalid("a user would be left without roles", "Cada usuario debe conservar al menos un rol");
-    return { added: toAdd.length, removed: toRemove.length };
+    return setUserRoles(ctx, input.userId !== undefined ? { userId: input.userId, roleIds: input.roleIds! } : { roleId: input.roleId!, userIds: input.userIds! });
   },
 });
 

@@ -3,6 +3,7 @@
 import { ProcessError, runProcess } from "@erp/kernel";
 import type { SaveResult } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { processDeps } from "@/lib/server/runtime";
 import { recordEntity } from "./entities";
 import { issuesOf } from "./issues";
@@ -25,6 +26,7 @@ export async function saveRecordAction(entityId: string, input: Record<string, u
     const { id } = (await runProcess(processDeps(), caller, process, input, sourceRowId ? { sourceRowId } : {})) as { id: string };
     return { ok: true, id };
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code, details: issuesOf(error.details) };
     throw error;
   }

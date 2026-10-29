@@ -2,6 +2,7 @@
 
 import { ProcessError, runProcess } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { issuesOf } from "@/lib/records/issues";
 import type { ActionResult } from "@/lib/records/tab-actions";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
@@ -21,6 +22,7 @@ export async function adminAction(processId: string, input: unknown, stepUpToken
   try {
     return { ok: true, output: await runProcess(processDeps(), caller, processId, input) };
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code, details: issuesOf(error.details) };
     throw error;
   }

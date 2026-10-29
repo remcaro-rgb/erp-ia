@@ -2,6 +2,7 @@
 
 import { auditEntityOf, ProcessError, recordPageEntities, recordTitles, runProcess, withClaims, type AuditEntryDetail, type RecordRef } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
+import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
 import { auditLabels } from "./audit-labels";
 import { presentAuditDetail, type AuditDetailView } from "./audit-view";
@@ -19,6 +20,7 @@ export async function auditEntryAction(id: string): Promise<AuditEntryResult> {
     const detail = (await runProcess(processDeps(), caller, "kernel.audit.entry", { id })) as AuditEntryDetail;
     return { ok: true, view: presentAuditDetail(detail, await auditLabels(), recordPageEntities(processDeps().registry.entities())) };
   } catch (error) {
+    await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code };
     throw error;
   }

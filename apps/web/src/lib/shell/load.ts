@@ -3,7 +3,7 @@ import { cache } from "react";
 import { getTranslations } from "next-intl/server";
 import { callerProfile, entitled, readUserPrefs, runnableProcesses, type Caller } from "@erp/kernel";
 import { isThemeMode, type CommandItem, type ResultColumn, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
-import { requireCaller } from "@/lib/auth/claims";
+import { requireCaller, Unauthenticated } from "@/lib/auth/claims";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
 import { loadAssistantColumns } from "./assistant-columns";
@@ -42,6 +42,8 @@ export async function loadShell(caller: Caller): Promise<ShellData> {
     readUserPrefs(deps.sql, claims, ["theme", "tabs", "assistant.open"]),
     getTranslations(),
   ]);
+  // A membership the admin deactivated (design §22.16) opens nothing: the layout signs the session out.
+  if (!profile.active) throw new Unauthenticated("account_disabled");
   const theme = savedFrom(prefs.theme);
   const assistantOpen = savedFrom(prefs["assistant.open"]);
   const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable });

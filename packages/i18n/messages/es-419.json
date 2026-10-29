@@ -465,11 +465,37 @@
         "create": "Crear e invitar",
         "create_hint": "Se envía una invitación por correo: la persona define su contraseña y activa la verificación en dos pasos en su perfil.",
         "edit_title": "Usuario · {name}",
-        "edit_roles": "Editar roles",
-        "edit_hint": "Los cambios de rol aplican en el siguiente inicio de sesión del usuario.",
+        "edit_hint": "Los datos y el estado cambian de inmediato; los roles nuevos aplican en el siguiente inicio de sesión del usuario.",
         "save": "Guardar",
         "created": "Usuario creado e invitación enviada a {email}",
-        "name_required": "El nombre es obligatorio"
+        "name_required": "El nombre es obligatorio",
+        "edit": "Editar",
+        "locale": "Idioma",
+        "locale_es_419": "Español (Latinoamérica)",
+        "locale_en": "Inglés",
+        "col_state": "Estado",
+        "active": "Activo",
+        "inactive": "Inactivo",
+        "deactivate": "Desactivar",
+        "reactivate": "Reactivar",
+        "deactivate_title": "¿Desactivar a {name}?",
+        "deactivate_body": "{name} no podrá iniciar sesión ni hacer nada en la empresa. Sus roles y su historial se conservan, y puedes devolverle el acceso cuando quieras.",
+        "reactivate_title": "¿Reactivar a {name}?",
+        "reactivate_body": "{name} podrá volver a iniciar sesión, con los mismos roles que tenía.",
+        "deactivate_self": "No puedes desactivar tu propia cuenta",
+        "nothing_changed": "No cambiaste ningún dato",
+        "open": "Abrir la página de {name}",
+        "page": {
+          "data": "Datos",
+          "access": "Acceso",
+          "mfa": "Verificación en dos pasos",
+          "mfa_on": "Activa",
+          "mfa_off": "No configurada",
+          "last_activity": "Última actividad",
+          "no_activity": "Sin actividad registrada",
+          "back": "Usuarios",
+          "photo_alt": "Foto de {name}"
+        }
       },
       "fields": {
         "title": "Visibilidad por campo y rol",
@@ -994,7 +1020,8 @@
         "email": "Correo",
         "locale": "Idioma",
         "mobile": "Celular",
-        "created_at": "Creado"
+        "created_at": "Creado",
+        "is_active": "Activo"
       }
     },
     "support": {
@@ -1599,7 +1626,8 @@
       "no_factor": "No tienes un segundo paso activado.",
       "mfa_required": "Primero verifica tu segundo paso para cambiarlo.",
       "too_many_attempts": "Demasiados intentos, espera unos minutos.",
-      "unavailable": "No pudimos conectar con el servicio de acceso. Inténtalo de nuevo."
+      "unavailable": "No pudimos conectar con el servicio de acceso. Inténtalo de nuevo.",
+      "account_disabled": "Cuenta desactivada. Contacta a un administrador."
     }
   },
   "errors": {

@@ -9,7 +9,7 @@ import { enqueueEvent } from "../events/outbox";
 import type { Registry } from "../registry";
 import type { ProcessDef, ProcessKind } from "../registry/types";
 import type { Caller, ProcessContext } from "./context";
-import { ProcessError, type ProcessErrorCode } from "./errors";
+import { MEMBERSHIP_INACTIVE, ProcessError, type ProcessErrorCode } from "./errors";
 
 export interface RunProcessDeps {
   sql: Sql;
@@ -82,7 +82,8 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
 
 /**
  * Runs a registered process for `caller` (design §5.4). In order: resolve (`not_found`),
- * entitlements (`not_entitled`), permission (`forbidden`, skipped for `permission: "none"`), step-up (`step_up_required`), input
+ * entitlements (`not_entitled`), an inactive membership (`forbidden` with `details.reason` MEMBERSHIP_INACTIVE),
+ * permission (`forbidden`, skipped for `permission: "none"`), step-up (`step_up_required`), input
  * (`invalid_input`), idempotent replay, then one transaction as the caller holding the step-up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
  * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
@@ -137,10 +138,11 @@ async function execute<O extends z.ZodTypeAny>(
 
   const stepUpToken = caller.stepUpToken ?? null;
   const gate = await withClaims(deps.sql, claims, async (tx) => {
-    const [row] = await tx<{ allowed: boolean; member: boolean; sensitive: boolean; verified: boolean }[]>`
+    const [row] = await tx<{ allowed: boolean; member: boolean; inactive: boolean; sensitive: boolean; verified: boolean }[]>`
       select
         kernel.can_run_process(${def.id}) as allowed,
         coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
+        kernel.membership_inactive() as inactive,
         exists (
           select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id}
         ) as sensitive,
@@ -151,6 +153,9 @@ async function execute<O extends z.ZodTypeAny>(
         ) as verified`;
     return row!;
   });
+  // A deactivated membership (design §22.16) runs nothing, whatever the claims say: not a self-service process, not an
+  // admin's (whose admin bypass already ends with the membership, 0025), checked here before anything else.
+  if (gate.inactive) throw new ProcessError("forbidden", `the caller's membership in company ${companyId} is inactive`, { details: { reason: MEMBERSHIP_INACTIVE }, stage: "gate" });
   // A self-service process (`permission: "none"`) needs no row in the role matrix, only membership of the
   // active company; everything else needs a role that allows it.
   if (def.permission === "none" ? !gate.member : !gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`, GATE);
