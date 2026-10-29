@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { useTranslations } from "next-intl";
 import { MAX_ATTACHMENT_BYTES } from "@erp/kernel/limits";
 import { Dialog, DialogContent, DialogTitle } from "@erp/ui/components/ui/dialog";
@@ -65,6 +65,10 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
   const [over, setOver] = useState(false);
   const [stepUp, setStepUp] = useState(false);
   const [stepUpError, setStepUpError] = useState<string | null>(null);
+  // "Solo filas con error" and the rows whose reasons are open (by row number); both start again with every file.
+  const [onlyErrors, setOnlyErrors] = useState(false);
+  const [openRows, setOpenRows] = useState<ReadonlySet<number>>(new Set());
+  const panelId = useId();
 
   const post = (chosen: File, mode: "preview" | "run", stepUpToken?: string) => {
     const form = new FormData();
@@ -78,6 +82,8 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
   const choose = async (chosen: File | undefined) => {
     if (!chosen) return;
     setPreview(null);
+    setOnlyErrors(false);
+    setOpenRows(new Set());
     setFile(chosen);
     const problem = fileProblem(chosen, MAX_ATTACHMENT_BYTES);
     if (problem) return setMessage(t(`grid.import.${problem}`));
@@ -155,6 +161,8 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
 
   const counts = preview ? previewCounts(preview) : null;
   const shownHeaders = preview?.headers.slice(0, PREVIEW_COLUMNS) ?? [];
+  // The original row numbers stay: the file's own rows are what the user goes back to fix.
+  const shownRows = preview ? (onlyErrors ? preview.rows.filter((row) => !row.ok) : preview.rows) : [];
   return (
     <>
       <div className="erp-dialog__body">
@@ -222,6 +230,10 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
               </div>
             )}
             {preview.unknownHeaders.length > 0 && <div className="erp-small erp-muted">{t("grid.import.unknown_headers", { headers: preview.unknownHeaders.join(", ") })}</div>}
+            <label className="erp-check">
+              <input type="checkbox" checked={onlyErrors} disabled={counts.invalid === 0} onChange={(event) => setOnlyErrors(event.target.checked)} />
+              {t("grid.import.only_errors", { count: counts.invalid })}
+            </label>
             <div className="erp-import__table">
               <table>
                 <thead>
@@ -234,25 +246,61 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.rows.map((row) => (
-                    <tr key={row.rowNo}>
-                      <td className="erp-num">{row.rowNo}</td>
-                      <td className="erp-import__result">
-                        {row.ok ? (
-                          <span className="erp-pill erp-pill--ok">{t("grid.import.row_ok")}</span>
-                        ) : (
-                          <>
-                            <span className="erp-pill erp-pill--danger">{t("grid.import.row_bad")}</span> <span className="erp-small">{row.errors.join(" · ")}</span>
-                          </>
+                  {shownRows.map((row) => {
+                    const expanded = openRows.has(row.rowNo);
+                    const rowPanel = `${panelId}-${row.rowNo}`;
+                    return (
+                      <Fragment key={row.rowNo}>
+                        <tr data-row={row.rowNo}>
+                          <td className="erp-num">{row.rowNo}</td>
+                          <td className="erp-import__result">
+                            {row.ok ? (
+                              <span className="erp-pill erp-pill--ok">{t("grid.import.row_ok")}</span>
+                            ) : (
+                              <>
+                                {/* One line per row, always: the pill carries the reasons as a tooltip and "Ver" opens them in a row of their own. */}
+                                <span className="erp-pill erp-pill--danger" title={row.errors.join(" · ")}>
+                                  {t("grid.import.row_bad")}
+                                </span>{" "}
+                                <button
+                                  type="button"
+                                  className="erp-link erp-link--inline"
+                                  aria-expanded={expanded}
+                                  aria-controls={rowPanel}
+                                  aria-label={t(expanded ? "grid.import.errors_hide_label" : "grid.import.errors_show_label", { row: row.rowNo })}
+                                  onClick={() =>
+                                    setOpenRows((current) => {
+                                      const next = new Set(current);
+                                      if (!next.delete(row.rowNo)) next.add(row.rowNo);
+                                      return next;
+                                    })
+                                  }
+                                >
+                                  {t(expanded ? "grid.import.errors_hide" : "grid.import.errors_show")}
+                                </button>
+                              </>
+                            )}
+                          </td>
+                          {shownHeaders.map((h, i) => (
+                            <td key={h} className="erp-small">
+                              {row.cells[i]}
+                            </td>
+                          ))}
+                        </tr>
+                        {!row.ok && expanded && (
+                          <tr id={rowPanel} className="erp-import__errors">
+                            <td colSpan={2 + shownHeaders.length}>
+                              <ul aria-label={t("grid.import.errors_of_row", { row: row.rowNo })}>
+                                {row.errors.map((error) => (
+                                  <li key={error}>{error}</li>
+                                ))}
+                              </ul>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      {shownHeaders.map((h, i) => (
-                        <td key={h} className="erp-small">
-                          {row.cells[i]}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

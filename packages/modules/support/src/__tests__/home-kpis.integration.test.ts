@@ -28,7 +28,9 @@ describe("support home KPI", () => {
   });
 
   it("an agent counts every ticket of the company that is not closed", async () => {
-    expect(await kpi(h.agent)).toEqual({
+    const card: Partial<Kpi> = { ...(await kpi(h.agent))! };
+    delete card.series;
+    expect(card).toEqual({
       id: "support.tickets",
       label: "home.kpi.support_tickets.label",
       value: 2,
@@ -48,5 +50,33 @@ describe("support home KPI", () => {
     const card = await kpi(h.agent);
     expect(card).toMatchObject({ value: 0 });
     expect(card!.tone).toBeUndefined();
+  });
+
+  describe("trend", () => {
+    const days = (byDaysAgo: Record<number, number>) => Array.from({ length: 14 }, (_, i) => byDaysAgo[13 - i] ?? 0);
+    const createdAt = (title: string, daysAgo: number, time: string) =>
+      h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update support.tickets set created_at = (((now() at time zone 'America/Bogota')::date - ${daysAgo}::int + ${time}::time) at time zone 'America/Bogota')
+                 where company_id = ${h.companyId} and title = ${title}`;
+      });
+
+    beforeAll(async () => {
+      await h.sql`update support.tickets set status = 'open' where company_id = ${h.companyId} and title <> 'Segundo'`;
+      await createdAt("Primero", 4, "09:00");
+      await createdAt("Segundo", 4, "17:00");
+      await createdAt("Tercero", 1, "23:45");
+    });
+
+    it("is 14 daily counts of new tickets (closed ones included: it is the inflow), oldest first", async () => {
+      const card = (await kpi(h.agent))!;
+      expect(card.series).toHaveLength(14);
+      expect(card.series).toEqual(days({ 4: 2, 1: 1 }));
+    });
+
+    it("a reporter's trend is their own tickets only", async () => {
+      expect((await kpi(h.reporterA))!.series).toEqual(days({ 4: 2 }));
+      expect((await kpi(h.reporterB))!.series).toEqual(days({ 1: 1 }));
+    });
   });
 });

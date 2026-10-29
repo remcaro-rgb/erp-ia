@@ -44,6 +44,8 @@ Inicio te saluda por tu nombre y reúne tus tarjetas en un tablero de cuatro col
 
 La tarjeta **Indicadores** muestra los números del momento, calculados con tus permisos. Su encabezado dice a qué hora se leyeron («Actualizado 10:42», en la hora de tu empresa); para ver números más recientes, vuelve a abrir Inicio o recarga la página. **Recomendaciones para ti** lo indica igual.
 
+Bajo cada número verás una **línea de tendencia de los últimos 14 días** (el más reciente a la derecha). En Terceros, Productos y Tickets muestra cuántos se crearon cada día; en Uso de IA, los tokens de cada día (los de tu empresa si eres administrador, los tuyos si no). La línea sigue tus permisos, igual que el número, y se dibuja a escala: el día más bajo queda abajo y el más alto arriba, así que compara la forma, no la altura entre tarjetas. Si pasas el lector de pantalla por ella, dice «Tendencia 14 días: de X a Y» (el primer y el último día). Los días son los de la hora de tu empresa.
+
 - **Terceros activos**: cuántos terceros hay activos y cuántos de ellos todavía no se pueden facturar (les faltan datos de la DIAN o archivos). Si tu rol solo ve clientes o solo proveedores, el número cuenta solo los que tú ves.
 - **Productos**: cuántos hay y cuántos no se pueden facturar todavía.
 - **Tickets de soporte**: los que siguen abiertos. Si no eres agente de soporte, cuenta solo los tuyos.

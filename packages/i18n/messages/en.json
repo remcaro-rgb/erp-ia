@@ -1159,7 +1159,13 @@
       "col_row": "Row",
       "col_result": "Result",
       "row_ok": "valid",
-      "row_bad": "error",
+      "row_bad": "Row with error",
+      "only_errors": "Only rows with errors ({count})",
+      "errors_show": "Show",
+      "errors_hide": "Hide",
+      "errors_show_label": "Show the errors of row {row}",
+      "errors_hide_label": "Hide the errors of row {row}",
+      "errors_of_row": "Errors of row {row}",
       "partial": "The first {shown} of {total} rows were checked; the import checks them all.",
       "missing_columns": "Required columns are missing: {columns}. Every row would be rejected.",
       "unknown_headers": "Columns that are not imported: {headers}",
@@ -1453,6 +1459,7 @@
     },
     "kpi": {
       "empty": "There are no indicators to show with your permissions.",
+      "trend": "{days}-day trend: from {from} to {to}",
       "core_parties": {
         "label": "Active parties",
         "label_total": "Parties",

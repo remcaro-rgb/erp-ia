@@ -98,5 +98,5 @@ export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcess
 export type { AiUsage, MatrixProcess, ModuleState, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
 
-export { aiTokensKpi, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiSchema, recommendationDecide, recommendationList, suggestedAction } from "./home";
+export { aiTokensKpi, dailySeries, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
 export type { SuggestedAction } from "./home";

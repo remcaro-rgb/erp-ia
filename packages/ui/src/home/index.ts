@@ -6,6 +6,8 @@ export { clockTime, formatCount } from "./format";
 export type { WidgetProps } from "./Widget";
 export { ShareMeter } from "./ShareMeter";
 export type { ShareMeterProps } from "./ShareMeter";
+export { Sparkline } from "./Sparkline";
+export type { SparklineProps } from "./Sparkline";
 export { KpiCard } from "./KpiCard";
 export type { KpiCardProps } from "./KpiCard";
 export { RecommendationCard } from "./RecommendationCard";

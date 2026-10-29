@@ -94,6 +94,9 @@ test.describe("home dashboard", () => {
     await expect(kpis.getByText("Uso de IA del mes")).toBeVisible();
     // No support module here: no ticket card.
     await expect(kpis.getByText("Tickets de soporte")).toHaveCount(0);
+    // Each count card draws its 14-day trend (OD-9) with an accessible name; the strip says once when it was read.
+    await expect(kpis.locator('[data-kpi="core.parties"] svg[role="img"]')).toHaveAccessibleName(/^Tendencia 14 días: de \d+ a \d+$/);
+    await expect(kpis.locator('svg[role="img"]').first()).toBeVisible();
     // A snapshot says when it was read, and the size hint stays out of sight until the card is resized or focused.
     await expect(kpis.getByText(/^Actualizado \d{2}:\d{2}$/)).toBeVisible();
     await page.mouse.click(5, 5);

@@ -1159,7 +1159,13 @@
       "col_row": "Fila",
       "col_result": "Resultado",
       "row_ok": "válida",
-      "row_bad": "error",
+      "row_bad": "Fila con error",
+      "only_errors": "Solo filas con error ({count})",
+      "errors_show": "Ver",
+      "errors_hide": "Ocultar",
+      "errors_show_label": "Ver errores de la fila {row}",
+      "errors_hide_label": "Ocultar errores de la fila {row}",
+      "errors_of_row": "Errores de la fila {row}",
       "partial": "Se revisaron las primeras {shown} filas de {total}; la importación revisa todas.",
       "missing_columns": "Faltan columnas obligatorias: {columns}. Todas las filas se rechazarían.",
       "unknown_headers": "Columnas que no se importan: {headers}",
@@ -1453,6 +1459,7 @@
     },
     "kpi": {
       "empty": "No hay indicadores para mostrar con tus permisos.",
+      "trend": "Tendencia {days} días: de {from} a {to}",
       "core_parties": {
         "label": "Terceros activos",
         "label_total": "Terceros",
