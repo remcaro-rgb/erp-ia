@@ -3,6 +3,9 @@
 Date: 2026-10-28 · Branch `phase-1-qa` (HEAD `ad5f6bd` plus the uncommitted working tree of the same day) · Read-only audit; nothing in the repo was changed except this report.
 Binding inputs: `docs/project-rules.md` (rules 19–25), design §19a, prototype v5 `docs/superpowers/specs/2026-10-27-erp-ia-phase1-prototype.html`.
 
+
+> **Prototype:** the recommendations of this audit are assembled into a clickable prototype, `docs/superpowers/specs/2026-10-28-erp-ia-prototype-v6-density.html` ("v6 · densidad"), with a v5 → v6 panel that switches each owner decision on and off. Prototype v5 stays the contract until the owner ratifies the decisions in §3.
+
 ## 1. Executive summary
 
 1. The shell, grid and record frame follow prototype v5 closely (48 px navy bar, 36 px tabs row, 400 px drawer, 36 px rows, tabular money). The friction is in **keyboard paths, focus visibility and layout stability**, not in the look.
