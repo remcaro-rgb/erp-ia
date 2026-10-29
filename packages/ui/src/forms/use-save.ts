@@ -54,9 +54,18 @@ export function useSaveFlow(save: SaveRecord, requestStepUp: RequestStepUp | und
     async confirmStepUp(code) {
       if (!pending || !requestStepUp) return null;
       setStepUpError(null);
-      const answer = await requestStepUp(code);
+      // Saving from the moment the code is sent: no second (untokened) submit can race the tokened one.
+      setSaving(true);
+      let answer: Awaited<ReturnType<RequestStepUp>>;
+      try {
+        answer = await requestStepUp(code);
+      } catch (error) {
+        setSaving(false);
+        throw error;
+      }
       if ("error" in answer) {
         setStepUpError(answer.error);
+        setSaving(false);
         return null;
       }
       return run(pending, answer.token);

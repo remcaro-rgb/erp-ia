@@ -58,7 +58,7 @@ export function CategoryForm({ record, tables, productCount = 0, readOnly = fals
   const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...categoryInput(draft) });
 
   return (
-    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("category")}>
         <div className="erp-form2">

@@ -240,4 +240,28 @@ describe("PartyForm", () => {
     expect(save).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(field("Número"));
   });
+
+  // Branch review fix 1: a pending or verifying step-up is not a second chance to submit without the token.
+  it("Ctrl+S while the step-up is pending or verifying does not save again", async () => {
+    const save = vi.fn<SaveRecord>().mockResolvedValueOnce({ ok: false, code: "step_up_required", details: [] }).mockResolvedValue({ ok: true, id: "0192f000-0000-7000-8000-000000000003" });
+    let answer!: (value: { token: string }) => void;
+    const requestStepUp = vi.fn(() => new Promise<{ token: string }>((resolve) => (answer = resolve)));
+    setup({ save, requestStepUp });
+    fireEvent.change(field("Número"), { target: { value: "900373115" } });
+    fireEvent.change(field("Razón social"), { target: { value: "Café del Norte S.A.S." } });
+    fireEvent.keyDown(field("Razón social"), { key: "s", ctrlKey: true });
+    const code = await screen.findByLabelText("Código de 6 dígitos");
+    expect(save).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(field("Razón social"), { key: "s", ctrlKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+    // Verifying: the code is sent and the token is on its way.
+    fireEvent.change(code, { target: { value: "123456" } });
+    expect(requestStepUp).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(field("Razón social"), { key: "Enter", metaKey: true });
+    expect(save).toHaveBeenCalledTimes(1);
+    expect((screen.getByRole("button", { name: "Crear" }) as HTMLButtonElement).disabled).toBe(true);
+    answer({ token: "tok-2" });
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]![1]).toBe("tok-2");
+  });
 });

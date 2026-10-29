@@ -115,7 +115,7 @@ export function PartyForm({ record, tables, modes, readOnly = false, save, reque
   const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...partyInput(draft, { creditLimitVisible: mode("credit_limit") === "visible" }) });
 
   return (
-    <RecordForm canSave={!readOnly && !blocked && !flow.saving && (dirty || record === null)} onSave={submit} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !blocked && !flow.saving && !flow.stepUp && (dirty || record === null)} onSave={submit} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">

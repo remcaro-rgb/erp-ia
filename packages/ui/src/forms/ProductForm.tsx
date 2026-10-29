@@ -115,7 +115,7 @@ export function ProductForm({ record, tables, categories, modes, readOnly = fals
   const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...productInput(draft, { standardCostVisible: costMode === "visible" }) });
 
   return (
-    <RecordForm canSave={!readOnly && !productBlocked(draft) && !flow.saving && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !productBlocked(draft) && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">
