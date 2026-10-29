@@ -29,7 +29,7 @@
   /* buttons */
   .erp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; line-height: 1.2; white-space: nowrap; }
   .erp-btn:hover:not(:disabled) { background: var(--head); }
-  .erp-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-btn:disabled { opacity: .5; cursor: not-allowed; }
   .erp-btn--primary { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
   .erp-btn--primary:hover:not(:disabled) { background: var(--primary-h); }
@@ -61,11 +61,12 @@
   .erp-grid th.text-right, .erp-grid td.text-right { text-align: right; }
   .erp-grid__filters th { top: 36px; }
   .erp-grid__filters input, .erp-grid__filters select { width: 100%; min-width: 72px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); font-weight: 400; }
+  .erp-grid__filters input:focus-visible, .erp-grid__filters select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -1px; }
   .erp-grid__filters .is-on { border-color: var(--primary); background: var(--accent); }
   .erp-grid__range { display: flex; gap: 4px; }
   .erp-grid__sort { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; white-space: nowrap; }
   .erp-grid__sort:hover { color: var(--text); }
-  .erp-grid__unsorted { opacity: .3; }
+  .erp-grid__unsorted { opacity: .55; }
   .erp-grid__check { width: 36px; padding-right: 0 !important; }
   .erp-grid__check input { accent-color: var(--primary); }
   .erp-grid__empty { height: 80px !important; text-align: center !important; }
@@ -75,7 +76,7 @@
   @media (prefers-reduced-motion: reduce) { .erp-grid__skeleton td span { animation: none; } }
   .erp-row-link { cursor: pointer; }
   .erp-row-link:hover td { background: var(--hover); }
-  .erp-row-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .erp-row-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-row-link.is-selected td { background: var(--accent); }
   .erp-row-link.is-blocked { opacity: .55; cursor: not-allowed; }
   .erp-grid__ft { display: flex; align-items: center; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
@@ -86,6 +87,8 @@
   .erp-pager button.is-on { background: var(--primary); color: #fff; border-color: var(--primary); }
   .erp-pager button:disabled { opacity: .5; cursor: not-allowed; }
   .erp-pager select { height: 26px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 12px; color: var(--text); }
+  /* 44 px pager targets on touch screens (rule 24) */
+  @media (pointer: coarse) { .erp-pager button, .erp-pager select { min-width: 44px; height: 44px; } }
 
   /* popovers (columns, saved views) */
   .erp-pop { position: relative; }
@@ -124,7 +127,7 @@
   /* entity lookup */
   .erp-lk { position: relative; }
   .erp-lk__input { width: 100%; padding: 8px 64px 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); }
-  .erp-lk__input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-lk__input:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-lk__mag, .erp-lk__clear { position: absolute; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); display: grid; place-items: center; }
   .erp-lk__mag { right: 4px; }
   .erp-lk__clear { right: 32px; }
@@ -159,7 +162,7 @@
   .erp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; border: 0; margin: 0; padding: 0; }
   .erp-field > label, .erp-field > legend, .erp-field__label { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 0; }
   .erp-field input:not([type="checkbox"]), .erp-field select, .erp-field textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); min-width: 0; width: 100%; }
-  .erp-field input:focus, .erp-field select:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-field input:focus, .erp-field select:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-field input:disabled, .erp-field select:disabled { background: var(--head); color: var(--text-muted); }
   .erp-field .erp-input--bad, .erp-input--bad { border-color: var(--danger) !important; background: var(--danger-bg) !important; }
   .erp-field-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -213,7 +216,7 @@
   .erp-contacts h3, .erp-extra h3, .erp-attachments h3 { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:where(:not(.erp-contacts__edit, .erp-photos__thumb)) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; line-height: 1.2; white-space: nowrap; cursor: pointer; }
   :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:where(:not(.erp-contacts__edit, .erp-photos__thumb)):hover:not(:disabled) { background: var(--head); }
-  :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   :is(.erp-contacts, .erp-photos, .erp-extra, .erp-attachments) button:disabled { opacity: .5; cursor: not-allowed; }
   :is(.erp-contacts, .erp-extra, .erp-attachments) table { width: 100%; border-collapse: collapse; font-size: 13px; }
   :is(.erp-contacts, .erp-extra, .erp-attachments) th { height: 32px; padding: 0 10px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -250,13 +253,13 @@
   .erp-photos__thumb { width: 96px; height: 96px; padding: 0; border: 2px solid transparent; border-radius: 8px; background: var(--head); overflow: hidden; cursor: pointer; flex: 0 0 auto; }
   .erp-photos__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .erp-photos__thumb:hover { border-color: var(--line); }
-  .erp-photos__thumb:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-photos__thumb:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-photos__thumb--on, .erp-photos__thumb--on:hover { border-color: var(--primary); }
   .erp-photos__drop, .erp-attachments__drop { display: flex; flex-direction: column; align-items: center; gap: 6px; border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center; color: var(--text-muted); font-size: 13px; background: var(--head); transition: border-color .15s, background .15s, color .15s; }
   .erp-photos__drop--over, .erp-attachments__drop--over { border-color: var(--primary); background: var(--accent); color: var(--text); }
   .erp-photos__drop--disabled, .erp-attachments__drop--disabled { opacity: .7; cursor: not-allowed; }
   .erp-photos__choose, .erp-attachments__choose { color: var(--primary); text-decoration: underline; cursor: pointer; font-weight: 600; }
-  .erp-photos__choose:focus-within, .erp-attachments__choose:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+  .erp-photos__choose:focus-within, .erp-attachments__choose:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
   .erp-photos__suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .erp-photos__error, .erp-attachments__error { margin: 0; font-size: 12px; font-weight: 600; color: var(--danger); }
 
@@ -264,7 +267,7 @@
   .erp-extra__defined, .erp-extra__free { min-width: 0; }
   .erp-extra__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .erp-extra__free table input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
-  .erp-extra__free table input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .erp-extra__free table input:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
   .erp-extra__free table input:disabled { background: var(--head); color: var(--text-muted); }
   .erp-extra__free td { padding: 4px 6px; }
   .erp-extra__free > button { align-self: flex-start; }
@@ -371,7 +374,7 @@
   .erp-confirm__body { padding: 10px 12px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; border-bottom: 1px solid var(--line-2); color: var(--text-muted); margin: 0; }
   .erp-confirm__body > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
   .erp-confirm__body dt { margin: 0; }
-  .erp-confirm__body dd { margin: 0; text-align: right; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+  .erp-confirm__body dd { margin: 0; text-align: right; color: var(--text); min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
   .erp-confirm__body input { width: 60%; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 13px; }
   .erp-confirm__foot { padding: 10px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .erp-confirm__note { padding: 10px 12px; font-size: 12px; color: var(--text-muted); }
@@ -422,7 +425,7 @@
   .erp-wg { position: relative; min-width: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
   .erp-wg__hd { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; color: var(--text-muted); border-bottom: 1px dashed var(--line-2); cursor: grab; user-select: none; }
   .erp-wg__hd:active { cursor: grabbing; }
-  .erp-wg__hd:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .erp-wg__hd:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-wg__grip { letter-spacing: -2px; font-size: 14px; opacity: .6; }
   .erp-wg__title { font-weight: 600; color: var(--text); font-size: 12px; }
   .erp-wg__bd { flex-grow: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
@@ -448,5 +451,8 @@
   .erp-home-list { padding: 4px 0; display: flex; flex-direction: column; }
   .erp-home-help { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
   .erp-home-help button { text-align: left; }
+
+  /* No blink, slide or fade for readers who ask for reduced motion (WCAG 2.3.3); globals.css shortens the rest. */
+  @media (prefers-reduced-motion: reduce) { .erp-typing i { animation: none; opacity: 1; } .erp-toggle, .erp-toggle::after, .erp-drop, .erp-photos__drop, .erp-attachments__drop { transition: none; } }
 }
 

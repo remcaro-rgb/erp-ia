@@ -63,7 +63,7 @@ export function TopBar(props: TopBarProps) {
   const themeName = s(`theme_${props.theme}`).toLowerCase();
 
   return (
-    <header className="relative z-10 flex h-12 shrink-0 items-center gap-2.5 bg-bar px-4 text-bar-text">
+    <header data-bar className="relative z-10 flex h-12 shrink-0 items-center gap-2.5 bg-bar px-4 text-bar-text">
       <div className="mr-1.5 flex items-center gap-2 text-[15px] font-bold whitespace-nowrap text-white">
         <i aria-hidden="true" className="inline-block size-[22px] rounded-md bg-focus" />
         {s("brand")}

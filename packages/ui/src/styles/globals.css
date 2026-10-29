@@ -35,6 +35,7 @@
   --color-primary-h: var(--primary-h);
   --color-accent-line: var(--accent-line);
   --color-focus: var(--focus);
+  --color-focus-ring: var(--focus-ring);
   --color-page: var(--bg);
   --color-surface: var(--surface);
   --color-head: var(--head);
@@ -90,7 +91,15 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
+  }
+  /* One visible ring for every focusable thing (≥ 3:1); the navy bar keeps the light ring (5.74:1 on --bar). */
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  [data-bar] :focus-visible { outline-color: var(--focus); }
+  /* The skip link (AppShell) and anything else that moves the caret to a region. */
+  [tabindex="-1"]:focus { outline: none; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   }
   body {
     background: var(--bg);

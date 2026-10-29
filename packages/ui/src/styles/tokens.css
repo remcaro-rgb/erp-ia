@@ -8,6 +8,9 @@
 :root {
   --bar: #1E3A8A; --bar-ctl: #2A4A9E; --bar-line: #4A6AC2; --bar-text: #DBE4F5; --bar-dim: #9DB0DC;
   --primary: #1D4ED8; --primary-h: #1E40AF; --accent: #DBEAFE; --accent-line: #BFDBFE; --focus: #93C5FD;
+  /* Keyboard focus ring, ≥ 3:1 on surface, head, page and accent (WCAG 1.4.11 / 2.4.13). `--focus` stays the brand
+     blue (logo mark, avatar) and the ring on the navy bar, where it reaches 5.74:1. */
+  --focus-ring: #1D4ED8;
   --bg: #EEF0F2; --surface: #FFFFFF; --head: #F7F8FA; --hover: #F3F6FC; --modbar: #F7F8FA;
   --tabrow: #D6E0F5; --tabrow-line: #B5C4E6; --tabrow-text: #2B3F75; --tabrow-hover: #C6D4F0;
   --text: #1A1D21; --text-muted: #3F4752; --line: #D7DBE0; --line-2: #E2E5E9;
@@ -18,6 +21,7 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bar: #0F1E4D; --bar-ctl: #1B2D6B; --bar-line: #35508F; --bar-text: #C9D6F0; --bar-dim: #7E93C4;
   --primary: #3B82F6; --primary-h: #2563EB; --accent: #1E3A8A; --accent-line: #2B4CA8; --focus: #60A5FA;
+  --focus-ring: #60A5FA;
   --bg: #12151A; --surface: #1B1F26; --head: #20252E; --hover: #242A34; --modbar: #171B22;
   --tabrow: #1C2743; --tabrow-line: #34467A; --tabrow-text: #AFC0E8; --tabrow-hover: #253357;
   --text: #E6E9EF; --text-muted: #A4ADBA; --line: #2E3542; --line-2: #262C37;
@@ -28,6 +32,7 @@
 :root[data-theme="dark"] {
   --bar: #0F1E4D; --bar-ctl: #1B2D6B; --bar-line: #35508F; --bar-text: #C9D6F0; --bar-dim: #7E93C4;
   --primary: #3B82F6; --primary-h: #2563EB; --accent: #1E3A8A; --accent-line: #2B4CA8; --focus: #60A5FA;
+  --focus-ring: #60A5FA;
   --bg: #12151A; --surface: #1B1F26; --head: #20252E; --hover: #242A34; --modbar: #171B22;
   --tabrow: #1C2743; --tabrow-line: #34467A; --tabrow-text: #AFC0E8; --tabrow-hover: #253357;
   --text: #E6E9EF; --text-muted: #A4ADBA; --line: #2E3542; --line-2: #262C37;
@@ -53,7 +58,7 @@
   --destructive: var(--danger);
   --border: var(--line);
   --input: var(--line);
-  --ring: var(--focus);
+  --ring: var(--focus-ring);
   /* radius: 6px controls, 8px cards, 4px pills */
   --radius: 6px;
 }
