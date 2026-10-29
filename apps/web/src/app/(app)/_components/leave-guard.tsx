@@ -25,21 +25,32 @@ const withFlag = (on: boolean) => ({ ...(historyState() ?? {}), [SENTINEL]: on }
 
 const screenOf = () => `${window.location.pathname}${window.location.search}`;
 
+/** How long the walk back may take before its listener is dropped: each step answers within milliseconds. */
+export const BACK_WALK_MS = 1000;
+
 /**
  * Leaves the screen through the browser history: goes back `steps` entries, then on past any entry of the same screen.
  * The guard's own entry is spent but stays in the history, and a reload of the production build drops its mark (the
  * router rewrites `history.state` as the page loads), so the next guard pushes another: two entries of one screen can
- * sit side by side, and stopping on the first would leave the person where they were.
+ * sit side by side, and stopping on the first would leave the person where they were. The walk's `popstate` listener
+ * ends once the screen is left, after BACK_WALK_MS at most, or when the answered stop function is called (the guard
+ * calls it as the screen unmounts), so a later Back is never taken for part of this walk.
  */
-export function goBackPast(steps: number): void {
+export function goBackPast(steps: number): () => void {
   const screen = screenOf();
   let spare = 4;
+  const stop = () => {
+    window.clearTimeout(timer);
+    window.removeEventListener("popstate", onPop);
+  };
   const onPop = () => {
     if (screenOf() === screen && spare-- > 0) window.history.back();
-    else window.removeEventListener("popstate", onPop);
+    else stop();
   };
+  const timer = window.setTimeout(stop, BACK_WALK_MS);
   window.addEventListener("popstate", onPop);
   window.history.go(-steps);
+  return stop;
 }
 
 /** Runs `go` (a navigation) at once, or after the screen with staged changes lets it. */
@@ -59,6 +70,8 @@ export function useLeaveGuard(count: number): ReactNode {
   const [waiting, setWaiting] = useState<{ go: () => void } | null>(null);
   /** Set once the user chose to leave: nothing asks again on the way out. */
   const released = useRef(false);
+  /** Ends the walk back past the screen (`goBackPast`) as the screen unmounts. */
+  const stopWalk = useRef<(() => void) | null>(null);
   const dirty = count > 0;
   // Nothing staged any more (applied or discarded): a question still open has no reason left.
   if (!dirty && waiting) setWaiting(null);
@@ -78,7 +91,11 @@ export function useLeaveGuard(count: number): ReactNode {
       if (state?.[SENTINEL] !== undefined) return;
       // Back from the guard's entry: stand on it again and ask; leaving goes back past the screen.
       window.history.pushState(withFlag(true), "", window.location.href);
-      setWaiting({ go: () => goBackPast(2) });
+      setWaiting({
+        go: () => {
+          stopWalk.current = goBackPast(2);
+        },
+      });
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (released.current) return;
@@ -103,6 +120,8 @@ export function useLeaveGuard(count: number): ReactNode {
     document.addEventListener("click", onClick, true);
     return () => {
       if (active === guard) active = null;
+      stopWalk.current?.();
+      stopWalk.current = null;
       window.removeEventListener("popstate", onPopState);
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onClick, true);

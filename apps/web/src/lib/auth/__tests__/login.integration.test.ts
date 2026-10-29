@@ -6,7 +6,9 @@ const state = vi.hoisted(() => ({ jar: undefined as unknown }));
 vi.mock("next/headers", () => ({ cookies: async () => state.jar, headers: async () => new Headers() }));
 
 import { completeMfa, confirmEnrolment, loginWithPassword, startEnrolment } from "@/lib/auth/login";
-import { getCallerClaims, Unauthenticated } from "@/lib/auth/claims";
+import { getCallerClaims, readSession, Unauthenticated } from "@/lib/auth/claims";
+
+import { settleCompany } from "@/lib/auth/inactive";
 import { createSupabase } from "@/lib/supabase/server";
 import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
@@ -314,12 +316,79 @@ describe("a member deactivated in one of two companies", () => {
     expect((await getCallerClaims()).active_company_id).toBe(second);
   });
 
+  it("two concurrent settles of the same move store it and audit it once", async () => {
+    const [first, second] = fixture.companyIds as [string, string];
+    await fixture.admin.auth.admin.updateUserById(fixture.userId, { app_metadata: { active_company_id: first } });
+    const jar = new MemoryJar();
+    state.jar = jar;
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+    const before = (await switches(fixture)).length;
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId} and company_id = ${first}`;
+    try {
+      const renewed = await createSupabase(jar).auth.refreshSession();
+      const moved = (await readSession(createSupabase(jar), renewed.data.session!.access_token))!;
+      expect(moved.claims!.active_company_id).toBe(second);
+      expect(moved.inactiveCompanyId).toBe(first);
+      // Two requests (two tabs) carrying the same move at once.
+      const settled = await Promise.all([settleCompany(createSupabase(jar), moved), settleCompany(createSupabase(jar), moved)]);
+      for (const after of settled) expect(after.claims!.active_company_id).toBe(second);
+      expect(await storedCompany(fixture)).toBe(second);
+      const rows = await switches(fixture);
+      expect(rows).toHaveLength(before + 1);
+      expect(rows.at(-1)).toEqual({ company_id: second, input: { from: first, to: second, reason: "membership_inactive" } });
+      // A late request with the same old token finds the move settled: no second row, the token is still reissued.
+      const late = await settleCompany(createSupabase(jar), moved);
+      expect(late.inactiveCompanyId).toBeNull();
+      expect(await switches(fixture)).toHaveLength(before + 1);
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId} and company_id = ${first}`;
+    }
+  });
+
   it("is refused only once no membership is active", async () => {
     await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId}`;
     try {
       const jar = new MemoryJar();
       expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: false, error: "account_disabled" });
       expect(sessionCookies(jar)).toHaveLength(0);
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId}`;
+    }
+  });
+});
+
+describe("a member whose chosen company is gone and whose only membership is inactive", () => {
+  let fixture: AuthFixture;
+  beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "member" });
+  });
+  afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  it("the proxy never stores or audits the membership_missing move into the inactive company", async () => {
+    const [only] = fixture.companyIds as [string];
+    const jar = new MemoryJar();
+    state.jar = jar;
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+    // The stored choice names a company that is no longer one of theirs; then the admin deactivates the only membership.
+    const gone = "0197a1b2-0000-7000-8000-00000000dead";
+    await fixture.admin.auth.admin.updateUserById(fixture.userId, { app_metadata: { active_company_id: gone } });
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId}`;
+    try {
+      // The renewed token stands in the inactive company (none active is left) and carries a membership_missing move.
+      await createSupabase(jar).auth.refreshSession();
+      const moved = (await readSession(createSupabase(jar)))!;
+      expect(moved).toMatchObject({ storedCompanyId: gone, inactiveCompanyId: null, claims: { active_company_id: only } });
+      const before = (await switches(fixture)).length;
+      const response = await proxy(requestWith(jar, "/parties"));
+      // Nothing settled: the session goes on to the page, whose layout sends it down the disabled path.
+      expect(response.headers.get("location")).toBeNull();
+      expect(await storedCompany(fixture)).toBe(gone);
+      expect(await switches(fixture)).toHaveLength(before);
+      expect(await settleCompany(createSupabase(jar), moved)).toBe(moved);
+      expect(await storedCompany(fixture)).toBe(gone);
+      expect(await switches(fixture)).toHaveLength(before);
     } finally {
       await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId}`;
     }

@@ -1,8 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getServiceDb, membershipInactive } from "@erp/kernel";
-import { serviceSupabase } from "@/lib/supabase/service";
-import { recordCompanySwitch } from "./audit";
+import { getServiceDb, membershipInactive, writeAudit } from "@erp/kernel";
+import { companySwitchEntry } from "./audit";
 import { companyMove, mfaStep, readSession, type SessionState } from "./claims";
 
 // Deactivation is per company (design §22.16, review of Task 7): a session whose membership in its active company the
@@ -14,16 +13,34 @@ import { companyMove, mfaStep, readSession, type SessionState } from "./claims";
 /**
  * Makes the automatic move of `state` durable: stores the token's company as the user's choice, audits the switch, and
  * reissues the token so the session no longer carries the move (once per move). Nothing is written before the session
- * is complete (second factor done, rule 15). Answers the session as it now is (`state` when there is nothing to do or
- * the store fails).
+ * is complete (second factor done, rule 15), and never a move into a company whose membership is inactive (a
+ * `membership_missing` move the hook made with no active membership left): that session goes down the disabled path.
+ * Idempotent: the stored choice is read and written in one transaction holding the user's row, with the audit row,
+ * so concurrent requests carrying the same move (tabs, prefetches) store and audit it once; each still reissues its
+ * token. Answers the session as it now is (`state` when there is nothing to do or the store fails).
  */
 export async function settleCompany(supabase: SupabaseClient, state: SessionState): Promise<SessionState> {
   const move = companyMove(state);
   if (!move || !state.claims || mfaStep(state) !== null) return state;
   const claims = state.claims;
-  const { error } = await serviceSupabase().auth.admin.updateUserById(claims.sub, { app_metadata: { active_company_id: claims.active_company_id } });
-  if (error) return state;
-  await recordCompanySwitch(claims, move.from, move.reason);
+  const sql = getServiceDb();
+  if (await membershipInactive(sql, claims)) return state;
+  try {
+    await sql.begin(async (tx) => {
+      const [user] = await tx<{ stored: string | null }[]>`
+        select raw_app_meta_data ->> 'active_company_id' as stored from auth.users where id = ${claims.sub} for update`;
+      // Already the user's choice: another request settled this move first.
+      if (!user || user.stored === claims.active_company_id) return;
+      await tx`
+        update auth.users
+        set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('active_company_id', ${claims.active_company_id}::text),
+            updated_at = now()
+        where id = ${claims.sub}`;
+      await writeAudit(tx, companySwitchEntry(claims, move.from, move.reason));
+    });
+  } catch {
+    return state;
+  }
   const refreshed = await supabase.auth.refreshSession();
   if (refreshed.error || !refreshed.data.session) return state;
   return (await readSession(supabase, refreshed.data.session.access_token)) ?? state;
