@@ -238,4 +238,21 @@ describe("AppShell", () => {
     const bell = screen.getByRole("button", { name: "Notificaciones" });
     expect(bell.querySelector("span")).toBeNull();
   });
+
+  // Branch review fix 7: Ctrl+Alt+/ (AltGr layouts) and a key pressed in an open dialog are not the assistant toggle.
+  it("ignores Ctrl+/ with Alt, and while a dialog (the palette) is open", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ conversationId: null, messages: [], cards: {} }), { status: 200 })));
+    try {
+      shell("/");
+      fireEvent.keyDown(document, { key: "/", ctrlKey: true, altKey: true });
+      expect(screen.getByRole("complementary", { name: "Asistente" })).toBeTruthy();
+      fireEvent.click(screen.getByLabelText("Comando"));
+      expect(screen.getByRole("dialog")).toBeTruthy();
+      fireEvent.keyDown(document, { key: "/", ctrlKey: true });
+      // (The open dialog hides the page from the accessibility tree.)
+      expect(screen.getByRole("button", { name: "Asistente", hidden: true }).getAttribute("aria-expanded")).toBe("true");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

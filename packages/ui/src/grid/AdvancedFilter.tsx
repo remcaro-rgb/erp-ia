@@ -112,7 +112,8 @@ function AdvancedFilterBody({ fields, conditions, onApply, onOpenChange, preview
     if (event.key === "Enter" && !event.nativeEvent.isComposing && target.tagName !== "BUTTON" && !(target instanceof HTMLSelectElement && target.multiple)) {
       event.preventDefault();
       apply();
-    } else if (event.key === "ArrowDown" && event.altKey && resultRows.length > 0) {
+    } else if (event.key === "ArrowDown" && event.altKey && resultRows.length > 0 && !(target instanceof HTMLSelectElement)) {
+      // (Alt+↓ on a select opens its options: that stays the select's.)
       event.preventDefault();
       focusResult(activeResult);
     }

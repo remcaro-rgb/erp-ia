@@ -238,4 +238,15 @@ describe("AdvancedFilter keyboard", () => {
     await user.keyboard("{ArrowDown} ");
     expect(onPickRow).toHaveBeenCalledWith(rows[1]);
   });
+
+  it("Alt+↓ on a select is the select's own (it opens its options), not a jump to the results", async () => {
+    render();
+    const user = userEvent.setup();
+    const results = await screen.findByRole("region", { name: "Resultados" });
+    await within(results).findByText("Almacenes Éxito S.A.");
+    const fieldSelect = within(condition(1)).getByLabelText("Campo");
+    fieldSelect.focus();
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    expect(document.activeElement).toBe(fieldSelect);
+  });
 });

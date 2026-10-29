@@ -166,7 +166,9 @@ function ShellFrame(props: AppShellProps) {
   const [focusInput, setFocusInput] = useState(0);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key !== "/") return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key !== "/") return;
+      // A dialog (the palette, a confirmation) owns the keyboard while it is open.
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], dialog[open]')) return;
       event.preventDefault();
       if (openRef.current) {
         document.getElementById("erp-main")?.focus({ preventScroll: true });

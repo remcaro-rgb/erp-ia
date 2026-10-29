@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderEs } from "../../shell/__tests__/intl";
+import { renderEs, stubLayoutApis } from "../../shell/__tests__/intl";
 import { DataGrid } from "../DataGrid";
 import type { GridColumn, GridFetcher, GridRow } from "../types";
 
 afterEach(cleanup);
+beforeAll(stubLayoutApis);
 
 // UI density audit quick wins 4 (H2), 9 (M2-M4) and 16 (L10): the rows are ONE tab stop with arrow keys (WAI-ARIA
 // roving tabindex), "/" jumps to the filters, and the header and footer never reflow while the grid works.
@@ -158,5 +159,55 @@ describe("DataGrid stable header and footer", () => {
       click.mockRestore();
       vi.useRealTimers();
     }
+  });
+
+});
+
+// Branch review fixes 4 and 6: keys typed in a dialog the grid opened do not reach the grid; Limpiar filtros leaves
+// the caret on the first filter; a page turn that failed does not pull the caret back to the rows later.
+describe("DataGrid keyboard edges", () => {
+  it("'/' inside the advanced filter dialog stays in the dialog", async () => {
+    setup();
+    await screen.findByText("Almacenes Éxito S.A.");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Filtro avanzado" }));
+    const dialog = await screen.findByRole("dialog");
+    const add = within(dialog).getByRole("button", { name: "+ Condición" });
+    const gridFilter = vi.spyOn(screen.getByLabelText("Filtrar Razón social"), "focus");
+    add.focus();
+    const event = fireEvent.keyDown(add, { key: "/" });
+    // Not taken by the grid behind the dialog: not prevented, no jump to the grid's filter.
+    expect(event).toBe(true);
+    expect(gridFilter).not.toHaveBeenCalled();
+  });
+
+  it("Limpiar filtros puts the caret on the first filter", async () => {
+    setup();
+    await screen.findByText("Almacenes Éxito S.A.");
+    fireEvent.change(screen.getByLabelText("Filtrar Cupo"), { target: { value: "1000" } });
+    const clear = document.querySelector<HTMLButtonElement>("button.erp-grid__clear")!;
+    await waitFor(() => expect(clear.disabled).toBe(false));
+    fireEvent.click(clear);
+    expect(document.activeElement).toBe(screen.getByLabelText("Filtrar Razón social"));
+  });
+
+  it("a failed page turn does not move the caret to the rows when a later read arrives", async () => {
+    // A fresh page of rows on every read, as the server sends.
+    const fetcher = vi.fn<GridFetcher>(async () => ({ rows: rows.map((r) => ({ ...r })), total: 40 }));
+    renderEs(<DataGrid entity="core.party" title="Terceros" columns={columns} fetcher={fetcher} onRowOpen={vi.fn()} debounceMs={5} />);
+    await screen.findByText("Almacenes Éxito S.A.");
+    fetcher.mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    bodyRows()[0]!.focus();
+    await user.keyboard("{PageDown}");
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    await screen.findByRole("alert");
+    const filter = screen.getByLabelText("Filtrar Razón social");
+    await user.click(filter);
+    await user.keyboard("caf");
+    await waitFor(() => expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(3));
+    await screen.findAllByText("Almacenes Éxito S.A.");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(document.activeElement).toBe(filter);
   });
 });

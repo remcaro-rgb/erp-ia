@@ -118,12 +118,18 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
     setSelected(new Set());
     setActiveRow(0);
   }
-  // PgDn / PgUp: the caret follows onto the new page's first row.
+  // PgDn / PgUp: the caret follows onto the new page's first row, but only if it is still on the rows (or was dropped
+  // with the old page): the user may have moved on meanwhile. A failed read forgets the request.
   useEffect(() => {
     if (!refocusRows.current || rows.length === 0) return;
     refocusRows.current = false;
+    const active = document.activeElement;
+    if (active && active !== document.body && !bodyRef.current?.contains(active)) return;
     bodyRef.current?.querySelector<HTMLTableRowElement>("tr[data-row]")?.focus();
   }, [rows]);
+  useEffect(() => {
+    if (data.error !== null) refocusRows.current = false;
+  }, [data.error]);
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const toggleRow = (id: string) =>
     setSelected((s) => {
@@ -164,6 +170,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   // "/" anywhere in the grid (outside a text box) goes to the first filter, as in mail and issue trackers.
   const onGridKey = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    // React events bubble through portals: a key typed in a dialog the grid opened is the dialog's.
+    if (!event.currentTarget.contains(event.target as Node)) return;
     if ((event.target as HTMLElement).closest("input, select, textarea, [contenteditable]")) return;
     event.preventDefault();
     firstFilter()?.focus();
@@ -235,7 +243,11 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         <button
           type="button"
           className={dirty ? "erp-btn erp-btn--ghost erp-grid__clear" : "erp-btn erp-btn--ghost erp-grid__clear is-reserved"}
-          onClick={grid.clear}
+          onClick={() => {
+            grid.clear();
+            // The button hides itself (nothing left to clear): the caret goes where the next filter is typed.
+            firstFilter()?.focus();
+          }}
           disabled={!dirty}
           aria-hidden={dirty ? undefined : true}
           tabIndex={dirty ? undefined : -1}

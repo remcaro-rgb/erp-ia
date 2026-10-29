@@ -58,6 +58,8 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
   }, [failure]);
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if (!(event.metaKey || event.ctrlKey) || event.altKey || (event.key.toLowerCase() !== "s" && event.key !== "Enter")) return;
+    // React events bubble through portals: a dialog opened from the form (the lookup's advanced filter) keeps its keys.
+    if (!event.currentTarget.contains(event.target as Node)) return;
     event.preventDefault();
     if (canSave) onSave();
     else focusFirstProblem();
