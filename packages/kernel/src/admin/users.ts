@@ -129,6 +129,10 @@ export const userUpdate = defineProcess({
   auditInput: (input) => ({ ...input, photo: input.photo === undefined ? undefined : photoMark(input.photo) }),
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
+    // A change that can leave the company without an active admin locks the company first (kernel.lock_active_admins),
+    // before any membership row: the same order (company, then membership) as every other such change, so two of them
+    // wait for each other instead of deadlocking. 0027's trigger stays the last line of defence.
+    if (input.active === false || input.roleIds !== undefined) await ctx.tx`select kernel.lock_active_admins()`;
     const [member] = await ctx.tx<{ id: string; is_active: boolean; full_name: string | null; mobile_cc: string | null; mobile: string | null; photo: string | null; locale: string }[]>`
       select id, is_active, full_name, mobile_cc, mobile, photo, locale
       from kernel.v_memberships where company_id = ${ctx.companyId} and user_id = ${input.userId}`;

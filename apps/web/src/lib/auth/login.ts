@@ -4,7 +4,7 @@ import { setRememberCookies, rememberMode, type CookieJar } from "@/lib/supabase
 import { createSupabase } from "@/lib/supabase/server";
 import { recordLogin } from "./audit";
 import { mfaStep, readSession, type SessionState } from "./claims";
-import { leaveInactiveCompany } from "./inactive";
+import { settleCompany } from "./inactive";
 import { authFailureOf } from "./errors";
 import { isAcceptableEmail, loginKey, mfaKey, resetAttempts, takeAttempt } from "./limiter";
 
@@ -40,18 +40,20 @@ function failure(error: { status?: number; code?: string } | null, refused: Logi
 
 /**
  * A session must stand in a company where the person's membership is active (kernel.admin.user.update, design §22.16).
- * The access token hook (0027) already picks an active membership when one exists; should the token name an inactive one,
- * the session moves to an active company. Only someone with no active membership left is refused, and signed out:
- * Auth knows nothing of the state, so the refusal is ours, at each step that issues a session.
+ * The access token hook (0027) picks an active membership whenever one exists, so a fresh token naming an inactive one
+ * means none is left: refused, and signed out (Auth knows nothing of the state, so the refusal is ours). Otherwise an
+ * automatic move the hook made (the chosen company inactive) is stored and audited, once the session is complete:
+ * nothing is written before the second factor (`settleCompany` waits for it; the TOTP step settles).
  */
 type ActiveState = SessionState & { claims: JwtClaims };
 
 async function activeSession(supabase: SupabaseClient, state: SessionState, claims: JwtClaims): Promise<{ ok: true; state: ActiveState } | { ok: false; error: LoginError }> {
-  if (!(await membershipInactive(getServiceDb(), claims))) return { ok: true, state: { ...state, claims } };
-  const moved = await leaveInactiveCompany(supabase, claims);
-  if (moved?.claims) return { ok: true, state: { ...moved, claims: moved.claims } };
-  await supabase.auth.signOut({ scope: "local" });
-  return { ok: false, error: "account_disabled" };
+  if (await membershipInactive(getServiceDb(), claims)) {
+    await supabase.auth.signOut({ scope: "local" });
+    return { ok: false, error: "account_disabled" };
+  }
+  const settled = await settleCompany(supabase, { ...state, claims });
+  return { ok: true, state: { ...settled, claims: settled.claims ?? claims } };
 }
 
 /** E-mail + password. A session is created at once; whether it is complete depends on the account's MFA. */

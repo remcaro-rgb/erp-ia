@@ -52,9 +52,10 @@ export class ProcessError extends Error {
  */
 export const MEMBERSHIP_INACTIVE = "membership_inactive";
 
-/** Whether `error` is runProcess's refusal of a caller whose membership is inactive. */
+/** Whether `error` is runProcess's gate refusal of a caller whose membership is inactive. */
 export function isMembershipInactive(error: unknown): boolean {
-  if (!(error instanceof ProcessError) || error.code !== "forbidden") return false;
+  // Only the gate's refusal: a handler's own `forbidden` never counts, whatever its details say.
+  if (!(error instanceof ProcessError) || error.code !== "forbidden" || error.stage !== "gate") return false;
   const details = error.details as { reason?: unknown } | undefined;
   return typeof details === "object" && details !== null && details.reason === MEMBERSHIP_INACTIVE;
 }

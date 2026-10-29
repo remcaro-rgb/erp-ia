@@ -153,7 +153,11 @@ grant execute on function kernel.lock_active_admins() to authenticated, service_
 -- ---------------------------------------------------------------------------------------------
 -- The access token hook: 0001's body with the membership state. The active company is the requested one when that
 -- membership is active, else the first active membership, else (nobody active: the sign-in refuses) the requested or
--- first one; company_ids are the active memberships of that company's tenant. Same signature and grants.
+-- first one; company_ids are the active memberships of that company's tenant. When the company 0001's rule would have
+-- chosen (the requested one, else the first membership) was passed over because its membership is inactive, the claim
+-- `inactive_company_id` names it: the web app then stores the new choice in app_metadata and audits the move
+-- (auth.company.switch, reason membership_inactive), so a later reactivation does not move the session back unseen.
+-- Same signature and grants.
 -- ---------------------------------------------------------------------------------------------
 create or replace function kernel.custom_access_token_hook(event jsonb) returns jsonb
 language plpgsql stable security definer
@@ -169,9 +173,17 @@ declare
   role_list  uuid[];
   needs_mfa  boolean := false;
   has_mfa    boolean := false;
+  former_id  uuid;
   extra      jsonb;
 begin
   select u.locale into user_locale from kernel.users u where u.id = uid;
+
+  -- What 0001's rule chose: the requested company if the user is a member, else the first membership.
+  select m.company_id into former_id
+  from kernel.memberships m
+  where m.user_id = uid
+  order by (m.company_id = wanted) desc, m.created_at, m.id
+  limit 1;
 
   -- Active company: the requested one if that membership is active, else the first active membership; with none
   -- active, the requested or the first one (its runs and sign-in are refused as inactive).
@@ -224,8 +236,12 @@ begin
   if active_id is not null then
     extra := extra || jsonb_build_object('tenant_id', tenant, 'active_company_id', active_id);
   end if;
+  -- The new rule differs from 0001's only by passing over an inactive membership.
+  if former_id is distinct from active_id then
+    extra := extra || jsonb_build_object('inactive_company_id', former_id);
+  end if;
 
-  return jsonb_set(event, '{claims}', coalesce(event -> 'claims', '{}'::jsonb) || extra);
+  return jsonb_set(event, '{claims}', (coalesce(event -> 'claims', '{}'::jsonb) - 'inactive_company_id') || extra);
 end;
 $$;
 revoke execute on function kernel.custom_access_token_hook(jsonb) from authenticated, anon, public;

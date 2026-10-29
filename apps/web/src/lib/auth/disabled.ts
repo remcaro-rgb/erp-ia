@@ -24,7 +24,7 @@ export const ACCOUNT_DISABLED_LOGIN = "/login?error=account_disabled";
 export async function leaveDisabledCompany(): Promise<string> {
   const jar = await cookies();
   const state = await getSessionState();
-  if (state?.claims && (await leaveInactiveCompany(createSupabase(jar), state.claims))) return "/";
+  if (state?.claims && (await leaveInactiveCompany(createSupabase(jar)))) return "/";
   await logout(jar);
   return ACCOUNT_DISABLED_LOGIN;
 }

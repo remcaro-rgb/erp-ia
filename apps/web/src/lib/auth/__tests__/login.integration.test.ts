@@ -8,11 +8,23 @@ vi.mock("next/headers", () => ({ cookies: async () => state.jar, headers: async 
 import { completeMfa, confirmEnrolment, loginWithPassword, startEnrolment } from "@/lib/auth/login";
 import { getCallerClaims, Unauthenticated } from "@/lib/auth/claims";
 import { createSupabase } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
+import { proxy } from "@/proxy";
 import { loginKey, MAX_ATTEMPTS, resetAttempts, storedKey, takeAttempt } from "@/lib/auth/limiter";
 import { REMEMBER_COOKIE, REMEMBER_EMAIL_COOKIE, REMEMBER_MAX_AGE_SECONDS } from "@/lib/supabase/cookies";
 
 const THIRTY_DAYS = 30 * 24 * 60 * 60;
 const sessionCookies = (jar: MemoryJar) => [...jar.written].filter(([name, c]) => /^sb-.*-auth-token/.test(name) && c.value !== "");
+
+/** The company the user's `app_metadata` stores as their choice. */
+const storedCompany = async (fixture: AuthFixture) =>
+  (await fixture.sql<{ metadata: { active_company_id?: string } }[]>`select raw_app_meta_data as metadata from auth.users where id = ${fixture.userId}`)[0]!.metadata.active_company_id;
+const switches = (fixture: AuthFixture) =>
+  fixture.sql<{ company_id: string; input: unknown }[]>`
+    select company_id, input from kernel.audit_log where process_id = 'auth.company.switch' and actor_user_id = ${fixture.userId} order by occurred_at`;
+/** A request to the app carrying the jar's cookies, as the browser would send it. */
+const requestWith = (jar: MemoryJar, path: string) =>
+  new NextRequest(new URL(path, "http://127.0.0.1:3000"), { headers: { cookie: jar.getAll().map((c) => `${c.name}=${c.value}`).join("; ") } });
 
 const loginAudit = (fixture: AuthFixture) =>
   fixture.sql<{ origin: string; entity: string; row_id: string; actor_user_id: string; company_id: string; input: unknown }[]>`
@@ -259,9 +271,47 @@ describe("a member deactivated in one of two companies", () => {
       // The switcher offers only the company where the person is active.
       expect(claims.company_ids).toEqual([second]);
       expect((await loginAudit(fixture)).at(-1)).toMatchObject({ company_id: second });
+      // The automatic move is the user's choice now, and audited once with its reason.
+      expect(await storedCompany(fixture)).toBe(second);
+      expect(await switches(fixture)).toEqual([{ company_id: second, input: { from: first, to: second, reason: "membership_inactive" } }]);
     } finally {
       await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId} and company_id = ${first}`;
     }
+    // Reactivated, the first company does not take the live session back on the next renewal.
+    const renewed = await createSupabase(state.jar as MemoryJar).auth.refreshSession();
+    expect(renewed.error).toBeNull();
+    expect((await getCallerClaims()).active_company_id).toBe(second);
+    expect(await switches(fixture)).toHaveLength(1);
+  });
+
+  it("a renewal that leaves a deactivated company is stored and audited by the proxy, and reactivation does not move it back", async () => {
+    const [first, second] = fixture.companyIds as [string, string];
+    await fixture.admin.auth.admin.updateUserById(fixture.userId, { app_metadata: { active_company_id: first } });
+    const before = (await switches(fixture)).length;
+    const jar = new MemoryJar();
+    state.jar = jar;
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+    expect((await getCallerClaims()).active_company_id).toBe(first);
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId} and company_id = ${first}`;
+    try {
+      // The token is renewed (the proxy's getClaims does it on expiry): the hook moves the session to the second company.
+      await createSupabase(jar).auth.refreshSession();
+      expect((await getCallerClaims()).active_company_id).toBe(second);
+      // The next request through the proxy settles the move: stored, audited once, token reissued.
+      // Twice, the browser keeping the cookies the first answer set: the second request finds nothing left to settle.
+      for (let i = 0; i < 2; i++) {
+        const response = await proxy(requestWith(jar, "/parties"));
+        for (const cookie of response.cookies.getAll()) jar.set(cookie.name, cookie.value, {});
+      }
+      expect(await storedCompany(fixture)).toBe(second);
+      const rows = await switches(fixture);
+      expect(rows).toHaveLength(before + 1);
+      expect(rows.at(-1)).toEqual({ company_id: second, input: { from: first, to: second, reason: "membership_inactive" } });
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId} and company_id = ${first}`;
+    }
+    await createSupabase(jar).auth.refreshSession();
+    expect((await getCallerClaims()).active_company_id).toBe(second);
   });
 
   it("is refused only once no membership is active", async () => {
@@ -272,6 +322,37 @@ describe("a member deactivated in one of two companies", () => {
       expect(sessionCookies(jar)).toHaveLength(0);
     } finally {
       await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId}`;
+    }
+  });
+});
+
+describe("a member with a second factor deactivated in the company they had chosen", () => {
+  let fixture: AuthFixture;
+  let secret: string;
+  beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "member", companies: 2 });
+    secret = await enrolTotp(fixture);
+  });
+  afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  it("writes nothing at the password step; the TOTP step stores and audits the move", async () => {
+    const [first, second] = fixture.companyIds as [string, string];
+    await fixture.admin.auth.admin.updateUserById(fixture.userId, { app_metadata: { active_company_id: first } });
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId} and company_id = ${first}`;
+    try {
+      const jar = new MemoryJar();
+      state.jar = jar;
+      expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/mfa/verify" });
+      expect(await storedCompany(fixture)).toBe(first);
+      expect(await switches(fixture)).toHaveLength(0);
+      expect(await completeMfa(jar, { code: totpCode(secret) })).toEqual({ ok: true, next: "/" });
+      expect((await getCallerClaims()).active_company_id).toBe(second);
+      expect(await storedCompany(fixture)).toBe(second);
+      expect(await switches(fixture)).toEqual([{ company_id: second, input: { from: first, to: second, reason: "membership_inactive" } }]);
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId} and company_id = ${first}`;
     }
   });
 });

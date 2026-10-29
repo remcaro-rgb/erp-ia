@@ -251,6 +251,32 @@ describe("kernel.admin.user.update", () => {
     }
   });
 
+  it("a deactivation takes the company lock before the membership row (company, then membership: no deadlock)", async () => {
+    const held = await sql.reserve();
+    try {
+      await held`begin`;
+      await held`select 1 from kernel.companies where id = ${companyId} for no key update`;
+      const running = update({ userId: seed.users.clerk!, active: false });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      // The waiting run has not touched the membership yet: its row is free.
+      const clerk = await membership(seed.users.clerk!);
+      await expect(sql.begin((tx) => tx`select id from kernel.memberships where id = ${clerk.id} for update nowait`)).resolves.toHaveLength(1);
+      await held`commit`;
+      await running;
+    } finally {
+      held.release();
+    }
+    expect((await membership(seed.users.clerk!)).is_active).toBe(false);
+    await update({ userId: seed.users.clerk!, active: true });
+  });
+
+  it("only the gate's refusal counts as the inactive-membership refusal", () => {
+    const details = { reason: "membership_inactive" };
+    expect(isMembershipInactive(new ProcessError("forbidden", "x", { details, stage: "gate" }))).toBe(true);
+    expect(isMembershipInactive(new ProcessError("forbidden", "x", { details }))).toBe(false);
+    expect(isMembershipInactive(new ProcessError("invalid_input", "x", { details, stage: "gate" }))).toBe(false);
+  });
+
   it("removing the admin role keeps an active admin: refused for the last one, allowed while another remains", async () => {
     // boss loses the admin role while `both` (the caller) is an active admin: allowed.
     await update({ userId: seed.users.boss!, roleIds: [memberRoleId] });
@@ -315,6 +341,7 @@ describe("deactivation in one company of several", () => {
     const claims = await hook(b);
     expect(claims.active_company_id).toBe(b);
     expect([...claims.company_ids].sort()).toEqual([a, b].sort());
+    expect(claims).not.toHaveProperty("inactive_company_id");
   });
 
   it("inactive in B: B requested resolves to A, company_ids is [A], and the session works in A", async () => {
@@ -323,7 +350,11 @@ describe("deactivation in one company of several", () => {
       const claims = await hook(b);
       expect(claims.active_company_id).toBe(a);
       expect(claims.company_ids).toEqual([a]);
+      // The claim names the company passed over, so the web app stores and audits the move.
+      expect((claims as unknown as Record<string, unknown>).inactive_company_id).toBe(b);
+      // Without a stored choice the first membership (A) is still the pick: nothing was passed over.
       expect((await hook()).active_company_id).toBe(a);
+      expect(await hook()).not.toHaveProperty("inactive_company_id");
       await expect(runProcess({ sql, registry }, { claims, origin: "ui" }, "kernel.user_prefs.set", { key: "theme", value: "dark" })).resolves.toBeDefined();
       // A token issued before the change still names B: the database answers only A, and the switcher offers only A.
       const stale: JwtClaims = { ...claims, company_ids: [a, b] };
@@ -342,6 +373,7 @@ describe("deactivation in one company of several", () => {
       const claims = await hook(b);
       expect(claims.active_company_id).toBe(b);
       expect(claims.company_ids).toEqual([]);
+      expect(claims).not.toHaveProperty("inactive_company_id");
       const refused = await runProcess({ sql, registry }, { claims, origin: "ui" }, "kernel.user_prefs.set", { key: "theme", value: "dark" }).catch((e: unknown) => e);
       expect(isMembershipInactive(refused)).toBe(true);
       // The refusal is still audited on their name, in that company.
