@@ -28,8 +28,8 @@ export type ExportWork = (signal: AbortSignal, onJob: () => void) => Promise<str
 
 export interface ExportJobs {
   statusOf: (key: string) => ExportStatus;
-  /** Starts the export of `key` (one at a time per key); `title` names the screen in the toast. */
-  start: (key: string, format: ExportFormat, title: string, work: ExportWork) => Promise<void>;
+  /** Starts the export of `key` (one at a time per key); `title` names the screen in the toast (the entity's name when absent). */
+  start: (key: string, format: ExportFormat, title: string | undefined, work: ExportWork) => Promise<void>;
   /** A grid of `key` is on screen (it shows the outcome itself); returns the detach. */
   attach: (key: string) => () => void;
 }
@@ -40,9 +40,12 @@ export function exportFailureText(t: ReturnType<typeof useTranslations>, status:
   return t.has(`errors.${status.code}`) ? t(`errors.${status.code}`) : t("errors.unknown");
 }
 
-type Outcome = { key: string; title: string; status: ExportStatus };
+type Outcome = { key: string; title: string | undefined; status: ExportStatus };
 
-/** The jobs and their statuses; `offscreen` hears an outcome no grid is showing. `abortOnUnmount` for a bare grid. */
+/**
+ * The jobs and their statuses; `offscreen` hears an outcome no grid is showing. With `abortOnUnmount` the owner leaving
+ * (the shell on sign-out or a company switch, a bare grid) aborts what is still running: nothing downloads or toasts later.
+ */
 function useJobsState(offscreen: ((outcome: Outcome) => void) | null, abortOnUnmount: boolean): ExportJobs {
   const [statuses, setStatuses] = useState<Record<string, ExportStatus>>({});
   const controllers = useRef(new Map<string, AbortController>());
@@ -108,19 +111,22 @@ const ExportJobsContext = createContext<ExportJobs | null>(null);
 export function ExportJobsProvider({ children }: { children: ReactNode }) {
   const t = useTranslations();
   const announce = useCallback(
-    ({ title, status }: Outcome) => {
+    ({ key, title: screen, status }: Outcome) => {
+      // The screen's title, else the entity's name from the catalogue (`entity.core.party`), never the bare id.
+      const title = screen ?? (t.has(`entity.${key}`) ? t(`entity.${key}`) : key);
       if (status.phase === "ready") toast(t("grid.export.ready_in", { title, file: status.fileName }));
       else if (status.phase === "failed") toast(t("grid.export.failed_in", { title, reason: exportFailureText(t, status) }));
     },
     [t],
   );
-  const jobs = useJobsState(announce, false);
+  // Tab changes keep the provider mounted (exports survive them); the shell itself leaving aborts them.
+  const jobs = useJobsState(announce, true);
   return <ExportJobsContext.Provider value={jobs}>{children}</ExportJobsContext.Provider>;
 }
 
 /** The shell's jobs, or this grid's own when it is used without the shell (aborted when the grid unmounts). */
 export function useExportJobs(): ExportJobs {
   const shell = useContext(ExportJobsContext);
-  const local = useJobsState(null, shell === null);
+  const local = useJobsState(null, true);
   return shell ?? local;
 }

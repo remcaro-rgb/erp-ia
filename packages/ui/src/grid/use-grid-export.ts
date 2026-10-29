@@ -44,7 +44,7 @@ export function useGridExport({ entity, title, endpoint, fetcher, pollMs, maxWai
 
   const run = useCallback(
     (format: ExportFormat, state: GridStateInput) =>
-      jobs.start(entity, format, title ?? entity, async (signal, onJob) => {
+      jobs.start(entity, format, title, async (signal, onJob) => {
         const result = await requestExport({ entity, format, state, ...(title ? { title } : {}) }, { endpoint, fetcher, pollMs, maxWaitMs, signal, onJob });
         download(result);
         return result.fileName ?? `${entity}.${format}`;
