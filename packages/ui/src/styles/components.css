@@ -52,8 +52,10 @@
   .erp-grid__hd { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
   .erp-grid__hd h2 { margin: 0; font-size: 16px; font-weight: 700; }
   .erp-grid__exports { display: inline-flex; gap: 8px; }
-  .erp-export-status { max-width: 420px; }
-  .erp-export-status.is-error { color: var(--danger); font-weight: 600; }
+  /* Always rendered: export progress and "Actualizando…" never reflow the header (UI density audit M3). */
+  .erp-grid__status { flex: 0 1 240px; min-width: 0; height: 18px; line-height: 18px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .erp-grid__status.is-error { color: var(--danger); font-weight: 600; }
+  .erp-grid__hd .is-reserved { visibility: hidden; }
   .erp-grid__chips { padding: 6px 14px; border-bottom: 1px solid var(--line-2); }
   .erp-grid__error { padding: 8px 14px; background: var(--danger-bg); color: var(--danger); font-size: 13px; }
   .erp-grid__body { overflow: auto; flex-grow: 1; }
@@ -81,7 +83,9 @@
   .erp-row-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-row-link.is-selected td { background: var(--accent); }
   .erp-row-link.is-blocked { opacity: .55; cursor: not-allowed; }
-  .erp-grid__ft { display: flex; align-items: center; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
+  .erp-grid__ft { display: flex; align-items: center; gap: 16px; min-height: 40px; padding: 0 14px; border-top: 1px solid var(--line-2); background: var(--head); font-size: 13px; color: var(--text-muted); flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; }
+  .erp-grid__ft-end { margin-left: auto; display: inline-flex; align-items: center; gap: 16px; }
+  .erp-grid__keys { font-size: 11px; color: var(--text-muted); }
   .erp-grid__ft b { color: var(--text); }
   .erp-grid__selection { display: inline-flex; gap: 12px; }
   .erp-pager { display: inline-flex; align-items: center; gap: 4px; }
@@ -90,7 +94,7 @@
   .erp-pager button:disabled { opacity: .5; cursor: not-allowed; }
   .erp-pager select { height: 26px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 12px; color: var(--text); }
   /* 44 px pager targets on touch screens (rule 24) */
-  @media (pointer: coarse) { .erp-pager button, .erp-pager select { min-width: 44px; height: 44px; } }
+  @media (pointer: coarse) { .erp-pager button, .erp-pager select { min-width: 44px; height: 44px; } .erp-grid__ft { min-height: 52px; } .erp-grid__keys { display: none; } }
 
   /* popovers (columns, saved views) */
   .erp-pop { position: relative; }

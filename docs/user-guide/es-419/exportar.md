@@ -37,7 +37,7 @@ Necesitas el permiso **Exportar grids y reportes** (`kernel.export.run`) y poder
 
 ## Listados grandes
 
-Hasta 9.999 filas el archivo se descarga al instante. Desde **10.000 filas** se genera en segundo plano: verás «Son muchas filas: se genera en segundo plano…» y la descarga empieza sola cuando termina (el enlace dura 10 minutos). Un **PDF** se arma en memoria, así que pasa a segundo plano desde **2.001 filas** y admite hasta **10.000**: para listados más grandes usa Excel o CSV (la pantalla lo avisa). Si pasan 10 minutos sin que termine, la pantalla deja de esperar y te lo dice; el archivo sigue generándose. Puedes seguir trabajando; si cierras la pestaña antes de que termine, el archivo se genera igual pero tendrás que exportar de nuevo para descargarlo. Si algo falla, la pantalla lo dice y puedes intentarlo otra vez.
+Hasta 9.999 filas el archivo se descarga al instante. Desde **10.000 filas** se genera en segundo plano: verás «Son muchas filas: se genera en segundo plano…» y la descarga empieza sola cuando termina (el enlace dura 10 minutos). Un **PDF** se arma en memoria, así que pasa a segundo plano desde **2.001 filas** y admite hasta **10.000**: para listados más grandes usa Excel o CSV (la pantalla lo avisa). Si pasan 10 minutos sin que termine, la pantalla deja de esperar y te lo dice; el archivo sigue generándose. Puedes seguir trabajando; si cierras la pestaña antes de que termine, el archivo se genera igual pero tendrás que exportar de nuevo para descargarlo. Si algo falla, la pantalla lo dice y puedes intentarlo otra vez. Cuando la descarga empieza, el aviso «Descarga lista: …» se borra solo a los 8 segundos.
 
 ## Auditoría
 

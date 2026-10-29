@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
 import { AdvancedFilter } from "./AdvancedFilter";
@@ -11,7 +11,7 @@ import { gridFetcher } from "./fetch-grid";
 import { FilterRow } from "./FilterRow";
 import { GridCell, isNumeric } from "./GridCell";
 import { GridFooter } from "./GridFooter";
-import { initialView, moneyColumns, selectionTotals, shownColumns, stateFilters } from "./grid-model";
+import { initialView, moneyColumns, pageCount, selectionTotals, shownColumns, stateFilters } from "./grid-model";
 import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } from "./saved-views";
 import { SavedViewsMenu } from "./SavedViewsMenu";
 import { useGrid } from "./use-grid";
@@ -32,12 +32,18 @@ function failureText(t: ReturnType<typeof useTranslations>, status: { code: stri
   return t.has(`errors.${status.code}`) ? t(`errors.${status.code}`) : t("errors.unknown");
 }
 
-/** How the running export is going, for screen readers and eyes alike (role="status"). */
-function ExportStatusText({ status }: { status: ReturnType<typeof useGridExport>["status"] }) {
+/**
+ * One fixed slot for what the grid is doing (an export, a refetch), for screen readers and eyes alike (role="status").
+ * Always rendered, empty when idle, so the header never reflows (UI density audit M3).
+ */
+function GridStatusText({ status, refreshing }: { status: ReturnType<typeof useGridExport>["status"]; refreshing: boolean }) {
   const t = useTranslations();
-  if (status.phase === "idle") return null;
   const text =
-    status.phase === "working"
+    status.phase === "idle"
+      ? refreshing
+        ? t("grid.refreshing")
+        : ""
+      : status.phase === "working"
       ? t("grid.export.working", { format: t(`grid.export.${FORMAT_LABEL[status.format]}`) })
       : status.phase === "job"
         ? t("grid.export.job")
@@ -45,7 +51,7 @@ function ExportStatusText({ status }: { status: ReturnType<typeof useGridExport>
           ? t("grid.export.ready", { file: status.fileName })
           : t("grid.export.failed", { reason: failureText(t, status) });
   return (
-    <span role="status" className={status.phase === "failed" ? "erp-small erp-export-status is-error" : "erp-small erp-muted erp-export-status"}>
+    <span role="status" title={text || undefined} className={status.phase === "failed" ? "erp-small erp-grid__status is-error" : "erp-small erp-muted erp-grid__status"}>
       {text}
     </span>
   );
@@ -105,12 +111,24 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const firstLoad = data.loading && !data.page;
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Roving tabindex (WAI-ARIA grid rows): one row is the grid's single tab stop and the arrow keys move it.
+  const [activeRow, setActiveRow] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const refocusRows = useRef(false);
   const [rowsSeen, setRowsSeen] = useState(rows);
   if (rowsSeen !== rows) {
-    // A new page of rows starts with nothing selected.
+    // A new page of rows starts with nothing selected, on its first row.
     setRowsSeen(rows);
     setSelected(new Set());
+    setActiveRow(0);
   }
+  // PgDn / PgUp: the caret follows onto the new page's first row.
+  useEffect(() => {
+    if (!refocusRows.current || rows.length === 0) return;
+    refocusRows.current = false;
+    bodyRef.current?.querySelector<HTMLTableRowElement>("tr[data-row]")?.focus();
+  }, [rows]);
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const toggleRow = (id: string) =>
     setSelected((s) => {
@@ -119,6 +137,43 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       else next.add(id);
       return next;
     });
+
+  const firstFilter = () => sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)");
+  const focusRow = (index: number) => {
+    const next = Math.max(0, Math.min(rows.length - 1, index));
+    setActiveRow(next);
+    bodyRef.current?.querySelectorAll<HTMLTableRowElement>("tr[data-row]")[next]?.focus();
+  };
+  const pages = pageCount(total, view.pageSize);
+  const turnPage = (page: number) => {
+    refocusRows.current = true;
+    grid.setPage(page);
+  };
+  const onRowKey = (event: KeyboardEvent<HTMLTableRowElement>, index: number, row: GridRow) => {
+    if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey) return;
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => focusRow(index + 1),
+      ArrowUp: () => (index === 0 ? firstFilter()?.focus() : focusRow(index - 1)),
+      Home: () => focusRow(0),
+      End: () => focusRow(rows.length - 1),
+      PageDown: () => view.page < pages && turnPage(view.page + 1),
+      PageUp: () => view.page > 1 && turnPage(view.page - 1),
+      " ": () => toggleRow(row.id),
+      Enter: () => onRowOpen?.(row),
+    };
+    const run = keys[event.key];
+    if (!run) return;
+    event.preventDefault();
+    run();
+  };
+  // "/" anywhere in the grid (outside a text box) goes to the first filter, as in mail and issue trackers.
+  const onGridKey = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    if ((event.target as HTMLElement).closest("input, select, textarea, [contenteditable]")) return;
+    event.preventDefault();
+    firstFilter()?.focus();
+  };
+  const tabRow = Math.min(activeRow, Math.max(rows.length - 1, 0));
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const filterFields = columns.filter((c) => c.mode !== "hidden");
@@ -150,7 +205,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           : t("grid.load_failed");
 
   return (
-    <section className="erp-grid" aria-label={title} aria-busy={data.loading}>
+    <section ref={sectionRef} className="erp-grid" aria-label={title} aria-busy={data.loading} onKeyDown={onGridKey}>
       <div className="erp-grid__hd">
         <h2>{title}</h2>
         <span className="erp-small erp-muted">
@@ -180,12 +235,18 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
         </button>
         <ExportButtons onExport={(format) => (onExport ? onExport(format, exportState()) : void exporter.run(format, exportState()))} busy={exporter.busy} />
-        <ExportStatusText status={exporter.status} />
-        {dirty && (
-          <button type="button" className="erp-btn erp-btn--ghost" onClick={grid.clear}>
-            {t("grid.clear_filters")}
-          </button>
-        )}
+        <GridStatusText status={exporter.status} refreshing={data.loading && data.page !== null} />
+        {/* Always laid out; hidden (not removed) while there is nothing to clear, so nothing to its left moves. */}
+        <button
+          type="button"
+          className={dirty ? "erp-btn erp-btn--ghost erp-grid__clear" : "erp-btn erp-btn--ghost erp-grid__clear is-reserved"}
+          onClick={grid.clear}
+          disabled={!dirty}
+          aria-hidden={dirty ? undefined : true}
+          tabIndex={dirty ? undefined : -1}
+        >
+          {t("grid.clear_filters")}
+        </button>
       </div>
       {view.conditions.length > 0 && (
         <div className="erp-grid__chips">
@@ -242,19 +303,21 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
             </tr>
             <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable />
           </thead>
-          <tbody>
-            {rows.map((row) => (
+          <tbody ref={bodyRef}>
+            {rows.map((row, index) => (
               <tr
                 key={row.id}
+                data-row=""
                 className={selected.has(row.id) ? "erp-row-link is-selected" : "erp-row-link"}
-                tabIndex={onRowOpen ? 0 : undefined}
+                tabIndex={index === tabRow ? 0 : -1}
+                aria-selected={selected.has(row.id)}
+                onFocus={(e) => e.target === e.currentTarget && setActiveRow(index)}
                 onClick={() => onRowOpen?.(row)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.target === e.currentTarget) onRowOpen?.(row);
-                }}
+                onKeyDown={(e) => onRowKey(e, index, row)}
               >
                 <td className="erp-grid__check" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
+                  {/* Out of the tab order: Space on the row selects it (one tab stop for the whole body). */}
+                  <input type="checkbox" tabIndex={-1} aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
                 </td>
                 {shown.map((column) => (
                   <GridCell key={column.field} column={column} row={row} />
@@ -288,6 +351,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         total={total}
         loading={firstLoad}
         onPage={grid.setPage}
+        keysHint={rows.length > 0}
         onPageSize={grid.setPageSize}
         sums={sums}
         selection={{ count: [...selected].filter((id) => rows.some((r) => r.id === id)).length, totals: selectionTotals(rows, selected, shown) }}

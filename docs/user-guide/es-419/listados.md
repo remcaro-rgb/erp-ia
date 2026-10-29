@@ -18,13 +18,25 @@ Terceros, Productos, Categorías y Soporte son **listados** que funcionan igual.
 ## Qué ves
 
 - El **título** del listado y, a su lado, cuántos registros hay con los filtros actuales («124 registros»). Mientras llega la primera página dice «Cargando…» y la tabla muestra filas grises de espera. Si tu rol tiene columnas ocultas o enmascaradas, también lo dice («2 ocultas, 1 enmascarada»).
-- Una **barra de botones**: **Nuevo** y **Importar** (si tu rol puede crear e importar), **Columnas**, **Guardar vista**, **Filtro avanzado**, los botones de exportar **PDF**, **Excel** y **CSV**, y **Limpiar filtros** cuando hay algo aplicado.
+- Una **barra de botones**: **Nuevo** y **Importar** (si tu rol puede crear e importar), **Columnas**, **Guardar vista**, **Filtro avanzado**, los botones de exportar **PDF**, **Excel** y **CSV**, y **Limpiar filtros**, que solo se activa cuando hay algo aplicado. Junto a los botones, un espacio fijo dice qué está haciendo el listado («Actualizando…», «Generando CSV…», «Descarga lista: …»); el aviso de descarga lista se borra solo a los 8 segundos. Nada de esto mueve la tabla.
 - La **tabla**: una fila por registro, con los encabezados que ordenan y, debajo de ellos, una fila de cajas para filtrar cada columna.
 - El **pie**: las filas que estás viendo, las páginas y los totales.
 
 Los importes se muestran como `$ 1.234.567,00`, alineados a la derecha. Un valor **enmascarado** para tu rol se ve como ••••••.
 
 Haz clic en una fila (o enfócala y pulsa Enter) para abrir el registro en su propia pestaña.
+
+## Usar el listado con el teclado
+
+Las filas son **una sola parada** de **Tab**: desde la fila de filtros, **Tab** te lleva a la fila activa y el siguiente **Tab** sale de la tabla hacia el pie. Dentro de las filas:
+
+- **↑ ↓** se mueven de fila en fila; **↑** en la primera fila vuelve a los filtros.
+- **Inicio** y **Fin** van a la primera y a la última fila de la página; **Re Pág** y **Av Pág** cambian de página.
+- **Espacio** selecciona o quita la selección de la fila (como su casilla).
+- **Enter** abre el registro.
+- **/** (desde cualquier parte del listado que no sea una caja de texto) pone el cursor en el primer filtro.
+
+El pie lo recuerda: «↑↓ moverse · Espacio seleccionar · Enter abrir · / filtrar».
 
 ## Ordenar
 

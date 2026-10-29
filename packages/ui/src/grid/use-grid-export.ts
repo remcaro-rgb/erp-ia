@@ -12,6 +12,9 @@ export type ExportStatus =
   | { phase: "ready"; fileName: string }
   | { phase: "failed"; code: string; detail?: string };
 
+/** How long "Descarga lista: …" stays in the grid header. */
+export const READY_CLEARS_MS = 8_000;
+
 /** Saves the exported file: an inline file through an object URL, a job's file through its signed link. */
 export function browserDownload(result: ExportResult): void {
   const link = document.createElement("a");
@@ -41,6 +44,12 @@ export function useGridExport({ entity, title, endpoint, fetcher, pollMs, maxWai
   const [status, setStatus] = useState<ExportStatus>({ phase: "idle" });
   const running = useRef<AbortController | null>(null);
   useEffect(() => () => running.current?.abort(), []);
+  // "Descarga lista" is news, not a state: it clears after 8 s (UI density audit L10).
+  useEffect(() => {
+    if (status.phase !== "ready") return;
+    const timer = setTimeout(() => setStatus((current) => (current === status ? { phase: "idle" } : current)), READY_CLEARS_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   const run = useCallback(
     async (format: ExportFormat, state: GridStateInput) => {

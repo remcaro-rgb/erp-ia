@@ -17,10 +17,12 @@ export interface GridFooterProps {
   sums?: { column: GridColumn; sum: unknown }[];
   /** Selected rows and their money totals. */
   selection?: { count: number; totals: { column: GridColumn; sum: number }[] };
+  /** Shows the keyboard hint of the rows (↑↓ · Espacio · Enter · /). */
+  keysHint?: boolean;
 }
 
 /** The grid footer (prototype `.grid-ft`): rows shown, the pager with 10 / 25 / 50 / 100 per page, and the money totals. */
-export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, sums = [], selection }: GridFooterProps) {
+export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, sums = [], selection, keysHint = false }: GridFooterProps) {
   const t = useTranslations();
   const pages = pageCount(total, pageSize);
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -54,21 +56,32 @@ export function GridFooter({ page, pageSize, total, loading = false, onPage, onP
           ))}
         </select>
       </nav>
-      {sums.map(({ column, sum }) => (
-        <span key={column.field} className="erp-num">
-          {t("grid.sum_filtered", { label: column.label.toLowerCase(), amount: formatMoney(sum as number | string) || formatMoney(0) })}
+      {/* One line: the totals, the selection and the key hint sit in a right-aligned group that never wraps (the footer
+          scrolls sideways if it must), so ticking a row never shrinks the body. */}
+      <span className="erp-grid__ft-end">
+        {sums.map(({ column, sum }) => (
+          <span key={column.field} className="erp-num">
+            {t("grid.sum_filtered", { label: column.label.toLowerCase(), amount: formatMoney(sum as number | string) || formatMoney(0) })}
+          </span>
+        ))}
+        <span className="erp-grid__selection" aria-live="polite">
+          {selection && selection.count > 0 && (
+            <>
+              <b>{t("grid.selected", { count: selection.count })}</b>
+              {selection.totals.map(({ column, sum }) => (
+                <span key={column.field} className="erp-num">
+                  {t("grid.selection_sum", { label: column.label, amount: formatMoney(sum) })}
+                </span>
+              ))}
+            </>
+          )}
         </span>
-      ))}
-      {selection && selection.count > 0 && (
-        <span className="erp-grid__selection">
-          <b>{t("grid.selected", { count: selection.count })}</b>
-          {selection.totals.map(({ column, sum }) => (
-            <span key={column.field} className="erp-num">
-              {t("grid.selection_sum", { label: column.label, amount: formatMoney(sum) })}
-            </span>
-          ))}
-        </span>
-      )}
+        {keysHint && (
+          <span className="erp-grid__keys" aria-hidden="true">
+            {t("grid.keys_hint")}
+          </span>
+        )}
+      </span>
     </div>
   );
 }

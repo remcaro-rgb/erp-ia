@@ -161,6 +161,38 @@ test.describe("universal grid", () => {
     await expect(page).toHaveURL(/\/parties$/);
   });
 
+  test("works from the keyboard: one tab stop for the rows, arrows, Space selects, Enter opens, / goes to the filters", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto("/parties");
+    const terceros = grid(page, "Terceros");
+    await expect(bodyRows(page)).toHaveCount(10);
+    // Only one row is in the tab order and no row checkbox is.
+    await expect(page.locator(".erp-grid__body tbody tr[tabindex='0']")).toHaveCount(1);
+    await expect(page.locator(".erp-grid__body tbody input[type=checkbox][tabindex='-1']")).toHaveCount(10);
+    // Tab from the last filter lands on the rows.
+    await terceros.getByRole("row", { name: "Filtros" }).locator("input:not([disabled]), select").last().focus();
+    await page.keyboard.press("Tab");
+    await expect(bodyRows(page).first()).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(bodyRows(page).nth(1)).toBeFocused();
+    await page.keyboard.press("End");
+    await expect(bodyRows(page).nth(9)).toBeFocused();
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Space");
+    await expect(bodyRows(page).first()).toHaveAttribute("aria-selected", "true");
+    await expect(terceros.getByText("1 seleccionada")).toBeVisible();
+    // "/" goes to the first filter; typing there filters on the server.
+    await page.keyboard.press("/");
+    await expect(terceros.getByRole("row", { name: "Filtros" }).locator("input:not([disabled]), select").first()).toBeFocused();
+    await terceros.getByLabel("Filtrar Razón social").fill("norte");
+    await expect(bodyRows(page)).toHaveCount(1);
+    await terceros.getByLabel("Filtrar Razón social").press("Tab");
+    // From the filters, Tab reaches the row; Enter opens the record.
+    await bodyRows(page).first().focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`/r/core\\.party/${norteId}$`));
+  });
+
   test("exports what the grid shows to CSV, Excel and PDF, all pages and only the filtered rows", async ({ page }) => {
     await signIn(page, fixture);
     await page.goto("/parties");

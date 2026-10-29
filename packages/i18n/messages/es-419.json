@@ -1329,7 +1329,9 @@
       "not_entitled": "Tu empresa no tiene habilitado este listado.",
       "forbidden": "Tu rol no puede consultar este listado.",
       "not_found": "Este listado no existe."
-    }
+    },
+    "refreshing": "Actualizando…",
+    "keys_hint": "↑↓ moverse · Espacio seleccionar · Enter abrir · / filtrar"
   },
   "home": {
     "greeting": {

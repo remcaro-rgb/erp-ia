@@ -1329,7 +1329,9 @@
       "not_entitled": "Your company does not have this list enabled.",
       "forbidden": "Your role may not consult this list.",
       "not_found": "This list does not exist."
-    }
+    },
+    "refreshing": "Updating…",
+    "keys_hint": "↑↓ move · Space select · Enter open · / filter"
   },
   "home": {
     "greeting": {
