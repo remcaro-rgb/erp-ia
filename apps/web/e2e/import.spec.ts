@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
 
 // Mass import in a real browser (design §9, prototype "Importar"): Terceros › Importar, a CSV with Spanish headers

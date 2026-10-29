@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
 // The universal grid in a real browser (design §9, rules 14, 20, 21, prototype gridHtml / advOpen / lookupHtml): the
@@ -151,7 +152,7 @@ test.describe("universal grid", () => {
     await expect(tabs.getByRole("button", { name: "Café del Norte S.A.S.", exact: true })).toHaveAttribute("aria-current", "page");
     await expect(tabs.getByRole("button", { name: "Terceros", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Identificación" })).toBeVisible();
-    await expect(page.getByLabel("DV", { exact: true })).toHaveValue("3");
+    await expect(page.getByLabel("DV", { exact: true }).filter({ visible: true })).toHaveValue("3");
     await expect(page.getByLabel(/^Correo para enviar documentos al proveedor/)).toHaveValue("compras@empresa.co");
     await expect(page.getByText("Datos completos para facturación electrónica")).toBeVisible();
     await page.screenshot({ path: `${SCREENSHOTS}/record-party.png`, fullPage: true });
@@ -365,7 +366,7 @@ test.describe("universal grid", () => {
     await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
     await expect(page.getByRole("heading", { name: "Crear tercero" })).toBeVisible();
     await page.getByLabel(/^Número/).fill("860002964");
-    await expect(page.getByLabel("DV", { exact: true })).toHaveValue("4");
+    await expect(page.getByLabel("DV", { exact: true }).filter({ visible: true })).toHaveValue("4");
     await page.getByLabel(/^Razón social/).fill("Distribuidora Andina S.A.S.");
     await page.getByLabel(/^Correo de recepción de facturas de venta/).fill("fe@andina.co");
     await page.getByRole("button", { name: "Crear", exact: true }).click();

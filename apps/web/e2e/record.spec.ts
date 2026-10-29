@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import postgres from "postgres";
 import { DEMO_COMPANY_ID, LAURA } from "../../../scripts/demo/accounts";
 import { seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
@@ -187,7 +188,7 @@ test.describe("record tabs", () => {
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await expect(page.getByText("AdditionalAccountID")).toHaveCount(0);
     // The check digit is readable (read-only, not disabled) and copyable.
-    const dv = page.getByLabel("DV", { exact: true });
+    const dv = page.getByLabel("DV", { exact: true }).filter({ visible: true });
     // The page streams in: until the server's hidden copy of the form is swapped out there can be two.
     await expect(dv).toHaveCount(1);
     await expect(dv).toHaveValue("3");

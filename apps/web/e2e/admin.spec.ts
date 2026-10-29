@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import postgres from "postgres";
 import { DEMO_COMPANY_ID, LAURA, MARCELA } from "../../../scripts/demo/accounts";
 import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";

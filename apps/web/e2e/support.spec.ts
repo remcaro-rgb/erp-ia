@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import type { Browser, Page } from "@playwright/test";
+import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
 // Support tickets in a real browser (design §8): a reporter files a ticket from ⌘K and the context of the screen they
