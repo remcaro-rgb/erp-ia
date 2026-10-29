@@ -154,6 +154,20 @@ export function userTextOf(messages: readonly Pick<UIMessage, "role" | "parts">[
 
 // ---- error codes ----
 
+/**
+ * Whether `response` is the refusal of a session whose membership in its active company the admin deactivated (design
+ * §22.16): 403 `forbidden` with `details.reason` membership_inactive, from an assistant route or a process run. The body
+ * is read from a clone, so the caller can still read the response.
+ */
+export async function isMembershipInactiveResponse(response: Response): Promise<boolean> {
+  if (response.status !== 403) return false;
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { code?: unknown; details?: { reason?: unknown } | null } | null;
+  return body?.code === "forbidden" && typeof body.details === "object" && body.details !== null && body.details.reason === "membership_inactive";
+}
+
 /** The catalogue key for what went wrong with a request, from the body of a refused response or an exception. */
 export function errorKeyOf(error: unknown): string {
   const message = error instanceof Error ? error.message : "";

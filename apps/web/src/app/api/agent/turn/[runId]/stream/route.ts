@@ -1,7 +1,7 @@
 import { agentStreamResponse, ownsRun } from "@erp/agent";
 import { getRun } from "workflow/api";
 import { z } from "zod";
-import { callerOrResponse } from "@/lib/auth/http";
+import { activeCallerOrResponse } from "@/lib/auth/http";
 import { processFailure, processProblem } from "@/lib/server/process-response";
 import { processDeps } from "@/lib/server/runtime";
 
@@ -10,13 +10,14 @@ import { processDeps } from "@/lib/server/runtime";
 // response, a function timeout). As the session's user, and only for a run that is a turn of the named conversation,
 // which must be theirs in the active company (404 otherwise). `startIndex` counts the UI message chunks the client
 // already holds: the run's durable stream is replayed from its start and converted, and that many chunks are skipped
-// (raw model parts and UI chunks are not one to one). Negative (tail-relative) indexes are not offered.
+// (raw model parts and UI chunks are not one to one). Negative (tail-relative) indexes are not offered. An inactive
+// membership (design §22.16) is refused first (403 `forbidden`, `details.reason` membership_inactive).
 
 const RunId = z.string().regex(/^wrun_[0-9A-Za-z]{1,64}$/);
 const StartIndex = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 export async function GET(request: Request, { params }: { params: Promise<{ runId: string }> }): Promise<Response> {
-  const caller = await callerOrResponse();
+  const caller = await activeCallerOrResponse();
   if (caller instanceof Response) return caller;
 
   const runId = RunId.safeParse((await params).runId);

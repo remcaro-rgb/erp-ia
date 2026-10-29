@@ -254,4 +254,41 @@ describe("useAssistant", () => {
     await waitFor(() => expect(s.turns()).toHaveLength(2));
     expect(s.turns()[1]).not.toHaveProperty("conversationId");
   });
+
+  describe("an inactive membership (design §22.16)", () => {
+    const inactive = () => json({ code: "forbidden", details: { reason: "membership_inactive" } }, 403);
+
+    it("a refused history load follows the disabled path once, without saying the history failed", async () => {
+      const onDisabled = vi.fn();
+      const s = server({ history: inactive });
+      const { result } = setup({ fetcher: s.fetcher, onDisabled });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      expect(onDisabled).toHaveBeenCalledTimes(1);
+      expect(onDisabled).toHaveBeenCalledWith("/api/auth/disabled");
+      expect(result.current.errorKey).toBeNull();
+    });
+
+    it("a refused turn and a refused card follow the disabled path, once in all", async () => {
+      const onDisabled = vi.fn();
+      const s = server({ turn: inactive, confirm: inactive });
+      const { result } = setup({ fetcher: s.fetcher, onDisabled });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      await act(async () => void result.current.send("hola"));
+      await waitFor(() => expect(onDisabled).toHaveBeenCalledTimes(1));
+      expect(onDisabled).toHaveBeenCalledWith("/api/auth/disabled");
+      await act(async () => void (await result.current.decide(CARD, "confirm")));
+      expect(onDisabled).toHaveBeenCalledTimes(1);
+      expect(result.current.cards[CARD]).toEqual({ status: "pending" });
+    });
+
+    it("any other 403 is an ordinary refusal", async () => {
+      const onDisabled = vi.fn();
+      const s = server({ turn: () => json({ code: "forbidden", details: null }, 403) });
+      const { result } = setup({ fetcher: s.fetcher, onDisabled });
+      await waitFor(() => expect(result.current.ready).toBe(true));
+      await act(async () => void result.current.send("hola"));
+      await waitFor(() => expect(result.current.errorKey).toBe("errors.forbidden"));
+      expect(onDisabled).not.toHaveBeenCalled();
+    });
+  });
 });

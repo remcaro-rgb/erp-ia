@@ -6,6 +6,7 @@ import { messages } from "@erp/i18n";
 import { checkTokenBudget } from "../runtime/limits";
 import { setAgentModelFactory } from "../runtime/policy-model";
 import { toUIMessageStream } from "../runtime/stream";
+import { prepare } from "../runtime/turn.steps";
 import { agentTurn } from "../runtime/turn.workflow";
 import { agentHarness, exito, type AgentHarness } from "./harness";
 import { scriptedModel, systemOf, type ScriptedModel } from "./mock-model";
@@ -160,6 +161,28 @@ describe("agentTurn", () => {
     await run.returnValue;
     expect(mock.calls).toHaveLength(0);
     expect((await h.sql`select count(*)::int as n from kernel.agent_messages where conversation_id = ${conversationId}`)[0]!.n).toBe(0);
+  });
+
+  it("a caller whose membership is inactive reaches no model and stores nothing, whichever channel started the turn", async () => {
+    use([{ text: "no debería responder" }]);
+    const conversationId = await h.conversation(h.cashier);
+    const userId = h.cashier.claims.sub;
+    await h.sql`update kernel.memberships set is_active = false where user_id = ${userId} and company_id = ${h.companyId}`;
+    try {
+      // The step itself refuses before any write (defence in depth behind the routes' own check).
+      expect(await prepare({ conversationId, caller: h.cashier, userText: "hola" }, "wrun_01PREPAREINACTIVE")).toEqual({ kind: "membership_inactive" });
+      // A whole turn, as any channel would start it: the stream closes empty.
+      const run = await start(agentTurn, [{ conversationId, caller: h.cashier, userText: "¿cuántos clientes hay?" }]);
+      await run.returnValue;
+      expect(textOf(await uiChunks(run))).toBe("");
+      expect(mock.calls).toHaveLength(0);
+      expect((await h.sql`select count(*)::int as n from kernel.agent_messages where conversation_id = ${conversationId}`)[0]!.n).toBe(0);
+      expect((await h.sql`select count(*)::int as n from kernel.llm_usage where company_id = ${h.companyId} and user_id = ${userId}`)[0]!.n).toBe(0);
+    } finally {
+      await h.sql`update kernel.memberships set is_active = true where user_id = ${userId} and company_id = ${h.companyId}`;
+    }
+    // Reactivated, the same conversation works again.
+    expect((await prepare({ conversationId, caller: h.cashier, userText: "hola" }, "wrun_01PREPAREACTIVE")).kind).toBe("ready");
   });
 
   it("checkTokenBudget counts this calendar month's tokens in the company's time zone", async () => {

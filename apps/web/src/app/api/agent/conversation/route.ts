@@ -1,6 +1,6 @@
 import { loadConversationView } from "@erp/agent";
 import { z } from "zod";
-import { callerOrResponse } from "@/lib/auth/http";
+import { activeCallerOrResponse } from "@/lib/auth/http";
 import { processFailure, processProblem } from "@/lib/server/process-response";
 import { processDeps } from "@/lib/server/runtime";
 
@@ -9,11 +9,12 @@ import { processDeps } from "@/lib/server/runtime";
 // own conversation in the active company (the one named, else their latest) as UI messages, with the state of every
 // confirmation card (pending ones stay confirmable by card id; the card tokens never leave the server). A user with no
 // conversation yet gets `{ conversationId: null, messages: [], cards: {} }`; a conversation that is not theirs is a 404.
+// An inactive membership (design §22.16) is refused first: 403 `forbidden`, `details.reason` membership_inactive.
 
 const Query = z.object({ id: z.uuid().optional() });
 
 export async function GET(request: Request): Promise<Response> {
-  const caller = await callerOrResponse();
+  const caller = await activeCallerOrResponse();
   if (caller instanceof Response) return caller;
   const parsed = Query.safeParse({ id: new URL(request.url).searchParams.get("id") ?? undefined });
   if (!parsed.success) return Response.json({ code: "invalid_input", details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) }, { status: 400 });
