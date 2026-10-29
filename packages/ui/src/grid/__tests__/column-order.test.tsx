@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderEs } from "../../shell/__tests__/intl";
 import { DataGrid } from "../DataGrid";
 import { initialView, moveColumn, setColumnShown, stepColumn } from "../grid-model";
@@ -35,7 +35,10 @@ const columns: GridColumn[] = [
   col("secret", "Secreto", { mode: "hidden" }),
 ];
 
-const rows: GridRow[] = [{ id: "a", seq: "1", legal_name: "Almacenes Éxito S.A.", document_number: "890900608", municipality_code: "11001", credit_limit: "5000000" }];
+const rows: GridRow[] = [
+  { id: "a", seq: "1", legal_name: "Almacenes Éxito S.A.", document_number: "890900608", municipality_code: "11001", credit_limit: "5000000" },
+  { id: "b", seq: "2", legal_name: "Café del Norte S.A.S.", document_number: "900373115", municipality_code: "05001", credit_limit: "1000000" },
+];
 
 const setup = (props: Partial<Parameters<typeof DataGrid>[0]> = {}) => {
   const fetcher = vi.fn<GridFetcher>(async () => ({ rows, total: 1, aggregates: { "sum:credit_limit": "5000000" } }));
@@ -128,7 +131,7 @@ describe("moveColumn and the column order (grid-model)", () => {
 });
 
 describe("DataGrid movable columns", () => {
-  it("dragging header 3 onto position 1 reorders the headers and the grid request", async () => {
+  it("dragging header 3 onto position 1 reorders the headers; the next grid request carries the order", async () => {
     const { fetcher } = setup();
     await screen.findByText("Almacenes Éxito S.A.");
     expect(headers()).toEqual(["Razón social", "N.º", "Número", "Municipio", "Cupo"]);
@@ -145,9 +148,33 @@ describe("DataGrid movable columns", () => {
     fireEvent.dragEnd(source, { dataTransfer });
     expect(headers()).toEqual(["Razón social", "Municipio", "N.º", "Número", "Cupo"]);
     expect(header("N.º").className).not.toMatch(/is-drop/);
-    await waitFor(() => expect(lastState(fetcher).columns).toEqual(["legal_name", "municipality_code", "seq", "document_number", "credit_limit"]));
     // Announced through the grid's status row.
-    expect(screen.getByRole("status").textContent).toBe("Columna Municipio movida a la posición 2");
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Columna Municipio movida a la posición 2"));
+    // The same rows in another order: nothing to ask the server for; the next request carries the new order.
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Filtrar Razón social"), { target: { value: "éxito" } });
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    expect(lastState(fetcher).columns).toEqual(["legal_name", "municipality_code", "seq", "document_number", "credit_limit"]);
+  });
+
+  it("moving a column keeps the rows, the selection and the active row, and fetches nothing", async () => {
+    const { fetcher } = setup();
+    await screen.findByText("Café del Norte S.A.S.");
+    const second = screen.getByText("Café del Norte S.A.S.").closest("tr")!;
+    fireEvent.click(within(second).getByRole("checkbox", { name: "Seleccionar fila" }));
+    act(() => second.focus());
+    expect(second.tabIndex).toBe(0);
+    expect(screen.getByText("1 seleccionada")).toBeTruthy();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Ordenar por Cupo" }), { key: "ArrowLeft", altKey: true });
+    // Auto-repeat: each press moves from where the last one left it, and the status says where it is now.
+    fireEvent.keyDown(screen.getByRole("button", { name: "Ordenar por Cupo" }), { key: "ArrowLeft", altKey: true });
+    expect(headers()).toEqual(["Razón social", "N.º", "Cupo", "Número", "Municipio"]);
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Columna Cupo movida a la posición 3"));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("1 seleccionada")).toBeTruthy();
+    const after = screen.getByText("Café del Norte S.A.S.").closest("tr")!;
+    expect(after.getAttribute("aria-selected")).toBe("true");
+    expect(after.tabIndex).toBe(0);
   });
 
   it("the identity column is pinned: it cannot be dragged and a drop on it lands after it", async () => {
@@ -170,7 +197,9 @@ describe("DataGrid movable columns", () => {
     expect(headers()).toEqual(["Razón social", "Número", "N.º", "Municipio", "Cupo"]);
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Ordenar por N.º" })));
     expect(screen.getByRole("status").textContent).toBe("Columna N.º movida a la posición 3");
-    await waitFor(() => expect(lastState(fetcher).columns).toEqual(["legal_name", "document_number", "seq", "municipality_code", "credit_limit"]));
+    // The keys name the shortcut on what has the caret.
+    expect(screen.getByRole("button", { name: "Ordenar por N.º" }).getAttribute("aria-keyshortcuts")).toBe("Alt+ArrowLeft Alt+ArrowRight");
+    expect(fetcher).toHaveBeenCalledTimes(1);
     fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft", altKey: true });
     fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft", altKey: true });
     // The second Alt+← would go before the identity column: it stays at position 2.

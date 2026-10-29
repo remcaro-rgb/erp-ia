@@ -94,12 +94,17 @@
   .erp-grid th.is-dragging { opacity: .5; }
   .erp-grid th.is-drop-before { box-shadow: inset 2px 0 0 var(--primary); }
   .erp-grid th.is-drop-after { box-shadow: inset -2px 0 0 var(--primary); }
+  /* A drop on the pinned identity header lands after it: its bar sits inside the pinned edge, which stays drawn. */
+  .erp-grid th.is-pinned-edge.is-drop-after { box-shadow: inset -2px 0 0 var(--primary), 1px 0 0 var(--line-2); }
+  .erp-grid__body[data-scrolled-x] th.is-pinned-edge.is-drop-after { box-shadow: inset -2px 0 0 var(--primary), 1px 0 0 var(--line), 6px 0 6px -3px var(--shadow); }
   .erp-grid__empty { height: 80px !important; text-align: center !important; }
   .erp-grid__skeleton td span { display: block; height: 12px; width: 70%; border-radius: 4px; background: linear-gradient(90deg, var(--line-2) 25%, var(--head) 50%, var(--line-2) 75%); background-size: 200% 100%; animation: erp-skeleton 1.2s ease-in-out infinite; }
   .erp-grid__skeleton:nth-child(even) td span { width: 55%; }
   @keyframes erp-skeleton { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   @media (prefers-reduced-motion: reduce) { .erp-grid__skeleton td span { animation: none; } }
   .erp-row-link { cursor: pointer; }
+  /* Same specificity as `.erp-grid td.is-pinned` (0,2,1) and later in the file: hover and selection tint the pinned
+     cells too. Keep these rules after the pinned ones. */
   .erp-row-link:hover td { background: var(--hover); }
   .erp-row-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-row-link.is-selected td { background: var(--accent); }

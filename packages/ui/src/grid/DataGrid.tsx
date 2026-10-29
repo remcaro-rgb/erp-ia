@@ -31,6 +31,8 @@ const FORMAT_LABEL = { pdf: "pdf", xlsx: "excel", csv: "csv" } as const;
 
 /** How long the grid's status row keeps a notice ("Columna Municipio movida a la posición 3"). */
 const NOTICE_MS = 5000;
+/** A movable header moves one place with these (design §22.12). */
+const MOVE_KEYS = "Alt+ArrowLeft Alt+ArrowRight";
 
 /**
  * One fixed slot for what the grid is doing (an export, a refetch, a column just moved), for screen readers and eyes
@@ -187,36 +189,40 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const pinned = shown[0]?.identity ? shown[0].field : undefined;
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ field: string; side: "before" | "after" } | null>(null);
-  const [notice, setNotice] = useState("");
-  const refocusHeader = useRef<string | null>(null);
+  const [moved, setMoved] = useState<{ field: string; columns: readonly string[] } | null>(null);
+  // The column the last move was about, and whether the caret goes back to its header (a keyboard move).
+  const pendingMove = useRef<{ field: string; focus: boolean } | null>(null);
   useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), NOTICE_MS);
+    if (!moved) return;
+    const timer = setTimeout(() => setMoved(null), NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [notice]);
+  }, [moved]);
+  // The move has been applied: say where the column is now (from the committed order, so every auto-repeated
+  // Alt+→ reads its own result) and give the caret back to its header, which React re-laid.
+  const [columnsSeen, setColumnsSeen] = useState(view.columns);
+  if (columnsSeen !== view.columns) {
+    setColumnsSeen(view.columns);
+    const pending = pendingMove.current;
+    if (pending) setMoved({ field: pending.field, columns: view.columns });
+  }
   useEffect(() => {
-    const field = refocusHeader.current;
-    if (!field) return;
-    refocusHeader.current = null;
-    const th = sectionRef.current?.querySelector<HTMLElement>(`thead th[data-field="${CSS.escape(field)}"]`);
+    const pending = pendingMove.current;
+    pendingMove.current = null;
+    if (!pending?.focus) return;
+    const th = sectionRef.current?.querySelector<HTMLElement>(`thead th[data-field="${CSS.escape(pending.field)}"]`);
     (th?.querySelector<HTMLElement>("button") ?? th)?.focus();
   }, [view.columns]);
-  const move = (field: string, toIndex: number) => {
-    const next = moveColumn(view, field, toIndex, identity);
-    if (next === view) return false;
-    grid.moveColumn(field, toIndex);
-    const column = shown.find((c) => c.field === field);
-    setNotice(t("grid.column_moved", { label: column?.label ?? field, position: next.columns.indexOf(field) + 1 }));
-    return true;
-  };
+  const movedLabel = moved ? (columns.find((c) => c.field === moved.field)?.label ?? moved.field) : "";
+  const notice = moved ? t("grid.column_moved", { label: movedLabel, position: moved.columns.indexOf(moved.field) + 1 }) : "";
   const onHeaderKey = (event: KeyboardEvent<HTMLTableCellElement>, field: string) => {
     if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    // Alt+← is also the browser's Back: never let it through from a header.
     event.preventDefault();
-    const at = view.columns.indexOf(field);
-    if (at < 0) return;
-    refocusHeader.current = field;
-    if (!move(field, at + (event.key === "ArrowLeft" ? -1 : 1))) refocusHeader.current = null;
+    const delta = event.key === "ArrowLeft" ? -1 : 1;
+    if (moveColumn(view, field, view.columns.indexOf(field) + delta, identity) === view) return;
+    pendingMove.current = { field, focus: true };
+    grid.moveColumnBy(field, delta);
   };
   const dropSide = (event: DragEvent<HTMLElement>, field: string): "before" | "after" => {
     if (field === pinned) return "after";
@@ -246,7 +252,10 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       const from = view.columns.indexOf(dragging);
       let to = view.columns.indexOf(field) + (dropSide(event, field) === "after" ? 1 : 0);
       if (from >= 0 && from < to) to -= 1;
-      if (from >= 0 && to >= 0) move(dragging, to);
+      if (from >= 0 && to >= 0 && moveColumn(view, dragging, to, identity) !== view) {
+        pendingMove.current = { field: dragging, focus: false };
+        grid.moveColumn(dragging, to);
+      }
       endDrag();
     },
     onDragEnd: endDrag,
@@ -381,14 +390,21 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                     aria-sort={sort ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
                     draggable={fixed ? undefined : true}
                     aria-grabbed={fixed ? undefined : dragging === column.field}
-                    aria-keyshortcuts={fixed ? undefined : "Alt+ArrowLeft Alt+ArrowRight"}
+                    // The shortcut is named on what takes the caret: the sort button, or the header itself.
+                    aria-keyshortcuts={fixed || canSort ? undefined : MOVE_KEYS}
                     // A header without a sort button still takes the caret, so the keyboard can move it.
                     tabIndex={canSort || fixed ? undefined : 0}
                     onKeyDown={(e) => onHeaderKey(e, column.field)}
                     {...(fixed ? { onDragOver: headerDrag(column.field).onDragOver, onDrop: headerDrag(column.field).onDrop } : headerDrag(column.field))}
                   >
                     {canSort ? (
-                      <button type="button" className="erp-grid__sort" aria-label={t("grid.sort_by", { label: column.label })} onClick={(e) => grid.sortBy(column.field, e.shiftKey)}>
+                      <button
+                        type="button"
+                        className="erp-grid__sort"
+                        aria-label={t("grid.sort_by", { label: column.label })}
+                        aria-keyshortcuts={fixed ? undefined : MOVE_KEYS}
+                        onClick={(e) => grid.sortBy(column.field, e.shiftKey)}
+                      >
                         {column.label}{" "}
                         {sort ? (
                           <span aria-hidden="true">

@@ -47,7 +47,17 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
   }
 
   const state = useMemo(() => toGridState(columns, view, { base: JSON.parse(baseKey) as Filter[] }), [columns, view, baseKey]);
-  const stateKey = JSON.stringify(state);
+  // What the server is asked for, regardless of the column order: moving a column brings the same rows, so it asks
+  // nothing (the rows, the selection and the active row stay). The request itself carries the shown order (rule 20).
+  const fetchKey = JSON.stringify({
+    ...state,
+    columns: [...(state.columns ?? [])].sort(),
+    aggregates: state.aggregates && [...state.aggregates].sort((a, b) => a.field.localeCompare(b.field)),
+  });
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,7 +65,7 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
     debounceNext.current = false;
     const timer = setTimeout(() => {
       setData((d) => ({ ...d, loading: true }));
-      fetcherRef.current(JSON.parse(stateKey) as GridStateInput, controller.signal).then(
+      fetcherRef.current(stateRef.current, controller.signal).then(
         (page) => {
           if (!controller.signal.aborted) setData({ page, loading: false, error: null });
         },
@@ -68,7 +78,7 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
       clearTimeout(timer);
       controller.abort();
     };
-  }, [stateKey, debounceMs]);
+  }, [fetchKey, debounceMs]);
 
   const update = useCallback((change: (v: GridView) => GridView, debounce = false) => {
     debounceNext.current = debounce;
@@ -105,13 +115,13 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
       setPageSize(pageSize: number) {
         update((v) => ({ ...v, pageSize, page: 1 }));
       },
-      /** Replaces the shown columns (in that order); the chooser's other columns keep their places. */
-      setColumns(shown: string[]) {
-        update((v) => initialView(columns, { ...v, columns: shown }));
-      },
-      /** A header dragged or moved with Alt+← / Alt+→ to `toIndex` of the shown columns (design §22.12). */
+      /** A header dropped at `toIndex` of the shown columns (design §22.12). */
       moveColumn(field: string, toIndex: number) {
         update((v) => moveColumn(v, field, toIndex, identityField(columns)));
+      },
+      /** Alt+← / Alt+→ on a header: one place from where it is now (each auto-repeated press from the last one's result). */
+      moveColumnBy(field: string, delta: -1 | 1) {
+        update((v) => moveColumn(v, field, v.columns.indexOf(field) + delta, identityField(columns)));
       },
       /** ↑ / ↓ in the column chooser: one place in its full order. */
       stepColumn(field: string, delta: -1 | 1) {
