@@ -95,7 +95,9 @@ Tu disposición vuelve igual la próxima vez que entres, también desde otro com
 | Definir los impuestos por defecto de un grupo de productos | Categorías de productos |
 | Adjuntar el RUT, una ficha técnica u otro archivo | Archivos adjuntos |
 | Ver los campos que mi empresa agregó a los registros | Datos adicionales |
-| Ordenar, filtrar, guardar vistas o buscar con el filtro avanzado | Listados |
+| Ordenar, filtrar, mover columnas, guardar vistas o buscar con el filtro avanzado | Listados |
+| Crear un registro parecido a otro (Duplicar) o llenar un formulario con el teclado | Moverse por el sistema |
+| Administrar usuarios, permisos, visibilidad de campos o ver la auditoría | Administración de la empresa |
 | Llevarme un listado a PDF, Excel o CSV | Exportar un listado |
 | Cargar muchos registros desde Excel | Importar datos |
 | Reportar un problema o hacer una pregunta | Soporte |
