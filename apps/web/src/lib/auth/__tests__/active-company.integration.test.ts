@@ -60,4 +60,24 @@ describe("setActiveCompany", () => {
       select raw_app_meta_data as metadata from auth.users where id = ${fixture.userId}`;
     expect(metadata.active_company_id).toBe(before.active_company_id);
   });
+
+  it("refuses a company where the membership was deactivated after the token was issued, storing and auditing nothing", async () => {
+    const before = await getCallerClaims();
+    const target = fixture.companyIds.find((id) => id !== before.active_company_id)!;
+    // The token still lists the company: the database decides.
+    expect(before.company_ids).toContain(target);
+    const switches = async () => (await fixture.sql`select 1 from kernel.audit_log where process_id = 'auth.company.switch' and actor_user_id = ${fixture.userId}`).length;
+    const audited = await switches();
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId} and company_id = ${target}`;
+    try {
+      await expect(setActiveCompany(target)).rejects.toMatchObject({ code: "forbidden" });
+      expect((await getCallerClaims()).active_company_id).toBe(before.active_company_id);
+      const [{ metadata }] = await fixture.sql<{ metadata: { active_company_id?: string } }[]>`
+        select raw_app_meta_data as metadata from auth.users where id = ${fixture.userId}`;
+      expect(metadata.active_company_id).toBe(before.active_company_id);
+      expect(await switches()).toBe(audited);
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId} and company_id = ${target}`;
+    }
+  });
 });

@@ -3,7 +3,8 @@ import { getServiceDb, membershipInactive, type JwtClaims } from "@erp/kernel";
 import { setRememberCookies, rememberMode, type CookieJar } from "@/lib/supabase/cookies";
 import { createSupabase } from "@/lib/supabase/server";
 import { recordLogin } from "./audit";
-import { mfaStep, readSession } from "./claims";
+import { mfaStep, readSession, type SessionState } from "./claims";
+import { leaveInactiveCompany } from "./inactive";
 import { authFailureOf } from "./errors";
 import { isAcceptableEmail, loginKey, mfaKey, resetAttempts, takeAttempt } from "./limiter";
 
@@ -38,11 +39,17 @@ function failure(error: { status?: number; code?: string } | null, refused: Logi
 }
 
 /**
- * A session whose membership in its company the admin deactivated (kernel.admin.user.update, design §22.16) is not kept:
- * Auth knows nothing of it, so the refusal is ours, at each step that issues a session.
+ * A session must stand in a company where the person's membership is active (kernel.admin.user.update, design §22.16).
+ * The access token hook (0027) already picks an active membership when one exists; should the token name an inactive one,
+ * the session moves to an active company. Only someone with no active membership left is refused, and signed out:
+ * Auth knows nothing of the state, so the refusal is ours, at each step that issues a session.
  */
-async function refuseDisabled(supabase: SupabaseClient, claims: JwtClaims): Promise<{ ok: false; error: LoginError } | null> {
-  if (!(await membershipInactive(getServiceDb(), claims))) return null;
+type ActiveState = SessionState & { claims: JwtClaims };
+
+async function activeSession(supabase: SupabaseClient, state: SessionState, claims: JwtClaims): Promise<{ ok: true; state: ActiveState } | { ok: false; error: LoginError }> {
+  if (!(await membershipInactive(getServiceDb(), claims))) return { ok: true, state: { ...state, claims } };
+  const moved = await leaveInactiveCompany(supabase, claims);
+  if (moved?.claims) return { ok: true, state: { ...moved, claims: moved.claims } };
   await supabase.auth.signOut({ scope: "local" });
   return { ok: false, error: "account_disabled" };
 }
@@ -65,13 +72,13 @@ export async function loginWithPassword(jar: CookieJar, input: { email: string; 
     await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "no_company" };
   }
-  const disabled = await refuseDisabled(supabase, state.claims);
-  if (disabled) return disabled;
+  const active = await activeSession(supabase, state, state.claims);
+  if (!active.ok) return active;
   setRememberCookies(jar, input.remember, email);
-  const step = mfaStep(state);
+  const step = mfaStep(active.state);
   if (step === "verify") return { ok: true, next: "/mfa/verify" };
   if (step === "enroll") return { ok: true, next: "/mfa/enroll" };
-  await recordLogin(state.claims, { remember: input.remember, mfa: "none" });
+  await recordLogin(active.state.claims, { remember: input.remember, mfa: "none" });
   return { ok: true, next: HOME };
 }
 
@@ -94,9 +101,9 @@ async function verifyCode(jar: CookieJar, supabase: SupabaseClient, userId: stri
     await supabase.auth.signOut({ scope: "local" });
     return { ok: false, error: "no_company" };
   }
-  const disabled = await refuseDisabled(supabase, state.claims);
-  if (disabled) return disabled;
-  await recordLogin(state.claims, { remember: rememberMode(jar), mfa: "totp" });
+  const active = await activeSession(supabase, state, state.claims);
+  if (!active.ok) return active;
+  await recordLogin(active.state.claims, { remember: rememberMode(jar), mfa: "totp" });
   return { ok: true, next: HOME };
 }
 

@@ -236,3 +236,42 @@ describe("a member whose membership in the company is inactive (kernel.admin.use
     }
   });
 });
+
+describe("a member deactivated in one of two companies", () => {
+  let fixture: AuthFixture;
+  beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "member", companies: 2 });
+  });
+  afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  it("signs in into the company where the membership is still active, even when the inactive one was the chosen company", async () => {
+    const [first, second] = fixture.companyIds as [string, string];
+    await fixture.admin.auth.admin.updateUserById(fixture.userId, { app_metadata: { active_company_id: first } });
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId} and company_id = ${first}`;
+    try {
+      const jar = new MemoryJar();
+      state.jar = jar;
+      expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+      const claims = await getCallerClaims();
+      expect(claims.active_company_id).toBe(second);
+      // The switcher offers only the company where the person is active.
+      expect(claims.company_ids).toEqual([second]);
+      expect((await loginAudit(fixture)).at(-1)).toMatchObject({ company_id: second });
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId} and company_id = ${first}`;
+    }
+  });
+
+  it("is refused only once no membership is active", async () => {
+    await fixture.sql`update kernel.memberships set is_active = false where user_id = ${fixture.userId}`;
+    try {
+      const jar = new MemoryJar();
+      expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: false, error: "account_disabled" });
+      expect(sessionCookies(jar)).toHaveLength(0);
+    } finally {
+      await fixture.sql`update kernel.memberships set is_active = true where user_id = ${fixture.userId}`;
+    }
+  });
+});

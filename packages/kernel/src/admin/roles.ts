@@ -135,9 +135,18 @@ export async function setUserRoles(ctx: ProcessContext, input: UserRolesChange):
 
   // The admin never takes their own admin role away (they would lock the company out of its administration).
   const [own] = await ctx.tx<{ id: string }[]>`select id from kernel.memberships where company_id = ${ctx.companyId} and user_id = ${ctx.userId}`;
+  const adminRemovals = new Set<string>();
   for (const pair of toRemove) {
-    if (pair.membershipId === own?.id && (await companyRole(ctx, pair.roleId)).isSystemAdmin) {
-      throw invalid("the admin keeps their own admin role", "No puedes quitarte tu propio rol admin");
+    if (!(await companyRole(ctx, pair.roleId)).isSystemAdmin) continue;
+    if (pair.membershipId === own?.id) throw invalid("the admin keeps their own admin role", "No puedes quitarte tu propio rol admin");
+    adminRemovals.add(pair.membershipId);
+  }
+  // And the company keeps an active admin: read under the company lock the deactivation trigger (0027) takes, so a
+  // deactivation running at the same time either finished before (and is counted) or waits and then sees this change.
+  if (adminRemovals.size > 0) {
+    const [locked] = await ctx.tx<{ admins: string[] }[]>`select kernel.lock_active_admins() as admins`;
+    if (!locked!.admins.some((id) => !adminRemovals.has(id))) {
+      throw invalid("the company would be left without an active admin", "La empresa necesita al menos un administrador activo");
     }
   }
   for (const pair of toAdd) {

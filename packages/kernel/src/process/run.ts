@@ -9,7 +9,7 @@ import { enqueueEvent } from "../events/outbox";
 import type { Registry } from "../registry";
 import type { ProcessDef, ProcessKind } from "../registry/types";
 import type { Caller, ProcessContext } from "./context";
-import { MEMBERSHIP_INACTIVE, ProcessError, type ProcessErrorCode } from "./errors";
+import { isMembershipInactive, MEMBERSHIP_INACTIVE, ProcessError, type ProcessErrorCode } from "./errors";
 
 export interface RunProcessDeps {
   sql: Sql;
@@ -105,13 +105,11 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
     return await execute<O>(deps, caller, def, chainId, input, options);
   } catch (error) {
     if (error instanceof ProcessError && DENIALS.has(error.code)) {
-      await withClaims(deps.sql, caller.claims, (tx) =>
-        writeAudit(tx, {
-          ...auditDefaults(def, caller, chainId),
-          action: "denied",
-          input: { code: error.code, process_id: def.id },
-        }),
-      );
+      const denial = { ...auditDefaults(def, caller, chainId), action: "denied" as const, input: { code: error.code, process_id: def.id } };
+      // A deactivated membership's company is no longer in the caller's company_ids (0027), so their own session cannot
+      // write that company's audit: the refusal is recorded on the service connection, still on their name.
+      if (isMembershipInactive(error)) await deps.sql.begin((tx) => writeAudit(tx, denial));
+      else await withClaims(deps.sql, caller.claims, (tx) => writeAudit(tx, denial));
     }
     throw error;
   }

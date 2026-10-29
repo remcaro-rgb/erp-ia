@@ -23,6 +23,13 @@
 --     page's "última actividad".
 --   * The existing system admin roles are granted the new process (0025's helper), as kernel.audit.entry was; a new
 --     company's admin role gets it from kernel.seed_role_defaults (every registered process).
+--   * Deactivation is per company (review of Task 7). The access token hook (0001) prefers an active membership for the
+--     active company and lists only active memberships in company_ids, so a person deactivated in company B keeps
+--     working in A (and the company switcher never offers B). kernel.active_company_ids() answers the same from the
+--     database for a token issued before the change. Only a person with no active membership left is locked out.
+--   * Removing the system admin role (kernel.admin.user_role.set / kernel.admin.user.update) takes the same company lock
+--     as the deactivation trigger through kernel.lock_active_admins(), so the two cannot together leave the company
+--     without an active admin.
 
 -- ---------------------------------------------------------------------------------------------
 -- kernel.membership_roles: the roles of a member, also written by kernel.admin.user.update.
@@ -91,6 +98,138 @@ as $$
 $$;
 revoke execute on function kernel.membership_inactive() from public, anon;
 grant execute on function kernel.membership_inactive() to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- The caller's companies where their membership is active: the companies of the caller's claims (same tenant) that a
+-- token issued before a deactivation may still name. The company switcher offers only these.
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.active_company_ids() returns uuid[]
+language sql stable security definer parallel safe
+set search_path = ''
+as $$
+  select coalesce(
+    array(
+      select m.company_id from kernel.memberships m
+      where m.user_id = kernel.current_user_id()
+        and m.is_active
+        and m.company_id = any (kernel.current_company_ids())
+      order by m.company_id
+    ),
+    '{}'::uuid[]
+  );
+$$;
+revoke execute on function kernel.active_company_ids() from public, anon;
+grant execute on function kernel.active_company_ids() to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- The active memberships that hold the system admin role of the active company, read under the company lock the
+-- deactivation trigger takes (below): an admin process about to remove the admin role from someone calls it first and
+-- refuses when nobody would be left. For the company admin inside a user admin process only.
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.lock_active_admins() returns uuid[]
+language plpgsql volatile security definer
+set search_path = ''
+as $$
+declare
+  v_admins uuid[];
+begin
+  if not (kernel.is_company_admin() and coalesce(current_setting('erp.audit_process_id', true), '') like 'kernel.admin.user%') then
+    raise exception 'only the company admin, inside a user admin process, may lock the company''s admins' using errcode = '42501';
+  end if;
+  perform 1 from kernel.companies c where c.id = kernel.current_company_id() for no key update;
+  -- A statement after the lock: it sees what a deactivation that held the lock before committed.
+  select coalesce(array_agg(distinct m.id order by m.id), '{}'::uuid[]) into v_admins
+  from kernel.memberships m
+  join kernel.membership_roles mr on mr.membership_id = m.id
+  join kernel.roles r on r.id = mr.role_id
+  where m.company_id = kernel.current_company_id() and m.is_active
+    and r.company_id = m.company_id and r.is_system and r.name = 'admin';
+  return v_admins;
+end;
+$$;
+revoke execute on function kernel.lock_active_admins() from public, anon;
+grant execute on function kernel.lock_active_admins() to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------------------------
+-- The access token hook: 0001's body with the membership state. The active company is the requested one when that
+-- membership is active, else the first active membership, else (nobody active: the sign-in refuses) the requested or
+-- first one; company_ids are the active memberships of that company's tenant. Same signature and grants.
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.custom_access_token_hook(event jsonb) returns jsonb
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  uid        uuid := nullif(event ->> 'user_id', '')::uuid;
+  wanted     uuid := nullif(event -> 'claims' -> 'app_metadata' ->> 'active_company_id', '')::uuid;
+  active_id  uuid;
+  tenant     uuid;
+  user_locale text;
+  company_list uuid[];
+  role_list  uuid[];
+  needs_mfa  boolean := false;
+  has_mfa    boolean := false;
+  extra      jsonb;
+begin
+  select u.locale into user_locale from kernel.users u where u.id = uid;
+
+  -- Active company: the requested one if that membership is active, else the first active membership; with none
+  -- active, the requested or the first one (its runs and sign-in are refused as inactive).
+  select m.company_id into active_id
+  from kernel.memberships m
+  where m.user_id = uid
+  order by (m.company_id = wanted and m.is_active) desc, m.is_active desc, (m.company_id = wanted) desc, m.created_at, m.id
+  limit 1;
+
+  if active_id is not null then
+    select c.tenant_id into tenant from kernel.companies c where c.id = active_id;
+
+    select coalesce(array_agg(m.company_id order by m.created_at, m.id), '{}'::uuid[]) into company_list
+    from kernel.memberships m
+    join kernel.companies c on c.id = m.company_id
+    where m.user_id = uid and c.tenant_id = tenant and m.is_active;
+
+    select coalesce(array_agg(distinct mr.role_id), '{}'::uuid[]) into role_list
+    from kernel.memberships m
+    join kernel.membership_roles mr on mr.membership_id = m.id
+    where m.user_id = uid and m.company_id = active_id;
+
+    -- Roles that require two-step verification (phase 1: the system `admin` role). The web proxy reads this
+    -- claim, so the check needs no query per request.
+    select exists (
+      select 1
+      from kernel.memberships m
+      join kernel.membership_roles mr on mr.membership_id = m.id
+      join kernel.roles r on r.id = mr.role_id
+      where m.user_id = uid and m.company_id = active_id and r.is_system and r.name = 'admin'
+    ) into needs_mfa;
+  else
+    company_list := '{}'::uuid[];
+    role_list := '{}'::uuid[];
+  end if;
+
+  -- A verified TOTP factor, from the auth schema (not from the client-held user object), so the proxy can
+  -- demand the second step of a user who enrolled one, whatever their role.
+  select exists (
+    select 1 from auth.mfa_factors f where f.user_id = uid and f.factor_type = 'totp' and f.status = 'verified'
+  ) into has_mfa;
+
+  extra := jsonb_build_object(
+    'company_ids', to_jsonb(company_list),
+    'role_ids', to_jsonb(role_list),
+    'locale', coalesce(user_locale, 'es-419'),
+    'requires_mfa', needs_mfa,
+    'mfa_enrolled', has_mfa
+  );
+  if active_id is not null then
+    extra := extra || jsonb_build_object('tenant_id', tenant, 'active_company_id', active_id);
+  end if;
+
+  return jsonb_set(event, '{claims}', coalesce(event -> 'claims', '{}'::jsonb) || extra);
+end;
+$$;
+revoke execute on function kernel.custom_access_token_hook(jsonb) from authenticated, anon, public;
+grant execute on function kernel.custom_access_token_hook(jsonb) to supabase_auth_admin;
 
 -- ---------------------------------------------------------------------------------------------
 -- The company keeps at least one active admin.

@@ -11,6 +11,9 @@ import { runnableProcesses } from "../../process/permissions";
 import type { Caller } from "../../process/context";
 import { callerProfile } from "../../user-prefs/profile";
 import { syncRegistry } from "../sync";
+import { setUserRoles } from "../roles";
+import { setAuditContext } from "../../audit/audit";
+import type { ProcessContext } from "../../process/context";
 
 // Editable users (design §22.16, Task 7) and migration 0027_kernel_user_update (rule 34): kernel.admin.user.update changes
 // a member's name, mobile, photo, locale, roles and active state with the step-up. Deactivating keeps the history and the
@@ -231,5 +234,123 @@ describe("kernel.admin.user.update", () => {
         await tx`insert into kernel.membership_roles (membership_id, role_id) values (${clerk.id}, ${extraRoleId})`;
       }),
     ).rejects.toThrow(/row-level security/);
+  });
+
+  it("a mobile sent without its country code keeps the stored code (never Colombia's by default)", async () => {
+    await sql`update kernel.users set mobile_cc = '1', mobile = '2025550123' where id = ${seed.users.clerk!}`;
+    try {
+      await update({ userId: seed.users.clerk!, mobile: "2025550199" });
+      const [user] = await sql`select mobile_cc, mobile from kernel.users where id = ${seed.users.clerk!}`;
+      expect(user).toEqual({ mobile_cc: "1", mobile: "2025550199" });
+      // Validated against the stored code: 5 digits are too few for +1.
+      const error = await update({ userId: seed.users.clerk!, mobile: "20255" }).catch((e: unknown) => e);
+      expect(error).toMatchObject({ code: "invalid_input" });
+      expect(JSON.stringify((error as ProcessError).details)).toContain("6 a 14 dígitos");
+    } finally {
+      await sql`update kernel.users set mobile_cc = '57', mobile = '3109876543' where id = ${seed.users.clerk!}`;
+    }
+  });
+
+  it("removing the admin role keeps an active admin: refused for the last one, allowed while another remains", async () => {
+    // boss loses the admin role while `both` (the caller) is an active admin: allowed.
+    await update({ userId: seed.users.boss!, roleIds: [memberRoleId] });
+    expect(await rolesOf(seed.users.boss!)).toEqual([memberRoleId]);
+    await update({ userId: seed.users.boss!, roleIds: [seed.companies[0]!.adminRoleId] });
+    // With onlyA and boss inactive, `both` is the last active admin. The caller can never remove their own admin role,
+    // so the guard is reached here through the shared helper with a context that is not `both`'s own (as a concurrent
+    // admin's removal would see it).
+    await update({ userId: seed.users.onlyA, active: false });
+    await update({ userId: seed.users.boss!, active: false });
+    try {
+      const refused = await withClaims(sql, admin.claims, async (tx) => {
+        await setAuditContext(tx, { origin: "ui", processId: "kernel.admin.user_role.set", chainId: randomUUID(), actorUserId: admin.claims.sub });
+        const ctx = { tx, registry, companyId, tenantId: seed.tenantId, userId: seed.users.boss!, roleIds: [], locale: "es-419", origin: "ui", chainId: randomUUID(), dryRun: false } as unknown as ProcessContext;
+        return setUserRoles(ctx, { userId: seed.users.both, roleIds: [memberRoleId] }).catch((e: unknown) => e);
+      });
+      expect(refused).toMatchObject({ code: "invalid_input" });
+      expect(details(refused)).toEqual(["La empresa necesita al menos un administrador activo"]);
+      expect(await rolesOf(seed.users.both)).toContain(seed.companies[0]!.adminRoleId);
+    } finally {
+      await update({ userId: seed.users.onlyA, active: true });
+      await update({ userId: seed.users.boss!, active: true });
+    }
+  });
+});
+
+// Deactivation is per company (review of Task 7, migration 0027): the access token hook prefers an active membership and
+// lists only active memberships in company_ids, so a person deactivated in company B keeps working in A; only someone with
+// no active membership left is locked out.
+describe("deactivation in one company of several", () => {
+  let sql: ReturnType<typeof testDb>;
+  let seed: Awaited<ReturnType<typeof seedTenant>>;
+  let registry: Registry;
+  let a: string;
+  let b: string;
+  let multi: string;
+
+  const hook = async (wanted?: string) => {
+    const [row] = await sql<{ hook: { claims: JwtClaims } }[]>`
+      select kernel.custom_access_token_hook(${sql.json({ user_id: multi, claims: { sub: multi, ...(wanted ? { app_metadata: { active_company_id: wanted } } : {}) } })}) as hook`;
+    return row!.hook.claims;
+  };
+  const setActive = (company: string, active: boolean) => sql`update kernel.memberships set is_active = ${active} where user_id = ${multi} and company_id = ${company}`;
+
+  beforeAll(async () => {
+    sql = testDb();
+    registry = new Registry();
+    loadModules(registry, [kernelModule]);
+    seed = await seedTenant(sql, { companies: 2, entitlements: [], users: [{ name: "multi", companies: [0, 1], role: "member" }] });
+    a = seed.companies[0]!.id;
+    b = seed.companies[1]!.id;
+    multi = seed.users.multi!;
+    await syncRegistry(sql, registry);
+    for (const company of [a, b]) await sql`select kernel.seed_company_defaults(${company})`;
+  });
+  afterAll(async () => {
+    await seed.cleanup();
+    await sql.end();
+  });
+
+  it("active in both: the requested company is the active one and both are listed", async () => {
+    const claims = await hook(b);
+    expect(claims.active_company_id).toBe(b);
+    expect([...claims.company_ids].sort()).toEqual([a, b].sort());
+  });
+
+  it("inactive in B: B requested resolves to A, company_ids is [A], and the session works in A", async () => {
+    await setActive(b, false);
+    try {
+      const claims = await hook(b);
+      expect(claims.active_company_id).toBe(a);
+      expect(claims.company_ids).toEqual([a]);
+      expect((await hook()).active_company_id).toBe(a);
+      await expect(runProcess({ sql, registry }, { claims, origin: "ui" }, "kernel.user_prefs.set", { key: "theme", value: "dark" })).resolves.toBeDefined();
+      // A token issued before the change still names B: the database answers only A, and the switcher offers only A.
+      const stale: JwtClaims = { ...claims, company_ids: [a, b] };
+      const [row] = await withClaims(sql, stale, (tx) => tx<{ ids: string[] }[]>`select kernel.active_company_ids() as ids`);
+      expect(row!.ids).toEqual([a]);
+      expect((await callerProfile(sql, stale)).companies.map((c) => c.id)).toEqual([a]);
+    } finally {
+      await setActive(b, true);
+    }
+  });
+
+  it("inactive everywhere: the claims name the requested company with no company_ids, and every run is refused as inactive", async () => {
+    await setActive(a, false);
+    await setActive(b, false);
+    try {
+      const claims = await hook(b);
+      expect(claims.active_company_id).toBe(b);
+      expect(claims.company_ids).toEqual([]);
+      const refused = await runProcess({ sql, registry }, { claims, origin: "ui" }, "kernel.user_prefs.set", { key: "theme", value: "dark" }).catch((e: unknown) => e);
+      expect(isMembershipInactive(refused)).toBe(true);
+      // The refusal is still audited on their name, in that company.
+      const [denied] = await sql`select company_id, action from kernel.audit_log where actor_user_id = ${multi} and process_id = 'kernel.user_prefs.set' order by occurred_at desc limit 1`;
+      expect(denied).toEqual({ company_id: b, action: "denied" });
+      expect((await callerProfile(sql, claims)).active).toBe(false);
+    } finally {
+      await setActive(a, true);
+      await setActive(b, true);
+    }
   });
 });

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { defineProcess } from "../process/define";
-import { validateEmail, validatePhone } from "../validation";
+import { ProcessError } from "../process/errors";
+import { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "../validation";
 import { authAdmin } from "./auth-admin";
 import { ADMIN_FEATURE, companyRole, invalid, requireAdmin } from "./common";
 import { setUserRoles } from "./roles";
@@ -105,8 +106,10 @@ const userUpdateInput = z
   .superRefine((input, issue) => {
     if (!CHANGES.some((key) => input[key] !== undefined)) issue.addIssue({ code: "custom", path: [], message: "Indica al menos un dato que cambie" });
     if (input.mobileCc !== undefined && input.mobile === undefined) issue.addIssue({ code: "custom", path: ["mobile"], message: "Indica el celular con su indicativo" });
-    if (input.mobile !== undefined) {
-      const mobile = input.mobile === "" ? "El celular es obligatorio" : validatePhone(input.mobileCc ?? "57", input.mobile);
+    // With its country code the mobile is checked here; without one, against the stored code (in the handler).
+    if (input.mobile === "") issue.addIssue({ code: "custom", path: ["mobile"], message: "El celular es obligatorio" });
+    else if (input.mobile !== undefined && input.mobileCc !== undefined) {
+      const mobile = validatePhone(input.mobileCc, input.mobile);
       if (mobile) issue.addIssue({ code: "custom", path: ["mobile"], message: mobile });
     }
   });
@@ -132,10 +135,17 @@ export const userUpdate = defineProcess({
     if (!member) throw invalid(`user ${input.userId} is not a member`, "El usuario no pertenece a la empresa");
     if (input.active === false && input.userId === ctx.userId) throw invalid("the admin keeps their own account active", "No puedes desactivar tu propia cuenta");
 
+    // A mobile sent without its country code keeps the stored one (Colombia's only for a user who has none yet).
+    const mobileCc = input.mobile !== undefined ? (input.mobileCc ?? member.mobile_cc ?? DEFAULT_PHONE_CC) : undefined;
+    if (input.mobile !== undefined && input.mobileCc === undefined) {
+      const problem = validatePhone(mobileCc!, input.mobile);
+      if (problem) throw new ProcessError("invalid_input", "invalid mobile", { details: [{ path: ["mobile"], message: problem }] });
+    }
+
     // The profile (kernel.users, through kernel.admin_update_user): the audit records each changed field before and after.
     const profile = {
       full_name: input.name,
-      mobile_cc: input.mobile !== undefined ? (input.mobileCc ?? "57") : undefined,
+      mobile_cc: mobileCc,
       mobile: input.mobile,
       locale: input.locale,
     };
