@@ -165,16 +165,20 @@ function ShellFrame(props: AppShellProps) {
     store.getState().open({ title, href: currentHref, kind });
   }, [currentHref, nav, store, t]);
 
+  // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
+  // choice wins until the page changes (a pick from a page of another module would otherwise never show).
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
   const hrefModule = nav.find((i) => isActiveHref(i.href, currentHref));
-  const activeModuleId = (hrefModule ? moduleOf(hrefModule) : undefined) ?? selectedModule ?? visibleModules[0]?.id;
+  const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
+  /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
   const selectModule = (moduleId: string) => {
     setSelectedModule(moduleId);
     const items = (itemsByModule[moduleId] ?? []).filter((i) => i.menu !== false);
-    const hasTab = store.getState().tabs.some((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
-    if (items[0] && !hasTab) navigate(items[0].href);
+    const openTab = store.getState().tabs.find((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
+    if (openTab) store.getState().activate(openTab.id);
+    else if (items[0]) navigate(items[0].href);
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);

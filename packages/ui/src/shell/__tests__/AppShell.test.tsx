@@ -204,6 +204,30 @@ describe("AppShell", () => {
     for (const item of ["Terceros", "Productos", "Categorías"]) expect(menu.textContent).not.toContain(item);
   });
 
+  it("choosing another module in the Módulos menu shows its bar and brings its open tab to the front", async () => {
+    const navigate = vi.fn();
+    const twoModules = { id: "kernel", label: "nav.modules.kernel" };
+    const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
+    const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
+    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, twoModules], nav: adminNav, initialTabs });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
+    // The bar switches to the chosen module even though the page shown belongs to Núcleo.
+    expect(screen.getByRole("button", { name: /^Sistema/ })).toBeTruthy();
+    expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: "Usuarios" })).toBeTruthy();
+    // Its open tab comes to the front (the shell then navigates to it) instead of nothing happening.
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
+  });
+
+  it("choosing a module with no open tab opens its first option", () => {
+    const navigate = vi.fn();
+    const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
+    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, { id: "kernel", label: "nav.modules.kernel" }], nav: adminNav });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
+    expect(navigate).toHaveBeenCalledWith("/admin/users");
+  });
+
   // UI density audit quick win 13 (M13) and 16 (L1)
   it("offers a skip link to the page, which takes the caret without a ring", () => {
     shell("/parties");
