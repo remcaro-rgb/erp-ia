@@ -80,6 +80,25 @@ describe("RecordFrame", () => {
     expect(screen.getByRole("tab", { name: /^Archivos/ }).getAttribute("aria-selected")).toBe("true");
   });
 
+  // UI density audit quick win 14 (L3): Home and End in the record tabs, and the title and tabs stay in view.
+  it("Home and End go to the first and last tab", () => {
+    render(party);
+    fireEvent.keyDown(screen.getByRole("tab", { name: /^Datos$/ }), { key: "End" });
+    const archivos = screen.getByRole("tab", { name: /^Archivos/ });
+    expect(archivos.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(archivos);
+    fireEvent.keyDown(archivos, { key: "Home" });
+    expect(screen.getByRole("tab", { name: /^Datos$/ }).getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: /^Datos$/ }));
+  });
+
+  it("keeps the header and the tabs in a sticky block above the panels", () => {
+    render(party);
+    const sticky = screen.getByRole("heading", { name: "Supermercados Éxito" }).closest(".erp-record__top")!;
+    expect(sticky).toBeTruthy();
+    expect(within(sticky as HTMLElement).getByRole("tablist")).toBeTruthy();
+  });
+
   it("shows the count and the pending badge of a tab", () => {
     render(party);
     const extra = screen.getByRole("tab", { name: /^Datos adicionales/ });

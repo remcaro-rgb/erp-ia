@@ -201,7 +201,9 @@
   .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1; }
   .erp-record__ids { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); }
   .erp-record__open { font-size: 12px; color: var(--primary); }
+  .erp-record__top { position: sticky; top: 0; z-index: 5; background: var(--surface); border-radius: 8px 8px 0 0; }
   .erp-record__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; }
+  .erp-record__tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 4px; }
   .erp-record__tab { padding: 10px 12px; border: 0; background: transparent; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; }
   .erp-record__tab--on { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
   .erp-record__count { font-size: 11px; background: var(--line-2); color: var(--text-muted); padding: 0 6px; border-radius: 8px; }
@@ -343,7 +345,7 @@
 
   /* support tickets (design §8): the side sheet with the record frame, the conversation, the captured context */
   .erp-sheet { width: min(760px, 100%) !important; max-width: none !important; background: var(--surface) !important; color: var(--text); border-color: var(--line) !important; overflow: auto; gap: 0 !important; }
-  .erp-sheet__close { position: absolute; top: 8px; right: 10px; z-index: 1; }
+  .erp-sheet__close { position: absolute; top: 8px; right: 10px; z-index: 6; }
   .erp-sheet__state { margin: 18px; }
   .erp-support__frame { border: 0; border-radius: 0; min-height: 100%; }
   .erp-support__frame .erp-record__header { padding-right: 52px; }

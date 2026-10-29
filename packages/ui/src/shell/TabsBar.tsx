@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { cn } from "@erp/ui/lib/utils";
@@ -27,6 +27,28 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
   const [confirming, setConfirming] = useState(false);
   const titleOf = (tab: Tab) => (tab.kind === "home" ? t("home") : tab.title);
   const closable = tabs.filter((tab) => !tab.pinned);
+  // One tab stop for the row (the active tab): ← → move between the tab titles, Enter activates, Delete closes.
+  const row = useRef<HTMLElement>(null);
+  const focusAfterClose = useRef<string | null>(null);
+  const focusTab = (id: string) => row.current?.querySelector<HTMLButtonElement>(`[data-tab="${CSS.escape(id)}"] > button`)?.focus();
+  useEffect(() => {
+    if (focusAfterClose.current === null) return;
+    focusTab(focusAfterClose.current);
+    focusAfterClose.current = null;
+  }, [tabs]);
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || tabs.length === 0) return;
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (step !== 0) {
+      event.preventDefault();
+      focusTab(tabs[(index + step + tabs.length) % tabs.length]!.id);
+    } else if (event.key === "Delete" && !tabs[index]!.pinned) {
+      event.preventDefault();
+      // The caret goes to the neighbour (the next tab, or the previous one for the last).
+      focusAfterClose.current = (tabs[index + 1] ?? tabs[index - 1])?.id ?? null;
+      close(tabs[index]!.id);
+    }
+  };
 
   const confirmCloseAll = () => {
     const count = closable.length;
@@ -37,10 +59,12 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
 
   return (
     <nav
+      ref={row}
+      data-tabs-row=""
       aria-label={t("tabs.label")}
       className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-hidden border-b border-tabrow-line bg-tabrow px-3"
     >
-      {tabs.map((tab) => {
+      {tabs.map((tab, index) => {
         const on = tab.id === activeId;
         return (
           <div
@@ -54,11 +78,14 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
             <button
               type="button"
               aria-current={on ? "page" : undefined}
+              aria-keyshortcuts={tab.pinned ? undefined : "Delete"}
+              tabIndex={on ? 0 : -1}
+              onKeyDown={(event) => onTabKey(event, index)}
               onClick={() => {
                 activate(tab.id);
                 onActivate?.(tab);
               }}
-              className="h-full bg-transparent outline-none focus-visible:underline"
+              className="h-full rounded-sm bg-transparent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
             >
               {titleOf(tab)}
             </button>
@@ -66,8 +93,10 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
               <button
                 type="button"
                 aria-label={t("tabs.close", { title: titleOf(tab) })}
+                // A 20 px mouse target; from the keyboard, Delete on the tab closes it (one stop per tab, not two).
+                tabIndex={-1}
                 onClick={() => close(tab.id)}
-                className="text-xs opacity-50 hover:opacity-100 focus-visible:opacity-100"
+                className="-mr-1.5 grid size-5 place-items-center rounded-sm text-xs opacity-60 hover:bg-tabrow-hover hover:opacity-100"
               >
                 ✕
               </button>

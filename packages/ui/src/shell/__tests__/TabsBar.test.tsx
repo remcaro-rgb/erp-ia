@@ -64,4 +64,33 @@ describe("TabsBar", () => {
     expect(store.getState().activeId).toBe(HOME_TAB_ID);
     expect(screen.queryByRole("button", { name: /Cerrar todas/ })).toBeNull();
   });
+
+  // UI density audit quick win 14 (L5): the row is one tab stop, ← → move between the tabs, Delete closes the focused
+  // tab and the caret goes to its neighbour; the ✕ is a 20 px mouse target out of the tab order.
+  it("moves between tabs with ← →, closes the focused one with Delete, and keeps ✕ out of the tab order", () => {
+    const { store } = setup();
+    const bar = screen.getByRole("navigation", { name: "Pestañas abiertas" });
+    const title = (name: string) => within(bar).getByRole("button", { name });
+    expect(title("Productos").tabIndex).toBe(0);
+    expect(title("Inicio").tabIndex).toBe(-1);
+    expect(title("Terceros").tabIndex).toBe(-1);
+    const close = within(bar).getByRole("button", { name: "Cerrar Terceros" });
+    expect(close.tabIndex).toBe(-1);
+    expect(close.className).toContain("size-5");
+    title("Productos").focus();
+    fireEvent.keyDown(title("Productos"), { key: "ArrowRight" });
+    expect(document.activeElement).toBe(title("Inicio"));
+    fireEvent.keyDown(title("Inicio"), { key: "ArrowRight" });
+    expect(document.activeElement).toBe(title("Terceros"));
+    // Moving does not activate: Enter (a click) does.
+    expect(store.getState().activeId).toBe("/products");
+    // Inicio does not close.
+    fireEvent.keyDown(title("Terceros"), { key: "ArrowLeft" });
+    fireEvent.keyDown(title("Inicio"), { key: "Delete" });
+    expect(store.getState().tabs).toHaveLength(3);
+    fireEvent.keyDown(title("Inicio"), { key: "ArrowRight" });
+    fireEvent.keyDown(title("Terceros"), { key: "Delete" });
+    expect(store.getState().tabs.map((t) => t.href)).toEqual(["/", "/products"]);
+    expect(document.activeElement).toBe(title("Productos"));
+  });
 });

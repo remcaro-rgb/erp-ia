@@ -66,3 +66,5 @@ El botón **Asistente** abre o cierra un panel a la derecha. Muestra el contexto
 - **Saltar al contenido**: la primera vez que pulsas **Tab** en una pantalla aparece arriba a la izquierda el enlace «Saltar al contenido». Pulsa **Enter** y el cursor pasa directo a la pantalla, sin recorrer la barra ni las pestañas.
 - El elemento que tiene el cursor siempre se ve con un borde azul.
 - **⌘K** o **Ctrl+K** abre la paleta de comandos; **Ctrl+/** o **⌘/** abre o cierra el asistente.
+- **La fila de pestañas** es una sola parada de **Tab** (la pestaña activa). Con **← →** pasas de una pestaña a otra, **Enter** la abre y **Supr** (Delete) cierra la que tiene el cursor (Inicio no se cierra); el cursor queda en la pestaña vecina. La ✕ de cada pestaña sigue funcionando con el mouse.
+- **Las pestañas de un registro** (Datos, Contactos, Fotos, Datos adicionales, Archivos) se recorren con **← →**, e **Inicio** y **Fin** van a la primera y la última. El título del registro y sus pestañas quedan siempre visibles arriba mientras bajas por un formulario largo.
