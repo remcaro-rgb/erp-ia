@@ -143,6 +143,8 @@ describe("DataGrid stable header and footer", () => {
       await screen.findByText("Almacenes Éxito S.A.");
       fireEvent.click(screen.getByRole("button", { name: "CSV" }));
       await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Descarga lista: terceros.csv"));
+      // Let React run the effect that starts the 8 s timer before the clock moves.
+      await act(async () => {});
       await act(async () => {
         vi.advanceTimersByTime(7_000);
       });
