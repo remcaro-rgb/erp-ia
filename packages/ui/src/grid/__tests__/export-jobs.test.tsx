@@ -153,4 +153,30 @@ describe("ExportJobsProvider", () => {
       click.mockRestore();
     }
   });
+
+  it("a background job that outlasts the wait goes off-screen as a timeout toast; the grid shown again is free", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) =>
+      String(url) === "/api/export" ? new Response(JSON.stringify({ mode: "job", jobId: "j1" }), { status: 202 }) : new Response(JSON.stringify({ status: "running" }), { status: 200 }),
+    ));
+    function Job({ shown }: { shown: boolean }) {
+      const exporter = useGridExport({ entity: "core.party", title: "Terceros", pollMs: 5, maxWaitMs: 30 });
+      return shown ? (
+        <button type="button" disabled={exporter.busy} onClick={() => void exporter.run("xlsx", { filters: [], sort: [], page: 1, pageSize: 10 })}>
+          exportar
+        </button>
+      ) : null;
+    }
+    const tree = (shown: boolean) => (
+      <ExportJobsProvider>
+        {shown ? <Job shown /> : null}
+        <Toaster />
+      </ExportJobsProvider>
+    );
+    const view = renderEs(tree(true));
+    fireEvent.click(screen.getByRole("button", { name: "exportar" }));
+    view.rerender(tree(false));
+    expect(await screen.findByText(/^Terceros · No se pudo exportar\. La exportación tarda más de lo esperado/)).toBeTruthy();
+    view.rerender(tree(true));
+    expect((screen.getByRole("button", { name: "exportar" }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });
