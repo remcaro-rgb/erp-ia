@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { FieldLabels } from "../fields/field-model";
 import { invoiceBlockers } from "../lookup/lookup-model";
+import { CodeCombobox } from "./fields/CodeCombobox";
+import { DianHintsProvider, useDianHints, useFormPrefs } from "./form-context";
+import { enterTarget, focusField, isEnterSource } from "./form-keyboard";
 import { StepUpPrompt } from "./StepUpPrompt";
 import type { CodeOption } from "./save-model";
 import type { SaveFlow } from "./use-save";
@@ -35,13 +38,25 @@ export interface RecordFormProps {
   children: ReactNode;
 }
 
+/** Whether the DIAN schema hints show: the user's saved choice when the shell provides it, else this form's own switch. Off by default (OD-12). */
+function useDianHintsState(): [boolean, (on: boolean) => void] {
+  const prefs = useFormPrefs();
+  const [local, setLocal] = useState(false);
+  return prefs ? [prefs.dianHints, prefs.setDianHints] : [local, setLocal];
+}
+
 /**
  * The record forms' frame (party, product, category): a real <form> where Ctrl/⌘+S and Ctrl/⌘+Enter save from any
- * field, Enter alone never submits (a form of many text boxes), and after a refusal (or a shortcut on a blocked form)
- * the caret goes to the first field in error, else to the error summary (`data-error-summary`).
+ * field, Enter moves to the next field and Shift+Enter back (OD-11; a textarea keeps its newline and the last field
+ * keeps the caret), Enter never submits (a form of many text boxes), and after a refusal (or a shortcut on a blocked
+ * form) the caret goes to the first field in error, else to the error summary (`data-error-summary`). The "Ver
+ * códigos DIAN" switch shows or hides the schema hints and the codes before names for every field below (OD-12).
  */
 export function RecordForm({ canSave, onSave, failure, children }: RecordFormProps) {
+  const t = useTranslations("common.forms");
   const ref = useRef<HTMLFormElement>(null);
+  const [dianHints, setDianHints] = useDianHintsState();
+  const switchId = useId();
   const focusFirstProblem = (summaryFirst = false) => {
     const form = ref.current;
     const field = form?.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)');
@@ -57,6 +72,15 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
     if (failure) focusFirstProblem(!failure.details.some((d) => (d.path?.length ?? 0) > 0));
   }, [failure]);
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      // A widget that used the Enter itself (an open list choosing an option) has prevented it; so do not move on.
+      if (event.defaultPrevented || event.nativeEvent.isComposing || !event.currentTarget.contains(event.target as Node) || !isEnterSource(event.target)) return;
+      // Enter never submits, on the last field either.
+      event.preventDefault();
+      const next = enterTarget(event.currentTarget, event.target, event.shiftKey);
+      if (next) focusField(next);
+      return;
+    }
     if (!(event.metaKey || event.ctrlKey) || event.altKey || (event.key.toLowerCase() !== "s" && event.key !== "Enter")) return;
     // React events bubble through portals: a dialog opened from the form (the lookup's advanced filter) keeps its keys.
     if (!event.currentTarget.contains(event.target as Node)) return;
@@ -66,7 +90,13 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
   };
   return (
     <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
-      {children}
+      <div className="erp-form__tools">
+        <span className="erp-switch">
+          <button type="button" id={switchId} role="switch" aria-checked={dianHints} aria-labelledby={`${switchId}-label`} className={dianHints ? "erp-toggle is-on" : "erp-toggle"} onClick={() => setDianHints(!dianHints)} />
+          <span id={`${switchId}-label`}>{t("dian_hints")}</span>
+        </span>
+      </div>
+      <DianHintsProvider value={dianHints}>{children}</DianHintsProvider>
     </form>
   );
 }
@@ -75,17 +105,39 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
  * A labelled control; `children` receives the control's id and the ids that describe it (hint, error). The error is
  * not an alert of its own: the form announces one summary and moves the caret to the first field in error.
  */
-export function Field({ label, hint, error, className, children }: { label: ReactNode; hint?: ReactNode; error?: string | null; className?: string; children: (id: string, describedBy?: string) => ReactNode }) {
+/** `dian` marks a schema annotation (`DANE`, `schemeName`): shown only with "Ver códigos DIAN". `help` (the default) always shows. */
+export type HintKind = "dian" | "help";
+
+export function Field({
+  label,
+  hint,
+  hintKind = "help",
+  error,
+  className,
+  enterSkip,
+  children,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  hintKind?: HintKind;
+  error?: string | null;
+  className?: string;
+  /** Enter does not stop in this field (a widget with its own Enter, like the entity lookup); Tab and the mouse still do. */
+  enterSkip?: boolean;
+  children: (id: string, describedBy?: string) => ReactNode;
+}) {
   const id = useId();
-  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
+  const dian = useDianHints();
+  const shown = hint && (hintKind === "help" || dian) ? hint : null;
+  const describedBy = [shown ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
   return (
-    <div className={["erp-field", className].filter(Boolean).join(" ")}>
+    <div className={["erp-field", className].filter(Boolean).join(" ")} {...(enterSkip ? { "data-enter-skip": "" } : {})}>
       <label htmlFor={id}>
         {label}
-        {hint && (
+        {shown && (
           <span id={`${id}-hint`} className="erp-field__hint">
             {" "}
-            {hint}
+            {shown}
           </span>
         )}
       </label>
@@ -102,6 +154,7 @@ export function Field({ label, hint, error, className, children }: { label: Reac
 export interface SelectFieldProps {
   label: ReactNode;
   hint?: ReactNode;
+  hintKind?: HintKind;
   error?: string | null;
   value: string;
   options: readonly CodeOption[];
@@ -109,21 +162,22 @@ export interface SelectFieldProps {
   disabled?: boolean;
   /** A first option with this text and an empty value. */
   empty?: string;
-  /** Shows `code · name` (prototype `sel`). */
+  /** Shows `code · name` (prototype `sel`) while "Ver códigos DIAN" is on; the name alone otherwise. */
   showCode?: boolean;
   className?: string;
 }
 
-export function SelectField({ label, hint, error, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
+export function SelectField({ label, hint, hintKind, error, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
+  const dian = useDianHints();
   return (
-    <Field label={label} hint={hint} error={error} className={className}>
+    <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
       {(id, describedBy) => (
         <select id={id} value={value} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={error ? "erp-input--bad" : undefined} onChange={(e) => onChange(e.target.value)}>
           {empty !== undefined && <option value="">{empty}</option>}
           {!options.some((o) => o.code === value) && value !== "" && <option value={value}>{value}</option>}
           {options.map((o) => (
             <option key={o.code} value={o.code}>
-              {showCode ? `${o.code} · ${o.name}` : o.name}
+              {showCode && dian ? `${o.code} · ${o.name}` : o.name}
             </option>
           ))}
         </select>
@@ -132,9 +186,19 @@ export function SelectField({ label, hint, error, value, options, onChange, disa
   );
 }
 
+/** A `SelectField` for a long code table: type to search by name or code (see `CodeCombobox`). */
+export function CodeComboboxField({ label, hint, hintKind, error, value, options, onChange, disabled, empty, showCode, className }: SelectFieldProps) {
+  return (
+    <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
+      {(id, describedBy) => <CodeCombobox id={id} value={value} options={options} onChange={onChange} empty={empty} showCode={showCode} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} />}
+    </Field>
+  );
+}
+
 export interface TextFieldProps {
   label: ReactNode;
   hint?: ReactNode;
+  hintKind?: HintKind;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -145,9 +209,9 @@ export interface TextFieldProps {
   className?: string;
 }
 
-export function TextField({ label, hint, value, onChange, disabled, maxLength, inputMode, mono, error, className }: TextFieldProps) {
+export function TextField({ label, hint, hintKind, value, onChange, disabled, maxLength, inputMode, mono, error, className }: TextFieldProps) {
   return (
-    <Field label={label} hint={hint} error={error} className={className}>
+    <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
       {(id, describedBy) => (
         <input
           id={id}
@@ -166,12 +230,13 @@ export function TextField({ label, hint, value, onChange, disabled, maxLength, i
 }
 
 /** A set of codes as checkboxes (responsibilities, other taxes). */
-export function Checks({ label, hint, options, value, onToggle, disabled, row }: { label: ReactNode; hint?: ReactNode; options: readonly CodeOption[]; value: readonly string[]; onToggle: (code: string, on: boolean) => void; disabled?: boolean; row?: boolean }) {
+export function Checks({ label, hint, hintKind = "help", options, value, onToggle, disabled, row }: { label: ReactNode; hint?: ReactNode; hintKind?: HintKind; options: readonly CodeOption[]; value: readonly string[]; onToggle: (code: string, on: boolean) => void; disabled?: boolean; row?: boolean }) {
+  const dian = useDianHints();
   return (
     <fieldset className="erp-field">
       <legend>
         {label}
-        {hint && <span className="erp-field__hint"> {hint}</span>}
+        {hint && (hintKind === "help" || dian) && <span className="erp-field__hint"> {hint}</span>}
       </legend>
       <div className={row ? "erp-checks erp-checks--row" : "erp-checks"}>
         {options.map((o) => (

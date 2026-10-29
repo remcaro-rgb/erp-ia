@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPortal } from "react-dom";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { renderEs } from "../../shell/__tests__/intl";
 import { RecordForm } from "../form-parts";
 
 afterEach(cleanup);
@@ -11,7 +12,7 @@ afterEach(cleanup);
 describe("RecordForm", () => {
   it("saves on Ctrl+S from its own fields, never from a dialog portalled out of it", () => {
     const onSave = vi.fn();
-    render(
+    renderEs(
       <RecordForm canSave onSave={onSave} failure={null}>
         <input aria-label="propio" />
         {createPortal(<input aria-label="en el diálogo" />, document.body)}

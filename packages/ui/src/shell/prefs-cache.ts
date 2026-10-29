@@ -1,6 +1,6 @@
 import type { Saved } from "./types";
 
-// The browser cache of the shell's preferences (theme, tabs, assistant drawer). The server copy in `kernel.user_prefs` and this
+// The browser cache of the shell's preferences (theme, tabs, assistant drawer, DIAN hints). The server copy in `kernel.user_prefs` and this
 // cache both carry `savedAt`; the shell keeps whichever is newer, so a change the server never received (the
 // tab closed before the save went out) is not lost. Entries carry the company: prefs are per company.
 
@@ -19,6 +19,7 @@ export function browserStorage(): Storage | null {
 
 export const themeStorageKey = (userId: string): string => `erp.theme.${userId}`;
 export const assistantOpenStorageKey = (userId: string): string => `erp.assistant.open.${userId}`;
+export const dianHintsStorageKey = (userId: string): string => `erp.forms.dian_hints.${userId}`;
 
 /** The cached value under `key` for `companyId`, or null (missing, another company's, unreadable). */
 export function readCachedPref(storage: Storage | null | undefined, key: string, companyId: string): Saved<unknown> | null {

@@ -187,7 +187,12 @@
       "step_up_code": "Código de 6 dígitos",
       "step_up_failed": "El código no es válido. Inténtalo de nuevo.",
       "step_up_cancel": "Cancelar",
-      "save_hint": "Ctrl+S guarda"
+      "save_hint": "Ctrl+S guarda",
+      "dian_hints": "Ver códigos DIAN",
+      "copy_field": "Copiar {field}",
+      "copied": "Copiado",
+      "combo_empty": "Sin coincidencias",
+      "combo_more": "{count} más: escribe para acotar"
     },
     "party_form": {
       "identification": "Identificación",
@@ -200,6 +205,7 @@
       "alnum": "letras y números",
       "dv": "DV",
       "dv_title": "Calculado con el algoritmo DIAN",
+      "copy_id": "identificación",
       "doc_digits": "Solo dígitos",
       "doc_alnum": "Solo letras y números",
       "doc_max": "Máximo {count} caracteres",
@@ -262,7 +268,6 @@
       "sku": "Código interno",
       "sku_hint": "SKU · máx. {count}",
       "description": "Descripción en la factura",
-      "description_hint": "cbc:Description · máx. {count}",
       "kind": "Tipo",
       "kind_good": "Bien",
       "kind_service": "Servicio",

@@ -86,3 +86,13 @@ En pantallas angostas (menos de 1280 píxeles de ancho, como un portátil de 136
 - **La fila de pestañas** es una sola parada de **Tab** (la pestaña activa). Con **← →** pasas de una pestaña a otra, **Enter** la abre y **Supr** (Delete) cierra la que tiene el cursor (Inicio no se cierra); el cursor queda en la pestaña vecina. La ✕ de cada pestaña sigue funcionando con el mouse.
 - **Ctrl+D** (en Mac, **⌘D**) en un registro abierto lo duplica (ver «Duplicar un registro»), en lugar de agregar la página a los favoritos del navegador.
 - **Las pestañas de un registro** (Datos, Contactos, Fotos, Datos adicionales, Archivos) se recorren con **← →**, e **Inicio** y **Fin** van a la primera y la última. El título del registro y sus pestañas quedan siempre visibles arriba mientras bajas por un formulario largo.
+
+## Llenar un formulario con el teclado
+
+Los formularios de Terceros, Productos y Categorías se recorren sin soltar el teclado:
+
+- **Enter** pasa al campo siguiente y **Mayús+Enter** vuelve al anterior. Ni en el último campo guarda: el cursor se queda donde está. Los campos calculados (DV, nombre para documentos, margen) se saltan. En una caja de texto de varias líneas, **Enter** escribe un salto de línea.
+- **Ctrl+Enter** (en Mac, **⌘Enter**) o **Ctrl+S** guardan desde cualquier campo.
+- **Ver códigos DIAN**, arriba a la derecha del formulario, muestra u oculta los nombres técnicos de la DIAN junto a las etiquetas («DANE», «schemeName»…) y los códigos delante de los nombres de las listas («05001 · Medellín»). Empieza apagado para que el formulario sea compacto; tu elección se recuerda para tu usuario y tu empresa en todos los formularios. Los textos de ayuda que no son códigos (por ejemplo «máx. 450») se ven siempre.
+- **Departamento**, **Municipio**, **Unidad de medida** y **Categoría** son cajas de búsqueda: escribe parte del nombre (o del código) sin preocuparte por las tildes («medellin» encuentra «Medellín»), muévete por la lista con **↑ ↓**, elige con **Enter** o **Tab**, y **Esc** cierra la lista y deja lo que estaba elegido. Si borras el texto y sales de la caja, el valor queda vacío.
+- Los valores que el sistema calcula (el **DV**, el **Nombre para documentos**, el **Margen**, el **Código estándar** cuando es tu código interno) se pueden leer, seleccionar y copiar: el botón de copiar al lado los lleva al portapapeles y avisa «Copiado».

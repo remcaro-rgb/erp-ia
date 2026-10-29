@@ -232,8 +232,29 @@
   .erp-field__hint { font-weight: 400; color: var(--text-muted); font-size: 11px; }
   .erp-field__error { font-size: 11px; color: var(--danger); font-weight: 600; }
   .erp-field__ok { font-size: 11px; color: var(--ok); }
-  .erp-field--dv { width: 64px; flex: 0 0 auto; }
+  .erp-field--dv { width: 104px; flex: 0 0 auto; }
   .erp-field--dv input { text-align: center; }
+  /* "Ver códigos DIAN" sits at the top right of a record form */
+  .erp-form__tools { display: flex; justify-content: flex-end; }
+  /* a computed value (check digit, name on the document, margin): readable and copyable, never disabled (M12) */
+  .erp-computed { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .erp-computed input { flex: 1 1 auto; }
+  .erp-field input.erp-input--computed { background: var(--head); border-color: var(--line); color: var(--text); }
+  .erp-field input.erp-input--computed:focus { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-copy { flex: 0 0 auto; width: 28px; height: 28px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); display: grid; place-items: center; }
+  .erp-copy:hover:not(:disabled) { background: var(--head); color: var(--link); }
+  .erp-copy:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-copy:disabled { opacity: .4; cursor: not-allowed; }
+  .erp-rut__id { display: inline-flex; align-items: center; gap: 4px; }
+  /* the code combobox (municipality, department, unit, category) */
+  .erp-combo { position: relative; }
+  .erp-combo__pop { position: absolute; left: 0; right: 0; top: 100%; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); z-index: 20; max-height: 280px; overflow: auto; }
+  .erp-combo__list { list-style: none; margin: 0; padding: 0; }
+  .erp-combo__opt { padding: 7px 10px; cursor: pointer; font-size: 13px; color: var(--text); }
+  .erp-combo__opt.is-on { background: var(--accent); }
+  .erp-combo__opt.is-chosen { font-weight: 600; }
+  .erp-combo__none { padding: 8px 10px; font-size: 12px; color: var(--text-muted); }
+  .erp-combo__more { padding: 6px 10px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--text-muted); }
   .erp-phone { display: flex; gap: 6px; }
   .erp-phone select { width: 92px !important; flex: 0 0 auto; }
   .erp-phone input { flex: 1 1 auto; }

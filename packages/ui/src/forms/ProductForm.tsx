@@ -6,7 +6,9 @@ import type { FieldMode, GridColumn, GridFetcher, GridRow, GridStateInput } from
 import { EntityLookup } from "../lookup/EntityLookup";
 import { MoneyInput } from "../money/MoneyInput";
 import { recordHref } from "../record/record-model";
-import { Checks, RecordForm, DianPanel, failureMessages, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText } from "./form-parts";
+import { ComputedField } from "./computed-field";
+import { DianText } from "./form-context";
+import { Checks, CodeComboboxField, RecordForm, DianPanel, failureMessages, Field, FormActions, InvoicePanel, MaskedField, Section, SelectField, TextField, useErrorText } from "./form-parts";
 import {
   margin,
   productBlocked,
@@ -125,7 +127,7 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
       <Section title={t("identification")}>
         <div className="erp-form3">
           <TextField label={t("sku")} hint={t("sku_hint", { count: L.sku })} value={draft.sku} maxLength={L.sku} mono disabled={dis} error={fe("sku")} onChange={set("sku")} />
-          <TextField className="erp-span2" label={t("description")} hint={t("description_hint", { count: L.description })} value={draft.description} maxLength={L.description} disabled={dis} error={fe("description")} onChange={set("description")} />
+          <TextField className="erp-span2" label={t("description")} hint={<><DianText>cbc:Description · </DianText>{tf("max", { count: L.description })}</>} value={draft.description} maxLength={L.description} disabled={dis} error={fe("description")} onChange={set("description")} />
           <SelectField
             label={t("kind")}
             error={fe("kind")}
@@ -138,7 +140,7 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
             ]}
             onChange={(v) => set("kind")(v as ProductDraft["kind"])}
           />
-          <SelectField
+          <CodeComboboxField
             label={t("category")}
             hint={t("category_hint")}
             error={fe("categoryId")}
@@ -152,9 +154,9 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
             }))}
             onChange={(id) => setDraft((d) => withCategory(d, categories.find((c) => c.id === id) ?? null, isNew))}
           />
-          <SelectField label={t("id_scheme")} hint="StandardItemIdentification@schemeID" value={draft.idScheme} disabled={dis} options={tables.idSchemes} error={fe("idScheme")} onChange={set("idScheme")} />
+          <SelectField label={t("id_scheme")} hint="StandardItemIdentification@schemeID" hintKind="dian" value={draft.idScheme} disabled={dis} options={tables.idSchemes} error={fe("idScheme")} onChange={set("idScheme")} />
           {scheme?.kind === "own" ? (
-            <Field label={t("standard_code")}>{(id) => <input id={id} disabled value={draft.sku} title={t("standard_code_own")} />}</Field>
+            <ComputedField label={t("standard_code")} value={draft.sku} copyLabel={t("standard_code")} title={t("standard_code_own")} mono />
           ) : (
             <TextField
               label={scheme?.standardCodeLabel ?? t("standard_code")}
@@ -168,9 +170,9 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
               onChange={set("standardCode")}
             />
           )}
-          <TextField label={t("brand")} hint={`BrandName · ${tf("optional")}`} value={draft.brand} maxLength={L.brand} disabled={dis} error={fe("brand")} onChange={set("brand")} />
-          <TextField label={t("model")} hint={`ModelName · ${tf("optional")}`} value={draft.model} maxLength={L.model} disabled={dis} error={fe("model")} onChange={set("model")} />
-          <Field label={t("supplier")} hint={t("supplier_hint")} error={fe("supplierId")} className="erp-span3">
+          <TextField label={t("brand")} hint={<><DianText>BrandName · </DianText>{tf("optional")}</>} value={draft.brand} maxLength={L.brand} disabled={dis} error={fe("brand")} onChange={set("brand")} />
+          <TextField label={t("model")} hint={<><DianText>ModelName · </DianText>{tf("optional")}</>} value={draft.model} maxLength={L.model} disabled={dis} error={fe("model")} onChange={set("model")} />
+          <Field label={t("supplier")} hint={t("supplier_hint")} error={fe("supplierId")} className="erp-span3" enterSkip>
             {(id) => (
               <EntityLookup
                 id={id}
@@ -213,9 +215,9 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
         }
       >
         <div className="erp-form3">
-          <SelectField label={t("uom")} hint="@unitCode UN/ECE Rec. 20" value={draft.uomCode} empty="—" disabled={dis} options={tables.uoms} error={fe("uomCode")} onChange={set("uomCode")} />
-          <SelectField label={t("iva")} hint="01" value={draft.ivaRate} empty="—" disabled={dis} options={tables.ivaRates} error={fe("ivaRate")} onChange={set("ivaRate")} />
-          <SelectField label={t("inc")} hint="04" value={draft.incRate} empty={tf("none")} disabled={dis} options={tables.incRates} error={fe("incRate")} onChange={set("incRate")} />
+          <CodeComboboxField label={t("uom")} hint="@unitCode UN/ECE Rec. 20" hintKind="dian" value={draft.uomCode} empty="—" disabled={dis} options={tables.uoms} error={fe("uomCode")} onChange={set("uomCode")} />
+          <SelectField label={t("iva")} hint="01" hintKind="dian" value={draft.ivaRate} empty="—" disabled={dis} options={tables.ivaRates} error={fe("ivaRate")} onChange={set("ivaRate")} />
+          <SelectField label={t("inc")} hint="04" hintKind="dian" value={draft.incRate} empty={tf("none")} disabled={dis} options={tables.incRates} error={fe("incRate")} onChange={set("incRate")} />
           <div className="erp-span2">
             <Checks label={t("other_taxes")} options={tables.otherTaxes} value={draft.otherTaxes} row disabled={dis} onToggle={(code, on) => setDraft((d) => toggleOtherTax(d, code, on))} />
           </div>
@@ -244,7 +246,7 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
           </Field>
           {draft.isFreeSample ? (
             <>
-              <SelectField label={t("reference_price_type")} hint="PriceTypeCode" value={draft.referencePriceType} empty="—" disabled={dis} options={tables.priceTypes} error={fe("referencePriceType")} onChange={set("referencePriceType")} />
+              <SelectField label={t("reference_price_type")} hint="PriceTypeCode" hintKind="dian" value={draft.referencePriceType} empty="—" disabled={dis} options={tables.priceTypes} error={fe("referencePriceType")} onChange={set("referencePriceType")} />
               <Field label={t("reference_price")} hint={t("reference_price_hint")} error={fe("referencePrice")}>
                 {(id) => <MoneyInput id={id} value={draft.referencePrice} disabled={dis} onChange={set("referencePrice")} />}
               </Field>
@@ -262,7 +264,7 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
               {(id) => <MoneyInput id={id} value={draft.standardCost} disabled={dis} onChange={set("standardCost")} />}
             </Field>
           ) : null}
-          <Field label={t("margin")}>{(id) => <input id={id} disabled className="erp-num text-right" value={pct === null ? "—" : `${pct} %`} />}</Field>
+          <ComputedField label={t("margin")} value={pct === null ? "—" : `${pct} %`} copyText={pct === null ? "" : `${pct} %`} copyLabel={t("margin")} inputClassName="erp-num text-right" />
         </div>
       </Section>
 

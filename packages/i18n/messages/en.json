@@ -187,7 +187,12 @@
       "step_up_code": "6-digit code",
       "step_up_failed": "The code is not valid. Try again.",
       "step_up_cancel": "Cancel",
-      "save_hint": "Ctrl+S saves"
+      "save_hint": "Ctrl+S saves",
+      "dian_hints": "Show DIAN codes",
+      "copy_field": "Copy {field}",
+      "copied": "Copied",
+      "combo_empty": "No matches",
+      "combo_more": "{count} more: type to narrow"
     },
     "party_form": {
       "identification": "Identification",
@@ -200,6 +205,7 @@
       "alnum": "letters and digits",
       "dv": "CD",
       "dv_title": "Computed with the DIAN algorithm",
+      "copy_id": "identification",
       "doc_digits": "Digits only",
       "doc_alnum": "Letters and digits only",
       "doc_max": "At most {count} characters",
@@ -262,7 +268,6 @@
       "sku": "Internal code",
       "sku_hint": "SKU · max. {count}",
       "description": "Description on the invoice",
-      "description_hint": "cbc:Description · max. {count}",
       "kind": "Type",
       "kind_good": "Good",
       "kind_service": "Service",

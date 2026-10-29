@@ -148,6 +148,64 @@ test.describe("record tabs", () => {
     expect((await fixture.sql`select 1 from kernel.verification_requests where record_id = ${partyId} and kind = 'email'`).length).toBe(1);
   });
 
+  // OD-11, OD-12, M12: the municipality is a typeahead (about 1,100 options in a native select before), Enter walks the
+  // form, Ctrl+Enter saves, and the DIAN hints are off until the user turns them on (and stay that way after a reload).
+  test("picks a municipality by typing its name, saves with Ctrl+Enter and keeps it after a reload", async ({ page }) => {
+    await signIn(page, fixture);
+    await page.goto(`/r/core.party/${partyId}`);
+    const department = page.getByRole("combobox", { name: /^Departamento/ });
+    const municipality = page.getByRole("combobox", { name: /^Municipio/ });
+    await expect(municipality).toHaveValue("Bogotá D.C.");
+    try {
+      await department.fill("antioquia");
+      await department.press("Enter");
+      await expect(department).toHaveValue("Antioquia");
+      // Without the accent, and the list holds only that department's municipalities.
+      await municipality.fill("medellin");
+      await expect(page.getByRole("option", { name: "Medellín" })).toBeVisible();
+      await expect(page.getByRole("option", { name: "Bogotá D.C." })).toHaveCount(0);
+      await municipality.press("Enter");
+      await expect(municipality).toHaveValue("Medellín");
+      // A second Enter moves on to the next field instead of submitting.
+      await municipality.press("Enter");
+      await expect(page.getByLabel(/^Código postal/)).toBeFocused();
+      await page.keyboard.press("Control+Enter");
+      await expect.poll(async () => (await fixture.sql`select municipality_code from core.parties where id = ${partyId}`)[0]!.municipality_code).toBe("05001");
+      await page.reload();
+      await expect(page.getByRole("combobox", { name: /^Municipio/ })).toHaveValue("Medellín");
+      await expect(page.getByRole("combobox", { name: /^Departamento/ })).toHaveValue("Antioquia");
+    } finally {
+      await fixture.sql`update core.parties set department_code = '11', municipality_code = '11001' where id = ${partyId}`;
+    }
+  });
+
+  test("the DIAN hints are off by default, turn on with the switch and stay on after a reload; the check digit copies", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await signIn(page, fixture);
+    await page.goto(`/r/core.party/${partyId}`);
+    const toggle = page.getByRole("switch", { name: "Ver códigos DIAN" });
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+    await expect(page.getByText("AdditionalAccountID")).toHaveCount(0);
+    // The check digit is readable (read-only, not disabled) and copyable.
+    const dv = page.getByLabel("DV", { exact: true });
+    await expect(dv).toHaveValue("3");
+    await expect(dv).not.toBeDisabled();
+    await expect(dv).toHaveAttribute("readonly", "");
+    await page.getByRole("button", { name: "Copiar DV" }).click();
+    await expect(page.getByText("Copiado")).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("3");
+    try {
+      await toggle.click();
+      await expect(page.getByText("AdditionalAccountID")).toBeVisible();
+      await expect.poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'forms.dian_hints'`)[0]?.value?.value).toBe(true);
+      await page.reload();
+      await expect(page.getByRole("switch", { name: "Ver códigos DIAN" })).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByText("AdditionalAccountID")).toBeVisible();
+    } finally {
+      await fixture.sql`delete from kernel.user_prefs where user_id = ${fixture.userId} and key = 'forms.dian_hints'`;
+    }
+  });
+
   test("edits a datos adicionales value and saves it", async ({ page }) => {
     await signIn(page, fixture);
     await page.goto(`/r/core.party/${partyId}`);

@@ -25,6 +25,8 @@ export interface ShellData {
   assistantColumns: Record<string, ResultColumn[]>;
   /** Whether the user last left the assistant drawer open or closed in the active company, or null (the viewport decides). */
   assistantOpen: Saved<boolean> | null;
+  /** Whether the user turned "Ver códigos DIAN" on in the record forms (key `forms.dian_hints`), or null (off). */
+  dianHints: Saved<boolean> | null;
   /** The saved tabs as stored (the shell repairs them), or null when the user has none yet. */
   tabs: Saved<unknown> | null;
 }
@@ -39,13 +41,14 @@ export async function loadShell(caller: Caller): Promise<ShellData> {
     Promise.all(keys.entitlements.map(async (key) => ((await entitled(deps.sql, claims.active_company_id, key)) ? key : null))),
     runnableProcesses(deps.sql, deps.registry, claims, keys.processes),
     // A plain read under RLS, not a process: no audit row on every page load.
-    readUserPrefs(deps.sql, claims, ["theme", "tabs", "assistant.open"]),
+    readUserPrefs(deps.sql, claims, ["theme", "tabs", "assistant.open", "forms.dian_hints"]),
     getTranslations(),
   ]);
   // A membership the admin deactivated (design §22.16) opens nothing: the layout signs the session out.
   if (!profile.active) throw new Unauthenticated("account_disabled");
   const theme = savedFrom(prefs.theme);
   const assistantOpen = savedFrom(prefs["assistant.open"]);
+  const dianHints = savedFrom(prefs["forms.dian_hints"]);
   const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable });
 
   const commands: CommandItem[] = shell.creates
@@ -65,6 +68,7 @@ export async function loadShell(caller: Caller): Promise<ShellData> {
     assistantColumns,
     theme: theme && isThemeMode(theme.value) ? { value: theme.value, savedAt: theme.savedAt } : null,
     assistantOpen: assistantOpen && typeof assistantOpen.value === "boolean" ? { value: assistantOpen.value, savedAt: assistantOpen.savedAt } : null,
+    dianHints: dianHints && typeof dianHints.value === "boolean" ? { value: dianHints.value, savedAt: dianHints.savedAt } : null,
     tabs: savedFrom(prefs.tabs),
   };
 }
