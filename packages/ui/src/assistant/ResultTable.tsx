@@ -76,10 +76,10 @@ export function ResultTable({ entity, rows, columns, total, truncated, state, on
     if (column.ref && typeof value === "string") {
       const named = row[refLabelKey(column.field)];
       const label = typeof named === "string" && named !== "" ? named : null;
-      if (column.linkable) return <RecordLink entity={column.ref.entity} id={value} label={label ?? shortId(value)} mono={label === null} />;
+      if (column.linkable) return <RecordLink entity={column.ref.entity} id={value} label={label ?? shortId(value)} mono={label === null} inRow />;
       return label ?? <span className="erp-mono">{shortId(value)}</span>;
     }
-    if (column.identity && column.linkable && typeof row.id === "string") return <RecordLink entity={entity} id={row.id} label={text(column, value)} />;
+    if (column.identity && column.linkable && typeof row.id === "string") return <RecordLink entity={entity} id={row.id} label={text(column, value)} inRow />;
     return text(column, value);
   };
 

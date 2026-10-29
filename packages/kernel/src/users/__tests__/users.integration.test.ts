@@ -9,6 +9,7 @@ import { runProcess } from "../../process/run";
 import { gridDenial } from "../../query/access";
 import { runGridQuery } from "../../query/run";
 import { Registry } from "../../registry";
+import { describeAuditEntry, readAuditEntry } from "../../audit/detail";
 
 // Migration 0026_kernel_v_users (rule 34) and the `kernel.user` entity (design §22.15, rule 21): kernel.v_users lists the
 // members of the caller's active company (never a user of another organization), with each field under the caller's
@@ -118,4 +119,40 @@ describe("kernel users: v_users and kernel.user.consult", () => {
     const { rows } = await runGridQuery(sql, admin.claims, registry.entity("kernel.user"), { filters: [], sort: [], page: 1, pageSize: 10, search: "onlya" });
     expect(rows.map((r) => r.id)).toEqual([seed.users.onlyA]);
   });
+
+  it("reads nothing for a caller whose membership is inactive, and keeps listing an inactive member to the others", async () => {
+    await sql`update kernel.memberships set is_active = false where user_id = ${seed.users.member!} and company_id = ${companyA}`;
+    try {
+      expect(await users(member)).toHaveLength(0);
+    } finally {
+      await sql`update kernel.memberships set is_active = true where user_id = ${seed.users.member!} and company_id = ${companyA}`;
+    }
+    await sql`update kernel.memberships set is_active = false where user_id = ${seed.users.onlyA} and company_id = ${companyA}`;
+    try {
+      // A deactivated user still names the records and the audit entries that refer to them.
+      expect((await users(admin)).map((r) => r.id)).toContain(seed.users.onlyA);
+    } finally {
+      await sql`update kernel.memberships set is_active = true where user_id = ${seed.users.onlyA} and company_id = ${companyA}`;
+    }
+  });
+
+  it("lets the audit detail describe a change of a user's profile under the viewer's field visibility (kernel.user is registered)", async () => {
+    const [entry] = await sql<{ id: string }[]>`
+      insert into kernel.audit_log (company_id, actor_user_id, origin, process_id, entity, row_id, action, diff, chain_id)
+      values (${companyA}, ${seed.users.both}, 'ui', 'kernel.admin.user.update', 'kernel.users', ${seed.users.onlyA}, 'update',
+              ${sql.json({ full_name: { old: "User onlyA", new: "Ana Pérez" }, mobile: { old: "3001234567", new: "3109876543" }, mobile_cc: { old: "57", new: "57" } })},
+              gen_random_uuid())
+      returning id`;
+    const record = (await withClaims(sql, admin.claims, (tx) => readAuditEntry(tx, entry!.id)))!;
+    const asAdmin = await withClaims(sql, admin.claims, (tx) => describeAuditEntry(tx, registry, record));
+    expect(asAdmin.described).toBe(true);
+    expect(asAdmin.changes.map((c) => c.field).sort()).toEqual(["full_name", "mobile"]);
+    expect(asAdmin.changes.find((c) => c.field === "full_name")).toMatchObject({ labelKey: "field.kernel.user.full_name", masked: false, before: "User onlyA", after: "Ana Pérez" });
+    expect(asAdmin.changes.find((c) => c.field === "mobile")).toMatchObject({ masked: false, before: "3001234567", after: "3109876543" });
+    // A role that sees the mobile masked (the confidential default) gets no value of it.
+    const asMember = await withClaims(sql, member.claims, (tx) => describeAuditEntry(tx, registry, record));
+    expect(asMember.changes.find((c) => c.field === "mobile")).toMatchObject({ masked: true, before: null, after: null });
+    expect(JSON.stringify(asMember)).not.toContain("3109876543");
+  });
 });
+

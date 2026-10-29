@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { GridCell } from "../GridCell";
+import { NavigateProvider } from "../../shell/navigate";
 import { CellFormatProvider } from "../cell-format";
 import { ResultTable } from "../../assistant/ResultTable";
 import { renderEs } from "../../shell/__tests__/intl";
@@ -82,8 +83,28 @@ describe("GridCell: a reference to another record is a link to its page (rule 21
     const link = screen.getByRole("link", { name: "Café del Norte S.A.S." });
     expect(link.getAttribute("href")).toBe(`/r/core.party/${supplier}`);
     expect(link.getAttribute("title")).toBe("Abrir Café del Norte S.A.S.");
+    // Out of the tab order: the row is the grid's one tab stop and Enter opens it.
+    expect(link.getAttribute("tabindex")).toBe("-1");
     fireEvent.click(link);
     expect(onRow).not.toHaveBeenCalled();
+  });
+
+  it("moves client-side through the shell's navigation on a plain click, and leaves a Ctrl/⌘-click to the browser", () => {
+    const navigate = vi.fn();
+    renderEs(
+      <NavigateProvider navigate={navigate}>
+        {inRow(<GridCell column={ref()} row={{ id: "1", supplier_id: supplier, supplier_id_label: "Café del Norte S.A.S." }} />)}
+      </NavigateProvider>,
+    );
+    const link = screen.getByRole("link", { name: "Café del Norte S.A.S." });
+    const plain = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    link.dispatchEvent(plain);
+    expect(plain.defaultPrevented).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(`/r/core.party/${supplier}`);
+    const modified = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, ctrlKey: true });
+    link.dispatchEvent(modified);
+    expect(modified.defaultPrevented).toBe(false);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 
   it("links a user to their page under Administración › Usuarios, and names a record without a label by its short id", () => {

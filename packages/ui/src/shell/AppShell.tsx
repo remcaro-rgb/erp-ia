@@ -13,6 +13,7 @@ import { CommandPalette } from "./CommandPalette";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
+import { NavigateProvider } from "./navigate";
 import { assistantOpenStorageKey, browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
@@ -250,6 +251,7 @@ function ShellFrame(props: AppShellProps) {
 
   return (
     <CellFormatProvider timeZone={timeZone}>
+      <NavigateProvider navigate={navigate}>
       <TabsProvider store={store}>
         {/* Exports outlive the grid that started them: a tab change no longer aborts a background job. */}
         <ExportJobsProvider>
@@ -307,6 +309,7 @@ function ShellFrame(props: AppShellProps) {
         </div>
         </ExportJobsProvider>
       </TabsProvider>
+      </NavigateProvider>
     </CellFormatProvider>
   );
 }

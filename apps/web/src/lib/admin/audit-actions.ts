@@ -1,6 +1,6 @@
 "use server";
 
-import { auditEntityOf, ProcessError, recordTitles, runProcess, withClaims, type AuditEntryDetail, type RecordRef } from "@erp/kernel";
+import { auditEntityOf, ProcessError, recordPageEntities, recordTitles, runProcess, withClaims, type AuditEntryDetail, type RecordRef } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
 import { auditLabels } from "./audit-labels";
@@ -17,7 +17,7 @@ export async function auditEntryAction(id: string): Promise<AuditEntryResult> {
   await registrySynced();
   try {
     const detail = (await runProcess(processDeps(), caller, "kernel.audit.entry", { id })) as AuditEntryDetail;
-    return { ok: true, view: presentAuditDetail(detail, await auditLabels()) };
+    return { ok: true, view: presentAuditDetail(detail, await auditLabels(), recordPageEntities(processDeps().registry.entities())) };
   } catch (error) {
     if (error instanceof ProcessError) return { ok: false, code: error.code };
     throw error;

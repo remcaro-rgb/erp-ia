@@ -47,6 +47,8 @@ export const ticket: EntityDef = {
   ],
   // Files on a ticket are attached by whoever may follow the conversation: the reporter and the agents both reply.
   processIds: { attach: "support.ticket.reply" },
+  // Opens in its own frame at /r/support.ticket/<id> (rule 21: references to it are links).
+  recordPage: true,
   // A copied ticket is a new conversation: its own consecutive, and the status a new ticket starts with.
   cloneReset: ["seq", "status"],
 };

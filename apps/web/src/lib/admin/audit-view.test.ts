@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { AuditEntryDetail, ValueLabels } from "@erp/kernel";
+import { kernelModule, loadModules, recordPageEntities, Registry, type AuditEntryDetail, type ValueLabels } from "@erp/kernel";
+import { core } from "@erp/module-core";
+import { support } from "@erp/module-support";
 import { actorHref, auditRecordHref, presentAuditDetail, SYSTEM_ACTOR } from "./audit-view";
 
 // The audit viewer's detail of one entry (design §22.14, rule 16): every changed field as `label · antes → después`,
 // values as the forms show them (option and code labels, money, dates in the company's zone), `••••••` for a field the
 // viewer sees masked, and the links of the record, its source and the actor (rule 21).
+
+const registry = new Registry();
+loadModules(registry, [kernelModule, core, support]);
+/** The entities whose modules declare a page for their records. */
+const PAGES = recordPageEntities(registry.entities());
+const of = (id: string) => registry.entity(id);
 
 const CATALOGUE: Record<string, string> = {
   "common.yes": "Sí",
@@ -62,6 +70,7 @@ describe("presentAuditDetail", () => {
         described: true,
       },
       labels,
+      PAGES,
     );
     expect(view.changes.map((c) => `${c.label} · ${c.before} → ${c.after}`)).toEqual([
       "Nombre comercial · — → Bosque QA",
@@ -78,6 +87,7 @@ describe("presentAuditDetail", () => {
     const view = presentAuditDetail(
       { entry: entry(), changes: [{ field: "credit_limit", labelKey: "field.core.party.credit_limit", type: "money", masked: true, before: null, after: null }], input: null, described: true },
       labels,
+      PAGES,
     );
     expect(view.changes).toEqual([{ field: "credit_limit", label: "Cupo de crédito", before: "••••••", after: "••••••", masked: true }]);
   });
@@ -95,6 +105,7 @@ describe("presentAuditDetail", () => {
         described: true,
       },
       labels,
+      PAGES,
     );
     expect(view.input).toEqual([
       { key: "documentType", label: "Tipo de documento", value: "31 · NIT", masked: false },
@@ -116,6 +127,7 @@ describe("presentAuditDetail", () => {
         described: true,
       },
       labels,
+      PAGES,
     );
     expect(view.input).toEqual([
       { key: "code", label: "Motivo", value: "No tienes permiso para hacer esto.", masked: false },
@@ -126,7 +138,7 @@ describe("presentAuditDetail", () => {
 
 describe("presentAuditDetail on a platform table", () => {
   it("says the entry has no field detail instead of listing values", () => {
-    const view = presentAuditDetail({ entry: entry({ entity: "kernel.agent_confirmations", entityId: null, entityLabel: null }), changes: [], input: null, described: false }, labels);
+    const view = presentAuditDetail({ entry: entry({ entity: "kernel.agent_confirmations", entityId: null, entityLabel: null }), changes: [], input: null, described: false }, labels, PAGES);
     expect(view.described).toBe(false);
     expect(view.changes).toEqual([]);
     expect(view.rowHref).toBeNull();
@@ -135,13 +147,14 @@ describe("presentAuditDetail on a platform table", () => {
 
 describe("links", () => {
   it("opens a record of an entity with a page, and the actor's user page except for the system", () => {
-    expect(auditRecordHref("core.party", "p1")).toBe("/r/core.party/p1");
-    expect(auditRecordHref("core.product_category", "c1")).toBe("/r/core.product_category/c1");
-    expect(auditRecordHref("support.ticket", "t1")).toBe("/r/support.ticket/t1");
-    expect(auditRecordHref("kernel.audit", "a1")).toBeNull();
-    expect(auditRecordHref("kernel.user", "u1")).toBe("/admin/users/u1");
+    expect(auditRecordHref(of("core.party"), "p1")).toBe("/r/core.party/p1");
+    expect(auditRecordHref(of("core.product_category"), "c1")).toBe("/r/core.product_category/c1");
+    expect(auditRecordHref(of("support.ticket"), "t1")).toBe("/r/support.ticket/t1");
+    expect(auditRecordHref(of("kernel.audit"), "a1")).toBeNull();
+    expect(auditRecordHref(of("core.price_list"), "l1")).toBeNull();
+    expect(auditRecordHref(of("kernel.user"), "u1")).toBe("/admin/users/u1");
     expect(auditRecordHref(null, "a1")).toBeNull();
-    expect(auditRecordHref("core.party", null)).toBeNull();
+    expect(auditRecordHref(of("core.party"), null)).toBeNull();
     expect(actorHref("u1")).toBe("/admin/users/u1");
     expect(actorHref(SYSTEM_ACTOR)).toBeNull();
     expect(actorHref(null)).toBeNull();

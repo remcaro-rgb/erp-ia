@@ -4,7 +4,7 @@ import { defineEntity, defineProcess, kernelModule, loadModules, registerCountry
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
-import { BUILTIN_TOOLS } from "../tools/builtin";
+import { BUILTIN_TOOLS, runBuiltin } from "../tools/builtin";
 import { toolSet } from "../tools/build";
 import { capResult, MAX_RESULT_BYTES, scrubTokens } from "../tools/cap";
 import { EXCLUDED_PROCESSES, inputJsonSchema, processIdOfTool, toolName } from "../tools/from-registry";
@@ -36,6 +36,21 @@ describe("tool names", () => {
     expect(names).toEqual(["ui__navigate", "ui__open_record"]);
     expect(registry.process("kernel.data.query")).toMatchObject({ kind: "consult", module: "kernel", feature: "kernel.data" });
     for (const process of registry.processes()) expect(names).not.toContain(toolName(process.id));
+  });
+});
+
+describe("ui__open_record", () => {
+  const deps = { registry, sql: undefined as never };
+  const id = "0199a2b3-c4d5-7e6f-8a9b-0c1d2e3f4a5b";
+
+  it("opens a record where every link to it leads (rule 21): a user under Administración › Usuarios, a party in its frame", async () => {
+    expect(await runBuiltin(deps, "ui__open_record", { entity: "kernel.user", id })).toEqual({ action: "open_record", href: `/admin/users/${id}` });
+    expect(await runBuiltin(deps, "ui__open_record", { entity: "core.party", id })).toEqual({ action: "open_record", href: `/r/core.party/${id}` });
+    expect(await runBuiltin(deps, "ui__open_record", { entity: "support.ticket", id })).toEqual({ action: "open_record", href: `/r/support.ticket/${id}` });
+  });
+
+  it("refuses an entity whose records have no page of their own", async () => {
+    expect(await runBuiltin(deps, "ui__open_record", { entity: "core.price_list", id })).toMatchObject({ ok: false, error: { code: "invalid_input" } });
   });
 });
 

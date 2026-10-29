@@ -4,8 +4,9 @@
 -- to a user name that user and lead to their page. kernel.v_users is the read view of the registry entity `kernel.user`
 -- (packages/kernel/src/users/entity.ts), which its grid, its lookups, the label of a reference and kernel.user.consult
 -- read (rule 14: one view for every channel).
---   * The members of the caller's active company only, and only for a caller who is one of them: a user of another
---     organization is never listed.
+--   * The members of the caller's active company only, and only for a caller whose membership there is active (0025,
+--     kernel.memberships.is_active): a user of another organization is never listed. A deactivated member is still
+--     listed (their name stays on the records and the audit they are referenced from), but reads nothing here.
 --   * Each field under the caller's field visibility (kernel.field_visible, as every masked view): the mobile is
 --     confidential, so the role defaults mask it for every role but the admin.
 --   * The mobile is personal data users have no column grant on (0021): owner's rights, like kernel.v_memberships, so
@@ -38,6 +39,7 @@ where exists (
     select 1 from kernel.memberships me
     where me.user_id = (select kernel.current_user_id())
       and me.company_id = (select kernel.current_company_id())
+      and me.is_active
   );
 
 revoke all on kernel.v_users from public, anon;

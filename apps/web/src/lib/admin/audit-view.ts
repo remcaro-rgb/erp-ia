@@ -44,8 +44,10 @@ const fieldOf = (d: Described): LabelledField => ({
 });
 
 /** The detail of `detail` as text in the viewer's language. */
-export function presentAuditDetail(detail: AuditEntryDetail, labels: ValueLabels): AuditDetailView {
+/** `pages`: the entities whose records have a page (`recordPageEntities`), so the record and its source link to it. */
+export function presentAuditDetail(detail: AuditEntryDetail, labels: ValueLabels, pages: ReadonlySet<string>): AuditDetailView {
   const { entry } = detail;
+  const target = entry.entityId ? { id: entry.entityId, recordPage: pages.has(entry.entityId) } : null;
   const labelOf = (d: Described, fallback: string) => (d.labelKey ? labels.t(d.labelKey) : undefined) ?? d.labelText ?? fallback;
   const text = (d: Described, value: unknown) => (d.masked ? MASK : valueText(fieldOf(d), value, labels) || NOTHING);
   return {
@@ -58,8 +60,8 @@ export function presentAuditDetail(detail: AuditEntryDetail, labels: ValueLabels
     entity: entry.entity,
     rowId: entry.rowId,
     rowTitle: entry.rowTitle,
-    rowHref: auditRecordHref(entry.entityId, entry.rowId),
-    source: entry.sourceRowId ? { id: entry.sourceRowId, title: entry.sourceTitle, href: auditRecordHref(entry.entityId, entry.sourceRowId) } : null,
+    rowHref: auditRecordHref(target, entry.rowId),
+    source: entry.sourceRowId ? { id: entry.sourceRowId, title: entry.sourceTitle, href: auditRecordHref(target, entry.sourceRowId) } : null,
     actor: { userId: entry.actorUserId, email: entry.actor, href: actorHref(entry.actorUserId) },
     chainId: entry.chainId,
     described: detail.described,

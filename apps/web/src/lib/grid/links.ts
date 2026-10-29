@@ -1,6 +1,5 @@
 import "server-only";
-import type { EntityDef, JwtClaims, RunProcessDeps } from "@erp/kernel";
-import { hasRecordPage } from "@/lib/records/entities";
+import { hasRecordPage, type EntityDef, type JwtClaims, type RunProcessDeps } from "@erp/kernel";
 import { gridDenial, gridEntity } from "./access";
 
 // Which records the viewer may open from a link (rule 21, design §22.15): an entity with a page of its own whose grid the
@@ -14,8 +13,8 @@ export const refTargets = (entity: EntityDef): string[] => [...new Set(entity.fi
 export async function linkableEntities(deps: RunProcessDeps, claims: JwtClaims, entities: readonly string[]): Promise<Set<string>> {
   const checked = await Promise.all(
     [...new Set(entities)].map(async (id) => {
-      const entity = hasRecordPage(id) ? gridEntity(deps.registry, id) : null;
-      return entity && (await gridDenial(deps, claims, entity)) === null ? [id] : [];
+      const entity = gridEntity(deps.registry, id);
+      return entity && hasRecordPage(entity) && (await gridDenial(deps, claims, entity)) === null ? [id] : [];
     }),
   );
   return new Set(checked.flat());

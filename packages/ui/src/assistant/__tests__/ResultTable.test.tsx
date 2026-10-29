@@ -113,6 +113,8 @@ describe("ResultTable", () => {
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Descripción", "Proveedor", "Categoría"]);
     expect(screen.getByRole("link", { name: "Café en grano 500 g" }).getAttribute("href")).toBe("/r/core.product/p1");
     expect(screen.getByRole("link", { name: "Café del Norte S.A.S." }).getAttribute("href")).toBe(`/r/core.party/${supplier}`);
+    // As in the grid, the links in the rows stay out of the tab order.
+    for (const link of screen.getAllByRole("link")) expect(link.getAttribute("tabindex")).toBe("-1");
     // A reference the caller may not open names its record without a link.
     expect(screen.getByText("Café").closest("a")).toBeNull();
   });

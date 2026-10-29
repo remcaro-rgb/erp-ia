@@ -11,7 +11,8 @@
     "./custom-fields": "./src/custom-fields/index.ts",
     "./query": "./src/query/index.ts",
     "./import": "./src/import/index.ts",
-    "./exports": "./src/exports/index.ts"
+    "./exports": "./src/exports/index.ts",
+    "./href": "./src/registry/href.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",

@@ -1,11 +1,10 @@
-import { recordHref } from "@erp/ui";
-import { hasRecordPage } from "@/lib/records/entities";
+import { hasRecordPage, recordHref } from "@erp/kernel/href";
 
 // Pure rules of the home page: where a recent record opens, and which help shortcuts make sense for the screens the caller has.
 
-/** The page of a record (rule 21: where `recordHref` says), or null for an entity with no page of its own. */
-export function recentHref(entity: string, id: string): string | null {
-  return hasRecordPage(entity) ? recordHref(entity, id) : null;
+/** The page of a record of `entity` (rule 21: where `recordHref` says), or null for an entity with no page of its own. */
+export function recentHref(entity: { id: string; recordPage?: boolean } | null | undefined, id: string): string | null {
+  return entity && hasRecordPage(entity) ? recordHref(entity.id, id) : null;
 }
 
 export interface HelpShortcutDef {

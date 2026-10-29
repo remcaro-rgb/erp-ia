@@ -2,6 +2,7 @@ import "server-only";
 import { getTranslations } from "next-intl/server";
 import {
   auditEntityOf,
+  hasRecordPage,
   loadCustomFields,
   matrixProcesses,
   moduleStates,
@@ -269,7 +270,7 @@ function auditCatalogue(registry: Registry, t: (key: string) => string, people: 
     const prefixes = Object.values(entity.processIds ?? {}).map((p) => p.slice(0, p.lastIndexOf(".")));
     const spellings = [entity.id, `${entity.schema}.${entity.table}`, ...prefixes, `${entity.module}.${short}`];
     // Only the spellings that name this entity and no other (auditEntityOf is the rule the detail follows too).
-    for (const spelling of new Set(spellings)) if (auditEntityOf(registry, spelling)?.id === entity.id) entities[spelling] = { id: entity.id, label: t(entity.label) };
+    for (const spelling of new Set(spellings)) if (auditEntityOf(registry, spelling)?.id === entity.id) entities[spelling] = { id: entity.id, label: t(entity.label), recordPage: hasRecordPage(entity) };
   }
   return {
     processes: Object.fromEntries(registry.processes().map((p) => [p.id, p.description])),

@@ -17,3 +17,4 @@ export { applyTheme, isThemeMode, nextTheme, THEME_MODES, themeScript } from "./
 export * from "./types";
 export { browserStorage, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 export { AskAssistantProvider, useAskAssistant } from "./ask-assistant";
+export { NavigateProvider, useNavigate } from "./navigate";

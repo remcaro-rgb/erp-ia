@@ -70,6 +70,8 @@ export const party: EntityDef = {
     ...trailer(f),
   ]),
   importKey: ["document_type", "document_number"],
+  // Opens in its own record frame at /r/<entity>/<id> (rule 21: references to it are links).
+  recordPage: true,
   // A clone (rule 37) starts without the identification (the DV goes with the number) and the state the server derives.
   cloneReset: ["document_number", "check_digit", "seq", "dian_status", "invoice_ready"],
 };
@@ -103,6 +105,8 @@ export const productCategory: EntityDef = {
     ...trailer(f),
   ]),
   processIds: { create: "core.category.create" },
+  // Opens in its own record frame at /r/<entity>/<id> (rule 21: references to it are links).
+  recordPage: true,
   importKey: ["name"],
   // The name is the category's unique key.
   cloneReset: ["name"],
@@ -139,6 +143,8 @@ export const product: EntityDef = {
     ...trailer(f),
   ]),
   importKey: ["sku"],
+  // Opens in its own record frame at /r/<entity>/<id> (rule 21: references to it are links).
+  recordPage: true,
   cloneReset: ["sku", "seq"],
 };
 

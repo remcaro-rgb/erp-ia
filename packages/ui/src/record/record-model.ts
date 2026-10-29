@@ -45,11 +45,10 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
 };
 
 /**
- * The page of a record (rule 21, design §22.15), the one place that says where a record of an entity opens: a user at
- * their page under Administración › Usuarios, any other record in its frame at `/r/<entity id>/<record id>`. Every link
- * to a record (grids, forms, the audit, the assistant's results, the home) is built here.
+ * The page of a record (rule 21, design §22.15): the kernel's one rule (`@erp/kernel/href`), shared with the assistant's
+ * `ui__open_record` and the server loaders. A user opens under Administración › Usuarios, any other record in its frame.
  */
-export const recordHref = (entity: string, recordId: string): string => (entity === "kernel.user" ? `/admin/users/${recordId}` : `/r/${entity}/${recordId}`);
+export { recordHref } from "@erp/kernel/href";
 
 /** First 8 characters of the UUID, as the prototype shows it. */
 export const shortId = (uuid: string): string => uuid.slice(0, 8);

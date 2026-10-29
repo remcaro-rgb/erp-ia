@@ -59,7 +59,7 @@ export function GridCell({ column, row, className, render }: { column: GridColum
     return (
       <td className={base}>
         {column.linkable ? (
-          <RecordLink entity={column.ref.entity} id={value} label={shown} mono={label === null} />
+          <RecordLink entity={column.ref.entity} id={value} label={shown} mono={label === null} inRow />
         ) : (
           <span className={label === null ? "erp-mono" : undefined} title={label === null ? value : undefined}>
             {shown}

@@ -30,6 +30,11 @@ export interface EntityDef {
    * timestamps, actors), secret columns, files and child records are never copied whatever this lists.
    */
   cloneReset?: string[];
+  /**
+   * The entity's records have a page of their own that a link can open (rule 21, design §22.15): the record frame at
+   * /r/<entity id>/<id>, or for the kernel's users their page under Administración › Usuarios (`recordHref`).
+   */
+  recordPage?: boolean;
 }
 
 export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFieldDef[] };

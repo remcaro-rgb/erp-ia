@@ -66,7 +66,7 @@ export function AuditScreen({ data }: { data: AuditPageData }) {
 
   const recordLink = useCallback(
     (entity: string | null, id: string) => {
-      const href = auditRecordHref(entity ? catalogue.entities[entity]?.id : null, id);
+      const href = auditRecordHref(entity ? catalogue.entities[entity] : null, id);
       const label = titles[id] ?? shortId(id);
       return href ? (
         <CellLink href={href} title={id}>

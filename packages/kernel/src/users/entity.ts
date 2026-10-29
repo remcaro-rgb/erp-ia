@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
 import { defineEntity } from "../registry/entities";
+import { USER_ENTITY } from "../registry/href";
 
 // The users of the company as a registry entity (design §22.15, rule 21): every reference to a user (a ticket's
 // reporter, an audit actor) names them by their full name and links to their page under Administración › Usuarios.
@@ -13,13 +14,15 @@ import { defineEntity } from "../registry/entities";
 export const USERS_FEATURE = "kernel.users";
 
 export const userEntity = defineEntity({
-  id: "kernel.user",
+  id: USER_ENTITY,
   module: "kernel",
   schema: "kernel",
   table: "users",
   label: "entity.kernel.user",
   displayField: "full_name",
   defaultSort: { field: "full_name", dir: "asc" },
+  // A user's page is under Administración › Usuarios (`recordHref`).
+  recordPage: true,
   fields: [
     { name: "full_name", type: "text", label: "field.kernel.user.full_name", searchable: true },
     { name: "email", type: "text", label: "field.kernel.user.email", searchable: true },

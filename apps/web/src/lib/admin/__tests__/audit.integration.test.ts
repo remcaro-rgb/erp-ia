@@ -13,7 +13,7 @@ vi.mock("next-intl/server", async () => {
   return { getLocale: async () => "es-419", getTranslations: async () => t };
 });
 
-import { auditEntryDetail, readAuditEntry, runProcess, withClaims, type JwtClaims } from "@erp/kernel";
+import { auditEntryDetail, readAuditEntry, recordPageEntities, runProcess, withClaims, type JwtClaims } from "@erp/kernel";
 import { completeMfa, loginWithPassword } from "@/lib/auth/login";
 import { requireCaller } from "@/lib/auth/claims";
 import { processDeps } from "@/lib/server/runtime";
@@ -89,9 +89,9 @@ describe("audit grid catalogue", () => {
     expect(data).not.toBeNull();
     const { catalogue } = data!;
     expect(catalogue.processes["core.party.update"]).toBe("Actualiza los datos de un tercero y recalcula su estado DIAN");
-    expect(catalogue.entities["core.party"]).toEqual({ id: "core.party", label: "Tercero" });
-    expect(catalogue.entities["core.parties"]).toEqual({ id: "core.party", label: "Tercero" });
-    expect(catalogue.entities["core.category"]).toEqual({ id: "core.product_category", label: "Categoría de producto" });
+    expect(catalogue.entities["core.party"]).toEqual({ id: "core.party", label: "Tercero", recordPage: true });
+    expect(catalogue.entities["core.parties"]).toEqual({ id: "core.party", label: "Tercero", recordPage: true });
+    expect(catalogue.entities["core.category"]).toEqual({ id: "core.product_category", label: "Categoría de producto", recordPage: true });
     expect(catalogue.members[fixture.userId]).toMatch(/^Auth user /);
   });
 
@@ -145,7 +145,7 @@ describe("audit entry detail", () => {
     // The seller reads nothing of the log itself.
     expect(await withClaims(sql, seller, (tx) => readAuditEntry(tx, record.id))).toBeNull();
     const detail = await withClaims(sql, seller, (tx) => auditEntryDetail(tx, registry, record));
-    const view = presentAuditDetail(detail, await auditLabels());
+    const view = presentAuditDetail(detail, await auditLabels(), recordPageEntities(registry.entities()));
     const lines = view.changes.map((c) => `${c.label} · ${c.before} → ${c.after}`);
     expect(lines).toContain("Cupo de crédito · •••••• → ••••••");
     expect(lines.some((l) => l.startsWith("Nombre comercial"))).toBe(false);

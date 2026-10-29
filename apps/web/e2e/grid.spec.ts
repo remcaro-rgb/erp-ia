@@ -440,6 +440,15 @@ test.describe("universal grid", () => {
     await page.goto("/products");
     const productos = grid(page, "Productos");
     await expect(bodyRows(page)).toHaveCount(1);
+    // The Categoría shown by default is a link, out of the tab order: Tab from the row leaves the table in one stop.
+    await expect(productos.getByRole("link", { name: "Café", exact: true })).toHaveAttribute("tabindex", "-1");
+    await bodyRows(page).first().focus();
+    await page.keyboard.press("Tab");
+    const landed = await page.evaluate(() => {
+      const active = document.activeElement;
+      return { inBody: Boolean(active?.closest(".erp-grid__body")), inGrid: Boolean(active?.closest("section.erp-grid")) };
+    });
+    expect(landed).toEqual({ inBody: false, inGrid: true });
     // Proveedor is in the column chooser; shown, it names the party by its legal name and links to its page.
     await productos.getByRole("button", { name: "Columnas" }).click();
     await page.getByRole("group", { name: "Columnas" }).getByLabel("Proveedor", { exact: true }).check();
