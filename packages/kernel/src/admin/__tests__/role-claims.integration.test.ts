@@ -101,7 +101,10 @@ describe("kernel role claims: revocation applies before the token refresh", () =
     expect(await probe(system)).toMatchObject({ role_ids: [adminRoleId], admin: true, can: true, mode: "visible", secret: "s3" });
   });
 
-  it("the system user's claim does not count through PostgREST (session user authenticator)", async () => {
+  // PostgREST's own login exists only on the CLI and compose stacks (a hosted project keeps the authenticator password
+  // to itself), so this check runs against a local database only (hosted development, 2026-10-29).
+  const localDb = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(new URL(process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres").hostname);
+  it.skipIf(!localDb)("the system user's claim does not count through PostgREST (session user authenticator)", async () => {
     const system = { role: "authenticated", sub: SYSTEM_USER_ID, tenant_id: seed.tenantId, company_ids: [companyId], active_company_id: companyId, role_ids: [adminRoleId] };
     // PostgREST's own login (same password as the service user on the CLI and the compose stacks).
     const url = new URL(process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@127.0.0.1:54322/postgres");
