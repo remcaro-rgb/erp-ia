@@ -32,6 +32,12 @@ describe("focus ring token", () => {
     expect(globals).toMatch(/\[data-bar\] :focus-visible\s*\{[^}]*var\(--focus\)/);
   });
 
+  it("drops the ring only for the regions the caret is sent to, not for every tabIndex -1 element", () => {
+    expect(globals).not.toMatch(/\[tabindex="-1"\]:focus/);
+    expect(globals).toMatch(/#erp-main:focus, \[data-error-summary\]:focus\s*\{\s*outline:\s*none/);
+    expect(globals).toMatch(/#erp-main:has\(\.erp-record__top\)\s*\{\s*scroll-padding-top/);
+  });
+
   it("no component outline uses the faint brand blue any more", () => {
     expect(components).not.toMatch(/outline:\s*2px solid var\(--focus\)/);
     expect(components).toMatch(/\.erp-grid__filters input:focus-visible/);

@@ -90,4 +90,17 @@ describe("Archivos tab copy and time", () => {
     const withReasons = attachmentsLabels(translator("es-419"), "es-419", (code) => (code === "file_too_large" ? "el archivo es muy grande" : code));
     expect(withReasons.failed("a.pdf", "file_too_large")).toBe("No se pudo subir a.pdf: el archivo es muy grande");
   });
+
+  // Branch review fix 9: an engine without Intl.ListFormat still lists the tags.
+  it("joins the tags with commas where Intl.ListFormat is missing", () => {
+    const original = Intl.ListFormat;
+    // @ts-expect-error simulating an engine without it
+    delete Intl.ListFormat;
+    try {
+      const translator = createTranslator({ locale: "es-419", messages: messages("es-419"), namespace: "common.attachments" }) as unknown as AttachmentsTranslator;
+      expect(attachmentsLabels(translator, "es-419").missing(["RUT", "Cámara"])).toBe("Mientras falten RUT, Cámara el registro no se puede usar en facturas.");
+    } finally {
+      Object.defineProperty(Intl, "ListFormat", { value: original, configurable: true, writable: true });
+    }
+  });
 });

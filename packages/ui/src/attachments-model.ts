@@ -116,7 +116,9 @@ export type AttachmentsTranslator = (key: string, values?: Record<string, string
  * locale's way ("RUT, Cámara y Banco", "RUT and Chamber"), and an API refusal code read through `reason` when given.
  */
 export function attachmentsLabels(t: AttachmentsTranslator, locale: string, reason: (code: string) => string = (code) => code): AttachmentsLabels {
-  const list = new Intl.ListFormat(locale, { type: "conjunction" });
+  // Engines without Intl.ListFormat get a plain comma list.
+  const list: { format: (items: string[]) => string } =
+    typeof Intl.ListFormat === "function" ? new Intl.ListFormat(locale, { type: "conjunction" }) : { format: (items) => items.join(", ") };
   return {
     requiredTitle: t("required_title"),
     loaded: t("loaded"),

@@ -179,4 +179,14 @@ describe("ConfirmationCard", () => {
       outside.remove();
     }
   });
+
+  // Branch review fix 8: a code copied with spaces ("482 193") verifies, as in the form's prompt.
+  it("a pasted code with spaces is verified as its 6 digits", async () => {
+    const fetcher = vi.fn(async () => json({ token: "tok-p" }));
+    renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={vi.fn()} fetcher={fetcher as unknown as typeof fetch} />);
+    fireEvent.paste(screen.getByLabelText("Código de verificación"), { clipboardData: { getData: () => "482 193" } });
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+    expect(JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)).toEqual({ code: "482193" });
+    expect((screen.getByLabelText("Código de verificación") as HTMLInputElement).value).toBe("482193");
+  });
 });

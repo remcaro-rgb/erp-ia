@@ -78,6 +78,18 @@ export function StepUpField({ onToken, fetcher, endpoint = "/api/auth/step-up", 
             // The 6th digit verifies, typed or pasted: no extra key.
             if (next.length === 6 && !verified) void verify(next);
           }}
+          onPaste={(event) => {
+            // A code copied with spaces or dashes ("482 193") still fits the 6-digit box, and verifies.
+            const digits = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+            if (!digits) return;
+            event.preventDefault();
+            setCode(digits);
+            if (verified) {
+              setVerified(false);
+              onToken(null);
+            }
+            if (digits.length === 6) void verify(digits);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter") void verify();
           }}

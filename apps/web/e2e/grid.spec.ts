@@ -186,9 +186,10 @@ test.describe("universal grid", () => {
     await expect(terceros.getByRole("row", { name: "Filtros" }).locator("input:not([disabled]), select").first()).toBeFocused();
     await terceros.getByLabel("Filtrar Razón social").fill("norte");
     await expect(bodyRows(page)).toHaveCount(1);
-    await terceros.getByLabel("Filtrar Razón social").press("Tab");
-    // From the filters, Tab reaches the row; Enter opens the record.
-    await bodyRows(page).first().focus();
+    // From the last filter, a real Tab reaches the (only) row; Enter opens the record.
+    await terceros.getByRole("row", { name: "Filtros" }).locator("input:not([disabled]), select").last().focus();
+    await page.keyboard.press("Tab");
+    await expect(bodyRows(page).first()).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(new RegExp(`/r/core\\.party/${norteId}$`));
   });
