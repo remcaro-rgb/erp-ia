@@ -38,17 +38,13 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
       <div className="erp-admin__head">
         <h2>{t("common.admin.permissions.title")}</h2>
         <span className="erp-small erp-muted">{t("common.admin.permissions.hint")}</span>
-        <span className="erp-grow" />
-        <span className="erp-small erp-muted">{t("common.admin.step_up_note")}</span>
       </div>
-      {status && <div style={{ padding: "8px 14px" }}>{status}</div>}
       <div className="erp-admin__scroll">
         <table className="erp-matrix">
           <thead>
             <tr>
-              <th>{t("common.admin.permissions.col_entity")}</th>
+              {/* One identity column, sticky: the process, its kind and its entity stay in view while the roles scroll. */}
               <th className="erp-matrix__left">{t("common.admin.permissions.col_process")}</th>
-              <th>{t("common.admin.permissions.col_kind")}</th>
               {data.roles.map((role) => (
                 <th key={role.id} title={role.isSystemAdmin ? t("common.admin.permissions.admin_locked") : role.description}>
                   {role.name}
@@ -60,25 +56,28 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
             {modules.map((moduleId) => (
               <Fragment key={moduleId}>
                 <tr className="erp-matrix__group">
-                  <td colSpan={3 + data.roles.length}>{t(`nav.modules.${moduleId}`)}</td>
+                  <td className="erp-matrix__left">{t(`nav.modules.${moduleId}`)}</td>
+                  <td colSpan={data.roles.length} />
                 </tr>
                 {data.processes
                   .filter((p) => p.module === moduleId)
                   .map((process) => (
                     <tr key={process.id}>
-                      <td>
-                        <span>{t.has(process.entityLabel) ? t(process.entityLabel) : process.entity}</span>{" "}
-                        <span className="erp-hint erp-mono erp-small erp-muted">{process.entity}</span>
-                      </td>
-                      <td className="erp-matrix__left erp-mono erp-small">
-                        {process.id}
+                      <td className="erp-matrix__left">
+                        <span className="erp-mono erp-small">{process.id}</span>{" "}
+                        <span className="erp-pill erp-pill--gray" title={t("common.admin.permissions.col_kind")}>
+                          {t(`common.admin.kind.${process.kind}`)}
+                        </span>
                         {process.stepUp && (
-                          <span className="erp-pill erp-pill--warn" style={{ marginLeft: 6 }} title={t("common.admin.permissions.step_up_title")}>
+                          <span className="erp-pill erp-pill--warn" title={t("common.admin.permissions.step_up_title")}>
                             {t("common.admin.permissions.step_up")}
                           </span>
                         )}
+                        <div className="erp-small erp-muted" title={t("common.admin.permissions.col_entity")}>
+                          <span>{t.has(process.entityLabel) ? t(process.entityLabel) : process.entity}</span>{" "}
+                          <span className="erp-hint erp-mono">{process.entity}</span>
+                        </div>
                       </td>
-                      <td className="erp-small">{t(`common.admin.kind.${process.kind}`)}</td>
                       {data.roles.map((role) => (
                         <td key={role.id}>
                           <input
@@ -97,6 +96,8 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
           </tbody>
         </table>
       </div>
+      {/* One fixed bar under the matrix holds the outcome of the last change: nothing above the table ever moves it. */}
+      <div className="erp-admin__bar">{status ?? <span className="erp-small erp-muted">{t("common.admin.step_up_note")}</span>}</div>
       <StepUpDock prompt={prompt} />
     </section>
   );

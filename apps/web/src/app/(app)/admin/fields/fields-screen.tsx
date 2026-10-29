@@ -51,13 +51,12 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
         </div>
         <span className="erp-small erp-muted">{t("common.admin.fields.hint")}</span>
       </div>
-      {status && <div style={{ padding: "8px 14px" }}>{status}</div>}
       {entity && (
         <div className="erp-admin__scroll">
           <table className="erp-matrix">
             <thead>
               <tr>
-                <th>{t("common.admin.fields.col_field")}</th>
+                <th className="erp-matrix__left">{t("common.admin.fields.col_field")}</th>
                 {roles.map((role) => (
                   <th key={role.id}>{role.name}</th>
                 ))}
@@ -66,7 +65,7 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
             <tbody>
               {entity.fields.map((field) => (
                 <tr key={field.name}>
-                  <td>
+                  <td className="erp-matrix__left">
                     {label(field.label, field.name)} <span className="erp-hint erp-mono erp-small erp-muted">{field.name}</span>{" "}
                     {field.confidential && <span className="erp-pill erp-pill--warn">{t("common.admin.fields.confidential")}</span>}
                   </td>
@@ -95,9 +94,8 @@ export function FieldsScreen({ data }: { data: FieldsData }) {
           </table>
         </div>
       )}
-      <div className="erp-small erp-muted" style={{ padding: "8px 14px" }}>
-        {t("common.admin.fields.admin_note")}
-      </div>
+      {/* One fixed bar under the matrix holds the outcome of the last change: nothing above the table ever moves it. */}
+      <div className="erp-admin__bar">{status ?? <span className="erp-small erp-muted">{t("common.admin.fields.admin_note")}</span>}</div>
       <StepUpDock prompt={prompt} />
     </section>
   );

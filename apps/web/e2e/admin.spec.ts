@@ -148,9 +148,18 @@ test.describe("administration", () => {
     const toggle = importRow.getByRole("checkbox", { name: "Bodega kernel.import.run" });
     await expect(toggle).not.toBeChecked();
     const saved = page.getByRole("status").filter({ hasText: "Cambios guardados" });
+    // The outcome lands in the fixed bar under the matrix, so the table never moves under the pointer (UI density audit
+    // quick win 3), and the process column stays in view when the roles scroll sideways.
+    const matrix = page.locator("table.erp-matrix");
+    await toggle.scrollIntoViewIfNeeded();
+    const top = (await matrix.boundingBox())!.y;
+    await expect(importRow.locator(".erp-matrix__left")).toHaveCSS("position", "sticky");
     await toggle.check();
     await confirmStepUp(page, secret);
     await expect(saved).toBeVisible();
+    await expect(page.locator(".erp-admin__bar")).toContainText("Cambios guardados");
+    expect((await matrix.boundingBox())!.y).toBe(top);
+    expect((await page.locator(".erp-admin__bar").boundingBox())!.y).toBeGreaterThan(top);
     await expect(toggle).toBeChecked();
     expect(await pedroMenu(browser)).toContain("Importar datos");
 
@@ -185,6 +194,8 @@ test.describe("administration", () => {
     // Field visibility: the confidential credit limit of parties is marked.
     await page.goto("/admin/fields");
     await expect(page.getByRole("row").filter({ hasText: "credit_limit" }).getByText("confidencial")).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "credit_limit" }).locator(".erp-matrix__left")).toHaveCSS("position", "sticky");
+    await expect(page.locator(".erp-admin__bar")).toContainText("El rol admin ve todos los campos");
     // An RSC request cut short by the next navigation is not a problem of the screens.
     expect(problems.filter((text) => !/ERR_ABORTED|Failed to fetch RSC payload/.test(text))).toEqual([]);
 

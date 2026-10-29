@@ -78,7 +78,7 @@ Para cambiar los roles de alguien pulsa **Editar roles** en su fila. Cada usuari
 
 ## Permisos
 
-**Permisos** es la matriz de procesos por rol: cada fila es un proceso (agrupados por módulo), con la **entidad** sobre la que actúa (Tercero, Producto, Importación…) junto a su identificador y la acción (crear, actualizar, eliminar, consultar). Cada columna es un rol.
+**Permisos** es la matriz de procesos por rol: cada fila es un proceso (agrupados por módulo), con su identificador, la acción (crear, actualizar, eliminar, consultar) y debajo la **entidad** sobre la que actúa (Tercero, Producto, Importación…). Cada columna es un rol. La columna del proceso queda fija a la izquierda cuando desplazas los roles hacia los lados, y el resultado de cada cambio («Cambios guardados» o el motivo del rechazo) aparece en la barra fija debajo de la matriz, así la tabla no se mueve mientras marcas casillas. La matriz de **Visibilidad de campos** funciona igual.
 
 Marca la casilla para **permitir** el proceso a ese rol, o desmárcala para **negarlo**, e ingresa tu código. El efecto es inmediato: los menús, los botones, las exportaciones y las herramientas del asistente de quienes tienen ese rol se ajustan. Por ejemplo, al permitir **Importación** (`kernel.import.run`) a un rol, sus usuarios ven **Importar datos** en el menú; al negarlo, desaparece.
 
