@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { cn } from "@erp/ui/lib/utils";
 import { selectFilter } from "./grid-model";
 import type { ColumnFilterValue, GridColumn } from "./types";
 
@@ -10,6 +11,8 @@ export interface FilterRowProps {
   onChange: (field: string, value: ColumnFilterValue | undefined, debounce: boolean) => void;
   /** The grid has a selection column first. */
   selectable?: boolean;
+  /** The pinned identity column (OD-4): its filter stays in place while the grid scrolls sideways. */
+  pinned?: string;
 }
 
 /** The options a filter select offers: the column's own, or Sí / No for a boolean. */
@@ -23,28 +26,29 @@ function useOptions() {
  * (`>= 1000`, `1000..5000`), a date range, a select for enums and booleans. Masked columns show a disabled box;
  * active filters are tinted.
  */
-export function FilterRow({ columns, values, onChange, selectable }: FilterRowProps) {
+export function FilterRow({ columns, values, onChange, selectable, pinned }: FilterRowProps) {
   const t = useTranslations();
   const optionsOf = useOptions();
   return (
     <tr className="erp-grid__filters" aria-label={t("grid.filter_row")}>
-      {selectable && <th />}
+      {selectable && <th className={cn("erp-grid__check is-pinned", pinned === undefined && "is-pinned-edge")} />}
       {columns.map((column) => {
+        const th = column.field === pinned ? "erp-grid__id is-pinned is-pinned-edge" : undefined;
         const label = t("grid.filter_label", { label: column.label });
         const value = values[column.field];
         const on = value !== undefined && value !== "" ? "is-on" : undefined;
         if (column.mode === "masked") {
           return (
-            <th key={column.field}>
+            <th key={column.field} className={th}>
               <input disabled aria-label={t("grid.filter_unavailable")} placeholder={t("grid.filter_masked")} />
             </th>
           );
         }
-        if (!column.filterable) return <th key={column.field} />;
+        if (!column.filterable) return <th key={column.field} className={th} />;
         const options = optionsOf(column);
         if (options && (column.kind === "enum" || column.kind === "uuid" || selectFilter(column))) {
           return (
-            <th key={column.field}>
+            <th key={column.field} className={th}>
               <select aria-label={label} className={on} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(column.field, e.target.value || undefined, false)}>
                 <option value="">{t("grid.filter_all")}</option>
                 {options.map((o) => (
@@ -63,7 +67,7 @@ export function FilterRow({ columns, values, onChange, selectable }: FilterRowPr
             onChange(column.field, next.from || next.to ? next : undefined, false);
           };
           return (
-            <th key={column.field}>
+            <th key={column.field} className={th}>
               <span className="erp-grid__range">
                 <input type="date" aria-label={`${label} · ${t("grid.date_from")}`} className={on} value={range.from} onChange={(e) => set("from", e.target.value)} />
                 <input type="date" aria-label={`${label} · ${t("grid.date_to")}`} className={on} value={range.to} onChange={(e) => set("to", e.target.value)} />
@@ -74,7 +78,7 @@ export function FilterRow({ columns, values, onChange, selectable }: FilterRowPr
         if (column.kind === "number" || column.kind === "text" || column.kind === "json") {
           const numeric = column.kind === "number";
           return (
-            <th key={column.field}>
+            <th key={column.field} className={th}>
               <input
                 aria-label={label}
                 className={on}
@@ -87,7 +91,7 @@ export function FilterRow({ columns, values, onChange, selectable }: FilterRowPr
             </th>
           );
         }
-        return <th key={column.field} />;
+        return <th key={column.field} className={th} />;
       })}
     </tr>
   );

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
+import { cn } from "@erp/ui/lib/utils";
+import { formatMoney } from "../money/format";
 import { AdvancedFilter } from "./AdvancedFilter";
 import { ColumnChooser } from "./ColumnChooser";
 import { ConditionChips } from "./ConditionChips";
@@ -11,7 +13,7 @@ import { gridFetcher } from "./fetch-grid";
 import { FilterRow } from "./FilterRow";
 import { GridCell, isNumeric } from "./GridCell";
 import { GridFooter } from "./GridFooter";
-import { initialView, moneyColumns, pageCount, selectionTotals, shownColumns, stateFilters } from "./grid-model";
+import { identityField, moneyColumns, moveColumn, pageCount, selectionTotals, shownColumns, stateFilters } from "./grid-model";
 import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } from "./saved-views";
 import { SavedViewsMenu } from "./SavedViewsMenu";
 import { useGrid } from "./use-grid";
@@ -27,17 +29,18 @@ const SKELETON_ROWS = 6;
 
 const FORMAT_LABEL = { pdf: "pdf", xlsx: "excel", csv: "csv" } as const;
 
+/** How long the grid's status row keeps a notice ("Columna Municipio movida a la posición 3"). */
+const NOTICE_MS = 5000;
+
 /**
- * One fixed slot for what the grid is doing (an export, a refetch), for screen readers and eyes alike (role="status").
- * Always rendered, empty when idle, so the header never reflows (UI density audit M3).
+ * One fixed slot for what the grid is doing (an export, a refetch, a column just moved), for screen readers and eyes
+ * alike (role="status"). Always rendered, empty when idle, so the header never reflows (UI density audit M3).
  */
-function GridStatusText({ status, refreshing }: { status: ReturnType<typeof useGridExport>["status"]; refreshing: boolean }) {
+function GridStatusText({ status, refreshing, notice }: { status: ReturnType<typeof useGridExport>["status"]; refreshing: boolean; notice: string }) {
   const t = useTranslations();
   const text =
     status.phase === "idle"
-      ? refreshing
-        ? t("grid.refreshing")
-        : ""
+      ? notice || (refreshing ? t("grid.refreshing") : "")
       : status.phase === "working"
       ? t("grid.export.working", { format: t(`grid.export.${FORMAT_LABEL[status.format]}`) })
       : status.phase === "job"
@@ -178,6 +181,77 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   };
   const tabRow = Math.min(activeRow, Math.max(rows.length - 1, 0));
 
+  // Movable columns (design §22.12, rule 20): drag a header, or Alt+← / Alt+→ on it. The identity column is pinned
+  // first (OD-4) and does not move. The new order goes with the next grid request and is kept by a saved view.
+  const identity = identityField(columns);
+  const pinned = shown[0]?.identity ? shown[0].field : undefined;
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ field: string; side: "before" | "after" } | null>(null);
+  const [notice, setNotice] = useState("");
+  const refocusHeader = useRef<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => {
+    const field = refocusHeader.current;
+    if (!field) return;
+    refocusHeader.current = null;
+    const th = sectionRef.current?.querySelector<HTMLElement>(`thead th[data-field="${CSS.escape(field)}"]`);
+    (th?.querySelector<HTMLElement>("button") ?? th)?.focus();
+  }, [view.columns]);
+  const move = (field: string, toIndex: number) => {
+    const next = moveColumn(view, field, toIndex, identity);
+    if (next === view) return false;
+    grid.moveColumn(field, toIndex);
+    const column = shown.find((c) => c.field === field);
+    setNotice(t("grid.column_moved", { label: column?.label ?? field, position: next.columns.indexOf(field) + 1 }));
+    return true;
+  };
+  const onHeaderKey = (event: KeyboardEvent<HTMLTableCellElement>, field: string) => {
+    if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const at = view.columns.indexOf(field);
+    if (at < 0) return;
+    refocusHeader.current = field;
+    if (!move(field, at + (event.key === "ArrowLeft" ? -1 : 1))) refocusHeader.current = null;
+  };
+  const dropSide = (event: DragEvent<HTMLElement>, field: string): "before" | "after" => {
+    if (field === pinned) return "after";
+    const box = event.currentTarget.getBoundingClientRect();
+    return event.clientX > box.left + box.width / 2 ? "after" : "before";
+  };
+  const endDrag = () => {
+    setDragging(null);
+    setDropAt(null);
+  };
+  const headerDrag = (field: string) => ({
+    onDragStart: (event: DragEvent<HTMLTableCellElement>) => {
+      setDragging(field);
+      event.dataTransfer?.setData("text/plain", field);
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    },
+    onDragOver: (event: DragEvent<HTMLTableCellElement>) => {
+      if (dragging === null) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      const side = dropSide(event, field);
+      if (dropAt?.field !== field || dropAt.side !== side) setDropAt({ field, side });
+    },
+    onDrop: (event: DragEvent<HTMLTableCellElement>) => {
+      if (dragging === null) return;
+      event.preventDefault();
+      const from = view.columns.indexOf(dragging);
+      let to = view.columns.indexOf(field) + (dropSide(event, field) === "after" ? 1 : 0);
+      if (from >= 0 && from < to) to -= 1;
+      if (from >= 0 && to >= 0) move(dragging, to);
+      endDrag();
+    },
+    onDragEnd: endDrag,
+  });
+
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const filterFields = columns.filter((c) => c.mode !== "hidden");
   const hiddenCount = columns.filter((c) => c.mode === "hidden" && !c.filterOnly).length;
@@ -198,6 +272,11 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const sums = moneyColumns(shown)
     .map((column) => ({ column, sum: data.page?.aggregates?.[`sum:${column.field}`] }))
     .filter((s) => s.sum !== undefined);
+  // "Suma" goes in the identity cell, or the first column without a total of its own.
+  const sumLabelAt = shown.findIndex((c) => !sums.some((s) => s.column.field === c.field));
+  // OD-4: the selection column and the identity column stay put while the others scroll sideways under them.
+  const pinClass = "erp-grid__id is-pinned is-pinned-edge";
+  const checkClass = pinned ? "erp-grid__check is-pinned" : "erp-grid__check is-pinned is-pinned-edge";
   const errorText =
     data.error === null
       ? null
@@ -223,7 +302,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         {headerExtra}
         <div className="erp-grow" />
         {toolbar}
-        <ColumnChooser columns={columns} shown={view.columns} onChange={grid.setColumns} onReset={() => grid.setColumns(initialView(columns).columns)} />
+        <ColumnChooser columns={columns} order={view.order} shown={view.columns} onToggle={grid.showColumn} onMove={grid.stepColumn} onReset={grid.resetColumns} />
         {savedViews && (
           <SavedViewsMenu
             views={savedViews.views}
@@ -238,7 +317,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
         </button>
         <ExportButtons onExport={(format) => (onExport ? onExport(format, exportState()) : void exporter.run(format, exportState()))} busy={exporter.busy} />
-        <GridStatusText status={exporter.status} refreshing={data.loading && data.page !== null} />
+        <GridStatusText status={exporter.status} refreshing={data.loading && data.page !== null} notice={notice} />
         {/* Always laid out; hidden (not removed) while there is nothing to clear, so nothing to its left moves. */}
         <button
           type="button"
@@ -265,11 +344,17 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           {errorText}
         </div>
       )}
-      <div className="erp-grid__body">
+      <div
+        className="erp-grid__body"
+        onScroll={(e) => {
+          // The pinned columns cast a shadow once the others slide under them (not managed by React: no re-render).
+          e.currentTarget.toggleAttribute("data-scrolled-x", e.currentTarget.scrollLeft > 0);
+        }}
+      >
         <table>
           <thead>
             <tr>
-              <th className="erp-grid__check">
+              <th className={checkClass}>
                 <input
                   type="checkbox"
                   aria-label={t("grid.select_all")}
@@ -281,11 +366,26 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                 const sortIndex = view.sort.findIndex((s) => s.field === column.field);
                 const sort = view.sort[sortIndex];
                 const canSort = column.sortable && column.mode === "visible";
+                const fixed = column.field === pinned;
                 return (
                   <th
                     key={column.field}
-                    className={isNumeric(column) ? "text-right" : undefined}
+                    data-field={column.field}
+                    className={cn(
+                      isNumeric(column) && "text-right",
+                      fixed && pinClass,
+                      !fixed && "erp-grid__movable",
+                      dragging === column.field && "is-dragging",
+                      dropAt?.field === column.field && dragging !== column.field && `is-drop-${dropAt.side}`,
+                    )}
                     aria-sort={sort ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
+                    draggable={fixed ? undefined : true}
+                    aria-grabbed={fixed ? undefined : dragging === column.field}
+                    aria-keyshortcuts={fixed ? undefined : "Alt+ArrowLeft Alt+ArrowRight"}
+                    // A header without a sort button still takes the caret, so the keyboard can move it.
+                    tabIndex={canSort || fixed ? undefined : 0}
+                    onKeyDown={(e) => onHeaderKey(e, column.field)}
+                    {...(fixed ? { onDragOver: headerDrag(column.field).onDragOver, onDrop: headerDrag(column.field).onDrop } : headerDrag(column.field))}
                   >
                     {canSort ? (
                       <button type="button" className="erp-grid__sort" aria-label={t("grid.sort_by", { label: column.label })} onClick={(e) => grid.sortBy(column.field, e.shiftKey)}>
@@ -308,7 +408,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                 );
               })}
             </tr>
-            <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable />
+            <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable pinned={pinned} />
           </thead>
           <tbody ref={bodyRef}>
             {rows.map((row, index) => (
@@ -322,21 +422,21 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                 onClick={() => onRowOpen?.(row)}
                 onKeyDown={(e) => onRowKey(e, index, row)}
               >
-                <td className="erp-grid__check" onClick={(e) => e.stopPropagation()}>
+                <td className={checkClass} onClick={(e) => e.stopPropagation()}>
                   {/* Out of the tab order: Space on the row selects it (one tab stop for the whole body). */}
                   <input type="checkbox" tabIndex={-1} aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
                 </td>
                 {shown.map((column) => (
-                  <GridCell key={column.field} column={column} row={row} />
+                  <GridCell key={column.field} column={column} row={row} className={column.field === pinned ? pinClass : undefined} />
                 ))}
               </tr>
             ))}
             {firstLoad &&
               Array.from({ length: SKELETON_ROWS }, (_, i) => (
                 <tr key={`skeleton-${i}`} className="erp-grid__skeleton" aria-hidden="true">
-                  <td className="erp-grid__check" />
+                  <td className={checkClass} />
                   {shown.map((column) => (
-                    <td key={column.field}>
+                    <td key={column.field} className={column.field === pinned ? pinClass : undefined}>
                       <span />
                     </td>
                   ))}
@@ -350,6 +450,22 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
               </tr>
             )}
           </tbody>
+          {/* OD-5: the filter's money totals (every page) under their own columns, pinned to the bottom of the scroll area. */}
+          {sums.length > 0 && rows.length > 0 && (
+            <tfoot>
+              <tr>
+                <td className={checkClass} />
+                {shown.map((column, i) => {
+                  const sum = sums.find((s) => s.column.field === column.field);
+                  return (
+                    <td key={column.field} className={cn(column.field === pinned && pinClass, sum && "erp-num text-right")}>
+                      {sum ? formatMoney(sum.sum as number | string) || formatMoney(0) : i === sumLabelAt ? t("grid.totals") : null}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
       <GridFooter
@@ -360,7 +476,6 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         onPage={grid.setPage}
         keysHint={rows.length > 0}
         onPageSize={grid.setPageSize}
-        sums={sums}
         selection={{ count: [...selected].filter((id) => rows.some((r) => r.id === id)).length, totals: selectionTotals(rows, selected, shown) }}
       />
       <AdvancedFilter

@@ -142,13 +142,53 @@ describe("DataGrid", () => {
     expect(screen.getByText("Completo")).toBeTruthy();
     expect(screen.getByText("Faltan 2")).toBeTruthy();
     expect(screen.getByText("Cliente, Proveedor")).toBeTruthy();
-    expect(screen.getByText(/Suma cupo filtrado: \$ 6\.000\.000,00/)).toBeTruthy();
+    // The filter's total sits under its own column (OD-5), no longer as text in the footer.
+    expect(screen.queryByText(/Suma cupo filtrado/)).toBeNull();
     fireEvent.click(screen.getAllByRole("checkbox", { name: "Seleccionar fila" })[0]!);
     fireEvent.click(screen.getAllByRole("checkbox", { name: "Seleccionar fila" })[1]!);
     expect(screen.getByText("2 seleccionadas")).toBeTruthy();
     expect(screen.getByText("Cupo seleccionado: $ 2.234.567,00")).toBeTruthy();
     fireEvent.click(screen.getByRole("checkbox", { name: "Seleccionar todas las filas de la página" }));
     expect(screen.queryByText("2 seleccionadas")).toBeNull();
+  });
+
+  it("pins the selection and identity columns (OD-4) and totals the filter under its money columns in a sticky tfoot (OD-5)", async () => {
+    const withIdentity = columns.map((c) => (c.field === "legal_name" ? { ...c, identity: true } : c));
+    setup({ columns: withIdentity });
+    await screen.findByText("Almacenes Éxito S.A.");
+    const grid = screen.getByRole("region", { name: "Terceros" });
+    const table = grid.querySelector("table")!;
+    // The identity column comes first, after the selection column, and both are pinned in every row.
+    const head = table.querySelector("thead tr")!;
+    expect(head.children[0]!.className).toMatch(/is-pinned/);
+    expect(head.children[1]!.textContent).toMatch(/Razón social/);
+    expect(head.children[1]!.className).toMatch(/is-pinned/);
+    expect(head.children[2]!.className).not.toMatch(/is-pinned/);
+    for (const tr of table.querySelectorAll("tbody tr[data-row], thead tr.erp-grid__filters")) {
+      expect(tr.children[0]!.className).toMatch(/is-pinned/);
+      expect(tr.children[1]!.className).toMatch(/is-pinned/);
+      expect(tr.children[2]!.className).not.toMatch(/is-pinned/);
+    }
+    const cell = screen.getByText("Almacenes Éxito S.A.").closest("td")!;
+    expect(cell.className).toMatch(/is-pinned/);
+    // tfoot: "Suma" in the identity cell, the filter's sum of Cupo under Cupo, nothing under the other columns.
+    const foot = table.querySelector("tfoot tr")!;
+    const cupoIndex = [...head.children].findIndex((th) => th.textContent?.startsWith("Cupo"));
+    expect(foot.children[1]!.textContent).toBe("Suma");
+    expect(foot.children[1]!.className).toMatch(/is-pinned/);
+    expect(foot.children[cupoIndex]!.textContent).toBe("$ 6.000.000,00");
+    expect(foot.children[cupoIndex]!.className).toMatch(/erp-num/);
+    // The masked Saldo has no sum (it never totals), and the footer bar keeps only the pager and the selection.
+    const saldoIndex = [...head.children].findIndex((th) => th.textContent?.startsWith("Saldo"));
+    expect(foot.children[saldoIndex]!.textContent).toBe("");
+    expect(foot.children).toHaveLength(head.children.length);
+    expect(within(grid.querySelector(".erp-grid__ft") as HTMLElement).queryByText(/6\.000\.000/)).toBeNull();
+  });
+
+  it("has no tfoot without money columns or rows", async () => {
+    setup({ columns: columns.filter((c) => c.type !== "money") });
+    await screen.findByText("Almacenes Éxito S.A.");
+    expect(document.querySelector("tfoot")).toBeNull();
   });
 
   it("chooses the columns and opens a row", async () => {

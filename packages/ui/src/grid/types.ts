@@ -34,6 +34,11 @@ export interface GridColumn {
   hiddenByDefault?: boolean;
   /** Only in the advanced filter (stored fields not shown in the grid, admin-defined extra data). */
   filterOnly?: boolean;
+  /**
+   * The entity's identity column (its display field: Razón social, Descripción): shown first, pinned next to the
+   * selection column while the grid scrolls sideways, and never moved behind other columns (OD-4).
+   */
+  identity?: boolean;
 }
 
 export type GridRow = Record<string, unknown> & { id: string };
@@ -72,8 +77,13 @@ export interface GridView {
   sort: SortEntry[];
   page: number;
   pageSize: number;
-  /** Fields shown, in order. */
+  /** Fields shown, in order (what the grid request, the export and a saved view carry). */
   columns: string[];
+  /**
+   * Every field the column chooser offers, shown or not, in the user's order: a column the user hides keeps its place
+   * here and comes back to it (design §22.12). Filled by `initialView`; `columns` is always this order's shown subset.
+   */
+  order?: string[];
 }
 
 export type ExportFormat = "pdf" | "xlsx" | "csv";

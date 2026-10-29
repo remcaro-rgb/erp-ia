@@ -308,6 +308,56 @@ test.describe("universal grid", () => {
     await expect(chips.getByText(/Municipio contiene Medellín/)).toBeVisible();
   });
 
+  test("columns move by dragging a header or with Alt+→, the identity column stays pinned, totals sit under Cupo, and a saved view keeps the order", async ({ page }) => {
+    // Narrow enough for the fourteen columns to scroll sideways.
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await signIn(page, fixture);
+    await page.goto("/parties");
+    const terceros = grid(page, "Terceros");
+    await expect(bodyRows(page)).toHaveCount(10);
+    const headers = async () => (await terceros.locator("thead tr").first().locator("th").allTextContents()).slice(1).map((h) => h.replace(/[▲▼↕]/g, "").trim());
+    // OD-4: the identity column (Razón social) comes first, after the selection column.
+    expect((await headers()).slice(0, 3)).toEqual(["Razón social", "N.º", "Tipo de documento"]);
+
+    // Drag Municipio onto the left half of N.º: it lands in position 2 and the status row says so.
+    const header = (field: string) => terceros.locator(`thead tr:first-child th[data-field="${field}"]`);
+    await header("municipality_code").dragTo(header("seq"), { targetPosition: { x: 4, y: 12 } });
+    await expect(terceros.getByRole("status")).toHaveText("Columna Municipio movida a la posición 2");
+    expect((await headers()).slice(0, 3)).toEqual(["Razón social", "Municipio", "N.º"]);
+    // Alt+→ on a focused header moves it one place and keeps the caret on it.
+    await terceros.getByRole("button", { name: "Ordenar por N.º" }).focus();
+    await page.keyboard.press("Alt+ArrowRight");
+    await expect(terceros.getByRole("status")).toHaveText("Columna N.º movida a la posición 4");
+    await expect(terceros.getByRole("button", { name: "Ordenar por N.º" })).toBeFocused();
+    expect((await headers()).slice(0, 4)).toEqual(["Razón social", "Municipio", "Tipo de documento", "N.º"]);
+
+    // Scrolled all the way right, the selection and identity columns stay at the left edge, with a shadow.
+    const body = terceros.locator(".erp-grid__body");
+    await body.evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await expect(body).toHaveAttribute("data-scrolled-x", "");
+    const bodyBox = (await body.boundingBox())!;
+    const identity = bodyRows(page).first().locator("td.erp-grid__id");
+    await expect(identity).toBeVisible();
+    expect(Math.abs((await identity.boundingBox())!.x - (bodyBox.x + 36))).toBeLessThan(2);
+    // OD-5: the filter's total of Cupo (every page) sits under Cupo in the sticky tfoot, "Suma" in the identity cell.
+    await expect(terceros.locator("tfoot td.erp-grid__id")).toHaveText("Suma");
+    const cupo = await terceros.locator("thead tr:first-child th").evaluateAll((ths) => ths.findIndex((th) => th.getAttribute("data-field") === "credit_limit"));
+    await expect(terceros.locator("tfoot td").nth(cupo)).toHaveText("$ 16.000.000,00");
+    await page.screenshot({ path: `${SCREENSHOTS}/grid-pinned-scrolled.png` });
+
+    // Saved as the default view, the order comes back after a reload.
+    await terceros.getByRole("button", { name: "Guardar vista" }).click();
+    await page.getByLabel("Nombre de la vista").fill("Municipio primero");
+    await page.getByLabel("Usarla como vista por defecto").check();
+    await page.getByRole("group", { name: "Vistas" }).getByRole("button", { name: "Guardar" }).click();
+    await expect(page.getByText("Vista guardada: Municipio primero")).toBeVisible();
+    await page.reload();
+    await expect(bodyRows(page)).toHaveCount(10);
+    expect((await headers()).slice(0, 4)).toEqual(["Razón social", "Municipio", "Tipo de documento", "N.º"]);
+    // The other specs of this file start from the default columns.
+    await fixture.sql`delete from kernel.saved_views where company_id = ${companyId} and name = 'Municipio primero'`;
+  });
+
   test("Nuevo opens an empty party form that creates through core.party.create", async ({ page }) => {
     await signIn(page, fixture);
     await page.goto("/parties");

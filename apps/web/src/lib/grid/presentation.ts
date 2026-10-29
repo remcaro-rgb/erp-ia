@@ -14,6 +14,11 @@ export interface FieldPresentation {
 }
 
 export interface GridPresentation {
+  /**
+   * The grid's identity column (OD-4): first, pinned while the grid scrolls sideways, never moved. The entity's
+   * display field when absent; the audit names its entries by their date.
+   */
+  title?: string;
   /** Fields shown at first, in order. */
   shown: string[];
   /** Fields never offered (internal JSON). */
@@ -76,6 +81,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   // Auditoría (prototype v5 renderAudit): date, origin as a pill, process, entity, record, action, actor and chain.
   "kernel.audit": {
+    title: "occurred_at",
     shown: ["occurred_at", "origin", "process_id", "entity", "row_id", "action", "actor", "chain_id"],
     exclude: [],
     fields: {

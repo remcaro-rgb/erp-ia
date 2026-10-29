@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { failureCode } from "./fetch-grid";
-import { initialView, toggleSort, toGridState } from "./grid-model";
+import { identityField, initialView, moveColumn, setColumnShown, stepColumn, toggleSort, toGridState } from "./grid-model";
 import type { ColumnFilterValue, Condition, GridColumn, GridFetcher, GridPage, GridStateInput, GridView } from "./types";
 
 type Filter = NonNullable<GridStateInput["filters"]>[number];
@@ -105,8 +105,25 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
       setPageSize(pageSize: number) {
         update((v) => ({ ...v, pageSize, page: 1 }));
       },
-      setColumns(columns: string[]) {
-        update((v) => ({ ...v, columns }));
+      /** Replaces the shown columns (in that order); the chooser's other columns keep their places. */
+      setColumns(shown: string[]) {
+        update((v) => initialView(columns, { ...v, columns: shown }));
+      },
+      /** A header dragged or moved with Alt+← / Alt+→ to `toIndex` of the shown columns (design §22.12). */
+      moveColumn(field: string, toIndex: number) {
+        update((v) => moveColumn(v, field, toIndex, identityField(columns)));
+      },
+      /** ↑ / ↓ in the column chooser: one place in its full order. */
+      stepColumn(field: string, delta: -1 | 1) {
+        update((v) => stepColumn(v, field, delta, identityField(columns)));
+      },
+      showColumn(field: string, on: boolean) {
+        update((v) => setColumnShown(v, field, on));
+      },
+      /** Back to the columns, and their order, the grid started with. */
+      resetColumns() {
+        const start = initialView(columns);
+        update((v) => ({ ...v, columns: start.columns, order: start.order }));
       },
       /** Filters, conditions and sort off; columns and page size stay. */
       clear() {

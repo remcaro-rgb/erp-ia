@@ -39,7 +39,7 @@ function menu(extra: Partial<Parameters<typeof SavedViewsMenu>[0]> = {}) {
 
 describe("popover focus", () => {
   it("Columnas: the caret moves to the first checkbox on open and back to the button on Esc", () => {
-    renderEs(<ColumnChooser columns={columns} shown={["name", "tax_id"]} onChange={vi.fn()} onReset={vi.fn()} />);
+    renderEs(<ColumnChooser columns={columns} shown={["name", "tax_id"]} onToggle={vi.fn()} onMove={vi.fn()} onReset={vi.fn()} />);
     const trigger = screen.getByRole("button", { name: "Columnas" });
     trigger.focus();
     fireEvent.click(trigger);

@@ -26,11 +26,11 @@ const NUMERIC = new Set(["money", "number", "custom:number"]);
 export const isNumeric = (column: GridColumn) => NUMERIC.has(column.type);
 
 /** One cell of the grid (prototype `cell`): masked values as ••••••, money as $ 1.234.567,00 right-aligned, pills. */
-export function GridCell({ column, row }: { column: GridColumn; row: GridRow }) {
+export function GridCell({ column, row, className }: { column: GridColumn; row: GridRow; className?: string }) {
   const t = useTranslations();
   const text = useValueText();
   const numeric = isNumeric(column);
-  const base = cn(numeric && "erp-num text-right", column.display === "mono" && "erp-mono");
+  const base = cn(numeric && "erp-num text-right", column.display === "mono" && "erp-mono", className);
   if (column.mode === "masked") {
     return (
       <td className={cn(base, "erp-masked")}>
@@ -41,7 +41,7 @@ export function GridCell({ column, row }: { column: GridColumn; row: GridRow }) 
   const value = cellValue(row, column.field);
   if (column.display === "dian") {
     const pill = dianPill(value);
-    return <td>{pill ? <Pill tone={pill.tone}>{t(`grid.dian.${pill.key}`, { count: pill.count })}</Pill> : <span className="erp-muted">—</span>}</td>;
+    return <td className={className}>{pill ? <Pill tone={pill.tone}>{t(`grid.dian.${pill.key}`, { count: pill.count })}</Pill> : <span className="erp-muted">—</span>}</td>;
   }
   const shown = text(column, value);
   if (shown === "" || isEmptyCell(column, value)) {

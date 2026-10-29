@@ -24,7 +24,7 @@ export interface SavedViewItem {
   state: SavedGridState;
 }
 
-/** What to store for the grid as it is now: the filters as typed (a coded column keeps its label, rule 20). */
+/** What to store for the grid as it is now: the filters as typed (a coded column keeps its label, rule 20) and the shown columns in their order. */
 export function savedStateOf(columns: readonly GridColumn[], view: GridView): SavedGridState {
   return { filters: viewFilters(columns, view), sort: view.sort, pageSize: view.pageSize, columns: view.columns };
 }
@@ -34,14 +34,14 @@ export function viewFromSaved(columns: readonly GridColumn[], saved: SavedGridSt
   const known = new Map(columns.filter((c) => c.mode !== "hidden").map((c) => [c.field, c]));
   // A masked field never filters or sorts (rule 14): its conditions and sort are dropped like a hidden field's.
   const usable = (field: string) => known.get(field)?.mode === "visible";
-  const base = initialView(columns);
   const shown = (saved.columns ?? []).filter((f) => known.has(f));
+  // The saved columns in their saved order (design §22.12); the chooser's other columns fall in around them.
+  const base = initialView(columns, shown.length > 0 ? { columns: shown } : {});
   return {
     ...base,
     conditions: keepGroups(saved.filters ?? [], usable),
     sort: (saved.sort ?? []).filter((s) => usable(s.field)),
     pageSize: saved.pageSize ?? base.pageSize,
-    columns: shown.length > 0 ? shown : base.columns,
   };
 }
 

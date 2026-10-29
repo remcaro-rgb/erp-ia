@@ -11,9 +11,13 @@ export const DEFAULT_PAGE_SIZE = 10;
 
 type Filter = NonNullable<GridStateInput["filters"]>[number];
 
-/** The view a grid starts from: the columns not hidden by default, no filters, the first page. */
+/**
+ * The view a grid starts from: the columns not hidden by default, no filters, the first page. `overrides` (a saved
+ * view, the caller's start) may name the columns in their own order; the identity column goes first either way and
+ * the full order of the chooser is filled in (`order`).
+ */
 export function initialView(columns: readonly GridColumn[], overrides: Partial<GridView> = {}): GridView {
-  return {
+  const view: GridView = {
     columnFilters: {},
     conditions: [],
     sort: [],
@@ -22,6 +26,91 @@ export function initialView(columns: readonly GridColumn[], overrides: Partial<G
     columns: columns.filter((c) => c.mode !== "hidden" && !c.hiddenByDefault && !c.filterOnly).map((c) => c.field),
     ...overrides,
   };
+  const offered = offeredFields(columns);
+  const known = new Set(offered);
+  const order = columnOrder(columns, view);
+  const shown = new Set(view.columns.filter((f) => known.has(f)));
+  // A field the chooser does not offer (hidden for the role, unknown) is kept out of the order but not of the view's
+  // columns, which `shownColumns` filters anyway.
+  const others = view.columns.filter((f) => !known.has(f));
+  return { ...view, order, columns: [...order.filter((f) => shown.has(f)), ...others] };
+}
+
+/** The fields the column chooser offers (every column the role may see, but the filter-only ones), in declared order. */
+export const offeredFields = (columns: readonly GridColumn[]): string[] => columns.filter((c) => c.mode !== "hidden" && !c.filterOnly).map((c) => c.field);
+
+/** The grid's identity column (OD-4): pinned first and never moved; the entity's display field. */
+export const identityField = (columns: readonly GridColumn[]): string | undefined => columns.find((c) => c.identity && c.mode !== "hidden" && !c.filterOnly)?.field;
+
+/** `order` with the shown fields' places refilled with `shown`, in that sequence: the columns not shown keep theirs. */
+function refill(order: readonly string[], shown: readonly string[]): string[] {
+  const on = new Set(shown);
+  const next = [...shown];
+  return order.map((f) => (on.has(f) ? next.shift()! : f));
+}
+
+/**
+ * The chooser's full order (every offered field, shown or not; design §22.12): the view's own order when it has one,
+ * with the shown columns in the view's sequence; an offered field missing from it comes in after the field that
+ * precedes it in the declared order. The identity column is first.
+ */
+export function columnOrder(columns: readonly GridColumn[], view: Pick<GridView, "columns" | "order">): string[] {
+  const offered = offeredFields(columns);
+  const known = new Set(offered);
+  const base = (view.order ?? view.columns).filter((f, i, all) => known.has(f) && all.indexOf(f) === i);
+  for (const [i, field] of offered.entries()) {
+    if (base.includes(field)) continue;
+    const before = offered.slice(0, i).reverse().find((f) => base.includes(f));
+    base.splice(before === undefined ? 0 : base.indexOf(before) + 1, 0, field);
+  }
+  const order = refill(base, view.columns.filter((f, i, all) => known.has(f) && all.indexOf(f) === i));
+  const identity = identityField(columns);
+  return identity ? [identity, ...order.filter((f) => f !== identity)] : order;
+}
+
+/**
+ * Moves a shown column to `toIndex` of the shown columns (a header dragged, or Alt+← / Alt+→ on it; design §22.12).
+ * Only that column moves: every other one, shown or not, keeps its order relative to the rest (in `order` it lands
+ * just before the shown column it now precedes, or just after the one it now follows when moved right). The identity
+ * column never moves and nothing goes before it. Returns the same view when nothing changes.
+ */
+export function moveColumn(view: GridView, field: string, toIndex: number, identity?: string): GridView {
+  const from = view.columns.indexOf(field);
+  if (from < 0 || field === identity) return view;
+  const first = identity !== undefined && view.columns[0] === identity ? 1 : 0;
+  const to = Math.max(first, Math.min(view.columns.length - 1, toIndex));
+  if (to === from) return view;
+  const rest = view.columns.filter((f) => f !== field);
+  const columns = [...rest.slice(0, to), field, ...rest.slice(to)];
+  const order = (view.order ?? view.columns).filter((f) => f !== field);
+  const anchor = order.indexOf(to < from ? rest[to]! : rest[to - 1]!);
+  if (anchor < 0) return { ...view, columns, order: refill(view.order ?? view.columns, columns) };
+  order.splice(to < from ? anchor : anchor + 1, 0, field);
+  return { ...view, columns, order };
+}
+
+/** Moves a column one place up (-1) or down (+1) in the chooser's full order, never above the identity column. */
+export function stepColumn(view: GridView, field: string, delta: -1 | 1, identity?: string): GridView {
+  const order = [...(view.order ?? view.columns)];
+  const from = order.indexOf(field);
+  const first = identity !== undefined && order[0] === identity ? 1 : 0;
+  const to = from + delta;
+  if (from < 0 || field === identity || to < first || to >= order.length) return view;
+  order[from] = order[to]!;
+  order[to] = field;
+  const shown = new Set(view.columns);
+  return { ...view, order, columns: order.filter((f) => shown.has(f)) };
+}
+
+/** Shows or hides a column at its place in the order; the last shown column stays. */
+export function setColumnShown(view: GridView, field: string, on: boolean): GridView {
+  const shown = new Set(view.columns);
+  if (on === shown.has(field) || (!on && shown.size <= 1)) return view;
+  const order = view.order ?? view.columns;
+  const full = order.includes(field) ? order : [...order, field];
+  if (on) shown.add(field);
+  else shown.delete(field);
+  return { ...view, order: [...full], columns: full.filter((f) => shown.has(f)) };
 }
 
 /** The columns shown, in the view's order, without the hidden ones (rule 14). */

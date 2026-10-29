@@ -29,6 +29,14 @@ describe("grid columns", () => {
     expect(columns.find((c) => c.field === "dian_status")).toMatchObject({ display: "dian" });
   });
 
+  it("marks the entity's display field as the identity column the grid pins first (OD-4)", () => {
+    const columns = buildColumns(party, { modes: {}, extras: [], timeZone: "America/Bogota" }, presentationOf("core.party"), t);
+    expect(columns.filter((c) => c.identity).map((c) => c.field)).toEqual(["legal_name"]);
+    // A presentation may name another one.
+    const titled = buildColumns(party, { modes: {}, extras: [], timeZone: "America/Bogota" }, { ...presentationOf("core.party"), title: "seq" }, t);
+    expect(titled.filter((c) => c.identity).map((c) => c.field)).toEqual(["seq"]);
+  });
+
   it("adds the admin-defined fields, hidden when the caller's roles may not view them", () => {
     const columns = buildColumns(
       party,

@@ -6,6 +6,7 @@ import type { GridPresentation } from "./presentation";
 // The columns a grid page hands the DataGrid (design §9, rule 14): every registry field of the entity with the
 // caller's mode (hidden ones stay out of sight; masked ones show •••••• and never filter or sort), labels translated,
 // value labels from the catalogue or the pack's tables, then the admin-defined fields the caller's roles may view.
+// The identity column the grid pins first is the presentation's `title`, else the entity's display field.
 
 export type Translate = (key: string) => string;
 export type CodeTables = Record<string, readonly { value: string; label: string }[]>;
@@ -33,6 +34,8 @@ export function buildColumns(entity: EntityDef, access: GridAccess, presentation
       ...(p.pills ? { pills: p.pills } : {}),
       ...(p.display ? { display: p.display } : {}),
       ...(shown.length > 0 && !shown.includes(f.name) ? { hiddenByDefault: true } : {}),
+      // The grid's identity column: first, pinned and never moved (OD-4).
+      ...(f.name === (presentation.title ?? entity.displayField) ? { identity: true } : {}),
     };
   });
   // Admin-defined data (design §5.14): offered when the `extra` column and the field's roles_view let the caller see it.
