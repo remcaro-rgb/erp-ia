@@ -108,7 +108,7 @@ Cuando una persona deja la empresa, o no debe entrar por un tiempo, **desactíva
 1. En su página pulsa **Desactivar**.
 2. Confirma en «¿Desactivar a …?» con **Desactivar** e ingresa tu código.
 
-Desde ese momento la persona **no puede iniciar sesión** («Cuenta desactivada. Contacta a un administrador.») y, si tenía una sesión abierta, ya no puede hacer nada: al cambiar de pantalla o guardar algo, el sistema la saca con el mismo aviso. No se borra nada: conserva sus roles, su nombre sigue en los registros y en la auditoría, y su página la muestra **Inactivo**.
+Desde ese momento la persona **no puede iniciar sesión** («Cuenta desactivada. Contacta a un administrador.»). Si tenía una sesión abierta, el sistema le niega todo al instante: no puede guardar ni ejecutar ningún proceso, abrir pantallas ni usar el asistente. Lo que una pestaña que ya tenía abierta le pida al servidor (por ejemplo, la página siguiente de un listado) se rechaza, y en cuanto cambia de pantalla, recarga o le escribe al asistente, el sistema cierra su sesión con el mismo aviso. Si la persona trabaja también en otra empresa donde sigue activa, en vez de cerrar su sesión el sistema la pasa a esa empresa. No se borra nada: conserva sus roles, su nombre sigue en los registros y en la auditoría, y su página la muestra **Inactivo**.
 
 Para devolverle el acceso, pulsa **Reactivar** en su página, confirma e ingresa tu código: vuelve a entrar con los mismos roles que tenía.
 

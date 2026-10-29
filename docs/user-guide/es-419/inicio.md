@@ -32,7 +32,7 @@ ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite m
 - **Barra azul oscura de arriba**: el nombre de la empresa (para cambiar de empresa si tienes más de una), el menú **Módulos**, las opciones del módulo, la caja **⌘K** para ir a cualquier pantalla, el botón de **tema** (claro, oscuro o automático), las notificaciones, el botón **Asistente** y tu usuario (con la opción **Salir**).
 - **Fila de pestañas**: cada pantalla que abres queda en una pestaña. Puedes tener varias abiertas y volver a cualquiera.
 - **Zona de trabajo**: el listado o el registro que tienes abierto.
-- **Panel del Asistente** (a la derecha): por ahora indica que el asistente estará disponible muy pronto. Mientras tanto usa **⌘K** (Ctrl+K en Windows).
+- **Panel del Asistente** (a la derecha): le escribes en español y consulta datos, te explica cómo hacer algo o prepara una acción para que la confirmes. Ábrelo o ciérralo con el botón **Asistente** de la barra superior o con **⌘/** (Ctrl+/ en Windows), que deja el cursor listo para escribir. La guía **El asistente** explica cómo usarlo.
 
 La guía **Moverse por el sistema** explica cada parte con detalle.
 
