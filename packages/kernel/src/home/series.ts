@@ -14,18 +14,23 @@ export const SERIES_DAYS = 14;
  * company's (`kernel.companies.timezone`): a row made at 23:30 in Bogotá belongs to that day, not to the next one in UTC.
  */
 export async function dailySeries(tx: Tx, companyId: string, source: string, measure: "count" | "tokens" = "count"): Promise<number[]> {
-  const value = measure === "tokens" ? tx`coalesce(sum(s.input_tokens + s.output_tokens), 0)::float8` : tx`count(s.id)::float8`;
+  const value = measure === "tokens" ? tx`coalesce(sum(s.input_tokens + s.output_tokens), 0)` : tx`count(*)`;
+  // The window's rows are read once and bucketed by the company's day, then laid on the 14 days (a day without rows is
+  // 0). The lower bound keeps the read to the window: of the sources, only kernel.llm_usage (behind kernel.v_llm_usage)
+  // has an index on (company_id, created_at) that turns it into a range scan; the others filter the company's rows.
   const rows = await tx<{ value: number }[]>`
-    with tz as (select timezone as name from kernel.v_companies where id = ${companyId}),
-    days as (select (now() at time zone tz.name)::date - n as day from tz, generate_series(0, ${SERIES_DAYS - 1}::int) as n)
-    select ${value} as value
+    with tz as (select timezone as name, (now() at time zone timezone)::date as today from kernel.v_companies where id = ${companyId}),
+    per_day as (
+      select (s.created_at at time zone tz.name)::date as day, ${value}::float8 as value
+      from tz
+      join ${tx(source)} s on s.company_id = ${companyId}
+        and s.created_at >= ((tz.today - ${SERIES_DAYS - 1}::int)::timestamp at time zone tz.name)
+      group by 1
+    ),
+    days as (select tz.today - n as day from tz, generate_series(0, ${SERIES_DAYS - 1}::int) as n)
+    select coalesce(per_day.value, 0)::float8 as value
     from days
-    cross join tz
-    -- The lower bound lets the index on created_at cut the scan to the window; the join then buckets by the company's day.
-    left join ${tx(source)} s on s.company_id = ${companyId}
-      and s.created_at >= (((now() at time zone tz.name)::date - ${SERIES_DAYS - 1}::int)::timestamp at time zone tz.name)
-      and (s.created_at at time zone tz.name)::date = days.day
-    group by days.day
+    left join per_day on per_day.day = days.day
     order by days.day`;
   return rows.map((row) => Number(row.value));
 }

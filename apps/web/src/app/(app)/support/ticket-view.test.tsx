@@ -6,11 +6,17 @@ import { messages } from "@erp/i18n";
 
 // The ticket frame offers "Duplicar" (rule 37) to a caller who may open tickets, and to no one else.
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/support" }));
+const nav = vi.hoisted(() => ({ pathname: "/support", router: { push: (() => {}) as (href: string) => void } }));
+vi.mock("next/navigation", () => ({ useRouter: () => nav.router, usePathname: () => nav.pathname }));
 vi.mock("@/lib/support/actions", () => ({ closeTicketAction: vi.fn(), loadTicketAction: vi.fn(), replyTicketAction: vi.fn() }));
 vi.mock("@/lib/records/clone", () => ({ cloneRecordAction: vi.fn() }));
+vi.mock("@/lib/records/clone-handoff", () => ({ handOffClone: vi.fn() }));
+vi.mock("../_components/leave-guard", () => ({ guardedNavigate: vi.fn((go: () => void) => go()) }));
 
-const { TicketFrame } = await import("./ticket-view");
+const { TicketFrame, TicketView } = await import("./ticket-view");
+const { loadTicketAction } = await import("@/lib/support/actions");
+const { cloneRecordAction } = await import("@/lib/records/clone");
+const { guardedNavigate } = await import("../_components/leave-guard");
 type Ticket = Parameters<typeof TicketFrame>[0]["ticket"];
 
 const ticket = (canCreate: boolean): Ticket => ({
@@ -50,5 +56,34 @@ describe("TicketFrame Duplicar", () => {
 
   it("offers no Duplicar to a caller who may not", () => {
     expect(html(false)).not.toContain("Duplicar");
+  });
+});
+
+describe("TicketView Duplicar (final review M-7)", () => {
+  it("goes to the support screen through the shell's guarded navigation, never a bare router.push", async () => {
+    const { act } = await import("react");
+    const { createRoot } = await import("react-dom/client");
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    nav.pathname = "/r/support.ticket/0192a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
+    const push = vi.fn();
+    nav.router = { push };
+    vi.mocked(loadTicketAction).mockResolvedValue({ ok: true, ticket: ticket(true) } as never);
+    vi.mocked(cloneRecordAction).mockResolvedValue({ ok: true, entity: "support.ticket", sourceRowId: ticket(true).id, sourceTitle: "El NIT no valida", values: {}, carry: {}, refLabels: {} });
+    const host = document.body.appendChild(document.createElement("div"));
+    const root = createRoot(host);
+    await act(async () =>
+      root.render(
+        <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
+          <TicketView id={ticket(true).id} />
+        </NextIntlClientProvider>,
+      ),
+    );
+    const button = [...host.querySelectorAll("button")].find((b) => b.textContent === "Duplicar")!;
+    expect(button).toBeDefined();
+    await act(async () => button.click());
+    expect(guardedNavigate).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith("/support");
+    await act(async () => root.unmount());
+    host.remove();
   });
 });

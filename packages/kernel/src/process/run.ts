@@ -6,7 +6,10 @@ import { setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
+import { consultProcessesOf } from "../query/access";
 import type { Registry } from "../registry";
+import type { ResolvedEntityDef } from "../registry/entities";
+import { IDENTIFIER } from "../registry/fields";
 import type { ProcessDef, ProcessKind } from "../registry/types";
 import type { Caller, ProcessContext } from "./context";
 import { isMembershipInactive, MEMBERSHIP_INACTIVE, ProcessError, type ProcessErrorCode } from "./errors";
@@ -43,7 +46,10 @@ export interface RunProcessOptions {
   /**
    * The record this creation was cloned from (rule 37, design §22.13): a `create` process only. The run's audit entry
    * and the row trigger's insert entries record it as `source_row_id`, so the viewer shows "clonado desde …". Anything
-   * but a record id, or a process of another kind, is refused as `invalid_input`.
+   * but a record id, or a process of another kind (or one that creates no registered entity), is refused as
+   * `invalid_input`. The source must be a record of the created entity the caller sees: a role of theirs may consult the
+   * entity and its masked view (company RLS, party scope) shows the row, checked as the caller in the run's
+   * transaction before the handler; otherwise the run is refused as `not_found` (stage `gate`), whoever calls.
    */
   sourceRowId?: string;
 }
@@ -160,9 +166,12 @@ async function execute<O extends z.ZodTypeAny>(
   const stepUp = gate.sensitive || def.sensitivity === "step-up";
   if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`, GATE);
 
+  let cloned: ResolvedEntityDef | null = null;
   if (options.sourceRowId !== undefined) {
     if (def.kind !== "create") throw new ProcessError("invalid_input", `${def.id} creates nothing: it has no source record`, { details: ["Solo una creación tiene registro de origen"], stage: "gate" });
     if (!UUID.test(options.sourceRowId)) throw new ProcessError("invalid_input", `source record ${options.sourceRowId} is not a record id`, { details: ["El registro de origen no es válido"], stage: "gate" });
+    cloned = createdEntity(deps.registry, def);
+    if (!cloned) throw new ProcessError("invalid_input", `${def.id} creates no registered entity: it has no source record`, { details: ["Solo una creación tiene registro de origen"], stage: "gate" });
   }
 
   const parsed = def.input.safeParse(input);
@@ -186,6 +195,8 @@ async function execute<O extends z.ZodTypeAny>(
         conversationId: caller.conversationId,
         sourceRowId: options.sourceRowId,
       });
+      // The source of a clone is a record the caller sees (rule 37), asked as them before anything is written.
+      if (cloned && options.sourceRowId !== undefined) await requireVisibleSource(tx, deps.registry, cloned, options.sourceRowId);
       if (stepUp) await consumeStepUp(tx, def.id, stepUpToken!, claims.sub, companyId);
 
       // The roles the caller still holds (0024: the claim's roles intersected with the live memberships), so a role
@@ -229,6 +240,31 @@ async function execute<O extends z.ZodTypeAny>(
       if (stored) return stored.result as z.infer<O>;
     }
     throw error;
+  }
+}
+
+/** The registered entity a create process creates: the one whose create process it is (`processIds.create`, else `<entity>.create`). */
+function createdEntity(registry: Registry, def: ProcessDef): ResolvedEntityDef | null {
+  return registry.entities().find((entity) => (entity.processIds?.create ?? `${entity.id}.create`) === def.id) ?? null;
+}
+
+/**
+ * Refuses (`not_found`, stage `gate`) a clone whose source the caller does not see: no role of theirs may consult the
+ * entity, or its masked view (`<schema>.v_<table>`: company RLS, the party scope) does not show the row. As the caller.
+ */
+async function requireVisibleSource(tx: Tx, registry: Registry, entity: ResolvedEntityDef, sourceRowId: string): Promise<void> {
+  for (const part of [entity.schema, entity.table]) if (!IDENTIFIER.test(part)) throw new Error(`entity ${entity.id}: invalid identifier "${part}"`);
+  const consults = consultProcessesOf(registry, entity);
+  const [row] = await tx.unsafe<{ visible: boolean }[]>(
+    `select coalesce((select bool_or(kernel.can_run_process(p)) from unnest($1::text[]) as p), false)
+            and exists (select 1 from ${entity.schema}.v_${entity.table} where id = $2::uuid) as visible`,
+    [consults, sourceRowId] as never[],
+  );
+  if (!row?.visible) {
+    throw new ProcessError("not_found", `source record ${sourceRowId} of ${entity.id} does not exist or is not visible to the caller`, {
+      details: ["El registro de origen no existe o no es visible"],
+      stage: "gate",
+    });
   }
 }
 

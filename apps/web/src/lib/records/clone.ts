@@ -6,7 +6,7 @@ import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { gridEntity } from "@/lib/grid/access";
 import { processDeps } from "@/lib/server/runtime";
 import { recordEntity } from "./entities";
-import { gridRows } from "./load";
+import { refLabelsOf } from "./load";
 
 /** What a copy is read and created through: the record pages' entities, and support tickets (their own frame). */
 interface CloneTarget {
@@ -66,14 +66,8 @@ export async function cloneRecordAction(entityId: string, id: string): Promise<C
   const draft = cloneDraft(deps.registry, entity.id, record, modes);
   const values = draftValues(deps.registry, entity.id, draft);
   const carry = await enterable(caller, entity.id, draft);
-  const refLabels: Record<string, string> = {};
-  for (const field of registered.fields) {
-    const value = values[field.name];
-    if (field.type !== "ref" || !field.ref || typeof value !== "string") continue;
-    const found = await gridRows(caller, field.ref.entity, { filters: [{ field: "id", op: "eq", value }], sort: [], page: 1, pageSize: 1, columns: [field.ref.display] });
-    const label = found.rows[0]?.[field.ref.display];
-    if (label !== null && label !== undefined) refLabels[field.name] = String(label);
-  }
+  // How each copied reference reads: one select per target entity, as the caller.
+  const refLabels = await refLabelsOf(caller, registered, values);
   const title = record[entity.titleField];
   return { ok: true, entity: entity.id, sourceRowId: id, sourceTitle: title === null || title === undefined || title === "" ? id : String(title), values, carry, refLabels };
 }

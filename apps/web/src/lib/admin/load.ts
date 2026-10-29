@@ -22,6 +22,7 @@ import {
 import { requireCaller } from "@/lib/auth/claims";
 import { loadGridPage, type GridPageData } from "@/lib/grid/load";
 import type { AuditCatalogue } from "./audit-links";
+import { callerIsCompanyAdmin } from "./company-admin";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
 
 // What the administration screens show (design §6, prototype v5 "Administración"), read as the caller under RLS from
@@ -71,8 +72,7 @@ async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T
   const deps = processDeps();
   await registrySynced();
   return withClaims(deps.sql, caller.claims, async (tx) => {
-    const [row] = await tx<{ admin: boolean }[]>`select kernel.is_company_admin() as admin`;
-    if (!row?.admin) return null;
+    if (!(await callerIsCompanyAdmin(tx))) return null;
     return read(tx, { caller, registry: deps.registry });
   });
 }

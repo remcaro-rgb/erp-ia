@@ -9,6 +9,7 @@ import { cloneRecordAction } from "@/lib/records/clone";
 import { handOffClone } from "@/lib/records/clone-handoff";
 import { failureText } from "@/lib/support/failure";
 import { closeTicketAction, loadTicketAction, replyTicketAction, type ActionResult, type TicketDetail } from "@/lib/support/actions";
+import { guardedNavigate } from "../_components/leave-guard";
 import { Conversation } from "./conversation";
 
 type Phase = { kind: "loading" } | { kind: "failed"; code: string } | { kind: "ready"; ticket: TicketDetail };
@@ -44,7 +45,8 @@ export function TicketView({ id, onChanged }: { id: string; onChanged?: () => vo
         return;
       }
       handOffClone(result);
-      if (pathname !== "/support") router.push("/support");
+      // As the shell navigates (menus, tabs, ⌘K): a screen holding staged changes asks first.
+      if (pathname !== "/support") guardedNavigate(() => router.push("/support"));
     } catch {
       toast.error(t("common.record.duplicate_failed", { reason: t("errors.network") }));
     } finally {
