@@ -22,6 +22,7 @@ These instructions apply to every task in this repository, whichever model or to
 - Reviews check the Review Focus of the plan and the rules; a reviewer rejects work that passes tests but breaks a rule.
 - Keep `docs/roadmap.md`, `docs/project-rules.md` and the design in sync with any owner decision; record the decision date.
 - Prototype and docs live in `docs/`; scratch work never lands in the repo.
+- Development runs on the local Supabase stack (OrbStack); the hosted project and Vercel are the shared demo and the deployed app (design §22.18). Before a commit: lint, typecheck, check:rules, unit, the touched integration files and e2e specs, the build. The full suites run in GitHub Actions on the push; a task is complete only when that run is green.
 
 ## Project facts
 Stack: pnpm monorepo, Next.js 16 App Router, Supabase (Postgres, Auth, Storage), Vercel AI SDK + Workflow DevKit, shadcn + Tailwind v4, TanStack Table, Vitest + Playwright. Demo company: Café del Norte S.A.S., NIT 900373115-3. Default locale `es-419`, country pack `co`, currency COP. Reusable code to port from `/Volumes/SATECHI2TB/Serena/serena-app` (DIAN, Bold, Siigo, exports) per the design §18a.

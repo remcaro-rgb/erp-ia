@@ -1,15 +1,16 @@
 /**
- * Loads `apps/web/.env.local` into `process.env` for the CLI scripts (`db:seed`, `db:reset`, `help:index`), which Next
- * does not load it for. Variables already set in the environment win. Since 2026-10-29 development runs against a
- * hosted Supabase project (design §22, option 1): the file holds the project URL, the keys and the pooler connection
- * string, so the scripts reach the same database the app does.
+ * Loads `apps/web/.env.local` (or the file `ENV_FILE` names, repo-relative) into `process.env` for the CLI scripts
+ * (`db:seed`, `db:reset`, `help:index`, `with-env`), which Next does not load it for. Variables already set in the
+ * environment win. Decision 2026-10-29: development runs on the local stack (.env.local); the owner's hosted project is
+ * the shared demo and the Vercel deployment, reached through `pnpm hosted …` (.env.hosted.local).
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+/** The file to load: `ENV_FILE` (repo-relative) when set, else apps/web/.env.local. `pnpm hosted …` sets it to .env.hosted.local. */
 export function loadEnvLocal(root = join(fileURLToPath(import.meta.url), "..", "..")): void {
-  const file = join(root, "apps", "web", ".env.local");
+  const file = join(root, process.env.ENV_FILE ?? join("apps", "web", ".env.local"));
   if (!existsSync(file)) return;
   for (const raw of readFileSync(file, "utf8").split(/\r?\n/)) {
     const line = raw.trim();

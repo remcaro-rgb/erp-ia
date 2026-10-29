@@ -14,21 +14,17 @@ shadcn + Tailwind v4, TanStack Table, Vitest and Playwright. Node 22.2 or later,
 
 ## Run locally
 
-Since 2026-10-29 development runs against the owner's hosted Supabase project and Vercel previews (option 1 of the
-hosting decision: hosted for development, the Docker stack unchanged in CI). Nothing runs in Docker on your machine.
+Development runs on the local Supabase stack, in Docker through OrbStack (decision 2026-10-29, design §22.18). The hosted
+project and Vercel are the shared demo and the deployed app, see "Hosted demo and Vercel" below.
 
 ```bash
 pnpm install
-cp apps/web/.env.example apps/web/.env.local   # then fill in the hosted project's URL, keys, password and pooler URL
-pnpm db:reset         # migrations + supabase/seed.sql on the database DATABASE_URL names (hosted or local)
-DEMO_SEED=1 DEMO_SEED_REMOTE=1 pnpm db:seed   # the demo company on the shared, wipeable development project
-pnpm dev              # http://localhost:3000 against the hosted project
+cp apps/web/.env.example apps/web/.env.local   # the local stack's public demo keys are already in it
+supabase start        # the local stack: API on 127.0.0.1:55321, database on 127.0.0.1:54322
+pnpm db:reset         # migrations + supabase/seed.sql (tenant, company, roles, entitlements)
+DEMO_SEED=1 pnpm db:seed   # the demo company: Auth users, people and permissions, 40 parties, 25 products, files
+pnpm dev              # http://localhost:3000
 ```
-
-Migrations are written as before (`pnpm db:migrate:new <module> <topic>`) and applied with `supabase db push --db-url
-"$DATABASE_URL"`; `pnpm db:reset` rebuilds the whole database from them. The hosted project is shared and may be wiped
-at any time by anyone developing on it; it holds demo data only. The Docker stack still works for anyone who prefers it:
-`supabase start` and the local values in `.env.example`.
 
 Every write of the demo goes through registered processes (`pnpm db:seed`, `scripts/seed.ts`): it registers the
 manifests, enables the modules, creates the Auth users and lets the people, parties and products in through the same
@@ -37,6 +33,27 @@ processes the app uses, so the demo is a faithful sample of what the app can pro
 The assistant needs a model: `AI_GATEWAY_API_KEY` for the AI Gateway (metered per `kernel.model_policies`), or
 `AGENT_MODEL=mock` for the AI SDK mock model, which a production server refuses unless `ALLOW_MOCK_MODEL=1` (only the
 Docker test stack sets it).
+
+### Before a commit
+
+```bash
+pnpm lint && pnpm typecheck && pnpm check:rules && pnpm test
+pnpm test:integration:changed        # the integration files whose imports changed since main (all: pnpm test:integration, ~2 min)
+E2E_BASE_URL=http://localhost:3100 pnpm -F web e2e e2e/<spec>.spec.ts   # the specs the change touches, against the running dev server
+pnpm -F web build
+```
+
+The full integration and e2e suites and the compose stack run in GitHub Actions on every push; a task is complete only
+when that run is green.
+
+### Hosted demo and Vercel
+
+`apps/web/.env.hosted.local` (not committed) holds the hosted project's URL, keys, password and transaction-pooler URL
+(port 6543). `pnpm hosted <command>` runs anything with it: `pnpm hosted pnpm db:reset`, `DEMO_SEED=1 DEMO_SEED_REMOTE=1
+pnpm hosted pnpm db:seed`, `pnpm hosted pnpm -F web dev`. The project is shared and may be wiped; it holds demo data only.
+Vercel builds `apps/web` from every push to `main` (project `erpia`); the deployment is behind Vercel's login because the
+demo passwords are public. The access-token hook must be enabled once in the hosted project's dashboard
+(Authentication › Hooks › `kernel.custom_access_token_hook`).
 
 ### Demo accounts (local use only)
 
