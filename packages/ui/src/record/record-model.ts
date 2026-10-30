@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 // Types, default copy and pure rules of the record frame (design §5.16, rule 21). No React components here.
 
-export type RecordTabId = "datos" | "contactos" | "fotos" | "mensajes" | "extra" | "archivos";
+/** The frame's own tabs are `datos`, `contactos`, `fotos`, `mensajes`, `extra` and `archivos`; a module's contributed tab is named by its id (`accounting.entries`). */
+export type RecordTabId = string;
 
 /** One tab of the frame; the caller supplies the content, the frame only chooses what is shown. */
 export interface RecordTab {
@@ -18,7 +19,8 @@ export interface RecordTab {
 
 /** Copy of the frame. Spanish (es-419) until Task 11 wires packages/i18n; every string can be replaced through the `labels` prop. */
 export interface RecordLabels {
-  tabs: Record<RecordTabId, string>;
+  /** Names of the frame's own tabs; a contributed tab carries its own `label`. */
+  tabs: Record<string, string | undefined>;
   number: string;
   uuid: string;
   assignedOnCreate: string;
@@ -53,13 +55,17 @@ export { recordHref } from "@erp/kernel/href";
 /** First 8 characters of the UUID, as the prototype shows it. */
 export const shortId = (uuid: string): string => uuid.slice(0, 8);
 
-/** The tabs an entity needs, in order: parties add Contactos, products add Fotos, tickets add Mensajes; every record has Datos adicionales and Archivos. */
-export function recordTabIds(entity: string): RecordTabId[] {
+/**
+ * The tabs an entity needs, in order: parties add Contactos, products add Fotos, tickets add Mensajes; the tabs modules
+ * contribute (`contributed`, their ids) come next; every record has Datos adicionales and Archivos.
+ */
+export function recordTabIds(entity: string, contributed: readonly string[] = []): RecordTabId[] {
   return [
     "datos",
     ...(entity === "core.party" ? (["contactos"] as const) : []),
     ...(entity === "core.product" ? (["fotos"] as const) : []),
     ...(entity === "support.ticket" ? (["mensajes"] as const) : []),
+    ...contributed,
     "extra",
     "archivos",
   ];

@@ -25,7 +25,7 @@ export type { JwtClaims, Tx } from "./db/client";
 export { withClaims } from "./db/client";
 export { getServiceDb } from "./db/service";
 export { defineEntity, hasRecordPage, recordHref, recordPageEntities, Registry, registry, USER_ENTITY } from "./registry";
-export type { ConsumerContext, EntityDef, EventConsumer, FeatureDef, FieldDef, FieldType, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind, ResolvedEntityDef, ResolvedFieldDef } from "./registry";
+export type { ConsumerContext, EntityDef, EventConsumer, FeatureDef, FieldDef, FieldType, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind, RecordTabContribution, ResolvedEntityDef, ResolvedFieldDef } from "./registry";
 export { maskedViewSql } from "./security/masked-views";
 export { defineProcess } from "./process/define";
 export { runProcess } from "./process/run";

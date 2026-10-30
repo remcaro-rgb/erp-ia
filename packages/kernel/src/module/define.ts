@@ -55,6 +55,19 @@ export function defineModule(def: ModuleDef): ModuleDef {
   checkNavigation(def.id, def.navigation);
   for (const feature of def.features) checkNavigation(def.id, feature.nav ?? []);
 
+  const tabIds = new Set<string>();
+  for (const tab of def.recordTabs ?? []) {
+    if (!tab.id.startsWith(`${def.id}.`)) throw new Error(`record tab ${tab.id} must be named "${def.id}.<name>"`);
+    if (tabIds.has(tab.id)) throw new Error(`duplicate record tab ${tab.id} in module ${def.id}`);
+    tabIds.add(tab.id);
+    if (!featureIds.has(tab.feature)) throw new Error(`record tab ${tab.id} names feature ${tab.feature}, which module ${def.id} does not declare`);
+    if (tab.forEntities !== "*" && tab.forEntities.length === 0) throw new Error(`record tab ${tab.id} names no entity`);
+    if (tab.kind === "grid" && !tab.source) throw new Error(`grid contribution ${tab.id} needs a source`);
+    if (tab.kind === "mapping" && (!tab.dimension || !tab.roles?.length || !tab.lookupEntity || !tab.saveProcess)) {
+      throw new Error(`mapping contribution ${tab.id} needs dimension, roles, lookupEntity and saveProcess`);
+    }
+  }
+
   const providerIds = new Set<string>();
   for (const provider of def.homeKpis ?? []) {
     if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`KPI provider ${provider.id} must be named "${def.id}.<name>"`);

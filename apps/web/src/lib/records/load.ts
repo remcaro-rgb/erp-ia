@@ -22,6 +22,7 @@ import { buildColumns } from "@/lib/grid/columns";
 import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
+import { loadContributedTabs, type LoadedContribution } from "./contributed-load";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
 import { partyTables, productTables } from "./tables";
 
@@ -94,6 +95,8 @@ export interface LoadedRecord {
   attachments: StoredAttachment[] | null;
   /** Status of the latest verification request of each contact datum, by `<kind>:<value>` (`phone` as `+<cc><number>`). */
   verifications: Record<string, "queued" | "verified" | "failed">;
+  /** The tabs other modules' manifests add to this record's page that it shows (none for a new record). */
+  contributed: LoadedContribution[];
   form: FormData;
 }
 
@@ -271,7 +274,8 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     suggest: may("kernel.ai.image_suggest"),
     duplicate: record !== null && runnable.has(entity.create),
   };
-  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, form: await formData(caller, entity, record) };
+  const contributed = record ? await loadContributedTabs(caller, entity.id, record.id, gridRows) : [];
+  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, form: await formData(caller, entity, record) };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

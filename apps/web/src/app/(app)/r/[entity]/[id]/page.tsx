@@ -6,6 +6,7 @@ import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
 import { loadRecord } from "@/lib/records/load";
 import { ContactsPanel } from "./contacts-panel";
+import { ContributedTab } from "./contributed-tab";
 import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
 import { PhotosPanel } from "./photos-panel";
@@ -50,7 +51,7 @@ async function RecordView({ params }: { params: Params }) {
   }
   // No such record for this user, or no full page for the entity: both look the same.
   if (!loaded) notFound();
-  const { entity, record, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, form } = loaded;
+  const { entity, record, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
   const t = await getTranslations();
 
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
@@ -82,6 +83,11 @@ async function RecordView({ params }: { params: Params }) {
     archivos: { content: <FilesPanel entity={entity.id} recordId={record.id} requiredTags={requiredTags} attachments={attachments} can={can} /> },
   };
 
+  // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
+  for (const tab of contributed) {
+    content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl">
       <AppRecordFrame
@@ -93,7 +99,7 @@ async function RecordView({ params }: { params: Params }) {
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
         deepLinkHref={recordHref(entity.id, record.id)}
-        tabs={recordTabIds(entity.id).map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
+        tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id)).map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
         labels={recordLabels(t)}
         status={<RecordStatus record={record} t={t} />}
       />

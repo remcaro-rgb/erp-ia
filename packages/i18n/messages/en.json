@@ -71,6 +71,14 @@
       "copy_of": "Copy of {name}",
       "copy_note": "Fill in what identifies the record. Contacts, photos and files are not copied.",
       "duplicate_failed": "The record could not be duplicated: {reason}",
+      "contributed": {
+        "save": "Save",
+        "discard": "Discard",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "read_only": "Read-only for your role",
+        "choose": "Search…"
+      },
       "dian": {
         "complete": "DIAN: complete",
         "missing": "DIAN: {count, plural, one {# item missing} other {# items missing}}",

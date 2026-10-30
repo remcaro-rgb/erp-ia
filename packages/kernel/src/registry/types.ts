@@ -130,6 +130,35 @@ export interface HomeKpiProvider {
   compute(ctx: ProcessContext): Promise<Kpi[]>;
 }
 
+/**
+ * A tab a module adds to the record page of other modules' entities (design §5.16, accounting design §8), so the kernel
+ * shows a module's data without knowing it (rule 4). The page resolves a contribution per record: the company must hold
+ * its `feature`, and a `grid` shows only when its source has rows for the record.
+ */
+export interface RecordTabContribution {
+  /** `<module>.<name>`, in the namespace of the module that ships it. */
+  id: string;
+  /** i18n key of the tab's name. */
+  label: string;
+  /** `"*"` adds the tab to every record page; a list names the entities (`core.product_category`). */
+  forEntities: "*" | string[];
+  kind: "grid" | "mapping";
+  /** Feature id of the module the company must be entitled to. */
+  feature: string;
+  /** grid: a registered query entity whose view has `source_entity` and `source_record_id` columns; shown only when it has rows for the record. */
+  source?: string;
+  /** mapping: the dimension template (`category:{id}`, `{id}` is the record id). */
+  dimension?: string;
+  /** mapping: the roles to map, one lookup each. */
+  roles?: string[];
+  /** mapping: the entity each role's lookup chooses from. */
+  lookupEntity?: string;
+  /** mapping: the process that saves the mapping (step-up applies as the process declares). */
+  saveProcess?: string;
+  /** mapping: the consult process that returns the stored mappings. */
+  consultProcess?: string;
+}
+
 /** The manifest every module ships (design §5.2). */
 export interface ModuleDef {
   /** Lowercase identifier; also the Postgres schema and the first segment of its process and feature ids. */
@@ -145,5 +174,7 @@ export interface ModuleDef {
   navigation: NavItem[];
   /** KPIs the module contributes to the home screen. */
   homeKpis?: HomeKpiProvider[];
+  /** Tabs the module adds to the record pages of entities (its own or other modules'). */
+  recordTabs?: RecordTabContribution[];
   migrationsDir?: string;
 }

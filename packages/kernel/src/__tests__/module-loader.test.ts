@@ -205,4 +205,44 @@ describe("loadModules", () => {
       expect(() => defineModule(manifest("a", [], { events: { emits: [], consumes: { "*": async () => {} } } }))).not.toThrow();
     });
   });
+
+  describe("recordTabs", () => {
+    const grid = { id: "a.entries", label: "tab.entries", forEntities: "*" as const, kind: "grid" as const, feature: "a.things", source: "a.entry_source" };
+    const mapping = {
+      id: "a.revenue",
+      label: "tab.revenue",
+      forEntities: ["a.category"],
+      kind: "mapping" as const,
+      feature: "a.things",
+      dimension: "category:{id}",
+      roles: ["revenue"],
+      lookupEntity: "a.account",
+      saveProcess: "a.mapping.update",
+    };
+
+    it("registers recordTabs and resolves them for '*' and for named entities", () => {
+      const registry = new Registry();
+      loadModules(registry, [manifest("a", [], { recordTabs: [grid, mapping] })]);
+      expect(registry.recordTabsFor("a.category").map((c) => c.id)).toEqual(["a.entries", "a.revenue"]);
+      expect(registry.recordTabsFor("core.party").map((c) => c.id)).toEqual(["a.entries"]);
+      expect(new Registry().recordTabsFor("core.party")).toEqual([]);
+    });
+
+    it("refuses a mapping contribution without roles or saveProcess", () => {
+      const bad = (override: object) => manifest("a", [], { recordTabs: [{ ...mapping, ...override }] });
+      expect(() => defineModule(bad({ roles: undefined }))).toThrow(/mapping contribution a\.revenue/);
+      expect(() => defineModule(bad({ roles: [] }))).toThrow(/mapping contribution a\.revenue/);
+      expect(() => defineModule(bad({ saveProcess: undefined }))).toThrow(/mapping contribution a\.revenue/);
+      expect(() => defineModule(bad({ lookupEntity: undefined }))).toThrow(/mapping contribution a\.revenue/);
+      expect(() => defineModule(bad({ dimension: undefined }))).toThrow(/mapping contribution a\.revenue/);
+      expect(() => defineModule(manifest("a", [], { recordTabs: [mapping] }))).not.toThrow();
+    });
+
+    it("refuses a grid contribution without a source, and ids or features outside the module", () => {
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...grid, source: undefined }] }))).toThrow(/grid contribution a\.entries/);
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...grid, id: "b.entries" }] }))).toThrow(/record tab b\.entries.*"a\.<name>"/);
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...grid, feature: "a.nope" }] }))).toThrow(/record tab a\.entries.*feature a\.nope/);
+      expect(() => defineModule(manifest("a", [], { recordTabs: [grid, grid] }))).toThrow(/duplicate record tab a\.entries/);
+    });
+  });
 });

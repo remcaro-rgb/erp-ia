@@ -71,6 +71,14 @@
       "copy_of": "Copia de {name}",
       "copy_note": "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
       "duplicate_failed": "No se pudo duplicar el registro: {reason}",
+      "contributed": {
+        "save": "Guardar",
+        "discard": "Descartar",
+        "saving": "Guardando…",
+        "saved": "Guardado",
+        "read_only": "Solo lectura para tu rol",
+        "choose": "Buscar…"
+      },
       "dian": {
         "complete": "DIAN: completo",
         "missing": "DIAN: {count, plural, one {falta # dato} other {faltan # datos}}",

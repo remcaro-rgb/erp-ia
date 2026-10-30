@@ -115,7 +115,7 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
               onClick={() => select(tab.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
             >
-              {tab.label ?? labels.tabs[tab.id]}
+              {tab.label ?? labels.tabs[tab.id] ?? tab.id}
               {tab.count ? <span className="erp-record__count">{tab.count}</span> : null}
               {tab.warn ? (
                 <span className="erp-record__count erp-record__count--warn" title={labels.pending}>

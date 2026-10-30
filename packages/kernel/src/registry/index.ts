@@ -1,11 +1,11 @@
 import type { ResolvedEntityDef } from "./entities";
-import type { HomeKpiProvider, ModuleDef, ProcessDef } from "./types";
+import type { HomeKpiProvider, ModuleDef, ProcessDef, RecordTabContribution } from "./types";
 
 export { defineEntity } from "./entities";
 export { hasRecordPage, recordHref, recordPageEntities, USER_ENTITY } from "./href";
 export type { EntityDef, ResolvedEntityDef } from "./entities";
 export type { FieldDef, FieldType, ResolvedFieldDef } from "./fields";
-export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind } from "./types";
+export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem, ProcessDef, ProcessKind, RecordTabContribution } from "./types";
 
 /** The catalogue every module declares its entities, processes and manifest in (design §5.3). */
 export class Registry {
@@ -68,6 +68,14 @@ export class Registry {
 
   hasModule(id: string): boolean {
     return this.moduleMap.has(id);
+  }
+
+  /**
+   * The tabs modules contribute to the record page of `entityId`, in module registration order: the ones for every
+   * entity (`"*"`) and the ones naming it. Whether the company holds each one's feature is the page's check.
+   */
+  recordTabsFor(entityId: string): RecordTabContribution[] {
+    return this.modules().flatMap((m) => (m.recordTabs ?? []).filter((c) => c.forEntities === "*" || c.forEntities.includes(entityId)));
   }
 
   /** Registered modules in registration order (dependencies first when loaded through `loadModules`). */

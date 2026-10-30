@@ -246,4 +246,9 @@ describe("record model", () => {
     expect(recordTabIds("core.product_category")).toEqual(["datos", "extra", "archivos"]);
     expect(recordTabIds("support.ticket")).toEqual(["datos", "mensajes", "extra", "archivos"]);
   });
+
+  it("contributed tabs come after the entity's own and before Datos adicionales", () => {
+    expect(recordTabIds("core.party", ["accounting.entries"])).toEqual(["datos", "contactos", "accounting.entries", "extra", "archivos"]);
+    expect(recordTabIds("core.product_category", ["a.x", "a.y"])).toEqual(["datos", "a.x", "a.y", "extra", "archivos"]);
+  });
 });
