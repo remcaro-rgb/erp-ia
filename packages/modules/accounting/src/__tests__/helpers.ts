@@ -12,7 +12,7 @@ export const ACCOUNTING_PROCESS_IDS = [...accounting.processes, ...ATTACHMENT_PR
 
 /** The consult processes and the entry processes (create, update, void, submit, post, from_template) a `contador` or `auxiliar` role may run. */
 export const MEMBER_PROCESS_IDS = accounting.processes
-  .filter((p) => p.kind === "consult" || /^accounting\.(entry|entry_template|entry_line)\./.test(p.id))
+  .filter((p) => p.kind === "consult" || /^accounting\.(entry|entry_template|entry_line)\./.test(p.id) || p.id === "accounting.opening.create")
   .map((p) => p.id);
 
 /** Every accounting table, children first: the harness empties them for its companies. */

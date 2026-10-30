@@ -69,6 +69,11 @@ export async function inheritParty(ctx: ProcessContext, partyId: string | null |
   return lines.map((line) => (line.partyId || !accountOf(accounts, line)?.requiresParty ? line : { ...line, partyId }));
 }
 
+/** `reverse_on` is the day the accrual reverses: after the entry's own date. */
+export function assertReverseOn(date: string, reverseOn: string | null | undefined): void {
+  if (reverseOn && reverseOn <= date) throw invalid("reverse_on must be after the date", "La fecha de reversión automática debe ser posterior a la fecha del comprobante");
+}
+
 /** Inserts the lines of a draft: account codes resolved, document-currency amounts derived from the rate. */
 export async function insertLines(ctx: ProcessContext, entryId: string, rate: number, lines: readonly LineInput[]): Promise<void> {
   if (lines.length === 0) return;
@@ -99,6 +104,7 @@ export async function insertLines(ctx: ProcessContext, entryId: string, rate: nu
 
 /** Validates in draft mode and inserts a draft with its lines; the shared path of `entry.create`, `entry.from_template` and the opening balances. */
 export async function createDraft(ctx: ProcessContext, input: EntryInput, origin: EntryOrigin, extraColumns: Record<string, unknown> = {}): Promise<string> {
+  assertReverseOn(input.date, input.reverseOn);
   const journalId = await defaultJournal(ctx, input.journalId);
   const lines = await inheritParty(ctx, input.partyId, input.lines);
   assertValid(await validateLines(ctx, { journalId, date: input.date, businessUnitId: input.businessUnitId, origin }, lines, "draft"));
@@ -143,6 +149,7 @@ export const entryUpdate = defineProcess({
     if (current.status !== "draft" && current.status !== "pending") {
       throw invalid(`entry ${entryId} is ${current.status}`, "Solo se puede modificar un borrador o un comprobante pendiente de aprobación; uno contabilizado se corrige con una reversión");
     }
+    assertReverseOn(input.date, input.reverseOn);
     const journalId = input.journalId ?? current.journal_id;
     const lines = await inheritParty(ctx, input.partyId, input.lines);
     assertValid(await validateLines(ctx, { journalId, date: input.date, businessUnitId: input.businessUnitId, origin: current.origin }, lines, "draft"));
