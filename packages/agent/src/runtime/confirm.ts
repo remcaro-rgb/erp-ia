@@ -1,8 +1,8 @@
-import { randomBytes } from "node:crypto";
-import { ProcessError, runProcess, withClaims, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
+import { randomBytes, randomUUID } from "node:crypto";
+import { buildConsumerContext, ProcessError, runProcess, withClaims, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
 import { refusal, type ToolRefusal } from "../tools/descriptor";
 import { appendMessage } from "./conversation";
-import { buildPreview, type ConfirmationPreview } from "./preview";
+import { buildPreview, postingEffects, type ConfirmationPreview } from "./preview";
 
 // Confirmation cards (design §6 "Agent", §7.1, rules 15 and 17, review focus 4): a write-kind tool never runs. It
 // validates the input with the process's schema, stores the proposal with a random token and returns the card; the
@@ -75,6 +75,7 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
   const preview = buildPreview(deps.registry, def, parsed.data, {
     locale: claims.locale,
     stepUp: await needsStepUp(deps, claims.active_company_id, def),
+    postingEffects: await postingEffects(deps.registry, def, buildConsumerContext(deps.sql, { companyId: claims.active_company_id, chainId: randomUUID() }, deps.registry)),
     ...(await companyPlace(deps, claims.active_company_id)),
   });
   const token = randomBytes(32).toString("base64url");

@@ -17,7 +17,12 @@ export interface PostingProvider {
   rulesFor(ctx: ConsumerContext, event: string): Promise<PostingRule[]>;
   resolveAccount(ctx: ConsumerContext, role: string, dimension?: string): Promise<ResolvedAccount | null>;
   ledgerStartsOn(ctx: ConsumerContext): Promise<Date | null>;
-  post(ctx: ConsumerContext, draft: ComposedEntry): Promise<{ entryId: string }>;
+  /** Runs the provider's own process; `rule` gives the idempotency key `posting:<event_id>:<rule_id>` and the journal. */
+  post(ctx: ConsumerContext, draft: ComposedEntry, rule: PostingRule): Promise<{ entryId: string }>;
+  /** The company's `rounding_tolerance` and currency, which composition needs (design §4.11, §10a.8). */
+  composeSettings(ctx: ConsumerContext): Promise<{ tolerance: number; companyCurrency: string }>;
+  /** Counts an event acknowledged without posting because it predates the ledger ("eventos anteriores al inicio del libro"). */
+  countSkipped(ctx: ConsumerContext, eventId: string): Promise<void>;
   reverse(ctx: ConsumerContext, ref: { event: string; sourceId: string }): Promise<{ entryId: string } | null>;
   recordFailure(ctx: ConsumerContext, failure: PostingFailure): Promise<void>;
   effectsFor(ctx: ConsumerContext, event: string): Promise<string[]>;

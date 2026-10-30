@@ -6,6 +6,8 @@ import { registry } from "../registry";
 import { buildConsumerContext, consumers } from "./consumers";
 
 interface OutboxRow {
+  id: string;
+  createdAt: Date;
   companyId: string;
   event: string;
   payload: unknown;
@@ -137,7 +139,7 @@ async function deadLetter(outboxId: string, error: string): Promise<void> {
 }
 
 async function readRow(outboxId: string): Promise<OutboxRow | null> {
-  const [row] = await getServiceDb()<{ company_id: string; event: string; payload: JSONValue; chain_id: string }[]>`
-    select company_id, event, payload, chain_id from kernel.outbox where id = ${outboxId} and dispatched_at is null`;
-  return row ? { companyId: row.company_id, event: row.event, payload: row.payload, chainId: row.chain_id } : null;
+  const [row] = await getServiceDb()<{ id: string; created_at: Date; company_id: string; event: string; payload: JSONValue; chain_id: string }[]>`
+    select id, created_at, company_id, event, payload, chain_id from kernel.outbox where id = ${outboxId} and dispatched_at is null`;
+  return row ? { id: row.id, createdAt: row.created_at, companyId: row.company_id, event: row.event, payload: row.payload, chainId: row.chain_id } : null;
 }

@@ -17,7 +17,7 @@ export type { RecordRef } from "./records/titles";
 export { cloneDraft, draftValues } from "./records/clone";
 export { enqueueEvent } from "./events/outbox";
 export type { OutboxEvent } from "./events/outbox";
-export { consumers, ConsumerRegistry, SYSTEM_USER_ID } from "./events/consumers";
+export { buildConsumerContext, consumers, ConsumerRegistry, SYSTEM_USER_ID } from "./events/consumers";
 export { drainOutbox } from "./events/drain";
 export type { DrainOptions } from "./events/drain";
 export { dispatchOutboxRow } from "./events/dispatch.workflow";
@@ -105,5 +105,5 @@ export { ADMIN_NAVIGATION } from "./admin/navigation";
 export { aiTokensKpi, dailySeries, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
 export type { SuggestedAction } from "./home";
 
-export { ACCOUNT_ROLES, composeEntry, interpolate, PathError, resolvePath, RuleLine, RuleTemplate } from "./posting";
+export { ACCOUNT_ROLES, composeEntry, postingConsumer, POSTING_CONSUMER, interpolate, PathError, resolvePath, RuleLine, RuleTemplate } from "./posting";
 export type { AccountRole, ComposeResult, ComposedEntry, ComposedLine, DefaultPostingRule, EventRef, PostingFailure, PostingFailureCode, PostingProvider, PostingRule, ResolvedAccount } from "./posting";

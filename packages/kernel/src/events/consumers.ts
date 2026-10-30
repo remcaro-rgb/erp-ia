@@ -48,6 +48,9 @@ const globals = globalThis as { [GLOBAL_KEY]?: ConsumerRegistry };
 export const consumers: ConsumerRegistry = (globals[GLOBAL_KEY] ??= new ConsumerRegistry());
 
 export interface OutboxEnvelope {
+  id?: string;
+  event?: string;
+  createdAt?: Date;
   companyId: string;
   chainId: string;
 }
@@ -82,6 +85,7 @@ export function buildConsumerContext(sql: Sql, row: OutboxEnvelope, registry: Re
     sql,
     companyId: row.companyId,
     chainId: row.chainId,
+    event: { id: row.id ?? "", name: row.event ?? "", createdAt: row.createdAt ?? new Date() },
     async runProcess(processId, input) {
       return runProcess({ sql, registry }, { claims: await systemClaims(), origin: "event", chainId: row.chainId }, processId, input);
     },

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
+import { countryPackOf } from "../registry/labels";
 import { ADMIN_FEATURE, invalid, requireAdmin } from "./common";
 import { moduleStates } from "./modules-state";
 
@@ -29,6 +30,14 @@ export const moduleEnable = defineProcess({
     if (!state.purchased) throw new ProcessError("not_entitled", `module ${moduleId} is not part of the tenant's plan`, { details: ["Tu empresa no tiene contratado este módulo"] });
     const missing = state.dependsOn.find((dep) => !states.find((m) => m.id === dep)?.enabled);
     if (missing) throw invalid(`module ${moduleId} requires ${missing}`, `Primero activa el módulo ${missing}, del que depende`);
+    // A module that adds account roles needs the company's country pack to map every one of them (design §5.3).
+    const roles = ctx.registry.module(moduleId).accountRoles ?? [];
+    if (roles.length > 0) {
+      const [company] = await ctx.tx<{ country_code: string }[]>`select country_code from kernel.companies where id = ${ctx.companyId}`;
+      const mapped = new Set(countryPackOf(company?.country_code)?.defaultRoleMappings?.().map((m) => m.role));
+      const unmapped = roles.filter((role) => !mapped.has(role));
+      if (unmapped.length > 0) throw invalid(`country pack does not map roles ${unmapped.join(", ")}`, `El pack del país no mapea los roles contables: ${unmapped.join(", ")}`);
+    }
     await ctx.tx`
       insert into kernel.company_modules (company_id, module_id, enabled, enabled_at)
       values (${ctx.companyId}, ${moduleId}, true, now())

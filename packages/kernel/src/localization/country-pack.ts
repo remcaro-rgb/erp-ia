@@ -104,6 +104,11 @@ export interface CountryPack {
    * "Colombia". A fiscal code keeps the code in front of its name; places read by name. Undefined for an unknown code.
    */
   codeLabel(table: CodeTable, code: string, locale: string): string | undefined;
+  /**
+   * The chart code each account role maps to by default (design §5.3, §5.9); absent while a pack has no accounting
+   * chart. `kernel.admin.module.enable` refuses a module whose `accountRoles` are not all covered.
+   */
+  defaultRoleMappings?(): { role: string; dimension?: string; code: string }[];
   // phase 2 adds taxes, sequences, eInvoicing, payroll hooks
 }
 

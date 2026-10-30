@@ -1,5 +1,5 @@
 import { defaultLocale, isLocale, messages, type Messages } from "@erp/i18n";
-import { countryPackOf, fieldOfKey, valueText, type ProcessDef, type Registry, type ValueLabels } from "@erp/kernel";
+import { countryPackOf, fieldOfKey, valueText, type ConsumerContext, type ProcessDef, type Registry, type ValueLabels } from "@erp/kernel";
 
 // What a confirmation card shows (design §6 "Agent": "card with the diff"): the process's description as its title,
 // one line per input field with the field's label in the user's language, the permission it runs under and whether
@@ -35,6 +35,24 @@ function entityOf(registry: Registry, def: ProcessDef) {
 }
 
 /**
+ * What the posting providers say the events `def` emits will do ("Contabilidad: asiento en Ventas"), one string per effect
+ * (design §5.1). Empty for a process that emits nothing or when no module provides posting.
+ */
+export async function postingEffects(registry: Registry, def: ProcessDef, ctx: ConsumerContext): Promise<string[]> {
+  const providers = registry.modules().flatMap((m) => (m.postingProvider ? [m.postingProvider] : []));
+  if (!def.emits?.length || providers.length === 0) return [];
+  const lines: string[] = [];
+  for (const provider of providers) for (const event of def.emits) lines.push(...(await provider.effectsFor(ctx, event)));
+  return lines;
+}
+
+/** "Contabilidad: asiento en Ventas" reads as the card row `Contabilidad` → `asiento en Ventas`. */
+function effectRow(line: string): { label: string; value: string } {
+  const at = line.indexOf(": ");
+  return at === -1 ? { label: "Contabilidad", value: line } : { label: line.slice(0, at), value: line.slice(at + 2) };
+}
+
+/**
  * The card of a proposed run of `def` with `input` (already validated by the process's schema); `country` and `timeZone`
  * are the company's (its pack labels the fiscal codes; a date and time reads as the wall clock there).
  */
@@ -42,7 +60,7 @@ export function buildPreview(
   registry: Registry,
   def: ProcessDef,
   input: unknown,
-  options: { locale: string; stepUp: boolean; country?: string | undefined; timeZone?: string | undefined },
+  options: { locale: string; stepUp: boolean; country?: string | undefined; timeZone?: string | undefined; postingEffects?: string[] | undefined },
 ): ConfirmationPreview {
   const catalogue = catalogueOf(options.locale);
   // The label helper the audit viewer shares (kernel registry/labels.ts): option labels, the pack's codes, money, Sí / No.
@@ -57,5 +75,6 @@ export function buildPreview(
   const effects = entries
     .filter(([, value]) => value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0))
     .map(([key, value]) => ({ label: label(key), value: valueText(fieldOf(key), value, labels) }));
+  effects.push(...(options.postingEffects ?? []).map(effectRow));
   return { title: def.description, effects, permission: def.id, stepUp: options.stepUp };
 }

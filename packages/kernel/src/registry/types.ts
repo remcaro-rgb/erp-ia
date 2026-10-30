@@ -39,6 +39,8 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
    * engine's writes run only from an event consumer).
    */
   origins?: Origin[];
+  /** Events the process writes to the outbox; the confirmation card asks each posting provider what they will do (design §5.1). */
+  emits?: string[];
   /** What the audit entry of a run records as its input, when less than the whole input (default: the whole input). */
   auditInput?(input: z.infer<I>): unknown;
   /** Runs with the same key in the same company return the first run's stored result. */
@@ -86,6 +88,8 @@ export interface ConsumerContext {
   sql: Sql;
   companyId: string;
   chainId: string;
+  /** The outbox row being delivered. */
+  event: { id: string; name: string; createdAt: Date };
   /** Runs a process with origin `event`, as the system user. */
   runProcess: (processId: string, input: unknown) => Promise<unknown>;
 }

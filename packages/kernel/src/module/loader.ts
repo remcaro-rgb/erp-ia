@@ -1,4 +1,5 @@
 import { defineEntity } from "../registry/entities";
+import { POSTING_CONSUMER, postingConsumer } from "../posting/engine";
 import { consumers } from "../events/consumers";
 import type { Registry } from "../registry";
 import type { ModuleDef } from "../registry/types";
@@ -68,12 +69,20 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     }
   }
 
+  // A posting provider receives every event, so it must consume "*"; the marker is replaced by the engine over it.
+  for (const module of modules) {
+    if (module.postingProvider && module.events.consumes["*"] === undefined) throw new Error(`module ${module.id} has a postingProvider and must consume "*"`);
+  }
+
   for (const module of ordered) {
     for (const entity of module.entities) registry.registerEntity(defineEntity(entity));
     for (const process of module.processes) registry.registerProcess(process);
     registry.registerModule(module);
     for (const report of module.reports ?? []) registry.registerReport(report);
     for (const provider of module.homeKpis ?? []) registry.registerKpiProvider(provider);
-    for (const [event, fn] of Object.entries(module.events.consumes)) consumers.register(module.id, event, fn);
+    for (const [event, fn] of Object.entries(module.events.consumes)) {
+      const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider) : fn;
+      consumers.register(module.id, event, wrapped);
+    }
   }
 }
