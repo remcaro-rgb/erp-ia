@@ -3,7 +3,7 @@ import { callerOrResponse } from "@/lib/auth/http";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
 import { processDeps } from "@/lib/server/runtime";
 
-// POST /api/grid/:entity  body GridState  ->  { rows, total, aggregates? }   (design §9, rules 14, 20 and 21)
+// POST /api/grid/:entity  body GridState  ->  { rows, total, aggregates?, groups? }   (design §9, rules 14, 20 and 21)
 // One page of an entity's grid, read as the session's user over the entity's masked view: company RLS, the party
 // scope and field masking apply, so a hidden or masked column comes back null. 401 without a session; 403 when the
 // company is not entitled to the entity's feature, no role of the caller may consult it, a hidden or masked field
@@ -45,8 +45,8 @@ export async function POST(request: Request, context: Context): Promise<Response
 
   try {
     // Each row names the records its references point to (`<field>_label`), for the cells that link to them (rule 21).
-    const { rows, total, aggregates } = await runGridQuery(deps.sql, claims, entity, parsed.data, { registry: deps.registry });
-    return Response.json(aggregates ? { rows, total, aggregates } : { rows, total });
+    const { rows, total, aggregates, groups } = await runGridQuery(deps.sql, claims, entity, parsed.data, { registry: deps.registry });
+    return Response.json({ rows, total, ...(aggregates ? { aggregates } : {}), ...(groups ? { groups } : {}) });
   } catch (error) {
     if (error instanceof QueryError) return problem(error.code === "field_hidden" ? 403 : 400, error.code, [error.field]);
     console.error(error);

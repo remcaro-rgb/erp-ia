@@ -58,6 +58,25 @@ afterAll(async () => {
 });
 
 describe("grid-route", () => {
+  it("POST /api/grid returns groups with level, keys, count and aggregates, without the grand total row", async () => {
+    const { sql } = fixture;
+    // Two groups: the supplier-only party is a person (2), the other two are companies (1).
+    await sql`update core.parties set person_type = '2' where company_id = ${fixture.companyIds[0]!} and legal_name = 'Tostadora Pérez'`;
+    const response = await call("core.party", { ...base, groupBy: ["person_type"], aggregates: [{ field: "seq", fn: "sum" }, { field: "seq", fn: "max" }] });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { rows: unknown[]; total: number; aggregates?: Record<string, unknown>; groups: { level: number; keys: Record<string, unknown>; count: number; aggregates: Record<string, unknown> }[] };
+    expect(body.groups).toHaveLength(2);
+    expect(body.groups.map((g) => [g.level, g.keys.person_type, g.count])).toEqual([[1, "1", 2], [1, "2", 1]]);
+    for (const g of body.groups) expect(Object.keys(g.aggregates).sort()).toEqual(["max:seq", "sum:seq"]);
+    expect(body.aggregates).toBeDefined();
+    // A string groupBy is one level too, and without groupBy there are no groups.
+    const one = (await (await call("core.party", { ...base, groupBy: "person_type" })).json()) as { groups: unknown[] };
+    expect(one.groups).toHaveLength(2);
+    expect(((await (await call("core.party", base)).json()) as { groups?: unknown }).groups).toBeUndefined();
+    // A hidden field cannot be grouped on.
+    expect((await call("core.party", { ...base, groupBy: ["credit_limit"] })).status).toBe(403);
+  });
+
   it("as cashier with credit_limit hidden, rows have credit_limit: null", async () => {
     const response = await call("core.party", { ...base, sort: [{ field: "legal_name", dir: "asc" }] });
     expect(response.status).toBe(200);

@@ -58,7 +58,7 @@ export { buildQuery, GridState, operatorsFor, QueryError, refLabelKey } from "./
 export type { BuildQueryOptions, BuiltQuery, FilterOp, GridStateInput, QueryErrorCode } from "./query";
 export { gridAccess, gridPageAccess, gridQueryInTx, runGridQuery, visibleIn } from "./query/run";
 export { DATA_PROCESSES, DATA_QUERY_MAX_ROWS, dataQuery } from "./query/data-query.process";
-export type { FieldMode, GridAccess, GridExtraField, GridQueryOptions, GridResult, PartyScope } from "./query/run";
+export type { FieldMode, GridAccess, GridExtraField, GridQueryOptions, GridResult, GroupRow, PartyScope } from "./query/run";
 export { addRefLabels } from "./query/ref-labels";
 export { SAVED_VIEW_PROCESS_IDS, SAVED_VIEW_PROCESSES, SavedViewState } from "./saved-views";
 export type { SavedView } from "./saved-views";

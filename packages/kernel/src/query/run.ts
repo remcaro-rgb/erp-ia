@@ -28,10 +28,39 @@ export interface GridAccess {
   timeZone: string;
 }
 
+/** One group of a grouped grid (accounting plan, Task 6): `level` 1..n, `keys` of the first `level` group fields, `<fn>:<field>` aggregates. */
+export interface GroupRow {
+  level: number;
+  keys: Record<string, unknown>;
+  count: number;
+  aggregates: Record<string, unknown>;
+}
+
 export interface GridResult {
   rows: Record<string, unknown>[];
   total: number;
   aggregates?: Record<string, unknown>;
+  /** Present when the state has `groupBy`; the grand total row is not among them (`aggregates` has it). */
+  groups?: GroupRow[];
+}
+
+/** The groups of the rollup rows `sql` returned: level = group fields set, the grand total (level 0) left out. */
+export function groupRowsOf(raw: readonly Record<string, unknown>[], fields: readonly string[]): GroupRow[] {
+  const reserved = new Set([...fields, "grouping", "count"]);
+  return raw.flatMap((row) => {
+    // grouping(g1, g2, g3): bit set = that field is rolled up (g1 is the highest bit).
+    const rolledUp = Number(row.grouping);
+    const level = fields.filter((_, i) => ((rolledUp >> (fields.length - 1 - i)) & 1) === 0).length;
+    if (level === 0) return [];
+    return [
+      {
+        level,
+        keys: Object.fromEntries(fields.slice(0, level).map((f) => [f, row[f]])),
+        count: Number(row.count),
+        aggregates: Object.fromEntries(Object.entries(row).filter(([k]) => !reserved.has(k))),
+      },
+    ];
+  });
 }
 
 /**
@@ -98,6 +127,10 @@ export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState,
   if (q.aggregateSql) {
     const [aggregates] = await tx.unsafe<Record<string, unknown>[]>(q.aggregateSql, q.params as never[]);
     result.aggregates = { ...aggregates };
+  }
+  if (q.groupAggregateSql && q.groupFields) {
+    const raw = await tx.unsafe<Record<string, unknown>[]>(q.groupAggregateSql, q.params as never[]);
+    result.groups = groupRowsOf(raw, q.groupFields);
   }
   return result;
 }

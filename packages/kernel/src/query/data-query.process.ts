@@ -21,6 +21,8 @@ const input = z.object({
   filters: GridState.shape.filters.default([]),
   sort: GridState.shape.sort.default([]),
   columns: GridState.shape.columns,
+  groupBy: GridState.shape.groupBy,
+  aggregates: GridState.shape.aggregates,
   search: GridState.shape.search,
   page: z.number().int().min(1).default(1),
   limit: z.number().int().min(1).max(DATA_QUERY_MAX_ROWS).default(20),
@@ -40,16 +42,19 @@ export const dataQuery = defineProcess({
     total: z.number(),
     page: z.number(),
     truncated: z.boolean(),
+    /** With `groupBy`: one row per group and level (count and aggregates). */
+    groups: z.array(z.object({ level: z.number(), keys: z.record(z.string(), z.unknown()), count: z.number(), aggregates: z.record(z.string(), z.unknown()) })).optional(),
+    aggregates: z.record(z.string(), z.unknown()).optional(),
   }),
   handler: async (ctx, query) => {
     const entity = gridEntity(ctx.registry, query.entity);
     if (!entity) throw new ProcessError("invalid_input", `unknown entity ${query.entity}`, { details: { reason: "unknown_entity", entity: query.entity } });
     await requireGridAccess(ctx.tx, ctx.registry, entity);
-    const state = GridState.parse({ filters: query.filters, sort: query.sort, page: query.page, pageSize: query.limit, columns: query.columns, search: query.search });
+    const state = GridState.parse({ filters: query.filters, sort: query.sort, page: query.page, pageSize: query.limit, columns: query.columns, groupBy: query.groupBy, aggregates: query.aggregates, search: query.search });
     try {
       // The rows name the records their references point to (`<field>_label`), as the grid does.
-      const { rows, total } = await gridQueryInTx(ctx.tx, entity, state, { registry: ctx.registry });
-      return { entity: entity.id, rows, total, page: query.page, truncated: total > (query.page - 1) * query.limit + rows.length };
+      const { rows, total, groups, aggregates } = await gridQueryInTx(ctx.tx, entity, state, { registry: ctx.registry });
+      return { entity: entity.id, rows, total, page: query.page, truncated: total > (query.page - 1) * query.limit + rows.length, ...(groups ? { groups } : {}), ...(aggregates ? { aggregates } : {}) };
     } catch (error) {
       // As the grid answers: a hidden or masked field is a denial, the rest a bad request.
       if (error instanceof QueryError) {

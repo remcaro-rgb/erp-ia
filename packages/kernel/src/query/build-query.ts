@@ -49,6 +49,14 @@ export interface BuiltQuery {
   countSql: string;
   /** One row with `<fn>:<field>` columns over the whole filter, when the state asks for aggregates. */
   aggregateSql?: string;
+  /**
+   * One row per group and level over the whole filter, when the state has `groupBy`: the group fields, `grouping(...)`
+   * as "grouping", `count(*)` as "count" and the `<fn>:<field>` aggregates, `group by rollup(...)`. Its last row is the
+   * grand total (grouping = every field), which the caller drops.
+   */
+  groupAggregateSql?: string;
+  /** The `groupBy` fields in order, the first columns of `groupAggregateSql`. */
+  groupFields?: string[];
   /** The columns `sql` returns, `id` first. */
   columns: string[];
 }
@@ -309,7 +317,9 @@ export function buildQuery(
     ordered.add(t.name);
     order.push(`${t.sortExpr} ${dir} nulls last`);
   };
-  if (state.groupBy) orderBy(sortable(state.groupBy), "asc");
+  const groupBy = state.groupBy ?? [];
+  const groups = groupBy.map((name) => sortable(name));
+  for (const t of groups) orderBy(t, "asc");
   const sorts = state.sort.length > 0 ? state.sort : fields.has(entity.defaultSort.field) && visibleFields(entity.defaultSort.field) ? [entity.defaultSort] : [];
   for (const s of sorts) orderBy(sortable(s.field), s.dir);
   if (!ordered.has("id")) order.push(`${quote("id")} asc`);
@@ -329,6 +339,18 @@ export function buildQuery(
     return `${fn}(${expr}) as "${fn}:${t.name}"`;
   });
 
+  // Distinct group fields only (a repeated one would make a level that adds nothing).
+  const groupExprs = [...new Map(groups.map((t) => [t.name, t])).values()].map((t) => ({ name: t.name, expr: t.sortExpr }));
+  const groupAggregateSql =
+    groupExprs.length > 0
+      ? `select ${[
+          ...groupExprs.map((g) => `${g.expr} as ${quote(g.name)}`),
+          `grouping(${groupExprs.map((g) => g.expr).join(", ")}) as "grouping"`,
+          `count(*)::int as "count"`,
+          ...aggregates,
+        ].join(", ")} from ${view}${where} group by rollup(${groupExprs.map((g) => g.expr).join(", ")}) order by ${groupExprs.map((g) => `${g.expr} nulls last`).join(", ")}`
+      : undefined;
+
   const { offset, limit } = options.window ?? { offset: (state.page - 1) * state.pageSize, limit: state.pageSize };
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1) throw new QueryError("bad_value", "window", "offset and limit must be whole numbers");
   return {
@@ -336,6 +358,7 @@ export function buildQuery(
     params,
     countSql: `select count(*)::int as total from ${view}${where}`,
     ...(aggregates.length > 0 ? { aggregateSql: `select ${aggregates.join(", ")} from ${view}${where}` } : {}),
+    ...(groupAggregateSql ? { groupAggregateSql, groupFields: groupExprs.map((g) => g.name) } : {}),
     columns,
   };
 }

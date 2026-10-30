@@ -263,3 +263,53 @@ describe("buildQuery", () => {
     expect(GridState.safeParse(state({ search: "x", filters: [{ field: "name", op: "contains", value: "x", join: "or" }] })).success).toBe(true);
   });
 });
+
+// Grouped aggregates (accounting plan, Task 6): up to three group levels, a rollup aggregate query next to the page.
+const lineEntity = defineEntity({
+  id: "test.line",
+  module: "core",
+  schema: "core",
+  table: "lines",
+  label: "entity.test.line",
+  displayField: "account_code",
+  defaultSort: { field: "date", dir: "asc" },
+  fields: [
+    { name: "account_code", type: "text", label: "field.account_code" },
+    { name: "cost_center_name", type: "text", label: "field.cost_center_name" },
+    { name: "business_unit_name", type: "text", label: "field.business_unit_name" },
+    { name: "item_name", type: "text", label: "field.item_name" },
+    { name: "date", type: "date", label: "field.date" },
+    { name: "debit", type: "money", label: "field.debit" },
+    { name: "secret", type: "text", label: "field.secret" },
+  ],
+});
+
+describe("buildQuery grouped aggregates", () => {
+  it("groupBy as an array orders by the group fields and emits a rollup aggregate query", () => {
+    const q = buildQuery(lineEntity, { filters: [], sort: [{ field: "date", dir: "asc" }], page: 1, pageSize: 50, groupBy: ["account_code", "cost_center_name"], aggregates: [{ field: "debit", fn: "sum" }, { field: "debit", fn: "avg" }] }, () => true);
+    expect(q.sql).toMatch(/order by "account_code" asc nulls last, "cost_center_name" asc nulls last, "date" asc/);
+    expect(q.groupAggregateSql).toMatch(/group by rollup\("account_code", "cost_center_name"\)/);
+    expect(q.groupAggregateSql).toMatch(/grouping\("account_code", "cost_center_name"\) as "grouping", count\(\*\)::int as "count"/);
+    expect(q.groupAggregateSql).toMatch(/sum\("debit"\) as "sum:debit", avg\("debit"\) as "avg:debit"/);
+    expect(q.groupAggregateSql).toMatch(/order by "account_code" nulls last, "cost_center_name" nulls last$/);
+    expect(q.groupFields).toEqual(["account_code", "cost_center_name"]);
+  });
+
+  it("refuses a fourth group level and a group on a masked field", () => {
+    const four = ["account_code", "cost_center_name", "business_unit_name", "item_name"];
+    expect(codeOf(() => buildQuery(lineEntity, { filters: [], sort: [], page: 1, pageSize: 50, groupBy: four }, () => true))).toBe("bad_value");
+    expect(codeOf(() => buildQuery(lineEntity, { filters: [], sort: [], page: 1, pageSize: 50, groupBy: ["account_code", "secret"] }, (f) => f !== "secret"))).toBe("field_hidden");
+  });
+
+  it("a string groupBy still works as one level", () => {
+    const q = buildQuery(lineEntity, { filters: [], sort: [], page: 1, pageSize: 50, groupBy: "account_code", aggregates: [{ field: "debit", fn: "sum" }] }, () => true);
+    expect(q.sql).toMatch(/order by "account_code" asc nulls last, "date" asc/);
+    expect(q.groupAggregateSql).toMatch(/group by rollup\("account_code"\)/);
+    expect(q.groupFields).toEqual(["account_code"]);
+  });
+
+  it("asks no group query without groupBy", () => {
+    expect(buildQuery(lineEntity, { filters: [], sort: [], page: 1, pageSize: 50, aggregates: [{ field: "debit", fn: "sum" }] }, () => true).groupAggregateSql).toBeUndefined();
+  });
+});
+

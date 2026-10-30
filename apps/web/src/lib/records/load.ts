@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import {
   addRefLabels,
+  GridState,
   gridPageAccess,
   ProcessError,
   refLabelKey,
@@ -13,6 +14,7 @@ import {
   type ConditionFacts,
   type EntityDef,
   type FieldMode,
+  type GridStateInput,
   type RequiredTag,
 } from "@erp/kernel";
 import type { CategoryOption, GridColumn, PartyTables, ProductTables } from "@erp/ui";
@@ -158,11 +160,11 @@ async function orNull<T>(read: Promise<T[]>): Promise<T[] | null> {
 }
 
 /** Rows of another entity's grid as the caller sees them; none when the caller may not read that grid. */
-export async function gridRows(caller: Caller, entityId: string, state: Parameters<typeof runGridQuery>[3]) {
+export async function gridRows(caller: Caller, entityId: string, state: GridStateInput) {
   const deps = processDeps();
   const entity = gridEntity(deps.registry, entityId);
   if (!entity || (await gridDenial(deps, caller.claims, entity))) return { rows: [], total: 0 };
-  return runGridQuery(deps.sql, caller.claims, entity, state);
+  return runGridQuery(deps.sql, caller.claims, entity, GridState.parse(state));
 }
 
 /**

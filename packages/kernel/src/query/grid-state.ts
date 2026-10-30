@@ -33,8 +33,14 @@ export const GridState = z.object({
   pageSize: z.number().int().min(1).max(500),
   /** Columns to return (always with `id`); every field of the entity when absent. */
   columns: z.array(z.string().min(1).max(80)).max(200).optional(),
-  /** Rows come ordered by this field first so groups are contiguous. */
-  groupBy: z.string().min(1).max(80).optional(),
+  /**
+   * Rows come ordered by these fields first so groups are contiguous (up to three levels); a single field may be written
+   * as a string. Always an array once parsed.
+   */
+  groupBy: z
+    .union([z.string().min(1).max(80), z.array(z.string().min(1).max(80)).max(3)])
+    .transform((value) => (typeof value === "string" ? [value] : value))
+    .optional(),
   aggregates: z.array(z.object({ field: z.string().min(1).max(80), fn: z.enum(AGGREGATE_FNS) })).max(20).optional(),
   /** Free text matched against the entity's searchable fields (the lookup's autocomplete). */
   search: z.string().max(200).optional(),
