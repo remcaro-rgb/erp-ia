@@ -531,7 +531,8 @@ test.describe("editable users on the demo company", () => {
 
 // Design §22.19: the admin removes a user's second step ("Quitar segundo paso", step-up) and exempts a holder of the admin
 // role from the role's requirement ("Exento del segundo paso", step-up), both through kernel.admin.user.mfa.set. On the
-// demo company Laura removes Marcela's factor (Marcela signs in with her password only) and exempts herself.
+// demo company Laura removes Marcela's factor (the session Marcela had open ends; she signs in with her password only) and
+// exempts herself.
 test.describe("the second step of the demo users", () => {
   const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
   const admin = adminClient();
@@ -555,6 +556,12 @@ test.describe("the second step of the demo users", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const marcelaSecret = await enrolTotp(MARCELA);
     expect(marcelaSecret.length).toBeGreaterThan(10);
+    // Marcela is working in another browser, signed in with her code, before Laura removes her factor.
+    const marcelaOpen = await browser.newContext();
+    const marcelaBefore = await marcelaOpen.newPage();
+    await signInWithCode(marcelaBefore, MARCELA.email, MARCELA.password, marcelaSecret);
+    await marcelaBefore.goto("/parties");
+    await expect(marcelaBefore).toHaveURL(/\/parties$/);
     await signInWithCode(page, LAURA.email, LAURA.password, LAURA.totpSecret!);
 
     await page.goto("/admin/users");
@@ -574,6 +581,11 @@ test.describe("the second step of the demo users", () => {
     await expect(user).toContainText("No configurada");
     await expect(user.getByRole("button", { name: "Quitar segundo paso" })).toHaveCount(0);
     expect(await verifiedTotpCount(admin, marcelaId)).toBe(0);
+
+    // Removing the factor ended every session of Marcela's: the page she had open, reloaded, lands on the sign-in.
+    await marcelaBefore.reload();
+    await expect(marcelaBefore).toHaveURL(/\/login(\?|$)/);
+    await marcelaOpen.close();
 
     // Marcela's next sign-in is her password only.
     const marcelaContext = await browser.newContext();
