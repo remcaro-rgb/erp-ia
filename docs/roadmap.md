@@ -46,7 +46,7 @@ Exit criteria: a company can register its terceros and productos complete for DI
 ## Phase 2 · De la venta al cobro
 Goal: the §8.1 sale flow works end to end with legal Colombian invoices.
 
-- Posting engine (journal rules per event) and accounting module: chart of accounts (PUC), journals, periods, cost centers, fiscal reports.
+- Posting engine (journal rules per event) and accounting module (design approved 2026-10-29; plan `docs/superpowers/plans/2026-10-29-phase-2-accounting.md`, awaiting the owner's go to execute): chart of accounts (PUC), journals, periods, analytic dimensions (cost centers, auxiliares abiertos, ítems, unidades de negocio), fiscal reports, the Movimientos ledger-line query page with multi-filter, multi-sort and grouped aggregates (owner 2026-10-29), exógena with concept mapping, aging, and the controls of the accounting design §5.12 (four-eyes on manual entries, auto-reversing accruals, subledger tie-out and suspense check at close, auditor extract) — owner decisions of 2026-10-28.
 - CRM: leads, opportunities, pipelines, activities, quotes.
 - Sales: orders, deliveries, returns, commissions.
 - Invoicing: invoices, credit/debit notes, DIAN electronic invoicing (UBL 2.1, signing, submission, CUFE, PDF) porting the Serena `src/lib/dian` code; `invoice_ready` enforced on every document line.
@@ -63,12 +63,13 @@ Goal: a company migrates from its previous system in days, not months.
 - Import framework for every entity and opening balances (§5.11 of the design) built on the phase 1 importer.
 - Onboarding agent (§7.3): reads the company's files, proposes mappings, validates with the same rules, reports gaps.
 - Connectors: Siigo and Alegra (port of Serena's Siigo code).
+- Posting window per role: how many days back a role may date an entry, independent of period status (accounting best-practice review, owner 2026-10-28).
 
 ## Phase 3 · De la compra al pago y dinero
 Goal: purchases, money and the first background agents.
 - Purchases: requests, purchase orders, receipts, supplier invoices, documento soporte.
 - Bank: statements import (OFX/CSV/Excel), reconciliation sessions, matching rules with agent-assisted suggestions.
-- Finance: budgets, cash-flow forecast, treasury positions, loans.
+- Finance: budgets, cash-flow forecast, treasury positions, loans; from the accounting best-practice review (owner 2026-10-28): scheduled entry templates on the scheduler, FX revaluation of monetary items (IAS 21), step-down cost allocations between dimensions, deferral schedules for prepaid expenses and deferred revenue, management chart mapping and XBRL export for Supersociedades. Later, not placed: prior-period error marker for the notes.
 - Fixed assets: capitalization, depreciation, disposals.
 - Scheduler ("cada lunes a las 5:00 envía el reporte de ventas") and messaging (e-mail, WhatsApp through adapter).
 - Background agents per role: Sales Coach, Collections, Treasury, Inventory Risk; recommendations inbox.
