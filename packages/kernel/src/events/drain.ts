@@ -42,7 +42,7 @@ export async function drainOutbox(sql: Sql, limit = 100, options: DrainOptions =
             select 1
             from jsonb_to_recordset(${gates}::jsonb) as c(event text, module_id text)
             join kernel.company_modules cm on cm.module_id = c.module_id and cm.company_id = o.company_id
-            where c.event = o.event and not cm.enabled
+            where (c.event = o.event or c.event = '*') and not cm.enabled
           )
         )
       order by o.created_at

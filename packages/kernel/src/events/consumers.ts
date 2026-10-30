@@ -22,9 +22,15 @@ export class ConsumerRegistry {
     this.byEvent.set(event, list);
   }
 
-  /** The consumers of `event`, one per module. */
+  /**
+   * The consumers of `event`, one per module: the event's own first, then the `"*"` consumers of the modules that have
+   * none for this event.
+   */
   for(event: string): Array<{ moduleId: string; fn: EventConsumer }> {
-    return [...(this.byEvent.get(event) ?? [])];
+    const own = this.byEvent.get(event) ?? [];
+    if (event === "*") return [...own];
+    const taken = new Set(own.map((c) => c.moduleId));
+    return [...own, ...(this.byEvent.get("*") ?? []).filter((c) => !taken.has(c.moduleId))];
   }
 
   /** Every (event, module) pair registered; the outbox drain uses it to know which modules gate a row. */

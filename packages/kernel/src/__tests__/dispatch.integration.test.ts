@@ -16,7 +16,7 @@ const sql = testDb();
 const WAIT = { timeout: 30_000, interval: 100 };
 // The registry is process-wide: every run of this file registers modules under fresh ids.
 const run = randomUUID().slice(0, 8);
-const ids = { main: `dsp_main_${run}`, paused: `dsp_paused_${run}`, a: `dsp_a_${run}`, b: `dsp_b_${run}` };
+const ids = { main: `dsp_main_${run}`, paused: `dsp_paused_${run}`, a: `dsp_a_${run}`, b: `dsp_b_${run}`, wild: `dsp_wild_${run}` };
 
 /** Consumer behaviour set by each test, by event or (more specific) by `<module>/<event>`; the stub modules forward to it. */
 let handlers: Record<string, EventConsumer> = {};
@@ -309,5 +309,37 @@ describe("outbox dispatch", () => {
     // The process's own event joined the chain, so the next hop is traceable.
     const emitted = await outboxRow(chainId, "test.probe.touched");
     expect(emitted).toMatchObject({ payload: { note: "hola" }, chain_id: chainId });
+  });
+
+  it("wildcard consumer runs after the specific one and is parked while its module is disabled", async () => {
+    // Registered here, last: a wildcard consumer sees every event and would change what the other tests assert.
+    loadModules(registry, [defineModule({
+      id: ids.wild,
+      version: "1",
+      dependsOn: [],
+      entities: [],
+      processes: [],
+      features: [],
+      events: { emits: [], consumes: { "*": async (ctx, payload) => handlers[`${ids.wild}/*`]?.(ctx, payload) } },
+      navigation: [],
+    })]);
+    const calls: string[] = [];
+    expect(consumers.for("test.probe.partial").map((c) => c.moduleId)).toEqual([ids.a, ids.b, ids.wild]);
+    handlers[`${ids.a}/test.probe.partial`] = async () => void calls.push("a");
+    handlers[`${ids.b}/test.probe.partial`] = async () => void calls.push("b");
+    handlers[`${ids.wild}/*`] = async () => void calls.push("wild");
+    await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, ${ids.wild}, false)`;
+    const chainId = await enqueue("test.probe.partial");
+
+    expect(await drain()).toBe(1);
+    await vi.waitFor(async () => expect((await outboxRow(chainId))!.last_error).toBe("module_disabled"), WAIT);
+    expect(calls).toEqual(["a", "b"]);
+    // Parked: the drain skips it while the wildcard module stays disabled.
+    expect(await drain()).toBe(0);
+
+    await sql`update kernel.company_modules set enabled = true where company_id = ${companyId} and module_id = ${ids.wild}`;
+    expect(await drain()).toBe(1);
+    await vi.waitFor(isDispatched(chainId), WAIT);
+    expect(calls).toEqual(["a", "b", "wild"]);
   });
 });

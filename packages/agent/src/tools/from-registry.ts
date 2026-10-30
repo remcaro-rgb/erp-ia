@@ -53,7 +53,7 @@ export function processToolDescriptor(def: ProcessDef): ToolDescriptor {
  * platform's and always entitled, as in `runProcess`.
  */
 export async function permittedProcesses(deps: RunProcessDeps, caller: Caller, registry: Registry): Promise<ProcessDef[]> {
-  const candidates = registry.processes().filter((p) => !EXCLUDED_PROCESSES.has(p.id));
+  const candidates = registry.processes().filter((p) => !p.origins && !EXCLUDED_PROCESSES.has(p.id));
   const runnable = await runnableProcesses(deps.sql, registry, caller.claims, candidates.map((p) => p.id));
   const entitled = deps.entitled ?? resolveEntitled;
   const allowed = await Promise.all(

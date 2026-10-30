@@ -7,7 +7,7 @@ import { support } from "@erp/module-support";
 import { BUILTIN_TOOLS, runBuiltin } from "../tools/builtin";
 import { toolSet } from "../tools/build";
 import { capResult, MAX_RESULT_BYTES, scrubTokens } from "../tools/cap";
-import { EXCLUDED_PROCESSES, inputJsonSchema, processIdOfTool, toolName } from "../tools/from-registry";
+import { EXCLUDED_PROCESSES, inputJsonSchema, processIdOfTool, processToolDescriptors, toolName } from "../tools/from-registry";
 import { buildPreview } from "../runtime/preview";
 import type { ToolDescriptor } from "../tools/descriptor";
 
@@ -220,5 +220,26 @@ describe("scrubTokens", () => {
     const clean = scrubTokens(messages);
     expect(JSON.stringify(clean)).not.toContain("secret-token");
     expect(JSON.stringify(clean)).toContain("card-1");
+  });
+});
+
+describe("process origins", () => {
+  it("agent tool descriptors omit processes with origins", async () => {
+    const only = new Registry();
+    only.registerProcess(
+      defineProcess({
+        id: "test.event.only",
+        module: "test",
+        kind: "update",
+        description: "solo desde eventos",
+        origins: ["event"],
+        input: z.object({}),
+        output: z.object({}),
+        handler: async () => ({}),
+      }),
+    );
+    // No process is left to ask the database about: a process with origins never reaches the role check.
+    const caller = { claims: {} as never, origin: "agent" } as const;
+    expect(await processToolDescriptors({ sql: {} as never, registry: only }, caller, only)).toEqual([]);
   });
 });

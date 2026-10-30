@@ -39,6 +39,7 @@ export function defineModule(def: ModuleDef): ModuleDef {
     }
   }
 
+  // `events.consumes` keys are event names or "*" (every event); the loader registers them as they are.
   const providerIds = new Set<string>();
   for (const provider of def.homeKpis ?? []) {
     if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`KPI provider ${provider.id} must be named "${def.id}.<name>"`);

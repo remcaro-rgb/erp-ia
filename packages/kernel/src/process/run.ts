@@ -140,6 +140,10 @@ async function execute<O extends z.ZodTypeAny>(
     throw new ProcessError("not_entitled", `process ${def.id} is not entitled for company ${companyId}`, GATE);
   }
 
+  if (def.origins && !def.origins.includes(caller.origin)) {
+    throw new ProcessError("forbidden", `${def.id} runs only from ${def.origins.join(", ")}`, GATE);
+  }
+
   const stepUpToken = caller.stepUpToken ?? null;
   const gate = await withClaims(deps.sql, claims, async (tx) => {
     const [row] = await tx<{ allowed: boolean; member: boolean; inactive: boolean; sensitive: boolean; verified: boolean }[]>`

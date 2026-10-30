@@ -8,6 +8,7 @@ import { defineProcess } from "../process/define";
 import { runProcess } from "../process/run";
 import { ProcessError } from "../process/errors";
 import type { Caller } from "../process/context";
+import { buildConsumerContext } from "../events/consumers";
 
 const probe = defineProcess({
   id: "test.probe.create",
@@ -22,6 +23,17 @@ const probe = defineProcess({
     if (input.fail) throw new Error("boom");
     return { id: r!.id as string };
   },
+});
+
+const eventOnly = defineProcess({
+  id: "test.probe.event_only",
+  module: "test",
+  kind: "create",
+  description: "solo desde eventos",
+  origins: ["event"],
+  input: z.object({}),
+  output: z.object({ ok: z.boolean() }),
+  handler: async () => ({ ok: true }),
 });
 
 // Audit rows are append-only, so this suite never deletes them: every run seeds its own tenant and
@@ -65,6 +77,7 @@ describe("run-process", () => {
     cashierClaims = seed.claimsFor(seed.users.cashier!, companyId);
     deps = { sql, registry };
     registry.registerProcess(probe);
+    registry.registerProcess(eventOnly);
   });
   afterAll(async () => {
     await sql`delete from kernel.process_idempotency where company_id = ${companyId}`;
@@ -364,5 +377,17 @@ describe("run-process", () => {
     expect(consumed).toHaveLength(1);
     const reopened = await asCashier((tx) => tx`update kernel.step_up_verifications set consumed_at = null where token = ${mine} returning id`);
     expect(reopened).toHaveLength(0);
+  });
+  it("a process with origins ['event'] is refused from ui with forbidden before the role check", async () => {
+    // The admin holds every process; the refusal is the origin gate, not the role matrix.
+    await expect(runProcess(deps, callerWith(adminClaims), "test.probe.event_only", {})).rejects.toMatchObject({
+      code: "forbidden",
+      stage: "gate",
+    });
+    await expect(runProcess(deps, { claims: adminClaims, origin: "agent" }, "test.probe.event_only", {})).rejects.toMatchObject({ code: "forbidden", stage: "gate" });
+    // A member with no grant is refused with the same gate message naming the origins, not the role one.
+    await expect(runProcess(deps, callerWith(cashierClaims), "test.probe.event_only", {})).rejects.toThrow(/runs only from event/);
+    const ctx = buildConsumerContext(sql, { companyId, chainId: randomUUID() }, registry);
+    await expect(ctx.runProcess("test.probe.event_only", {})).resolves.toEqual({ ok: true });
   });
 });

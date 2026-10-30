@@ -5,6 +5,8 @@ import { Registry } from "../registry";
 import { defineProcess } from "../process/define";
 import { defineModule, type ModuleDef } from "../module/define";
 import { loadModules } from "../module/loader";
+import { ConsumerRegistry } from "../events/consumers";
+import { matrixProcesses } from "../admin/matrix";
 
 const entity = (module: string, name: string) =>
   defineEntity({
@@ -158,6 +160,40 @@ describe("loadModules", () => {
       const registry = new Registry();
       registry.registerKpiProvider(provider("a.count", "a.things"));
       expect(() => registry.registerKpiProvider(provider("a.count", "a.things"))).toThrow(/already registered/);
+    });
+  });
+
+  describe("origins and wildcard consumers", () => {
+    it("sensitive process list omits processes with origins", () => {
+      const eventOnly = defineProcess({
+        id: "a.thing.event_only",
+        module: "a",
+        kind: "update",
+        description: "prueba",
+        origins: ["event"],
+        input: z.object({}),
+        output: z.object({}),
+        handler: async () => ({}),
+      });
+      const registry = new Registry();
+      loadModules(registry, [manifest("a", [], { processes: [proc("a", "thing", "list"), eventOnly] })]);
+      expect(matrixProcesses(registry).map((p) => p.id)).toEqual(["a.thing.list"]);
+    });
+
+    it("consumers.for returns the event's consumers first, then the wildcard ones, one per module", () => {
+      const consumers = new ConsumerRegistry();
+      const noop = async () => {};
+      consumers.register("w", "*", noop);
+      consumers.register("a", "x.happened", noop);
+      consumers.register("b", "*", noop);
+      consumers.register("b", "x.happened", noop);
+      expect(consumers.for("x.happened").map((c) => c.moduleId)).toEqual(["a", "b", "w"]);
+      expect(consumers.for("y.other").map((c) => c.moduleId)).toEqual(["w", "b"]);
+      expect(consumers.pairs()).toContainEqual({ event: "*", module_id: "w" });
+    });
+
+    it("defineModule accepts '*' as a consumed event", () => {
+      expect(() => defineModule(manifest("a", [], { events: { emits: [], consumes: { "*": async () => {} } } }))).not.toThrow();
     });
   });
 });
