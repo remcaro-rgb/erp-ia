@@ -5,6 +5,9 @@ import { kernelModule } from "../../module/kernel-module";
 import { loadModules } from "../../module/loader";
 import type { Caller } from "../../process/context";
 import { runProcess } from "../../process/run";
+import { z } from "zod";
+import { defineProcess } from "../../process/define";
+import { defineReport } from "../../reports";
 import { defineEntity, Registry } from "../../registry";
 import { SAVED_VIEW_PROCESS_IDS } from "../index";
 
@@ -86,6 +89,25 @@ describe("saved views", () => {
     await run(cashier, "kernel.saved_view.save", { entity: probe.id, name: "Orden completo", state: { columns, order } });
     const views = await run(cashier, "kernel.saved_view.list", { entity: probe.id });
     expect(views.find((v: { name: string }) => v.name === "Orden completo")!.state).toEqual({ columns, order });
+  });
+
+  it("keeps a report's saved parameter set under entity report:<id> (0030) and refuses an unknown report", async () => {
+    const consult = defineProcess({
+      id: "kernel.view_report.consult",
+      module: "kernel",
+      kind: "consult",
+      description: "prueba",
+      input: z.object({}),
+      output: z.object({}),
+      handler: async () => ({}),
+    });
+    registry.registerProcess(consult);
+    registry.registerReport(defineReport({ id: "kernel.view_report", module: "kernel", feature: "kernel.saved_views", label: "report.kernel.view_report", params: z.object({ to: z.string() }), consult: consult.id, columns: [{ field: "a", label: "A", type: "text" }] }));
+    const saved = { params: { to: "2026-10-31" }, sort: [{ field: "a", dir: "asc" }], pageSize: 100 };
+    await run(cashier, "kernel.saved_view.save", { entity: "report:kernel.view_report", name: "Cierre octubre", state: saved });
+    const views = await run(cashier, "kernel.saved_view.list", { entity: "report:kernel.view_report" });
+    expect(views).toMatchObject([{ entity: "report:kernel.view_report", name: "Cierre octubre", state: saved }]);
+    await expect(run(cashier, "kernel.saved_view.save", { entity: "report:kernel.nope", name: "x", state: {} })).rejects.toMatchObject({ code: "invalid_input" });
   });
 
   it("saving the same name replaces the state; one default per entity", async () => {

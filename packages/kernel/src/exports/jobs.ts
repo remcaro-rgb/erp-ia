@@ -31,7 +31,7 @@ export interface ExportJobRow {
   entity: string;
   format: ExportFormat;
   status: string;
-  state: { state: unknown; title?: string; labels?: Record<string, string>; values?: Record<string, Record<string, string>>; locale?: string };
+  state: { state: unknown; source?: { kind: "report"; id: string; params: unknown }; title?: string; labels?: Record<string, string>; values?: Record<string, Record<string, string>>; locale?: string };
 }
 
 export async function loadExportJob(sql: Sql, jobId: string): Promise<ExportJobRow | null> {

@@ -1,5 +1,10 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
+import { inflateSync } from "node:zlib";
+import { EXPORT_PAGE_SIZE } from "../exports/types";
+import { renderReportFile, reportExportColumns, reportPdfHeader } from "../exports/report";
+import { defineReport } from "../reports";
 import { exportColumns } from "../exports/columns";
 import { writeCsv } from "../exports/csv";
 import { cellText, isoWithOffset, MASK } from "../exports/format";
@@ -297,3 +302,81 @@ describe("buildQuery window", () => {
     expect(() => buildQuery(entity, { filters: [], sort: [], page: 1, pageSize: 25 }, () => true, { window: { offset: -1, limit: 1000 } })).toThrow();
   });
 });
+
+
+describe("report export", () => {
+  const def = defineReport({
+    id: "probe.ledger",
+    module: "probe",
+    feature: "probe.reports",
+    label: "report.probe.ledger",
+    params: z.object({ to: z.string() }),
+    consult: "probe.ledger.consult",
+    columns: [
+      { field: "code", label: "Código", type: "text" },
+      { field: "balance", label: "Saldo", type: "money", total: "sum" },
+    ],
+    totals: ["balance"],
+    pdfTitle: "Balance de prueba",
+  });
+  const TOTAL = 2500;
+  const calls: { page: number; pageSize: number }[] = [];
+  const source = {
+    def,
+    params: { to: "2026-10-31" },
+    company: "Café del Norte S.A.S.",
+    taxId: "900373115-3",
+    timeZone: "America/Bogota",
+    locale: "es-419",
+    paramsText: "Hasta: 2026-10-31",
+    async consult(state: { page: number; pageSize: number }) {
+      calls.push({ page: state.page, pageSize: state.pageSize });
+      const from = (state.page - 1) * state.pageSize;
+      const rows = Array.from({ length: Math.max(0, Math.min(state.pageSize, TOTAL - from)) }, (_, i) => ({ code: `1105${from + i}`, balance: "1000.0000" }));
+      return { rows, total: TOTAL };
+    },
+  };
+
+  it("export of a report reads every window and writes the pdf header with company, NIT and params", async () => {
+    calls.length = 0;
+    const xlsx = await renderReportFile(source, { id: def.id, params: source.params, format: "xlsx" });
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(Buffer.from(xlsx.body as Buffer) as never);
+    expect(book.worksheets[0]!.actualRowCount).toBe(TOTAL + 1);
+    expect(xlsx.rowCount()).toBe(TOTAL);
+    expect(calls.map((c) => c.page)).toEqual([1, 2, 3]);
+    expect(calls.every((c) => c.pageSize === EXPORT_PAGE_SIZE)).toBe(true);
+
+    const lines = reportPdfHeader(source);
+    expect(lines).toEqual({ title: "Balance de prueba", company: "Café del Norte S.A.S.", taxId: "900373115-3", params: "Hasta: 2026-10-31" });
+    const table = await pdfTable(reportExportColumns(def), [{ code: "1", balance: "10.0000" }, { code: "2", balance: "5.5000" }], { locale: "es-419", totalFields: def.totals });
+    expect(table.totals).toEqual(["Total", "$ 15,50"]);
+    const pdf = await renderReportFile({ ...source, consult: async (s) => ({ rows: s.page === 1 ? [{ code: "1", balance: "1.0000" }] : [], total: 1 }) }, { id: def.id, params: source.params, format: "pdf" });
+    const text = pdfText(pdf.body as Buffer);
+    expect(text).toContain("900373115-3");
+    expect(text).toContain("Balance de prueba");
+  });
+});
+
+/** The strings a PDF prints: every Flate stream inflated, literal and hex strings of the text operators read back. */
+function pdfText(pdf: Buffer): string {
+  const out: string[] = [];
+  let at = 0;
+  const raw = pdf.toString("latin1");
+  for (;;) {
+    const start = raw.indexOf("stream", at);
+    if (start === -1) break;
+    const from = raw[start + 6] === "\r" ? start + 8 : start + 7;
+    const end = raw.indexOf("endstream", from);
+    try {
+      out.push(inflateSync(pdf.subarray(from, end)).toString("latin1"));
+    } catch {
+      out.push(raw.slice(from, end));
+    }
+    at = end + 9;
+  }
+  const decoded = out.join("\n");
+  const hex = [...decoded.matchAll(/<([0-9a-fA-F]+)>/g)].map((m) => Buffer.from(m[1]!, "hex").toString("latin1"));
+  const literal = [...decoded.matchAll(/\(((?:\\.|[^\\)])*)\)/g)].map((m) => m[1]!);
+  return [...hex, ...literal].join("");
+}

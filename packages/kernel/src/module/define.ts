@@ -68,6 +68,14 @@ export function defineModule(def: ModuleDef): ModuleDef {
     }
   }
 
+  const reportIds = new Set<string>();
+  for (const report of def.reports ?? []) {
+    if (report.module !== def.id || !report.id.startsWith(`${def.id}.`)) throw new Error(`report ${report.id} must be named "${def.id}.<name>" and declared for module ${def.id}`);
+    if (reportIds.has(report.id)) throw new Error(`duplicate report ${report.id} in module ${def.id}`);
+    reportIds.add(report.id);
+    if (!featureIds.has(report.feature)) throw new Error(`report ${report.id} names feature ${report.feature}, which module ${def.id} does not declare`);
+  }
+
   const providerIds = new Set<string>();
   for (const provider of def.homeKpis ?? []) {
     if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`KPI provider ${provider.id} must be named "${def.id}.<name>"`);

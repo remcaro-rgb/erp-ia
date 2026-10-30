@@ -1,3 +1,4 @@
+import type { ReportDef } from "../reports/types";
 import type { z } from "zod";
 import type { Sql } from "postgres";
 import type { ProcessContext } from "../process/context";
@@ -176,5 +177,7 @@ export interface ModuleDef {
   homeKpis?: HomeKpiProvider[];
   /** Tabs the module adds to the record pages of entities (its own or other modules'). */
   recordTabs?: RecordTabContribution[];
+  /** Reports the module ships (design §9): a parameter bar over a consult process. */
+  reports?: ReportDef[];
   migrationsDir?: string;
 }

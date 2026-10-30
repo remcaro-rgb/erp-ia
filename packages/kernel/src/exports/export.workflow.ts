@@ -6,6 +6,7 @@ import { QueryError } from "../query/errors";
 import { registry } from "../registry";
 import { loadExportJob, markExportFailed, recordExport, type ExportJobArgs } from "./jobs";
 import { openExport } from "./render";
+import { openReportExport } from "./report";
 import type { ExportSpec } from "./plan";
 
 // The export job (design §9): when `kernel.export.run` finds 10,000 rows or more, the route starts this workflow with
@@ -56,7 +57,9 @@ export async function renderExportJob(args: ExportJobArgs): Promise<number> {
   if (!job) throw new FatalError(`export job ${args.jobId} not found`);
   const spec: ExportSpec = { entity: job.entity, format: job.format, ...job.state, state: job.state.state as ExportSpec["state"] };
   try {
-    const rendered = await openExport(sql, registry, args.claims, spec);
+    const rendered = job.state.source
+      ? await openReportExport({ sql, registry }, { claims: args.claims, origin: "api", chainId: args.chainId }, { id: job.state.source.id, params: job.state.source.params, format: job.format, title: job.state.title, labels: job.state.labels, values: job.state.values })
+      : await openExport(sql, registry, args.claims, spec);
     const path = `${job.companyId}/${job.id}.${job.format}`;
     const store = await exportsStore();
     await store.remove(path).catch(() => undefined);

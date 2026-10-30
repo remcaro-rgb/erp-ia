@@ -15,11 +15,14 @@ const FEATURE = "kernel.saved_views";
  * offered field, shown or not, design §22.12), so a hidden column keeps its place.
  */
 export const SavedViewState = GridState.omit({ page: true })
-  .extend({ order: z.array(z.string().min(1).max(80)).max(200) })
+  // `params`: the parameter set of a report view (entity `report:<id>`); the report's own schema checks it when it runs.
+  .extend({ order: z.array(z.string().min(1).max(80)).max(200), params: z.record(z.string().max(80), z.unknown()) })
   .partial();
 export type SavedViewState = z.infer<typeof SavedViewState>;
 
-const entity = z.string().min(1).max(80);
+/** A registered entity (`core.party`) or a report's saved parameter sets (`report:accounting.trial_balance`). */
+const entity = z.string().min(1).max(100);
+const REPORT_PREFIX = "report:";
 const name = z.string().trim().min(1).max(80);
 
 export interface SavedView {
@@ -41,7 +44,15 @@ export const savedViewSave = defineProcess({
   input: z.object({ entity, name, state: SavedViewState, isDefault: z.boolean().default(false) }),
   output: z.object({ id: z.string() }),
   handler: async (ctx, input) => {
-    registeredEntity(ctx, input.entity);
+    if (input.entity.startsWith(REPORT_PREFIX)) {
+      try {
+        ctx.registry.report(input.entity.slice(REPORT_PREFIX.length));
+      } catch {
+        throw new ProcessError("invalid_input", `unknown report ${input.entity}`, { details: [`El informe ${input.entity.slice(REPORT_PREFIX.length)} no existe`] });
+      }
+    } else {
+      registeredEntity(ctx, input.entity);
+    }
     if (input.isDefault) {
       await ctx.tx`
         update kernel.saved_views set is_default = false

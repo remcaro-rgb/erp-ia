@@ -1,3 +1,4 @@
+import type { ReportDef } from "../reports/types";
 import type { ResolvedEntityDef } from "./entities";
 import type { HomeKpiProvider, ModuleDef, ProcessDef, RecordTabContribution } from "./types";
 
@@ -12,6 +13,7 @@ export class Registry {
   private readonly entityMap = new Map<string, ResolvedEntityDef>();
   private readonly processMap = new Map<string, ProcessDef>();
   private readonly moduleMap = new Map<string, ModuleDef>();
+  private readonly reportMap = new Map<string, ReportDef>();
   private readonly kpiMap = new Map<string, HomeKpiProvider>();
 
   registerEntity(entity: ResolvedEntityDef): void {
@@ -42,6 +44,21 @@ export class Registry {
 
   processes(filter?: { module?: string }): ProcessDef[] {
     return [...this.processMap.values()].filter((p) => filter?.module === undefined || p.module === filter.module);
+  }
+
+  registerReport(report: ReportDef): void {
+    if (this.reportMap.has(report.id)) throw new Error(`report already registered: ${report.id}`);
+    this.reportMap.set(report.id, report);
+  }
+
+  report(id: string): ReportDef {
+    const report = this.reportMap.get(id);
+    if (!report) throw new Error(`unknown report: ${id}`);
+    return report;
+  }
+
+  reports(module?: string): ReportDef[] {
+    return [...this.reportMap.values()].filter((r) => module === undefined || r.module === module);
   }
 
   /** Adds a provider of home screen KPIs (`kernel.home.kpis` runs the ones the company is entitled to). */

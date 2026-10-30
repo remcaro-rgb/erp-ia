@@ -17,3 +17,5 @@ export type { RenderedExport } from "./render";
 export { EXPORT_FORMATS, EXPORT_INLINE_LIMIT, EXPORT_PAGE_SIZE, EXPORT_PDF_INLINE_LIMIT, EXPORT_PDF_MAX_ROWS } from "./types";
 export type { ExportColumn, ExportFormat, ExportRow, ExportType, WriterOptions } from "./types";
 export { writeXlsx } from "./xlsx";
+export { openReportExport, renderReportFile, reportExportColumns, reportPdfHeader, reportRows } from "./report";
+export type { ReportExportSpec, ReportSource } from "./report";

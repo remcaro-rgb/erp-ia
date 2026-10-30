@@ -59,10 +59,20 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     }
   }
 
+  // A report's `consult` must be a consult process some module declares: a typo would show a report that never runs.
+  for (const module of modules) {
+    for (const report of module.reports ?? []) {
+      const kind = kinds.get(report.consult);
+      if (kind === undefined) throw new Error(`report ${report.id}: unknown consult process ${report.consult}`);
+      if (kind !== "consult") throw new Error(`report ${report.id}: ${report.consult} is not a consult process`);
+    }
+  }
+
   for (const module of ordered) {
     for (const entity of module.entities) registry.registerEntity(defineEntity(entity));
     for (const process of module.processes) registry.registerProcess(process);
     registry.registerModule(module);
+    for (const report of module.reports ?? []) registry.registerReport(report);
     for (const provider of module.homeKpis ?? []) registry.registerKpiProvider(provider);
     for (const [event, fn] of Object.entries(module.events.consumes)) consumers.register(module.id, event, fn);
   }

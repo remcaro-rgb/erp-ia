@@ -42,10 +42,20 @@ const rowsOf = (rows: RowSource): AsyncIterable<Record<string, unknown>> =>
 interface PdfOptions extends WriterOptions {
   title?: string;
   company?: string;
+  /** The company's NIT, printed beside its name (reports). */
+  taxId?: string;
+  /** The report's parameters as one line under the title (reports). */
+  params?: string;
+  /** Fields the totals row sums; the money columns when absent (a report names its own). */
+  totalFields?: readonly string[];
+}
+
+interface TableOptions extends WriterOptions {
+  totalFields?: readonly string[];
 }
 
 /** What the table prints, cell by cell, as text: the body and the totals row of the money columns (null: none). */
-export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource, options: WriterOptions = {}): Promise<{ body: string[][]; totals: string[] | null }> {
+export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource, options: TableOptions = {}): Promise<{ body: string[][]; totals: string[] | null }> {
   const text = isSpanish(options.locale) ? TEXT.es : TEXT.en;
   const body: string[][] = [];
   const sums = columns.map(() => 0);
@@ -53,13 +63,13 @@ export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource
     body.push(
       columns.map((column, i) => {
         const cell = cellOf(column, row[column.field], options);
-        if (cell.type === "number" && cell.money) sums[i] = (sums[i] ?? 0) + cell.value;
+        if (cell.type === "number" && (cell.money || options.totalFields?.includes(column.field))) sums[i] = (sums[i] ?? 0) + cell.value;
         return cellText(column, row[column.field], { ...options, paper: true });
       }),
     );
   }
-  const summed = columns.map((column) => column.type === "money" && !column.masked);
-  const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? moneyText(sums[i] ?? 0) : i === 0 ? text.total : "")) : null;
+  const summed = columns.map((column) => !column.masked && (options.totalFields ? options.totalFields.includes(column.field) : column.type === "money"));
+  const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? (columns[i]!.type === "money" ? moneyText(sums[i] ?? 0) : String(sums[i] ?? 0)) : i === 0 ? text.total : "")) : null;
   return { body, totals };
 }
 
@@ -67,6 +77,7 @@ export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource
 export async function writePdf(columns: readonly ExportColumn[], rows: RowSource, options: PdfOptions = {}): Promise<Buffer> {
   const text = isSpanish(options.locale) ? TEXT.es : TEXT.en;
   const { body, totals } = await pdfTable(columns, rows, options);
+  const owner = [options.company, options.taxId ? `NIT ${options.taxId}` : undefined].filter(Boolean).join(" · ");
   const total = weightTotal(columns);
   const widthOf = (column: ExportColumn) => `${((WEIGHT[column.type] / total) * 100).toFixed(3)}%`;
   const align = (column: ExportColumn) => (NUMERIC.has(column.type) ? styles.right : {});
@@ -83,14 +94,14 @@ export async function writePdf(columns: readonly ExportColumn[], rows: RowSource
     h(
       View,
       { style: styles.head, fixed: true },
-      h(View, null, h(Text, { style: styles.title }, options.title ?? ""), options.company ? h(Text, { style: styles.meta }, options.company) : null),
+      h(View, null, h(Text, { style: styles.title }, options.title ?? ""), owner ? h(Text, { style: styles.meta }, owner) : null, options.params ? h(Text, { style: styles.meta }, options.params) : null),
       h(Text, { style: styles.meta }, `${text.rows(body.length)} · ${stamp}`),
     );
   const footer = () =>
     h(
       View,
       { style: styles.footer, fixed: true },
-      h(Text, null, options.company ?? ""),
+      h(Text, null, owner),
       h(Text, { render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => text.page(pageNumber, totalPages) }),
     );
   // The table is laid out a screenful of rows per <Page>: the engine paginates a single page of thousands of rows
