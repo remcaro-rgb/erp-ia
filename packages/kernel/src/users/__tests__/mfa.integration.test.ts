@@ -19,6 +19,7 @@ import { syncRegistry } from "../../admin/sync";
 // deletes the rows of auth.mfa_factors); the exemption is kernel.memberships.mfa_exempt, which the access-token hook honours.
 
 const ROLE_COPY = "Tu rol exige la verificación en dos pasos; pídele a un administrador que te exima";
+const SHARED_COPY = "Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí";
 
 describe("the user's second step", () => {
   let sql: ReturnType<typeof testDb>;
@@ -246,6 +247,41 @@ describe("the user's second step", () => {
       const nothing = await setMfa({ userId: seed.users.clerk! }).catch((e: unknown) => e);
       expect(nothing).toMatchObject({ code: "invalid_input" });
       expect(JSON.stringify(nothing instanceof ProcessError ? nothing.details : null)).toContain("Indica qué cambiar");
+    });
+
+    it("refuses to reset the factor of a member who also belongs to another organization, and still exempts them", async () => {
+      // `shared` belongs to another tenant and is also a member of this company (data from before the one-tenant rule):
+      // the factor is the identity's, so removing it here would strip the other organization's second step too.
+      const other = await seedTenant(sql, { companies: 1, entitlements: [], users: [{ name: "shared", companies: [0] }] });
+      const shared = other.users.shared!;
+      try {
+        const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships (user_id, company_id) values (${shared}, ${companyId}) returning id`;
+        await sql`insert into kernel.membership_roles (membership_id, role_id) values (${membership!.id}, ${seed.companies[0]!.memberRoleId})`;
+        await enrol(shared);
+
+        for (const input of [{ userId: shared, reset: true }, { userId: shared, reset: true, exempt: true }]) {
+          const refused = await setMfa(input).catch((e: unknown) => e);
+          expect(refused).toMatchObject({ code: "invalid_input" });
+          expect(details(refused)).toEqual([SHARED_COPY]);
+        }
+        const dryRefused = await setMfa({ userId: shared, reset: true }, admin, { dryRun: true }).catch((e: unknown) => e);
+        expect(dryRefused).toMatchObject({ code: "invalid_input" });
+        expect(auth.deletedFactorsOf).toEqual([]);
+        expect(await factors(shared)).toBe(1);
+        expect(await seen(shared)).toEqual({ mfa_exempt: false });
+
+        // The exemption is per membership (this company's only): allowed.
+        await expect(setMfa({ userId: shared, exempt: true })).resolves.toEqual({ userId: shared, removed: 0, exempt: true });
+        expect(await seen(shared)).toEqual({ mfa_exempt: true });
+        await expect(setMfa({ userId: shared, exempt: false })).resolves.toMatchObject({ exempt: false });
+        expect(auth.deletedFactorsOf).toEqual([]);
+        expect(await factors(shared)).toBe(1);
+      } finally {
+        await sql`delete from auth.mfa_factors where user_id = ${shared}`;
+        await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where user_id = ${shared} and company_id = ${companyId})`;
+        await sql`delete from kernel.memberships where user_id = ${shared} and company_id = ${companyId}`;
+        await other.cleanup();
+      }
     });
 
     it("exempts a member: v_memberships shows it and the membership's audit row records false → true", async () => {

@@ -128,6 +128,12 @@ En la página del usuario, la fila **Verificación en dos pasos** tiene dos acci
 
 En su próximo ingreso la persona entra con su contraseña. Si su rol exige la verificación (el rol admin, sin exención), el sistema le pide activarla de nuevo antes de dejarla entrar; si no, entra directo y puede activarla cuando quiera desde su menú de usuario. Si quitas tu propio segundo paso, tu sesión también se cierra y vuelves a ingresar.
 
+El segundo paso es de la **cuenta** de la persona, no de una empresa:
+
+- Si la persona es también administradora de **otra empresa de tu organización**, al quitárselo aquí lo pierde también allá, y el sistema le pide activarlo de nuevo cuando ingresa a esa empresa.
+- Si la persona pertenece también a **otra organización**, el sistema no lo quita y responde «Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí». Sí puedes eximirla del segundo paso en tu empresa.
+
+
 **Exento del segundo paso** es un interruptor que aparece solo para quienes tienen el rol **admin**, porque ese rol exige la verificación en dos pasos:
 
 1. Pulsa el interruptor **Exento del segundo paso** e ingresa tu código.

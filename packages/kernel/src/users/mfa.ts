@@ -64,6 +64,16 @@ export const adminUserMfaSet = defineProcess({
       select id, mfa_exempt from kernel.v_memberships where company_id = ${ctx.companyId} and user_id = ${input.userId}`;
     if (!member) throw invalid(`user ${input.userId} is not a member`, "El usuario no pertenece a la empresa");
 
+    // The factor is the identity's: a user who also belongs to another organization keeps it (their other tenant's second
+    // step would go with it). Asked before anything changes and before any adapter call (0029); the exemption, per
+    // membership, is not refused for them.
+    if (input.reset === true) {
+      const [other] = await ctx.tx<{ other: boolean }[]>`select kernel.user_in_other_tenant(${input.userId}) as other`;
+      if (other!.other) {
+        throw invalid(`user ${input.userId} belongs to another tenant`, "Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí");
+      }
+    }
+
     // The exemption: the membership's row trigger audits the flag before and after.
     let exempt = member.mfa_exempt;
     if (input.exempt !== undefined && input.exempt !== member.mfa_exempt) {
@@ -72,7 +82,8 @@ export const adminUserMfaSet = defineProcess({
     }
 
     // The reset removes the identity's factor, so it also ends the second step of the user's other companies; when one of
-    // them still requires it (they are its admin, not exempt), they enrol again at the next sign-in there.
+    // them still requires it (they are its admin, not exempt), they enrol again at the next sign-in there. Never another
+    // organization's: refused above.
     let removed = 0;
     if (input.reset === true && !ctx.dryRun) removed = await (await authAdmin()).deleteFactors(input.userId);
     return { userId: input.userId, removed, exempt };
