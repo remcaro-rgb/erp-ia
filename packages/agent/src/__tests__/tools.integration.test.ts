@@ -53,6 +53,12 @@ describe("buildTools", () => {
     // Permitted and entitled, but never offered in a chat: they need a file or a job only the screen starts.
     expect(adminTools).not.toContain("kernel__export__run");
     expect(adminTools).not.toContain("kernel__import__run");
+    // Permitted (the admin holds the admin process; the self-service one needs no grant), but never offered in a chat:
+    // removing a factor is followed by the sign-out and the notice, which only the user menu and the user page handle.
+    expect(adminTools).not.toContain("kernel__user__mfa__disable");
+    expect(adminTools).not.toContain("kernel__admin__user__mfa__set");
+    // The neighbouring admin process stays a tool: only the two second-step processes are left out.
+    expect(adminTools).toContain("kernel__admin__user__update");
   });
 
   it("a write-kind tool returns a confirmation instead of executing", async () => {

@@ -72,6 +72,8 @@ Si tu rol no la exige, puedes desactivarla:
 
 Si tu rol exige la verificación en dos pasos (por ejemplo, el rol admin), el cuadro dice «Tu rol exige la verificación en dos pasos, así que no puedes desactivarla. Si necesitas hacerlo, pídele a un administrador que te exima.» y el botón **Desactivar** aparece apagado. Si un administrador te eximió, el cuadro lo indica y puedes desactivarla como cualquier otra persona.
 
+El asistente no la desactiva: se hace solo desde tu menú de usuario.
+
 ### Qué pasa con las acciones sensibles
 
 Sin la verificación en dos pasos no puedes confirmar acciones sensibles (las de administración, importar datos y las que el administrador marque): no tienes de dónde sacar el código. Si intentas una, aparece el cuadro **Verificación requerida**; al enviar un código, el cuadro te dice «Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.» con el enlace **Activarla ahora**, que te lleva a la pantalla de activación. **Cancelar** (o **Esc**) cierra el cuadro sin hacer la acción. Cuando la activas de nuevo, las acciones sensibles vuelven a funcionar con tu código.
