@@ -1,14 +1,19 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { beginEnrolment, finishEnrolment, signOut, type FormState } from "@/lib/auth/actions";
 import { useTranslations } from "next-intl";
 import type { Enrolment, LoginError } from "@/lib/auth/login";
 import { FormError, SubmitButton } from "./form-parts";
 import { TotpInput } from "./totp-input";
 
-/** Enrolment of the authenticator app: QR and key from Supabase Auth, then the first code (which also signs in). */
-export function EnrollForm() {
+/**
+ * Enrolment of the authenticator app: QR and key from Supabase Auth, then the first code (which also signs in).
+ * `optional`: the user's roles do not require a second step (they came from the user menu): they may go back to the app
+ * ("Omitir por ahora") instead of signing out.
+ */
+export function EnrollForm({ optional = false }: { optional?: boolean }) {
   const t = useTranslations("auth");
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null);
   const [startError, setStartError] = useState<LoginError | null>(null);
@@ -28,7 +33,7 @@ export function EnrollForm() {
     <>
       <div>
         <h1 className="font-bold">{t("enroll.title")}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">{t("enroll.hint")}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{optional ? t("enroll.hint_optional") : t("enroll.hint")}</p>
       </div>
       <FormError error={startError} />
       {!enrolment && !startError && <p className="text-sm text-slate-500">{t("enroll.preparing")}</p>}
@@ -49,11 +54,17 @@ export function EnrollForm() {
           </form>
         </>
       )}
-      <form action={signOut}>
-        <button type="submit" className="text-sm text-slate-500 underline hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
-          {t("verify.back")}
-        </button>
-      </form>
+      {optional ? (
+        <Link href="/" className="text-center text-sm text-slate-500 underline hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
+          {t("enroll.skip")}
+        </Link>
+      ) : (
+        <form action={signOut}>
+          <button type="submit" className="text-sm text-slate-500 underline hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
+            {t("verify.back")}
+          </button>
+        </form>
+      )}
     </>
   );
 }

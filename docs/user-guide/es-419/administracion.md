@@ -19,6 +19,7 @@ processes:
   - kernel.admin.user_role.set
   - kernel.admin.user.create
   - kernel.admin.user.update
+  - kernel.admin.user.mfa.set
   - kernel.admin.permission.set
   - kernel.admin.permission.set_many
   - kernel.admin.permission.matrix
@@ -68,7 +69,7 @@ Para asignar personas a un rol, pulsa **Editar y asignar**, marca los usuarios y
 
 ## Usuarios
 
-En **Usuarios** ves a las personas de la empresa con su correo, celular, roles y si ya activaron la verificación en dos pasos (**2FA activo** o **pendiente**).
+En **Usuarios** ves a las personas de la empresa con su correo, celular, roles y si ya activaron la verificación en dos pasos (**2FA activo** o **pendiente**; **exenta** si la eximiste del segundo paso y no lo tiene activo, ver «Quitar o eximir el segundo paso de un usuario»).
 
 1. Pulsa **Nuevo usuario**.
 2. Escribe el **Nombre completo**, el **Correo** (con él inicia sesión) y el **Celular** con su indicativo (en Colombia, 10 dígitos que empiezan por 3).
@@ -114,6 +115,27 @@ Para devolverle el acceso, pulsa **Reactivar** en su página, confirma e ingresa
 
 - **No puedes desactivar tu propia cuenta**: el botón aparece apagado en tu página.
 - La empresa necesita **al menos un administrador activo**: no se puede desactivar al último que tiene el rol admin.
+
+### Quitar o eximir el segundo paso de un usuario
+
+En la página del usuario, la fila **Verificación en dos pasos** tiene dos acciones. Las dos piden tu código y quedan en la auditoría con tu nombre y el de la persona.
+
+**Quitar segundo paso** aparece cuando la persona tiene la verificación **Activa**. Úsalo cuando perdió su celular o cambió de app:
+
+1. Pulsa **Quitar segundo paso**.
+2. Confirma en «¿Quitar el segundo paso de …?» con **Quitar segundo paso** e ingresa tu código.
+3. La fila pasa a **No configurada**. Las sesiones abiertas de esa persona se cierran; la tuya sigue.
+
+En su próximo ingreso la persona entra con su contraseña. Si su rol exige la verificación (el rol admin, sin exención), el sistema le pide activarla de nuevo antes de dejarla entrar; si no, entra directo y puede activarla cuando quiera desde su menú de usuario. Si quitas tu propio segundo paso, tu sesión también se cierra y vuelves a ingresar.
+
+**Exento del segundo paso** es un interruptor que aparece solo para quienes tienen el rol **admin**, porque ese rol exige la verificación en dos pasos:
+
+1. Pulsa el interruptor **Exento del segundo paso** e ingresa tu código.
+2. Junto al estado aparece **exenta**; en la lista de **Usuarios**, una persona exenta sin segundo paso dice **exenta** en vez de **pendiente**.
+
+Una persona exenta entra solo con su contraseña si no tiene la verificación activa, y puede desactivarla desde su menú de usuario. Si ya la tiene activa, se la sigue pidiendo hasta que la desactive. Para quitar la exención, vuelve a pulsar el interruptor e ingresa tu código: su próximo ingreso le exigirá la verificación otra vez. Puedes eximirte a ti mismo.
+
+Ojo: quien no tiene la verificación activa no puede confirmar **acciones sensibles** (como las de esta sección de administración). Un administrador exento sin segundo paso tendrá que activarlo para volver a administrar.
 
 ## Permisos
 

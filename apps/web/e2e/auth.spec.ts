@@ -1,6 +1,9 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "../test-support/streamed";
-import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
+import postgres from "postgres";
+import { DEMO_COMPANY_ID, MARCELA } from "../../../scripts/demo/accounts";
+import { adminClient, enrolTotp, removeTotpFactors, seedAuthUser, totpCode, verifiedTotpCount, type AuthFixture } from "../test-support/auth-fixtures";
+import { testEnv } from "../test-support/env";
 
 // The sign-in surface in a real browser (design §6; prototype v5 login): password, the TOTP step, remember me
 // and the step-up endpoint. Users are real Auth users seeded in the local stack; TOTP codes come from `otpauth`.
@@ -8,7 +11,7 @@ import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-sup
 const THIRTY_DAYS = 30 * 24 * 60 * 60;
 const sessionCookies = async (page: Page) => (await page.context().cookies()).filter((cookie) => /^sb-.*-auth-token/.test(cookie.name));
 
-async function submitPassword(page: Page, fixture: AuthFixture, options: { remember?: boolean } = {}) {
+async function submitPassword(page: Page, fixture: Pick<AuthFixture, "email" | "password">, options: { remember?: boolean } = {}) {
   await page.goto("/login");
   await page.getByLabel("Correo").fill(fixture.email);
   await page.getByLabel("Contraseña", { exact: true }).fill(fixture.password);
@@ -133,5 +136,82 @@ test.describe("member", () => {
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByLabel("Correo")).toHaveValue(fixture.email);
     await expect(page.getByLabel("Recordarme en este dispositivo por 30 días")).toBeChecked();
+  });
+});
+
+// Design §22.19: the second step is the user's own. Marcela (cashier, no role that requires it) turns it on from the user
+// menu, signs in with the code, turns it off again with a fresh code (step-up), is signed out (Auth ends every session of
+// a user whose verified factor is removed) and signs in with her password only.
+test.describe("a member's own second step", () => {
+  const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
+  const admin = adminClient();
+  let marcelaId = "";
+  /** Marcela as the seed leaves her: no factor; nobody of the demo company exempt. */
+  const restoreSeed = async () => {
+    await removeTotpFactors(admin, marcelaId);
+    await sql`update kernel.memberships set mfa_exempt = false where company_id = ${DEMO_COMPANY_ID}`;
+  };
+  test.beforeAll(async () => {
+    marcelaId = (await sql<{ id: string }[]>`select id from kernel.users where email = ${MARCELA.email}`)[0]!.id;
+    await restoreSeed();
+  });
+  test.afterAll(async () => {
+    await restoreSeed();
+    await sql.end({ timeout: 5 });
+  });
+
+  const openMfaDialog = async (page: Page) => {
+    await page.getByRole("button", { name: "Menú de usuario" }).click();
+    await page.getByRole("menuitem", { name: /Verificación en dos pasos/ }).click();
+    const dialog = page.getByRole("dialog", { name: "Verificación en dos pasos" });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  };
+
+  test("Marcela enrols from the user menu, signs in with the code, turns it off with a code and signs in with her password only", async ({ page }) => {
+    test.setTimeout(120_000);
+    const marcela = { email: MARCELA.email, password: MARCELA.password };
+    await submitPassword(page, marcela);
+    await expect(page).toHaveURL(/\/$/);
+
+    // Not set up: "Activar" leads to the enrolment, which she may skip (her role does not require it).
+    let dialog = await openMfaDialog(page);
+    await expect(dialog).toContainText("No configurada");
+    await dialog.getByRole("link", { name: "Activar" }).click();
+    await expect(page).toHaveURL(/\/mfa\/enroll$/);
+    await expect(page.getByRole("link", { name: "Omitir por ahora" })).toHaveAttribute("href", "/");
+    const secret = (await page.getByTestId("totp-secret").textContent())!.trim();
+    await page.getByLabel("Dígito 1").click();
+    await page.keyboard.type(totpCode(secret));
+    await expect(page).toHaveURL(/\/$/);
+    expect(await verifiedTotpCount(admin, marcelaId)).toBe(1);
+
+    // The next sign-in asks for the code.
+    await page.getByRole("button", { name: "Menú de usuario" }).click();
+    await page.getByRole("menuitem", { name: "Salir" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await submitPassword(page, marcela);
+    await expect(page).toHaveURL(/\/mfa\/verify$/);
+    await page.getByLabel("Dígito 1").fill(totpCode(secret));
+    await expect(page).toHaveURL(/\/$/);
+
+    // On: "Desactivar" asks for a fresh code (step-up) inside the dialog, then the session ends with the notice.
+    dialog = await openMfaDialog(page);
+    await expect(dialog).toContainText("Activa");
+    await dialog.getByRole("button", { name: "Desactivar" }).click();
+    const code = dialog.getByLabel("Código de 6 dígitos");
+    await expect(code).toBeFocused();
+    await code.fill(totpCode(secret));
+    await expect(page).toHaveURL(/\/login\?notice=mfa_disabled$/);
+    await expect(page.getByRole("status")).toHaveText("Segundo paso desactivado. Vuelve a ingresar con tu contraseña.");
+    expect(await verifiedTotpCount(admin, marcelaId)).toBe(0);
+    expect((await sessionCookies(page)).filter((c) => c.value !== "")).toEqual([]);
+
+    // Password only from now on.
+    await submitPassword(page, marcela);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId("home")).toBeVisible();
+    dialog = await openMfaDialog(page);
+    await expect(dialog).toContainText("No configurada");
   });
 });

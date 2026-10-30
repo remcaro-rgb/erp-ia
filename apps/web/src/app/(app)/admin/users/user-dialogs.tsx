@@ -4,13 +4,15 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PhoneField, phoneProblem } from "@erp/ui";
 import type { AdminMember, AdminRole } from "@/lib/admin/load";
+import { setUserMfaAction } from "@/lib/auth/mfa-actions";
 import { AdminDialog } from "../_components/admin-dialog";
 import { useAdminAction } from "../_components/use-admin-action";
 import { draftOf, USER_LOCALES, userChanges, type UserDraft } from "./user-changes";
 
 // The pieces the users list and a user's page share (design §6, §22.16): the avatar, the role checks, the photo picker,
 // "Editar" (kernel.admin.user.update: name, mobile, photo, locale and roles, with the step-up) and the confirmation of
-// "Desactivar" / "Reactivar" (the same process with `active`).
+// "Desactivar" / "Reactivar" (the same process with `active`), and of "Quitar segundo paso" (kernel.admin.user.mfa.set
+// with `reset`, design §22.19).
 
 /** Photos travel as data URLs: at most 300 KB of picture. */
 const MAX_PHOTO_BYTES = 300 * 1024;
@@ -176,6 +178,43 @@ export function UserStateDialog({ member, onClose }: { member: AdminMember; onCl
       }
     >
       <p className="erp-small">{t(activate ? "common.admin.users.reactivate_body" : "common.admin.users.deactivate_body", { name: member.name })}</p>
+      {status}
+      {prompt}
+    </AdminDialog>
+  );
+}
+
+/**
+ * "Quitar segundo paso" (kernel.admin.user.mfa.set `{ reset: true }`, step-up): the member's TOTP factor is removed and Auth
+ * ends their sessions; they sign in with their password, or enrol again when their role requires it. An admin removing
+ * their own factor is signed out the same way (the action answers the sign-in page).
+ */
+export function MfaResetDialog({ member, onClose }: { member: AdminMember; onClose: () => void }) {
+  const t = useTranslations();
+  const { execute, prompt, status, busy } = useAdminAction();
+  const run = async () => {
+    const result = await execute((stepUpToken) => setUserMfaAction(member.userId, { reset: true }, stepUpToken));
+    if (!result.ok) return;
+    if (result.next) window.location.assign(result.next);
+    else onClose();
+  };
+  return (
+    <AdminDialog
+      open
+      title={t("common.admin.users.page.mfa_reset_title", { name: member.name })}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="erp-btn" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="erp-btn erp-btn--danger" disabled={busy} onClick={() => void run()}>
+            {t("common.admin.users.page.mfa_reset")}
+          </button>
+        </>
+      }
+    >
+      <p className="erp-small">{t("common.admin.users.page.mfa_reset_confirm", { name: member.name })}</p>
       {status}
       {prompt}
     </AdminDialog>

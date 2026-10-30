@@ -5,12 +5,14 @@ import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
+import { disableOwnMfaAction } from "@/lib/auth/mfa-actions";
 import { clearCloneHandoff } from "@/lib/records/clone-handoff";
 import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import { installCapture, noteRoute } from "@/lib/support/capture";
 import type { ShellData } from "@/lib/shell/load";
 import { guardedNavigate } from "./leave-guard";
+import { useStepUpAction } from "./use-step-up";
 
 /** Tabs change in bursts (open, open, close): save the last state once things settle. */
 const SAVE_TABS_AFTER_MS = 800;
@@ -27,6 +29,8 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
   const pathname = usePathname();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<PendingSave | null>(null);
+  // "Verificación en dos pasos" of the user menu: kernel.user.mfa.disable through the step-up flow every sensitive run uses.
+  const { run: runWithStepUp, prompt: mfaStepUpPrompt } = useStepUpAction();
 
   // The saved theme on <html> before the first paint of a server render; a client render applies it in the shell.
   useServerInsertedHTML(() => <script dangerouslySetInnerHTML={{ __html: themeScript(data.theme?.value ?? "auto") }} />);
@@ -95,6 +99,20 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
         clearCloneHandoff();
         await setActiveCompany(companyId);
         router.refresh();
+      }}
+      mfa={data.mfa}
+      mfaStepUpPrompt={mfaStepUpPrompt}
+      onDisableMfa={async () => {
+        const result = await runWithStepUp((stepUpToken) => disableOwnMfaAction(stepUpToken));
+        if (result.ok) {
+          // Auth ended every session of the user with the factor: the action cleared this one's cookies. A full load of
+          // the sign-in page (with the notice) drops whatever this tab still holds.
+          if (result.next) {
+            clearCloneHandoff();
+            window.location.assign(result.next);
+          } else router.refresh();
+        }
+        return result;
       }}
       signOutAction={async () => {
         // Nothing of this session's records stays in the tab's memory.

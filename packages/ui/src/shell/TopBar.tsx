@@ -40,6 +40,10 @@ export interface TopBarProps {
   onSwitchCompany?: (companyId: string) => void;
   /** Server action of the sign-out form. */
   signOutAction?: () => void | Promise<void>;
+  /** Whether the user's second step is on (design §22.19); with `onOpenMfa`, the user menu offers its dialog. */
+  mfaEnrolled?: boolean;
+  /** Opens "Verificación en dos pasos". */
+  onOpenMfa?: () => void;
 }
 
 const menuClass = "min-w-[240px] rounded-lg border border-line bg-surface p-1.5 text-text shadow-[0_10px_30px_var(--shadow)]";
@@ -185,6 +189,12 @@ export function TopBar(props: TopBarProps) {
           <DropdownMenuItem disabled className={itemClass}>
             {[user.email, user.roles.join(", ")].filter(Boolean).join(" · ")}
           </DropdownMenuItem>
+          {props.onOpenMfa && (
+            <DropdownMenuItem className={itemClass} onSelect={props.onOpenMfa}>
+              {s("mfa.menu")}
+              <span className="ml-auto text-xs text-text-muted">{props.mfaEnrolled ? s("mfa.menu_on") : s("mfa.menu_off")}</span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             className={itemClass}
             onSelect={(event) => {

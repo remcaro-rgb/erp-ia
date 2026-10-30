@@ -6,6 +6,8 @@ export { ModuleBar, isActiveHref } from "./ModuleBar";
 export type { ModuleBarProps } from "./ModuleBar";
 export { TabsBar } from "./TabsBar";
 export type { TabsBarProps } from "./TabsBar";
+export { MfaDialog } from "./MfaDialog";
+export type { MfaDialogProps, MfaDisableResult, MfaState } from "./MfaDialog";
 export { ThemeToggle } from "./ThemeToggle";
 export type { ThemeToggleProps } from "./ThemeToggle";
 export { CommandPalette, fold, paletteMatches } from "./CommandPalette";
