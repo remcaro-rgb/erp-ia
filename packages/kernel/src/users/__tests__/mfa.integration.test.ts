@@ -171,6 +171,24 @@ describe("the user's second step", () => {
       }
     });
 
+    it("asks kernel.user_requires_mfa only about the caller: another user's answer is false, even for an un-exempt admin", async () => {
+      const ask = (who: Caller, userId: string) =>
+        withClaims(sql, who.claims, async (tx) => (await tx<{ required: boolean }[]>`select kernel.user_requires_mfa(${userId}) as required`)[0]!.required);
+      // boss is an un-exempt admin: true when boss asks, false when anyone else asks (a member, another admin, another tenant).
+      expect(await ask(boss, seed.users.boss!)).toBe(true);
+      expect(await ask(clerk, seed.users.boss!)).toBe(false);
+      expect(await ask(admin, seed.users.boss!)).toBe(false);
+      const stranger = await seedTenant(sql, { companies: 1, entitlements: [] });
+      try {
+        expect(await ask(caller(stranger.claimsFor(stranger.users.both, stranger.companies[0]!.id)), seed.users.boss!)).toBe(false);
+      } finally {
+        await stranger.cleanup();
+      }
+      // A connection without claims gets no answer either.
+      const [service] = await sql<{ required: boolean }[]>`select kernel.user_requires_mfa(${seed.users.boss!}) as required`;
+      expect(service!.required).toBe(false);
+    });
+
     it("refuses a caller whose membership is inactive at the gate, even with a valid step-up", async () => {
       await enrol(seed.users.clerk!);
       await sql`update kernel.memberships set is_active = false where user_id = ${seed.users.clerk!} and company_id = ${companyId}`;

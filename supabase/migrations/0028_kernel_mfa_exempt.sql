@@ -15,7 +15,8 @@
 --     the second step unless the membership in the active company is exempt). Same signature and grants. The sign-in
 --     enforces the second step per company, as before.
 --   * kernel.user_requires_mfa(user): whether the person's factor is required anywhere, i.e. any ACTIVE membership of
---     theirs, in any company, holds the system admin role without an exemption. The factor belongs to the identity, not
+--     theirs, in any company, holds the system admin role without an exemption. It answers only for the caller (false
+--     for anyone else), so it is no cross-tenant oracle. The factor belongs to the identity, not
 --     to a company, so kernel.user.mfa.disable asks this (a user who is admin in company B and a plain member in A must
 --     not remove from A the factor B requires).
 --   * kernel.admin.user.mfa.set { reset } removes the identity's factor too, even when the user is also an admin of
@@ -32,7 +33,9 @@ alter table kernel.memberships add column mfa_exempt boolean not null default fa
 -- ---------------------------------------------------------------------------------------------
 -- Whether the user's second step is required by any of their active memberships, in any company: one that holds the
 -- system admin role and is not exempt. Owner's rights, so it sees memberships outside the caller's claims; it answers
--- only a boolean.
+-- only a boolean, and only about the caller: for any other user, and for a connection without claims (the service
+-- role), it answers false, so a signed-in user cannot ask it who is an admin elsewhere. Its one caller is
+-- kernel.user.mfa.disable, which runs as the user and asks about that user (ctx.userId); the service role never calls it.
 -- ---------------------------------------------------------------------------------------------
 create or replace function kernel.user_requires_mfa(p_user uuid) returns boolean
 language sql stable security definer
@@ -44,6 +47,7 @@ as $$
     join kernel.membership_roles mr on mr.membership_id = m.id
     join kernel.roles r on r.id = mr.role_id
     where m.user_id = p_user
+      and p_user = (select kernel.current_user_id())
       and m.is_active
       and not m.mfa_exempt
       and r.company_id = m.company_id
