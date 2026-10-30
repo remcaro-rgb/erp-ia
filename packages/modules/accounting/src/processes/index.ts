@@ -1,4 +1,5 @@
 import type { ProcessDef } from "@erp/kernel";
+import { REPORT_PROCESSES } from "../reports";
 import { ACCOUNT_PROCESSES } from "./account";
 import { CHART_PROCESSES } from "./chart";
 import { DIMENSION_PROCESSES } from "./dimension";
@@ -38,4 +39,5 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...POSTING_FAILURE_PROCESSES,
   ...PERIOD_PROCESSES,
   ...YEAR_PROCESSES,
+  ...REPORT_PROCESSES,
 ];

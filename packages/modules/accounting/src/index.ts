@@ -3,6 +3,7 @@ import { ACCOUNTING_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
 import { accountingProvider } from "./posting/provider";
 import { ACCOUNTING_PROCESSES } from "./processes";
+import { ACCOUNTING_REPORTS } from "./reports";
 import { ACCOUNTING_DEFAULT_RULES } from "./rules/defaults";
 
 /**
@@ -25,6 +26,7 @@ export const accounting: ModuleDef = defineModule({
     consumes: { "*": POSTING_CONSUMER },
   },
   navigation: NAVIGATION,
+  reports: ACCOUNTING_REPORTS,
   postingProvider: accountingProvider,
   postingRules: ACCOUNTING_DEFAULT_RULES,
 });
