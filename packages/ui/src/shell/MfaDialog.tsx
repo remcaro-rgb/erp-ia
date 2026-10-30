@@ -28,6 +28,8 @@ export interface MfaDialogProps extends MfaState {
   onDisable: () => Promise<MfaDisableResult>;
   /** The app's step-up prompt while the run waits for the code: shown inside the dialog (a modal hides the rest). */
   stepUpPrompt?: ReactNode;
+  /** Ends the run waiting for the code (the dialog closes meanwhile): the app cancels its step-up, `onDisable` settles. */
+  onCancelStepUp?: () => void;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface MfaDialogProps extends MfaState {
  * (a fresh code from that factor first, rule 15), "Activar" (the enrolment page) when it is not. A role that requires it
  * cannot turn it off, and the dialog says who can lift that (an administrator, with an exemption).
  */
-export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt, onDisable, stepUpPrompt }: MfaDialogProps) {
+export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt, onDisable, stepUpPrompt, onCancelStepUp }: MfaDialogProps) {
   const t = useTranslations();
   const s = (key: string, values?: Record<string, string>) => t(`nav.shell.mfa.${key}`, values);
   const [busy, setBusy] = useState(false);
@@ -50,6 +52,8 @@ export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt
         setOutcome({ ok: true, text: t("auth.notices.mfa_disabled") });
         return;
       }
+      // The code was never given (the step-up prompt was cancelled): nothing failed, nothing to say.
+      if (result.code === "step_up_required") return;
       const reason = result.details.length > 0 ? result.details.map((d) => d.message).join(" · ") : t.has(`errors.${result.code}`) ? t(`errors.${result.code}`) : t("errors.unknown");
       setOutcome({ ok: false, text: s("failed", { reason }) });
     } finally {
@@ -58,13 +62,25 @@ export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt
   };
 
   const close = (next: boolean) => {
-    if (!next) setOutcome(null);
+    if (!next) {
+      setOutcome(null);
+      // A run still waiting for the code ends with the dialog (its prompt would otherwise wait unseen).
+      if (stepUpPrompt) onCancelStepUp?.();
+    }
     onOpenChange(next);
   };
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent showCloseButton={false} className="erp-dialog" style={{ maxWidth: 480 }}>
+      <DialogContent
+        showCloseButton={false}
+        className="erp-dialog"
+        style={{ maxWidth: 480 }}
+        // While the step-up prompt is up, Esc belongs to it (it cancels the code, the dialog stays).
+        onEscapeKeyDown={(event) => {
+          if (stepUpPrompt) event.preventDefault();
+        }}
+      >
         <div className="erp-dialog__head">
           <DialogTitle className="erp-dialog__title">{s("title")}</DialogTitle>
           <button type="button" className="erp-btn erp-btn--ghost" aria-label={t("common.close")} onClick={() => close(false)}>

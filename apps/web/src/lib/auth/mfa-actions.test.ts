@@ -97,4 +97,23 @@ describe("setUserMfaAction", () => {
     expect(await setUserMfaAction("u-9", { exempt: true }, "tok-2")).toEqual({ ok: false, code: "invalid_input", details: [{ message: "El usuario no pertenece a la empresa" }] });
     expect(calls.logout).not.toHaveBeenCalled();
   });
+
+  it("builds the input from its own arguments: a userId smuggled in `change` never replaces the target", async () => {
+    calls.runProcess.mockResolvedValueOnce({ userId: "u-2", removed: 1, exempt: false });
+    const tampered = { reset: true, userId: "victim", extra: 1 } as unknown as { reset?: boolean; exempt?: boolean };
+    await setUserMfaAction("u-2", tampered, "tok-2");
+    expect(calls.runProcess.mock.calls[0]![3]).toStrictEqual({ userId: "u-2", reset: true });
+  });
+
+  it("decides the self sign-out from the process's answer (whose factor it removed), not from the argument", async () => {
+    // The process answered about the caller: signed out.
+    calls.runProcess.mockResolvedValueOnce({ userId: "admin-1", removed: 1, exempt: false });
+    expect(await setUserMfaAction("u-2", { reset: true }, "tok-2")).toEqual({ ok: true, next: MFA_DISABLED_LOGIN });
+    calls.logout.mockClear();
+    // The process answered about someone else: the caller's session stays.
+    calls.runProcess.mockResolvedValueOnce({ userId: "u-2", removed: 1, exempt: false });
+    expect(await setUserMfaAction("admin-1", { reset: true }, "tok-2")).toEqual({ ok: true, next: null });
+    expect(calls.logout).not.toHaveBeenCalled();
+  });
 });
+

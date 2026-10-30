@@ -30,7 +30,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<PendingSave | null>(null);
   // "Verificación en dos pasos" of the user menu: kernel.user.mfa.disable through the step-up flow every sensitive run uses.
-  const { run: runWithStepUp, prompt: mfaStepUpPrompt } = useStepUpAction();
+  const { run: runWithStepUp, prompt: mfaStepUpPrompt, cancel: cancelMfaStepUp } = useStepUpAction();
 
   // The saved theme on <html> before the first paint of a server render; a client render applies it in the shell.
   useServerInsertedHTML(() => <script dangerouslySetInnerHTML={{ __html: themeScript(data.theme?.value ?? "auto") }} />);
@@ -102,6 +102,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       }}
       mfa={data.mfa}
       mfaStepUpPrompt={mfaStepUpPrompt}
+      onCancelMfaStepUp={cancelMfaStepUp}
       onDisableMfa={async () => {
         const result = await runWithStepUp((stepUpToken) => disableOwnMfaAction(stepUpToken));
         if (result.ok) {

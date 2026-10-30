@@ -41,7 +41,19 @@ export function StepUpPrompt({ onConfirm, onCancel, error, busy }: StepUpPromptP
   }, [error, busy]);
   if (error === "no_factor") {
     return (
-      <div className="erp-stepup" role="group" aria-label={t("process.step_up.title")} data-enter-skip="">
+      <div
+        className="erp-stepup"
+        role="group"
+        aria-label={t("process.step_up.title")}
+        data-enter-skip=""
+        // The code box is gone: Esc still cancels (the advertised shortcut), from Cancelar or the link.
+        onKeyDown={(e) => {
+          if (e.key !== "Escape") return;
+          e.preventDefault();
+          e.stopPropagation();
+          onCancel();
+        }}
+      >
         <b>{t("process.step_up.title")}</b>
         <span role="alert" className="erp-field__error">
           {t("process.step_up.no_factor")}{" "}
@@ -50,7 +62,8 @@ export function StepUpPrompt({ onConfirm, onCancel, error, busy }: StepUpPromptP
           </a>
         </span>
         <div className="erp-row">
-          <button type="button" className="erp-btn erp-btn--ghost erp-btn--sm" aria-keyshortcuts="Escape" onClick={onCancel}>
+          {/* The caret was in the code box, which just unmounted: it moves here instead of falling to the page. */}
+          <button type="button" className="erp-btn erp-btn--ghost erp-btn--sm" aria-keyshortcuts="Escape" autoFocus onClick={onCancel}>
             {t("common.forms.step_up_cancel")}
           </button>
         </div>

@@ -50,7 +50,10 @@ export async function disableOwnMfaAction(stepUpToken?: string): Promise<MfaActi
 
 /** Removes a member's factor (`reset`) and/or sets their exemption from the admin role's requirement (kernel.admin.user.mfa.set). */
 export async function setUserMfaAction(userId: string, change: { reset?: boolean; exempt?: boolean }, stepUpToken?: string): Promise<MfaActionResult> {
-  const result = await run<{ userId: string; removed: number; exempt: boolean }>("kernel.admin.user.mfa.set", { userId, ...change }, stepUpToken);
+  // The input is built from the named arguments only: whatever else a tampered call puts in `change` (a userId) is dropped.
+  const input = { userId, ...(change.reset !== undefined ? { reset: change.reset } : {}), ...(change.exempt !== undefined ? { exempt: change.exempt } : {}) };
+  const result = await run<{ userId: string; removed: number; exempt: boolean }>("kernel.admin.user.mfa.set", input, stepUpToken);
   if (!result.ok) return result;
-  return result.output.removed > 0 && userId === result.sub ? signedOut() : { ok: true, next: null };
+  // Whose factor went is what the process answers, not what the browser asked.
+  return result.output.removed > 0 && result.output.userId === result.sub ? signedOut() : { ok: true, next: null };
 }

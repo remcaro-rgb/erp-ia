@@ -73,6 +73,8 @@ export interface AppShellProps {
   onDisableMfa?: () => Promise<MfaDisableResult>;
   /** The app's step-up prompt while that run waits for the code (rendered inside the dialog). */
   mfaStepUpPrompt?: ReactNode;
+  /** Cancels that waiting step-up (the dialog was closed). */
+  onCancelMfaStepUp?: () => void;
   /** The preference cache; the browser's localStorage by default. */
   storage?: Storage | null;
 }
@@ -353,6 +355,7 @@ function ShellFrame(props: AppShellProps) {
               {...props.mfa!}
               onDisable={() => props.onDisableMfa!()}
               stepUpPrompt={props.mfaStepUpPrompt}
+              {...(props.onCancelMfaStepUp ? { onCancelStepUp: props.onCancelMfaStepUp } : {})}
             />
           )}
           <Toaster position="bottom-center" />

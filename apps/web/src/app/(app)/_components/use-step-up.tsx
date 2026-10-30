@@ -16,7 +16,12 @@ interface Waiting {
  * endpoint and runs the same action again with it. The promise settles with the final result (the first refusal when the
  * user cancels). Render `prompt` next to the tab.
  */
-export function useStepUpAction(): { run: <T>(action: (stepUpToken?: string) => Promise<ActionResult<T>>) => Promise<ActionResult<T>>; prompt: ReactNode } {
+export function useStepUpAction(): {
+  run: <T>(action: (stepUpToken?: string) => Promise<ActionResult<T>>) => Promise<ActionResult<T>>;
+  prompt: ReactNode;
+  /** Cancels a run waiting for the code, as the prompt's Cancelar does (for a container that closes around the prompt). */
+  cancel: () => void;
+} {
   const [waiting, setWaiting] = useState<Waiting | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,5 +58,6 @@ export function useStepUpAction(): { run: <T>(action: (stepUpToken?: string) => 
   }, []);
 
   const prompt = waiting ? <StepUpPrompt onConfirm={(code) => void waiting.confirm(code)} onCancel={waiting.cancel} error={error} busy={busy} /> : null;
-  return { run, prompt };
+  const cancel = useCallback(() => waiting?.cancel(), [waiting]);
+  return { run, prompt, cancel };
 }

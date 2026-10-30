@@ -78,4 +78,16 @@ describe("StepUpPrompt without a second step", () => {
     screen.getByRole("button", { name: "Cancelar" }).click();
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it("gives the caret to Cancelar (the code box is gone) and Esc cancels, as the normal prompt does", async () => {
+    const onCancel = vi.fn();
+    const { rerender } = renderEs(<StepUpPrompt onConfirm={vi.fn()} onCancel={onCancel} error={null} />);
+    expect(document.activeElement).toBe(screen.getByLabelText("Código de 6 dígitos"));
+    // The code was sent and the endpoint answered that there is no second step: the box unmounts.
+    rerender(<StepUpPrompt onConfirm={vi.fn()} onCancel={onCancel} error="no_factor" />);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancelar" }));
+    await userEvent.setup().keyboard("{Escape}");
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });
+

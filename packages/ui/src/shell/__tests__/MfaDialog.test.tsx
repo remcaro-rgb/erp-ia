@@ -4,6 +4,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { AppShell } from "../AppShell";
 import { MfaDialog, type MfaDisableResult } from "../MfaDialog";
+import { StepUpPrompt } from "../../forms/StepUpPrompt";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
@@ -55,10 +56,48 @@ describe("MfaDialog", () => {
   });
 
   it("a refusal without reasons names its code", async () => {
-    const onDisable = vi.fn(async (): Promise<MfaDisableResult> => ({ ok: false, code: "step_up_required", details: [] }));
+    const onDisable = vi.fn(async (): Promise<MfaDisableResult> => ({ ok: false, code: "forbidden", details: [] }));
     const { box } = dialog({ enrolled: true, onDisable });
     fireEvent.click(within(box).getByRole("button", { name: "Desactivar" }));
-    await waitFor(() => expect(within(box).getByRole("alert").textContent).toContain("Esta acción exige verificar tu segundo paso."));
+    await waitFor(() => expect(within(box).getByRole("alert").textContent).toContain("No tienes permiso para hacer esto."));
+  });
+
+  // While the app's step-up waits for the code, Esc (or Cancelar) in the prompt ends the run: the dialog stays, says
+  // nothing went wrong, and Desactivar can be pressed again. Closing the dialog ends the run too.
+  describe("ending the pending run", () => {
+    function waiting(extra: { onCancelStepUp?: () => void } = {}) {
+      let settle: (result: MfaDisableResult) => void = () => {};
+      const onDisable = vi.fn(() => new Promise<MfaDisableResult>((resolve) => (settle = resolve)));
+      // The app's flow: cancelling its prompt resolves the run with the first refusal (step_up_required).
+      const cancel = () => settle({ ok: false, code: "step_up_required", details: [] });
+      const props = { open: true, onOpenChange: vi.fn(), enrolled: true, requiredByRole: false, exempt: false, onDisable, ...extra };
+      const view = renderEs(<MfaDialog {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
+      view.rerender(<MfaDialog {...props} stepUpPrompt={<StepUpPrompt onConfirm={vi.fn()} onCancel={cancel} error="no_factor" />} />);
+      return { ...view, props, cancel, onDisable };
+    }
+    const desactivar = () => screen.getByRole("button", { name: "Desactivar" }) as HTMLButtonElement;
+
+    it("Esc in the no-factor prompt cancels the run and keeps the dialog open", async () => {
+      const { props } = waiting();
+      expect(desactivar().disabled).toBe(true);
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancelar" }));
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      await waitFor(() => expect(desactivar().disabled).toBe(false));
+      expect(props.onOpenChange).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert", { name: /No se pudo/ })).toBeNull();
+      expect(screen.getByRole("dialog").textContent).not.toContain("No se pudo desactivar");
+    });
+
+    it("closing the dialog while the code is awaited ends the run through the app", async () => {
+      const onCancelStepUp = vi.fn();
+      const { props, cancel } = waiting({ onCancelStepUp: () => (onCancelStepUp(), cancel()) });
+      const [cross] = screen.getAllByRole("button", { name: "Cerrar" });
+      fireEvent.click(cross!);
+      expect(onCancelStepUp).toHaveBeenCalledTimes(1);
+      expect(props.onOpenChange).toHaveBeenCalledWith(false);
+      await waitFor(() => expect(desactivar().disabled).toBe(false));
+    });
   });
 
   it("a role that requires the second step: the note says so and Desactivar is off", () => {

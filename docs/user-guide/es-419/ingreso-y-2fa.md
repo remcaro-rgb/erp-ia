@@ -74,7 +74,7 @@ Si tu rol exige la verificación en dos pasos (por ejemplo, el rol admin), el cu
 
 ### Qué pasa con las acciones sensibles
 
-Sin la verificación en dos pasos no puedes confirmar acciones sensibles (las de administración, importar datos y las que el administrador marque): no tienes de dónde sacar el código. Si intentas una, el cuadro **Verificación requerida** te dice «Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.» con el enlace **Activarla ahora**, que te lleva a la pantalla de activación. Cuando la activas de nuevo, las acciones sensibles vuelven a funcionar con tu código.
+Sin la verificación en dos pasos no puedes confirmar acciones sensibles (las de administración, importar datos y las que el administrador marque): no tienes de dónde sacar el código. Si intentas una, aparece el cuadro **Verificación requerida**; al enviar un código, el cuadro te dice «Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.» con el enlace **Activarla ahora**, que te lleva a la pantalla de activación. **Cancelar** (o **Esc**) cierra el cuadro sin hacer la acción. Cuando la activas de nuevo, las acciones sensibles vuelven a funcionar con tu código.
 
 ## Confirmar una acción sensible
 
