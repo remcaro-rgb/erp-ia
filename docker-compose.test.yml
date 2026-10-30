@@ -23,6 +23,7 @@ services:
   seed:
     # The tools image the help-index job builds.
     image: erp-ia/tools:local
+    pull_policy: never  # built by its sibling service above; a pull of a local-only tag fails (CI, 2026-10-29)
     command: ["pnpm", "db:seed"]
     depends_on:
       db-init: { condition: service_completed_successfully }

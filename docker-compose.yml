@@ -259,6 +259,7 @@ services:
 
   worker:
     image: erp-ia/worker:local
+    pull_policy: never  # built by its sibling service above; a pull of a local-only tag fails (CI, 2026-10-29)
     restart: unless-stopped
     depends_on:
       workflow-init: { condition: service_completed_successfully }
@@ -296,6 +297,7 @@ services:
   # 127.0.0.1 only and must never be published on another interface or behind the edge without an auth layer.
   workflow-web:
     image: erp-ia/worker:local
+    pull_policy: never  # built by its sibling service above; a pull of a local-only tag fails (CI, 2026-10-29)
     profiles: [tools]
     command: ["./node_modules/.bin/workflow", "web", "--backend", "@workflow/world-postgres", "--webPort", "3456", "--noBrowser"]
     depends_on:
