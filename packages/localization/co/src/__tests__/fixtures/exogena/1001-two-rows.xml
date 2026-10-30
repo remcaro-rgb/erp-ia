@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mas xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="1001.xsd">
+  <Cab>
+    <Ano>2026</Ano>
+    <CodCpt>1</CodCpt>
+    <Formato>1001</Formato>
+    <Version>10</Version>
+    <NumEnvio>1</NumEnvio>
+    <FecEnvio>2027-01-01T00:00:00</FecEnvio>
+    <FecInicial>2026-01-01</FecInicial>
+    <FecFinal>2026-12-31</FecFinal>
+    <ValorTotal>4815000</ValorTotal>
+    <CantReg>2</CantReg>
+  </Cab>
+  <formato1001 cpt="5001" tdoc="13" nid="1020304050" raz="Ana Pérez" dpto="05" mun="001" pais="169" pagoded="3000000" retefuente="150000" reteivacom="0"/>
+  <formato1001 cpt="5002" tdoc="31" nid="900373115" dv="3" raz="Éxito &amp; Cía &quot;S.A.S.&quot;" dpto="11" mun="001" pais="169" pagoded="1500000" retefuente="165000"/>
+</mas>

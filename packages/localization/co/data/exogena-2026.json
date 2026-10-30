@@ -1,0 +1,213 @@
+{
+ "_comment": "Catálogo de formatos de información exógena (medios magnéticos) de la DIAN para el año gravable 2026: formato, versión, conceptos, columnas y cuantía mínima. Los valores de versión y cuantía siguen la resolución vigente y se revisan cada año gravable; el NIT 222222222 agrupa las cuantías menores.",
+ "year": 2026,
+ "cuantiasMenoresNit": "222222222",
+ "formats": [
+  {
+   "format": "1001",
+   "version": 10,
+   "side": "debit",
+   "threshold": 500000,
+   "name": "Pagos o abonos en cuenta y retenciones practicadas",
+   "concepts": [
+    {
+     "code": "5001",
+     "label": "Salarios y demás pagos laborales"
+    },
+    {
+     "code": "5002",
+     "label": "Honorarios"
+    },
+    {
+     "code": "5003",
+     "label": "Comisiones"
+    },
+    {
+     "code": "5004",
+     "label": "Servicios"
+    },
+    {
+     "code": "5005",
+     "label": "Arrendamientos"
+    },
+    {
+     "code": "5006",
+     "label": "Intereses y rendimientos financieros"
+    },
+    {
+     "code": "5007",
+     "label": "Compras de bienes"
+    }
+   ],
+   "columns": [
+    {
+     "id": "pagoded",
+     "label": "Pago o abono en cuenta deducible",
+     "source": "amount"
+    },
+    {
+     "id": "retefuente",
+     "label": "Retención en la fuente practicada en renta",
+     "source": "tax:RTEFTE"
+    },
+    {
+     "id": "reteivacom",
+     "label": "Retención IVA practicada a responsables del impuesto",
+     "source": "tax:RTEIVA"
+    }
+   ]
+  },
+  {
+   "format": "1003",
+   "version": 7,
+   "side": "debit",
+   "threshold": 100000,
+   "name": "Retenciones en la fuente que le practicaron",
+   "concepts": [
+    {
+     "code": "1301",
+     "label": "Retención en la fuente a título de renta"
+    },
+    {
+     "code": "1302",
+     "label": "Retención en la fuente a título de IVA"
+    },
+    {
+     "code": "1303",
+     "label": "Retención de industria y comercio"
+    }
+   ],
+   "columns": [
+    {
+     "id": "base",
+     "label": "Base de la retención",
+     "source": "base"
+    },
+    {
+     "id": "retencion",
+     "label": "Retención que le practicaron",
+     "source": "amount"
+    }
+   ]
+  },
+  {
+   "format": "1005",
+   "version": 7,
+   "side": "debit",
+   "threshold": 0,
+   "name": "Impuesto sobre las ventas descontable",
+   "concepts": [
+    {
+     "code": "4101",
+     "label": "Impuesto sobre las ventas descontable"
+    }
+   ],
+   "columns": [
+    {
+     "id": "valorcompra",
+     "label": "Valor total de la compra",
+     "source": "base"
+    },
+    {
+     "id": "ivadesc",
+     "label": "Impuesto descontable",
+     "source": "amount"
+    }
+   ]
+  },
+  {
+   "format": "1006",
+   "version": 8,
+   "side": "credit",
+   "threshold": 0,
+   "name": "Impuesto sobre las ventas generado",
+   "concepts": [
+    {
+     "code": "4001",
+     "label": "Ingresos brutos operacionales gravados"
+    }
+   ],
+   "columns": [
+    {
+     "id": "ingresos",
+     "label": "Ingresos brutos",
+     "source": "base"
+    },
+    {
+     "id": "ivagen",
+     "label": "Impuesto generado",
+     "source": "amount"
+    }
+   ]
+  },
+  {
+   "format": "1007",
+   "version": 9,
+   "side": "credit",
+   "threshold": 500000,
+   "name": "Ingresos recibidos",
+   "concepts": [
+    {
+     "code": "4001",
+     "label": "Ingresos brutos operacionales"
+    },
+    {
+     "code": "4002",
+     "label": "Ingresos brutos no operacionales"
+    }
+   ],
+   "columns": [
+    {
+     "id": "ingbruto",
+     "label": "Ingresos brutos recibidos",
+     "source": "amount"
+    },
+    {
+     "id": "devol",
+     "label": "Devoluciones, rebajas y descuentos",
+     "source": "base"
+    }
+   ]
+  },
+  {
+   "format": "1008",
+   "version": 8,
+   "side": "balance",
+   "threshold": 5000000,
+   "name": "Saldo de las cuentas por cobrar",
+   "concepts": [
+    {
+     "code": "1315",
+     "label": "Cuentas por cobrar a clientes"
+    }
+   ],
+   "columns": [
+    {
+     "id": "saldocxc",
+     "label": "Saldo de la cuenta por cobrar al 31-12",
+     "source": "balance"
+    }
+   ]
+  },
+  {
+   "format": "1009",
+   "version": 8,
+   "side": "balance",
+   "threshold": 5000000,
+   "name": "Saldo de las cuentas por pagar",
+   "concepts": [
+    {
+     "code": "2201",
+     "label": "Cuentas por pagar a proveedores"
+    }
+   ],
+   "columns": [
+    {
+     "id": "saldocxp",
+     "label": "Saldo de la cuenta por pagar al 31-12",
+     "source": "balance"
+    }
+   ]
+  }
+ ]
+}

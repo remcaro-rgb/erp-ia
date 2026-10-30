@@ -75,9 +75,31 @@ export type JournalKind = "general" | "sales" | "purchases" | "receipts" | "paym
 export interface StatementSection { code: string; label: string }
 /** A line of a tax form (formato 2516) that reads the accounts whose code starts with one of `prefixes`. */
 export interface LineCode { code: string; label: string; prefixes: string[] }
-export interface ExogenaFormat { format: string; version: string; name: string; side: "debit" | "credit" | "balance"; threshold: number; concepts: { code: string; name: string }[] }
-export interface ExogenaRow { partyId: string; documentType: string; documentNumber: string; concept: string; amount: number; [column: string]: unknown }
-export interface ExogenaCompany { taxId: string; checkDigit: string; legalName: string; year: number }
+export interface ExogenaFormat {
+  format: string;
+  version: number;
+  year: number;
+  side: "debit" | "credit" | "balance";
+  /** Parties whose year total is below this are aggregated under `cuantiasMenoresNit` (accounting design §5.11). */
+  threshold: number;
+  cuantiasMenoresNit: string;
+  concepts: { code: string; label: string }[];
+  columns: { id: string; label: string; source: "amount" | "tax:RTEFTE" | "tax:RTEIVA" | "tax:RTEICA" | "base" | "balance" }[];
+}
+export interface ExogenaRow {
+  concept: string;
+  partyDocumentType: string;
+  partyDocument: string;
+  partyDv?: string;
+  partyName: string;
+  departmentCode?: string;
+  municipalityCode?: string;
+  countryCode: string;
+  /** Whole-peso value per column id of the format. */
+  values: Record<string, number>;
+}
+/** `sentAt` and `shipment` default to the first day after the tax year and the first shipment. */
+export interface ExogenaCompany { nit: string; dv: string; name: string; year: number; sentAt?: string; shipment?: number }
 
 export interface AccountingPack {
   chartOfAccounts(): AccountSeed[];

@@ -1,5 +1,7 @@
 import type { AccountingPack } from "@erp/kernel";
 import { validateAccountCode } from "./account-code";
+import { defaultConceptMappings, exogenaFormats } from "./exogena";
+import { exogenaXml } from "./exogena-xml";
 import { chartOfAccounts, extraAccounts } from "./chart";
 import { fiscalYearFor } from "./fiscal-year";
 import { defaultJournals } from "./journals";
@@ -16,10 +18,7 @@ export const accounting: AccountingPack = {
   statementLayouts,
   defaultJournals,
   taxCodes,
-  // Task 11 fills the exógena catalogue, concept mappings and XML writer.
-  defaultConceptMappings: () => [],
-  exogenaFormats: () => [],
-  exogenaXml: () => {
-    throw new Error("exogenaXml is not available yet");
-  },
+  defaultConceptMappings,
+  exogenaFormats,
+  exogenaXml,
 };
