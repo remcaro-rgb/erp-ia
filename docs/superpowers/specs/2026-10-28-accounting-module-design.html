@@ -1,0 +1,465 @@
+<title>Contabilidad ERP-IA Design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the ERP-IA shell palette (design §19a). A single column of sections, each a surface card
+   on the page grey; the navy bar introduces the module as the app would. */
+:root{
+  --bar:#1E3A8A; --bar-text:#DBE4F5; --bar-ctl:#2A4A9E;
+  --primary:#1D4ED8; --primary-hover:#1E40AF;
+  --accent-soft:#DBEAFE; --accent-border:#BFDBFE;
+  --bg:#EEF0F2; --surface:#FFFFFF; --head:#F7F8FA;
+  --fg:#1A1D21; --muted:#3F4752; --line:#D7DBE0; --line-light:#E2E5E9;
+  --ok-bg:#DDF1EB; --ok-fg:#0A5446; --warn-bg:#FBEBD2; --warn-fg:#7A3E05;
+  --danger-bg:#FBE3E0; --danger-fg:#8C1D17; --info-bg:#E3ECF8; --info-fg:#1D4F91;
+  --tabrow:#D6E0F5;
+  --font:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bar:#1E3A8A; --bar-text:#DBE4F5; --bar-ctl:#2A4A9E; --primary:#7FA4F7; --primary-hover:#A3BEFA;
+  --accent-soft:#1C2743; --accent-border:#2F4273; --bg:#121519; --surface:#1B1F25; --head:#20252C;
+  --fg:#E6E9ED; --muted:#A3ABB6; --line:#343A43; --line-light:#2A2F37;
+  --ok-bg:#153D33; --ok-fg:#9ADBC6; --warn-bg:#4A2E0C; --warn-fg:#F3C98B; --danger-bg:#4C1A16; --danger-fg:#F4A9A3;
+  --info-bg:#1C2743; --info-fg:#AFC6F2; --tabrow:#1C2743; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bar:#1E3A8A; --bar-text:#DBE4F5; --bar-ctl:#2A4A9E; --primary:#7FA4F7; --primary-hover:#A3BEFA;
+  --accent-soft:#1C2743; --accent-border:#2F4273; --bg:#121519; --surface:#1B1F25; --head:#20252C;
+  --fg:#E6E9ED; --muted:#A3ABB6; --line:#343A43; --line-light:#2A2F37;
+  --ok-bg:#153D33; --ok-fg:#9ADBC6; --warn-bg:#4A2E0C; --warn-fg:#F3C98B; --danger-bg:#4C1A16; --danger-fg:#F4A9A3;
+  --info-bg:#1C2743; --info-fg:#AFC6F2; --tabrow:#1C2743; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding-block:0 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3,h4{text-wrap:balance;margin:0;line-height:1.2}
+h2{font-size:22px;font-weight:700;margin-bottom:4px}
+h3{font-size:16px;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12.5px}
+code{font-family:var(--mono);font-size:12.5px;background:var(--head);border:1px solid var(--line-light);border-radius:4px;padding:0 4px}
+a{color:var(--primary)}
+
+/* top bar like the shell */
+.bar{background:var(--bar);color:var(--bar-text);margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0 calc(-1 * max(16px,env(safe-area-inset-right,0px)));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar-inner{max-width:1048px;margin:0 auto;display:flex;align-items:center;gap:14px;height:48px;flex-wrap:wrap;overflow:hidden}
+.bar .mark{font-weight:700;letter-spacing:.02em}
+.bar .co{background:var(--bar-ctl);border-radius:6px;padding:3px 10px;font-size:13px}
+.bar .mod{font-weight:700;padding:3px 10px;border-radius:6px;background:var(--bar-ctl)}
+.bar .items{display:flex;gap:2px;flex-wrap:wrap}
+.bar .items span{padding:3px 9px;font-size:13.5px;border-radius:4px;opacity:.92}
+.bar .items span.on{background:rgba(255,255,255,.14);opacity:1}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:9px;background:#E9A23B;color:#1A1D21;margin-left:4px;vertical-align:middle}
+.tabrow{background:var(--tabrow);margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0 calc(-1 * max(16px,env(safe-area-inset-right,0px)));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tabrow-inner{max-width:1048px;margin:0 auto;display:flex;gap:4px;height:34px;align-items:flex-end;overflow:hidden}
+.tab{background:transparent;color:var(--muted);padding:5px 12px;border-radius:6px 6px 0 0;font-size:13.5px;white-space:nowrap}
+.tab.on{background:var(--bg);color:var(--fg);font-weight:600}
+
+.hero{padding:28px 0 8px;display:grid;gap:10px}
+.hero h1{font-size:30px;font-weight:700}
+.hero .lead{max-width:68ch;font-size:16.5px;color:var(--muted)}
+.status{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:4px;letter-spacing:.02em}
+.pill.info{background:var(--info-bg);color:var(--info-fg)}
+.pill.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.pill.warn{background:var(--warn-bg);color:var(--warn-fg)}
+.pill.danger{background:var(--danger-bg);color:var(--danger-fg)}
+.pill.soft{background:var(--accent-soft);color:var(--info-fg)}
+
+section{margin-top:28px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);margin-bottom:6px}
+.sub{color:var(--muted);max-width:72ch;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:820px){.g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+.kpi{display:grid;gap:2px}
+.kpi b{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:13px;color:var(--muted)}
+
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{background:var(--head);text-align:left;font-weight:600;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12.5px;letter-spacing:.02em}
+td{padding:7px 10px;border-bottom:1px solid var(--line-light);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto}
+tfoot td{background:var(--head);font-weight:600}
+
+.ent h3{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ent h3 small{font-family:var(--mono);font-weight:400;font-size:11.5px;color:var(--muted)}
+.ent ul{margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--muted)}
+.ent li b{color:var(--fg);font-weight:600}
+.group{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
+
+.flow{display:grid;gap:10px}
+.step{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start}
+.step .n{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--info-fg);font-weight:700;display:grid;place-items:center;font-size:14px}
+.step h4{font-size:15px;font-weight:700}
+.step p{font-size:14px;color:var(--muted)}
+
+.svgbox{overflow-x:auto}
+svg text{font-family:var(--font)}
+svg .t{fill:var(--fg);font-size:13px;font-weight:600}
+svg .s{fill:var(--muted);font-size:11.5px}
+svg .m{fill:var(--muted);font-family:var(--mono);font-size:11px}
+svg .box{fill:var(--surface);stroke:var(--line)}
+svg .kern{fill:var(--accent-soft);stroke:var(--accent-border)}
+svg .acc{fill:var(--ok-bg);stroke:var(--ok-fg)}
+svg .fail{fill:var(--danger-bg);stroke:var(--danger-fg)}
+svg .arrow{stroke:var(--muted);fill:none;stroke-width:1.5;marker-end:url(#ah)}
+
+.pages .card h3{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pages .href{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.tabs span{font-size:12px;padding:2px 8px;border-radius:4px;background:var(--head);border:1px solid var(--line-light);color:var(--muted)}
+.tabs span.on{background:var(--accent-soft);border-color:var(--accent-border);color:var(--info-fg);font-weight:600}
+.pages p{font-size:13.5px;color:var(--muted);margin-top:8px}
+
+/* decisions */
+.q{border-left:4px solid var(--primary)}
+.q.pending{border-left-color:#E9A23B}
+.q header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+.q header h3{font-size:17px}
+.q .why{font-size:14px;color:var(--muted);max-width:76ch;margin-bottom:12px}
+.opts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.opt{border:1px solid var(--line);border-radius:6px;padding:12px;cursor:pointer;background:var(--surface);display:grid;gap:6px;position:relative}
+.opt:hover{border-color:var(--primary)}
+.opt.sel{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary);background:var(--accent-soft)}
+.opt .lab{font-weight:700;font-size:14.5px;display:flex;gap:8px;align-items:center}
+.opt .lab .k{font-family:var(--mono);font-size:11px;background:var(--head);border:1px solid var(--line-light);border-radius:4px;padding:0 5px;color:var(--muted)}
+.opt .rec{font-size:11px;font-weight:700;color:var(--ok-fg);background:var(--ok-bg);padding:0 6px;border-radius:4px}
+.opt ul{margin:0;padding-left:16px;font-size:13px}
+.opt li.p::marker{content:"+ ";color:var(--ok-fg)}
+.opt li.c::marker{content:"− ";color:var(--danger-fg)}
+.opt li{color:var(--muted)}
+.opt:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.note{margin-top:10px}
+.note textarea,#summary{width:100%;font-family:var(--font);font-size:13.5px;border:1px solid var(--line);border-radius:6px;padding:8px;background:var(--surface);color:var(--fg);resize:vertical;min-height:34px}
+#summary{font-family:var(--mono);font-size:12.5px;min-height:220px}
+.btn{font:inherit;font-weight:600;font-size:14px;background:var(--primary);color:#fff;border:none;border-radius:6px;padding:8px 14px;cursor:pointer}
+.btn:hover{background:var(--primary-hover)}
+.btn.ghost{background:transparent;color:var(--primary);border:1px solid var(--primary)}
+.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.toast{font-size:13px;color:var(--ok-fg)}
+@media (prefers-reduced-motion:no-preference){.opt{transition:border-color .12s,background .12s}}
+</style>
+
+<div class="wrap">
+  <div class="bar"><div class="bar-inner">
+    <span class="mark">ERP-IA</span>
+    <span class="co">Café del Norte S.A.S.</span>
+    <span class="mod">Contabilidad ▾</span>
+    <span class="items"><span class="on">Comprobantes</span><span>Maestros ▾</span><span>Períodos</span><span>Informes</span><span>Reglas contables<span class="badge">2</span></span></span>
+  </div></div>
+  <div class="tabrow"><div class="tabrow-inner"><span class="tab">Inicio</span><span class="tab on">Comprobantes</span><span class="tab">VT-000412</span><span class="tab">Balance de prueba</span></div></div>
+
+  <div class="hero">
+    <div class="status"><span class="pill warn">Draft for owner approval</span><span class="pill info">Phase 2 · item 1</span><span class="pill soft">2026-10-28</span><span class="pill ok">Builder check done</span></div>
+    <h1>Contabilidad and the posting engine</h1>
+    <p class="lead">What the first item of phase 2 builds: the engine that turns every business event into a balanced journal entry, and the module where a Colombian accountant reviews, completes, closes and reports. Source: <span class="mono">docs/superpowers/specs/2026-10-28-accounting-module-design.md</span>.</p>
+  </div>
+
+  <section>
+    <div class="grid g4">
+      <div class="card kpi"><b>19</b><span>entities in schema <span class="mono">accounting</span> (one a query view)</span></div>
+      <div class="card kpi"><b>59</b><span>processes, 13 under step-up, 13 reports</span></div>
+      <div class="card kpi"><b>6 + 6</b><span>menu items and Maestros, 9 record types</span></div>
+      <div class="card kpi"><b>12 / 12</b><span>decisions taken on 2026-10-28, plus the owner's three analytic masters (Auxiliar abierto, Ítem, Unidad de negocio) and, after a market benchmark and a best-practice review, exógena with concept mapping, cartera por edades five controls (four-eyes, auto-reversing accruals, close tie-out, suspense, auditor extract) and security by account; design ready for approval</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">How an event becomes an entry</div>
+    <h2>Posting engine</h2>
+    <p class="sub">The kernel owns the mechanism and knows no module by name. The accounting module plugs in as the ledger provider and is the only thing that writes its tables, through its own processes.</p>
+    <div class="card svgbox">
+      <svg viewBox="0 0 1000 330" width="1000" height="330" role="img" aria-label="Flow from a business process to a journal entry">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+        <rect class="box" x="10" y="40" width="170" height="70" rx="8"/>
+        <text class="t" x="95" y="68" text-anchor="middle">invoicing.invoice.issue</text>
+        <text class="s" x="95" y="88" text-anchor="middle">runProcess · origin ui / agent</text>
+        <rect class="box" x="10" y="140" width="170" height="60" rx="8"/>
+        <text class="t" x="95" y="165" text-anchor="middle">kernel.outbox</text>
+        <text class="s" x="95" y="184" text-anchor="middle">invoicing.invoice.issued</text>
+        <path class="arrow" d="M95 110 L95 138"/>
+        <rect class="kern" x="230" y="30" width="300" height="180" rx="8"/>
+        <text class="t" x="380" y="54" text-anchor="middle">Kernel posting engine</text>
+        <text class="s" x="380" y="72" text-anchor="middle">packages/kernel/src/posting · consumer "*"</text>
+        <rect class="box" x="245" y="86" width="130" height="44" rx="6"/><text class="s" x="310" y="104" text-anchor="middle">rules for event</text><text class="m" x="310" y="120" text-anchor="middle">provider.rulesFor</text>
+        <rect class="box" x="385" y="86" width="130" height="44" rx="6"/><text class="s" x="450" y="104" text-anchor="middle">template → lines</text><text class="m" x="450" y="120" text-anchor="middle">JSONPath subset</text>
+        <rect class="box" x="245" y="140" width="130" height="44" rx="6"/><text class="s" x="310" y="158" text-anchor="middle">role → account</text><text class="m" x="310" y="174" text-anchor="middle">receivable → 130505</text>
+        <rect class="box" x="385" y="140" width="130" height="44" rx="6"/><text class="s" x="450" y="158" text-anchor="middle">balance + rounding</text><text class="m" x="450" y="174" text-anchor="middle">Σ Dr = Σ Cr ± 1 COP</text>
+        <path class="arrow" d="M180 170 L228 170"/>
+        <rect class="acc" x="590" y="30" width="400" height="180" rx="8"/>
+        <text class="t" x="790" y="54" text-anchor="middle">Accounting module · PostingProvider</text>
+        <text class="s" x="790" y="72" text-anchor="middle">schema accounting · RLS · own processes</text>
+        <rect class="box" x="605" y="86" width="175" height="44" rx="6"/><text class="s" x="692" y="104" text-anchor="middle">entry.post_from_event</text><text class="m" x="692" y="120" text-anchor="middle">idempotent event+rule</text>
+        <rect class="box" x="795" y="86" width="180" height="44" rx="6"/><text class="s" x="885" y="104" text-anchor="middle">entries + entry_lines</text><text class="m" x="885" y="120" text-anchor="middle">VT-000412 · 3 lines</text>
+        <rect class="fail" x="605" y="140" width="175" height="44" rx="6"/><text class="s" x="692" y="158" text-anchor="middle">posting_failure.record</text><text class="m" x="692" y="174" text-anchor="middle">missing_account_mapping</text>
+        <rect class="box" x="795" y="140" width="180" height="44" rx="6"/><text class="s" x="885" y="158" text-anchor="middle">audit + accounting.entry.posted</text><text class="m" x="885" y="174" text-anchor="middle">origin event · chain id</text>
+        <path class="arrow" d="M530 108 L603 108"/>
+        <path class="arrow" d="M530 162 L603 162"/>
+        <path class="arrow" d="M780 108 L793 108"/>
+        <rect class="box" x="230" y="240" width="300" height="60" rx="8"/>
+        <text class="t" x="380" y="264" text-anchor="middle">Admin · Reglas contables</text>
+        <text class="s" x="380" y="283" text-anchor="middle">edit rule or mapping (TOTP) · probar con evento real</text>
+        <path class="arrow" d="M380 238 L380 212"/>
+        <rect class="box" x="590" y="240" width="400" height="60" rx="8"/>
+        <text class="t" x="790" y="264" text-anchor="middle">Pendientes de contabilizar</text>
+        <text class="s" x="790" y="283" text-anchor="middle">fix the cause → Reintentar (same idempotency key) · never dropped</text>
+        <path class="arrow" d="M692 186 L692 238"/>
+      </svg>
+    </div>
+    <div class="grid g2" style="margin-top:12px">
+      <div class="card">
+        <h3>Example: factura FE-1234 of Café del Norte</h3>
+        <p class="muted" style="font-size:13.5px;margin:4px 0 10px">Rule <code>invoicing.invoice.issued</code> in journal Ventas. Café 1 kg × 50 to Restaurante La Plaza, IVA 19 %.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Cuenta</th><th>Tercero / C. costo</th><th class="num">Débito</th><th class="num">Crédito</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mono">130505</span> Clientes nacionales</td><td>Restaurante La Plaza S.A.S.</td><td class="num">$ 1.190.000,00</td><td class="num"></td></tr>
+            <tr><td><span class="mono">413505</span> Comercio · Café</td><td>Ventas Bogotá</td><td class="num"></td><td class="num">$ 1.000.000,00</td></tr>
+            <tr><td><span class="mono">240801</span> IVA generado 19 %</td><td>Restaurante La Plaza S.A.S. · base $ 1.000.000,00</td><td class="num"></td><td class="num">$ 190.000,00</td></tr>
+          </tbody>
+          <tfoot><tr><td colspan="2">VT-000412 · 2026-10-28 · origen evento</td><td class="num">$ 1.190.000,00</td><td class="num">$ 1.190.000,00</td></tr></tfoot>
+        </table></div>
+      </div>
+      <div class="card">
+        <h3>The rule template, as the admin sees it</h3>
+        <p class="muted" style="font-size:13.5px;margin:4px 0 10px">Declarative JSON: roles, sides, paths into the event payload, dimensions for the mapping. No code runs.</p>
+        <div class="scroll"><table>
+          <thead><tr><th>Rol</th><th>Lado</th><th>Monto</th><th>Dimensión</th></tr></thead>
+          <tbody>
+            <tr><td><span class="mono">receivable</span></td><td>Débito</td><td class="mono">$.totals.total</td><td class="muted">—</td></tr>
+            <tr><td><span class="mono">revenue</span></td><td>Crédito</td><td class="mono">$.lines[*].subtotal</td><td class="mono">category:{{categoryId}}</td></tr>
+            <tr><td><span class="mono">vat_out</span></td><td>Crédito</td><td class="mono">$.taxes[*].amount</td><td class="mono">tax:{{code}}</td></tr>
+          </tbody>
+        </table></div>
+        <p>Dimensions let IVA 19 and IVA 5 land on different subcuentas and revenue follow the product category, with no account column on products or taxes.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Data</div>
+    <h2>Entities</h2>
+    <p class="sub">All in schema <span class="mono">accounting</span>, each with the rule 7 columns, a masked view and RLS. Spanish names are what users see.</p>
+    <div class="group">Maestros</div>
+    <div class="grid g4 ent">
+      <div class="card"><h3>Cuenta <small>account</small></h3><ul><li><b>code</b> PUC, levels by length 1·2·4·6·8+</li><li><b>nature</b> débito / crédito</li><li><b>allows_movement</b> only subcuenta or auxiliar</li><li><b>requires_party</b>, <b>requires_cost_center</b>, <b>requires_open_auxiliary</b>, <b>requires_item</b>, <b>requires_business_unit</b></li><li><b>statement_section</b> from the pack layout</li><li><b>access</b> open / restricted, inherited by the subtree</li></ul></div>
+      <div class="card"><h3>Seguridad por cuenta <small>account_permission</small></h3><ul><li>Owner 2026-10-28 · grants on a restricted account per <b>role</b> or <b>user</b>: <b>can_view</b>, <b>can_post</b></li><li>User grant wins over role; nearest ancestor with access set decides</li><li>Enforced in the views: reports aggregate "Cuentas restringidas", records mask the lines, lookups omit them; engine exempt</li></ul></div>
+      <div class="card"><h3>Movimiento (consulta) <small>ledger_line · v_ledger_lines</small></h3><ul><li>Owner 2026-10-29 · read-only query entity over a view joining line, entry, account, party and the four analytic dimensions</li><li>Every column filterable and sortable; <b>debit</b>, <b>credit</b>, <b>net</b>, <b>signed_net</b> aggregatable</li><li>Account security applied inside the view (<b>can_view_account</b>)</li><li>No table, no process of its own beyond <b>ledger_line.list</b></li></ul></div>
+      <div class="card"><h3>Mapeo de cuentas <small>account_role_mapping</small></h3><ul><li><b>role</b> receivable, revenue, vat_out…</li><li><b>dimension</b> tax:IVA_19 · category:uuid · payment_method:…</li><li><b>account_id</b> must allow movement</li><li>Resolution: explicit → (role, dim) → (role) → failure</li></ul></div>
+      <div class="card"><h3>Fuente <small>journal</small></h3><ul><li><b>code</b> NC · VT · CP · RC · CE · AP · CI</li><li><b>kind</b> general, sales, receipts, opening, closing…</li><li><b>next_number</b> own gap-free consecutivo</li><li><b>manual_entries</b> false for AP and CI</li></ul></div>
+      <div class="card"><h3>Centro de costo <small>cost_center</small></h3><ul><li><b>code</b>, <b>name</b>, <b>parent_id</b> tree</li><li><b>kind</b> group / leaf, lines on leaves only</li><li><b>is_active</b>; no default: a missing one is a visible failure</li></ul></div>
+    </div>
+    <div class="grid g4 ent" style="margin-top:12px">
+      <div class="card"><h3>Auxiliar abierto <small>open_auxiliary</small></h3><ul><li>Owner 2026-10-28 · analytic sub-ledger: projects, contracts, vehicles, employees</li><li><b>code</b>, <b>name</b>, <b>parent_id</b>, <b>kind</b> group / leaf, <b>is_active</b></li><li>Optional on any line; required per account flag</li></ul></div>
+      <div class="card"><h3>Ítem <small>item</small></h3><ul><li>Owner 2026-10-28 · what was sold or bought, independent of the catalogue</li><li>Same shape as the cost center</li><li>Hidden until <b>use_items</b> is on in Configuración</li></ul></div>
+      <div class="card"><h3>Unidad de negocio <small>business_unit</small></h3><ul><li>Owner 2026-10-28 · lines of business across cost centers</li><li>Same shape; the only one also on the <b>comprobante header</b>: lines inherit it and may override; resolved value stored on every line at post</li><li>Hidden until <b>use_business_units</b> is on</li></ul></div>
+      <div class="card"><h3>One analytic master page</h3><ul><li><b>Tabla · Árbol</b> toggle on every hierarchical master: Plan de cuentas, Centros de costo, Auxiliares abiertos, Ítems, Unidades de negocio</li><li>Tabla: DataGrid of every node (código, descripción, padre, tipo, estado, movement of the period)</li><li>Árbol: tree with the period's figure beside each node, grid of the node's children on the right</li><li>Same Nuevo form and record frame; <b>v_account_balances</b> gains the two columns</li></ul></div>
+    </div>
+    <div class="group">Tiempo</div>
+    <div class="grid g4 ent">
+      <div class="card"><h3>Año fiscal <small>fiscal_year</small></h3><ul><li>Calendar year (pack)</li><li><b>status</b> open / closed</li><li>Opening creates its 12 periods</li></ul></div>
+      <div class="card"><h3>Período <small>period</small></h3><ul><li><b>number</b> 1–12, <b>status</b> open / closed</li><li>Closes in order, step-up</li><li><b>reopened_count</b> visible</li></ul></div>
+      <div class="card"><h3>Configuración <small>settings</small></h3><ul><li><b>ledger_starts_on</b> events before it are skipped</li><li><b>rounding_tolerance</b> 1 COP</li><li><b>manual_journal_id</b>, <b>require_attachment_on_manual</b></li><li><b>niif_group</b> informational</li><li><b>use_open_auxiliaries</b>, <b>use_items</b>, <b>use_business_units</b> show or hide those dimensions</li><li><b>require_approval_on_manual</b> four-eyes on manual entries</li></ul></div>
+      <div class="card"><h3>Plantilla <small>entry_template</small></h3><ul><li>Recurring manual entries (arriendo, provisiones)</li><li>Lines with account, party, cost center, side, fixed amount</li><li><b>entry.from_template</b> creates a draft</li></ul></div>
+    </div>
+    <div class="group">Movimiento</div>
+    <div class="grid g4 ent">
+      <div class="card"><h3>Comprobante <small>entry</small></h3><ul><li><b>number</b> VT-000412 at post, none while draft</li><li><b>status</b> draft · pending · posted · reversed · voided (four-eyes: creator cannot post)</li><li><b>reverse_on</b> creates the mirrored draft at post</li><li><b>source_event_id</b> + <b>posting_rule_id</b> unique</li><li><b>source_entity / record</b> the business document</li><li><b>chain_id</b>, <b>reversal_of_id</b>, <b>is_opening</b>, <b>is_closing</b></li><li><b>business_unit_id</b> header default for the lines</li></ul></div>
+      <div class="card"><h3>Movimiento <small>entry_line</small></h3><ul><li><b>account_id</b>, <b>party_id</b>, <b>cost_center_id</b>, <b>open_auxiliary_id</b>, <b>item_id</b>, <b>business_unit_id</b> (inherits the header)</li><li><b>debit / credit</b> company currency, <b>*_doc</b> document currency</li><li><b>tax_code</b>, <b>tax_rate</b>, <b>tax_base</b> for exógena and certificates</li><li><b>reference</b>, <b>due_date</b></li></ul></div>
+      <div class="card"><h3>Regla contable <small>posting_rule</small></h3><ul><li><b>event</b>, <b>journal_id</b>, <b>priority</b></li><li><b>template</b> jsonb validated by Zod</li><li><b>is_default</b> / <b>is_modified</b> → Restablecer</li><li>Changes under step-up</li></ul></div>
+      <div class="card"><h3>Verificación de cierre <small>period_close_check</small></h3><ul><li>Owner 2026-10-28 · best-practice review</li><li>One append-only row per check <b>period.close</b> ran: drafts, approvals, failures, control tie-outs, suspense zero, rounding</li><li><b>value</b> figures compared, <b>passed</b>, user and time = sign-off</li></ul></div>
+      <div class="card"><h3>Conceptos exógena <small>fiscal_concept_mapping</small></h3><ul><li>Owner 2026-10-28 · benchmark gap</li><li><b>format</b> 1001 · 1003 · 1005 · 1006 · 1007 · 1008 · 1009, <b>concept</b> code, <b>account_id</b> (descendants inherit)</li><li>Catalogue, thresholds and XML writer in the Colombia pack; step-up to edit</li><li>Withholding columns from <b>tax_code</b>, no mapping</li></ul></div>
+      <div class="card"><h3>Pendiente de contabilizar <small>posting_failure</small></h3><ul><li><b>event_id</b>, <b>payload</b> as received</li><li><b>error_code</b> unbalanced, missing_account_mapping, closed_period, missing_party, missing_cost_center, missing_open_auxiliary, missing_item…</li><li><b>status</b> pending · resolved · dismissed</li><li>Reintentar under the same idempotency key</li></ul></div>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>Published views for other modules</h3><p class="muted" style="font-size:13.5px;margin-top:6px"><span class="mono">v_account_balances</span> (period × account × party × cost center × auxiliar abierto × ítem × unidad de negocio) · <span class="mono">v_entries_for_source</span> (the Contabilidad tab on any document) · <span class="mono">v_tax_lines</span> (exógena and certificados, Colombia pack part 2) · <span class="mono">v_open_items</span> (receivable and payable lines with their unapplied amount, FIFO per party until the payments module's allocations exist).</p></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Screens</div>
+    <h2>Menu items and pages</h2>
+    <p class="sub">Módulos → Contabilidad. Items in the top bar as shown above; records open in the record frame with their own tabs. Every grid is the universal DataGrid with filters, saved views and PDF / Excel / CSV export.</p>
+    <div class="grid g2 pages">
+      <div class="card"><h3>Movimientos <span class="href">/accounting/movements</span></h3><p>Owner 2026-10-29. One DataGrid on <b>accounting.ledger_line</b>: filter row plus conditions builder (and / or, every operator) on every field of a line, including centro de costo, auxiliar abierto, ítem and unidad de negocio · multi-sort by shift-click with level badges · <b>Agrupar por</b> up to three fields with Σ, promedio, mín, máx and conteo per group, collapsible subtotals and grand total · saved views, Excel / PDF / CSV with the groups · default: open period, posted lines · row opens the comprobante.</p></div>
+      <div class="card"><h3>Comprobantes <span class="href">/accounting/entries</span></h3><p>Grid of entries: número, fecha, fuente, detalle, débito, crédito, estado, origen. Quick filters Hoy · Este período · Borradores · Por aprobar · Automáticos · Manuales. Nuevo, Nuevo desde plantilla.</p><div class="tabs"><span class="on">Datos</span><span>Origen</span><span>Datos adicionales</span><span>Archivos</span></div><p>Record: lines grid editor while draft (keyboard-first; header unidad de negocio; columns cuenta, tercero, centro de costo, auxiliar abierto, ítem, unidad de negocio, débito, crédito), totals and difference footer, Reversar el (accrual), Enviar a aprobación · Aprobar y contabilizar · Contabilizar · Reversar · Anular borrador. Origen shows the document, the event, the rule and the causal chain timeline.</p></div>
+      <div class="card"><h3>Maestros ▾ · Plan de cuentas <span class="href">/accounting/accounts</span></h3><p>Tabla · Árbol toggle. Árbol: PUC tree on the left with the selected period's balance beside each node; grid of accounts under the node on the right. Nueva cuenta auxiliar under a subcuenta. Importar from the chart template.</p><div class="tabs"><span class="on">Datos</span><span>Saldos</span><span>Movimientos</span><span>Seguridad</span><span>Datos adicionales</span><span>Archivos</span></div></div>
+      <div class="card"><h3>Maestros ▾ · Centros de costo <span class="href">/accounting/cost-centers</span></h3><p>Analytic master page: Tabla · Árbol, the period's result beside each node, Nuevo (código, descripción, padre, tipo grupo / hoja, activo).</p><div class="tabs"><span class="on">Datos</span><span>Resultados</span><span>Movimientos</span><span>Datos adicionales</span><span>Archivos</span></div></div>
+      <div class="card"><h3>Maestros ▾ · Auxiliares abiertos · Ítems · Unidades de negocio <span class="href">/accounting/open-auxiliaries · /accounting/items · /accounting/business-units</span></h3><p>Owner 2026-10-28. The same analytic master page for the three new dimensions; unidad de negocio is also a header field of the comprobante that its lines inherit; the tree shows the period's net movement beside each node. Each appears on the lines editor, the report filters and the Auxiliar por dimensión analítica report once its <span class="mono">use_*</span> setting is on.</p><div class="tabs"><span class="on">Datos</span><span>Saldos por cuenta</span><span>Movimientos</span><span>Datos adicionales</span><span>Archivos</span></div></div>
+      <div class="card"><h3>Períodos <span class="href">/accounting/periods</span></h3><p>Fiscal years as cards; inside, the 12 periods with status, entries, totals and Cerrar / Reabrir. Cerrar año shows the computed result and the closing entries before the TOTP.</p><div class="tabs"><span class="on">Datos</span><span>Resumen</span><span>Comprobantes</span><span>Cierre · checks recorded</span></div></div>
+      <div class="card"><h3>Informes <span class="href">/accounting/reports</span></h3><p>Balance de prueba · Libro diario · Libro mayor y balances · Auxiliar por cuenta · Auxiliar por tercero · Estado de situación financiera · Estado de resultados (por centro de costo) · Auxiliar por dimensión analítica (centro de costo, auxiliar abierto o ítem) · <b>Información exógena</b> (year, format; grid by party and concept, errors panel, Excel and the prevalidador XML) · <b>Cartera y cuentas por pagar por edades</b> (por vencer · 1–30 · 31–60 · 61–90 · > 90, drill-down to the open documents) · <b>Conciliación de control</b> (control accounts vs subledgers, suspense, rounding) · <b>Auditoría de comprobantes manuales</b> (who, what, when, after close, round amounts). Filters by the three dimensions on Balance de prueba and Auxiliar. Parameter bar, totals footer, drill-down to the auxiliar, the entry and the document. PDF with the libro header.</p></div>
+      <div class="card"><h3>Reglas contables <span class="href">/accounting/posting</span></h3><p>Tabs: Reglas (by event and module, badge Modificada) · Mapeo de cuentas (unmapped roles in red) · Conceptos exógena (format → concept → accounts; accounts with movement and no concept in red) · Pendientes de contabilizar (count badge on the menu item; Reintentar, Reabrir período, Descartar) · Configuración. First visit: <b>Configurar contabilidad</b> seeds the PUC, mappings, journals and the fiscal year from the Colombia pack.</p><div class="tabs"><span class="on">Datos</span><span>Líneas</span><span>Probar</span><span>Historial</span></div></div>
+      <div class="card"><h3>Maestros ▾ · Fuentes <span class="href">/accounting/journals</span></h3><p>Grid of journals (fuentes, tipos de comprobante) with their consecutivo; record frame. Renamed from Diarios by the owner 2026-10-28.</p></div>
+      <div class="card"><h3>Everywhere else</h3><p>A <b>Contabilidad</b> tab on any record that has entries (invoice, receipt, movement), contributed through the manifest. On a product category the same tab shows <b>Cuenta de ingresos</b> and edits the revenue mapping in place (owner decision). Home widgets: Resultado del mes, Pendientes de contabilizar, Períodos abiertos, Comprobantes en borrador. The assistant answers "¿cuánto vendimos en septiembre por centro de costo?" and "¿qué pasó con la factura FE-1234?" and drafts entries behind a confirmation card.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Daily life</div>
+    <h2>Workflows</h2>
+    <div class="grid g2">
+      <div class="card flow">
+        <div class="step"><div class="n">1</div><div><h4>Puesta en marcha</h4><p>Enable the module → Configurar contabilidad (TOTP) → review mapping and default rules → add auxiliares and cost centers → opening balances arrive as drafts in Apertura (phase 2b) and the accountant posts them under step-up.</p></div></div>
+        <div class="step"><div class="n">2</div><div><h4>Contabilización automática</h4><p>Order confirmed → invoice issued → Ventas entry; COGS → Notas; receipt → Recibos de caja. The accountant filters Comprobantes by Hoy and jumps from Origen to the invoice. A failure shows on the badge and the home widget; fix the cause, Reintentar.</p></div></div>
+        <div class="step"><div class="n">3</div><div><h4>Nota de contabilidad manual</h4><p>Nuevo → NC, date, detalle → lines with account and party lookups, live difference → attach the soporte → Contabilizar. Or from a template, or by asking the assistant "registra la provisión de arriendo de octubre por $ 2.500.000".</p></div></div>
+        <div class="step"><div class="n">4</div><div><h4>Reversión</h4><p>Reversar on a posted entry: date and reason → a mirrored entry, both linked. Document voids reverse through their own event.</p></div></div>
+        <div class="step"><div class="n">5</div><div><h4>Cierre mensual</h4><p>Checklist: borradores 0 · pendientes 0 · saldos de naturaleza contraria → TOTP → closed. Reabrir with TOTP, the whole month or one day; later balances follow automatically; the counter shows how often.</p></div></div>
+      </div>
+      <div class="card flow">
+        <div class="step"><div class="n">6</div><div><h4>Cierre de año</h4><p>12 periods closed → preview: classes 4–7 zeroed against 5905, then 5905 to 3605 (utilidad) or 3610 (pérdida) → TOTP → year closed, next year open. Moving the result to 3705 / 3710 after the asamblea is a templated manual entry.</p></div></div>
+        <div class="step"><div class="n">7</div><div><h4>Informes</h4><p>Pick a report → parameters → grid → drill: trial balance row → auxiliar → entry → document. Export PDF, Excel, CSV; save the parameter set as a view.</p></div></div>
+        <div class="step"><div class="n">8</div><div><h4>Cambiar una regla</h4><p>Edit lines → Probar con un evento real → preview → Guardar (TOTP). Or tell the assistant "las ventas de Bebidas van a la 413520": it proposes the mapping as a card and asks for the code.</p></div></div>
+        <div class="step"><div class="n">9</div><div><h4>¿Qué pasó con la factura FE-1234?</h4><p>From the invoice's Contabilidad tab, or by asking: the assistant reads the entries and the audit chain and explains the order → invoice → entry → receipt sequence.</p></div></div>
+        <div class="step"><div class="n">10</div><div><h4>Exógena del año y cartera vencida</h4><p>Conceptos exógena all green → Informes → Información exógena → formato, año → errors panel empty → Exportar XML for the prevalidador. Cartera por edades by customer, click a row for its open invoices; "¿quién me debe más de 90 días?" to the assistant.</p></div></div>
+        <div class="step"><div class="n">11</div><div><h4>Cuatro ojos y acumulaciones</h4><p>Andrés drafts the provisión and sends it to approval; Laura opens Por aprobar, reviews and posts it (she cannot post her own). An accrual carries Reversar el 01/11: posting it leaves the mirrored draft in November. Cerrar octubre runs the control tie-outs and the suspense check and records each as a sign-off row.</p></div></div>
+        <div class="step"><div class="n">12</div><div><h4>Seguridad por cuenta</h4><p>Laura restricts 5105 Gastos de personal to contador and gerencia (Seguridad tab, TOTP). Andrés, auxiliar contable, then sees one line "Cuentas restringidas" in the Balance de prueba, masked lines on the payroll comprobante, no 5105 in his lookups, and totals that still equal Laura's.</p></div></div>
+        <div class="step"><div class="n">13</div><div><h4>Consultar movimientos</h4><p>Movimientos → Cuenta 5105, Centro de costo en (Ventas Bogotá, Ventas Medellín), Tercero contiene "Nómina" → sort Fecha, then Débito ↓ (shift-click) → Agrupar por Cuenta, Centro de costo → two levels of subtotals with Σ débito, Σ crédito, Σ neto and count → Guardar vista "Gastos de personal por sede" → Excel keeps the groups. Marcela gets zero lines and the omitted-lines note.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Control</div>
+    <h2>Processes under step-up</h2>
+    <p class="sub">Everything else is a normal process the admin may raise. Two engine-only processes (<span class="mono">entry.post_from_event</span>, <span class="mono">posting_failure.record</span>) run with origin event and cannot be raised, since no human is there to type a code.</p>
+    <div class="card scroll"><table>
+      <thead><tr><th>Process</th><th>Why step-up</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">accounting.chart.seed</td><td>Writes the whole chart, mappings and journals for the company</td></tr>
+        <tr><td class="mono">accounting.period.close · period.reopen</td><td>Locks or unlocks a month of books</td></tr>
+        <tr><td class="mono">accounting.year.close · year.reopen</td><td>Posts the result to equity, opens the next year</td></tr>
+        <tr><td class="mono">accounting.posting_rule.create · update · disable</td><td>Changes how every future event is posted (design §5.6)</td></tr>
+        <tr><td class="mono">accounting.account_role_mapping.update</td><td>Same reach as a rule change</td></tr>
+        <tr><td class="mono">accounting.opening.post</td><td>Puts the opening balances into the books</td></tr>
+        <tr><td class="mono">accounting.settings.update</td><td>Rounding, closed-period policy, ledger start</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="decisions">
+    <div class="eyebrow">Your call</div>
+    <h2>Decisions</h2>
+    <p class="sub">Your answers of 2026-10-28 are recorded on each card (<b>Owner:</b> line) and in §10b of the design; the chosen option is preselected. You can still change any pick and copy the summary back.</p>
+    <div class="grid" id="qs"></div>
+    <div class="card" style="margin-top:16px">
+      <h3>Your answers</h3>
+      <p class="muted" style="font-size:13.5px;margin:4px 0 10px">Copy this into the chat. Unanswered items are listed as pending.</p>
+      <textarea id="summary" readonly aria-label="Summary of answers"></textarea>
+      <div class="toolbar"><button class="btn" id="copy" type="button">Copy answers</button><button class="btn ghost" id="reset" type="button">Clear selections</button><span class="toast" id="toast" aria-live="polite"></span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">After approval</div>
+    <h2>Next step</h2>
+    <p class="sub">Once the document is approved with your answers, the phase 2 plan is written task by task, tests first: kernel changes (wildcard consumer, origin-restricted processes, ReportDef, recordTabs with mapping tabs, NavItem groups), the Colombia pack extension, migrations, processes, pages, guides. Nothing is built before that plan exists.</p>
+  </section>
+</div>
+
+<script>
+(function(){
+  var Q = [
+    {id:"Q1", decided:"A", owner:"Deprecate the core column, but keep Cuenta de ingresos on the product category record: accountants map on the related entity too. Done through a mapping tab contributed by the accounting manifest.", title:"Revenue account per product category", why:"Phase 1 shipped core.product_categories.income_account (main design §5.18). The accounting design maps revenue by category through the category:<uuid> dimension in Contabilidad → Mapeo de cuentas. Two sources of truth cannot coexist.", opts:[
+      {k:"A", rec:true, label:"Deprecate the core column", pros:["One source of truth, in the module that owns accounts","Core stays free of accounting data (rule 3, §10.12)","Mapping UI shows every dimension in one place"], cons:["Design change recorded in §22","A phase 1 column becomes dead and is migrated once","Category form loses the account field"]},
+      {k:"B", label:"Keep income_account in core", pros:["Category form keeps the field people expect from Siigo and Alegra","No design change"], cons:["Accounting data lives in core","The provider must read a core view while resolving revenue","Two places to maintain revenue mapping"]}
+    ]},
+    {id:"Q2", decided:"A", owner:"Decided after explanation: event-only processes carry origins event and cannot be raised to step-up. Option B is not planned.", title:"Step-up for processes run by event consumers", why:"runProcess demands a fresh TOTP for any step-up process whatever the origin. Consumers run with origin event and no user, so an admin raising inventory.movement.post or entry.post would break the sale flow. Accounting needs an answer now; the platform needs one eventually.", opts:[
+      {k:"A", rec:true, label:"Origin-restricted processes, accounting only", pros:["Small kernel change (ProcessDef.origins)","Contained: no rule amendment","Admins still raise the human-facing entry.post"], cons:["The same problem returns with inventory, costing, payments","Automatic postings can never be made sensitive"]},
+      {k:"B", label:"A chained process inherits the root's step-up", pros:["General: any process may be raised","The human who started the chain pays once"], cons:["Amends rule 15 and design §5.4 step 3","Kernel task with subtle semantics (freshness across a long chain)","Bigger review surface in phase 2"]}
+    ]},
+    {id:"C1", decided:"A", owner:"Confirmed. Owner asked whether formato 2516 and NIIF vs fiscal differences work with one ledger: yes, contable column from the ledger, fiscal column from a yearly reconciliation layer (design §5.10).", title:"One book or two", why:"Colombian companies report under NIIF (grupo 1, 2 or 3) and the DIAN asks for the conciliación fiscal (formato 2516). The draft keeps one PUC ledger and records the NIIF group as information.", opts:[
+      {k:"A", rec:true, label:"Single PUC ledger", pros:["What most PYMES and their accountants run","Half the tables, tests and reports","Dual books can be added as a ledger dimension later"], cons:["No automatic formato 2516","Differences NIIF vs fiscal handled outside the system"]},
+      {k:"B", label:"Dual ledger from day one", pros:["Complete for grupo 1 companies","Conciliación fiscal from data"], cons:["Doubles every rule and report","Few phase 2 customers need it","Delays the sale flow exit criteria"]}
+    ]},
+    {id:"C2", decided:"A", owner:"Amended. The document's own date decides: a credit note of 2026-11-01 against an invoice of 2026-10-30 posts in November. Otherwise the period must be open; a privileged user reopens the period or the single day, posts, and later balances recompute automatically. No automatic move to another period.", title:"Event dated in a closed period", why:"A credit note or a late receipt can refer to a month already closed. Something must happen to its entry.", opts:[
+      {k:"A", rec:true, label:"Fail; reopen the period or the day under TOTP, then retry (owner wording)", pros:["The accountant decides, every case visible in Pendientes","Entry keeps its document date; audit shows who reopened"], cons:["Someone must look at the inbox","A company that never looks accumulates pending entries"]},
+      {k:"B", label:"Post automatically in the first open period", pros:["Nothing waits","Books always complete"], cons:["Entries move months without a human seeing it","Harder to explain to a revisor fiscal"]}
+    ]},
+    {id:"C3", decided:"A", owner:"Confirmed.", title:"When withholdings suffered are recognised", why:"A customer that is agente de retención keeps retefuente, reteIVA or reteICA when paying. The seller records it against 1355.", opts:[
+      {k:"A", rec:true, label:"At collection (payments.received)", pros:["Matches the moment the customer practises it","Receivable stays gross until paid; no double count","One rule"], cons:["The invoice does not show the expected retention"]},
+      {k:"B", label:"At invoice issue, reversed if not practised", pros:["Receivable net from day one","Retention visible on the invoice entry"], cons:["Needs a correction when the customer does not retain","Two rules and a reconciliation"]}
+    ]},
+    {id:"C4", decided:"A", owner:"Confirmed.", title:"How the chart gets seeded", why:"Seeding writes hundreds of rows; the design marks it step-up. Enabling a module is an entitlement write with no user code available.", opts:[
+      {k:"A", rec:true, label:"Configurar contabilidad button on first visit (TOTP)", pros:["Keeps step-up honest","Admin sees and confirms what is created","Re-runnable, additive"], cons:["One extra step after enabling","Events before setup are skipped (counted) until the ledger starts"]},
+      {k:"B", label:"Automatic on enable", pros:["Zero steps"], cons:["Needs a step-up exemption or a non-sensitive seed","Runs on every trial company without anyone asking"]}
+    ]},
+    {id:"C5", decided:"A", owner:"Confirmed.", title:"Report infrastructure", why:"Today grids bind only to entities. The seven fiscal reports need a kernel report definition (parameters, consult source, totals, export over all pages, saved parameter sets).", opts:[
+      {k:"A", rec:true, label:"Build ReportDef in the kernel now, reports use it", pros:["Every later module reuses it (finance, inventory, payroll)","Reports inherit rule 20: filters, views, exports"], cons:["Adds kernel tasks before the first report","Longer first item of phase 2"]},
+      {k:"B", label:"Hand-made report pages, generalise later", pros:["Reports ship sooner"], cons:["Rework when finance and payroll need the same","Seven pages that each reinvent filters and exports"]}
+    ]},
+    {id:"C6", decided:"A", owner:"Confirmed.", title:"Journal consecutivos", why:"Entries need a gap-free number per journal. core.document_sequences exists for DIAN documents with resolutions.", opts:[
+      {k:"A", rec:true, label:"Own counter per journal in accounting", pros:["No cross-module write (rules 1 and 3)","No resolution fields a journal never uses"], cons:["Two numbering mechanisms in the product"]},
+      {k:"B", label:"core.document_sequences through a new core process", pros:["One numbering mechanism"], cons:["Needs nested process calls the kernel lacks","Journals carry DIAN fields that mean nothing"]}
+    ]},
+    {id:"C7", decided:"A", owner:"Amended: Plan de cuentas, Centros de costo and Fuentes (then called Diarios) under a Maestros group; five items on the bar, six since Movimientos (2026-10-29). Later the same day: Auxiliares abiertos, Ítems and Unidades de negocio join the group, and every hierarchical master gets a Tabla · Árbol toggle. After a benchmark of ten Colombian packages, exógena with concept mapping and cartera por edades were pulled into phase 2; after a best-practice review, five controls (§5.12); then security by account (§5.13).", title:"Menu composition", why:"Seven items fit the items bar on a laptop; fewer items mean deeper pages.", opts:[
+      {k:"A", rec:true, label:"Five items: Comprobantes · Maestros ▾ (Plan de cuentas, Centros de costo, Fuentes) · Períodos · Informes · Reglas contables", pros:["Masters grouped, bar fits a laptop","Pending-postings badge visible on the bar"], cons:["Masters one click deeper","NavItem.children is a kernel task"]},
+      {k:"B", label:"Five items, Fuentes and Reglas under Configuración", pros:["Cleaner bar","Setup pages grouped"], cons:["Failures hidden one level deeper","Accountants open Reglas often in the first months"]}
+    ]},
+    {id:"C8", decided:"A", owner:"Confirmed.", title:"Year-end close path", why:"PUC practice closes income and expense through 5905 ganancias y pérdidas before equity.", opts:[
+      {k:"A", rec:true, label:"Through 5905, then 3605 or 3610 by sign", pros:["Matches Colombian software and auditors","Profit and loss land on the right accounts"], cons:["Two closing entries instead of one"]},
+      {k:"B", label:"Straight to 3605 / 3610", pros:["One entry"], cons:["Unusual for a revisor fiscal","5905 never shows the result"]}
+    ]},
+    {id:"C9", decided:"A", owner:"Confirmed.", title:"Draft entries that are not wanted", why:"Rule 9 says documents are voided, never deleted. A draft has no number yet.", opts:[
+      {k:"A", rec:true, label:"Void drafts (status voided)", pros:["Rule 9 read strictly","Audit keeps the attempt"], cons:["Voided drafts stay in the grid behind a filter"]},
+      {k:"B", label:"Delete drafts", pros:["Clean grid"], cons:["An exception to rule 9 to record in §22","The audit row is all that remains"]}
+    ]},
+    {id:"C10", decided:"A", owner:"Confirmed.", title:"Entry templates in phase 2", why:"Recurring manual entries (arriendo, provisiones, depreciación until assets arrive) are retyped monthly without them.", opts:[
+      {k:"A", rec:true, label:"Include templates", pros:["Small entity, high daily value","Assistant can fill a template from a sentence"], cons:["Two more tables and a page"]},
+      {k:"B", label:"Defer to phase 3", pros:["Smaller plan"], cons:["Accountants retype the same entry every month for a phase"]}
+    ]}
+  ];
+  var KEY = "erp-ia-accounting-decisions-v1";
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { state = {}; }
+  var root = document.getElementById("qs");
+  Q.forEach(function(q){
+    var card = document.createElement("div");
+    card.className = "card q" + (q.pending ? " pending" : "");
+    if (q.decided && !(state[q.id] && state[q.id].k)) { state[q.id] = state[q.id] || {}; state[q.id].k = q.decided; }
+    var h = '<header><span class="pill ' + (q.pending ? 'warn">Awaiting your confirmation' : (q.decided ? 'ok">Decided 2026-10-28' : 'soft">My call, overturnable')) + '</span><h3>' + q.id + ' · ' + q.title + '</h3></header><p class="why">' + q.why + '</p>' + (q.owner ? '<p class="why"><b>Owner:</b> ' + q.owner + '</p>' : '') + '<div class="opts" role="radiogroup" aria-label="' + q.title + '">';
+    q.opts.forEach(function(o){
+      h += '<div class="opt" role="radio" tabindex="0" data-q="' + q.id + '" data-k="' + o.k + '" aria-checked="false"><div class="lab"><span class="k">' + o.k + '</span>' + o.label + (o.rec ? '<span class="rec">recommended</span>' : '') + '</div><ul>' + o.pros.map(function(p){return '<li class="p">' + p + '</li>';}).join('') + o.cons.map(function(c){return '<li class="c">' + c + '</li>';}).join('') + '</ul></div>';
+    });
+    h += '</div><div class="note"><textarea id="note-' + q.id + '" rows="1" placeholder="Note for ' + q.id + ' (optional)" aria-label="Note for ' + q.id + '"></textarea></div>';
+    card.innerHTML = h;
+    root.appendChild(card);
+  });
+  function paint(){
+    document.querySelectorAll(".opt").forEach(function(el){
+      var on = state[el.dataset.q] && state[el.dataset.q].k === el.dataset.k;
+      el.classList.toggle("sel", !!on);
+      el.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    Q.forEach(function(q){ var t = document.getElementById("note-" + q.id); if (t && state[q.id] && state[q.id].note != null && t.value !== state[q.id].note) t.value = state[q.id].note; });
+    var lines = ["Accounting module design, my answers (2026-10-28):", ""];
+    Q.forEach(function(q){
+      var s = state[q.id] || {};
+      var opt = q.opts.filter(function(o){ return o.k === s.k; })[0];
+      lines.push(q.id + " " + q.title + ": " + (opt ? opt.k + " · " + opt.label : "pending") + (s.note ? " — " + s.note : ""));
+    });
+    document.getElementById("summary").value = lines.join("\n");
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  function pick(el){ state[el.dataset.q] = state[el.dataset.q] || {}; state[el.dataset.q].k = el.dataset.k; paint(); }
+  root.addEventListener("click", function(e){ var el = e.target.closest(".opt"); if (el) pick(el); });
+  root.addEventListener("keydown", function(e){ var el = e.target.closest(".opt"); if (el && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pick(el); } });
+  root.addEventListener("input", function(e){ if (e.target.tagName === "TEXTAREA") { var id = e.target.id.replace("note-", ""); state[id] = state[id] || {}; state[id].note = e.target.value; paint(); } });
+  document.getElementById("copy").addEventListener("click", function(){
+    var ta = document.getElementById("summary"), toast = document.getElementById("toast");
+    function fallback(){ ta.focus(); ta.select(); toast.textContent = "Selected: press ⌘C / Ctrl+C"; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(function(){ toast.textContent = "Copied"; setTimeout(function(){ toast.textContent = ""; }, 2500); }, fallback);
+    } else fallback();
+  });
+  document.getElementById("reset").addEventListener("click", function(){ state = {}; Q.forEach(function(q){ var t = document.getElementById("note-" + q.id); if (t) t.value = ""; }); paint(); });
+  paint();
+})();
+</script>
