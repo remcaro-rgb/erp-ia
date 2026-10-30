@@ -17,7 +17,7 @@ import {
   type GridStateInput,
   type RequiredTag,
 } from "@erp/kernel";
-import type { CategoryOption, GridColumn, PartyTables, ProductTables } from "@erp/ui";
+import type { CategoryOption, GridColumn, MasterKind, PartyTables, ProductTables } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
 import { buildColumns } from "@/lib/grid/columns";
@@ -25,6 +25,7 @@ import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
 import { loadEntryForm, type EntryFormData } from "@/lib/accounting/entry-load";
+import { loadAccountingTabs, loadMasterOptions, type AccountingTabs, type MasterOptions, type TemplateLineView } from "@/lib/accounting/record-tabs";
 import { loadContributedTabs, type LoadedContribution } from "./contributed-load";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
 import { partyTables, productTables } from "./tables";
@@ -43,7 +44,9 @@ export type FormData =
       supplier: { fields: GridColumn[]; label: string | null; entityLabel: string; linkable: boolean };
     }
   | { kind: "category"; tables: ProductTables; productCount: number }
-  | ({ kind: "entry" } & EntryFormData);
+  | ({ kind: "entry" } & EntryFormData)
+  // The accounting masters (Task 28): Cuenta, the four analytic nodes, Fuente, Plantilla, Período and Regla contable share one form.
+  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean } | null };
 
 /** What the caller may do on the record's tabs: each flag is the process (and, for files, the owner's update) they may run. */
 export interface RecordAbilities {
@@ -101,8 +104,23 @@ export interface LoadedRecord {
   verifications: Record<string, "queued" | "verified" | "failed">;
   /** The tabs other modules' manifests add to this record's page that it shows (none for a new record). */
   contributed: LoadedContribution[];
+  /** The tabs of an accounting master besides Datos (Saldos, Seguridad, Cierre, Líneas…); null for any other record. */
+  accounting: AccountingTabs | null;
   form: FormData;
 }
+
+/** The accounting masters and the form kind each opens (Task 28). */
+const MASTER_KINDS: Readonly<Record<string, MasterKind>> = {
+  "accounting.account": "account",
+  "accounting.cost_center": "dimension",
+  "accounting.open_auxiliary": "dimension",
+  "accounting.item": "dimension",
+  "accounting.business_unit": "dimension",
+  "accounting.journal": "journal",
+  "accounting.entry_template": "template",
+  "accounting.period": "period",
+  "accounting.posting_rule": "rule",
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -186,7 +204,17 @@ export async function refLabelsOf(caller: Caller, entity: EntityDef, values: Rec
   return labels;
 }
 
-async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"]): Promise<FormData> {
+async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"], accounting: AccountingTabs | null): Promise<FormData> {
+  const master = MASTER_KINDS[entity.id];
+  if (master) {
+    return {
+      kind: "master",
+      master,
+      options: await loadMasterOptions(caller, entity.id, record?.id ?? null),
+      templateLines: accounting?.kind === "template" ? accounting.lines : null,
+      rule: master === "rule" && record ? { isDefault: record.is_default === true, isModified: record.is_modified === true } : null,
+    };
+  }
   const locale = await getLocale();
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
   if (entity.id === "accounting.entry") return { kind: "entry", ...(await loadEntryForm(caller, record)) };
@@ -256,7 +284,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   const [defs, partyContacts, runnable, required, files] = await Promise.all([
     record ? orEmpty(customFields(caller, entity.id)) : Promise.resolve([]),
     record && entity.id === "core.party" ? orEmpty(contacts(caller, record.id)) : Promise.resolve([]),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, entity.create, ...TAB_PROCESSES]),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [saveProcess, entity.create, entity.update, ...TAB_PROCESSES].filter((p) => p !== "")),
     record ? requiredTagsFor(deps.sql, caller.claims, entity.id, factsOf(entity.id, record, access.modes)) : Promise.resolve([]),
     record ? orNull(attachments(caller, entity.id, record.id)) : Promise.resolve([]),
   ]);
@@ -280,7 +308,8 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     duplicate: record !== null && runnable.has(entity.create),
   };
   const contributed = record ? await loadContributedTabs(caller, entity.id, record.id, gridRows) : [];
-  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, form: await formData(caller, entity, record) };
+  const accounting = record && MASTER_KINDS[entity.id] ? await loadAccountingTabs(caller, entity.id, record) : null;
+  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting) };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

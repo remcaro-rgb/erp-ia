@@ -61,7 +61,17 @@
         "extra": "Additional data",
         "archivos": "Files",
         "mensajes": "Messages",
-        "origen": "Origin"
+        "origen": "Origin",
+        "saldos": "Balances",
+        "movimientos": "Movements",
+        "seguridad": "Security",
+        "resultados": "Results",
+        "resumen": "Summary",
+        "comprobantes": "Entries",
+        "cierre": "Close",
+        "lineas": "Lines",
+        "probar": "Test",
+        "historial": "History"
       },
       "number": "No.",
       "uuid": "uuid",
@@ -806,6 +816,201 @@
         "template_failed": "The draft could not be created: {reason}"
       },
       "totals_label": "Voucher totals"
+    },
+    "acc_record": {
+      "no_access": "No access",
+      "restricted_account": "Restricted account",
+      "year": "Fiscal year",
+      "period": "Period",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance",
+      "balances_label": "Balances by period",
+      "no_periods": "There are no periods yet",
+      "balances_by_account": "Balances by account",
+      "from": "From",
+      "to": "To",
+      "account": "Account",
+      "net": "Net",
+      "total": "Total",
+      "accounts_label": "Balances by account",
+      "results_label": "Results by period",
+      "no_movement": "No movement in the range",
+      "income": "Income",
+      "expense": "Expenses",
+      "result": "Result",
+      "entry": "Entry",
+      "summary_label": "Entries by journal",
+      "no_entries": "The period has no posted entries",
+      "journal": "Journal",
+      "entries": "Entries",
+      "closed_on": "Closed on {at} by {by}",
+      "reopened": "{count, plural, one {reopened # time} other {reopened # times}}",
+      "reopened_for": "open only for {date}",
+      "checks": "Close checks",
+      "checks_label": "Recorded close checks",
+      "no_checks": "Closing this period has not been tried yet",
+      "check": "Check",
+      "passed": "Passed",
+      "failed": "Failed",
+      "figures": "Figures",
+      "signed_by": "Run by",
+      "at": "Date",
+      "history": "Close and reopen history",
+      "history_empty": "No close or reopen runs recorded",
+      "security": {
+        "access": "Access to the account",
+        "open": "Open",
+        "restricted": "Restricted",
+        "open_note": "Everyone who can see the chart of accounts sees this account and can post to it.",
+        "restricted_note": "Only the administrator and those granted below see the account, its balances and its movements; the accounts under it inherit the restriction.",
+        "inherited": "Inherits the restriction of {account}",
+        "grants": "Permissions",
+        "grants_label": "Account permissions",
+        "no_grants": "No permissions: only the administrator sees and posts to this account.",
+        "subject": "Role or user",
+        "kind": "Type",
+        "role": "Role",
+        "user": "User",
+        "view": "View",
+        "post": "Post",
+        "view_of": "View · {name}",
+        "post_of": "Post · {name}",
+        "remove": "Remove",
+        "remove_of": "Remove {name}",
+        "actions": "Actions",
+        "pick": "Role or user to add",
+        "pick_empty": "Choose…",
+        "roles": "Roles",
+        "users": "Users",
+        "add": "Add",
+        "save": "Save",
+        "discard": "Discard",
+        "saving": "Saving…"
+      },
+      "form": {
+        "yes": "Yes",
+        "no": "No",
+        "no_parent": "No parent (root)",
+        "missing": "Required data is missing",
+        "statement_section_hint": "Empty: inherits the parent account's",
+        "template_lines": "Template lines",
+        "template_account": "Account",
+        "template_side": "Side",
+        "template_amount": "Amount",
+        "asked": "Asked when used",
+        "side": {
+          "debit": "Debit",
+          "credit": "Credit"
+        },
+        "section": {
+          "account": "Account",
+          "dimension": "Analytic node",
+          "journal": "Journal",
+          "template": "Entry template",
+          "period": "Period",
+          "rule": "Posting rule"
+        },
+        "field": {
+          "account": {
+            "code": "Code",
+            "name": "Description",
+            "nature": "Nature",
+            "statement_section": "Financial statement section",
+            "requires_party": "Requires party",
+            "requires_cost_center": "Requires cost center",
+            "requires_open_auxiliary": "Requires open auxiliary",
+            "requires_item": "Requires item",
+            "requires_business_unit": "Requires business unit",
+            "is_active": "Active",
+            "level": "Level",
+            "allows_movement": "Takes movements"
+          },
+          "dimension": {
+            "code": "Code",
+            "name": "Description",
+            "parent_id": "Parent",
+            "kind": "Type",
+            "is_active": "Active"
+          },
+          "journal": {
+            "code": "Code",
+            "name": "Name",
+            "kind": "Type",
+            "manual_entries": "Takes manual entries",
+            "is_active": "Active",
+            "next_number": "Next number"
+          },
+          "template": {
+            "name": "Name",
+            "journal_id": "Journal",
+            "description": "Description"
+          },
+          "period": {
+            "number": "Number",
+            "starts_on": "From",
+            "ends_on": "To",
+            "status": "Status"
+          },
+          "rule": {
+            "event": "Event",
+            "name": "Name",
+            "journal_id": "Journal",
+            "priority": "Priority",
+            "description": "Description",
+            "is_active": "Active",
+            "module": "Module"
+          }
+        }
+      },
+      "rule": {
+        "modified": "Modified",
+        "default": "Default",
+        "own": "Company's own",
+        "lines_label": "Rule lines",
+        "line_n": "Line {n}",
+        "remove_col": "Remove line",
+        "remove_line": "Remove line {n}",
+        "add_line": "Add line",
+        "paths_hint": "Paths start at the event: $.totals.total, $.lines[*].subtotal",
+        "read_only": "Read only for your role",
+        "saving": "Saving…",
+        "incomplete": "Every line needs a role or an account and the path of its amount",
+        "discard": "Discard",
+        "save": "Save",
+        "side": {
+          "debit": "Debit",
+          "credit": "Credit"
+        },
+        "col": {
+          "role": "Role",
+          "account": "Fixed account",
+          "side": "Side",
+          "amount": "Amount",
+          "dimension": "Dimension",
+          "party": "Party",
+          "cost_center": "Cost center",
+          "open_auxiliary": "Open auxiliary",
+          "item": "Item",
+          "business_unit": "Business unit",
+          "tax_code": "Tax code",
+          "tax_rate": "Rate",
+          "tax_base": "Base",
+          "description": "Detail"
+        },
+        "test_denied": "Your role cannot test rules",
+        "no_events": "The company has no events of this kind to test with yet",
+        "event_pick": "Real event",
+        "test_run": "Test with a real event",
+        "reverses": "The rule reverses the entry of event {event}",
+        "preview": "Preview",
+        "preview_label": "Lines of the entry it would produce",
+        "no_lines": "The rule produces no lines",
+        "history_denied": "Only the administrator sees the change history",
+        "history_empty": "This rule has no recorded changes",
+        "history_label": "Rule changes",
+        "preview_account": "Account"
+      }
     }
   },
   "nav": {
@@ -944,7 +1149,16 @@
         "ticket": "support ticket"
       },
       "accounting": {
-        "entry": "voucher"
+        "entry": "voucher",
+        "account": "account",
+        "cost_center": "cost center",
+        "open_auxiliary": "open auxiliary",
+        "item": "item",
+        "business_unit": "business unit",
+        "journal": "journal",
+        "entry_template": "entry template",
+        "period": "period",
+        "posting_rule": "posting rule"
       }
     },
     "support": {
@@ -1823,6 +2037,22 @@
         "auto": "Automatic",
         "import": "Imported",
         "template": "Template"
+      },
+      "period_status": {
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "close_check": {
+        "drafts": "No drafts",
+        "pending_failures": "No pending postings",
+        "pending_approvals": "No entries awaiting approval",
+        "undispatched_events": "No undispatched events",
+        "control_receivable": "Receivables control",
+        "control_payable": "Payables control",
+        "control_inventory": "Inventory control",
+        "suspense_zero": "Suspense account at zero",
+        "rounding_within_tolerance": "Rounding within tolerance",
+        "contra_nature_balances": "No balances against nature"
       }
     },
     "record_title": {

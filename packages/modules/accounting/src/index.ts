@@ -36,3 +36,5 @@ export { DIMENSIONS, DIMENSION_DEFS } from "./dimensions";
 export type { Dimension, DimensionDef } from "./dimensions";
 export { figureOf, MASTER_ENTITIES, masterTree } from "./masters/tree";
 export type { MasterEntity, MasterFigure, MasterTree, MasterTreeItem } from "./masters/tree";
+export { accountBalances, listPeriods, nodeFigures } from "./masters/figures";
+export type { AccountBalanceRow, AccountBalances, NodeAccountRow, NodeFigures, PeriodRef } from "./masters/figures";

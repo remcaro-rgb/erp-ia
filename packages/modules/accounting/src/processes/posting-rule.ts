@@ -1,8 +1,8 @@
-import { composeEntry, defineProcess, ProcessError, RuleTemplate, type ComposedLine, type ProcessContext } from "@erp/kernel";
+import { composeEntry, defineProcess, ProcessError, RuleTemplate, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { defined, invalid } from "./common";
 import { knownRoles, resolveRoleAccount } from "./mapping";
-import { id, idOutput } from "./schemas";
+import { id, idOutput, rowOutput } from "./schemas";
 
 // Reglas contables (accounting design §4.8, §5.6): per-company copies of the rules modules ship. Changing them changes where
 // every future event posts, so create, update and disable run under step-up; `posting_rule.test` previews a rule on a past event.
@@ -98,6 +98,24 @@ export const postingRuleDisable = defineProcess({
   },
 });
 
+export const postingRuleConsult = defineProcess({
+  id: "accounting.posting_rule.consult",
+  module: "accounting",
+  kind: "consult",
+  feature: "accounting.posting",
+  description: "Consulta una regla contable con su plantilla, su fuente y si la empresa la modificó",
+  input: z.object({ id }).strict(),
+  output: rowOutput,
+  handler: async (ctx, { id: ruleId }) => {
+    const [row] = await ctx.tx`
+      select r.*, j.code as journal_code, j.name as journal_name
+      from accounting.v_posting_rules r left join accounting.v_journals j on j.id = r.journal_id
+      where r.id = ${ruleId}`;
+    if (!row) throw new ProcessError("not_found", `posting rule ${ruleId} not found`);
+    return { ...row, id: ruleId, extra: await visibleExtra(ctx, "accounting.posting_rule", row.extra) };
+  },
+});
+
 export const postingRuleTest = defineProcess({
   id: "accounting.posting_rule.test",
   module: "accounting",
@@ -165,4 +183,4 @@ export const postingRuleSyncDefaults = defineProcess({
   handler: async (ctx) => ({ inserted: await syncDefaultRules(ctx) }),
 });
 
-export const POSTING_RULE_PROCESSES = [postingRuleCreate, postingRuleUpdate, postingRuleDisable, postingRuleTest, postingRuleSyncDefaults];
+export const POSTING_RULE_PROCESSES = [postingRuleCreate, postingRuleUpdate, postingRuleDisable, postingRuleConsult, postingRuleTest, postingRuleSyncDefaults];

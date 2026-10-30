@@ -20,6 +20,8 @@ export async function saveRecordAction(entityId: string, input: Record<string, u
   const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
   const creating = typeof input.id !== "string";
   const process = creating ? entity.create : entity.update;
+  // An entity with no such form (a Período is only shown; a Regla contable is created elsewhere) answers like any other refusal.
+  if (!process) return { ok: false, code: "forbidden", details: [] };
   const sourceRowId = creating && typeof options?.sourceRowId === "string" ? options.sourceRowId : undefined;
   try {
     if (sourceRowId) await runProcess(processDeps(), caller, entity.consult, { id: sourceRowId });

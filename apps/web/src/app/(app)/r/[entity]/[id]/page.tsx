@@ -4,7 +4,8 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
-import { OriginTab } from "@erp/ui";
+import { NoAccess, OriginTab } from "@erp/ui";
+import { accountingContent } from "./accounting-content";
 import { loadRecord } from "@/lib/records/load";
 import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
@@ -51,7 +52,12 @@ async function RecordView({ params }: { params: Params }) {
     throw error;
   }
   // No such record for this user, or no full page for the entity: both look the same.
-  if (!loaded) notFound();
+  if (!loaded) {
+    // A restricted Cuenta the caller may not view is not there for them: its record answers "Sin acceso" on the tabs that would show figures
+    // (accounting design §5.13), without a word about the account. The answer is the same for an id that does not exist.
+    if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} />;
+    notFound();
+  }
   const { entity, record, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
   const t = await getTranslations();
 
@@ -92,6 +98,9 @@ async function RecordView({ params }: { params: Params }) {
     };
   }
 
+  // The Saldos, Movimientos, Seguridad, Resumen, Cierre, Líneas… of an accounting master (accounting design §8).
+  if (loaded.accounting) Object.assign(content, await accountingContent(entity.id, record, loaded.accounting, canSave));
+
   // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
   for (const tab of contributed) {
     content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
@@ -108,9 +117,32 @@ async function RecordView({ params }: { params: Params }) {
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
         deepLinkHref={recordHref(entity.id, record.id)}
-        tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id)).map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
+        tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id))
+          .filter((tabId) => content[tabId] !== undefined)
+          .map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
         labels={recordLabels(t)}
         status={<RecordStatus record={record} t={t} />}
+      />
+    </div>
+  );
+}
+
+async function RestrictedAccount({ id }: { id: string }) {
+  const t = await getTranslations();
+  const denied = { content: <NoAccess text={t("common.acc_record.no_access")} /> };
+  return (
+    <div className="mx-auto w-full max-w-6xl">
+      <AppRecordFrame
+        entity="accounting.account"
+        recordId={id}
+        newTitle={t("grid.record_title.new", { entity: t("nav.create.accounting.account") })}
+        title={t("common.acc_record.restricted_account")}
+        uuid={id}
+        tabs={[
+          { id: "saldos", ...denied },
+          { id: "movimientos", ...denied },
+        ]}
+        labels={recordLabels(t)}
       />
     </div>
   );
@@ -127,6 +159,16 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
       extra: t("common.record.tabs.extra"),
       archivos: t("common.record.tabs.archivos"),
       origen: t("common.record.tabs.origen"),
+      saldos: t("common.record.tabs.saldos"),
+      movimientos: t("common.record.tabs.movimientos"),
+      seguridad: t("common.record.tabs.seguridad"),
+      resultados: t("common.record.tabs.resultados"),
+      resumen: t("common.record.tabs.resumen"),
+      comprobantes: t("common.record.tabs.comprobantes"),
+      cierre: t("common.record.tabs.cierre"),
+      lineas: t("common.record.tabs.lineas"),
+      probar: t("common.record.tabs.probar"),
+      historial: t("common.record.tabs.historial"),
     },
     number: t("common.record.number"),
     uuid: t("common.record.uuid"),

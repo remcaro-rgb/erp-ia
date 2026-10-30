@@ -35,7 +35,11 @@ export interface RecordLabels {
 }
 
 export const DEFAULT_RECORD_LABELS: RecordLabels = {
-  tabs: { datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos", origen: "Origen" },
+  tabs: {
+    datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos", origen: "Origen",
+    saldos: "Saldos", movimientos: "Movimientos", seguridad: "Seguridad", resultados: "Resultados", resumen: "Resumen", comprobantes: "Comprobantes", cierre: "Cierre",
+    lineas: "Líneas", probar: "Probar", historial: "Historial",
+  },
   number: "N.º",
   uuid: "uuid",
   assignedOnCreate: "N.º y uuid se asignan al crear",
@@ -56,12 +60,28 @@ export { recordHref } from "@erp/kernel/href";
 export const shortId = (uuid: string): string => uuid.slice(0, 8);
 
 /**
+ * The tabs the accounting records add after Datos (accounting design §8): a Cuenta its balances, movements and, for the admin, Seguridad;
+ * a centro de costo its results; the other analytic nodes their balances by account; a Período its summary, comprobantes and close; a Regla
+ * contable its lines, a test with a real event and its history. The page leaves out the ones the caller may not have (Seguridad).
+ */
+const ACCOUNTING_TABS: Readonly<Record<string, readonly RecordTabId[]>> = {
+  "accounting.account": ["saldos", "movimientos", "seguridad"],
+  "accounting.cost_center": ["resultados", "movimientos"],
+  "accounting.open_auxiliary": ["saldos", "movimientos"],
+  "accounting.item": ["saldos", "movimientos"],
+  "accounting.business_unit": ["saldos", "movimientos"],
+  "accounting.period": ["resumen", "comprobantes", "cierre"],
+  "accounting.posting_rule": ["lineas", "probar", "historial"],
+};
+
+/**
  * The tabs an entity needs, in order: a comprobante adds Origen, parties add Contactos, products add Fotos, tickets add Mensajes; the tabs modules
  * contribute (`contributed`, their ids) come next; every record has Datos adicionales and Archivos.
  */
 export function recordTabIds(entity: string, contributed: readonly string[] = []): RecordTabId[] {
   return [
     "datos",
+    ...(ACCOUNTING_TABS[entity] ?? []),
     ...(entity === "accounting.entry" ? (["origen"] as const) : []),
     ...(entity === "core.party" ? (["contactos"] as const) : []),
     ...(entity === "core.product" ? (["fotos"] as const) : []),

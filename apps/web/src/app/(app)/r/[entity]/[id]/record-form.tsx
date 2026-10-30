@@ -2,11 +2,13 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { CategoryForm, EntryForm, gridFetcher, PartyForm, ProductForm, useTabs, type FieldMode, type SaveRecord } from "@erp/ui";
+import { useTranslations } from "next-intl";
+import { CategoryForm, EntryForm, formatMoney, gridFetcher, MasterForm, PartyForm, ProductForm, RuleForm, useTabs, type FieldMode, type SaveRecord } from "@erp/ui";
 import { lookupLineAction, runEntryAction } from "@/lib/accounting/entry-actions";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { saveRecordAction } from "@/lib/records/actions";
-import { NEW_RECORD_ID } from "@/lib/records/entities";
+import { NEW_RECORD_ID, recordEntity } from "@/lib/records/entities";
+import type { TemplateLineView } from "@/lib/accounting/record-tabs";
 import type { FormData } from "@/lib/records/load";
 import { useRecordClone } from "./record-frame";
 
@@ -68,6 +70,16 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
       />
     );
   }
+  if (form.kind === "master") {
+    const processes = recordEntity(entity);
+    const masterProps = {
+      ...common,
+      options: form.options,
+      ...(form.templateLines ? { footer: <TemplateLines lines={form.templateLines} /> } : {}),
+    };
+    if (form.master === "rule") return <RuleForm key={key} {...masterProps} isDefault={form.rule?.isDefault ?? false} isModified={form.rule?.isModified ?? false} />;
+    return <MasterForm key={key} kind={form.master} processes={{ create: processes?.create ?? "", update: processes?.update ?? "" }} {...masterProps} />;
+  }
   if (form.kind === "party") return <PartyForm key={key} {...common} tables={form.tables} modes={modes} />;
   if (form.kind === "category") return <CategoryForm key={key} {...common} tables={form.tables} productCount={form.productCount} />;
   return (
@@ -79,5 +91,41 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
       modes={modes}
       supplier={{ ...form.supplier, label: clone?.refLabels.supplier_id ?? form.supplier.label, fetcher: gridFetcher("core.party"), baseFilters: [{ field: "kind", op: "eq", value: "supplier" }] }}
     />
+  );
+}
+
+/** The lines of a plantilla de comprobante, read-only under its header (they are written in the plantilla's own process). */
+function TemplateLines({ lines }: { lines: TemplateLineView[] }) {
+  const t = useTranslations("common.acc_record.form");
+  return (
+    <section className="erp-sec">
+      <h3>{t("template_lines")}</h3>
+      <div className="erp-lines__scroll">
+        <table className="erp-lines__table" aria-label={t("template_lines")}>
+          <thead>
+            <tr>
+              <th scope="col" className="erp-lines__no">
+                #
+              </th>
+              <th scope="col">{t("template_account")}</th>
+              <th scope="col">{t("template_side")}</th>
+              <th scope="col" className="erp-num">
+                {t("template_amount")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => (
+              <tr key={l.lineNo}>
+                <td className="erp-lines__no erp-muted">{l.lineNo}</td>
+                <td>{l.account}</td>
+                <td>{t(`side.${l.side}`)}</td>
+                <td className="erp-num erp-mono">{l.amount === null ? t("asked") : formatMoney(l.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

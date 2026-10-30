@@ -5,7 +5,7 @@ export interface RecordEntity {
   id: string;
   /** The consult process that returns the record as the caller may see it. */
   consult: string;
-  /** The processes the Datos form saves through (rule 1). */
+  /** The processes the Datos form saves through (rule 1). Empty: the entity has no such form (a Período is only shown; a Regla contable or Plantilla is created elsewhere). */
   create: string;
   update: string;
   /** Column of the consult row that names the record in the frame's title. */
@@ -35,6 +35,31 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
     titleField: "number",
     nounKey: "nav.create.accounting.entry",
   },
+  // The accounting masters (accounting design §8, Task 28): the Cuenta, the four analytic nodes, the Fuente, the Plantilla de comprobante, the
+  // Período and the Regla contable. A record with no create process has no `/new` form and no "Duplicar".
+  { id: "accounting.account", consult: "accounting.account.consult", create: "accounting.account.create", update: "accounting.account.update", titleField: "code", nounKey: "nav.create.accounting.account" },
+  { id: "accounting.cost_center", consult: "accounting.cost_center.consult", create: "accounting.cost_center.create", update: "accounting.cost_center.update", titleField: "name", nounKey: "nav.create.accounting.cost_center" },
+  {
+    id: "accounting.open_auxiliary",
+    consult: "accounting.open_auxiliary.consult",
+    create: "accounting.open_auxiliary.create",
+    update: "accounting.open_auxiliary.update",
+    titleField: "name",
+    nounKey: "nav.create.accounting.open_auxiliary",
+  },
+  { id: "accounting.item", consult: "accounting.item.consult", create: "accounting.item.create", update: "accounting.item.update", titleField: "name", nounKey: "nav.create.accounting.item" },
+  {
+    id: "accounting.business_unit",
+    consult: "accounting.business_unit.consult",
+    create: "accounting.business_unit.create",
+    update: "accounting.business_unit.update",
+    titleField: "name",
+    nounKey: "nav.create.accounting.business_unit",
+  },
+  { id: "accounting.journal", consult: "accounting.journal.consult", create: "accounting.journal.create", update: "accounting.journal.update", titleField: "code", nounKey: "nav.create.accounting.journal" },
+  { id: "accounting.entry_template", consult: "accounting.entry_template.consult", create: "", update: "accounting.entry_template.update", titleField: "name", nounKey: "nav.create.accounting.entry_template" },
+  { id: "accounting.period", consult: "accounting.period.consult", create: "", update: "", titleField: "starts_on", nounKey: "nav.create.accounting.period" },
+  { id: "accounting.posting_rule", consult: "accounting.posting_rule.consult", create: "", update: "accounting.posting_rule.update", titleField: "name", nounKey: "nav.create.accounting.posting_rule" },
 ];
 
 /** The id of a record not created yet: `/r/<entity>/new` opens the empty form. */

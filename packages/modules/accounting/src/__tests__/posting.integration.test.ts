@@ -233,6 +233,11 @@ describe("posting", () => {
     expect((await h.sql`select count(*)::int as n from accounting.entries where company_id = ${h.companyId}`)[0]!.n).toBe(countBefore);
 
     expect((await h.sql`select is_modified from accounting.posting_rules where id = ${rule.id}`)[0]).toMatchObject({ is_modified: false });
+    // The rule's record page reads it with its template and the Fuente it posts to.
+    const consulted = await h.run<{ id: string; event: string; journal_code: string; is_modified: boolean; template: { lines: unknown[] } }>(h.admin, "accounting.posting_rule.consult", { id: rule.id });
+    expect(consulted).toMatchObject({ id: rule.id, event: "invoicing.invoice.issued", journal_code: "VT", is_modified: false });
+    expect(consulted.template.lines.length).toBeGreaterThan(0);
+    await expect(h.run(h.admin, "accounting.posting_rule.consult", { id: newId() })).rejects.toMatchObject({ code: "not_found" });
     await expect(h.run(h.admin, "accounting.posting_rule.update", { id: rule.id, name: "Otro nombre" })).rejects.toMatchObject({ code: "step_up_required" });
     await h.runStepUp(h.admin, "accounting.posting_rule.update", { id: rule.id, name: "Factura de venta (editada)", priority: 50 });
     expect((await h.sql`select is_modified, name, priority from accounting.posting_rules where id = ${rule.id}`)[0]).toMatchObject({ is_modified: true, name: "Factura de venta (editada)", priority: 50 });

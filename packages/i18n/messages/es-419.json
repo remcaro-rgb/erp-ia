@@ -61,7 +61,17 @@
         "extra": "Datos adicionales",
         "archivos": "Archivos",
         "mensajes": "Mensajes",
-        "origen": "Origen"
+        "origen": "Origen",
+        "saldos": "Saldos",
+        "movimientos": "Movimientos",
+        "seguridad": "Seguridad",
+        "resultados": "Resultados",
+        "resumen": "Resumen",
+        "comprobantes": "Comprobantes",
+        "cierre": "Cierre",
+        "lineas": "Líneas",
+        "probar": "Probar",
+        "historial": "Historial"
       },
       "number": "N.º",
       "uuid": "uuid",
@@ -806,6 +816,201 @@
         "template_failed": "No se pudo crear el borrador: {reason}"
       },
       "totals_label": "Totales del comprobante"
+    },
+    "acc_record": {
+      "no_access": "Sin acceso",
+      "restricted_account": "Cuenta restringida",
+      "year": "Año fiscal",
+      "period": "Período",
+      "debit": "Débito",
+      "credit": "Crédito",
+      "balance": "Saldo",
+      "balances_label": "Saldos por período",
+      "no_periods": "Aún no hay períodos",
+      "balances_by_account": "Saldos por cuenta",
+      "from": "Desde",
+      "to": "Hasta",
+      "account": "Cuenta",
+      "net": "Neto",
+      "total": "Total",
+      "accounts_label": "Saldos por cuenta",
+      "results_label": "Resultados por período",
+      "no_movement": "Sin movimiento en el rango",
+      "income": "Ingresos",
+      "expense": "Gastos",
+      "result": "Resultado",
+      "entry": "Comprobante",
+      "summary_label": "Comprobantes por fuente",
+      "no_entries": "El período no tiene comprobantes contabilizados",
+      "journal": "Fuente",
+      "entries": "Comprobantes",
+      "closed_on": "Cerrado el {at} por {by}",
+      "reopened": "{count, plural, one {reabierto # vez} other {reabierto # veces}}",
+      "reopened_for": "abierto solo para el {date}",
+      "checks": "Verificaciones de cierre",
+      "checks_label": "Verificaciones de cierre registradas",
+      "no_checks": "Aún no se ha intentado cerrar el período",
+      "check": "Verificación",
+      "passed": "Aprobada",
+      "failed": "Fallida",
+      "figures": "Cifras",
+      "signed_by": "Corrió",
+      "at": "Fecha",
+      "history": "Historial de cierre y reapertura",
+      "history_empty": "Sin movimientos de cierre registrados",
+      "security": {
+        "access": "Acceso a la cuenta",
+        "open": "Abierta",
+        "restricted": "Restringida",
+        "open_note": "Todos los que pueden ver el plan de cuentas ven esta cuenta y pueden contabilizar en ella.",
+        "restricted_note": "Solo el administrador y quienes tengan permiso abajo ven la cuenta, sus saldos y sus movimientos; las cuentas que cuelgan de ella heredan la restricción.",
+        "inherited": "Hereda la restricción de {account}",
+        "grants": "Permisos",
+        "grants_label": "Permisos de la cuenta",
+        "no_grants": "Sin permisos: solo el administrador ve y contabiliza en esta cuenta.",
+        "subject": "Rol o usuario",
+        "kind": "Tipo",
+        "role": "Rol",
+        "user": "Usuario",
+        "view": "Ver",
+        "post": "Contabilizar",
+        "view_of": "Ver · {name}",
+        "post_of": "Contabilizar · {name}",
+        "remove": "Quitar",
+        "remove_of": "Quitar a {name}",
+        "actions": "Acciones",
+        "pick": "Rol o usuario por agregar",
+        "pick_empty": "Elegir…",
+        "roles": "Roles",
+        "users": "Usuarios",
+        "add": "Agregar",
+        "save": "Guardar",
+        "discard": "Descartar",
+        "saving": "Guardando…"
+      },
+      "form": {
+        "yes": "Sí",
+        "no": "No",
+        "no_parent": "Sin padre (raíz)",
+        "missing": "Faltan datos obligatorios",
+        "statement_section_hint": "Vacía: hereda la de la cuenta madre",
+        "template_lines": "Líneas de la plantilla",
+        "template_account": "Cuenta",
+        "template_side": "Lado",
+        "template_amount": "Valor",
+        "asked": "Se pide al usarla",
+        "side": {
+          "debit": "Débito",
+          "credit": "Crédito"
+        },
+        "section": {
+          "account": "Cuenta",
+          "dimension": "Nodo analítico",
+          "journal": "Fuente",
+          "template": "Plantilla de comprobante",
+          "period": "Período",
+          "rule": "Regla contable"
+        },
+        "field": {
+          "account": {
+            "code": "Código",
+            "name": "Descripción",
+            "nature": "Naturaleza",
+            "statement_section": "Sección del estado financiero",
+            "requires_party": "Exige tercero",
+            "requires_cost_center": "Exige centro de costo",
+            "requires_open_auxiliary": "Exige auxiliar abierto",
+            "requires_item": "Exige ítem",
+            "requires_business_unit": "Exige unidad de negocio",
+            "is_active": "Activa",
+            "level": "Nivel",
+            "allows_movement": "Admite movimientos"
+          },
+          "dimension": {
+            "code": "Código",
+            "name": "Descripción",
+            "parent_id": "Padre",
+            "kind": "Tipo",
+            "is_active": "Activo"
+          },
+          "journal": {
+            "code": "Código",
+            "name": "Nombre",
+            "kind": "Tipo",
+            "manual_entries": "Admite comprobantes manuales",
+            "is_active": "Activa",
+            "next_number": "Próximo consecutivo"
+          },
+          "template": {
+            "name": "Nombre",
+            "journal_id": "Fuente",
+            "description": "Descripción"
+          },
+          "period": {
+            "number": "Número",
+            "starts_on": "Desde",
+            "ends_on": "Hasta",
+            "status": "Estado"
+          },
+          "rule": {
+            "event": "Evento",
+            "name": "Nombre",
+            "journal_id": "Fuente",
+            "priority": "Prioridad",
+            "description": "Descripción",
+            "is_active": "Activa",
+            "module": "Módulo"
+          }
+        }
+      },
+      "rule": {
+        "modified": "Modificada",
+        "default": "Predeterminada",
+        "own": "Propia de la empresa",
+        "lines_label": "Líneas de la regla",
+        "line_n": "Línea {n}",
+        "remove_col": "Quitar línea",
+        "remove_line": "Quitar la línea {n}",
+        "add_line": "Agregar línea",
+        "paths_hint": "Las rutas parten del evento: $.totals.total, $.lines[*].subtotal",
+        "read_only": "Solo lectura para tu rol",
+        "saving": "Guardando…",
+        "incomplete": "Cada línea necesita un rol o una cuenta y la ruta del valor",
+        "discard": "Descartar",
+        "save": "Guardar",
+        "side": {
+          "debit": "Débito",
+          "credit": "Crédito"
+        },
+        "col": {
+          "role": "Rol",
+          "account": "Cuenta fija",
+          "side": "Lado",
+          "amount": "Valor",
+          "dimension": "Dimensión",
+          "party": "Tercero",
+          "cost_center": "Centro de costo",
+          "open_auxiliary": "Auxiliar abierto",
+          "item": "Ítem",
+          "business_unit": "Unidad de negocio",
+          "tax_code": "Código de impuesto",
+          "tax_rate": "Tarifa",
+          "tax_base": "Base",
+          "description": "Detalle"
+        },
+        "test_denied": "Tu rol no puede probar reglas",
+        "no_events": "La empresa aún no tiene eventos de este tipo para probar",
+        "event_pick": "Evento real",
+        "test_run": "Probar con un evento real",
+        "reverses": "La regla reversa el comprobante del evento {event}",
+        "preview": "Vista previa",
+        "preview_label": "Líneas del comprobante que produciría",
+        "no_lines": "La regla no produce líneas",
+        "history_denied": "Solo el administrador ve el historial de cambios",
+        "history_empty": "Esta regla no tiene cambios registrados",
+        "history_label": "Cambios de la regla",
+        "preview_account": "Cuenta"
+      }
     }
   },
   "nav": {
@@ -944,7 +1149,16 @@
         "ticket": "ticket de soporte"
       },
       "accounting": {
-        "entry": "comprobante"
+        "entry": "comprobante",
+        "account": "cuenta",
+        "cost_center": "centro de costo",
+        "open_auxiliary": "auxiliar abierto",
+        "item": "ítem",
+        "business_unit": "unidad de negocio",
+        "journal": "fuente",
+        "entry_template": "plantilla de comprobante",
+        "period": "período",
+        "posting_rule": "regla contable"
       }
     },
     "support": {
@@ -1823,6 +2037,22 @@
         "auto": "Automático",
         "import": "Importado",
         "template": "Plantilla"
+      },
+      "period_status": {
+        "open": "Abierto",
+        "closed": "Cerrado"
+      },
+      "close_check": {
+        "drafts": "Sin borradores",
+        "pending_failures": "Sin pendientes de contabilizar",
+        "pending_approvals": "Sin comprobantes por aprobar",
+        "undispatched_events": "Sin eventos por despachar",
+        "control_receivable": "Control de cartera",
+        "control_payable": "Control de proveedores",
+        "control_inventory": "Control de inventario",
+        "suspense_zero": "Cuenta transitoria en cero",
+        "rounding_within_tolerance": "Ajuste al peso dentro de la tolerancia",
+        "contra_nature_balances": "Sin saldos contrarios a la naturaleza"
       }
     },
     "record_title": {
