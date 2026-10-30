@@ -14,10 +14,12 @@ import { MFA_DISABLED_LOGIN } from "./notices";
 // kernel.admin.user.mfa.set from a user's page, run as the session's user with the step-up token the screen just
 // obtained (both are sensitive: the first answer is `step_up_required`). A refusal comes back as data.
 //
-// Auth ends every session of a user whose verified factor is removed. When that user is the caller (their own disable,
-// or an admin resetting themselves), this session is already dead: its cookies are cleared here (as signing out does) and
-// the action answers where the browser goes, the sign-in page with the notice. No `refreshSession()`: the refresh token
-// was revoked with the sessions. An admin resetting someone else keeps their own session; the target's sessions end.
+// The process ends every session of the user whose factor it removed (AuthAdmin.signOutUser; owner decision 2026-10-30,
+// design §22.19), and the proxy signs out an access token that still claims the removed factor. When that user is the
+// caller (their own disable, or an admin resetting themselves), this session is already dead: its cookies are cleared
+// here (as signing out does) and the action answers where the browser goes, the sign-in page with the notice. No
+// `refreshSession()`: the refresh token was revoked with the sessions. An admin resetting someone else keeps their own
+// session; the target's sessions end.
 
 /** `next`: the page to load once the action succeeded (the sign-in notice), or null to stay and refresh. */
 export type MfaActionResult = ActionResult<{ next: string | null }>;
