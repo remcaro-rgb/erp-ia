@@ -14,6 +14,8 @@ export interface PostOptions {
   origin: "human" | "event";
   /** The opening balances are posted by a person under step-up: no second approver. */
   skipFourEyes?: boolean;
+  /** The posting engine's rule is already an admin's decision: account grants (`can_post`) do not apply (§4.15). */
+  engine?: boolean;
 }
 
 interface EntryRow {
@@ -103,7 +105,7 @@ export async function postEntry(ctx: ProcessContext, entryId: string, opts: Post
 
   const stored = await linesOf(ctx, entryId);
   const lines = stored.map(asInput);
-  assertValid(await validateLines(ctx, { journalId: entry.journal_id, date: entry.date, businessUnitId: entry.business_unit_id, origin: entry.origin }, lines, "post"));
+  assertValid(await validateLines(ctx, { journalId: entry.journal_id, date: entry.date, businessUnitId: entry.business_unit_id, origin: entry.origin }, lines, "post", { engine: opts.engine === true }));
 
   const rate = Number(entry.exchange_rate);
   const debit = round4(lines.reduce((sum, l) => sum + l.debit, 0));
@@ -238,7 +240,7 @@ export const entryReverse = defineProcess({
       })}
       returning id`;
     await insertMirror(ctx, entryId, reversal!.id);
-    const posted = await postEntry(ctx, reversal!.id, { origin: "event", skipFourEyes: true });
+    const posted = await postEntry(ctx, reversal!.id, { origin: "human", skipFourEyes: true });
     await ctx.tx`update accounting.entries set status = 'reversed', reversed_by_id = ${reversal!.id} where id = ${entryId}`;
     await ctx.emit("accounting.entry.reversed", { entryId, reversalId: reversal!.id, number: original.number, reversalNumber: posted.number, reason });
     return { id: reversal!.id, number: posted.number };

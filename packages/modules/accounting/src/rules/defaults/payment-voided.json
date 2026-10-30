@@ -1,0 +1,14 @@
+{
+  "event": "payments.payment.voided",
+  "name": "Anulación de recibo de caja",
+  "journalCode": "RC",
+  "template": {
+    "date": "$.date",
+    "description": "Anulación del recibo {{number}}",
+    "lines": [],
+    "reverseOf": {
+      "event": "payments.received",
+      "sourceId": "$.paymentId"
+    }
+  }
+}

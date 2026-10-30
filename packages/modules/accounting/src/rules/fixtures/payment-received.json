@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-05",
+  "number": "RC-310",
+  "paymentId": "0192b4c0-0000-7000-8000-00000000f005",
+  "method": "transfer",
+  "amount": 1155340,
+  "applied": 1190000,
+  "customer": {
+    "partyId": "0192b4c0-0000-7000-8000-00000000c001",
+    "legalName": "Tiendas D1 S.A.S."
+  },
+  "withholdings": {
+    "income": [
+      {
+        "code": "RTEFTE_COMPRAS_2_5",
+        "rate": 2.5,
+        "base": 1000000,
+        "amount": 25000
+      }
+    ],
+    "vat": [],
+    "ica": [
+      {
+        "code": "RTEICA_BOGOTA_0_966",
+        "rate": 0.966,
+        "base": 1000000,
+        "amount": 9660
+      }
+    ]
+  }
+}

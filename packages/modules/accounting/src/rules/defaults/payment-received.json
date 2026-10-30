@@ -1,0 +1,55 @@
+{
+  "event": "payments.received",
+  "name": "Recibo de caja",
+  "journalCode": "RC",
+  "template": {
+    "date": "$.date",
+    "description": "Recibo de caja {{number}} · {{customer.legalName}}",
+    "party": "$.customer.partyId",
+    "source": {
+      "entity": "payments.payment",
+      "id": "$.paymentId"
+    },
+    "lines": [
+      {
+        "role": "cash",
+        "side": "debit",
+        "amount": "$.amount",
+        "dimension": "payment_method:{{method}}"
+      },
+      {
+        "role": "withholding_income_suffered",
+        "side": "debit",
+        "forEach": "$.withholdings.income[*]",
+        "amount": "$.amount",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      },
+      {
+        "role": "withholding_vat_suffered",
+        "side": "debit",
+        "forEach": "$.withholdings.vat[*]",
+        "amount": "$.amount",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      },
+      {
+        "role": "withholding_ica_suffered",
+        "side": "debit",
+        "forEach": "$.withholdings.ica[*]",
+        "amount": "$.amount",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      },
+      {
+        "role": "receivable",
+        "side": "credit",
+        "amount": "$.applied"
+      }
+    ],
+    "reverseOf": null
+  }
+}

@@ -26,7 +26,7 @@ describe("chart.seed", () => {
     expect(first.accounts).toBe(pack.chartOfAccounts().length + pack.extraAccounts().length);
     expect(first.journals).toBe(7);
     expect(first.mappings).toBe(pack.defaultRoleMappings().length + pack.defaultConceptMappings().length);
-    expect(first.rules).toBe(0);
+    expect(first.rules).toBe(7); // the seven default rules of design §5.4 the module ships
     expect(first.year).toBe(1);
     expect(await count("accounts")).toBe(first.accounts);
     expect(await count("account_role_mappings")).toBe(pack.defaultRoleMappings().length);

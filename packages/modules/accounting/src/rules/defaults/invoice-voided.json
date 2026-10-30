@@ -1,0 +1,14 @@
+{
+  "event": "invoicing.invoice.voided",
+  "name": "Anulación de factura de venta",
+  "journalCode": "VT",
+  "template": {
+    "date": "$.date",
+    "description": "Anulación de la factura {{number}}",
+    "lines": [],
+    "reverseOf": {
+      "event": "invoicing.invoice.issued",
+      "sourceId": "$.invoiceId"
+    }
+  }
+}

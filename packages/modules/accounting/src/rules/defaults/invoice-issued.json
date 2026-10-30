@@ -1,0 +1,43 @@
+{
+  "event": "invoicing.invoice.issued",
+  "name": "Factura de venta emitida",
+  "journalCode": "VT",
+  "template": {
+    "date": "$.date",
+    "description": "Factura {{number}} · {{customer.legalName}}",
+    "party": "$.customer.partyId",
+    "costCenter": "$.costCenterId",
+    "businessUnit": "$.businessUnitId",
+    "source": {
+      "entity": "invoicing.invoice",
+      "id": "$.invoiceId"
+    },
+    "lines": [
+      {
+        "role": "receivable",
+        "side": "debit",
+        "amount": "$.totals.total",
+        "dueDate": "$.dueDate"
+      },
+      {
+        "role": "revenue",
+        "side": "credit",
+        "forEach": "$.lines[*]",
+        "amount": "$.subtotal",
+        "dimension": "category:{{categoryId}}",
+        "costCenter": "$.costCenterId"
+      },
+      {
+        "role": "vat_out",
+        "side": "credit",
+        "forEach": "$.taxes[*]",
+        "amount": "$.amount",
+        "dimension": "tax:{{code}}",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      }
+    ],
+    "reverseOf": null
+  }
+}

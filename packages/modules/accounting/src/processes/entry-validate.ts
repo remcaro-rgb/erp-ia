@@ -38,6 +38,9 @@ export interface LineInput {
   description?: string | null | undefined;
   debit: number;
   credit: number;
+  /** Document-currency amounts when the source states them (the posting engine); else derived from the exchange rate. */
+  debitDoc?: number | undefined;
+  creditDoc?: number | undefined;
   taxCode?: string | null | undefined;
   taxRate?: number | null | undefined;
   taxBase?: number | null | undefined;
@@ -122,11 +125,17 @@ async function dimensionProblem(ctx: ProcessContext, dimension: Dimension, id: s
 
 /**
  * Checks a comprobante's lines against the rules of §5.5 and §5.13. Returns every refusal, never throws for a rule.
- * `draft`: the accounts exist and take movement, the caller may post to each (the engine, origin `event`, is exempt),
+ * `draft`: the accounts exist and take movement, the caller may post to each (the engine, origin `event` or `opts.engine`, is exempt),
  * the party and dimension nodes exist and are active leaves, the Fuente takes the entry. `post` adds: active accounts, the
  * party and each dimension where the account requires it, two lines, a balance within the rounding tolerance and an open period.
  */
-export async function validateLines(ctx: ProcessContext, header: EntryHeader, lines: readonly LineInput[], mode: "draft" | "post"): Promise<Refusal[]> {
+export async function validateLines(
+  ctx: ProcessContext,
+  header: EntryHeader,
+  lines: readonly LineInput[],
+  mode: "draft" | "post",
+  opts: { engine?: boolean } = {},
+): Promise<Refusal[]> {
   const refusals: Refusal[] = [];
   const add = (code: RefusalCode, detail: string, lineNo?: number) => refusals.push(lineNo === undefined ? { code, detail } : { code, detail, lineNo });
 
@@ -170,7 +179,7 @@ export async function validateLines(ctx: ProcessContext, header: EntryHeader, li
     }
     if (!account.allowsMovement) add("inactive_account", `La cuenta ${labelOf(account)} no recibe movimientos: usa una cuenta de último nivel`, lineNo);
     if (mode === "post" && !account.isActive) add("inactive_account", `La cuenta ${labelOf(account)} está inactiva`, lineNo);
-    if (ctx.origin !== "event" && !account.canPost) {
+    if (ctx.origin !== "event" && !opts.engine && !account.canPost) {
       add("account_forbidden", `No tienes permiso para contabilizar en la cuenta ${labelOf(account)}`, lineNo);
     }
     if (line.partyId && !knownParties.has(line.partyId)) add("missing_party", `El tercero de la cuenta ${account.code} no existe o no es visible`, lineNo);

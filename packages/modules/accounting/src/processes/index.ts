@@ -10,6 +10,9 @@ import { JOURNAL_PROCESSES } from "./journal";
 import { MAPPING_PROCESSES } from "./mapping";
 import { OPENING_PROCESSES } from "./opening";
 import { PERMISSION_PROCESSES } from "./permission";
+import { POST_FROM_EVENT_PROCESSES } from "./post-from-event";
+import { POSTING_FAILURE_PROCESSES } from "./posting-failure";
+import { POSTING_RULE_PROCESSES } from "./posting-rule";
 import { SETTINGS_PROCESSES } from "./settings";
 import { TEMPLATE_PROCESSES } from "./template";
 
@@ -28,4 +31,7 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...TEMPLATE_PROCESSES,
   ...ENTRY_POST_PROCESSES,
   ...OPENING_PROCESSES,
+  ...POST_FROM_EVENT_PROCESSES,
+  ...POSTING_RULE_PROCESSES,
+  ...POSTING_FAILURE_PROCESSES,
 ];

@@ -1,0 +1,29 @@
+{
+  "event": "inventory.movement.posted",
+  "name": "Ajuste de inventario",
+  "journalCode": "NC",
+  "template": {
+    "date": "$.date",
+    "description": "Ajuste de inventario {{number}}",
+    "source": {
+      "entity": "inventory.movement",
+      "id": "$.movementId"
+    },
+    "lines": [
+      {
+        "role": "inventory",
+        "side": "debit",
+        "forEach": "$.lines[*]",
+        "amount": "$.value"
+      },
+      {
+        "role": "inventory_adjustment",
+        "side": "credit",
+        "forEach": "$.lines[*]",
+        "amount": "$.value",
+        "costCenter": "$.costCenterId"
+      }
+    ],
+    "reverseOf": null
+  }
+}

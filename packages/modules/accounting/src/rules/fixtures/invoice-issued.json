@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-30",
+  "number": "FE-1042",
+  "invoiceId": "0192b4c0-0000-7000-8000-00000000f001",
+  "dueDate": "2026-11-29",
+  "customer": {
+    "partyId": "0192b4c0-0000-7000-8000-00000000c001",
+    "legalName": "Tiendas D1 S.A.S."
+  },
+  "totals": {
+    "total": 1190000
+  },
+  "lines": [
+    {
+      "subtotal": 600000,
+      "categoryId": "bebidas"
+    },
+    {
+      "subtotal": 400000,
+      "categoryId": "comida"
+    }
+  ],
+  "taxes": [
+    {
+      "code": "IVA19",
+      "rate": 19,
+      "amount": 190000,
+      "base": 1000000
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 import { defineProcess, type AccountSeed, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { companyPack, invalid, requireAdmin } from "./common";
+import { companyPack, requireAdmin } from "./common";
 import { openFiscalYear } from "./fiscal-year";
+import { syncDefaultRules } from "./posting-rule";
 
 // accounting.chart.seed (accounting design §5.9, §6): installs the country's chart, role mappings, fuentes, concept mappings,
 // the settings row, the fiscal year of today and the default posting rules from the pack and the loaded modules. Additive
@@ -95,21 +96,8 @@ export const chartSeed = defineProcess({
       year = 1;
     }
 
-    // Default posting rules the loaded modules ship (design §5.4)
-    let rules = 0;
-    for (const module of ctx.registry.modules()) {
-      for (const rule of module.postingRules ?? []) {
-        const [journal] = await ctx.tx<{ id: string }[]>`select id from accounting.journals where company_id = ${ctx.companyId} and code = ${rule.journalCode}`;
-        if (!journal) throw invalid(`rule ${rule.name} names journal ${rule.journalCode}`, `La regla "${rule.name}" usa la fuente ${rule.journalCode}, que no existe`);
-        const [have] = await ctx.tx<{ n: number }[]>`
-          select count(*)::int as n from accounting.posting_rules where company_id = ${ctx.companyId} and module = ${module.id} and event = ${rule.event} and name = ${rule.name}`;
-        if (have!.n > 0) continue;
-        await ctx.tx`
-          insert into accounting.posting_rules (company_id, event, name, module, journal_id, template, priority, is_default)
-          values (${ctx.companyId}, ${rule.event}, ${rule.name}, ${module.id}, ${journal.id}, ${ctx.tx.json(rule.template as Parameters<typeof ctx.tx.json>[0])}, ${rule.priority ?? 100}, true)`;
-        rules++;
-      }
-    }
+    // Default posting rules the loaded modules ship, accounting's own included (design §5.4)
+    const rules = await syncDefaultRules(ctx);
 
     return { accounts, mappings: roleRows.length + conceptRows.length, journals: newJournals.length, rules, year };
   },

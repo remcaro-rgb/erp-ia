@@ -1,7 +1,9 @@
 import { defineModule, POSTING_CONSUMER, type ModuleDef } from "@erp/kernel";
 import { ACCOUNTING_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
+import { accountingProvider } from "./posting/provider";
 import { ACCOUNTING_PROCESSES } from "./processes";
+import { ACCOUNTING_DEFAULT_RULES } from "./rules/defaults";
 
 /**
  * The accounting module (accounting design §3): chart of accounts, fuentes, periods, four analytic dimensions, comprobantes,
@@ -23,6 +25,8 @@ export const accounting: ModuleDef = defineModule({
     consumes: { "*": POSTING_CONSUMER },
   },
   navigation: NAVIGATION,
+  postingProvider: accountingProvider,
+  postingRules: ACCOUNTING_DEFAULT_RULES,
 });
 
 export { ACCOUNTING_ENTITIES } from "./entities";
