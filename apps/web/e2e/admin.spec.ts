@@ -270,7 +270,12 @@ test.describe("administration", () => {
     // Sistema: the administration processes are the admin role's only, locked for Despachos and left out of "todos",
     // so the module applies cleanly and the button turns into "ninguno".
     await expect(cell(page, "kernel.admin.role.create")).toBeDisabled();
-    await expect(page.getByRole("row").filter({ hasText: "kernel.admin.role.create" }).locator("label[title='Solo el rol admin ejecuta los procesos de administración']")).toHaveCount(3);
+    // Every role but the system admin is locked: counted from the company, not assumed, since the roles an earlier test
+    // of this file creates (Bodega) exist only when that test ran in the same worker (a retry starts a fresh fixture).
+    const [{ n: others }] = await fixture.sql<{ n: number }[]>`
+      select count(*)::int as n from kernel.roles where company_id = ${companyId} and not (is_system and name = 'admin')`;
+    expect(others).toBeGreaterThanOrEqual(2);
+    await expect(page.getByRole("row").filter({ hasText: "kernel.admin.role.create" }).locator("label[title='Solo el rol admin ejecuta los procesos de administración']")).toHaveCount(others);
     await page.getByRole("button", { name: "Dar a Despachos todos los procesos de Sistema" }).click();
     await expect(cell(page, "kernel.admin.role.create")).not.toBeChecked();
     await bar.getByRole("button", { name: "Aplicar cambios" }).click();

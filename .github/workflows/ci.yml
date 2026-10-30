@@ -49,7 +49,9 @@ jobs:
   # End to end (rule 31, design §21, Task 22): every Playwright spec against `next dev` on the CLI stack with the demo
   # company (`supabase start` applies the migrations and supabase/seed.sql, then `DEMO_SEED=1 pnpm db:seed`, set
   # job-wide below, and the help index), the phase 1 smoke included. The assistant runs on the AI SDK mock model
-  # (AGENT_MODEL=mock, playwright.config.ts) unless the repository provides AI_GATEWAY_API_KEY.
+  # (AGENT_MODEL=mock, playwright.config.ts) unless the repository provides AI_GATEWAY_API_KEY. The specs run against
+  # the production build (`next build`, then `next start` through E2E_SERVER=start): on the 2-vCPU runner `next dev`
+  # compiles each route on its first request (5 to 18 s) and the specs' waits expired on it (2026-10-29).
   e2e:
     runs-on: ubuntu-latest
     needs: [unit, integration]
@@ -74,8 +76,10 @@ jobs:
       - run: pnpm help:index
         env:
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      - run: pnpm -F web build
       - run: pnpm -F web e2e
         env:
+          E2E_SERVER: start
           AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: failure()
