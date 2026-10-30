@@ -46,7 +46,9 @@ Exit criteria: a company can register its terceros and productos complete for DI
 ## Phase 2 · De la venta al cobro
 Goal: the §8.1 sale flow works end to end with legal Colombian invoices.
 
-- Posting engine (journal rules per event) and accounting module (design approved 2026-10-29; plan `docs/superpowers/plans/2026-10-29-phase-2-accounting.md`, awaiting the owner's go to execute): chart of accounts (PUC), journals, periods, analytic dimensions (cost centers, auxiliares abiertos, ítems, unidades de negocio), fiscal reports, the Movimientos ledger-line query page with multi-filter, multi-sort and grouped aggregates (owner 2026-10-29), exógena with concept mapping, aging, and the controls of the accounting design §5.12 (four-eyes on manual entries, auto-reversing accruals, subledger tie-out and suspense check at close, auditor extract) — owner decisions of 2026-10-28.
+- **2A · Posting engine and accounting module: done 2026-10-30** (tag `phase-2a-accounting`; design `docs/superpowers/specs/2026-10-28-accounting-module-design.md`, plan `docs/superpowers/plans/2026-10-29-phase-2-accounting.md`, 32 tasks; user guides in `docs/user-guide/es-419/contabilidad/`). Delivered: posting engine and chart of accounts (PUC) with journals (Fuentes), periods and year close, analytic dimensions (cost centers, auxiliares abiertos, ítems, unidades de negocio), the thirteen fiscal and control reports, the Movimientos ledger-line query page with multi-filter, multi-sort and grouped aggregates (owner 2026-10-29), exógena with concept mapping, aging, security by account, the controls of the design §5.12 (four-eyes on manual entries, auto-reversing accruals, subledger tie-out and suspense check at close, auditor extract), the default posting-rule templates as fixtures, the demo ledger for Café del Norte and the assistant evals. Exit criteria met for 2A: ledger, fiscal reports and controls work on the demo company end to end; the "quote → … → ledger" chain and the DIAN invoice remain 2B. Open items carried forward: the exógena XML has a process (`accounting.report.exogena_xml`) but no button on the report page; the assistant evals are structural (no model call); the "Cerrar año" flow has no e2e; no top-level `accounting.*` i18n namespace.
+- **2B · Sales and stock chain (next, needs the owner's go; plan to be written)**: CRM, sales, invoicing with DIAN, inventory and warehouse, costing, payments; each module ships its `postingRules` for the §5.4 events by relocating the 2A fixtures unchanged, plus its "Contabilidad" integration. Exit criteria below.
+- **2C · Puesta en marcha** (the "Phase 2b · Puesta en marcha" section below): opening balances over `accounting.opening.create`, import framework, Siigo / Alegra connectors, posting window per role.
 - CRM: leads, opportunities, pipelines, activities, quotes.
 - Sales: orders, deliveries, returns, commissions.
 - Invoicing: invoices, credit/debit notes, DIAN electronic invoicing (UBL 2.1, signing, submission, CUFE, PDF) porting the Serena `src/lib/dian` code; `invoice_ready` enforced on every document line.
@@ -56,9 +58,9 @@ Goal: the §8.1 sale flow works end to end with legal Colombian invoices.
 - Colombia pack (part 2): taxes, withholdings, DIAN sequences and resolutions, exógena export.
 - Assistant gains the sales tools (quote, order, invoice through confirmation cards) and KPIs on the home.
 
-Exit criteria: quote → order → delivery → DIAN invoice → payment → ledger, each step audited with one causal chain; exógena and fiscal reports exportable.
+Exit criteria (phase 2 as a whole; 2A delivers the ledger, the fiscal reports and exógena, 2B the chain): quote → order → delivery → DIAN invoice → payment → ledger, each step audited with one causal chain; exógena and fiscal reports exportable.
 
-## Phase 2b · Puesta en marcha
+## Phase 2b · Puesta en marcha (plan 2C of the accounting plan)
 Goal: a company migrates from its previous system in days, not months.
 - Import framework for every entity and opening balances (§5.11 of the design) built on the phase 1 importer.
 - Onboarding agent (§7.3): reads the company's files, proposes mappings, validates with the same rules, reports gaps.

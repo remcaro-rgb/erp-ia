@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineModule } from "../../module/define";
@@ -5,7 +8,7 @@ import { loadModules } from "../../module/loader";
 import { defineProcess } from "../../process/define";
 import { Registry } from "../../registry";
 import { EMBEDDING_DIMENSIONS, FakeEmbedder, GatewayEmbedder } from "../embedder";
-import { chunkGuide, guideProblems, knownRoutes, parseGuide } from "../guides";
+import { chunkGuide, guideProblems, knownRoutes, loadGuides, parseGuide } from "../guides";
 import { processChunks } from "../process-chunks";
 import { snippetOf } from "../search";
 
@@ -244,6 +247,18 @@ describe("guideProblems", () => {
     expect(knownRoutes(registry)).toEqual(expect.arrayContaining(["/", "/login", "/mfa/verify", "/mfa/enroll", "/parties"]));
   });
 
+  it("reads the routes of a menu group's children and ignores the group's own placeholder href", () => {
+    const grouped = new Registry();
+    const child = { id: "acc.a", label: "nav.acc.a", href: "/acc/a", icon: "users" };
+    loadModules(grouped, [
+      defineModule({ id: "acc", version: "0.0.0", dependsOn: [], entities: [], processes: [], features: [], events: { emits: [], consumes: {} }, navigation: [{ id: "acc.group", label: "nav.acc.group", href: "#", icon: "users", children: [child] }] }),
+    ]);
+    expect(knownRoutes(grouped)).toContain("/acc/a");
+    expect(knownRoutes(grouped)).not.toContain("#");
+    expect(guideProblems([{ ...guide(), routes: ["/acc/a"], processes: [] }], grouped)).toEqual([]);
+    expect(guideProblems([{ ...guide(), routes: ["/login"], processes: [] }], grouped)).toEqual(["no guide covers the menu route /acc/a"]);
+  });
+
   it("accepts a guide whose routes and processes exist", () => {
     expect(guideProblems([guide()], registry)).toEqual([]);
   });
@@ -257,5 +272,21 @@ describe("guideProblems", () => {
 
   it("flags a menu screen no guide covers (rule 35: a feature without its guide is not finished)", () => {
     expect(guideProblems([guide({ routes: ["/login"] })], registry)).toEqual(["no guide covers the menu route /parties"]);
+  });
+});
+
+describe("loadGuides", () => {
+  it("reads the guides of module subfolders as folder/name.md and skips every README", () => {
+    const dir = mkdtempSync(join(tmpdir(), "guides-"));
+    try {
+      mkdirSync(join(dir, "contabilidad"));
+      writeFileSync(join(dir, "inicio.md"), "---\ntitle: A\nroutes:\n  - /\n---\n# A\n");
+      writeFileSync(join(dir, "README.md"), "# Índice\n");
+      writeFileSync(join(dir, "contabilidad", "informes.md"), "---\ntitle: B\nroutes:\n  - /\n---\n# B\n");
+      writeFileSync(join(dir, "contabilidad", "README.md"), "# Índice\n");
+      expect(loadGuides(dir).map((g) => g.file)).toEqual(["contabilidad/informes.md", "inicio.md"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

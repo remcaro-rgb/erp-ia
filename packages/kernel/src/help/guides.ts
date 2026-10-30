@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { NavItem } from "../registry/types";
 import type { Registry } from "../registry";
 
 // User guides (docs/user-guide/es-419/*.md, rule 35): Markdown with a front matter of `title`, `routes` (the app
@@ -108,21 +109,35 @@ export function chunkGuide(guide: Guide, maxChars: number = CHUNK_CHARS): GuideC
   return chunks;
 }
 
-/** Every guide of a folder in file name order; the folder's `README.md` is an index for people, not a guide. */
+/**
+ * Every guide of a folder in file name order, the guides of a module's subfolder included (`contabilidad/comprobantes.md`
+ * is the guide `contabilidad/comprobantes.md`); a folder's `README.md` is an index for people, not a guide.
+ */
 export function loadGuides(dir: string): Guide[] {
-  return readdirSync(dir)
-    .filter((name) => name.endsWith(".md") && name.toLowerCase() !== "readme.md")
-    .sort()
-    .map((name) => parseGuide(name, readFileSync(join(dir, name), "utf8")));
+  const names = (sub: string): string[] =>
+    readdirSync(join(dir, sub), { withFileTypes: true })
+      .flatMap((entry) => {
+        const name = sub === "" ? entry.name : `${sub}/${entry.name}`;
+        if (entry.isDirectory()) return names(name);
+        return entry.name.endsWith(".md") && entry.name.toLowerCase() !== "readme.md" ? [name] : [];
+      })
+      .sort();
+  return names("").map((name) => parseGuide(name, readFileSync(join(dir, name), "utf8")));
 }
 
 /** Screens outside the menus that a guide may cover: the sign-in pages. */
 const STATIC_ROUTES = ["/", "/login", "/mfa/verify", "/mfa/enroll"];
 
-/** The menu routes of the loaded modules (navigation and the screens their features unlock) plus the home and sign-in pages. */
+/** The screens of the menus of the loaded modules (navigation and the screens their features unlock), group children included; a group's `#` is no screen. */
+function menuRoutes(registry: Registry): string[] {
+  const flatten = (items: readonly NavItem[]): NavItem[] => items.flatMap((item) => [item, ...flatten(item.children ?? [])]);
+  const hrefs = registry.modules().flatMap((m) => flatten([...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])]).map((item) => item.href));
+  return [...new Set(hrefs.filter((href) => href !== "#"))];
+}
+
+/** The menu routes of the loaded modules plus the home and sign-in pages. */
 export function knownRoutes(registry: Registry): string[] {
-  const hrefs = registry.modules().flatMap((m) => [...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])].map((item) => item.href));
-  return [...new Set([...STATIC_ROUTES, ...hrefs])];
+  return [...new Set([...STATIC_ROUTES, ...menuRoutes(registry)])];
 }
 
 /**
@@ -145,7 +160,6 @@ export function guideProblems(guides: readonly Guide[], registry: Registry): str
       if (!registry.processes().some((p) => p.id === id)) problems.push(`${guide.file}: unknown process ${id}`);
     }
   }
-  const menu = registry.modules().flatMap((m) => [...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])].map((item) => item.href));
-  for (const href of new Set(menu)) if (!covered.has(href)) problems.push(`no guide covers the menu route ${href}`);
+  for (const href of menuRoutes(registry)) if (!covered.has(href)) problems.push(`no guide covers the menu route ${href}`);
   return problems;
 }

@@ -1135,3 +1135,17 @@ git tag phase-2a-accounting
 - **Review Focus.** Five lines, each pinned to named tests in Tasks 17–22 and 25.
 - **Proportion.** About 2.3× the spec's length for 32 tasks that touch four packages, the app and the database; code blocks are test names, assertions and signatures.
 - **Calls made in this plan (owner to check):** default rule templates ship as accounting fixtures until plan 2B relocates them; `suspense → 238095` and `rounding → 530595` as pack auxiliaries created by the seed; `co.exogena.export_xml` is exposed as the module process `accounting.report.exogena_xml` because packs register no processes; `ReportDef` consults take `{ params, state }` and reports save parameter sets as `report:<id>` saved views; `GridState.groupBy` accepts a string for backward compatibility; `v_entry_lines` masks a restricted line in place (nulls + `is_restricted`) so entry totals stay; `period.close` answers `closed: false` with the failed checks instead of throwing, so the sign-off rows of a refused close are kept; `post_from_event` throws on a ledger refusal so the engine records the failure and a retry can reuse the idempotency key; `kernel.admin.module.enable` checks the pack maps every role a module declares.
+
+### Execution notes (filled at the end, 2026-10-30)
+
+Tasks 1-32 executed on `main`; tag `phase-2a-accounting`. Departures and facts the next plan (2B) and the owner should know:
+
+- `loadAppRegistry` in `scripts/help-index.ts` now loads `accounting`; the help guide loader reads module subfolders (`contabilidad/<guide>.md`) and menu groups' children count as screens (`#` is not a screen). The fourteen guides live in `docs/user-guide/es-419/contabilidad/`; the Fuentes screen is covered by `comprobantes.md`, `/accounting/setup` by `reglas-contables.md` (no route in the front matter: it is not a menu item). The test the plan named (`packages/kernel/src/__tests__/help-index.test.ts`) does not exist; the checks live in `scripts/__tests__/help-index.test.ts` (guides indexed, "¿cómo cierro el mes?" ranks `periodos-y-cierre.md` first with the offline embedder) and `packages/kernel/src/help/__tests__/help.test.ts`.
+- User preference key is `master_view.<entity>` (Tabla / Árbol per master). The Tabla view has no period-movement column (only Árbol shows the period's figure).
+- "Devolver a borrador" runs `accounting.entry.update`.
+- A restricted account opened by its page link shows the generic permission message; the API and the Saldos / Movimientos tabs answer "Sin acceso".
+- Marcela's (restricted) Balance de prueba closing columns differ from Laura's by the restricted row netting; both are internally consistent (sumas iguales).
+- "Cerrar año" has no e2e. The assistant evals are structural (no model call). There is no top-level `accounting.*` i18n namespace (copy lives under `nav.accounting`, `entity.accounting`, `field.accounting`, `report.accounting`, `common.entry`, `common.acc_*`, `grid.*`).
+- The exógena XML is a consult process (`accounting.report.exogena_xml`); the report page has no XML button yet (Excel / CSV / PDF only).
+- Screenshots: the guides carry one `[Captura: …]` placeholder per screen; no images were captured.
+

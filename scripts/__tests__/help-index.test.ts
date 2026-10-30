@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeEmbedder, GatewayEmbedder, chunkGuide, guideProblems, loadGuides } from "@erp/kernel";
+import { FakeEmbedder, GatewayEmbedder, chunkGuide, guideProblems, knownRoutes, loadGuides } from "@erp/kernel";
 import { GUIDES_DIR, loadAppRegistry, pickEmbedder, policyEmbeddingModel } from "../help-index";
 import { MissingModelPolicy } from "@erp/agent";
 
@@ -29,6 +29,40 @@ describe("the user guides", () => {
       expect(chunks.length, guide.file).toBeGreaterThan(0);
       for (const chunk of chunks) expect(chunk.body.length, guide.file).toBeLessThanOrEqual(2000);
     }
+  });
+});
+
+describe("the accounting guides (phase 2A, rule 35)", () => {
+  const registry = loadAppRegistry();
+  const guides = loadGuides(GUIDES_DIR);
+  const FILES = [
+    "plan-de-cuentas.md", "comprobantes.md", "centros-de-costo.md", "auxiliares-abiertos-e-items.md", "unidades-de-negocio.md", "consulta-de-movimientos.md",
+    "controles-y-cierre.md", "seguridad-por-cuenta.md", "exogena.md", "cartera-por-edades.md", "periodos-y-cierre.md", "reglas-contables.md", "informes.md",
+    "pendientes-de-contabilizar.md",
+  ];
+  const accounting = guides.filter((g) => g.file.startsWith("contabilidad/"));
+
+  it("loads the accounting module and knows every route of its menu, group children included", () => {
+    expect(knownRoutes(registry)).toEqual(
+      expect.arrayContaining(["/accounting/entries", "/accounting/movements", "/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items", "/accounting/business-units", "/accounting/journals", "/accounting/periods", "/accounting/reports", "/accounting/posting"]),
+    );
+    expect(knownRoutes(registry)).not.toContain("#");
+  });
+
+  it("has the fourteen guides of the plan, each indexed under a menu route and with every process it names registered", () => {
+    expect(accounting.map((g) => g.file).sort()).toEqual(FILES.map((f) => `contabilidad/${f}`).sort());
+    for (const guide of accounting) expect(guide.processes.length, guide.file).toBeGreaterThan(0);
+    expect(guideProblems(guides, registry)).toEqual([]);
+  });
+
+  it("answers '¿cómo cierro el mes?' from periodos-y-cierre.md", async () => {
+    const chunks = guides.flatMap((guide) => chunkGuide(guide).map((chunk) => ({ file: guide.file, text: `${chunk.title}\n${chunk.body}` })));
+    const embedder = new FakeEmbedder();
+    const [query] = await embedder.embed(["¿cómo cierro el mes?"]);
+    const vectors = await embedder.embed(chunks.map((c) => c.text));
+    const score = (v: number[]) => v.reduce((sum, x, i) => sum + x * query![i]!, 0);
+    const best = chunks.map((c, i) => ({ file: c.file, score: score(vectors[i]!) })).sort((a, b) => b.score - a.score)[0]!;
+    expect(best.file).toBe("contabilidad/periodos-y-cierre.md");
   });
 });
 
