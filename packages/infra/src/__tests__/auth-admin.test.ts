@@ -77,4 +77,23 @@ describe("SupabaseAuthAdmin", () => {
     await expect(new SupabaseAuthAdmin(fakeClient().client).deleteFactors("user-1")).resolves.toBe(0);
     await expect(new SupabaseAuthAdmin(fakeClient({ factorError: "boom" }).client).deleteFactors("user-1")).rejects.toThrow(/could not list the factors of user-1: boom/);
   });
+
+  it("ends a user's sessions through the server's revoker (Auth's admin API signs out by JWT only), without touching the client", async () => {
+    const { client, calls } = fakeClient();
+    const revoked: string[] = [];
+    await new SupabaseAuthAdmin(client, 1000, async (userId) => void revoked.push(userId)).signOutUser("user-1");
+    expect(revoked).toEqual(["user-1"]);
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses to sign a user out without a revoker rather than pretending it did", async () => {
+    await expect(new SupabaseAuthAdmin(fakeClient().client).signOutUser("user-1")).rejects.toThrow(/could not end the sessions of user-1: no session revoker/);
+  });
+
+  it("fromEnv hands the revoker to the adapter", async () => {
+    const revoked: string[] = [];
+    const auth = SupabaseAuthAdmin.fromEnv({ SUPABASE_URL: "http://127.0.0.1:1", SUPABASE_SERVICE_ROLE_KEY: "key" }, { revokeSessions: async (userId) => void revoked.push(userId) });
+    await auth.signOutUser("user-2");
+    expect(revoked).toEqual(["user-2"]);
+  });
 });

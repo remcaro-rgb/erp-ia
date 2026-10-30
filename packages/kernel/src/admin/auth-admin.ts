@@ -1,4 +1,6 @@
 import type { AuthAdmin } from "@erp/infra";
+import { getServiceDb } from "../db/service";
+import { revokeUserSessions } from "../users/sessions";
 
 // The identity provider's admin API kernel.admin.user.create invites people through (rule 6: the interface, never a
 // provider API): Supabase Auth from the server environment (service role) unless something else was installed (a
@@ -12,10 +14,13 @@ export function setAuthAdmin(adapter: AuthAdmin | undefined): void {
   globals[GLOBAL_KEY] = adapter;
 }
 
-/** The installed adapter, or Supabase Auth from `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (server side only). */
+/**
+ * The installed adapter, or Supabase Auth from `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` (server side only), which
+ * ends a user's sessions over the service connection (Auth's admin API signs out by JWT only; design §22.19).
+ */
 export async function authAdmin(): Promise<AuthAdmin> {
   const installed = globals[GLOBAL_KEY];
   if (installed) return installed;
   const { SupabaseAuthAdmin } = await import("@erp/infra");
-  return (globals[GLOBAL_KEY] ??= SupabaseAuthAdmin.fromEnv());
+  return (globals[GLOBAL_KEY] ??= SupabaseAuthAdmin.fromEnv(process.env, { revokeSessions: (userId) => revokeUserSessions(getServiceDb(), userId) }));
 }

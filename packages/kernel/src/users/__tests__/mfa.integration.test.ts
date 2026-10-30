@@ -48,6 +48,13 @@ describe("the user's second step", () => {
   const enrol = (userId: string) => sql`
     insert into auth.mfa_factors (id, user_id, friendly_name, factor_type, status, created_at, updated_at, secret)
     values (gen_random_uuid(), ${userId}, ${`totp-${randomUUID().slice(0, 8)}`}, 'totp', 'verified', now(), now(), 'JBSWY3DPEHPK3PXP')`;
+  /** An open session of the user with its refresh token, straight into the auth schema (what a sign-in leaves). */
+  const openSession = async (userId: string) => {
+    const [session] = await sql<{ id: string }[]>`insert into auth.sessions (id, user_id, aal, created_at, updated_at) values (gen_random_uuid(), ${userId}, 'aal2', now(), now()) returning id`;
+    await sql`insert into auth.refresh_tokens (token, user_id, revoked, session_id, created_at, updated_at) values (${randomUUID()}, ${userId}, false, ${session!.id}, now(), now())`;
+  };
+  const sessions = async (userId: string) =>
+    (await sql<{ n: number }[]>`select ((select count(*) from auth.sessions where user_id = ${userId}) + (select count(*) from auth.refresh_tokens where user_id = ${userId}))::int as n`)[0]!.n;
   const factors = async (userId: string) =>
     (await sql<{ n: number }[]>`select count(*)::int as n from auth.mfa_factors where user_id = ${userId}`)[0]!.n;
   const exempt = (userId: string, value: boolean) => sql`update kernel.memberships set mfa_exempt = ${value} where user_id = ${userId} and company_id = ${companyId}`;
@@ -91,6 +98,8 @@ describe("the user's second step", () => {
   });
   beforeEach(async () => {
     auth.deletedFactorsOf.length = 0;
+    auth.signedOut.length = 0;
+    await sql`delete from auth.sessions where user_id = any(${[seed.users.both, seed.users.boss!, seed.users.clerk!, seed.users.idle!]}::uuid[])`;
     await sql`delete from auth.mfa_factors where user_id = any(${[seed.users.both, seed.users.boss!, seed.users.clerk!, seed.users.idle!]}::uuid[])`;
     await sql`update kernel.memberships set mfa_exempt = false where company_id = ${companyId} and mfa_exempt`;
   });
@@ -107,17 +116,27 @@ describe("the user's second step", () => {
       expect(await factors(seed.users.clerk!)).toBe(1);
     });
 
-    it("removes the factors of a member whose roles do not require it, and audits the run on their name", async () => {
+    it("removes the factors of a member whose roles do not require it, ends every session of theirs, and audits the run on their name", async () => {
       await enrol(seed.users.clerk!);
+      await openSession(seed.users.clerk!);
+      await openSession(seed.users.clerk!);
+      await openSession(seed.users.idle!);
       await expect(disable(clerk)).resolves.toEqual({ removed: 1 });
       expect(auth.deletedFactorsOf).toEqual([seed.users.clerk]);
       expect(await factors(seed.users.clerk!)).toBe(0);
+      // Owner decision 2026-10-30 (design §22.19): the other sessions end too; nobody else's.
+      expect(auth.signedOut).toEqual([seed.users.clerk]);
+      expect(await sessions(seed.users.clerk!)).toBe(0);
+      expect(await sessions(seed.users.idle!)).toBe(2);
       expect(await lastRun("kernel.user.mfa.disable", seed.users.clerk!)).toMatchObject({ action: "update", input: {}, actor_user_id: seed.users.clerk });
     });
 
-    it("answers 0 for a member without a factor", async () => {
+    it("answers 0 for a member without a factor, and then ends no session", async () => {
+      await openSession(seed.users.idle!);
       await expect(disable(idle)).resolves.toEqual({ removed: 0 });
       expect(auth.deletedFactorsOf).toEqual([seed.users.idle]);
+      expect(auth.signedOut).toEqual([]);
+      expect(await sessions(seed.users.idle!)).toBe(2);
     });
 
     it("refuses a system admin without an exemption, before reaching the identity provider", async () => {
@@ -126,6 +145,7 @@ describe("the user's second step", () => {
       expect(error).toMatchObject({ code: "invalid_input" });
       expect(details(error)).toEqual([ROLE_COPY]);
       expect(auth.deletedFactorsOf).toEqual([]);
+      expect(auth.signedOut).toEqual([]);
       expect(await factors(seed.users.boss!)).toBe(1);
     });
 
@@ -204,10 +224,13 @@ describe("the user's second step", () => {
       }
     });
 
-    it("removes nothing in a dry run", async () => {
+    it("removes nothing and ends no session in a dry run", async () => {
       await enrol(seed.users.clerk!);
+      await openSession(seed.users.clerk!);
       await expect(disable(clerk, { dryRun: true })).resolves.toEqual({ removed: 0 });
       expect(auth.deletedFactorsOf).toEqual([]);
+      expect(auth.signedOut).toEqual([]);
+      expect(await sessions(seed.users.clerk!)).toBe(2);
       expect(await factors(seed.users.clerk!)).toBe(1);
     });
   });
@@ -267,6 +290,7 @@ describe("the user's second step", () => {
         const dryRefused = await setMfa({ userId: shared, reset: true }, admin, { dryRun: true }).catch((e: unknown) => e);
         expect(dryRefused).toMatchObject({ code: "invalid_input" });
         expect(auth.deletedFactorsOf).toEqual([]);
+        expect(auth.signedOut).toEqual([]);
         expect(await factors(shared)).toBe(1);
         expect(await seen(shared)).toEqual({ mfa_exempt: false });
 
@@ -293,17 +317,31 @@ describe("the user's second step", () => {
         where entity = 'kernel.memberships' and row_id = ${membershipId} and diff ? 'mfa_exempt' order by occurred_at desc, id desc limit 1`;
       expect(row).toMatchObject({ diff: { mfa_exempt: { old: false, new: true } }, actor_user_id: seed.users.both, process_id: "kernel.admin.user.mfa.set" });
       expect(auth.deletedFactorsOf).toEqual([]);
+      expect(auth.signedOut).toEqual([]);
 
       await expect(setMfa({ userId: seed.users.boss!, exempt: false })).resolves.toMatchObject({ exempt: false });
       expect(await seen(seed.users.boss!)).toEqual({ mfa_exempt: false });
     });
 
-    it("resets a member's factor through the adapter and audits the input with the target", async () => {
+    it("resets a member's factor through the adapter, ends the member's sessions (not the admin's), and audits the input with the target", async () => {
       await enrol(seed.users.clerk!);
+      await openSession(seed.users.clerk!);
+      await openSession(seed.users.both);
       await expect(setMfa({ userId: seed.users.clerk!, reset: true })).resolves.toEqual({ userId: seed.users.clerk, removed: 1, exempt: false });
       expect(auth.deletedFactorsOf).toEqual([seed.users.clerk]);
       expect(await factors(seed.users.clerk!)).toBe(0);
+      expect(auth.signedOut).toEqual([seed.users.clerk]);
+      expect(await sessions(seed.users.clerk!)).toBe(0);
+      expect(await sessions(seed.users.both)).toBe(2);
       expect(await lastRun("kernel.admin.user.mfa.set", seed.users.both)).toMatchObject({ action: "update", input: { userId: seed.users.clerk, reset: true } });
+    });
+
+    it("ends no session when the reset found no factor to remove", async () => {
+      await openSession(seed.users.idle!);
+      await expect(setMfa({ userId: seed.users.idle!, reset: true })).resolves.toEqual({ userId: seed.users.idle, removed: 0, exempt: false });
+      expect(auth.deletedFactorsOf).toEqual([seed.users.idle]);
+      expect(auth.signedOut).toEqual([]);
+      expect(await sessions(seed.users.idle!)).toBe(2);
     });
 
     it("lets the admin exempt and reset themselves", async () => {
@@ -317,6 +355,7 @@ describe("the user's second step", () => {
       await enrol(seed.users.clerk!);
       await expect(setMfa({ userId: seed.users.clerk!, reset: true, exempt: true }, admin, { dryRun: true })).resolves.toEqual({ userId: seed.users.clerk, removed: 0, exempt: true });
       expect(auth.deletedFactorsOf).toEqual([]);
+      expect(auth.signedOut).toEqual([]);
       expect(await factors(seed.users.clerk!)).toBe(1);
       const [row] = await sql<{ mfa_exempt: boolean }[]>`select mfa_exempt from kernel.memberships where user_id = ${seed.users.clerk!} and company_id = ${companyId}`;
       expect(row!.mfa_exempt).toBe(false);

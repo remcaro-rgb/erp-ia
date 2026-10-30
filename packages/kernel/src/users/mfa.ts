@@ -10,9 +10,9 @@ import { USERS_FEATURE } from "./entity";
 // the second step (the access-token hook's `requires_mfa` claim) unless the admin exempted the member
 // (`kernel.memberships.mfa_exempt`, 0028).
 //
-// Order: everything in the database first, the identity provider last, and nothing outside the database in a dry run.
-// When the process transaction fails after the factors were removed, the user simply enrols again (the sign-in asks for
-// it when their role still requires it).
+// Order: everything in the database first, the identity provider last (the factors, then the user's sessions), and
+// nothing outside the database in a dry run. When the process transaction fails after the factors were removed, the
+// user simply enrols again (the sign-in asks for it when their role still requires it).
 
 export const userMfaDisable = defineProcess({
   id: "kernel.user.mfa.disable",
@@ -33,7 +33,11 @@ export const userMfaDisable = defineProcess({
     const [row] = await ctx.tx<{ required: boolean }[]>`select kernel.user_requires_mfa(${ctx.userId}) as required`;
     if (row?.required) throw invalid("role requires mfa", "Tu rol exige la verificación en dos pasos; pídele a un administrador que te exima");
     if (ctx.dryRun) return { removed: 0 };
-    const removed = await (await authAdmin()).deleteFactors(ctx.userId);
+    const adapter = await authAdmin();
+    const removed = await adapter.deleteFactors(ctx.userId);
+    // Owner decision 2026-10-30 (design §22.19): the user's other sessions end too (Auth only downgrades them); the web
+    // action then clears this one's cookies and shows the sign-in notice. Nothing removed, nothing ended.
+    if (removed > 0) await adapter.signOutUser(ctx.userId);
     return { removed };
   },
 });
@@ -84,8 +88,14 @@ export const adminUserMfaSet = defineProcess({
     // The reset removes the identity's factor, so it also ends the second step of the user's other companies; when one of
     // them still requires it (they are its admin, not exempt), they enrol again at the next sign-in there. Never another
     // organization's: refused above.
+    // The member's sessions end with it (owner decision 2026-10-30, design §22.19); the admin's own go on unless the
+    // admin reset themselves.
     let removed = 0;
-    if (input.reset === true && !ctx.dryRun) removed = await (await authAdmin()).deleteFactors(input.userId);
+    if (input.reset === true && !ctx.dryRun) {
+      const adapter = await authAdmin();
+      removed = await adapter.deleteFactors(input.userId);
+      if (removed > 0) await adapter.signOutUser(input.userId);
+    }
     return { userId: input.userId, removed, exempt };
   },
 });
