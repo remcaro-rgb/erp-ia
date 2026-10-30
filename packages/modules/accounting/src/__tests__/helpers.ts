@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, type RunProcessDeps } from "@erp/kernel";
+import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, runProcess, type Caller, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
@@ -35,6 +35,12 @@ export interface AccountingHarness {
   /** A member holding the `auxiliar` role: consults and entries. */
   auxiliar: Member;
   companyId: string;
+  /** The caller with a fresh step-up verification (one use) for the process it runs next. */
+  stepUp: (caller: Caller) => Promise<Caller>;
+  /** `runProcess` as `caller`. */
+  run: <T = unknown>(caller: Caller, processId: string, input: unknown) => Promise<T>;
+  /** `runProcess` as `caller` with a fresh step-up verification. */
+  runStepUp: <T = unknown>(caller: Caller, processId: string, input: unknown) => Promise<T>;
   /** Service-role grant of every listed process to the role, in the role's company. */
   grantAll: (companyId: string, roleId: string, ids: string[]) => Promise<void>;
   /** Removes every accounting and core row and kernel grant of the seeded companies, then the tenant. */
@@ -80,9 +86,19 @@ export async function accountingHarness(options: { companies?: number } = {}): P
   const contador = await member("contador");
   const auxiliar = await member("auxiliar");
 
+  const deps = { sql, registry };
+  const stepUp = async (caller: Caller): Promise<Caller> => {
+    const stepUpToken = randomUUID();
+    await sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${caller.claims.sub}, ${companyId}, ${stepUpToken})`;
+    return { ...caller, stepUpToken };
+  };
+
   return {
     sql,
-    deps: { sql, registry },
+    deps,
+    stepUp,
+    run: <T>(caller: Caller, processId: string, input: unknown) => runProcess(deps, caller, processId, input) as Promise<T>,
+    runStepUp: async <T>(caller: Caller, processId: string, input: unknown) => runProcess(deps, await stepUp(caller), processId, input) as Promise<T>,
     seed,
     admin: { claims: seed.claimsFor(seed.users.both, companyId), origin: "ui" },
     contador,
