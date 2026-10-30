@@ -1,0 +1,41 @@
+{
+  "$comment": "Spanish prompt -> the tool the assistant must call (process id) and the part of its input that matters. Rule 30. `confirmation: true` means a write: the assistant shows a confirmation card and never executes it by itself (rule 17).",
+  "cases": [
+    {
+      "id": "accounting-income-by-cost-center",
+      "prompt": "¿cuánto vendimos en septiembre por centro de costo?",
+      "expect": { "process": "accounting.report.income_statement", "input": { "params": { "byCostCenter": true } } }
+    },
+    {
+      "id": "accounting-accrual-entry",
+      "prompt": "registra la provisión de arriendo de octubre por $ 2.500.000",
+      "expect": { "process": "accounting.entry.create", "confirmation": true, "input": { "description": "Provisión de arriendo de octubre" } }
+    },
+    {
+      "id": "accounting-what-happened-to-invoice",
+      "prompt": "¿qué pasó contablemente con la factura FE-1234?",
+      "expect": {
+        "process": "kernel.data.query",
+        "input": { "entity": "accounting.ledger_line", "filters": [{ "field": "source_ref", "op": "eq", "value": "FE-1234" }], "sort": [{ "field": "date", "dir": "asc" }] }
+      }
+    },
+    {
+      "id": "accounting-aging-over-90",
+      "prompt": "¿quién me debe más de 90 días?",
+      "expect": { "process": "accounting.report.aging", "input": { "params": { "kind": "receivable" } } }
+    },
+    {
+      "id": "accounting-expenses-by-cost-center",
+      "prompt": "gastos de octubre por centro de costo",
+      "expect": {
+        "process": "kernel.data.query",
+        "input": {
+          "entity": "accounting.ledger_line",
+          "filters": [{ "field": "account_class", "op": "eq", "value": "5" }, { "field": "date", "op": "between", "value": "2026-10-01", "value2": "2026-10-31" }],
+          "groupBy": ["cost_center_code"],
+          "aggregates": [{ "field": "net", "fn": "sum" }]
+        }
+      }
+    }
+  ]
+}

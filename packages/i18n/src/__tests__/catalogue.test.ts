@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { kernelModule, loadModules, Registry, type ProcessErrorCode } from "@erp/kernel";
+import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
+import { z } from "zod";
 import { collectRegistryKeys, defaultLocale, locales, messages, type Messages } from "../index";
 
 /** Every leaf of a nested catalogue as `a.b.c`, sorted. */
@@ -24,7 +26,7 @@ function valueAt(tree: Messages, key: string): string | undefined {
 const argumentsOf = (text: string): string[] => [...new Set([...text.matchAll(/\{\s*([a-z_][a-z0-9_]*)\s*[,}]/g)].map((m) => m[1]!))].sort();
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, support]);
+loadModules(registry, [kernelModule, core, support, accounting]);
 
 const es = messages("es-419");
 const en = messages("en");
@@ -65,12 +67,23 @@ describe("catalogue shape", () => {
   });
 });
 
+/** The accounting cards keep short catalogue keys (`home.kpi.accounting_*`) that differ from their provider ids. */
+const KPI_CARD_KEY: Record<string, string> = {
+  "accounting.result_month": "accounting_result",
+  "accounting.pending_failures": "accounting_pending",
+  "accounting.open_periods": "accounting_periods",
+  "accounting.draft_entries": "accounting_drafts",
+};
+
 describe("home screen", () => {
   it("has the card texts of every KPI provider the loaded modules register", () => {
     const providers = registry.kpiProviders();
-    expect(providers.map((p) => p.id)).toEqual(expect.arrayContaining(["core.parties", "core.products", "support.tickets", "kernel.ai_tokens"]));
+    expect(providers.map((p) => p.id)).toEqual(expect.arrayContaining(["core.parties", "core.products", "support.tickets", "kernel.ai_tokens", ...Object.keys(KPI_CARD_KEY)]));
     for (const locale of [es, en]) {
-      for (const provider of providers) expect(valueAt(locale, `home.kpi.${provider.id.replace(".", "_")}.label`), provider.id).toBeTruthy();
+      for (const provider of providers) {
+        const key = KPI_CARD_KEY[provider.id] ?? provider.id.replace(".", "_");
+        expect(valueAt(locale, `home.kpi.${key}.label`), provider.id).toBeTruthy();
+      }
     }
   });
 });
@@ -115,5 +128,74 @@ describe("process errors", () => {
       expect(valueAt(es, `errors.${code}`), `es-419 errors.${code}`).toBeTruthy();
       expect(valueAt(en, `errors.${code}`), `en errors.${code}`).toBeTruthy();
     }
+  });
+});
+
+// The accounting catalogue (Task 30, rule 24). The statuses, origins, close checks and refusal codes live where their entity
+// fields point (`grid.values.*`), the entry screens under `common.entry.*`, the reports under `report.*`: one place for each,
+// es-419 and en alike.
+describe("accounting catalogue", () => {
+  const both = (key: string) => [
+    [`es-419 ${key}`, valueAt(es, key)] as const,
+    [`en ${key}`, valueAt(en, key)] as const,
+  ];
+  const missing = (keys: string[]) => keys.flatMap(both).filter(([, value]) => value === undefined).map(([name]) => name);
+  const accountingReports = registry.modules().filter((m) => m.id === "accounting").flatMap((m) => m.reports ?? []);
+
+  it("labels the twenty accounting entities and the journal master as Fuente / Fuentes", () => {
+    const entities = registry.entities().filter((e) => e.module === "accounting");
+    expect(entities).toHaveLength(20);
+    expect(missing(entities.map((e) => e.label))).toEqual([]);
+    expect(valueAt(es, "entity.accounting.journal")).toBe("Fuente");
+    expect(valueAt(es, "nav.accounting.journals")).toBe("Fuentes");
+    expect(valueAt(es, "nav.accounting.reports")).toBeTruthy();
+  });
+
+  it("has a label for every field of the accounting entities", () => {
+    const fields = registry.entities().filter((e) => e.module === "accounting").flatMap((e) => e.fields.map((f) => f.label));
+    expect(fields.length).toBeGreaterThan(200);
+    expect(missing(fields)).toEqual([]);
+  });
+
+  it("has a label for every value of every enum field that names a catalogue (statuses, origins, kinds, failure codes)", () => {
+    const keys = registry
+      .entities()
+      .filter((e) => e.module === "accounting")
+      .flatMap((e) => e.fields.filter((f) => f.type === "enum" && f.valuesKey).flatMap((f) => f.enumValues!.map((v) => `${f.valuesKey}.${v}`)));
+    expect(keys).toEqual(expect.arrayContaining(["grid.values.entry_status.pending", "grid.values.entry_origin.template", "grid.values.failure_code.no_journal"]));
+    expect(missing(keys)).toEqual([]);
+  });
+
+  it("has the five statuses, the four origins, the ten close checks and the refusal codes of the validation", () => {
+    const keys = [
+      ...["draft", "pending", "posted", "reversed", "voided"].map((v) => `grid.values.entry_status.${v}`),
+      ...["manual", "auto", "import", "template"].map((v) => `grid.values.entry_origin.${v}`),
+      ...["drafts", "pending_approvals", "pending_failures", "undispatched_events", "control_receivable", "control_payable", "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances"].map((v) => `grid.values.close_check.${v}`),
+      ...["unbalanced", "missing_account_mapping", "closed_period", "inactive_account", "missing_party", "missing_cost_center", "missing_open_auxiliary", "missing_item", "missing_business_unit", "inactive_dimension", "invalid_template", "no_journal", "account_forbidden", "same_user_approval", "manual_journal_only"].map((v) => `grid.values.failure_code.${v}`),
+    ];
+    expect(missing(keys)).toEqual([]);
+  });
+
+  it("has the title, the columns and the parameters of the thirteen reports", () => {
+    expect(accountingReports).toHaveLength(13);
+    const keys: string[] = ["report.restricted_accounts", "report.omitted_lines", "grid.sort.max_levels", "grid.group.group_by", "grid.group.no_value"];
+    for (const report of accountingReports) {
+      keys.push(report.label, ...report.columns.map((c) => c.label));
+      const props = Object.keys((z.toJSONSchema(report.params, { io: "input", unrepresentable: "any" }) as { properties?: object }).properties ?? {});
+      for (const name of props) {
+        const snake = name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+        const own = `report.param.${report.id}.${snake}`;
+        const shared = `report.param.${snake}`;
+        expect(valueAt(es, own) ?? valueAt(es, shared), `${report.id} parameter ${name}`).toBeTruthy();
+        expect(valueAt(en, own) ?? valueAt(en, shared), `${report.id} parameter ${name} (en)`).toBeTruthy();
+      }
+    }
+    expect(missing(keys)).toEqual([]);
+  });
+
+  it("has the home cards and the entry screen texts", () => {
+    const keys = ["accounting_result", "accounting_pending", "accounting_periods", "accounting_drafts"].flatMap((k) => [`home.kpi.${k}.label`, `home.kpi.${k}.detail`]);
+    expect(missing(keys)).toEqual([]);
+    expect(missing(["common.entry.actions.submit", "common.entry.actions.approve", "common.entry.balanced", "common.entry.unbalanced", "common.entry.keyboard_hint"])).toEqual([]);
   });
 });

@@ -5,6 +5,8 @@
  *  - rule 24: no Spanish copy in apps/web .tsx outside packages/i18n catalogues
  *  - rule 3:  module processes only write to their own schema (reads of published views are allowed)
  *  - rule 14: apps/web and packages/agent read module tables only through their masked views `<schema>.v_<table>`
+ *  - rule 5:  no PUC account code (a 4 to 8 digit string literal) in the posting engine or the accounting module source;
+ *             codes live in packages/localization/<country>, the module names roles
  *  - CLAUDE.md and AGENTS.md at the root are byte-identical
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -12,7 +14,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "agents-claude-identical";
+export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "agents-claude-identical" | "puc-code-outside-pack";
 
 export interface Violation {
   rule: RuleId;
@@ -145,6 +147,32 @@ function checkMaskedViewReads(root: string): Violation[] {
   return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
 }
 
+const PUC_CODE = /^[1-9]\d{3,7}$/;
+
+function checkPucCodes(root: string): Violation[] {
+  const violations: Violation[] = [];
+  for (const dir of [join(root, "packages", "kernel", "src", "posting"), join(root, "packages", "modules", "accounting", "src")]) {
+    for (const file of walk(dir).filter((f) => /\.tsx?$/.test(f))) {
+      const path = rel(root, file);
+      if (isTestFile(path) || /(^|\/)rules\/fixtures\//.test(path)) continue;
+      const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+      const visit = (node: ts.Node) => {
+        if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && PUC_CODE.test(node.text)) {
+          violations.push({
+            rule: "puc-code-outside-pack",
+            file: path,
+            line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+            message: `"${node.text}" looks like a PUC account code; account codes belong to packages/localization/<country>, name the role here (rule 5)`,
+          });
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+    }
+  }
+  return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
+}
+
 function checkInstructionFiles(root: string): Violation[] {
   const claude = join(root, "CLAUDE.md");
   const agents = join(root, "AGENTS.md");
@@ -160,7 +188,7 @@ function checkInstructionFiles(root: string): Violation[] {
 }
 
 export function checkRules(root: string): Violation[] {
-  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkInstructionFiles(root)];
+  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkPucCodes(root), ...checkInstructionFiles(root)];
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

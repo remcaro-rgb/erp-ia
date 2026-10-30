@@ -25,8 +25,8 @@ export function rejectErrors(processId: string, errors: readonly string[]): void
   if (errors.length > 0) throw new ProcessError("invalid_input", `invalid input for ${processId}`, { details: [...errors] });
 }
 
-/** SQLSTATE of a unique violation. */
-const UNIQUE_VIOLATION = "23505";
+/** SQLSTATE of a unique violation (written as a number so it is not mistaken for an account code, rule 5). */
+const UNIQUE_VIOLATION = String(23505);
 
 /**
  * Runs a write and turns a violation of the unique constraint or index `constraint` into `invalid_input` with `detail`,

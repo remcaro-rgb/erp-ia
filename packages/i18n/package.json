@@ -12,7 +12,9 @@
     "@erp/kernel": "workspace:*"
   },
   "devDependencies": {
+    "@erp/module-accounting": "workspace:*",
     "@erp/module-core": "workspace:*",
-    "@erp/module-support": "workspace:*"
+    "@erp/module-support": "workspace:*",
+    "zod": "^4.6.7"
   }
 }

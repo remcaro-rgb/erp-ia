@@ -199,3 +199,25 @@ describe("check-rules: CLAUDE.md and AGENTS.md (project instructions)", () => {
     expect(violations[0]).toMatchObject({ rule: "agents-claude-identical", file: "AGENTS.md" });
   });
 });
+
+describe("check-rules: PUC codes outside the country pack (rule 5)", () => {
+  it("flags a 4 to 8 digit string literal in the posting engine and in the accounting module source", () => {
+    put("packages/kernel/src/posting/compose.ts", 'export const cash = "110505";\n');
+    put("packages/modules/accounting/src/processes/entry.ts", "const a = '4135';\nconst b = `51050601`;\n");
+    const violations = checkRules(root);
+    expect(violations.map((v) => [v.rule, v.file, v.line])).toEqual([
+      ["puc-code-outside-pack", "packages/kernel/src/posting/compose.ts", 1],
+      ["puc-code-outside-pack", "packages/modules/accounting/src/processes/entry.ts", 1],
+      ["puc-code-outside-pack", "packages/modules/accounting/src/processes/entry.ts", 2],
+    ]);
+  });
+
+  it("accepts roles, short or long digit strings, numbers, tests, fixtures and the country pack itself", () => {
+    put("packages/modules/accounting/src/processes/ok.ts", 'const r = "receivable";\nconst s = "123";\nconst l = "123456789";\nconst n = 110505;\nconst m = "2026-10-29";\nconst z = "0110";\n');
+    put("packages/modules/accounting/src/__tests__/x.test.ts", 'const a = "110505";\n');
+    put("packages/modules/accounting/src/rules/fixtures/f.ts", 'export const a = "110505";\n');
+    put("packages/kernel/src/posting/__tests__/t.test.ts", 'const a = "110505";\n');
+    put("packages/localization/co/src/puc/seed.ts", 'export const a = "110505";\n');
+    expect(checkRules(root)).toEqual([]);
+  });
+});
