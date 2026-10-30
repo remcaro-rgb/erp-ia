@@ -17,6 +17,8 @@ export interface ReportPageData {
   /** The parameters the schema defaults to; the URL's (`?p=`) go over them. */
   defaults: ReportParams;
   views: SavedViewItem[];
+  /** Dates of the periods a report names by id (the account of a statement row opens the Auxiliar for that range). */
+  periodDates: Record<string, { from: string; to: string }>;
 }
 
 export interface LoadReportOptions {
@@ -26,6 +28,10 @@ export interface LoadReportOptions {
   paramOptions?: Record<string, { value: string; label: string }[]>;
   /** The open period, for "Este período". */
   period?: { from: string; to: string };
+  /** Values the parameter bar starts on over the schema's own defaults (the current period, today); the URL's `?p=` still goes over them. */
+  defaults?: ReportParams;
+  /** Date range of each period id offered in the bar. */
+  periodDates?: Record<string, { from: string; to: string }>;
 }
 
 export type ReportPageResult = { ok: true; data: ReportPageData } | { ok: false; denial: ReportDenialCode };
@@ -47,7 +53,11 @@ const isScalar = (v: unknown): v is string | number | boolean => ["string", "num
 export function paramSpecs(def: ReportDef, t: Translate, has: (key: string) => boolean, options: LoadReportOptions["paramOptions"] = {}): { specs: ParamSpec[]; defaults: ReportParams } {
   const json = z.toJSONSchema(def.params, { io: "input", unrepresentable: "any" }) as { properties?: Record<string, PropertySchema>; required?: string[] };
   const required = new Set(json.required ?? []);
-  const label = (name: string) => (has(`report.param.${def.id}.${name}`) ? t(`report.param.${def.id}.${name}`) : has(`report.param.${name}`) ? t(`report.param.${name}`) : name);
+  // Parameter names are camelCase in the schema, catalogue keys snake_case (`costCenterId` → `report.param.cost_center_id`).
+  const label = (name: string) => {
+    const key = name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    return has(`report.param.${def.id}.${key}`) ? t(`report.param.${def.id}.${key}`) : has(`report.param.${key}`) ? t(`report.param.${key}`) : name;
+  };
   const defaults: ReportParams = {};
   const specs = Object.entries(json.properties ?? {}).map(([name, p]): ParamSpec => {
     if (isScalar(p.default)) defaults[name] = p.default;
@@ -113,8 +123,9 @@ export async function loadReportPage(id: string, options: LoadReportOptions = {}
         links: Object.fromEntries(columns.filter((c) => c.link).map((c) => [c.field, c.link!])),
         ...(options.period ? { period: options.period } : {}),
       },
-      defaults,
+      defaults: { ...defaults, ...(options.defaults ?? {}) },
       views,
+      periodDates: options.periodDates ?? {},
     },
   };
 }

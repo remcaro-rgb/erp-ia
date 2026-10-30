@@ -71,7 +71,9 @@
         "cierre": "Cierre",
         "lineas": "Líneas",
         "probar": "Probar",
-        "historial": "Historial"
+        "historial": "Historial",
+        "contabilidad": "Contabilidad",
+        "cuentas": "Cuentas"
       },
       "number": "N.º",
       "uuid": "uuid",
@@ -88,7 +90,10 @@
         "saving": "Guardando…",
         "saved": "Guardado",
         "read_only": "Solo lectura para tu rol",
-        "choose": "Buscar…"
+        "choose": "Buscar…",
+        "roles": {
+          "revenue": "Cuenta de ingresos"
+        }
       },
       "dian": {
         "complete": "DIAN: completo",
@@ -1011,6 +1016,162 @@
         "history_label": "Cambios de la regla",
         "preview_account": "Cuenta"
       }
+    },
+    "acc_pages": {
+      "periods": {
+        "none": "Aún no hay años fiscales: configura la contabilidad primero.",
+        "years": "Años fiscales",
+        "year": "Año {year}",
+        "closed_count": "{closed} de {total} períodos cerrados",
+        "title": "Períodos {year}",
+        "table": "Períodos del año {year}",
+        "close_year": "Cerrar año",
+        "reopen_year": "Reabrir año",
+        "col_period": "Período",
+        "col_status": "Estado",
+        "col_entries": "Comprobantes",
+        "col_debit": "Débito",
+        "col_credit": "Crédito",
+        "col_open": "Por contabilizar",
+        "reopened_for": "reabierto para {date}",
+        "reopened": "{count, plural, one {reabierto # vez} other {reabierto # veces}}",
+        "close": "Cerrar",
+        "reopen": "Reabrir",
+        "close_named": "Cerrar {period}",
+        "reopen_named": "Reabrir {period}",
+        "close_title": "Cerrar {period}",
+        "close_body": "Se corren los controles de cierre y, si todos pasan, el período se cierra: ya no se podrán contabilizar comprobantes en él. Pedirá tu código de verificación.",
+        "close_open_note": "{count, plural, one {El período tiene # comprobante en borrador o por aprobar.} other {El período tiene # comprobantes en borrador o por aprobar.}}",
+        "retry": "Volver a intentar",
+        "close_failed": "{count, plural, one {Falló # verificación: el período sigue abierto.} other {Fallaron # verificaciones: el período sigue abierto.}}",
+        "checks": "Verificaciones de cierre",
+        "check_ok": "Aprobada",
+        "check_failed": "Fallida",
+        "reopen_title": "Reabrir {period}",
+        "reopen_scope": "Qué reabrir",
+        "reopen_all": "Todo el período",
+        "reopen_day": "Solo un día",
+        "reopen_date": "Día",
+        "reopen_day_hint": "Mientras esté reabierto solo se contabilizan comprobantes con esa fecha.",
+        "close_year_title": "Cerrar el año {year}",
+        "reopen_year_title": "Reabrir el año {year}",
+        "close_year_body": "Se saldan las cuentas de resultado contra ganancias y pérdidas y el resultado pasa a utilidad o pérdida del ejercicio. Pedirá tu código de verificación.",
+        "reopen_year_body": "Se revierten los comprobantes de cierre del año y el año y su último período vuelven a abrirse. Pedirá tu código de verificación.",
+        "preview": "Vista previa del cierre",
+        "preview_income": "Ingresos del año",
+        "preview_expense": "Gastos del año",
+        "preview_profit": "Utilidad del ejercicio",
+        "preview_loss": "Pérdida del ejercicio",
+        "preview_open_periods": "{count, plural, one {Falta cerrar # período del año.} other {Faltan por cerrar # períodos del año.}}",
+        "preview_missing_roles": "Faltan por mapear las cuentas de ganancias y pérdidas, utilidad del ejercicio o pérdida del ejercicio (Reglas contables → Mapeo de cuentas).",
+        "preview_no_closing": "El año no tiene comprobantes de cierre vigentes.",
+        "preview_closing": "Comprobantes de cierre por revertir",
+        "preview_unavailable": "No se pudo calcular la vista previa del cierre.",
+        "close_confirm": "Cerrar período",
+        "reopen_confirm": "Reabrir período"
+      },
+      "reports": {
+        "none": "Tu rol no puede consultar ningún informe contable.",
+        "desc": {
+          "trial_balance": "Saldo inicial, movimiento y saldo final por cuenta hasta el nivel que elijas.",
+          "ledger": "Libro mayor y balances de un período.",
+          "balance_sheet": "Activo, pasivo y patrimonio a una fecha, con comparativo.",
+          "income_statement": "Ingresos, costos y gastos de un rango de períodos.",
+          "cost_center_statement": "El estado de resultados con una columna por centro de costo.",
+          "journal_book": "Todos los comprobantes contabilizados, por fuente y fecha.",
+          "account_detail": "Los movimientos de una cuenta con saldo corrido.",
+          "party_detail": "Los movimientos de un tercero en las cuentas que elijas.",
+          "dimension_detail": "Un centro de costo, auxiliar, ítem o unidad de negocio por cuenta.",
+          "aging": "Cartera o cuentas por pagar por edades de vencimiento.",
+          "control_reconciliation": "Cuentas de control contra sus auxiliares por tercero.",
+          "manual_entries_audit": "Los comprobantes manuales con quién los hizo, aprobó y cuándo.",
+          "exogena": "Información exógena por formato y año, con exportación XML."
+        }
+      },
+      "posting": {
+        "none": "Tu rol no puede abrir ninguna sección de las reglas contables.",
+        "tabs": "Secciones de las reglas contables",
+        "tab": {
+          "rules": "Reglas",
+          "mapping": "Mapeo de cuentas",
+          "concepts": "Conceptos exógena",
+          "pending": "Pendientes de contabilizar",
+          "settings": "Configuración"
+        },
+        "save": "Guardar",
+        "mapping_complete": "Todos los roles tienen cuenta.",
+        "mapping_missing": "{count, plural, one {Falta mapear # rol.} other {Faltan por mapear # roles.}}",
+        "col_role": "Rol contable",
+        "col_dimension": "Dimensión",
+        "col_account": "Cuenta",
+        "account_of": "Cuenta del rol {role}",
+        "without_account": "Sin cuenta",
+        "format": "Formato",
+        "year": "Año gravable",
+        "unmapped_title": "{count, plural, =0 {Cuentas con movimiento sin concepto} one {# cuenta con movimiento sin concepto} other {# cuentas con movimiento sin concepto}}",
+        "unmapped_none": "Todas las cuentas con movimiento en el año están cubiertas por un concepto.",
+        "col_movement": "Movimiento",
+        "col_concept": "Concepto",
+        "col_accounts": "Cuentas",
+        "concept_of": "Concepto de la cuenta {account}",
+        "choose_concept": "Elegir concepto…",
+        "concepts_title": "Conceptos del formato",
+        "add_account": "Agregar cuenta",
+        "add_account_to": "Agregar cuenta al concepto {concept}",
+        "active_account": "Cuenta {account} activa en el concepto",
+        "concepts_none": "El país no tiene catálogo de exógena para este año.",
+        "pending_none": "No hay eventos pendientes de contabilizar.",
+        "pending_hint": "Eventos que ninguna regla pudo contabilizar. Corrige la causa y reintenta, o descártalos con un motivo.",
+        "col_event": "Evento",
+        "col_date": "Fecha",
+        "col_rule": "Regla",
+        "col_error": "Causa",
+        "col_attempts": "Intentos",
+        "retry": "Reintentar",
+        "retry_resolved": "Contabilizado en el comprobante {number}",
+        "retry_still": "Sigue pendiente: {reason}",
+        "reopen_period": "Reabrir período",
+        "dismiss": "Descartar",
+        "dismiss_title": "Descartar {event}",
+        "dismiss_body": "El evento no se contabilizará. Queda el motivo en el historial.",
+        "dismiss_reason": "Motivo",
+        "settings_none": "La contabilidad aún no está configurada.",
+        "settings_dimensions": "Dimensiones analíticas en uso",
+        "use_open_auxiliaries": "Usar auxiliares abiertos",
+        "use_items": "Usar ítems",
+        "use_business_units": "Usar unidades de negocio",
+        "settings_manual": "Comprobantes manuales",
+        "require_approval": "Exigir aprobación de otra persona",
+        "require_attachment": "Exigir un archivo adjunto",
+        "manual_journal": "Fuente de los comprobantes manuales",
+        "niif_group": "Grupo NIIF",
+        "niif_1": "Grupo 1 · NIIF plenas",
+        "niif_2": "Grupo 2 · NIIF para pymes",
+        "niif_3": "Grupo 3 · contabilidad simplificada",
+        "rounding_tolerance": "Tolerancia de ajuste al peso",
+        "rounding_hint": "Diferencia máxima, en pesos, que se absorbe al cuadrar un comprobante automático.",
+        "ledger_facts": "Inicio del libro",
+        "ledger_starts_on": "El libro empieza el",
+        "skipped_events": "Eventos anteriores al inicio del libro",
+        "skipped_hint": "Esos eventos se reconocieron sin contabilizar porque ocurrieron antes de la fecha de inicio."
+      },
+      "setup": {
+        "title": "Configurar contabilidad",
+        "body": "Instala el plan de cuentas del país, el mapeo de roles, las fuentes, los conceptos de exógena, el año fiscal y las reglas contables por defecto. Puedes ejecutarlo de nuevo: solo agrega lo que falte y nunca cambia lo que editaste.",
+        "action": "Configurar contabilidad",
+        "running": "Configurando…",
+        "forbidden": "Pide al administrador de la empresa que configure la contabilidad.",
+        "process": "Proceso: {process}"
+      },
+      "subject": {
+        "title": "Cuentas contables",
+        "none": "Sin cuentas restringidas asignadas.",
+        "account": "Cuenta",
+        "view": "Ver",
+        "post": "Contabilizar",
+        "yes": "Sí",
+        "no": "No"
+      }
     }
   },
   "nav": {
@@ -1107,7 +1268,8 @@
         "disable": "Desactivar",
         "enable": "Activar",
         "failed": "No se pudo desactivar: {reason}"
-      }
+      },
+      "badge": "{count} pendientes"
     },
     "core": {
       "parties": "Terceros",
@@ -1187,7 +1349,8 @@
       "item": "Ítem",
       "business_unit": "Unidad de negocio",
       "journal": "Fuente",
-      "entry": "Comprobante"
+      "entry": "Comprobante",
+      "posting_rule": "Regla contable"
     },
     "core": {
       "party": "Tercero",
@@ -1324,6 +1487,23 @@
         "is_auto_reversal": "Es reversión automática",
         "posted_at": "Contabilizado el",
         "posted_by": "Contabilizado por",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "posting_rule": {
+        "seq": "N.º",
+        "event": "Evento",
+        "name": "Nombre",
+        "description": "Descripción",
+        "module": "Módulo",
+        "journal_id": "Fuente",
+        "template": "Plantilla",
+        "priority": "Prioridad",
+        "is_default": "De fábrica",
+        "is_modified": "Modificada",
+        "is_active": "Activa",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -2053,6 +2233,25 @@
         "suspense_zero": "Cuenta transitoria en cero",
         "rounding_within_tolerance": "Ajuste al peso dentro de la tolerancia",
         "contra_nature_balances": "Sin saldos contrarios a la naturaleza"
+      },
+      "failure_code": {
+        "unbalanced": "Comprobante descuadrado",
+        "missing_account_mapping": "Falta mapear una cuenta",
+        "closed_period": "Período cerrado",
+        "inactive_account": "Cuenta inactiva",
+        "missing_party": "Falta el tercero",
+        "missing_cost_center": "Falta el centro de costo",
+        "missing_open_auxiliary": "Falta el auxiliar abierto",
+        "missing_item": "Falta el ítem",
+        "missing_business_unit": "Falta la unidad de negocio",
+        "inactive_dimension": "Nodo analítico inactivo",
+        "invalid_template": "Plantilla de la regla inválida",
+        "no_journal": "Sin fuente"
+      },
+      "failure_status": {
+        "pending": "Pendiente",
+        "resolved": "Resuelto",
+        "dismissed": "Descartado"
       }
     },
     "record_title": {
@@ -2110,6 +2309,22 @@
         "company": "{used_text} de {limit_text} tokens incluidos",
         "own": "tokens que has usado este mes",
         "no_cap": "tokens usados este mes · sin tope definido"
+      },
+      "accounting_result": {
+        "label": "Resultado del mes",
+        "detail": "Estado de resultados de {month}"
+      },
+      "accounting_pending": {
+        "label": "Pendientes de contabilizar",
+        "detail": "{pending, plural, =0 {Todo contabilizado} one {# evento sin contabilizar} other {# eventos sin contabilizar}}"
+      },
+      "accounting_periods": {
+        "label": "Períodos abiertos",
+        "detail": "de {total_text} períodos"
+      },
+      "accounting_drafts": {
+        "label": "Comprobantes en borrador",
+        "detail": "{pending, plural, =0 {Ninguno por aprobar} one {# por aprobar} other {# por aprobar}}"
       }
     },
     "recommendations": {
@@ -2307,6 +2522,157 @@
       "not_entitled": "Tu empresa no tiene habilitado este informe.",
       "forbidden": "Tu rol no puede consultar este informe.",
       "not_found": "Este informe no existe."
-    }
+    },
+    "accounting": {
+      "trial_balance": "Balance de prueba",
+      "ledger": "Libro mayor y balances",
+      "balance_sheet": "Estado de situación financiera",
+      "income_statement": "Estado de resultados",
+      "cost_center_statement": "Estado de resultados por centro de costo",
+      "journal_book": "Libro diario",
+      "account_detail": "Auxiliar por cuenta",
+      "party_detail": "Auxiliar por tercero",
+      "dimension_detail": "Auxiliar por dimensión analítica",
+      "aging": "Cartera y cuentas por pagar por edades",
+      "control_reconciliation": "Conciliación de control",
+      "manual_entries_audit": "Auditoría de comprobantes manuales",
+      "exogena": "Información exógena"
+    },
+    "col": {
+      "account_code": "Cuenta",
+      "account_name": "Nombre de la cuenta",
+      "amount": "Valor",
+      "attachments": "Adjuntos",
+      "balance": "Saldo",
+      "closing_credit": "Saldo final crédito",
+      "closing_debit": "Saldo final débito",
+      "concept": "Concepto",
+      "concept_label": "Descripción del concepto",
+      "control": "Cuenta de control",
+      "cost_center": "Centro de costo",
+      "cost_center_name": "Nombre del centro",
+      "created_at": "Creado",
+      "created_by": "Creó",
+      "credit": "Crédito",
+      "date": "Fecha",
+      "debit": "Débito",
+      "description": "Detalle",
+      "difference": "Diferencia",
+      "document_type": "Tipo de documento",
+      "expense": "Gastos",
+      "income": "Ingresos",
+      "journal": "Fuente",
+      "ledger": "Libro mayor",
+      "line_no": "Línea",
+      "lines": "Líneas",
+      "net": "Neto",
+      "number": "Número",
+      "opening_credit": "Saldo inicial crédito",
+      "opening_debit": "Saldo inicial débito",
+      "party": "Tercero",
+      "party_document": "Documento del tercero",
+      "posted_after_close": "Contabilizado tras el cierre",
+      "posted_at": "Contabilizado el",
+      "posted_by": "Contabilizó",
+      "previous": "Año anterior",
+      "round_amount": "Valor redondo",
+      "section": "Sección",
+      "subject": "Rubro",
+      "subledger": "Auxiliar",
+      "submitted_by": "Envió a aprobación",
+      "total": "Total",
+      "value_1": "Valor 1",
+      "value_2": "Valor 2",
+      "value_3": "Valor 3"
+    },
+    "aging": {
+      "not_due": "Por vencer",
+      "b1": "1–30 días",
+      "b2": "31–60 días",
+      "b3": "61–90 días",
+      "over": "Más de 90 días"
+    },
+    "param": {
+      "from": "Desde",
+      "to": "Hasta",
+      "period": "Período",
+      "as_of_period": "Al cierre de",
+      "as_of": "A la fecha",
+      "level": "Nivel",
+      "by_cost_center": "Por centro de costo",
+      "compare_previous": "Comparar con el año anterior",
+      "cost_center_id": "Centro de costo",
+      "open_auxiliary_id": "Auxiliar abierto",
+      "item_id": "Ítem",
+      "business_unit_id": "Unidad de negocio",
+      "party_id": "Tercero",
+      "account_id": "Cuenta",
+      "journal_id": "Fuente",
+      "node_id": "Nodo",
+      "dimension": "Dimensión",
+      "kind": "Tipo",
+      "year": "Año gravable",
+      "format": "Formato",
+      "threshold": "Cuantía mínima",
+      "round_threshold": "Valor redondo desde",
+      "include_opening": "Incluir saldos de apertura",
+      "include_closing": "Incluir cierre del año",
+      "only_with_movement": "Solo con movimiento",
+      "accounting": {
+        "trial_balance": {
+          "from": "Período inicial",
+          "to": "Período final"
+        },
+        "income_statement": {
+          "from": "Período inicial",
+          "to": "Período final"
+        },
+        "cost_center_statement": {
+          "from": "Período inicial",
+          "to": "Período final"
+        }
+      }
+    },
+    "enum": {
+      "accounting": {
+        "aging": {
+          "kind": {
+            "receivable": "Cartera (clientes)",
+            "payable": "Por pagar (proveedores)"
+          }
+        },
+        "dimension_detail": {
+          "dimension": {
+            "cost_center": "Centro de costo",
+            "open_auxiliary": "Auxiliar abierto",
+            "item": "Ítem",
+            "business_unit": "Unidad de negocio"
+          }
+        }
+      }
+    },
+    "statement": {
+      "revenue": "Ingresos operacionales",
+      "cost_of_sales": "Costo de ventas",
+      "operating_expenses": "Gastos operacionales",
+      "other_income": "Otros ingresos",
+      "other_expenses": "Otros gastos",
+      "income_tax": "Impuesto de renta",
+      "assets_current": "Activo corriente",
+      "assets_noncurrent": "Activo no corriente",
+      "liabilities_current": "Pasivo corriente",
+      "liabilities_noncurrent": "Pasivo no corriente",
+      "equity": "Patrimonio"
+    },
+    "net_result": "Resultado neto",
+    "restricted_accounts": "Cuentas restringidas",
+    "omitted_lines": "Líneas omitidas por falta de acceso",
+    "difference": "Diferencia",
+    "no_cost_center": "Sin centro de costo",
+    "opening_balance": "Saldo inicial",
+    "period_result": "Resultado del período",
+    "total_assets": "Total activos",
+    "total_equity": "Total patrimonio",
+    "total_liabilities": "Total pasivos"
   }
 }

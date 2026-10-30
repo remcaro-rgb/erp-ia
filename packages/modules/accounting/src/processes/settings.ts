@@ -63,10 +63,12 @@ export const settingsConsult = defineProcess({
     if (!settings) {
       return {
         configured: false, ledgerStartsOn: null, roundingTolerance: 1, manualJournalId: null, requireAttachmentOnManual: false, niifGroup: "2",
-        requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false,
+        requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false, skippedEvents: 0,
       };
     }
-    return { configured: true, ...settings };
+    // Events acknowledged without posting because they predate the start of the ledger (Reglas contables → Configuración, §5.1).
+    const [skipped] = await ctx.tx<{ n: number }[]>`select count(*)::int as n from accounting.skipped_events where company_id = ${ctx.companyId}`;
+    return { configured: true, ...settings, skippedEvents: skipped!.n };
   },
 });
 

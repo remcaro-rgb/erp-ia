@@ -664,6 +664,19 @@
   .erp-home-help button { text-align: left; }
 
   /* A group of the module bar (prototype `.moditems .dd` / `.ddm`): `Maestros ▾` and its menu, rows of 36 px. */
+  .erp-yearcard { min-width: 180px; padding: 10px 14px; text-align: left; cursor: pointer; }
+  .erp-yearcard--on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .erp-kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  .erp-kv dt { color: var(--text-muted); }
+  .erp-kv dd { margin: 0; text-align: right; }
+  .erp-checklist { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .erp-tabs-links { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  .erp-tabs-links a { padding: 8px 12px; border-bottom: 3px solid transparent; color: var(--text-muted); text-decoration: none; }
+  .erp-tabs-links a[aria-current="page"] { border-bottom-color: var(--primary); color: var(--text); font-weight: 600; }
+  .erp-reportcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .erp-reportcard { display: block; padding: 14px; color: inherit; text-decoration: none; }
+  .erp-reportcard:hover, .erp-reportcard:focus-visible { border-color: var(--primary); }
+  .erp-modbar-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
   .erp-modbar-dd { position: relative; display: flex; align-items: stretch; }
   .erp-modbar-menu { position: absolute; top: 100%; left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 200px; padding: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); }
   .erp-modbar-menu button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font-size: 13px; text-align: left; white-space: nowrap; }

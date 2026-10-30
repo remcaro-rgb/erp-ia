@@ -8,6 +8,7 @@ import { DEFAULT_PHONE_CC } from "@erp/kernel/validation";
 import { formatPhone, useTabs } from "@erp/ui";
 import type { UserPageData } from "@/lib/admin/load";
 import { setUserMfaAction } from "@/lib/auth/mfa-actions";
+import { SubjectAccounts } from "../../_components/subject-accounts";
 import { StepUpDock, useAdminAction } from "../../_components/use-admin-action";
 import { localeLabel } from "../user-changes";
 import { Avatar, MfaResetDialog, UserEditDialog, UserStateDialog } from "../user-dialogs";
@@ -142,6 +143,9 @@ export function UserScreen({ data }: { data: UserPageData }) {
             <dd>{data.lastActivity ? format.dateTime(new Date(data.lastActivity), { dateStyle: "medium", timeStyle: "short" }) : t("common.admin.users.page.no_activity")}</dd>
           </dl>
         </div>
+      </div>
+      <div style={{ padding: "0 14px 12px" }}>
+        <SubjectAccounts kind="user" subjectId={member.userId} />
       </div>
       {dialog === "edit" && <UserEditDialog roles={data.roles} member={member} onClose={() => setDialog(null)} />}
       {dialog === "state" && <UserStateDialog member={member} onClose={() => setDialog(null)} />}

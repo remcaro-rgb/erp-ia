@@ -69,4 +69,19 @@ describe("accounting manifest", () => {
     expect(target("cost_center_id")).toEqual({ entity: "accounting.cost_center", display: "name" });
     expect(target("business_unit_id")).toEqual({ entity: "accounting.business_unit", display: "name" });
   });
+
+  it("contributes the Contabilidad tab to every record, the revenue account to categories and Cuentas to roles and users; four home cards", () => {
+    const registry = new Registry();
+    loadModules(registry, [core, accounting]);
+    const ids = (entity: string) => registry.recordTabsFor(entity).map((t) => t.id);
+    expect(ids("core.party")).toEqual(["accounting.entries"]);
+    expect(ids("core.product_category")).toEqual(["accounting.entries", "accounting.category_revenue"]);
+    expect(ids("kernel.role")).toEqual(["accounting.entries", "accounting.subject_accounts"]);
+    expect(ids("kernel.user")).toEqual(["accounting.entries", "accounting.subject_accounts"]);
+    const revenue = registry.recordTabsFor("core.product_category").find((t) => t.id === "accounting.category_revenue")!;
+    expect(revenue).toMatchObject({ kind: "mapping", dimension: "category:{id}", roles: ["revenue"], lookupEntity: "accounting.account", saveProcess: "accounting.account_role_mapping.update" });
+    // Every grid tab reads a registered entity.
+    for (const tab of accounting.recordTabs ?? []) if (tab.kind === "grid") expect(registry.entity(tab.source!).id).toBe(tab.source);
+    expect(accounting.homeKpis?.map((k) => k.id)).toEqual(["accounting.result_month", "accounting.pending_failures", "accounting.open_periods", "accounting.draft_entries"]);
+  });
 });

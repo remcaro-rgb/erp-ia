@@ -18,7 +18,7 @@ export const kpiSchema = z.object({
   id: z.string(),
   label: z.string(),
   value: z.number().finite(),
-  unit: z.enum(["count", "percent", "tokens"]),
+  unit: z.enum(["count", "percent", "tokens", "money"]),
   progress: z.number().min(0).max(1).optional(),
   tone: z.enum(["default", "warn"]).optional(),
   detail: z.object({ key: z.string(), params: z.record(z.string(), z.union([z.string(), z.number()])) }).optional(),

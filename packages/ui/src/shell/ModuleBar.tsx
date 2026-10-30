@@ -121,7 +121,7 @@ function NavGroup({ group, activeHref, open, onOpenChange, onNavigate }: GroupPr
 export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBarProps) {
   const t = useTranslations();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const leaf = (id: string, href: string, title: string, kind: "home" | "grid") => {
+  const leaf = (id: string, href: string, title: string, kind: "home" | "grid", badge?: number) => {
     const on = isActiveHref(href, activeHref);
     return (
       <button
@@ -132,6 +132,11 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
         className={cn(BAR_BUTTON, on && BAR_BUTTON_ON)}
       >
         {title}
+        {badge ? (
+          <span className="erp-modbar-badge" aria-label={t("nav.shell.badge", { count: badge })}>
+            {badge}
+          </span>
+        ) : null}
       </button>
     );
   };
@@ -149,7 +154,7 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
             onNavigate={onNavigate}
           />
         ) : (
-          leaf(item.id, item.href, t(item.label), "grid")
+          leaf(item.id, item.href, t(item.label), "grid", item.badge)
         ),
       )}
     </nav>

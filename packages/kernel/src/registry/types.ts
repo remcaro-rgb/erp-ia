@@ -68,6 +68,8 @@ export interface NavItem {
    * group; ⌘K lists the children, never the group.
    */
   children?: NavItem[];
+  /** A count the shell shows beside the label (the pending postings of the accounting bar); set by the shell at load time, never declared by a manifest. */
+  badge?: number;
 }
 
 /** A named group of processes and entities a tenant can be entitled to (design §5.12). */
@@ -106,8 +108,8 @@ export interface Kpi {
   /** i18n key of the card's title. */
   label: string;
   value: number;
-  /** `percent` shows `38 %`, `tokens` a compact count (`1,9 M`), `count` a whole number. */
-  unit: "count" | "percent" | "tokens";
+  /** `percent` shows `38 %`, `tokens` a compact count (`1,9 M`), `count` a whole number, `money` an amount in the company's currency (`$ 1.234.567,00`, rule 23). */
+  unit: "count" | "percent" | "tokens" | "money";
   /** 0–1: fills the small bar under the number. */
   progress?: number;
   /** `warn` tints the number (something wants attention). */

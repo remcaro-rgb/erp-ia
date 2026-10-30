@@ -71,7 +71,9 @@
         "cierre": "Close",
         "lineas": "Lines",
         "probar": "Test",
-        "historial": "History"
+        "historial": "History",
+        "contabilidad": "Accounting",
+        "cuentas": "Accounts"
       },
       "number": "No.",
       "uuid": "uuid",
@@ -88,7 +90,10 @@
         "saving": "Saving…",
         "saved": "Saved",
         "read_only": "Read-only for your role",
-        "choose": "Search…"
+        "choose": "Search…",
+        "roles": {
+          "revenue": "Revenue account"
+        }
       },
       "dian": {
         "complete": "DIAN: complete",
@@ -1011,6 +1016,162 @@
         "history_label": "Rule changes",
         "preview_account": "Account"
       }
+    },
+    "acc_pages": {
+      "periods": {
+        "none": "There are no fiscal years yet: set up accounting first.",
+        "years": "Fiscal years",
+        "year": "Year {year}",
+        "closed_count": "{closed} of {total} periods closed",
+        "title": "Periods {year}",
+        "table": "Periods of {year}",
+        "close_year": "Close year",
+        "reopen_year": "Reopen year",
+        "col_period": "Period",
+        "col_status": "Status",
+        "col_entries": "Entries",
+        "col_debit": "Debit",
+        "col_credit": "Credit",
+        "col_open": "To post",
+        "reopened_for": "reopened for {date}",
+        "reopened": "{count, plural, one {reopened # time} other {reopened # times}}",
+        "close": "Close",
+        "reopen": "Reopen",
+        "close_named": "Close {period}",
+        "reopen_named": "Reopen {period}",
+        "close_title": "Close {period}",
+        "close_body": "The close checks run and, if they all pass, the period closes: no entries can be posted in it afterwards. It asks for your verification code.",
+        "close_open_note": "{count, plural, one {The period has # draft or pending entry.} other {The period has # draft or pending entries.}}",
+        "retry": "Try again",
+        "close_failed": "{count, plural, one {# check failed: the period stays open.} other {# checks failed: the period stays open.}}",
+        "checks": "Close checks",
+        "check_ok": "Passed",
+        "check_failed": "Failed",
+        "reopen_title": "Reopen {period}",
+        "reopen_scope": "What to reopen",
+        "reopen_all": "The whole period",
+        "reopen_day": "Only one day",
+        "reopen_date": "Day",
+        "reopen_day_hint": "While it is reopened only entries dated that day can be posted.",
+        "close_year_title": "Close year {year}",
+        "reopen_year_title": "Reopen year {year}",
+        "close_year_body": "The result accounts are settled against the summary account and the result moves to profit or loss of the year. It asks for your verification code.",
+        "reopen_year_body": "The year's closing entries are reversed and the year and its last period open again. It asks for your verification code.",
+        "preview": "Closing preview",
+        "preview_income": "Income of the year",
+        "preview_expense": "Expenses of the year",
+        "preview_profit": "Profit of the year",
+        "preview_loss": "Loss of the year",
+        "preview_open_periods": "{count, plural, one {# period of the year is still open.} other {# periods of the year are still open.}}",
+        "preview_missing_roles": "The summary, profit or loss accounts are not mapped (Posting rules → Account mapping).",
+        "preview_no_closing": "The year has no standing closing entries.",
+        "preview_closing": "Closing entries to reverse",
+        "preview_unavailable": "The closing preview could not be computed.",
+        "close_confirm": "Close period",
+        "reopen_confirm": "Reopen period"
+      },
+      "reports": {
+        "none": "Your role cannot consult any accounting report.",
+        "desc": {
+          "trial_balance": "Opening, movement and closing balance per account down to the level you choose.",
+          "ledger": "General ledger and balances of a period.",
+          "balance_sheet": "Assets, liabilities and equity at a date, with comparison.",
+          "income_statement": "Income, costs and expenses of a range of periods.",
+          "cost_center_statement": "The income statement with a column per cost center.",
+          "journal_book": "Every posted entry, by journal and date.",
+          "account_detail": "The movements of an account with a running balance.",
+          "party_detail": "The movements of a party in the accounts you choose.",
+          "dimension_detail": "A cost center, auxiliary, item or business unit by account.",
+          "aging": "Receivables or payables by age.",
+          "control_reconciliation": "Control accounts against their party sub-ledgers.",
+          "manual_entries_audit": "Manual entries with who made and approved them, and when.",
+          "exogena": "Information returns by format and year, with XML export."
+        }
+      },
+      "posting": {
+        "none": "Your role cannot open any section of the posting rules.",
+        "tabs": "Posting rules sections",
+        "tab": {
+          "rules": "Rules",
+          "mapping": "Account mapping",
+          "concepts": "Information-return concepts",
+          "pending": "Pending to post",
+          "settings": "Settings"
+        },
+        "save": "Save",
+        "mapping_complete": "Every role has an account.",
+        "mapping_missing": "{count, plural, one {# role is not mapped.} other {# roles are not mapped.}}",
+        "col_role": "Account role",
+        "col_dimension": "Dimension",
+        "col_account": "Account",
+        "account_of": "Account of role {role}",
+        "without_account": "No account",
+        "format": "Format",
+        "year": "Tax year",
+        "unmapped_title": "{count, plural, =0 {Accounts with movement and no concept} one {# account with movement and no concept} other {# accounts with movement and no concept}}",
+        "unmapped_none": "Every account with movement in the year is covered by a concept.",
+        "col_movement": "Movement",
+        "col_concept": "Concept",
+        "col_accounts": "Accounts",
+        "concept_of": "Concept of account {account}",
+        "choose_concept": "Choose concept…",
+        "concepts_title": "Concepts of the format",
+        "add_account": "Add account",
+        "add_account_to": "Add an account to concept {concept}",
+        "active_account": "Account {account} active in the concept",
+        "concepts_none": "The country has no information-return catalogue for this year.",
+        "pending_none": "No events are pending to post.",
+        "pending_hint": "Events no rule could post. Fix the cause and retry, or dismiss them with a reason.",
+        "col_event": "Event",
+        "col_date": "Date",
+        "col_rule": "Rule",
+        "col_error": "Cause",
+        "col_attempts": "Attempts",
+        "retry": "Retry",
+        "retry_resolved": "Posted in entry {number}",
+        "retry_still": "Still pending: {reason}",
+        "reopen_period": "Reopen period",
+        "dismiss": "Dismiss",
+        "dismiss_title": "Dismiss {event}",
+        "dismiss_body": "The event will not be posted. The reason stays in the history.",
+        "dismiss_reason": "Reason",
+        "settings_none": "Accounting is not set up yet.",
+        "settings_dimensions": "Analytic dimensions in use",
+        "use_open_auxiliaries": "Use open auxiliaries",
+        "use_items": "Use items",
+        "use_business_units": "Use business units",
+        "settings_manual": "Manual entries",
+        "require_approval": "Require approval by another person",
+        "require_attachment": "Require an attachment",
+        "manual_journal": "Journal of manual entries",
+        "niif_group": "IFRS group",
+        "niif_1": "Group 1 · full IFRS",
+        "niif_2": "Group 2 · IFRS for SMEs",
+        "niif_3": "Group 3 · simplified accounting",
+        "rounding_tolerance": "Rounding tolerance",
+        "rounding_hint": "Largest difference, in pesos, absorbed when balancing an automatic entry.",
+        "ledger_facts": "Start of the ledger",
+        "ledger_starts_on": "The ledger starts on",
+        "skipped_events": "Events before the start of the ledger",
+        "skipped_hint": "Those events were acknowledged without posting because they happened before the start date."
+      },
+      "setup": {
+        "title": "Set up accounting",
+        "body": "Installs the country's chart of accounts, role mapping, journals, information-return concepts, fiscal year and default posting rules. You can run it again: it only adds what is missing and never changes what you edited.",
+        "action": "Set up accounting",
+        "running": "Setting up…",
+        "forbidden": "Ask the company administrator to set up accounting.",
+        "process": "Process: {process}"
+      },
+      "subject": {
+        "title": "Accounting accounts",
+        "none": "No restricted accounts assigned.",
+        "account": "Account",
+        "view": "View",
+        "post": "Post",
+        "yes": "Yes",
+        "no": "No"
+      }
     }
   },
   "nav": {
@@ -1107,7 +1268,8 @@
         "disable": "Turn off",
         "enable": "Turn on",
         "failed": "Could not turn it off: {reason}"
-      }
+      },
+      "badge": "{count} pending"
     },
     "core": {
       "parties": "Parties",
@@ -1187,7 +1349,8 @@
       "item": "Item",
       "business_unit": "Business unit",
       "journal": "Source",
-      "entry": "Voucher"
+      "entry": "Voucher",
+      "posting_rule": "Posting rule"
     },
     "core": {
       "party": "Party",
@@ -1325,6 +1488,23 @@
         "posted_at": "Posted on",
         "posted_by": "Posted by",
         "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "posting_rule": {
+        "seq": "No.",
+        "event": "Event",
+        "name": "Name",
+        "description": "Description",
+        "module": "Module",
+        "journal_id": "Journal",
+        "template": "Template",
+        "priority": "Priority",
+        "is_default": "Built in",
+        "is_modified": "Modified",
+        "is_active": "Active",
+        "extra": "Extra data",
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated"
@@ -2053,6 +2233,25 @@
         "suspense_zero": "Suspense account at zero",
         "rounding_within_tolerance": "Rounding within tolerance",
         "contra_nature_balances": "No balances against nature"
+      },
+      "failure_code": {
+        "unbalanced": "Unbalanced entry",
+        "missing_account_mapping": "Account not mapped",
+        "closed_period": "Period closed",
+        "inactive_account": "Inactive account",
+        "missing_party": "Party missing",
+        "missing_cost_center": "Cost center missing",
+        "missing_open_auxiliary": "Open auxiliary missing",
+        "missing_item": "Item missing",
+        "missing_business_unit": "Business unit missing",
+        "inactive_dimension": "Inactive analytic node",
+        "invalid_template": "Invalid rule template",
+        "no_journal": "No journal"
+      },
+      "failure_status": {
+        "pending": "Pending",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed"
       }
     },
     "record_title": {
@@ -2110,6 +2309,22 @@
         "company": "{used_text} of {limit_text} included tokens",
         "own": "tokens you have used this month",
         "no_cap": "tokens used this month · no cap set"
+      },
+      "accounting_result": {
+        "label": "Result of the month",
+        "detail": "Income statement of {month}"
+      },
+      "accounting_pending": {
+        "label": "Pending to post",
+        "detail": "{pending, plural, =0 {Everything is posted} one {# event not posted} other {# events not posted}}"
+      },
+      "accounting_periods": {
+        "label": "Open periods",
+        "detail": "of {total_text} periods"
+      },
+      "accounting_drafts": {
+        "label": "Draft entries",
+        "detail": "{pending, plural, =0 {None awaiting approval} one {# awaiting approval} other {# awaiting approval}}"
       }
     },
     "recommendations": {
@@ -2307,6 +2522,157 @@
       "not_entitled": "Your company does not have this report enabled.",
       "forbidden": "Your role cannot run this report.",
       "not_found": "This report does not exist."
-    }
+    },
+    "accounting": {
+      "trial_balance": "Trial balance",
+      "ledger": "General ledger and balances",
+      "balance_sheet": "Statement of financial position",
+      "income_statement": "Income statement",
+      "cost_center_statement": "Income statement by cost center",
+      "journal_book": "Journal book",
+      "account_detail": "Account detail",
+      "party_detail": "Party detail",
+      "dimension_detail": "Analytic dimension detail",
+      "aging": "Receivables and payables aging",
+      "control_reconciliation": "Control reconciliation",
+      "manual_entries_audit": "Manual entries audit",
+      "exogena": "Information returns (exógena)"
+    },
+    "col": {
+      "account_code": "Account",
+      "account_name": "Account name",
+      "amount": "Amount",
+      "attachments": "Attachments",
+      "balance": "Balance",
+      "closing_credit": "Closing credit",
+      "closing_debit": "Closing debit",
+      "concept": "Concept",
+      "concept_label": "Concept description",
+      "control": "Control account",
+      "cost_center": "Cost center",
+      "cost_center_name": "Center name",
+      "created_at": "Created",
+      "created_by": "Created by",
+      "credit": "Credit",
+      "date": "Date",
+      "debit": "Debit",
+      "description": "Detail",
+      "difference": "Difference",
+      "document_type": "Document type",
+      "expense": "Expenses",
+      "income": "Income",
+      "journal": "Journal",
+      "ledger": "Ledger",
+      "line_no": "Line",
+      "lines": "Lines",
+      "net": "Net",
+      "number": "Number",
+      "opening_credit": "Opening credit",
+      "opening_debit": "Opening debit",
+      "party": "Party",
+      "party_document": "Party document",
+      "posted_after_close": "Posted after close",
+      "posted_at": "Posted on",
+      "posted_by": "Posted by",
+      "previous": "Previous year",
+      "round_amount": "Round amount",
+      "section": "Section",
+      "subject": "Subject",
+      "subledger": "Sub-ledger",
+      "submitted_by": "Submitted by",
+      "total": "Total",
+      "value_1": "Value 1",
+      "value_2": "Value 2",
+      "value_3": "Value 3"
+    },
+    "aging": {
+      "not_due": "Not due",
+      "b1": "1–30 days",
+      "b2": "31–60 days",
+      "b3": "61–90 days",
+      "over": "Over 90 days"
+    },
+    "param": {
+      "from": "From",
+      "to": "To",
+      "period": "Period",
+      "as_of_period": "As of the close of",
+      "as_of": "As of",
+      "level": "Level",
+      "by_cost_center": "By cost center",
+      "compare_previous": "Compare with the previous year",
+      "cost_center_id": "Cost center",
+      "open_auxiliary_id": "Open auxiliary",
+      "item_id": "Item",
+      "business_unit_id": "Business unit",
+      "party_id": "Party",
+      "account_id": "Account",
+      "journal_id": "Journal",
+      "node_id": "Node",
+      "dimension": "Dimension",
+      "kind": "Kind",
+      "year": "Tax year",
+      "format": "Format",
+      "threshold": "Minimum amount",
+      "round_threshold": "Round amount from",
+      "include_opening": "Include opening balances",
+      "include_closing": "Include year close",
+      "only_with_movement": "Only with movement",
+      "accounting": {
+        "trial_balance": {
+          "from": "First period",
+          "to": "Last period"
+        },
+        "income_statement": {
+          "from": "First period",
+          "to": "Last period"
+        },
+        "cost_center_statement": {
+          "from": "First period",
+          "to": "Last period"
+        }
+      }
+    },
+    "enum": {
+      "accounting": {
+        "aging": {
+          "kind": {
+            "receivable": "Receivables (customers)",
+            "payable": "Payables (suppliers)"
+          }
+        },
+        "dimension_detail": {
+          "dimension": {
+            "cost_center": "Cost center",
+            "open_auxiliary": "Open auxiliary",
+            "item": "Item",
+            "business_unit": "Business unit"
+          }
+        }
+      }
+    },
+    "statement": {
+      "revenue": "Operating income",
+      "cost_of_sales": "Cost of sales",
+      "operating_expenses": "Operating expenses",
+      "other_income": "Other income",
+      "other_expenses": "Other expenses",
+      "income_tax": "Income tax",
+      "assets_current": "Current assets",
+      "assets_noncurrent": "Non-current assets",
+      "liabilities_current": "Current liabilities",
+      "liabilities_noncurrent": "Non-current liabilities",
+      "equity": "Equity"
+    },
+    "net_result": "Net result",
+    "restricted_accounts": "Restricted accounts",
+    "omitted_lines": "Lines omitted for lack of access",
+    "difference": "Difference",
+    "no_cost_center": "No cost center",
+    "opening_balance": "Opening balance",
+    "period_result": "Result of the period",
+    "total_assets": "Total assets",
+    "total_equity": "Total equity",
+    "total_liabilities": "Total liabilities"
   }
 }

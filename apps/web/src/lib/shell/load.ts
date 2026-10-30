@@ -6,7 +6,7 @@ import { isThemeMode, type CommandItem, type MfaState, type ResultColumn, type N
 import { assertComplete, getSessionState, Unauthenticated, type SessionState } from "@/lib/auth/claims";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
-import { hasOptionalMasters, hideOptionalMasters, readOptionalMasters } from "@/lib/accounting/nav";
+import { hasOptionalMasters, hasPostingItem, hideOptionalMasters, readOptionalMasters, readPendingPostings, withPostingBadge } from "@/lib/accounting/nav";
 import { loadAssistantColumns } from "./assistant-columns";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
@@ -70,7 +70,9 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
   const dianHints = savedFrom(prefs["forms.dian_hints"]);
   const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable });
   // The optional analytic masters of the accounting module follow the company's settings (accounting design §8).
-  const nav = hasOptionalMasters(shell.nav) ? hideOptionalMasters(shell.nav, await readOptionalMasters(deps.sql, claims)) : shell.nav;
+  const shown = hasOptionalMasters(shell.nav) ? hideOptionalMasters(shell.nav, await readOptionalMasters(deps.sql, claims)) : shell.nav;
+  // Reglas contables shows how many events are waiting to be posted.
+  const nav = hasPostingItem(shown) ? withPostingBadge(shown, await readPendingPostings(deps.sql, deps.registry, claims)) : shown;
 
   const commands: CommandItem[] = shell.creates
     .filter((create) => t.has(create.labelKey))

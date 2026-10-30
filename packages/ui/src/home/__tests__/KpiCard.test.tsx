@@ -30,6 +30,16 @@ describe("KpiCard", () => {
     expect(screen.getByTestId("kpi-value").textContent).toMatch(/1,9\s?M/);
   });
 
+  it("shows money as $ 1.234.567,00 (rule 23), negative results included", () => {
+    renderEs(<KpiCard kpi={{ id: "accounting.result_month", label: "home.kpi.accounting_result.label", value: 3_750_000, unit: "money", detail: { key: "home.kpi.accounting_result.detail", params: { month: "2026-10" } } }} />);
+    expect(screen.getByText("Resultado del mes")).toBeTruthy();
+    expect(screen.getByTestId("kpi-value").textContent?.replace(/\s/g, " ")).toBe("$ 3.750.000,00");
+    expect(screen.getByText("Estado de resultados de 2026-10")).toBeTruthy();
+    cleanup();
+    renderEs(<KpiCard kpi={{ id: "accounting.result_month", label: "home.kpi.accounting_result.label", value: -1_250_000.5, unit: "money" }} />);
+    expect(screen.getByTestId("kpi-value").textContent).toMatch(/-\s?\$\s?1\.250\.000,50|\$\s?-1\.250\.000,50/);
+  });
+
   const series = [3, 5, 4, 6, 8, 7, 9, 6, 10, 12, 11, 9, 13, 14];
 
   it("shows the 14-day trend under the value with an accessible name from the first to the last day", () => {

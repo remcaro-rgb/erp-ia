@@ -1,4 +1,4 @@
-import { withClaims, type JwtClaims, type RunProcessDeps } from "@erp/kernel";
+import { runnableProcesses, withClaims, type JwtClaims, type RunProcessDeps } from "@erp/kernel";
 import type { NavItem } from "@erp/ui";
 
 // The three optional analytic masters stay out of the Maestros menu while the company does not use them (accounting design §4.11, §8):
@@ -39,4 +39,25 @@ export async function readOptionalMasters(sql: RunProcessDeps["sql"], claims: Jw
       select use_open_auxiliaries, use_items, use_business_units from accounting.v_settings where company_id = ${claims.active_company_id}`,
   );
   return { openAuxiliaries: row?.use_open_auxiliaries === true, items: row?.use_items === true, businessUnits: row?.use_business_units === true };
+}
+
+// Reglas contables carries the number of events waiting to be posted (accounting design §8, §10b.16): the bar item shows it as a badge.
+
+const POSTING_ITEM = "accounting.posting";
+
+/** True when the menu holds Reglas contables (so the pending count is worth reading). */
+export const hasPostingItem = (nav: readonly NavItem[]): boolean => nav.some((item) => item.id === POSTING_ITEM || (item.children ? hasPostingItem(item.children) : false));
+
+/** The menu with `pending` on the Reglas contables item; nothing changes while there is none. */
+export function withPostingBadge(nav: readonly NavItem[], pending: number): NavItem[] {
+  if (pending <= 0) return [...nav];
+  return nav.map((item) => (item.id === POSTING_ITEM ? { ...item, badge: pending } : item.children ? { ...item, children: withPostingBadge(item.children, pending) } : item));
+}
+
+/** Pending postings the caller can see, 0 when their roles may not consult the inbox (`accounting.posting_failure.consult`). */
+export async function readPendingPostings(sql: RunProcessDeps["sql"], registry: RunProcessDeps["registry"], claims: JwtClaims): Promise<number> {
+  const runnable = await runnableProcesses(sql, registry, claims, ["accounting.posting_failure.consult"]);
+  if (!runnable.has("accounting.posting_failure.consult")) return 0;
+  const [row] = await withClaims(sql, claims, (tx) => tx<{ n: number }[]>`select count(*)::int as n from accounting.v_posting_failures where company_id = ${claims.active_company_id} and status = 'pending'`);
+  return row?.n ?? 0;
 }

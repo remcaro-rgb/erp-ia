@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname, useSearchParams } from "next/navigation";
 import { paramsFromSearch, paramsToSearch, ReportPage, useTabs, type GridRow, type ReportLink, type ReportParams, type SavedGridState } from "@erp/ui";
+import { drillHref } from "@/lib/accounting/drill";
 import { deleteViewAction, saveViewAction } from "@/lib/grid/actions";
 import type { ReportPageData } from "@/lib/reports/load";
 
@@ -21,12 +22,18 @@ export function ReportScreen({ data }: { data: ReportPageData }) {
   const entity = `report:${data.report.id}`;
   const initial = useMemo(() => ({ ...data.defaults, ...paramsFromSearch(searchParams.toString()) }), [data.defaults, searchParams]);
 
+  // The parameters the report is running with: a row's drill-down reads the range from them.
+  const current = useRef<ReportParams>(initial);
   const keepInUrl = (params: ReportParams) => {
+    current.current = params;
     const search = paramsToSearch(params);
     window.history.replaceState(null, "", search ? `${pathname}?${search}` : pathname);
   };
   const openLink = (row: GridRow, link?: ReportLink) => {
-    if (link) open({ title: String(row[data.report.columns[0]?.field ?? "id"] ?? t("nav.shell.record")), href: `/r/${link.entity}/${link.id}`, kind: "record" });
+    // The account of a statement row opens the Auxiliar por cuenta of the range, in its own tab (accounting design §8).
+    const drill = link ? drillHref(data.report.id, link, current.current, data.periodDates) : null;
+    if (link && drill) open({ title: String(row[data.report.columns[0]?.field ?? "id"] ?? t("nav.shell.record")), href: drill, kind: "report" });
+    else if (link) open({ title: String(row[data.report.columns[0]?.field ?? "id"] ?? t("nav.shell.record")), href: `/r/${link.entity}/${link.id}`, kind: "record" });
   };
   const changeViews = async (result: Awaited<ReturnType<typeof saveViewAction>>) => {
     if (!result.ok) throw new Error(result.code);

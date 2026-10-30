@@ -89,4 +89,17 @@ describe("ReportPage", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave).toHaveBeenCalledWith("Octubre", false, expect.objectContaining({ params: { from: "2026-10-01", to: "2026-10-31", level: 2 } }));
   });
+
+  it("says a row named with a catalogue key in the user's language (net result, a statement section)", async () => {
+    const rows = [
+      { id: "r1", code: "accounting.statement.revenue", debit: "0", credit: "0" },
+      { id: "r2", code: "report.net_result", debit: "0", credit: "0" },
+      { id: "r3", code: "report.not_in_the_catalogue", debit: "0", credit: "0" },
+    ];
+    setup({ reportFetcher: () => async () => ({ rows, total: 3 }) });
+    expect(await screen.findByText("Ingresos operacionales")).toBeTruthy();
+    expect(screen.getByText("Resultado neto")).toBeTruthy();
+    // A key the catalogue does not have is shown as it is.
+    expect(screen.getByText("report.not_in_the_catalogue")).toBeTruthy();
+  });
 });

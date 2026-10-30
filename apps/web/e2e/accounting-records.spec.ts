@@ -92,6 +92,8 @@ test.describe("accounting records", () => {
     const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${marcela.userId}, ${companyId}) returning id`;
     await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${auxiliar!.id})`;
 
+    // The company has run Configurar contabilidad (every accounting page leads to it until `settings` has a row).
+    await sql`insert into accounting.settings (company_id) values (${companyId})`;
     // A small chart, parents first (a trigger derives the level and the parent from the code), the Fuente, a period, role mappings.
     const chart: [string, string, "debit" | "credit"][] = [
       ["1", "Activo", "debit"], ["11", "Efectivo", "debit"], ["1110", "Bancos", "debit"], ["111005", "Bancos nacionales", "debit"],
@@ -143,7 +145,7 @@ test.describe("accounting records", () => {
     await sql.begin(async (tx) => {
       // Replica role: no triggers and no foreign key checks, so the order does not matter.
       await tx`set local session_replication_role = replica`;
-      for (const table of ["entry_template_lines", "entry_templates", "cost_centers", "posting_rules", "account_role_mappings", "account_permissions", "periods", "fiscal_years", "journals", "accounts"]) {
+      for (const table of ["entry_template_lines", "entry_templates", "cost_centers", "posting_rules", "account_role_mappings", "account_permissions", "settings", "periods", "fiscal_years", "journals", "accounts"]) {
         await tx`delete from ${tx(`accounting.${table}`)} where company_id = ${companyId}`;
       }
       await tx`delete from core.entity_sequences where company_id = ${companyId}`;

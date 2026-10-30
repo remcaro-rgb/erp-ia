@@ -1,12 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { DataGrid } from "../grid/DataGrid";
 import { useCellTimeZone } from "../grid/cell-format";
 import type { SavedGridState, SavedViewItem } from "../grid/saved-views";
 import type { GridFetcher, GridRow } from "../grid/types";
 import { ParamBar } from "./ParamBar";
 import { reportFetcher as defaultFetcher, todayIn, visibleParams, type ReportDefClient, type ReportParams } from "./report-model";
+
+/** A cell value that is a catalogue key: `report.net_result`, or `accounting.statement.revenue` (the section of a statement, kept under `report.statement`). */
+const CATALOGUE_KEY = /^(report|accounting\.statement)\.[a-z0-9_.]+$/;
+const key = (text: string) => text.replace(/^accounting\.statement\./, "report.statement.");
 
 export interface ReportLink {
   entity: string;
@@ -36,6 +41,7 @@ export interface ReportPageProps {
  */
 export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChange, savedViews, reportFetcher, today, debounceMs }: ReportPageProps) {
   const timeZone = useCellTimeZone();
+  const t = useTranslations();
   const [params, setParams] = useState<ReportParams>(initialParams);
   const change = (next: ReportParams) => {
     setParams(next);
@@ -46,12 +52,20 @@ export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChan
   const paramsKey = JSON.stringify(params);
   const fetcher = useMemo(() => {
     const read = (reportFetcher ?? ((p: ReportParams) => defaultFetcher(report.id, p)))(JSON.parse(paramsKey) as ReportParams);
-    // Only the columns in `totals` are totalled in the footer.
+    // A report row is not a record: the grid keys, selects and links rows by `id`, so a row without one gets its place in the report.
+    // Only the columns in `totals` are totalled in the footer, which reads them as `sum:<column>` (a report names them by column).
     return (async (state, signal) => {
       const page = await read(state, signal);
-      if (!page.aggregates) return page;
-      const kept = Object.fromEntries(Object.entries(page.aggregates).filter(([key]) => report.totals.includes(key.replace(/^sum:/, ""))));
-      return { ...page, aggregates: kept };
+      const start = ((state.page ?? 1) - 1) * (state.pageSize ?? page.rows.length);
+      const rows = page.rows.map((row, index) => (row.id === undefined || row.id === null ? { ...row, id: `row-${start + index}` } : row));
+      if (!page.aggregates) return { ...page, rows };
+      const kept = Object.fromEntries(
+        Object.entries(page.aggregates).flatMap(([key, value]) => {
+          const field = key.replace(/^sum:/, "");
+          return report.totals.includes(field) ? [[`sum:${field}`, value] as const] : [];
+        }),
+      );
+      return { ...page, rows, aggregates: kept };
     }) satisfies GridFetcher;
   }, [reportFetcher, paramsKey, report.id, report.totals]);
 
@@ -77,6 +91,9 @@ export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChan
         renderCell={(column, row) => {
           const link = onRowOpen ? linked(column, row) : null;
           const text = row[column.field];
+          // A report names its own rows with catalogue keys (`report.net_result`, a statement section): the page says them in the user's language.
+          const phrase = typeof text === "string" && CATALOGUE_KEY.test(text) ? key(text) : null;
+          if (phrase && t.has(phrase as never)) return t(phrase as never);
           if (!link || column.mode === "masked" || text === null || text === undefined || text === "") return undefined;
           return (
             <button type="button" className="erp-link" onClick={(event) => (event.stopPropagation(), onRowOpen?.(row, link))}>

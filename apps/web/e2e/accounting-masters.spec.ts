@@ -41,6 +41,8 @@ test.describe("accounting masters", () => {
     for (const process of PROCESSES) {
       await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${role!.id}, ${process})`;
     }
+    // The company has run Configurar contabilidad (every accounting page leads to it until `settings` has a row).
+    await sql`insert into accounting.settings (company_id) values (${companyId})`;
     // A small chart, parents first (a trigger derives the level and the parent from the code), one period and a cost center tree.
     const chart: [string, string, "debit" | "credit"][] = [
       ["1", "Activo", "debit"], ["13", "Deudores", "debit"], ["1305", "Clientes", "debit"], ["130505", "Nacionales", "debit"], ["130510", "Extranjeros", "debit"],
@@ -61,7 +63,7 @@ test.describe("accounting masters", () => {
     await sql.begin(async (tx) => {
       // Replica role: no triggers and no foreign key checks, so the order does not matter.
       await tx`set local session_replication_role = replica`;
-      for (const table of ["periods", "fiscal_years", "cost_centers", "accounts"]) await tx`delete from ${tx(`accounting.${table}`)} where company_id = ${companyId}`;
+      for (const table of ["settings", "periods", "fiscal_years", "cost_centers", "accounts"]) await tx`delete from ${tx(`accounting.${table}`)} where company_id = ${companyId}`;
       await tx`delete from core.entity_sequences where company_id = ${companyId}`;
     });
     await sql`delete from kernel.saved_views where company_id = ${companyId}`;

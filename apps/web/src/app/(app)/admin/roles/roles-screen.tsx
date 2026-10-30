@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { RolesData } from "@/lib/admin/load";
 import { AdminDialog } from "../_components/admin-dialog";
+import { SubjectAccounts } from "../_components/subject-accounts";
 import { useAdminAction } from "../_components/use-admin-action";
 
 const SCOPES = ["ambos", "clientes", "proveedores", "ninguno"] as const;
@@ -150,6 +151,7 @@ function RoleDialog({ data, role, onClose }: { data: RolesData; role?: Role; onC
           </div>
         </fieldset>
       )}
+      {role && <SubjectAccounts kind="role" subjectId={role.id} />}
       {!role && <div className="erp-small erp-muted">{t("common.admin.roles.create_hint")}</div>}
       <div className="erp-small erp-muted">
         {t("common.admin.process", { process: role ? "kernel.admin.role.update · kernel.admin.user_role.set" : "kernel.admin.role.create" })}

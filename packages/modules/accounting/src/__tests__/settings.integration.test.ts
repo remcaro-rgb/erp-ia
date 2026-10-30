@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { accountingHarness, type AccountingHarness } from "./helpers";
 
@@ -33,6 +34,12 @@ describe("settings", () => {
     const [cp] = await h.sql<{ id: string }[]>`select id from accounting.journals where company_id = ${h.companyId} and code = 'CP'`;
     await h.runStepUp(h.admin, "accounting.settings.update", { manualJournalId: cp!.id });
     expect((await settings())!.manual_journal_id).toBe(cp!.id);
+  });
+
+  it("consult counts the events acknowledged without posting because they predate the start of the ledger", async () => {
+    expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ skippedEvents: 0 });
+    await h.sql`insert into accounting.skipped_events (company_id, outbox_id, event, event_date) values (${h.companyId}, ${randomUUID()}, 'qa.sale.issued', '2020-01-15')`;
+    expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ skippedEvents: 1 });
   });
 
   it("consult returns the configuration to a member who may consult; update is refused to a member", async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { accounting } from "@erp/module-accounting";
 import { flattenNav } from "@erp/kernel";
-import { hasOptionalMasters, hideOptionalMasters } from "./nav";
+import { hasOptionalMasters, hasPostingItem, hideOptionalMasters, withPostingBadge } from "./nav";
 
 const ids = (nav: ReturnType<typeof hideOptionalMasters>) => flattenNav(nav).map((i) => i.id);
 
@@ -21,5 +21,14 @@ describe("optional masters in the menu", () => {
   it("the six items of the bar stay in order", () => {
     const bar = hideOptionalMasters(accounting.navigation, { openAuxiliaries: false, items: false, businessUnits: false }).map((i) => i.id);
     expect(bar).toEqual(["accounting.entries", "accounting.movements", "accounting.masters", "accounting.periods", "accounting.reports", "accounting.posting"]);
+  });
+});
+
+describe("pending postings badge", () => {
+  it("sits on Reglas contables only, and only while something is pending", () => {
+    expect(hasPostingItem(accounting.navigation)).toBe(true);
+    const badged = withPostingBadge(accounting.navigation, 3);
+    expect(flattenNav(badged).filter((i) => i.badge !== undefined).map((i) => [i.id, i.badge])).toEqual([["accounting.posting", 3]]);
+    expect(flattenNav(withPostingBadge(accounting.navigation, 0)).some((i) => i.badge !== undefined)).toBe(false);
   });
 });
