@@ -29,7 +29,8 @@ export function GridPage({ data }: { data: GridPageData }) {
     const asked = decodeGridQuery(query);
     if (asked) return viewFromSaved(data.columns, asked);
     const view = defaultView(data.views);
-    return view ? viewFromSaved(data.columns, view.state) : undefined;
+    // The entity's own default state (Movimientos: the open period, posted lines) comes after the user's choices.
+    return view ? viewFromSaved(data.columns, view.state) : data.initialState ? viewFromSaved(data.columns, data.initialState) : undefined;
     // The saved views change while the grid is open (the user saves one); the grid only starts from them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, data.columns]);

@@ -9,6 +9,7 @@ import { ENTRY_POST_PROCESSES } from "./entry-post";
 import { CONCEPT_MAPPING_PROCESSES } from "./concept-mapping";
 import { FISCAL_YEAR_PROCESSES } from "./fiscal-year";
 import { JOURNAL_PROCESSES } from "./journal";
+import { LEDGER_LINE_PROCESSES } from "./ledger-line";
 import { MAPPING_PROCESSES } from "./mapping";
 import { OPENING_PROCESSES } from "./opening";
 import { PERIOD_PROCESSES } from "./period";
@@ -42,4 +43,5 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...YEAR_PROCESSES,
   ...REPORT_PROCESSES,
   ...EXOGENA_XML_PROCESSES,
+  ...LEDGER_LINE_PROCESSES,
 ];

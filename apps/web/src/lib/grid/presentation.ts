@@ -68,6 +68,20 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       is_active: active,
     },
   },
+  // Movimientos (accounting design §5.14): the line's comprobante number names the row; the dimension columns beyond the
+  // cost center stay in the chooser until the company uses them (the page's initial state adds them).
+  "accounting.ledger_line": {
+    title: "number",
+    shown: ["number", "date", "journal_code", "account_code", "account_name", "party_name", "cost_center_name", "description", "debit", "credit", "net", "status"],
+    exclude: [],
+    fields: {
+      status: { valuesKey: "grid.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
+      origin: { valuesKey: "grid.values.entry_origin" },
+      account_level: { valuesKey: "grid.values.account_level" },
+      account_code: { display: "mono" },
+      journal_code: { display: "mono" },
+    },
+  },
   "core.product_category": {
     shown: ["seq", "name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "income_account", "status"],
     exclude: ["extra", "extra_free"],
