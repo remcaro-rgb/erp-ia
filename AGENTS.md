@@ -6,7 +6,7 @@ These instructions apply to every task in this repository, whichever model or to
 1. `docs/project-rules.md` — the 37 rules. Binding. Read the whole file before writing code, migrations, docs or tests.
 2. `docs/superpowers/specs/2026-10-26-erp-ia-design.md` — the design. Read the sections your task touches (kernel §5, security §6, AI §7, modules §8, grids §9, UI §19a, owner decisions §22). `docs/superpowers/specs/2026-10-28-adaptive-ui-agent-design.md` for the phase 3 adaptive UI agent.
 3. `docs/roadmap.md` — the phase your task belongs to and its exit criteria. Do not pull work from a later phase into the current one.
-4. The plan of the current phase in `docs/superpowers/plans/` — the task's exact files, interfaces, values and tests. Phase 1: `2026-10-27-phase-1-foundation.md`. Phase 2A (posting engine and accounting, approved design `2026-10-28-accounting-module-design.md`): `2026-10-29-phase-2-accounting.md`, written 2026-10-29 for the owner's review; do not execute it until the owner says so.
+4. The plan of the current phase in `docs/superpowers/plans/` — the task's exact files, interfaces, values and tests. Phase 1: `2026-10-27-phase-1-foundation.md`. Phase 2A (posting engine and accounting, approved design `2026-10-28-accounting-module-design.md`): `2026-10-29-phase-2-accounting.md`, written 2026-10-29 for the owner's review; do not execute it until the owner says so. One ready-to-paste session prompt per task lives in `docs/superpowers/plans/2026-10-29-phase-2-accounting-prompts/` (index in its `README.md`).
 5. The prototype `docs/superpowers/specs/2026-10-27-erp-ia-phase1-prototype.html` is the visual and behavioural contract for phase 1 UI.
 
 ## Non-negotiables (summary; the rules file is the authority)

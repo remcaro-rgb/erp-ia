@@ -1,0 +1,505 @@
+<title>Phase 2A Accounting Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the ERP-IA shell palette (design §19a), one column of sections on the page grey; the navy bar
+   introduces the module as the app would. Parts are colour-coded (kernel / pack / module / ui / docs). */
+:root{
+  --bar:#1E3A8A; --bar-text:#DBE4F5; --bar-ctl:#2A4A9E;
+  --primary:#1D4ED8; --primary-hover:#1E40AF;
+  --accent-soft:#DBEAFE; --accent-border:#BFDBFE;
+  --bg:#EEF0F2; --surface:#FFFFFF; --head:#F7F8FA;
+  --fg:#1A1D21; --muted:#3F4752; --line:#D7DBE0; --line-light:#E2E5E9;
+  --ok-bg:#DDF1EB; --ok-fg:#0A5446; --warn-bg:#FBEBD2; --warn-fg:#7A3E05;
+  --danger-bg:#FBE3E0; --danger-fg:#8C1D17; --info-bg:#E3ECF8; --info-fg:#1D4F91;
+  --pack-bg:#F3E8FB; --pack-fg:#5B2A86; --ui-bg:#E0F2F7; --ui-fg:#0B5466;
+  --tabrow:#D6E0F5;
+  --font:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bar:#1E3A8A; --bar-text:#DBE4F5; --bar-ctl:#2A4A9E; --primary:#7FA4F7; --primary-hover:#A3BEFA;
+  --accent-soft:#1C2743; --accent-border:#2F4273; --bg:#121519; --surface:#1B1F25; --head:#20252C;
+  --fg:#E6E9ED; --muted:#A3ABB6; --line:#343A43; --line-light:#2A2F37;
+  --ok-bg:#153D33; --ok-fg:#9ADBC6; --warn-bg:#4A2E0C; --warn-fg:#F3C98B; --danger-bg:#4C1A16; --danger-fg:#F4A9A3;
+  --info-bg:#1C2743; --info-fg:#AFC6F2; --pack-bg:#2E1F42; --pack-fg:#D4B6F2; --ui-bg:#113038; --ui-fg:#9ADCEA; --tabrow:#1C2743; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bar:#1E3A8A; --bar-text:#DBE4F5; --bar-ctl:#2A4A9E; --primary:#7FA4F7; --primary-hover:#A3BEFA;
+  --accent-soft:#1C2743; --accent-border:#2F4273; --bg:#121519; --surface:#1B1F25; --head:#20252C;
+  --fg:#E6E9ED; --muted:#A3ABB6; --line:#343A43; --line-light:#2A2F37;
+  --ok-bg:#153D33; --ok-fg:#9ADBC6; --warn-bg:#4A2E0C; --warn-fg:#F3C98B; --danger-bg:#4C1A16; --danger-fg:#F4A9A3;
+  --info-bg:#1C2743; --info-fg:#AFC6F2; --pack-bg:#2E1F42; --pack-fg:#D4B6F2; --ui-bg:#113038; --ui-fg:#9ADCEA; --tabrow:#1C2743; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding-block:0 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3,h4{text-wrap:balance;margin:0;line-height:1.2}
+h2{font-size:22px;font-weight:700;margin-bottom:4px}
+h3{font-size:16px;font-weight:700}
+p{margin:0}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12.5px}
+code{font-family:var(--mono);font-size:12.5px;background:var(--head);border:1px solid var(--line-light);border-radius:4px;padding:0 4px;overflow-wrap:anywhere}
+a{color:var(--primary)}
+
+.bar{background:var(--bar);color:var(--bar-text);margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0 calc(-1 * max(16px,env(safe-area-inset-right,0px)));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.bar-inner{max-width:1048px;margin:0 auto;display:flex;align-items:center;gap:14px;height:48px;flex-wrap:wrap;overflow:hidden}
+.bar .mark{font-weight:700;letter-spacing:.02em}
+.bar .co{background:var(--bar-ctl);border-radius:6px;padding:3px 10px;font-size:13px}
+.bar .mod{font-weight:700;padding:3px 10px;border-radius:6px;background:var(--bar-ctl)}
+.bar .items{display:flex;gap:2px;flex-wrap:wrap}
+.bar .items span{padding:3px 9px;font-size:13.5px;border-radius:4px;opacity:.92}
+.bar .items span.on{background:rgba(255,255,255,.14);opacity:1}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:9px;background:#E9A23B;color:#1A1D21;margin-left:4px;vertical-align:middle}
+.tabrow{background:var(--tabrow);margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0 calc(-1 * max(16px,env(safe-area-inset-right,0px)));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.tabrow-inner{max-width:1048px;margin:0 auto;display:flex;gap:4px;height:34px;align-items:flex-end;overflow:hidden}
+.tab{background:transparent;color:var(--muted);padding:5px 12px;border-radius:6px 6px 0 0;font-size:13.5px;white-space:nowrap}
+.tab.on{background:var(--bg);color:var(--fg);font-weight:600}
+
+.hero{padding:28px 0 8px;display:grid;gap:10px}
+.hero h1{font-size:30px;font-weight:700}
+.hero .lead{max-width:68ch;font-size:16.5px;color:var(--muted)}
+.status{display:flex;gap:8px;flex-wrap:wrap}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:4px;letter-spacing:.02em}
+.pill.info{background:var(--info-bg);color:var(--info-fg)}
+.pill.ok{background:var(--ok-bg);color:var(--ok-fg)}
+.pill.warn{background:var(--warn-bg);color:var(--warn-fg)}
+.pill.danger{background:var(--danger-bg);color:var(--danger-fg)}
+.pill.soft{background:var(--accent-soft);color:var(--info-fg)}
+.pill.pack{background:var(--pack-bg);color:var(--pack-fg)}
+.pill.ui{background:var(--ui-bg);color:var(--ui-fg)}
+
+section{margin-top:28px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--primary);margin-bottom:6px}
+.sub{color:var(--muted);max-width:72ch;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:820px){.g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+.kpi{display:grid;gap:2px}
+.kpi b{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:13px;color:var(--muted)}
+
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{background:var(--head);text-align:left;font-weight:600;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12.5px;letter-spacing:.02em}
+td{padding:7px 10px;border-bottom:1px solid var(--line-light);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.scroll{overflow-x:auto}
+
+.svgbox{overflow-x:auto}
+svg text{font-family:var(--font)}
+svg .t{fill:var(--fg);font-size:13px;font-weight:600}
+svg .s{fill:var(--muted);font-size:11.5px}
+svg .m{fill:var(--muted);font-family:var(--mono);font-size:11px}
+svg .box{fill:var(--surface);stroke:var(--line)}
+svg .kern{fill:var(--accent-soft);stroke:var(--accent-border)}
+svg .pack{fill:var(--pack-bg);stroke:var(--pack-fg)}
+svg .acc{fill:var(--ok-bg);stroke:var(--ok-fg)}
+svg .uix{fill:var(--ui-bg);stroke:var(--ui-fg)}
+svg .doc{fill:var(--warn-bg);stroke:var(--warn-fg)}
+svg .fail{fill:var(--danger-bg);stroke:var(--danger-fg)}
+svg .arrow{stroke:var(--muted);fill:none;stroke-width:1.5;marker-end:url(#ah)}
+svg .arrow.soft{stroke-dasharray:4 3;opacity:.7}
+
+/* task map */
+.parts{display:grid;gap:10px}
+.part{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:start}
+@media (max-width:640px){.part{grid-template-columns:1fr}}
+.part .ph{display:grid;gap:2px}
+.part .ph b{font-size:14px}
+.part .ph span{font-size:12.5px;color:var(--muted)}
+.tasks{display:flex;gap:6px;flex-wrap:wrap}
+.tk{display:inline-grid;grid-template-columns:auto 1fr;gap:6px;align-items:baseline;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12.5px;background:var(--surface);min-width:0;text-decoration:none;color:var(--fg)}
+.tk b{font-family:var(--mono);font-weight:500;font-size:11.5px;color:var(--muted)}
+.tk:hover{border-color:var(--primary)}
+.tk.k{border-left:4px solid var(--accent-border)}
+.tk.p{border-left:4px solid var(--pack-fg)}
+.tk.a{border-left:4px solid var(--ok-fg)}
+.tk.u{border-left:4px solid var(--ui-fg)}
+.tk.d{border-left:4px solid var(--warn-fg)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:5px}
+
+/* review focus */
+.rf{border-left:4px solid var(--danger-fg)}
+.rf h3{font-size:15px}
+.rf p{font-size:13.5px;color:var(--muted);margin-top:4px}
+.rf .pin{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rf .pin span{font-size:11.5px;font-family:var(--mono);background:var(--head);border:1px solid var(--line-light);border-radius:4px;padding:0 6px;color:var(--muted)}
+
+/* task cards */
+.task{scroll-margin-top:12px}
+.task header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+.task header .n{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--muted)}
+.task header h3{font-size:16px}
+.task .what{font-size:14px;color:var(--muted);max-width:80ch}
+.task .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:10px}
+@media (max-width:820px){.task .cols{grid-template-columns:1fr}}
+.task .cols h4{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.task .cols ul{margin:0;padding-left:16px;font-size:12.5px;color:var(--muted)}
+.task .cols li{overflow-wrap:anywhere}
+.task .cols li b{color:var(--fg);font-weight:600}
+.task .cols code{font-size:11.5px}
+.task .cmt{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.task .cmt b{color:var(--ok-fg);font-weight:500}
+.steps{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.steps span{font-size:11.5px;padding:1px 7px;border-radius:9px;background:var(--head);border:1px solid var(--line-light);color:var(--muted)}
+.steps span.red{background:var(--danger-bg);border-color:transparent;color:var(--danger-fg)}
+.steps span.grn{background:var(--ok-bg);border-color:transparent;color:var(--ok-fg)}
+.parthead{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:26px 0 10px}
+.parthead h2{font-size:19px}
+.parthead .pill{font-size:11.5px}
+.stack{display:grid;gap:12px}
+
+.calls li{margin-bottom:6px;font-size:14px}
+.calls li b{font-weight:600}
+.cons li{font-size:13.5px;color:var(--muted);margin-bottom:4px}
+.cons li b{color:var(--fg);font-weight:600}
+.cons ul{margin:0;padding-left:18px}
+.tl{display:grid;gap:4px}
+.tl .row{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;font-size:12.5px}
+@media (max-width:520px){.tl .row{grid-template-columns:90px 1fr}}
+.tl .lab{color:var(--muted);text-align:right}
+.tl .track{height:18px;background:var(--head);border-radius:4px;position:relative;overflow:hidden}
+.tl .seg{position:absolute;top:0;bottom:0;border-radius:4px;display:flex;align-items:center;padding:0 6px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden}
+.tl .seg.k{background:var(--accent-soft);color:var(--info-fg)}
+.tl .seg.p{background:var(--pack-bg);color:var(--pack-fg)}
+.tl .seg.a{background:var(--ok-bg);color:var(--ok-fg)}
+.tl .seg.u{background:var(--ui-bg);color:var(--ui-fg)}
+.tl .seg.d{background:var(--warn-bg);color:var(--warn-fg)}
+.opts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.opt{border:1px solid var(--line);border-radius:6px;padding:12px;background:var(--surface);display:grid;gap:6px}
+.opt.sel{border-color:var(--primary);box-shadow:inset 0 0 0 1px var(--primary);background:var(--accent-soft)}
+.opt .lab{font-weight:700;font-size:14.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.opt .rec{font-size:11px;font-weight:700;color:var(--ok-fg);background:var(--ok-bg);padding:0 6px;border-radius:4px}
+.opt ul{margin:0;padding-left:16px;font-size:13px}
+.opt li{color:var(--muted)}
+.opt li.p::marker{content:"+ ";color:var(--ok-fg)}
+.opt li.c::marker{content:"− ";color:var(--danger-fg)}
+</style>
+
+<div class="wrap">
+  <div class="bar"><div class="bar-inner">
+    <span class="mark">ERP-IA</span>
+    <span class="co">Café del Norte S.A.S.</span>
+    <span class="mod">Contabilidad ▾</span>
+    <span class="items"><span class="on">Comprobantes</span><span>Movimientos</span><span>Maestros ▾</span><span>Períodos</span><span>Informes</span><span>Reglas contables<span class="badge">2</span></span></span>
+  </div></div>
+  <div class="tabrow"><div class="tabrow-inner"><span class="tab">Inicio</span><span class="tab">Diseño</span><span class="tab on">Plan 2A</span><span class="tab">Prototipo v6</span></div></div>
+
+  <div class="hero">
+    <div class="status"><span class="pill ok">Design approved 2026-10-29</span><span class="pill warn">Plan for owner review · not executed</span><span class="pill info">Phase 2A</span><span class="pill soft">32 tasks · 7 parts</span></div>
+    <h1>Phase 2A plan: posting engine and Contabilidad</h1>
+    <p class="lead">How the approved design becomes code, task by task, each with its failing test, its files, its interfaces and its commit. Source: <span class="mono">docs/superpowers/plans/2026-10-29-phase-2-accounting.md</span>. Spec: <span class="mono">2026-10-28-accounting-module-design.md</span>, main design §22.17.</p>
+  </div>
+
+  <section>
+    <div class="grid g4">
+      <div class="card kpi"><b>32</b><span>tasks in seven parts, each ending in a green test run and a commit</span></div>
+      <div class="card kpi"><b>9 + 2</b><span>kernel tasks and pack tasks before the module exists; 10 module tasks; 4 UI; 3 catalogues, demo, guides</span></div>
+      <div class="card kpi"><b>3</b><span>migrations <span class="mono">0025</span> masters · <span class="mono">0026</span> ledger · <span class="mono">0027</span> views, each covered by an integration test</span></div>
+      <div class="card kpi"><b>5</b><span>Review Focus lines, each pinned to a named test in Tasks 17–22 and 25</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Scope</div>
+    <h2>Phase 2 is three plans</h2>
+    <p class="sub">Each produces working software on its own. 2A is the only one written; 2B and 2C are named so 2A builds what they need without building them.</p>
+    <div class="card svgbox">
+      <svg viewBox="0 0 1000 170" width="1000" height="170" role="img" aria-label="Plans 2A, 2B and 2C and their dependencies">
+        <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+        <rect class="box" x="10" y="50" width="120" height="70" rx="8"/><text class="t" x="70" y="80" text-anchor="middle">Phase 1</text><text class="s" x="70" y="98" text-anchor="middle">kernel · core · shell</text>
+        <rect class="acc" x="180" y="20" width="330" height="130" rx="8"/>
+        <text class="t" x="345" y="46" text-anchor="middle">2A · this plan</text>
+        <text class="s" x="345" y="66" text-anchor="middle">kernel extensions · posting engine · co pack</text>
+        <text class="s" x="345" y="84" text-anchor="middle">accounting schema, masters, entries, periods</text>
+        <text class="s" x="345" y="102" text-anchor="middle">security by account · 13 reports · exógena · aging</text>
+        <text class="s" x="345" y="120" text-anchor="middle">Movimientos · UI · demo · 14 guides</text>
+        <text class="m" x="345" y="140" text-anchor="middle">tag phase-2a-accounting</text>
+        <rect class="box" x="560" y="20" width="200" height="60" rx="8"/><text class="t" x="660" y="44" text-anchor="middle">2B · order to cash</text><text class="s" x="660" y="62" text-anchor="middle">CRM, sales, DIAN, inventory, payments</text>
+        <rect class="box" x="560" y="100" width="200" height="50" rx="8"/><text class="t" x="660" y="121" text-anchor="middle">2C · onboarding</text><text class="s" x="660" y="139" text-anchor="middle">import, Siigo / Alegra, posting window</text>
+        <rect class="box" x="810" y="20" width="180" height="60" rx="8"/><text class="s" x="900" y="42" text-anchor="middle">2B modules ship their</text><text class="m" x="900" y="60" text-anchor="middle">postingRules (§5.4)</text>
+        <path class="arrow" d="M130 85 L178 85"/>
+        <path class="arrow" d="M510 50 L558 50"/>
+        <path class="arrow" d="M510 125 L558 125"/>
+        <path class="arrow soft" d="M660 80 L660 98"/>
+        <path class="arrow soft" d="M760 50 L808 50"/>
+      </svg>
+    </div>
+    <p class="muted" style="font-size:13.5px;margin-top:10px">Until 2B exists, the §5.4 default rule templates ship as accounting fixtures (<span class="mono">packages/modules/accounting/src/rules/defaults/*.json</span>) and the engine is tested with synthetic outbox events. 2B moves each template into its own manifest unchanged.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">The map</div>
+    <h2>Seven parts, thirty-two tasks</h2>
+    <p class="sub">Click a task to jump to its card. Colour is the package the task lands in. Order is execution order: nothing in the module exists before the kernel and the pack give it its contracts.</p>
+    <div class="card parts">
+      <div class="part"><div class="ph"><b>A · Kernel extensions</b><span>packages/kernel · ui · agent</span></div><div class="tasks">
+        <a class="tk k" href="#t1"><b>1</b>Process origins · wildcard consumers</a><a class="tk k" href="#t2"><b>2</b>Nav groups (Maestros ▾)</a><a class="tk k" href="#t3"><b>3</b>Record-tab contributions</a><a class="tk k" href="#t4"><b>4</b>ReportDef · route · exports</a><a class="tk k" href="#t5"><b>5</b>ReportPage · ParamBar</a><a class="tk k" href="#t6"><b>6</b>Grouped aggregates (rollup)</a><a class="tk k" href="#t7"><b>7</b>DataGrid multi-sort · Agrupar por</a><a class="tk k" href="#t8"><b>8</b>Posting core: roles, template, compose</a><a class="tk k" href="#t9"><b>9</b>Posting consumer · card effects</a>
+      </div></div>
+      <div class="part"><div class="ph"><b>B · Colombia pack</b><span>packages/localization/co</span></div><div class="tasks">
+        <a class="tk p" href="#t10"><b>10</b>AccountingPack: PUC, mappings, journals, layouts</a><a class="tk p" href="#t11"><b>11</b>Exógena catalogue · XML</a>
+      </div></div>
+      <div class="part"><div class="ph"><b>C · Schema and masters</b><span>packages/modules/accounting · supabase</span></div><div class="tasks">
+        <a class="tk a" href="#t12"><b>12</b>Skeleton · 0025 masters · security fns</a><a class="tk a" href="#t13"><b>13</b>0026 ledger</a><a class="tk a" href="#t14"><b>14</b>chart.seed · accounts · fuentes · years · settings</a><a class="tk a" href="#t15"><b>15</b>Four dimensions, one factory</a><a class="tk a" href="#t16"><b>16</b>Role mappings · permissions · concepts</a>
+      </div></div>
+      <div class="part"><div class="ph"><b>D · Entries, engine, periods</b><span>the ledger</span></div><div class="tasks">
+        <a class="tk a" href="#t17"><b>17</b>0027 published views · v_ledger_lines</a><a class="tk a" href="#t18"><b>18</b>Drafts · templates · validation</a><a class="tk a" href="#t19"><b>19</b>Post · four-eyes · auto-reversal · opening</a><a class="tk a" href="#t20"><b>20</b>Provider · post_from_event · failures · rules</a><a class="tk a" href="#t21"><b>21</b>Period close checks · year close</a>
+      </div></div>
+      <div class="part"><div class="ph"><b>E · Reports and Movimientos</b><span>13 reports + query entity</span></div><div class="tasks">
+        <a class="tk a" href="#t22"><b>22</b>Statements (5)</a><a class="tk a" href="#t23"><b>23</b>Line reports (4)</a><a class="tk a" href="#t24"><b>24</b>Controls · aging · exógena (4)</a><a class="tk a" href="#t25"><b>25</b>Movimientos · ledger_line.list</a>
+      </div></div>
+      <div class="part"><div class="ph"><b>F · User interface</b><span>packages/ui · apps/web</span></div><div class="tasks">
+        <a class="tk u" href="#t26"><b>26</b>TreePane · Tabla · Árbol masters</a><a class="tk u" href="#t27"><b>27</b>Comprobante record · LinesEditor</a><a class="tk u" href="#t28"><b>28</b>Cuenta, dimension, período, regla records</a><a class="tk u" href="#t29"><b>29</b>Períodos · Informes · Reglas pages · setup · KPIs</a>
+      </div></div>
+      <div class="part"><div class="ph"><b>G · Catalogues, demo, guides</b><span>i18n · scripts · docs</span></div><div class="tasks">
+        <a class="tk d" href="#t30"><b>30</b>i18n · PUC-code rule check · evals</a><a class="tk d" href="#t31"><b>31</b>Demo seed · e2e smoke</a><a class="tk d" href="#t32"><b>32</b>14 guides · roadmap · tag</a>
+      </div></div>
+      <div class="legend"><span><i style="background:var(--accent-border)"></i>kernel</span><span><i style="background:var(--pack-fg)"></i>pack co</span><span><i style="background:var(--ok-fg)"></i>module accounting</span><span><i style="background:var(--ui-fg)"></i>ui / web</span><span><i style="background:var(--warn-fg)"></i>catalogues, demo, docs</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Dependencies</div>
+    <h2>What each task hands to the next</h2>
+    <p class="sub">The interfaces that cross task boundaries. A task's implementer sees only their own card; these names are how neighbours agree.</p>
+    <div class="card svgbox">
+      <svg viewBox="0 0 1000 420" width="1000" height="420" role="img" aria-label="Interfaces flowing between tasks">
+        <rect class="kern" x="10" y="10" width="300" height="400" rx="8"/><text class="t" x="160" y="32" text-anchor="middle">Kernel (A)</text>
+        <rect class="box" x="25" y="48" width="270" height="44" rx="6"/><text class="s" x="160" y="66" text-anchor="middle">T1 ProcessDef.origins · consumers "*"</text><text class="m" x="160" y="82" text-anchor="middle">forbidden at gate · drain parks "*"</text>
+        <rect class="box" x="25" y="100" width="270" height="44" rx="6"/><text class="s" x="160" y="118" text-anchor="middle">T8 composeEntry · RuleTemplate · ACCOUNT_ROLES</text><text class="m" x="160" y="134" text-anchor="middle">PostingProvider · PostingFailureCode</text>
+        <rect class="box" x="25" y="152" width="270" height="44" rx="6"/><text class="s" x="160" y="170" text-anchor="middle">T9 postingConsumer(provider) · ProcessDef.emits</text><text class="m" x="160" y="186" text-anchor="middle">module.enable checks role mappings</text>
+        <rect class="box" x="25" y="204" width="270" height="44" rx="6"/><text class="s" x="160" y="222" text-anchor="middle">T4 ReportDef · runReport · POST /api/report/:id</text><text class="m" x="160" y="238" text-anchor="middle">export source {kind:"report"} · report:&lt;id&gt; views</text>
+        <rect class="box" x="25" y="256" width="270" height="44" rx="6"/><text class="s" x="160" y="274" text-anchor="middle">T6 GridState.groupBy[≤3] · GroupRow[]</text><text class="m" x="160" y="290" text-anchor="middle">group by rollup · groupAggregateSql</text>
+        <rect class="box" x="25" y="308" width="270" height="44" rx="6"/><text class="s" x="160" y="326" text-anchor="middle">T3 RecordTabContribution · T2 NavItem.children</text><text class="m" x="160" y="342" text-anchor="middle">registry.recordTabsFor · Maestros ▾</text>
+        <rect class="box" x="25" y="360" width="270" height="40" rx="6"/><text class="s" x="160" y="378" text-anchor="middle">T5 ReportPage · T7 GroupControls, GroupRow</text><text class="m" x="160" y="393" text-anchor="middle">packages/ui</text>
+
+        <rect class="pack" x="340" y="10" width="200" height="120" rx="8"/><text class="t" x="440" y="32" text-anchor="middle">Pack co (B)</text>
+        <rect class="box" x="352" y="46" width="176" height="36" rx="6"/><text class="s" x="440" y="62" text-anchor="middle">T10 CountryPack.accounting</text><text class="m" x="440" y="76" text-anchor="middle">PUC · roles → codes · NC…CI</text>
+        <rect class="box" x="352" y="88" width="176" height="36" rx="6"/><text class="s" x="440" y="104" text-anchor="middle">T11 exogenaFormats · Xml</text><text class="m" x="440" y="118" text-anchor="middle">1001…1009 · 222222222</text>
+
+        <rect class="acc" x="340" y="150" width="400" height="260" rx="8"/><text class="t" x="540" y="172" text-anchor="middle">Module accounting (C, D, E)</text>
+        <rect class="box" x="352" y="186" width="180" height="40" rx="6"/><text class="s" x="442" y="203" text-anchor="middle">T12 accountingHarness · DIMENSIONS</text><text class="m" x="442" y="218" text-anchor="middle">can_view / can_post_account</text>
+        <rect class="box" x="548" y="186" width="180" height="40" rx="6"/><text class="s" x="638" y="203" text-anchor="middle">T13 next_entry_number</text><text class="m" x="638" y="218" text-anchor="middle">entries · lines · rules · failures</text>
+        <rect class="box" x="352" y="234" width="180" height="40" rx="6"/><text class="s" x="442" y="251" text-anchor="middle">T14–16 chart.seed · masters</text><text class="m" x="442" y="266" text-anchor="middle">requireLeafDimension</text>
+        <rect class="box" x="548" y="234" width="180" height="40" rx="6"/><text class="s" x="638" y="251" text-anchor="middle">T17 v_ledger_lines · balances</text><text class="m" x="638" y="266" text-anchor="middle">open_items FIFO</text>
+        <rect class="box" x="352" y="282" width="180" height="40" rx="6"/><text class="s" x="442" y="299" text-anchor="middle">T18 validateLines · drafts</text><text class="m" x="442" y="314" text-anchor="middle">Refusal[] · from_template</text>
+        <rect class="box" x="548" y="282" width="180" height="40" rx="6"/><text class="s" x="638" y="299" text-anchor="middle">T19 postEntry(origin, skipFourEyes)</text><text class="m" x="638" y="314" text-anchor="middle">submit · post · reverse · opening</text>
+        <rect class="box" x="352" y="330" width="180" height="40" rx="6"/><text class="s" x="442" y="347" text-anchor="middle">T20 accountingProvider</text><text class="m" x="442" y="362" text-anchor="middle">post_from_event · retry · defaults</text>
+        <rect class="box" x="548" y="330" width="180" height="40" rx="6"/><text class="s" x="638" y="347" text-anchor="middle">T21 runCloseChecks · year.close</text><text class="m" x="638" y="362" text-anchor="middle">{ closed, checks }</text>
+        <rect class="box" x="352" y="376" width="376" height="28" rx="6"/><text class="s" x="540" y="394" text-anchor="middle">T22–25 thirteen ReportDefs · ledger_line.list · Movimientos default state</text>
+
+        <rect class="uix" x="770" y="10" width="220" height="250" rx="8"/><text class="t" x="880" y="32" text-anchor="middle">UI (F)</text>
+        <rect class="box" x="782" y="46" width="196" height="40" rx="6"/><text class="s" x="880" y="63" text-anchor="middle">T26 TreePane · MasterPage</text><text class="m" x="880" y="78" text-anchor="middle">Tabla · Árbol × 5</text>
+        <rect class="box" x="782" y="94" width="196" height="40" rx="6"/><text class="s" x="880" y="111" text-anchor="middle">T27 EntryForm · LinesEditor</text><text class="m" x="880" y="126" text-anchor="middle">allowedActions · nextFocus</text>
+        <rect class="box" x="782" y="142" width="196" height="40" rx="6"/><text class="s" x="880" y="159" text-anchor="middle">T28 Security · Balances · Rule tabs</text><text class="m" x="880" y="174" text-anchor="middle">9 record entities</text>
+        <rect class="box" x="782" y="190" width="196" height="40" rx="6"/><text class="s" x="880" y="207" text-anchor="middle">T29 pages · setup · HOME_KPIS</text><text class="m" x="880" y="222" text-anchor="middle">recordTabs · nav badge</text>
+        <rect class="doc" x="770" y="280" width="220" height="130" rx="8"/><text class="t" x="880" y="302" text-anchor="middle">Catalogues, demo, docs (G)</text>
+        <rect class="box" x="782" y="316" width="196" height="26" rx="6"/><text class="s" x="880" y="333" text-anchor="middle">T30 es-419 + en · check:rules · evals</text>
+        <rect class="box" x="782" y="348" width="196" height="26" rx="6"/><text class="s" x="880" y="365" text-anchor="middle">T31 scripts/demo/accounting.ts · smoke</text>
+        <rect class="box" x="782" y="380" width="196" height="24" rx="6"/><text class="s" x="880" y="396" text-anchor="middle">T32 guides · roadmap · tag</text>
+
+        <path class="arrow" d="M310 122 L338 180"/>
+        <path class="arrow" d="M310 174 L338 300"/>
+        <path class="arrow" d="M310 226 L338 390"/>
+        <path class="arrow" d="M310 278 L338 395"/>
+        <path class="arrow" d="M440 130 L440 148"/>
+        <path class="arrow" d="M740 280 L768 280"/>
+        <path class="arrow soft" d="M310 330 L768 212"/>
+        <path class="arrow soft" d="M740 390 L768 330"/>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Order and weight</div>
+    <h2>Execution sequence</h2>
+    <p class="sub">Relative size by number of files and tests named in each part. Parts are sequential; inside A, Tasks 2–7 are independent of 1, 8, 9 and could run side by side.</p>
+    <div class="card tl">
+      <div class="row"><span class="lab">A · Kernel</span><div class="track"><div class="seg k" style="left:0;width:27%">Tasks 1–9</div></div></div>
+      <div class="row"><span class="lab">B · Pack co</span><div class="track"><div class="seg p" style="left:27%;width:7%">10–11</div></div></div>
+      <div class="row"><span class="lab">C · Schema, masters</span><div class="track"><div class="seg a" style="left:34%;width:14%">12–16</div></div></div>
+      <div class="row"><span class="lab">D · Entries, engine</span><div class="track"><div class="seg a" style="left:48%;width:16%">17–21</div></div></div>
+      <div class="row"><span class="lab">E · Reports</span><div class="track"><div class="seg a" style="left:64%;width:11%">22–25</div></div></div>
+      <div class="row"><span class="lab">F · UI</span><div class="track"><div class="seg u" style="left:75%;width:15%">26–29</div></div></div>
+      <div class="row"><span class="lab">G · Catalogues, demo</span><div class="track"><div class="seg d" style="left:90%;width:10%">30–32</div></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Review focus</div>
+    <h2>Five things that would bite an accountant</h2>
+    <p class="sub">The failure modes the spec implies but no ordinary test exercises. Each one has a named test in the task that owns the code; a reviewer checks these first.</p>
+    <div class="grid g2">
+      <div class="card rf"><h3>1 · Redelivery and retry post once</h3><p>The same outbox row dispatched twice, a retry of a resolved failure, and two rules on one event leave exactly one entry per (event, rule).</p><div class="pin"><span>T20 redelivered event answers the first entry</span><span>T20 two rules, two entries</span></div></div>
+      <div class="card rf"><h3>2 · Closed periods never move an entry</h3><p>A document dated in a closed period fails with <code>closed_period</code> from engine, UI, assistant, import and template; a reopen by day admits only that day; a credit note posts in its own month.</p><div class="pin"><span>T19 post refuses closed period</span><span>T21 reopened_for admits only that day</span><span>T20 reverseOf posts in the note's period</span></div></div>
+      <div class="card rf"><h3>3 · Restricted accounts leak nothing and lose no money</h3><p>Statements show one aggregated "Cuentas restringidas" line with the admin's totals; line reports, Movimientos, exports and <code>data.query</code> return no line and no amount; a forbidden account is refused by name.</p><div class="pin"><span>T17 v_ledger_lines hides restricted lines</span><span>T18 account_forbidden</span><span>T22 totals equal</span><span>T25 every group level</span></div></div>
+      <div class="card rf"><h3>4 · Four-eyes and auto-reversal are exact</h3><p>The creator cannot post their own manual entry while another user can; engine postings ignore it; a <code>reverse_on</code> entry leaves exactly one mirrored draft even when the post is retried.</p><div class="pin"><span>T19 same_user_approval</span><span>T19 engine ignores four-eyes</span><span>T19 one mirrored draft, idempotent</span></div></div>
+      <div class="card rf" style="grid-column:1 / -1"><h3>5 · Close is a gate, balances are computed</h3><p>Close refuses on drafts, pending approvals, pending failures, undispatched events, control differences, suspense ≠ 0 or a contra-nature balance, records every check with figures and closes in order; year close zeroes 4–7 through 5905 into 3605 / 3610; a post into a reopened period moves later openings with no recalculation.</p><div class="pin"><span>T21 close refuses and records checks</span><span>T21 year close lands on 3605 or 3610</span><span>T21 reopened post moves later opening balances</span></div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Pinned by the spec</div>
+    <h2>Global constraints every task inherits</h2>
+    <div class="grid g2 cons">
+      <div class="card"><h3>Data and boundaries</h3><ul><li><b>Rule 7 columns</b> on every table: uuid v7 id, company_id, seq, timestamps, created_by / updated_by, extra, extra_free; money <code>numeric(18,4)</code>; RLS and row audit through the kernel helpers.</li><li><b>Published views only</b> across modules: <code>v_account_balances</code>, <code>v_entries_for_source</code>, <code>v_tax_lines</code>, <code>v_open_items</code>, <code>v_ledger_lines</code>; no cross-schema foreign key.</li><li><b>Fiscal data only in the pack</b>: PUC, role codes, validation, calendar, layouts, journals, tax codes, exógena. A PUC code in kernel or module source fails <code>check:rules</code>.</li></ul></div>
+      <div class="card"><h3>Processes and security</h3><ul><li><b>Engine writes</b> only through <code>entry.post_from_event</code> and <code>posting_failure.record</code>, both <code>origins: ["event"]</code>, never step-up.</li><li><b>Step-up</b> on chart seed, role and concept mappings, account permissions, period and year close / reopen, posting rules, opening post, settings. Admin may raise post, reverse, account update.</li><li><b>Enums exact</b>: status draft · pending · posted · reversed · voided; origin manual · auto · import · template; the twelve failure codes; the ten close checks; the role catalogue plus <code>suspense</code>.</li></ul></div>
+      <div class="card"><h3>Defaults</h3><ul><li>Journals <b>NC VT CP RC CE AP CI</b>; manual journal NC; rounding tolerance 1,0000 COP; NIIF group 2; four-eyes off; the three optional dimensions off.</li><li>Aging buckets por vencer · 1–30 · 31–60 · 61–90 · &gt; 90; round-amount flag at $ 1.000.000; <code>groupBy</code> ≤ 3, <code>sort</code> ≤ 5; Movimientos opens on the open period, posted, by date, number, line.</li></ul></div>
+      <div class="card"><h3>Copy, menu, method</h3><ul><li>Spanish es-419 through <code>packages/i18n</code> with an <code>en</code> mirror; the journal master is <b>Fuente / Fuentes</b>; Libro diario keeps its name; money <code>$ 1.234.567,00</code>.</li><li>Six bar items: Comprobantes · Movimientos · Maestros ▾ · Períodos · Informes · Reglas contables.</li><li>Tests first; migrations forward-only <code>NNNN_accounting_&lt;topic&gt;.sql</code>; one commit per task, none without the owner's ask; no feature without its guide.</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Kernel first</div>
+    <h2>What Part A adds to the kernel</h2>
+    <p class="sub">Seven mechanisms with no accounting in them. The module is their first consumer; 2B modules reuse them as is.</p>
+    <div class="card svgbox">
+      <svg viewBox="0 0 1000 300" width="1000" height="300" role="img" aria-label="Kernel extensions and the module features that use them">
+        <rect class="kern" x="10" y="10" width="980" height="130" rx="8"/><text class="t" x="24" y="32">Kernel extensions (Tasks 1–9)</text>
+        <rect class="box" x="24" y="46" width="130" height="80" rx="6"/><text class="s" x="89" y="66" text-anchor="middle">origins</text><text class="m" x="89" y="82" text-anchor="middle">ProcessDef.origins</text><text class="m" x="89" y="96" text-anchor="middle">consumers "*"</text><text class="m" x="89" y="112" text-anchor="middle">T1</text>
+        <rect class="box" x="164" y="46" width="130" height="80" rx="6"/><text class="s" x="229" y="66" text-anchor="middle">nav groups</text><text class="m" x="229" y="82" text-anchor="middle">NavItem.children</text><text class="m" x="229" y="96" text-anchor="middle">dropdown in bar</text><text class="m" x="229" y="112" text-anchor="middle">T2</text>
+        <rect class="box" x="304" y="46" width="130" height="80" rx="6"/><text class="s" x="369" y="66" text-anchor="middle">record tabs</text><text class="m" x="369" y="82" text-anchor="middle">recordTabs: grid | mapping</text><text class="m" x="369" y="96" text-anchor="middle">recordTabsFor(entity)</text><text class="m" x="369" y="112" text-anchor="middle">T3</text>
+        <rect class="box" x="444" y="46" width="130" height="80" rx="6"/><text class="s" x="509" y="66" text-anchor="middle">reports</text><text class="m" x="509" y="82" text-anchor="middle">ReportDef · ParamBar</text><text class="m" x="509" y="96" text-anchor="middle">/api/report/:id · pdf</text><text class="m" x="509" y="112" text-anchor="middle">T4 · T5</text>
+        <rect class="box" x="584" y="46" width="130" height="80" rx="6"/><text class="s" x="649" y="66" text-anchor="middle">grouped grid</text><text class="m" x="649" y="82" text-anchor="middle">groupBy[] · rollup</text><text class="m" x="649" y="96" text-anchor="middle">sort ⁵ · Agrupar por</text><text class="m" x="649" y="112" text-anchor="middle">T6 · T7</text>
+        <rect class="box" x="724" y="46" width="130" height="80" rx="6"/><text class="s" x="789" y="66" text-anchor="middle">posting core</text><text class="m" x="789" y="82" text-anchor="middle">RuleTemplate · compose</text><text class="m" x="789" y="96" text-anchor="middle">PostingProvider</text><text class="m" x="789" y="112" text-anchor="middle">T8</text>
+        <rect class="box" x="864" y="46" width="112" height="80" rx="6"/><text class="s" x="920" y="66" text-anchor="middle">consumer</text><text class="m" x="920" y="82" text-anchor="middle">postingConsumer</text><text class="m" x="920" y="96" text-anchor="middle">card effects</text><text class="m" x="920" y="112" text-anchor="middle">T9</text>
+
+        <rect class="acc" x="10" y="180" width="980" height="110" rx="8"/><text class="t" x="24" y="202">Module features that depend on them</text>
+        <text class="s" x="89" y="228" text-anchor="middle">post_from_event</text><text class="s" x="89" y="244" text-anchor="middle">failure.record</text><text class="s" x="89" y="260" text-anchor="middle">event-only</text>
+        <text class="s" x="229" y="228" text-anchor="middle">Maestros ▾</text><text class="s" x="229" y="244" text-anchor="middle">six children</text><text class="s" x="229" y="260" text-anchor="middle">three gated by use_*</text>
+        <text class="s" x="369" y="228" text-anchor="middle">Contabilidad tab on</text><text class="s" x="369" y="244" text-anchor="middle">every record · category</text><text class="s" x="369" y="260" text-anchor="middle">revenue · Cuentas on roles</text>
+        <text class="s" x="509" y="228" text-anchor="middle">13 reports</text><text class="s" x="509" y="244" text-anchor="middle">libro header, NIT</text><text class="s" x="509" y="260" text-anchor="middle">saved parameter sets</text>
+        <text class="s" x="649" y="228" text-anchor="middle">Movimientos</text><text class="s" x="649" y="244" text-anchor="middle">3 groups · 5 sorts</text><text class="s" x="649" y="260" text-anchor="middle">subtotals · exports</text>
+        <text class="s" x="789" y="228" text-anchor="middle">accountingProvider</text><text class="s" x="789" y="244" text-anchor="middle">rules · mappings</text><text class="s" x="789" y="260" text-anchor="middle">posting_rule.test</text>
+        <text class="s" x="920" y="228" text-anchor="middle">Pendientes de</text><text class="s" x="920" y="244" text-anchor="middle">contabilizar · retry</text><text class="s" x="920" y="260" text-anchor="middle">skipped counter</text>
+        <path class="arrow" d="M89 128 L89 178"/><path class="arrow" d="M229 128 L229 178"/><path class="arrow" d="M369 128 L369 178"/><path class="arrow" d="M509 128 L509 178"/><path class="arrow" d="M649 128 L649 178"/><path class="arrow" d="M789 128 L789 178"/><path class="arrow" d="M920 128 L920 178"/>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Task by task</div>
+    <h2>The thirty-two cards</h2>
+    <p class="sub">Each card is the task's summary: what it builds, the files it touches, the tests it must turn green and its commit. Every task runs the same cycle: failing test, run, implement, run, commit. The markdown plan holds the exact assertions and signatures.</p>
+
+    <div class="parthead"><span class="pill soft">Part A</span><h2>Kernel extensions</h2></div>
+    <div class="stack">
+      <div class="card task" id="t1"><header><span class="n">Task 1</span><h3>Process origins and wildcard event consumers</h3></header><p class="what">A process may declare the origins it accepts; <code>runProcess</code> refuses any other caller before the role check, the sensitive-processes page leaves it out and the assistant gets no tool for it. A module may consume <code>"*"</code>; the drain still parks its rows while the module is disabled.</p><div class="cols"><div><h4>Files</h4><ul><li>registry/types.ts · process/run.ts · events/consumers.ts · events/drain.ts · module/define.ts</li><li>admin/permissions.ts · common.ts · agent tools/from-registry.ts</li></ul></div><div><h4>Tests</h4><ul><li>origins ['event'] refused from ui with <b>forbidden</b>, stage gate</li><li>sensitive list and agent descriptors omit it</li><li>wildcard runs after the specific consumer, parked while disabled</li></ul></div><div><h4>Produces</h4><ul><li><code>ProcessDef.origins?: Origin[]</code></li><li><code>consumers.for(event)</code> → specific first, then <code>"*"</code> one per module</li></ul></div></div><div class="steps"><span class="red">write failing tests</span><span>run → FAIL</span><span>implement</span><span class="grn">run → PASS + whole kernel suite</span><span>commit</span></div><p class="cmt"><b>feat(kernel):</b> process origins and wildcard event consumers for the posting engine</p></div>
+
+      <div class="card task" id="t2"><header><span class="n">Task 2</span><h3>Navigation groups (<code>NavItem.children</code>)</h3></header><p class="what">A nav item with children renders as a dropdown in the items bar (Maestros ▾: 36 px rows, icon and label, Enter / Space opens, arrows move, Escape closes); active when any child is; children gated by feature and process; an empty group disappears; ⌘K lists children, never the group.</p><div class="cols"><div><h4>Files</h4><ul><li>kernel registry/types.ts · module/define.ts</li><li>apps/web lib/shell/nav.ts · ui ModuleBar.tsx · shell/types.ts · components.css</li></ul></div><div><h4>Tests</h4><ul><li>drops children the caller may not open, and the group when none is left</li><li>dropdown active on a child route; click → 6 items; Escape closes</li></ul></div><div><h4>Produces</h4><ul><li><code>NavItem.children?: NavItem[]</code>, group href <code>"#"</code>, children never nest</li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">nav + module-bar PASS</span><span>commit</span></div><p class="cmt"><b>feat(shell):</b> navigation groups rendered as dropdowns in the items bar</p></div>
+
+      <div class="card task" id="t3"><header><span class="n">Task 3</span><h3>Record-tab contributions from manifests</h3></header><p class="what">A manifest declares tabs for other modules' records: a <b>grid</b> tab over a query view with <code>source_entity</code> and <code>source_record_id</code> columns (shown only when it has rows), or a <b>mapping</b> tab with one lookup per role, saved through a step-up process.</p><div class="cols"><div><h4>Files</h4><ul><li>registry/types.ts · module/define.ts · registry/index.ts (<code>recordTabsFor</code>)</li><li>ui record/record-model.ts (<code>RecordTabId</code> → string)</li><li>new <code>r/[entity]/[id]/contributed-tab.tsx</code> · lib/records/load.ts</li></ul></div><div><h4>Tests</h4><ul><li>resolves for <code>"*"</code> and named entities</li><li>refuses a mapping without roles or saveProcess</li><li>grid tab present only when the view has rows</li></ul></div><div><h4>Produces</h4><ul><li><code>RecordTabContribution { id, label, forEntities, kind, feature, source?, dimension?, roles?, lookupEntity?, saveProcess?, consultProcess? }</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">recordTabs + contributed PASS</span><span>commit</span></div><p class="cmt"><b>feat(kernel):</b> record-tab contributions (grid and mapping) declared by module manifests</p></div>
+
+      <div class="card task" id="t4"><header><span class="n">Task 4</span><h3>Report definitions, report route and report exports</h3></header><p class="what">Reports become kernel infrastructure: a <code>ReportDef</code> with a Zod params schema, a consult process taking <code>{ params, state }</code>, columns, footer totals and a PDF title; a route; exports that page through the consult and stamp company, NIT, params and page x of y; saved parameter sets under <code>report:&lt;id&gt;</code>.</p><div class="cols"><div><h4>Files</h4><ul><li>new kernel/reports/{types,define,run,index}.ts</li><li>registry · module/loader · exports/plan.ts · export.process.ts · saved-views/processes.ts</li><li>new <code>app/api/report/[id]/route.ts</code></li></ul></div><div><h4>Tests</h4><ul><li>defineReport refuses a non-consult and a totals field that is not a column</li><li>route: member without consult → 403; admin → rows + total</li><li>export of 2500 rows → 3 consult windows; PDF first page carries the NIT</li></ul></div><div><h4>Produces</h4><ul><li><code>ReportDef</code>, <code>ReportColumn</code>, <code>defineReport</code>, <code>runReport(deps, caller, id, params, state)</code></li><li>export input <code>source?: { kind: "report"; id; params }</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">reports · report-route · report export PASS</span><span>commit</span></div><p class="cmt"><b>feat(kernel):</b> report definitions with a report route, saved parameter sets and report exports</p></div>
+
+      <div class="card task" id="t5"><header><span class="n">Task 5</span><h3>Report page component (parameter bar, grid, totals, drill)</h3></header><p class="what">A parameter bar generated from the schema (quick ranges Hoy · Este período · Este año, level 1–8, dimension selects only when their flag is on), the grid with footer totals, export buttons, Guardar vista, linked columns that open the record tab, and params kept in the URL.</p><div class="cols"><div><h4>Files</h4><ul><li>new ui/report/{ReportPage,ParamBar,report-model,index}</li><li>new web <code>_components/report-route.tsx</code> · lib/reports/load.ts</li></ul></div><div><h4>Tests</h4><ul><li>schema { from, to, level } → 3 controls; change level → fetcher gets it</li><li>totals footer shows the aggregates of <code>totals</code></li><li><code>paramsFromSearch(paramsToSearch(p))</code> round-trips</li></ul></div><div><h4>Produces</h4><ul><li><code>&lt;ReportPage report initialParams onRowOpen /&gt;</code>, <code>paramsToSearch</code> / <code>paramsFromSearch</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">ReportPage · report-model PASS</span><span>commit</span></div><p class="cmt"><b>feat(ui):</b> report page with generated parameter bar, totals footer and saved parameter sets</p></div>
+
+      <div class="card task" id="t6"><header><span class="n">Task 6</span><h3>Grouped aggregates in the query builder and the grid route</h3></header><p class="what"><code>GridState.groupBy</code> accepts up to three fields (a string still works); the builder emits a second query <code>group by rollup(g1, g2, g3)</code> with count and every <code>&lt;fn&gt;:&lt;field&gt;</code>; the grid route and <code>data.query</code> return <code>groups</code> without the grand-total row.</p><div class="cols"><div><h4>Files</h4><ul><li>kernel query/grid-state.ts · build-query.ts · run.ts · data-query.process.ts</li><li><code>app/api/grid/[entity]/route.ts</code></li></ul></div><div><h4>Tests</h4><ul><li>array groupBy orders by the group fields first and emits the rollup SQL with <code>sum:debit</code>, <code>avg:debit</code></li><li>fourth level → bad_value; masked field → field_hidden</li><li>route returns groups with level, keys, count, aggregates</li></ul></div><div><h4>Produces</h4><ul><li><code>GroupRow { level, keys, count, aggregates }</code>, <code>BuiltQuery.groupAggregateSql</code>, <code>GridResult.groups</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">build-query · grid-route PASS</span><span>commit</span></div><p class="cmt"><b>feat(grid):</b> grouped aggregates with up to three group levels in the query builder</p></div>
+
+      <div class="card task" id="t7"><header><span class="n">Task 7</span><h3>DataGrid multi-sort, Agrupar por, Agregados, group rows and grouped exports</h3></header><p class="what">Shift-click appends a sort level (max 5, superscript number); Agrupar por up to three fields with chips; aggregate toggles Σ ⌀ Mín Máx #; group rows with subtotals that collapse; "Ver líneas" on a group; CSV, Excel (outline levels) and PDF write a Grupo column, subtotal rows and the grand total.</p><div class="cols"><div><h4>Files</h4><ul><li>ui grid/DataGrid.tsx · grid-model.ts · types.ts · saved-views.ts · use-grid.ts</li><li>new GroupControls.tsx · GroupRow.tsx</li><li>kernel exports columns · csv · xlsx · pdf · plan</li></ul></div><div><h4>Tests</h4><ul><li>shift-click appends a level and shows its number</li><li>group rows' subtotals equal the sum of their page lines</li><li><code>toGridState</code> sends one aggregate per money column per fn</li><li>xlsx with groupBy writes Grupo, subtotals, grand total</li></ul></div><div><h4>Produces</h4><ul><li><code>GridView.groupBy: string[]</code>, <code>GridView.aggregateFns</code>, saved views keep both</li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">DataGrid · grid-model · grouped export PASS</span><span>commit</span></div><p class="cmt"><b>feat(grid):</b> multi-sort levels, group by up to three fields with aggregates, grouped exports</p></div>
+
+      <div class="card task" id="t8"><header><span class="n">Task 8</span><h3>Posting engine core: roles, template schema, path resolver, composition</h3></header><p class="what">The role catalogue (§5.3 plus <code>suspense</code>), the rule template as Zod (exactly §5.2), the JSONPath subset (<code>$.a.b</code>, one <code>[*]</code>, <code>$$.x</code> inside forEach, <code>{{…}}</code> interpolation) and <code>composeEntry</code>: amounts half-up to 2 decimals, zero lines dropped, negative flips side, difference within tolerance becomes a rounding line, above it is <code>unbalanced</code>.</p><div class="cols"><div><h4>Files</h4><ul><li>new kernel/posting/{roles,template,path,compose,provider,index}.ts</li><li>registry/types.ts: <code>ModuleDef.postingProvider · postingRules · accountRoles</code></li></ul></div><div><h4>Tests</h4><ul><li>path: dot paths, one wildcard, root inside forEach, multiple_wildcards refused</li><li>§5.4 invoice template → receivable 119000 / revenue 50000 ×2 / vat_out 19000</li><li>0,5 COP rounds; 2 COP refused</li><li>property test: every ok composition balances and is deterministic</li></ul></div><div><h4>Produces</h4><ul><li><code>ACCOUNT_ROLES</code>, <code>RuleTemplate</code>, <code>RuleLine</code>, <code>resolvePath</code>, <code>interpolate</code></li><li><code>composeEntry(template, event, { tolerance, companyCurrency }) → ComposeResult</code></li><li><code>PostingProvider</code>, <code>PostingRule</code>, <code>PostingFailure</code>, <code>PostingFailureCode</code>, <code>DefaultPostingRule</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">posting PASS</span><span>commit</span></div><p class="cmt"><b>feat(kernel):</b> posting engine core: role catalogue, rule template schema, path resolver, composition</p></div>
+
+      <div class="card task" id="t9"><header><span class="n">Task 9</span><h3>Posting engine consumer and confirmation-card effects</h3></header><p class="what"><code>postingConsumer(provider)</code>: events before <code>ledgerStartsOn</code> are acknowledged and counted; rules run in priority order; <code>reverseOf</code> calls <code>provider.reverse</code>; a composition, resolution or ledger refusal is recorded as a failure and the next rule runs; any other error propagates so the outbox retries. Confirmation cards list "Contabilidad: asiento en Ventas" for processes that <code>emit</code>. <code>module.enable</code> refuses a module whose roles the pack does not map.</p><div class="cols"><div><h4>Files</h4><ul><li>new kernel/posting/engine.ts · engine.integration.test.ts</li><li>module/loader.ts · agent runtime/preview.ts · registry/types.ts (<code>ProcessDef.emits</code>) · admin/modules.ts</li></ul></div><div><h4>Tests</h4><ul><li>pre-ledger events counted, nothing posted</li><li>one entry per rule in priority order; a missing mapping does not stop the others</li><li>connection error propagates; ProcessError becomes a failure</li><li>module.enable refuses unmapped roles; card lists the Ventas effect</li></ul></div><div><h4>Produces</h4><ul><li><code>postingConsumer(provider): EventConsumer</code>, <code>POSTING_CONSUMER</code> marker, <code>provider.countSkipped</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">posting engine · effects PASS</span><span>commit</span></div><p class="cmt"><b>feat(kernel):</b> posting consumer over the provider interface and accounting effects on confirmation cards</p></div>
+    </div>
+
+    <div class="parthead"><span class="pill pack">Part B</span><h2>Colombia pack: accounting extension</h2></div>
+    <div class="stack">
+      <div class="card task" id="t10"><header><span class="n">Task 10</span><h3><code>CountryPack.accounting</code>: chart, mappings, journals, layouts, validation, tax codes</h3></header><p class="what">The PUC (Decreto 2650) to subcuenta with party and cost-center flags, the default role mappings (§5.9 plus suspense → 238095 and rounding → 530595), the extra auxiliaries those need, account-code validation by level and prefix, the calendar fiscal year, balance sheet, income statement and 2516 layouts, the seven journals and the tax codes.</p><div class="cols"><div><h4>Files</h4><ul><li>kernel localization/country-pack.ts</li><li>new <code>localization/co/data/puc.json</code>, src/accounting/{chart,role-mappings,journals,layouts,account-code,fiscal-year,tax-codes,index}.ts</li></ul></div><div><h4>Tests</h4><ul><li>130505 debit, requires party; 510506 requires cost center; 3605 opening result</li><li>every kernel role mapped; every mapped code exists</li><li>13050501 under 130505 accepted; 1306 under 1305, letters, wrong prefix refused</li></ul></div><div><h4>Produces</h4><ul><li><code>AccountingPack { chartOfAccounts, defaultRoleMappings, extraAccounts, validateAccountCode, fiscalYearFor, statementLayouts, defaultJournals, taxCodes, defaultConceptMappings, exogenaFormats, exogenaXml }</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">loc-co accounting · country-pack PASS</span><span>commit</span></div><p class="cmt"><b>feat(loc-co):</b> accounting pack: PUC chart, role mappings, journals, layouts, code validation, tax codes</p></div>
+
+      <div class="card task" id="t11"><header><span class="n">Task 11</span><h3>Exógena catalogue, concept mappings and XML writer</h3></header><p class="what">Formats 1001, 1003, 1005, 1006, 1007, 1008, 1009 for 2026 with version, concepts, columns, threshold and the cuantías-menores NIT 222222222; the default concept-to-account mappings; the prevalidador XML writer, byte-equal to a fixture.</p><div class="cols"><div><h4>Files</h4><ul><li>new <code>co/data/exogena-2026.json</code>, src/accounting/exogena.ts, exogena-xml.ts, fixtures/exogena/*.xml</li></ul></div><div><h4>Tests</h4><ul><li>seven formats with side, threshold and the 222222222 NIT</li><li>1001 XML byte-equal for two rows; CantReg and ValorTotal counted</li><li>every default concept names a catalogue concept and a chart code</li></ul></div><div><h4>Produces</h4><ul><li><code>ExogenaFormat</code>, <code>ExogenaRow</code>, <code>ExogenaCompany</code>, <code>exogenaXml(format, rows, company)</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">exogena PASS</span><span>commit</span></div><p class="cmt"><b>feat(loc-co):</b> exógena catalogue 2026, default concept mappings and prevalidador XML writer</p></div>
+    </div>
+
+    <div class="parthead"><span class="pill ok">Part C</span><h2>Accounting module: schema and masters</h2></div>
+    <div class="stack">
+      <div class="card task" id="t12"><header><span class="n">Task 12</span><h3>Module skeleton, masters migration, entities and masked views</h3></header><p class="what"><code>@erp/module-accounting</code> with its manifest (six bar items, Maestros group, three features, 20 entities including the <code>ledger_line</code> query entity), the test harness, and migration <b>0025</b>: accounts, role mappings, permissions, journals, fiscal years, periods, the four dimension tables, settings, concept mappings, <code>can_view_account</code> / <code>can_post_account</code> (nearest ancestor, user over role, admin always) and the generated masked views.</p><div class="cols"><div><h4>Files</h4><ul><li>new packages/modules/accounting (package, configs, src/index.ts, entities.ts, features.ts, __tests__/helpers.ts)</li><li>new <code>supabase/migrations/0025_accounting_masters.sql</code></li><li>kernel registry/entities.ts (<code>EntityDef.kind: "table" | "query"</code>) · web runtime.ts · scripts/seed.ts</li></ul></div><div><h4>Tests</h4><ul><li>manifest accepted: six items, six children, three features, 20 entities</li><li>every 0025 masked view is the generated one</li><li>can_view_account: ancestor, user over role, admin</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting: ModuleDef</code>, <code>ACCOUNTING_ENTITIES</code>, <code>DIMENSIONS</code>, <code>accountingHarness()</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>db reset · implement</span><span class="grn">views · can_view PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> module skeleton, masters schema with account security functions, entities and views</p></div>
+
+      <div class="card task" id="t13"><header><span class="n">Task 13</span><h3>Ledger migration: entries, lines, rules, failures, templates, close checks</h3></header><p class="what">Migration <b>0026</b>: entries with status and origin checks and the unique <code>(company, source_event_id, posting_rule_id)</code>; lines with one side only; posting rules and failures; entry templates; append-only close checks; skipped events; <code>next_entry_number</code> under row lock; totals trigger; frozen lines after draft; the indexes the reports need.</p><div class="cols"><div><h4>Files</h4><ul><li>new <code>supabase/migrations/0026_accounting_ledger.sql</code></li><li>ledger-schema.integration.test.ts · views.test.ts</li></ul></div><div><h4>Tests</h4><ul><li>20 concurrent calls → NC-1 … NC-20, no gap</li><li>both sides or neither refused; posted lines frozen</li><li>totals follow lines; second entry for (event, rule) refused</li><li>close checks refuse update and delete</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting.next_entry_number(journal) → text</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>db reset · migration</span><span class="grn">ledger-schema PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> ledger schema: entries, lines, posting rules and failures, templates, close checks</p></div>
+
+      <div class="card task" id="t14"><header><span class="n">Task 14</span><h3>Chart seed, accounts, journals, fiscal years and settings processes</h3></header><p class="what"><code>chart.seed</code> (step-up, idempotent) installs the chart, mappings, journals, concept mappings, settings, the current year with 12 periods and the default rules; account create / update with parent by longest prefix and only auxiliaries for company-made accounts; journals; fiscal years without gaps; settings under step-up.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/common.ts · chart.ts · account.ts · journal.ts · fiscal-year.ts · settings.ts</li></ul></div><div><h4>Tests</h4><ul><li>seed installs everything; second run adds <b>0</b>; tolerance 1,0000; NIIF 2</li><li>seed without step-up refused</li><li>13050501 under 130505 ok; 1306 and a child of an account with lines refused</li><li>2027 after 2026 → 12 periods; 2028 refused while 2027 missing</li></ul></div><div><h4>Produces</h4><ul><li><code>companyPack</code>, <code>settingsOf</code>, <code>accountByCode</code>, <code>requireLeafDimension</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">chart · account · settings · fiscal PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> chart seed from the pack, account, journal, fiscal year and settings processes</p></div>
+
+      <div class="card task" id="t15"><header><span class="n">Task 15</span><h3>Analytic dimension processes (one factory for four masters)</h3></header><p class="what">One <code>dimensionProcesses(dim)</code> gives centro de costo, auxiliar abierto, ítem and unidad de negocio their create, update and consult: group or leaf, parent must be a group, no cycles, kind changes only without lines or children, deactivate instead of delete.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/dimension.ts · src/dimensions.ts</li></ul></div><div><h4>Tests</h4><ul><li><code>it.each(DIMENSIONS)</code>: group and leaf, leaf parent refused, cycle refused, group → leaf with children refused</li><li>a leaf with posted lines only deactivates; an inactive leaf is refused on a new line</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting.&lt;dim&gt;.create / update / consult</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">dimension PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> analytic dimensions with one process factory</p></div>
+
+      <div class="card task" id="t16"><header><span class="n">Task 16</span><h3>Account role mappings, account permissions and concept mappings</h3></header><p class="what">Role mappings per role and dimension, with the unmapped roles listed; security by account (admin only, step-up): open or restricted plus grants per role or user, post implies view, audited diff; exógena concept mappings, one concept per account and format, with the unmapped accounts that moved in the year.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/mapping.ts · permission.ts · concept-mapping.ts</li></ul></div><div><h4>Tests</h4><ul><li>revenue category:&lt;id&gt; → 413520; (role, dimension) before (role, null)</li><li>restricting 5105 hides 510506 from auxiliar; non-admin cannot update</li><li>user grant overrides role; removing reopens the subtree</li><li>two concepts for one account refused</li></ul></div><div><h4>Produces</h4><ul><li><code>account_role_mapping.update / consult</code>, <code>account_permission.update / consult</code>, <code>fiscal_concept_mapping.update / consult</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">mapping · permission PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> role mappings, security by account grants and exógena concept mappings</p></div>
+    </div>
+
+    <div class="parthead"><span class="pill ok">Part D</span><h2>Entries, engine integration and periods</h2></div>
+    <div class="stack">
+      <div class="card task" id="t17"><header><span class="n">Task 17</span><h3>Published views and the ledger-line query view</h3></header><p class="what">Migration <b>0027</b>: <code>v_entry_lines</code> masks a restricted line in place (nulls plus <code>is_restricted</code>) so totals stay; <code>v_account_balances</code> over posted lines; <code>v_entries_for_source</code>; <code>v_tax_lines</code>; the FIFO function <code>open_items(company, as_of)</code> and <code>v_open_items</code>; <code>v_ledger_lines</code> with the §4.16 columns and account security inside the view.</p><div class="cols"><div><h4>Files</h4><ul><li>new <code>supabase/migrations/0027_accounting_views.sql</code></li><li>entities.ts (ledger_line fields exactly §4.16)</li></ul></div><div><h4>Tests</h4><ul><li><b>v_ledger_lines hides restricted lines</b> for a user without view</li><li>v_entry_lines masks while entry totals stay</li><li>open_items FIFO: 100 (d1), 200 (d2), receipt 150 → 0 and 150</li><li>company B sees no row of A in any of the five views</li></ul></div><div><h4>Produces</h4><ul><li>the five published views, <code>accounting.open_items(uuid, date)</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>db reset · migration</span><span class="grn">views PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> published views, FIFO open items and the ledger-line query view with account security</p></div>
+
+      <div class="card task" id="t18"><header><span class="n">Task 18</span><h3>Entry drafts: create, update, void, consult, from_template, templates</h3></header><p class="what"><code>validateLines(ctx, entry, lines, mode)</code> holds the §5.5 rules once, with Spanish details naming the account code; drafts in a manual journal with <code>can_post_account</code> on every line; update replaces lines; void keeps the row; templates and <code>from_template</code>.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/entry-validate.ts · entry.ts · template.ts</li></ul></div><div><h4>Tests</h4><ul><li>draft in NC, no number, totals by trigger; update; void</li><li><b>account_forbidden by name</b>: 510506 as auxiliar refused with the code in details</li><li>from_template carries lines, header business unit and amounts</li></ul></div><div><h4>Produces</h4><ul><li><code>EntryInput</code>, <code>LineInput</code>, <code>Refusal</code>, <code>validateLines</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">entry-draft · template PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> entry drafts, voids, templates and the shared line validation</p></div>
+
+      <div class="card task" id="t19"><header><span class="n">Task 19</span><h3>Post, submit, four-eyes, auto-reversal, reverse, opening balances</h3></header><p class="what"><code>postEntry</code> locks, validates in post mode (rounding line within tolerance, period open or <code>reopened_for</code> day, active accounts, required party and dimensions, business unit copied to every line), applies four-eyes for humans, numbers the entry, creates the single auto-reversal draft, emits. Submit, post, reverse and the opening balances on top of it.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/entry-post.ts · opening.ts</li></ul></div><div><h4>Tests</h4><ul><li>balanced draft → NC-1, period set, business unit on lines; second post refused</li><li><b>post refuses closed period</b>, unbalanced, missing party on 130505, missing cost center on 510506</li><li><b>same_user_approval</b>; contador can; <b>engine ignores four-eyes</b></li><li><b>reverse_on creates one mirrored draft</b>, also on replay</li><li>opening.create resolves codes; opening.post needs step-up</li></ul></div><div><h4>Produces</h4><ul><li><code>postEntry(ctx, entryId, { origin, skipFourEyes })</code>, <code>entry.submit / post / reverse</code>, <code>opening.create / post</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">entry-post · opening PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> posting with validations, four-eyes approval, auto-reversing accruals, reversals and opening balances</p></div>
+
+      <div class="card task" id="t20"><header><span class="n">Task 20</span><h3>Posting provider, <code>post_from_event</code>, failures, rules processes and default rule fixtures</h3></header><p class="what">The module becomes the ledger provider. <code>post_from_event</code> (event-only, idempotency <code>posting:&lt;event&gt;:&lt;rule&gt;</code>) creates and posts in one transaction and throws on a ledger refusal so nothing is stored and a retry reuses the key; the failures inbox with retry and dismiss; rule create, update, disable, test on a real past event, sync of defaults; the §5.4 templates as fixtures with Café del Norte payloads.</p><div class="cols"><div><h4>Files</h4><ul><li>new posting/provider.ts · processes/post-from-event.ts · posting-rule.ts · posting-failure.ts</li><li>new rules/defaults/*.json · defaults.ts · rules/fixtures/*.json</li></ul></div><div><h4>Tests</h4><ul><li>invoice event posts Ventas with receivable, revenue per category, vat_out per tax, origin event</li><li><b>redelivered event answers the first entry; two rules, two entries</b></li><li>missing mapping → failure, event emitted, row acknowledged; retry resolves with the same key</li><li>pre-ledger events counted; <b>reverseOf posts in the note's period</b></li><li>post_from_event from ui forbidden; rule test writes nothing</li></ul></div><div><h4>Produces</h4><ul><li><code>accountingProvider: PostingProvider</code>, <code>ACCOUNTING_DEFAULT_RULES</code>, <code>posting.retry</code>, <code>posting_rule.test / sync_defaults</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">posting PASS (real outbox rows)</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> posting provider, engine write path with idempotency, failures inbox and default rules</p></div>
+
+      <div class="card task" id="t21"><header><span class="n">Task 21</span><h3>Period close with control checks, reopen, year close and reopen</h3></header><p class="what"><code>period.close</code> runs the ten checks, writes every check row as the sign-off and answers <code>{ closed: false, checks }</code> when one fails, so the attempt is kept; closes in order; reopen for a whole period or one day; <code>year.close</code> posts the two CI closing entries through 5905 into 3605 or 3610 and opens the next year; <code>year.reopen</code> reverses both.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/period.ts · year.ts · close-checks.ts · reports/control-reconciliation.ts (shared SQL)</li></ul></div><div><h4>Tests</h4><ul><li><b>close refuses and records checks</b> with figures; period stays open; rows exist</li><li>closes in order; ten passed checks with user and time; N+1 before N refused</li><li><b>reopened_for admits only that day</b></li><li><b>year close lands on 3605 or 3610 by sign</b>; reopen reverses</li><li><b>reopened post moves later opening balances</b> with no other write</li></ul></div><div><h4>Produces</h4><ul><li><code>runCloseChecks(ctx, periodId) → CloseCheck[]</code>, <code>period.close / reopen</code>, <code>year.close / reopen</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">period · year PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> period close behind control checks with sign-off rows, reopen by day, year close and reopen</p></div>
+    </div>
+
+    <div class="parthead"><span class="pill ok">Part E</span><h2>Reports and the ledger-line query</h2></div>
+    <div class="stack">
+      <div class="card task" id="t22"><header><span class="n">Task 22</span><h3>Statement reports: balance de prueba, mayor y balances, situación financiera, resultados, centros de costo</h3></header><p class="what">Five <code>ReportDef</code>s over <code>v_account_balances</code> with level 1–8, dimension filters hidden while their flag is off, opening and closing toggles, comparative columns, the layout sections of the pack, and one aggregated 🔒 row for the accounts the caller may not see, so totals equal the admin's.</p><div class="cols"><div><h4>Files</h4><ul><li>new reports/{statements-common,trial-balance,ledger,balance-sheet,income-statement,cost-center-statement}.ts · reports/index.ts</li></ul></div><div><h4>Tests</h4><ul><li>opening + movement = closing per account; totals equal; level 2 sums level 4</li><li><b>trial balance aggregates restricted accounts, totals equal</b></li><li>balance sheet: assets = liabilities + equity + result; comparative from December</li><li>cost center columns sum to the total column</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting.trial_balance · ledger · balance_sheet · income_statement · cost_center_statement</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">reports-statements PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> statement reports with level, dimensions and the aggregated restricted-accounts row</p></div>
+
+      <div class="card task" id="t23"><header><span class="n">Task 23</span><h3>Line reports: libro diario, auxiliar por cuenta, por tercero, por dimensión analítica</h3></header><p class="what">Four line reports over <code>v_ledger_lines</code>: Libro diario with its PDF header, account detail with running balance (a restricted account answers "Sin acceso"), party detail, dimension detail for a node and its descendants. Each returns <code>omitted</code>, shown as "🔒 n movimientos en cuentas restringidas omitidos".</p><div class="cols"><div><h4>Files</h4><ul><li>new reports/journal-book.ts · account-detail.ts · party-detail.ts · dimension-detail.ts</li></ul></div><div><h4>Tests</h4><ul><li>libro diario in date, number, line order; totals equal; restricted omitted and counted</li><li>running balance ends at the trial balance closing; restricted → Sin acceso</li><li>group node equals the sum of its leaves and the ledger</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting.journal_book · account_detail · party_detail · dimension_detail</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">reports-lines PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> libro diario and auxiliares por cuenta, tercero y dimensión analítica</p></div>
+
+      <div class="card task" id="t24"><header><span class="n">Task 24</span><h3>Control reconciliation, manual entries audit, aging, exógena and its XML</h3></header><p class="what">Ledger versus subledger per control (receivable, payable, inventory, suspense, rounding); the auditor's extract of manual entries with round-amount and posted-after-close flags; cartera por edades from the FIFO open items; exógena per format with its error list, small parties under 222222222, and the XML process that refuses while errors exist.</p><div class="cols"><div><h4>Files</h4><ul><li>new reports/control-reconciliation-report.ts · manual-entries-audit.ts · aging.ts · exogena.ts · processes/exogena-xml.ts</li></ul></div><div><h4>Tests</h4><ul><li>aging per party equals the account balance at as_of; buckets by days after due</li><li>reconciliation difference when untied, zero when tied; suspense row</li><li>audit lists only manual posted entries; round flag at 1.000.000</li><li>1001 equals mapped debit movement; COGS credits never count; 1008 includes opening; XML refused while unmapped</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting.control_reconciliation · manual_entries_audit · aging · exogena</code>, <code>accounting.report.exogena_xml</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">reports-controls · exogena PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> control reconciliation, manual entries audit, aging and exógena with XML export</p></div>
+
+      <div class="card task" id="t25"><header><span class="n">Task 25</span><h3>Movimientos: the ledger-line query entity, its list process and <code>data.query</code></h3></header><p class="what"><code>ledger_line.list</code> runs the grid query inside the process; the Movimientos page is a <code>GridRoute</code> over the query entity with the default state (open period, posted, by date, number, line; dimension columns hidden while off). The assistant reaches the same rows and groups through <code>data.query</code>.</p><div class="cols"><div><h4>Files</h4><ul><li>new processes/ledger-line.ts · <code>app/(app)/accounting/movements/page.tsx</code></li><li>web lib/grid/load.ts · kernel query/access.ts</li></ul></div><div><h4>Tests</h4><ul><li><b>grouped query excludes restricted lines for every level</b>; subtotals equal their lines</li><li>three groups, five sorts, mixed and/or equals the SQL on v_ledger_lines</li><li>data.query returns the same groups and totals as the route</li><li>default state is the open period, posted, date/number/line_no</li></ul></div><div><h4>Produces</h4><ul><li><code>accounting.ledger_line.list / consult</code>, <code>defaultMovementsState(openPeriod)</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">ledger-line · movements PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> Movimientos ledger-line query with grouped aggregates, in the grid and the assistant</p></div>
+    </div>
+
+    <div class="parthead"><span class="pill ui">Part F</span><h2>User interface</h2></div>
+    <div class="stack">
+      <div class="card task" id="t26"><header><span class="n">Task 26</span><h3>Tree pane and the analytic master page (Tabla · Árbol) for five masters</h3></header><p class="what">A <code>TreePane</code> with search, expand by level, a figure beside each node and a lock on restricted ones; a <code>MasterPage</code> whose toggle is remembered per user, with the period selector feeding the figure (balance, result or net movement). Plan de cuentas, Centros de costo, Auxiliares abiertos, Ítems, Unidades de negocio use it; Fuentes is a plain grid.</p><div class="cols"><div><h4>Files</h4><ul><li>new ui/tree/{TreePane,tree-model,index}</li><li>new web accounting/_components/master-page.tsx and the six master pages</li></ul></div><div><h4>Tests</h4><ul><li>buildTree nests by parent; expandToLevel(2) opens classes and groups</li><li>figure beside each node; lock without figure; filter by code or name</li><li>e2e: toggle persists; 13 shows its children; Nueva cuenta auxiliar under 130505 creates 13050501</li></ul></div><div><h4>Produces</h4><ul><li><code>buildTree</code>, <code>expandToLevel</code>, <code>filterTree</code>, <code>&lt;MasterPage entity view /&gt;</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">tree · e2e masters PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting-ui):</b> tree pane and the Tabla · Árbol master page for chart, dimensions and fuentes</p></div>
+
+      <div class="card task" id="t27"><header><span class="n">Task 27</span><h3>Comprobante record: header, keyboard-first lines editor, status buttons, Origen</h3></header><p class="what">The lines editor the prototype shows: Enter adds a line, Tab walks account → tercero → centro de costo → auxiliar → ítem → unidad → débito → crédito, hidden dimensions skipped, only postable accounts offered, totals and difference footer, restricted lines as ••••. Status buttons by state and four-eyes; the Origen tab with source document, event, rule and audit chain. The Comprobantes grid with its quick filters.</p><div class="cols"><div><h4>Files</h4><ul><li>new ui/accounting/{EntryForm,LinesEditor,EntryStatusBar,OriginTab,entry-model,index}</li><li>web lib/records/entities.ts · record-form.tsx · accounting/entries/page.tsx</li></ul></div><div><h4>Tests</h4><ul><li>allowedActions by status, four-eyes and creator; auto entries never submit</li><li>Tab skips hidden columns; Enter adds a line; footer 0,00 when balanced</li><li>e2e: NC with two lines by keyboard → NC-n; andres submits, laura approves</li></ul></div><div><h4>Produces</h4><ul><li><code>lineTotals</code>, <code>nextFocus</code>, <code>visibleColumns(settings)</code>, <code>allowedActions(entry, settings, userId)</code></li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">entry-model · LinesEditor · e2e entry PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting-ui):</b> comprobante record with keyboard lines editor, approval flow and origin timeline</p></div>
+
+      <div class="card task" id="t28"><header><span class="n">Task 28</span><h3>Cuenta, dimension, fuente, plantilla, período and regla contable records</h3></header><p class="what">The tabs of §8 on nine record types: Seguridad (open / restricted, grants per role or user, step-up), Saldos per period, Movimientos as a filtered ledger-line grid, dimension balances, period tabs (Resumen by fuente, Comprobantes, Cierre with checks and history), the rule form with its lines editor, "Probar con un evento real" and history.</p><div class="cols"><div><h4>Files</h4><ul><li>new ui/accounting/{AccountSecurityTab,BalancesTab,MovementsTab,DimensionBalancesTab,PeriodTabs,RuleForm,RuleLinesEditor,RuleTestTab,RuleHistoryTab}</li><li>web lib/records/entities.ts · record-form.tsx · load.ts</li></ul></div><div><h4>Tests</h4><ul><li>contabilizar implies ver; Quitar asks step-up; non-admin sees no Seguridad tab</li><li>e2e: restrict 5105 with TOTP; as marcela Saldos and Movimientos answer Sin acceso, the tree shows a lock</li><li>e2e: edit a rule line, preview on a real event, save with TOTP sets Modificada</li></ul></div><div><h4>Produces</h4><ul><li>record registrations for account, four dimensions, journal, entry_template, period, posting_rule</li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">account-security · e2e records PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting-ui):</b> account, dimension, fuente, template, period and posting rule records</p></div>
+
+      <div class="card task" id="t29"><header><span class="n">Task 29</span><h3>Períodos, Informes, Reglas contables pages, setup action, home widgets and contributed tabs</h3></header><p class="what">Períodos with years as cards and Cerrar / Reabrir (whole period or one day) behind TOTP; Informes as 13 cards over the report route; Reglas contables with Reglas, Mapeo de cuentas, Conceptos exógena, Pendientes de contabilizar (badge in the bar) and Configuración; the single <b>Configurar contabilidad</b> action every page redirects to until the seed ran; four home KPIs; the contributed tabs (Contabilidad on every record, revenue mapping on categories, Cuentas on roles and users).</p><div class="cols"><div><h4>Files</h4><ul><li>new accounting/periods · reports · reports/[report] · posting · setup pages · accounting/layout.tsx</li><li>module src/home.ts · src/index.ts (recordTabs) · admin roles-screen.tsx · users-screen.tsx · web-shell.tsx</li></ul></div><div><h4>Tests</h4><ul><li>e2e: Cerrar octubre with a draft lists the failed check; void it, TOTP → closed; Reabrir solo el día 15</li><li>e2e: Balance de prueba totals equal; click 4135 opens the Auxiliar; Excel downloads</li><li>e2e: Pendientes with Reintentar; no unmapped role after setup; category tab saves revenue with TOTP</li><li>home KPIs equal the income statement and the pending count</li></ul></div><div><h4>Produces</h4><ul><li><code>HOME_KPIS</code>, <code>recordTabs</code> for entries, category revenue, subject accounts</li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>implement</span><span class="grn">e2e periods · reports · posting · home PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting-ui):</b> periods, reports, posting rules pages, setup action, home widgets and contributed tabs</p></div>
+    </div>
+
+    <div class="parthead"><span class="pill warn">Part G</span><h2>Catalogues, assistant, demo, guides</h2></div>
+    <div class="stack">
+      <div class="card task" id="t30"><header><span class="n">Task 30</span><h3>i18n catalogues, rule check for PUC codes, assistant evals</h3></header><p class="what">Every entity, field, nav, feature, report, status, origin, check, failure and button key in es-419 and en; <code>check:rules</code> gains <code>puc-code-outside-pack</code> (a 4–8 digit literal in kernel posting or accounting source fails); five Spanish prompts the assistant must map to the right process, from "¿cuánto vendimos en septiembre por centro de costo?" to "gastos de octubre por centro de costo" as a grouped <code>data.query</code>.</p><div class="cols"><div><h4>Files</h4><ul><li>i18n messages/es-419.json · en.json · scripts/check-rules.ts</li><li>new agent __tests__/evals/accounting.json</li></ul></div><div><h4>Tests</h4><ul><li>every registry, report and accounting key exists in both locales</li><li>check:rules reports no violation</li><li>evals map each prompt to its tool</li></ul></div><div><h4>Produces</h4><ul><li>the full accounting catalogue; the new rule check</li></ul></div></div><div class="steps"><span class="red">failing tests</span><span>add keys and check</span><span class="grn">i18n · check:rules · evals PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> Spanish and English catalogues, PUC-code rule check and assistant evals</p></div>
+
+      <div class="card task" id="t31"><header><span class="n">Task 31</span><h3>Demo seed and end-to-end smoke</h3></header><p class="what">Café del Norte gets a ledger: Andrés Rojas as contador; cost centers, auxiliares, ítems and unidades; the security examples (5105 to contador, class 3, Davivienda postable only by Laura); 2026 opening balances; 40 posted entries January–October from the §5.4 fixtures through real outbox rows; "Nómina octubre", the energy accrual reversing on 2026-11-01, a suspense deposit, a pending provision; January–September closed.</p><div class="cols"><div><h4>Files</h4><ul><li>scripts/seed.ts · demo/accounts.ts · new demo/accounting.ts · supabase/seed.sql · docker-compose.test.yml · README.md</li><li>new <code>apps/web/e2e/accounting-smoke.spec.ts</code></li></ul></div><div><h4>Tests</h4><ul><li>laura: equal totals; Movimientos grouped by Cuenta then Centro de costo; assistant answers with a table and a link</li><li>marcela: one Cuentas restringidas row, Sin acceso, masked lines, no 5105 offered</li><li>andres: submit, cannot approve; laura approves; the auto-reversal draft dated 01/11/2026</li></ul></div><div><h4>Produces</h4><ul><li>the demo ledger used by every e2e and by the walkthrough</li></ul></div></div><div class="steps"><span class="red">failing e2e</span><span>db reset · seed</span><span class="grn">e2e accounting PASS</span><span>commit</span></div><p class="cmt"><b>feat(accounting):</b> demo ledger for Café del Norte and end-to-end smoke</p></div>
+
+      <div class="card task" id="t32"><header><span class="n">Task 32</span><h3>User guides, roadmap and hand-off</h3></header><p class="what">Fourteen guides in <code>docs/user-guide/es-419/contabilidad/</code>: plan de cuentas, comprobantes, centros de costo, auxiliares e ítems, unidades de negocio, consulta de movimientos, controles y cierre, seguridad por cuenta, exógena, cartera por edades, períodos y cierre, reglas contables, informes, pendientes de contabilizar. Roadmap exit criteria checked; the plan's self-review notes filled; tag <code>phase-2a-accounting</code>.</p><div class="cols"><div><h4>Files</h4><ul><li>14 new guides · user-guide README index · docs/roadmap.md · this plan</li></ul></div><div><h4>Tests</h4><ul><li>every guide indexed; the assistant answers "¿cómo cierro el mes?" from periodos-y-cierre.md</li></ul></div><div><h4>Produces</h4><ul><li>phase 2A complete and tagged</li></ul></div></div><div class="steps"><span>write guides</span><span class="grn">help-index PASS</span><span>commit · tag</span></div><p class="cmt"><b>docs(accounting):</b> user guides for phase 2A, roadmap update</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Owner to check</div>
+    <h2>Calls made while writing the plan</h2>
+    <p class="sub">Decisions the design left open or that the kernel's shape forced. Each is overturnable; a change goes to the main design §22.</p>
+    <div class="card"><ol class="calls">
+      <li><b>Default rule templates</b> of §5.4 ship as accounting fixtures and seed per company until plan 2B moves each into its module's <code>postingRules</code> unchanged.</li>
+      <li><b>suspense → 238095</b> ("Partidas por aclarar") and <b>rounding → 530595</b> as pack auxiliaries the seed creates under 2380 and 5305.</li>
+      <li><b>Exógena XML</b> is the module process <code>accounting.report.exogena_xml</code> because packs register no processes; the pack keeps the writer.</li>
+      <li><b>Report consults</b> take <code>{ params, state }</code>; saved parameter sets are saved views under <code>report:&lt;id&gt;</code>.</li>
+      <li><b><code>GridState.groupBy</code></b> still accepts a string, so phase 1 saved views keep working.</li>
+      <li><b><code>v_entry_lines</code></b> masks a restricted line in place (nulls plus <code>is_restricted</code>) so entry totals stay; <code>v_ledger_lines</code> drops the line.</li>
+      <li><b><code>period.close</code></b> answers <code>closed: false</code> with the failed checks instead of throwing, so the sign-off rows of a refused close commit.</li>
+      <li><b><code>post_from_event</code></b> throws on a ledger refusal so no idempotency row is stored; the engine records the failure and a retry reuses the key.</li>
+      <li><b><code>module.enable</code></b> refuses a module whose declared account roles the company pack does not map.</li>
+    </ol></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">Next</div>
+    <h2>Execution method</h2>
+    <p class="sub">Not started. The owner picks the method; nothing is executed or committed until then.</p>
+    <div class="opts">
+      <div class="opt sel"><div class="lab">Subagent-driven<span class="rec">recommended</span></div><ul><li class="p">A fresh implementer per task and a fresh reviewer before the next starts; whole-branch review at the end.</li><li class="p">32 interface-heavy tasks across kernel, pack, module, database and UI; a posting or security mistake that ships corrupts ledgers.</li><li class="c">One context per task and per review.</li></ul></div>
+      <div class="opt"><div class="lab">Native</div><ul><li class="p">This session implements every task; one reviewer on the most capable model checks the branch at the end.</li><li class="p">Cheapest and fastest.</li><li class="c">No independent review until the end.</li></ul></div>
+    </div>
+    <p class="muted" style="font-size:13.5px;margin-top:12px">Every brief, whichever method: "Read <span class="mono">docs/project-rules.md</span> and the design sections for X before starting; follow the plan task verbatim."</p>
+  </section>
+</div>
