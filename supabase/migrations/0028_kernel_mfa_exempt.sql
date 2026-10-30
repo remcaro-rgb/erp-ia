@@ -12,7 +12,15 @@
 --     `kernel.admin.user.%` process (the company admin only), so they need no change; the row trigger (0002) audits the
 --     flag before and after.
 --   * The access token hook: 0027's body with the exemption honoured in `requires_mfa` (the system admin role requires
---     the second step unless the membership in the active company is exempt). Same signature and grants.
+--     the second step unless the membership in the active company is exempt). Same signature and grants. The sign-in
+--     enforces the second step per company, as before.
+--   * kernel.user_requires_mfa(user): whether the person's factor is required anywhere, i.e. any ACTIVE membership of
+--     theirs, in any company, holds the system admin role without an exemption. The factor belongs to the identity, not
+--     to a company, so kernel.user.mfa.disable asks this (a user who is admin in company B and a plain member in A must
+--     not remove from A the factor B requires).
+--   * kernel.admin.user.mfa.set { reset } removes the identity's factor too, even when the user is also an admin of
+--     another company of the tenant: that is the admin's decision, and the user enrols again at the next sign-in into
+--     the company that requires it.
 --   * kernel.v_memberships (the admin's view) and kernel.v_users (the `kernel.user` entity, under the caller's field
 --     visibility) gain mfa_exempt, appended after 0027's columns (same leading columns, same predicates).
 --   * The existing system admin roles are granted the new admin process (0025's helper), as 0027 did for
@@ -20,6 +28,30 @@
 --     process). kernel.user.mfa.disable is self-service (`permission: "none"`): no role needs a grant.
 
 alter table kernel.memberships add column mfa_exempt boolean not null default false;
+
+-- ---------------------------------------------------------------------------------------------
+-- Whether the user's second step is required by any of their active memberships, in any company: one that holds the
+-- system admin role and is not exempt. Owner's rights, so it sees memberships outside the caller's claims; it answers
+-- only a boolean.
+-- ---------------------------------------------------------------------------------------------
+create or replace function kernel.user_requires_mfa(p_user uuid) returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from kernel.memberships m
+    join kernel.membership_roles mr on mr.membership_id = m.id
+    join kernel.roles r on r.id = mr.role_id
+    where m.user_id = p_user
+      and m.is_active
+      and not m.mfa_exempt
+      and r.company_id = m.company_id
+      and r.is_system and r.name = 'admin'
+  );
+$$;
+revoke execute on function kernel.user_requires_mfa(uuid) from public, anon;
+grant execute on function kernel.user_requires_mfa(uuid) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------------------------
 -- The access token hook: 0027's body; `requires_mfa` leaves out an exempt membership. Same signature and grants.

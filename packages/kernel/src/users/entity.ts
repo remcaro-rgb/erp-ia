@@ -32,7 +32,8 @@ export const userEntity = defineEntity({
     // The member's state in the active company (kernel.admin.user.update, design §22.16): a deactivated user stays listed.
     { name: "is_active", type: "boolean", label: "field.kernel.user.is_active" },
     // Exempt from the system admin role's second step in the active company (kernel.admin.user.mfa.set, design §22.19).
-    { name: "mfa_exempt", type: "boolean", label: "field.kernel.user.mfa_exempt" },
+    // Confidential: the role defaults show it to the admin only.
+    { name: "mfa_exempt", type: "boolean", label: "field.kernel.user.mfa_exempt", sensitivity: "confidential" },
   ],
 });
 

@@ -20,7 +20,7 @@ describe("kernel.user entity", () => {
     expect(user.displayField).toBe("full_name");
     expect(user.fields.map((f) => f.name)).toEqual(["full_name", "email", "locale", "mobile", "created_at", "is_active", "mfa_exempt"]);
     expect(user.fields.find((f) => f.name === "is_active")?.type).toBe("boolean");
-    expect(user.fields.find((f) => f.name === "mfa_exempt")).toMatchObject({ type: "boolean", label: "field.kernel.user.mfa_exempt" });
+    expect(user.fields.find((f) => f.name === "mfa_exempt")).toMatchObject({ type: "boolean", label: "field.kernel.user.mfa_exempt", sensitivity: "confidential" });
     expect(user.fields.find((f) => f.name === "mobile")?.sensitivity).toBe("confidential");
     expect(user.fields.filter((f) => f.searchable).map((f) => f.name)).toEqual(["full_name", "email"]);
   });

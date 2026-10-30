@@ -7,7 +7,7 @@ import { Registry } from "../../registry";
 import { loadModules } from "../../module/loader";
 import { kernelModule } from "../../module/kernel-module";
 import { runProcess } from "../../process/run";
-import { ProcessError } from "../../process/errors";
+import { isMembershipInactive, ProcessError } from "../../process/errors";
 import type { Caller } from "../../process/context";
 import { setAuthAdmin } from "../../admin/auth-admin";
 import { syncRegistry } from "../../admin/sync";
@@ -134,6 +134,55 @@ describe("the user's second step", () => {
       await expect(disable(boss)).resolves.toEqual({ removed: 1 });
       expect(auth.deletedFactorsOf).toEqual([seed.users.boss]);
       expect(await factors(seed.users.boss!)).toBe(0);
+    });
+
+    it("refuses an admin of another company of the tenant while they stand in one where they are a plain member", async () => {
+      // `dual` is a plain member of company A and the (not exempt) admin of company B; the factor is the identity's.
+      const tenant = await seedTenant(sql, { companies: 2, entitlements: [], users: [{ name: "dual", companies: [0, 1], role: "member" }] });
+      try {
+        const [a, b] = [tenant.companies[0]!, tenant.companies[1]!];
+        const dual = tenant.users.dual!;
+        await tenant.holdRoles(dual, b.id, [b.adminRoleId]);
+        await enrol(dual);
+        const inA = async (options: { dryRun?: boolean } = {}) => {
+          const stepUpToken = randomUUID();
+          await sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${dual}, ${a.id}, ${stepUpToken})`;
+          return runProcess({ sql, registry }, { ...caller(tenant.claimsFor(dual, a.id)), stepUpToken }, "kernel.user.mfa.disable", {}, options);
+        };
+        const refused = await inA().catch((e: unknown) => e);
+        expect(refused).toMatchObject({ code: "invalid_input" });
+        expect(details(refused)).toEqual([ROLE_COPY]);
+        expect(auth.deletedFactorsOf).toEqual([]);
+        expect(await factors(dual)).toBe(1);
+
+        // An inactive admin membership requires nothing.
+        await sql`update kernel.memberships set is_active = false where user_id = ${dual} and company_id = ${b.id}`;
+        await expect(inA({ dryRun: true })).resolves.toEqual({ removed: 0 });
+        await sql`update kernel.memberships set is_active = true where user_id = ${dual} and company_id = ${b.id}`;
+        await expect(inA()).rejects.toMatchObject({ code: "invalid_input" });
+
+        // Exempt in B: allowed from A.
+        await sql`update kernel.memberships set mfa_exempt = true where user_id = ${dual} and company_id = ${b.id}`;
+        await expect(inA()).resolves.toEqual({ removed: 1 });
+        expect(auth.deletedFactorsOf).toEqual([dual]);
+        expect(await factors(dual)).toBe(0);
+      } finally {
+        await tenant.cleanup();
+      }
+    });
+
+    it("refuses a caller whose membership is inactive at the gate, even with a valid step-up", async () => {
+      await enrol(seed.users.clerk!);
+      await sql`update kernel.memberships set is_active = false where user_id = ${seed.users.clerk!} and company_id = ${companyId}`;
+      try {
+        const error = await disable(clerk).catch((e: unknown) => e);
+        expect(error).toMatchObject({ code: "forbidden" });
+        expect(isMembershipInactive(error)).toBe(true);
+        expect(auth.deletedFactorsOf).toEqual([]);
+        expect(await factors(seed.users.clerk!)).toBe(1);
+      } finally {
+        await sql`update kernel.memberships set is_active = true where user_id = ${seed.users.clerk!} and company_id = ${companyId}`;
+      }
     });
 
     it("removes nothing in a dry run", async () => {

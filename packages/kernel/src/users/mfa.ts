@@ -27,18 +27,10 @@ export const userMfaDisable = defineProcess({
   output: z.object({ removed: z.number().int() }),
   auditInput: () => ({}),
   handler: async (ctx) => {
-    // The same predicate as the access-token hook's `requires_mfa` (0028), read live from the caller's membership in the
-    // active company (kernel.memberships is readable by every member; kernel.v_memberships is the admin's view only).
-    const [row] = await ctx.tx<{ required: boolean }[]>`
-      select exists (
-        select 1
-        from kernel.memberships m
-        join kernel.membership_roles mr on mr.membership_id = m.id
-        join kernel.roles r on r.id = mr.role_id
-        where m.user_id = ${ctx.userId} and m.company_id = ${ctx.companyId}
-          and r.company_id = m.company_id and r.is_system and r.name = 'admin'
-          and not m.mfa_exempt
-      ) as required`;
+    // The factor belongs to the identity, not to a company: it is required when ANY active membership of the caller, in
+    // any company, holds the system admin role without an exemption (kernel.user_requires_mfa, 0028). Switching to a
+    // company where they are a plain member does not let an admin of another company remove it.
+    const [row] = await ctx.tx<{ required: boolean }[]>`select kernel.user_requires_mfa(${ctx.userId}) as required`;
     if (row?.required) throw invalid("role requires mfa", "Tu rol exige la verificación en dos pasos; pídele a un administrador que te exima");
     if (ctx.dryRun) return { removed: 0 };
     const removed = await (await authAdmin()).deleteFactors(ctx.userId);
@@ -79,6 +71,8 @@ export const adminUserMfaSet = defineProcess({
       exempt = input.exempt;
     }
 
+    // The reset removes the identity's factor, so it also ends the second step of the user's other companies; when one of
+    // them still requires it (they are its admin, not exempt), they enrol again at the next sign-in there.
     let removed = 0;
     if (input.reset === true && !ctx.dryRun) removed = await (await authAdmin()).deleteFactors(input.userId);
     return { userId: input.userId, removed, exempt };

@@ -91,6 +91,15 @@ describe("kernel users: v_users and kernel.user.consult", () => {
     }
   });
 
+  it("shows the second-step exemption (confidential) to the admin and masks it for the other roles", async () => {
+    // syncModuleManifest masked the confidential field for the roles that already existed, as it did for the mobile.
+    const [mode] = await sql<{ mode: string }[]>`
+      select mode from kernel.field_permissions where company_id = ${companyA} and role_id = ${seed.companies[0]!.memberRoleId} and entity = 'kernel.user' and field = 'mfa_exempt'`;
+    expect(mode?.mode).toBe("masked");
+    expect((await users(admin)).find((r) => r.id === seed.users.member)?.mfa_exempt).toBe(false);
+    expect((await users(member)).find((r) => r.id === seed.users.onlyA)?.mfa_exempt).toBeNull();
+  });
+
   it("never shows the mobile of a user who also belongs to another organization, even to the admin", async () => {
     const shared = (await users(admin)).find((r) => r.id === other.users.shared);
     expect(shared?.full_name).toBe("User shared");
