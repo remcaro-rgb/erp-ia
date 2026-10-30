@@ -38,7 +38,7 @@ export async function writeXlsx(columns: readonly ExportColumn[], rows: RowSourc
   const book = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: sink, useStyles: true, useSharedStrings: false });
   book.creator = "ERP-IA";
   book.created = new Date();
-  const sheet = book.addWorksheet(sheetName(options.title), { views: [{ state: "frozen", xSplit: 0, ySplit: 1 }] });
+  const sheet = book.addWorksheet(sheetName(options.title), { views: [{ state: "frozen", xSplit: 0, ySplit: 1 }], properties: { outlineProperties: { summaryBelow: true, summaryRight: true } } });
   sheet.columns = columns.map((c) => ({ key: c.field, width: widthOf(c) }));
 
   const header = sheet.addRow(columns.map((c) => c.label));
@@ -75,6 +75,10 @@ export async function writeXlsx(columns: readonly ExportColumn[], rows: RowSourc
           break;
       }
     });
+    // A grouped export (grouped.ts): the lines nest under their group's summary, which is bold.
+    const level = source.__level;
+    if (typeof level === "number") row.outlineLevel = level;
+    if (source.__kind) row.font = { bold: true };
     row.commit();
     count += 1;
   }

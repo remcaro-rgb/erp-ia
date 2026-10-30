@@ -1,6 +1,6 @@
-import type { FilterKind, FilterOp, GridStateInput } from "@erp/kernel/query";
+import type { AggregateFn, FilterKind, FilterOp, GridStateInput } from "@erp/kernel/query";
 
-export type { FilterKind, FilterOp, GridStateInput } from "@erp/kernel/query";
+export type { AggregateFn, FilterKind, FilterOp, GridStateInput } from "@erp/kernel/query";
 
 /** How a field reaches the caller (rule 14): masked fields show `••••••` and never filter or sort; hidden ones are left out. */
 export type FieldMode = "visible" | "masked" | "hidden";
@@ -50,11 +50,20 @@ export interface GridColumn {
 
 export type GridRow = Record<string, unknown> & { id: string };
 
+/** One group of a grouped grid (`GridResult.groups`): `keys` of the first `level` group fields, `<fn>:<field>` aggregates over the whole filter. */
+export interface GroupRow {
+  level: number;
+  keys: Record<string, unknown>;
+  count: number;
+  aggregates: Record<string, unknown>;
+}
+
 /** One page as POST /api/grid/:entity answers it. */
 export interface GridPage {
   rows: GridRow[];
   total: number;
   aggregates?: Record<string, unknown>;
+  groups?: GroupRow[];
 }
 
 /** Reads a page of the grid's entity for a state (the grid passes an AbortSignal to drop stale requests). */
@@ -82,6 +91,10 @@ export interface GridView {
   columnFilters: Record<string, ColumnFilterValue>;
   conditions: Condition[];
   sort: SortEntry[];
+  /** Agrupar por: up to three fields, in order (design §5.14); the rows come grouped and each group has its subtotals. */
+  groupBy: string[];
+  /** The functions of the group subtotals and the footer, per money column. */
+  aggregateFns: AggregateFn[];
   page: number;
   pageSize: number;
   /** Fields shown, in order (what the grid request, the export and a saved view carry). */
@@ -92,5 +105,9 @@ export interface GridView {
    */
   order?: string[];
 }
+
+/** Levels of a grid's sort and of its grouping. */
+export const MAX_SORT_LEVELS = 5;
+export const MAX_GROUP_LEVELS = 3;
 
 export type ExportFormat = "pdf" | "xlsx" | "csv";

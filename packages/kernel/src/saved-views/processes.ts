@@ -2,7 +2,7 @@ import { z } from "zod";
 import { registeredEntity } from "../attachments/guards";
 import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
-import { GridState } from "../query/grid-state";
+import { AGGREGATE_FNS, GridState } from "../query/grid-state";
 
 // Saved grid views (design §9, rule 20): a user's named grid state per entity, in the active company, one of them
 // the default. Normal permissions (`kernel.saved_view.*`, granted to every role by the company's seed); the table's
@@ -16,7 +16,7 @@ const FEATURE = "kernel.saved_views";
  */
 export const SavedViewState = GridState.omit({ page: true })
   // `params`: the parameter set of a report view (entity `report:<id>`); the report's own schema checks it when it runs.
-  .extend({ order: z.array(z.string().min(1).max(80)).max(200), params: z.record(z.string().max(80), z.unknown()) })
+  .extend({ order: z.array(z.string().min(1).max(80)).max(200), params: z.record(z.string().max(80), z.unknown()), aggregateFns: z.array(z.enum(AGGREGATE_FNS)).max(5) })
   .partial();
 export type SavedViewState = z.infer<typeof SavedViewState>;
 

@@ -52,7 +52,19 @@ El pie lo recuerda: «↑↓ moverse · Espacio seleccionar · Enter abrir · / 
 
 - Pulsa el encabezado de una columna: primero ordena de menor a mayor (▲), al pulsar de nuevo de mayor a menor (▼) y a la tercera vez quita el orden.
 - Para ordenar por varias columnas, mantén **Shift** al pulsar los encabezados siguientes; un número pequeño indica la prioridad de cada una.
+- Se pueden ordenar hasta **5 columnas** a la vez; al intentar una sexta el listado avisa «Máximo 5 niveles de orden».
 - Una columna enmascarada u oculta para tu rol no se puede ordenar.
+
+## Agrupar y agregar
+
+Pulsa **Agrupar por** para ordenar el listado en grupos (hasta **3 campos**, en el orden en que los eliges):
+
+- Elige el campo en «+ campo…»: aparece una pastilla `1. Cuenta ✕`; con ✕ la quitas. Solo se ofrecen campos de texto, fecha o lista (no importes ni números).
+- Cada grupo abre con una fila `▾ Cuenta: 1105 (12)`: el valor y cuántas líneas tiene. Bajo cada columna de dinero la fila lista las funciones que marcaste: **Σ Suma**, **⌀ Promedio**, **Mín**, **Máx**, **# Conteo** (el botón **Agregados** abre los mismos controles). Los subtotales cubren **todo el filtro**, no solo la página.
+- Pulsa la fila (o su flecha) para **contraer** el grupo; **Contraer todo** y **Expandir todo** actúan sobre los grupos de la página. El pie dice cuántas filas quedan ocultas en grupos contraídos. La fila **Suma** del pie sigue mostrando los totales de todo el filtro.
+- **Ver líneas** en la fila de un grupo deja en el filtro avanzado las condiciones que seleccionan sus líneas.
+- La vista guardada recuerda los campos de agrupación y las funciones elegidas.
+- Al exportar un listado agrupado, el archivo trae una primera columna **Grupo** con la ruta del grupo, una fila de subtotal después de cada grupo y el total general al final; en Excel los grupos quedan en niveles de esquema que puedes contraer.
 
 ## Filtrar por columna
 
@@ -119,7 +131,7 @@ Algunos campos de un formulario apuntan a otro registro; por ejemplo, el **Prove
 
 ## Guardar vistas
 
-Una **vista** guarda cómo dejaste el listado: los filtros por columna, el filtro avanzado con sus Y / O, el orden de las filas, las columnas visibles **en su orden** y el tamaño de página.
+Una **vista** guarda cómo dejaste el listado: los filtros por columna, el filtro avanzado con sus Y / O, el orden de las filas, la agrupación y sus funciones, las columnas visibles **en su orden** y el tamaño de página.
 
 1. Deja el listado como lo quieres.
 2. Pulsa **Guardar vista**. Se abre el panel **Vistas**.

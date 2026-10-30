@@ -8,6 +8,9 @@ import { gridAccess, visibleIn, type GridAccess } from "../query/run";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
 import { exportColumns, selectColumns, type ExportPresentation } from "./columns";
+import { ROW_KEYS, type GroupedSpec } from "./grouped";
+import { isoDay } from "./format";
+import { groupRowsOf } from "../query/run";
 import { EXPORT_PAGE_SIZE, type ExportColumn, type ExportFormat, type ExportRow } from "./types";
 
 // What an export reads (design §9, rules 14 and 20): the grid's own query builder over the masked view `v_<table>`
@@ -30,6 +33,10 @@ export interface ExportPlan {
   company: string | null;
   /** Rows of the whole filter. */
   total: number;
+  /** Present when the state has `groupBy`: the subtotals and the grand total the file prints (grouped.ts). */
+  grouped?: GroupedSpec;
+  /** The `groupBy` fields (empty when not grouped). */
+  groupFields: string[];
   /** The select of rows `offset`..`offset + limit` (parameters included). */
   page(offset: number, limit: number): { sql: string; params: unknown[] };
 }
@@ -49,13 +56,32 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
 
   // A masked column prints ••••••: its values are not even read.
   const fetched = selectColumns(columns.filter((c) => !c.masked));
-  const state = { ...spec.state, columns: fetched, aggregates: undefined };
+  // Grouped (accounting design §5.14): lines come ordered by the group fields; the file adds each group's subtotal and
+  // the grand total, one per chosen function over the money columns it may print.
+  const groupFields = typeof spec.state.groupBy === "string" ? [spec.state.groupBy] : [...(spec.state.groupBy ?? [])];
+  const fns = [...new Set((spec.state.aggregates ?? []).map((a) => a.fn))];
+  const valueFields = groupFields.length > 0 ? columns.filter((c) => c.type === "money" && !c.masked).map((c) => c.field) : [];
+  const aggregates = valueFields.flatMap((field) => (fns.length > 0 ? fns : (["sum"] as const)).map((fn) => ({ field, fn })));
+  const state = { ...spec.state, columns: [...new Set([...fetched, ...groupFields])], aggregates: groupFields.length > 0 && aggregates.length > 0 ? aggregates : undefined };
   const extras = Object.fromEntries(access.extras.map((e) => [e.key, e.type]));
   const visible = visibleIn(access);
   const build = (window?: { offset: number; limit: number }) => buildQuery(entity, state, visible, { extras, timeZone: access.timeZone, ...(window ? { window } : {}) });
 
   const counted = build();
   const [count] = await tx.unsafe<{ total: number }[]>(counted.countSql, counted.params as never[]);
+  let grouped: GroupedSpec | undefined;
+  if (groupFields.length > 0) {
+    const [grand] = counted.aggregateSql ? await tx.unsafe<Record<string, unknown>[]>(counted.aggregateSql, counted.params as never[]) : [{}];
+    const raw = counted.groupAggregateSql ? await tx.unsafe<Record<string, unknown>[]>(counted.groupAggregateSql, counted.params as never[]) : [];
+    grouped = {
+      fields: counted.groupFields ?? groupFields,
+      groups: groupRowsOf(raw, counted.groupFields ?? groupFields),
+      grand: { ...grand },
+      fns: fns.length > 0 ? fns : ["sum"],
+      valueFields,
+      labelOf: (field, value) => (value instanceof Date ? isoDay(value) : (spec.values?.[field]?.[String(value)] ?? (value === null || value === undefined ? "" : String(value)))),
+    };
+  }
   const [company] = await tx<{ legal_name: string }[]>`select legal_name from kernel.companies where id = kernel.current_company_id()`;
   return {
     entity,
@@ -63,6 +89,8 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
     access,
     company: company?.legal_name ?? null,
     total: count?.total ?? 0,
+    ...(grouped ? { grouped } : {}),
+    groupFields,
     page(offset, limit) {
       const q = build({ offset, limit });
       return { sql: q.sql, params: q.params };
@@ -71,10 +99,11 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
 }
 
 /** A database row keyed by export column: admin-defined values come out of the row's `extra` document. */
-function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[]): ExportRow {
+function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[], groupFields: readonly string[] = []): ExportRow {
   const extra = typeof row.extra === "object" && row.extra !== null ? (row.extra as Record<string, unknown>) : {};
   const out: ExportRow = {};
   for (const column of columns) out[column.field] = column.field.startsWith(EXTRA_PREFIX) ? extra[column.field.slice(EXTRA_PREFIX.length)] : row[column.field];
+  if (groupFields.length > 0) out[ROW_KEYS] = Object.fromEntries(groupFields.map((f) => [f, row[f]]));
   return out;
 }
 
@@ -86,7 +115,7 @@ export async function* exportRows(sql: Sql, claims: JwtClaims, plan: ExportPlan)
   for (let offset = 0; ; offset += EXPORT_PAGE_SIZE) {
     const { sql: text, params } = plan.page(offset, EXPORT_PAGE_SIZE);
     const page = await withClaims(sql, claims, (tx) => tx.unsafe<Record<string, unknown>[]>(text, params as never[]));
-    for (const row of page) yield flatten(row, plan.columns);
+    for (const row of page) yield flatten(row, plan.columns, plan.groupFields);
     if (page.length < EXPORT_PAGE_SIZE) return;
   }
 }

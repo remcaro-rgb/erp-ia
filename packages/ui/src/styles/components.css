@@ -64,6 +64,18 @@
   .erp-grid__status.is-error { color: var(--danger); font-weight: 600; }
   .erp-grid__hd .is-reserved { visibility: hidden; }
   .erp-grid__chips { padding: 6px 14px; border-bottom: 1px solid var(--line-2); }
+  .erp-grid__groupbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 14px; border-bottom: 1px solid var(--line-2); }
+  .erp-grid__groupbar select { height: 28px; font-size: 13px; }
+  .erp-grid__fns { display: inline-flex; gap: 4px; }
+  .erp-grid__fns .erp-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent-line); color: var(--text); font-weight: 600; }
+  .erp-grid tr.erp-grid__group td { background: var(--head); font-weight: 600; font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line-2); }
+  .erp-grid tr.erp-grid__group--l2 td { background: color-mix(in srgb, var(--head) 55%, transparent); }
+  .erp-grid tr.erp-grid__group--l3 td { background: transparent; }
+  .erp-grid tr.erp-grid__group--l2 .erp-grid__group-label { padding-left: 24px; }
+  .erp-grid tr.erp-grid__group--l3 .erp-grid__group-label { padding-left: 40px; }
+  .erp-grid__group-label { white-space: nowrap; }
+  .erp-grid__group-toggle { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; text-align: left; }
+  .erp-grid__group-open { margin-left: 12px; font-weight: 400; }
   .erp-grid__error { padding: 8px 14px; background: var(--danger-bg); color: var(--danger); font-size: 13px; }
   .erp-grid__body { overflow: auto; flex-grow: 1; }
   .erp-grid table, .erp-adv__table table { border-collapse: collapse; width: 100%; }

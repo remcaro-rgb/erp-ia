@@ -15,6 +15,8 @@ export interface GridFooterProps {
   onPageSize: (size: number) => void;
   /** Selected rows and their money totals. */
   selection?: { count: number; totals: { column: GridColumn; sum: number }[] };
+  /** Rows of the page hidden in collapsed groups. */
+  hiddenInGroups?: number;
   /** Shows the keyboard hint of the rows (↑↓ · Espacio · Enter · /). */
   keysHint?: boolean;
 }
@@ -23,14 +25,22 @@ export interface GridFooterProps {
  * The grid footer (prototype `.grid-ft`): rows shown, the pager with 10 / 25 / 50 / 100 per page, and the selection with
  * its money totals. The filter's totals are not here: they sit under their own columns in the grid's `tfoot` (OD-5).
  */
-export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, selection, keysHint = false }: GridFooterProps) {
+export function GridFooter({ page, pageSize, total, loading = false, onPage, onPageSize, selection, keysHint = false, hiddenInGroups = 0 }: GridFooterProps) {
   const t = useTranslations();
   const pages = pageCount(total, pageSize);
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   return (
     <div className="erp-grid__ft">
-      <span>{loading ? "" : t("grid.rows", { from, to, total })}</span>
+      <span>
+        {loading ? "" : t("grid.rows", { from, to, total })}
+        {hiddenInGroups > 0 && (
+          <>
+            {" · "}
+            <span className="erp-muted">{t("grid.group.hidden_in_collapsed", { count: hiddenInGroups })}</span>
+          </>
+        )}
+      </span>
       <nav className="erp-pager" aria-label={t("grid.page", { page, pages })}>
         <button type="button" aria-label={t("grid.previous")} disabled={page <= 1} onClick={() => onPage(page - 1)}>
           ‹

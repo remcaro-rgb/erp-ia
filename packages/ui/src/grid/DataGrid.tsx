@@ -13,14 +13,17 @@ import { gridFetcher } from "./fetch-grid";
 import { FilterRow } from "./FilterRow";
 import { GridCell, isNumeric, type CellRenderer } from "./GridCell";
 import { GridFooter } from "./GridFooter";
-import { identityField, moneyColumns, moveColumn, pageCount, selectionTotals, shownColumns, stateFilters } from "./grid-model";
+import { GroupControls } from "./GroupControls";
+import { GroupHeaderRow } from "./GroupRow";
+import { groupableColumns, groupHeads, groupId, identityField, moneyColumns, moveColumn, pageCount, selectionTotals, shownColumns, stateFilters, withGroupKeys } from "./grid-model";
 import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } from "./saved-views";
 import { SavedViewsMenu } from "./SavedViewsMenu";
 import { useGrid } from "./use-grid";
 import { exportFailureText as failureText } from "./export-jobs";
 import type { ExportSource } from "./export-client";
 import { useGridExport } from "./use-grid-export";
-import type { Condition, ExportFormat, GridColumn, GridFetcher, GridRow, GridStateInput, GridView } from "./types";
+import { MAX_SORT_LEVELS, type Condition, type ExportFormat, type GridColumn, type GridFetcher, type GridRow, type GridStateInput, type GridView, type GroupRow } from "./types";
+import { useCellTimeZone } from "./cell-format";
 
 type Filter = NonNullable<GridStateInput["filters"]>[number];
 
@@ -114,6 +117,32 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const shown = shownColumns(columns, view);
   const rows = data.page?.rows ?? NO_ROWS;
   const total = data.page?.total ?? 0;
+  const timeZone = useCellTimeZone();
+
+  // Agrupar por (accounting design §5.14): the rows come ordered by the group fields; a group row opens each group on
+  // the page and a click collapses it (client state: the rows stay in the page, only the view hides them).
+  const groupFields = view.groupBy;
+  const groupColumns = useMemo(() => groupableColumns(columns), [columns]);
+  const [groupsOpen, setGroupsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const heads = useMemo(() => (groupFields.length > 0 ? groupHeads(rows, groupFields, data.page?.groups) : new Map<number, GroupRow[]>()), [rows, groupFields, data.page?.groups]);
+  const ancestorIds = (row: GridRow) => groupFields.map((_, i) => groupId({ level: i + 1, keys: Object.fromEntries(groupFields.slice(0, i + 1).map((f) => [f, row[f]])) }));
+  const rowHidden = (row: GridRow) => groupFields.length > 0 && ancestorIds(row).some((id) => collapsed.has(id));
+  const hiddenRows = rows.filter(rowHidden).length;
+  const toggleGroup = (id: string) =>
+    setCollapsed((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const collapseAll = () => setCollapsed(new Set([...heads.values()].flat().map(groupId)));
+  const [sortNotice, setSortNotice] = useState("");
+  useEffect(() => {
+    if (!sortNotice) return;
+    const timer = setTimeout(() => setSortNotice(""), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [sortNotice]);
   // Nothing has come back yet: the count would read "0 registros" and the body would be empty.
   const firstLoad = data.loading && !data.page;
 
@@ -153,7 +182,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
 
   const firstFilter = () => sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)");
   const focusRow = (index: number) => {
-    const next = Math.max(0, Math.min(rows.length - 1, index));
+    const next = Math.max(0, Math.min(rows.length - hiddenRows - 1, index));
     setActiveRow(next);
     bodyRef.current?.querySelectorAll<HTMLTableRowElement>("tr[data-row]")[next]?.focus();
   };
@@ -168,7 +197,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       ArrowDown: () => focusRow(index + 1),
       ArrowUp: () => (index === 0 ? firstFilter()?.focus() : focusRow(index - 1)),
       Home: () => focusRow(0),
-      End: () => focusRow(rows.length - 1),
+      End: () => focusRow(rows.length - hiddenRows - 1),
       PageDown: () => view.page < pages && turnPage(view.page + 1),
       PageUp: () => view.page > 1 && turnPage(view.page - 1),
       " ": () => toggleRow(row.id),
@@ -188,7 +217,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
     event.preventDefault();
     firstFilter()?.focus();
   };
-  const tabRow = Math.min(activeRow, Math.max(rows.length - 1, 0));
+  const tabRow = Math.min(activeRow, Math.max(rows.length - hiddenRows - 1, 0));
 
   // Movable columns (design §22.12, rule 20): drag a header, or Alt+← / Alt+→ on it. The identity column is pinned
   // first (OD-4) and does not move. The new order goes with the next grid request and is kept by a saved view.
@@ -220,7 +249,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
     (th?.querySelector<HTMLElement>("button") ?? th)?.focus();
   }, [view.columns]);
   const movedLabel = moved ? (columns.find((c) => c.field === moved.field)?.label ?? moved.field) : "";
-  const notice = moved ? t("grid.column_moved", { label: movedLabel, position: moved.columns.indexOf(moved.field) + 1 }) : "";
+  const notice = sortNotice || (moved ? t("grid.column_moved", { label: movedLabel, position: moved.columns.indexOf(moved.field) + 1 }) : "");
   const onHeaderKey = (event: KeyboardEvent<HTMLTableCellElement>, field: string) => {
     if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -283,10 +312,12 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       columns: [...new Set(["id", ...shown.map((c) => (c.field.startsWith("extra.") ? "extra" : c.field))])],
     });
 
-  const exportState = (): GridStateInput => ({ ...grid.state, aggregates: undefined, page: 1, columns: shown.map((c) => c.field) });
+  const exportState = (): GridStateInput => ({ ...grid.state, aggregates: groupFields.length > 0 ? grid.state.aggregates : undefined, page: 1, columns: shown.map((c) => c.field) });
 
+  // The footer's grand totals: the sum, or the first chosen function when Suma is off.
+  const footFn = view.aggregateFns.includes("sum") ? "sum" : (view.aggregateFns[0] ?? "sum");
   const sums = moneyColumns(shown)
-    .map((column) => ({ column, sum: data.page?.aggregates?.[`sum:${column.field}`] }))
+    .map((column) => ({ column, sum: data.page?.aggregates?.[`${footFn}:${column.field}`] }))
     .filter((s) => s.sum !== undefined);
   // "Suma" goes in the identity cell, or the first column without a total of its own.
   const sumLabelAt = shown.findIndex((c) => !sums.some((s) => s.column.field === c.field));
@@ -328,6 +359,17 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
             onApply={(v) => (grid.apply(viewFromSaved(columns, v.state)), onViewApplied?.(v))}
           />
         )}
+        {groupColumns.length > 0 && (
+          <button type="button" className={groupFields.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} aria-expanded={groupsOpen || groupFields.length > 0} onClick={() => setGroupsOpen((o) => !o)}>
+            {t("grid.group.group_by")}
+            {groupFields.length > 0 ? ` (${groupFields.length})` : ""}
+          </button>
+        )}
+        {groupColumns.length > 0 && moneyColumns(shown).length > 0 && (
+          <button type="button" className="erp-btn" onClick={() => setGroupsOpen((o) => !o)}>
+            {t("grid.group.aggregates")}
+          </button>
+        )}
         <button type="button" className={view.conditions.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} onClick={() => setAdvancedOpen(true)}>
           <Search aria-hidden="true" className="erp-icon" />
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
@@ -350,6 +392,20 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           {t("grid.clear_filters")}
         </button>
       </div>
+      {(groupsOpen || groupFields.length > 0) && groupColumns.length > 0 && (
+        <GroupControls
+          columns={groupColumns}
+          groupBy={groupFields}
+          aggregateFns={view.aggregateFns}
+          onGroupBy={(fields) => {
+            setCollapsed(new Set());
+            grid.setGroupBy(fields);
+          }}
+          onAggregateFns={grid.setAggregateFns}
+          onCollapseAll={collapseAll}
+          onExpandAll={() => setCollapsed(new Set())}
+        />
+      )}
       {view.conditions.length > 0 && (
         <div className="erp-grid__chips">
           <ConditionChips conditions={view.conditions} fields={filterFields} onRemove={grid.removeCondition} />
@@ -410,7 +466,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                         className="erp-grid__sort"
                         aria-label={t("grid.sort_by", { label: column.label })}
                         aria-keyshortcuts={fixed ? undefined : MOVE_KEYS}
-                        onClick={(e) => grid.sortBy(column.field, e.shiftKey)}
+                        onClick={(e) => (e.shiftKey && view.sort.length >= MAX_SORT_LEVELS && !view.sort.some((s) => s.field === column.field) ? setSortNotice(t("grid.sort.max_levels")) : grid.sortBy(column.field, e.shiftKey))}
                       >
                         {column.label}{" "}
                         {sort ? (
@@ -434,26 +490,53 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
             <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable pinned={pinned} />
           </thead>
           <tbody ref={bodyRef}>
-            {rows.map((row, index) => (
-              <tr
-                key={row.id}
-                data-row=""
-                className={selected.has(row.id) ? "erp-row-link is-selected" : "erp-row-link"}
-                tabIndex={index === tabRow ? 0 : -1}
-                aria-selected={selected.has(row.id)}
-                onFocus={(e) => e.target === e.currentTarget && setActiveRow(index)}
-                onClick={() => onRowOpen?.(row)}
-                onKeyDown={(e) => onRowKey(e, index, row)}
-              >
-                <td className={checkClass} onClick={(e) => e.stopPropagation()}>
-                  {/* Out of the tab order: Space on the row selects it (one tab stop for the whole body). */}
-                  <input type="checkbox" tabIndex={-1} aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
-                </td>
-                {shown.map((column) => (
-                  <GridCell key={column.field} column={column} row={row} render={renderCell} className={column.field === pinned ? pinClass : undefined} />
-                ))}
-              </tr>
-            ))}
+            {(() => {
+              let visible = -1;
+              return rows.flatMap((row, rowIndex) => {
+                const ancestors = groupFields.length > 0 ? ancestorIds(row) : [];
+                // A group row is hidden under a collapsed group of a higher level; the line, under its own too.
+                const heads_ = (heads.get(rowIndex) ?? [])
+                  .filter((g) => !ancestors.slice(0, g.level - 1).some((id) => collapsed.has(id)))
+                  .map((g) => (
+                    <GroupHeaderRow
+                      key={`group-${groupId(g)}`}
+                      group={g}
+                      column={columns.find((c) => c.field === groupFields[g.level - 1])}
+                      shown={shown}
+                      fns={view.aggregateFns}
+                      collapsed={collapsed.has(groupId(g))}
+                      checkClass={checkClass}
+                      timeZone={timeZone}
+                      onToggle={toggleGroup}
+                      onOpen={(group) => grid.setConditions(withGroupKeys(view.conditions, group))}
+                    />
+                  ));
+                if (ancestors.some((id) => collapsed.has(id))) return heads_;
+                visible += 1;
+                const index = visible;
+                return [
+                  ...heads_,
+                  <tr
+                    key={row.id}
+                    data-row=""
+                    className={selected.has(row.id) ? "erp-row-link is-selected" : "erp-row-link"}
+                    tabIndex={index === tabRow ? 0 : -1}
+                    aria-selected={selected.has(row.id)}
+                    onFocus={(e) => e.target === e.currentTarget && setActiveRow(index)}
+                    onClick={() => onRowOpen?.(row)}
+                    onKeyDown={(e) => onRowKey(e, index, row)}
+                  >
+                    <td className={checkClass} onClick={(e) => e.stopPropagation()}>
+                      {/* Out of the tab order: Space on the row selects it (one tab stop for the whole body). */}
+                      <input type="checkbox" tabIndex={-1} aria-label={t("grid.select_row")} checked={selected.has(row.id)} onChange={() => toggleRow(row.id)} />
+                    </td>
+                    {shown.map((column) => (
+                      <GridCell key={column.field} column={column} row={row} render={renderCell} className={column.field === pinned ? pinClass : undefined} />
+                    ))}
+                  </tr>,
+                ];
+              });
+            })()}
             {firstLoad &&
               Array.from({ length: SKELETON_ROWS }, (_, i) => (
                 <tr key={`skeleton-${i}`} className="erp-grid__skeleton" aria-hidden="true">
@@ -482,7 +565,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                   const sum = sums.find((s) => s.column.field === column.field);
                   return (
                     <td key={column.field} className={cn(column.field === pinned && pinClass, sum && "erp-num text-right")}>
-                      {sum ? formatMoney(sum.sum as number | string) || formatMoney(0) : i === sumLabelAt ? t("grid.totals") : null}
+                      {sum ? formatMoney(sum.sum as number | string) || formatMoney(0) : i === sumLabelAt ? (footFn === "sum" ? t("grid.totals") : t(`grid.group.fn.${footFn}`)) : null}
                     </td>
                   );
                 })}
@@ -498,6 +581,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         loading={firstLoad}
         onPage={grid.setPage}
         keysHint={rows.length > 0}
+        hiddenInGroups={hiddenRows}
         onPageSize={grid.setPageSize}
         selection={{ count: [...selected].filter((id) => rows.some((r) => r.id === id)).length, totals: selectionTotals(rows, selected, shown) }}
       />

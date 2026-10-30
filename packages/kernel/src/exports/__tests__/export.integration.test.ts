@@ -12,6 +12,7 @@ import { ProcessError } from "../../process/errors";
 import { runProcess } from "../../process/run";
 import { defineEntity, registry } from "../../registry";
 import { exportJobWorkflow } from "../export.workflow";
+import { openExport } from "../render";
 import { EXPORT_FAILED_MESSAGE, exportJobStatus } from "../jobs";
 
 // kernel.export.run and the export job under the Workflow runtime (@workflow/vitest compiles "use workflow" /
@@ -98,6 +99,15 @@ describe("kernel.export.run and the export job", () => {
       select action, actor_user_id, origin from kernel.audit_log where company_id = ${companyId} and process_id = 'kernel.export.run' and action = 'consult'`;
     expect(audit).toHaveLength(3);
     expect(audit.every((a) => a.actor_user_id === seed.users.both && a.origin === "ui")).toBe(true);
+  });
+
+  it("a grouped state prints the group path, a subtotal row after each group and the grand total (grouped export)", async () => {
+    await sql`delete from kernel.role_probe where company_id = ${companyId}`;
+    await sql`insert into kernel.role_probe (company_id, secret) values (${companyId}, 'b'), (${companyId}, 'a'), (${companyId}, 'b')`;
+    const caller = as("both");
+    const out = await openExport(sql, registry, caller.claims, { entity: probe.id, format: "csv", title: "Probes", state: { ...state, groupBy: ["secret"] }, labels: { secret: "Secreto" } });
+    const csv = new TextDecoder().decode(new Uint8Array(await new Response(out.body as ReadableStream<Uint8Array>).arrayBuffer())).replace(/^\ufeff/, "");
+    expect(csv.split("\r\n").filter(Boolean)).toEqual(['"Grupo";"Secreto"', '"a";"a"', '"Total a";', '"b";"b"', '"b";"b"', '"Total b";', '"Total general";']);
   });
 
   it("start(exportJobWorkflow) renders every page into the exports bucket and records the job as done", async () => {

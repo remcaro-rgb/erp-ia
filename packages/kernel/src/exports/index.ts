@@ -19,3 +19,5 @@ export type { ExportColumn, ExportFormat, ExportRow, ExportType, WriterOptions }
 export { writeXlsx } from "./xlsx";
 export { openReportExport, renderReportFile, reportExportColumns, reportPdfHeader, reportRows } from "./report";
 export type { ReportExportSpec, ReportSource } from "./report";
+export { groupedColumns, groupedRows, GROUP_FIELD } from "./grouped";
+export type { GroupedSpec } from "./grouped";

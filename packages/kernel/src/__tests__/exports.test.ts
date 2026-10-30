@@ -11,6 +11,7 @@ import { cellText, isoWithOffset, MASK } from "../exports/format";
 import { pdfTable, writePdf } from "../exports/pdf";
 import type { ExportColumn } from "../exports/types";
 import { writeXlsx } from "../exports/xlsx";
+import { groupedColumns, groupedRows } from "../exports/grouped";
 import { buildQuery } from "../query";
 import { defineEntity } from "../registry";
 import type { GridAccess } from "../query/run";
@@ -380,3 +381,54 @@ function pdfText(pdf: Buffer): string {
   const literal = [...decoded.matchAll(/\(((?:\\.|[^\\)])*)\)/g)].map((m) => m[1]!);
   return [...hex, ...literal].join("");
 }
+
+describe("grouped export", () => {
+  const base: ExportColumn[] = [
+    { field: "account_code", label: "Cuenta", type: "text" },
+    { field: "debit", label: "Débito", type: "money" },
+  ];
+  const lines = [
+    { account_code: "1105", debit: "100.0000", __keys: { account_code: "1105" } },
+    { account_code: "1105", debit: "50.0000", __keys: { account_code: "1105" } },
+    { account_code: "2205", debit: "25.0000", __keys: { account_code: "2205" } },
+  ];
+  const spec = {
+    fields: ["account_code"],
+    groups: [
+      { level: 1, keys: { account_code: "1105" }, count: 2, aggregates: { "sum:debit": "150.0000" } },
+      { level: 1, keys: { account_code: "2205" }, count: 1, aggregates: { "sum:debit": "25.0000" } },
+    ],
+    grand: { "sum:debit": "175.0000" },
+    fns: ["sum" as const],
+    valueFields: ["debit"],
+  };
+
+  it("xlsx export with groupBy writes a Grupo column, subtotal rows and a grand total", async () => {
+    const buffer = await writeXlsx(groupedColumns(base), groupedRows(lines, spec), { title: "Movimientos", locale: "es-419" });
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(buffer as unknown as ArrayBuffer);
+    const sheet = book.getWorksheet("Movimientos")!;
+    const table = sheet.getSheetValues().slice(1).map((r) => (r as unknown[]).slice(1));
+    expect(table).toEqual([
+      ["Grupo", "Cuenta", "Débito"],
+      ["1105", "1105", 100],
+      ["1105", "1105", 50],
+      ["Total 1105", undefined, 150],
+      ["2205", "2205", 25],
+      ["Total 2205", undefined, 25],
+      ["Total general", undefined, 175],
+    ]);
+    // Excel outline: lines at level 1, group summaries at 0.
+    expect(sheet.getRow(2).outlineLevel).toBe(1);
+    expect(sheet.getRow(4).outlineLevel).toBe(0);
+    expect(sheet.getRow(4).font?.bold).toBe(true);
+  });
+
+  it("csv and pdf carry the same rows, and the pdf does not add the subtotals twice", async () => {
+    const csv = await text(writeCsv(groupedColumns(base), groupedRows(lines, spec), { locale: "es-419" }));
+    expect(csv.text.split("\r\n").filter(Boolean)).toEqual(['\ufeff"Grupo";"Cuenta";"Débito"', '"1105";"1105";100,00', '"1105";"1105";50,00', '"Total 1105";;150,00', '"2205";"2205";25,00', '"Total 2205";;25,00', '"Total general";;175,00']);
+    const { body, totals } = await pdfTable(groupedColumns(base), groupedRows(lines, spec), { locale: "es-419" });
+    expect(body.at(-1)).toEqual(["Total general", "", "$ 175,00"]);
+    expect(totals).toBeNull();
+  });
+});

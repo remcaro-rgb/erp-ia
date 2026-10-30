@@ -3,6 +3,7 @@ import { withClaims, type JwtClaims } from "../db/client";
 import type { Registry } from "../registry";
 import { writeCsv } from "./csv";
 import { CONTENT_TYPE, exportFileName } from "./file";
+import { groupedColumns, groupedRows, GROUP_FIELD } from "./grouped";
 import { exportRows, planExport, type ExportPlan, type ExportSpec } from "./plan";
 import { writeXlsx } from "./xlsx";
 
@@ -31,15 +32,18 @@ export async function renderExport(sql: Sql, claims: JwtClaims, plan: ExportPlan
   const options = { locale, timeZone: plan.access.timeZone };
   const fileName = exportFileName(spec.title, spec.entity, spec.format, plan.access.timeZone);
   const rendered = (body: RenderedExport["body"]): RenderedExport => ({ body, contentType: CONTENT_TYPE[spec.format], fileName, rowCount: () => written });
+  // A grouped state (grouped.ts) prints the group path first, a subtotal after each group and the grand total last.
+  const columns = plan.grouped ? groupedColumns(plan.columns, { ...options, ...(spec.labels?.[GROUP_FIELD] ? { label: spec.labels[GROUP_FIELD] } : {}) }) : plan.columns;
+  const lines = plan.grouped ? groupedRows(counted, plan.grouped, options) : counted;
   switch (spec.format) {
     case "csv":
-      return rendered(writeCsv(plan.columns, counted, options));
+      return rendered(writeCsv(columns, lines, options));
     case "xlsx":
-      return rendered(await writeXlsx(plan.columns, counted, { ...options, ...(spec.title ? { title: spec.title } : {}) }));
+      return rendered(await writeXlsx(columns, lines, { ...options, ...(spec.title ? { title: spec.title } : {}) }));
     case "pdf": {
       // Loaded on demand: the PDF engine is large and only this format needs it.
       const { writePdf } = await import("./pdf");
-      return rendered(await writePdf(plan.columns, counted, { ...options, ...(spec.title ? { title: spec.title } : {}), ...(plan.company ? { company: plan.company } : {}) }));
+      return rendered(await writePdf(columns, lines, { ...options, ...(spec.title ? { title: spec.title } : {}), ...(plan.company ? { company: plan.company } : {}) }));
     }
   }
 }

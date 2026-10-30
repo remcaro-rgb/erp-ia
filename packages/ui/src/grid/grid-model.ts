@@ -1,7 +1,8 @@
 import { NO_VALUE_OPS, OPERATORS, orGroups } from "@erp/kernel/query";
+import { MAX_SORT_LEVELS } from "./types";
 import { parseMoney } from "../money/format";
 import { serverFilters } from "./code-filter";
-import type { ColumnFilterValue, Condition, FilterOp, GridColumn, GridRow, GridStateInput, GridView, PillTone, SortEntry } from "./types";
+import type { ColumnFilterValue, Condition, FilterOp, GridColumn, GridRow, GridStateInput, GridView, GroupRow, PillTone, SortEntry } from "./types";
 
 // Pure rules of the DataGrid (design §9, prototype `gridHtml` / `setFilter` / `sortBy` / the pager): what the filter
 // row sends per column type, how clicks sort, how the state reaches the server, the pager's buttons and the totals.
@@ -21,6 +22,8 @@ export function initialView(columns: readonly GridColumn[], overrides: Partial<G
     columnFilters: {},
     conditions: [],
     sort: [],
+    groupBy: [],
+    aggregateFns: ["sum"],
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE,
     columns: columns.filter((c) => c.mode !== "hidden" && !c.hiddenByDefault && !c.filterOnly).map((c) => c.field),
@@ -124,6 +127,8 @@ export function shownColumns(columns: readonly GridColumn[], view: Pick<GridView
  * (or cycled within) the current multi-sort; without it, it replaces it.
  */
 export function toggleSort(sort: readonly SortEntry[], field: string, multi: boolean): SortEntry[] {
+  // A sixth level is refused (the server keeps five); cycling or dropping a key already in the sort is not.
+  if (multi && sort.length >= MAX_SORT_LEVELS && !sort.some((s) => s.field === field)) return [...sort];
   const current = sort.find((s) => s.field === field);
   const next: SortEntry | null = !current ? { field, dir: "asc" } : current.dir === "asc" ? { field, dir: "desc" } : null;
   if (!multi) return next ? [next] : [];
@@ -131,6 +136,51 @@ export function toggleSort(sort: readonly SortEntry[], field: string, multi: boo
   if (!next) return others;
   return current ? sort.map((s) => (s.field === field ? next : s)) : [...others, next];
 }
+
+/** Fields Agrupar por offers: visible, sortable columns that are not amounts or numbers (grouping on those is a report). */
+export const groupableColumns = (columns: readonly GridColumn[]): GridColumn[] =>
+  columns.filter((c) => c.mode === "visible" && c.sortable && !c.filterOnly && c.type !== "money" && c.kind !== "number" && c.kind !== "json" && !c.field.startsWith("extra."));
+
+/** The conditions that select the lines of a group: its keys, an empty key as "has no value". */
+export function groupConditions(group: Pick<GroupRow, "keys">): Condition[] {
+  return Object.entries(group.keys).map(([field, value]): Condition =>
+    value === null || value === undefined ? { field, op: "is_null", join: "and" } : { field, op: "eq", value: value instanceof Date ? value.toISOString().slice(0, 10) : value, join: "and" },
+  );
+}
+
+/**
+ * `conditions` narrowed to the lines of a group (Ver líneas): the group's keys join every OR-group, so the keys bind
+ * with AND-before-OR whatever the user had typed.
+ */
+export function withGroupKeys(conditions: readonly Condition[], group: Pick<GroupRow, "keys">): Condition[] {
+  const keys = groupConditions(group);
+  const sets = orGroups(conditions);
+  return (sets.length > 0 ? sets : [[]]).flatMap((set, g) =>
+    [...set, ...keys].map((c, i): Condition => ({ ...c, join: i === 0 ? (g === 0 ? undefined : "or") : "and" })),
+  );
+}
+
+/** Group rows for a page: before each line, the groups it opens (a level's group opens when its key or a higher one changes). */
+export function groupHeads(rows: readonly GridRow[], fields: readonly string[], groups: readonly GroupRow[] | undefined): Map<number, GroupRow[]> {
+  const same = (a: unknown, b: unknown) => String(a ?? "") === String(b ?? "");
+  const heads = new Map<number, GroupRow[]>();
+  rows.forEach((row, index) => {
+    const prev = rows[index - 1];
+    const changed = prev === undefined ? 0 : fields.findIndex((f) => !same(row[f], prev[f]));
+    if (changed < 0) return;
+    const opened: GroupRow[] = [];
+    for (let level = changed + 1; level <= fields.length; level++) {
+      const keys = Object.fromEntries(fields.slice(0, level).map((f) => [f, row[f]]));
+      const found = groups?.find((g) => g.level === level && fields.slice(0, level).every((f) => same(g.keys[f], keys[f])));
+      opened.push(found ?? { level, keys, count: 0, aggregates: {} });
+    }
+    heads.set(index, opened);
+  });
+  return heads;
+}
+
+/** A stable id of a group, for the collapsed set. */
+export const groupId = (group: Pick<GroupRow, "level" | "keys">): string => `${group.level}|${JSON.stringify(Object.values(group.keys).map((v) => (v === null || v === undefined ? "" : String(v))))}`;
 
 const NUMBER_TEXT = String.raw`-?[\d.,]+`;
 const RANGE = new RegExp(String.raw`^\s*(${NUMBER_TEXT})\s*(?:\.\.|–|\s-\s)\s*(${NUMBER_TEXT})\s*$`);
@@ -238,7 +288,8 @@ export function toGridState(columns: readonly GridColumn[], view: GridView, opti
     page: view.page,
     pageSize: view.pageSize,
     columns: fields,
-    ...(money.length > 0 ? { aggregates: money.map((c) => ({ field: c.field, fn: "sum" as const })) } : {}),
+    ...(view.groupBy.length > 0 ? { groupBy: view.groupBy } : {}),
+    ...(money.length > 0 ? { aggregates: money.flatMap((c) => (view.aggregateFns.length > 0 ? view.aggregateFns : (["sum"] as const)).map((fn) => ({ field: c.field, fn }))) } : {}),
     ...(options.search ? { search: options.search } : {}),
   };
 }

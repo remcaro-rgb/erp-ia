@@ -30,6 +30,7 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: "row", backgroundColor: "#1f3a5f", color: "#ffffff", fontFamily: "Helvetica-Bold" },
   row: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e5e7eb" },
   zebra: { backgroundColor: "#f8fafc" },
+  subtotal: { backgroundColor: "#e8eef6", fontFamily: "Helvetica-Bold" },
   total: { flexDirection: "row", borderTopWidth: 1, borderTopColor: INK, fontFamily: "Helvetica-Bold", marginTop: 1 },
   cell: { paddingVertical: 3, paddingHorizontal: 4 },
   right: { textAlign: "right" },
@@ -55,28 +56,34 @@ interface TableOptions extends WriterOptions {
 }
 
 /** What the table prints, cell by cell, as text: the body and the totals row of the money columns (null: none). */
-export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource, options: TableOptions = {}): Promise<{ body: string[][]; totals: string[] | null }> {
+export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource, options: TableOptions = {}): Promise<{ body: string[][]; totals: string[] | null; kinds: (string | undefined)[] }> {
   const text = isSpanish(options.locale) ? TEXT.es : TEXT.en;
   const body: string[][] = [];
   const sums = columns.map(() => 0);
+  // A grouped table (grouped.ts) carries its own subtotals and grand total: the lines are not summed again.
+  const kinds: (string | undefined)[] = [];
+  let grouped = false;
   for await (const row of rowsOf(rows)) {
+    const kind = typeof row.__kind === "string" ? row.__kind : undefined;
+    if (typeof row.__level === "number") grouped = true;
+    kinds.push(kind);
     body.push(
       columns.map((column, i) => {
         const cell = cellOf(column, row[column.field], options);
-        if (cell.type === "number" && (cell.money || options.totalFields?.includes(column.field))) sums[i] = (sums[i] ?? 0) + cell.value;
+        if (cell.type === "number" && !grouped && (cell.money || options.totalFields?.includes(column.field))) sums[i] = (sums[i] ?? 0) + cell.value;
         return cellText(column, row[column.field], { ...options, paper: true });
       }),
     );
   }
   const summed = columns.map((column) => !column.masked && (options.totalFields ? options.totalFields.includes(column.field) : column.type === "money"));
   const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? (columns[i]!.type === "money" ? moneyText(sums[i] ?? 0) : String(sums[i] ?? 0)) : i === 0 ? text.total : "")) : null;
-  return { body, totals };
+  return { body, totals: grouped ? null : totals, kinds };
 }
 
 /** The PDF as a Buffer. The rows are read in full: a page break needs the whole table. */
 export async function writePdf(columns: readonly ExportColumn[], rows: RowSource, options: PdfOptions = {}): Promise<Buffer> {
   const text = isSpanish(options.locale) ? TEXT.es : TEXT.en;
-  const { body, totals } = await pdfTable(columns, rows, options);
+  const { body, totals, kinds } = await pdfTable(columns, rows, options);
   const owner = [options.company, options.taxId ? `NIT ${options.taxId}` : undefined].filter(Boolean).join(" · ");
   const total = weightTotal(columns);
   const widthOf = (column: ExportColumn) => `${((WEIGHT[column.type] / total) * 100).toFixed(3)}%`;
@@ -87,7 +94,7 @@ export async function writePdf(columns: readonly ExportColumn[], rows: RowSource
   const cell = (column: ExportColumn, value: string | undefined) => h(Text, { key: column.field, style: [styles.cell, align(column), { width: widthOf(column) }] }, value);
   const tableHead = h(View, { style: styles.headRow, fixed: true }, ...columns.map((column) => cell(column, column.label)));
   const tableRows = body.map((cells, r) =>
-    h(View, { key: r, style: r % 2 === 1 ? [styles.row, styles.zebra] : styles.row, wrap: false }, ...columns.map((column, i) => cell(column, cells[i]))),
+    h(View, { key: r, style: kinds[r] ? [styles.row, styles.subtotal] : r % 2 === 1 ? [styles.row, styles.zebra] : styles.row, wrap: false }, ...columns.map((column, i) => cell(column, cells[i]))),
   );
   const totalsRow = totals ? h(View, { style: styles.total, wrap: false }, ...columns.map((column, i) => cell(column, totals[i]))) : null;
   const heading = () =>

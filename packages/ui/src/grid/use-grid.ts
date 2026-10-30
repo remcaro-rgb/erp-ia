@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { failureCode } from "./fetch-grid";
 import { identityField, initialView, moveColumn, setColumnShown, stepColumn, toggleSort, toGridState } from "./grid-model";
-import type { ColumnFilterValue, Condition, GridColumn, GridFetcher, GridPage, GridStateInput, GridView } from "./types";
+import { MAX_GROUP_LEVELS, type AggregateFn, type ColumnFilterValue, type Condition, type GridColumn, type GridFetcher, type GridPage, type GridStateInput, type GridView } from "./types";
 
 type Filter = NonNullable<GridStateInput["filters"]>[number];
 
@@ -108,6 +108,13 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
       },
       sortBy(field: string, multi: boolean) {
         update((v) => ({ ...v, sort: toggleSort(v.sort, field, multi) }));
+      },
+      /** Agrupar por: the fields in order (up to three); back to page 1. */
+      setGroupBy(groupBy: string[]) {
+        update((v) => ({ ...v, groupBy: groupBy.slice(0, MAX_GROUP_LEVELS), page: 1 }));
+      },
+      setAggregateFns(aggregateFns: AggregateFn[]) {
+        update((v) => ({ ...v, aggregateFns }));
       },
       setPage(page: number) {
         update((v) => ({ ...v, page }));

@@ -120,6 +120,53 @@ describe("DataGrid", () => {
     expect(screen.queryByRole("button", { name: "Ordenar por Notas" })).toBeNull();
   });
 
+  it("shift-click appends a sort level and shows its number, up to five", async () => {
+    const wide: GridColumn[] = ["a", "b", "c", "d", "e", "f"].map((f) => ({ field: f, label: `Col ${f}`, type: "text", kind: "text", mode: "visible", filterable: true, sortable: true }));
+    const fetcher = vi.fn<GridFetcher>(async () => ({ rows: [{ id: "1", a: "x" }], total: 1 }));
+    renderEs(<DataGrid entity="x.y" title="Pruebas" columns={wide} fetcher={fetcher} debounceMs={20} />);
+    await screen.findByText("x");
+    fireEvent.click(screen.getByRole("button", { name: "Ordenar por Col a" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ordenar por Col b" }), { shiftKey: true });
+    await waitFor(() => expect(lastState(fetcher).sort).toEqual([{ field: "a", dir: "asc" }, { field: "b", dir: "asc" }]));
+    expect(screen.getByRole("columnheader", { name: /Col a/ }).querySelector("sup")?.textContent).toBe("1");
+    expect(screen.getByRole("columnheader", { name: /Col b/ }).querySelector("sup")?.textContent).toBe("2");
+    for (const f of ["c", "d", "e"]) fireEvent.click(screen.getByRole("button", { name: `Ordenar por Col ${f}` }), { shiftKey: true });
+    await waitFor(() => expect(lastState(fetcher).sort).toHaveLength(5));
+    fireEvent.click(screen.getByRole("button", { name: "Ordenar por Col f" }), { shiftKey: true });
+    expect(await screen.findByText("Máximo 5 niveles de orden")).toBeTruthy();
+    expect(lastState(fetcher).sort).toHaveLength(5);
+  });
+
+  it("Agrupar por sends groupBy and renders group rows with subtotals that equal the sum of their page lines", async () => {
+    const groups = [
+      { level: 1, keys: { dian_status: "complete" }, count: 1, aggregates: { "sum:credit_limit": "1234567.0000" } },
+      { level: 1, keys: { dian_status: "missing: 2" }, count: 1, aggregates: { "sum:credit_limit": "1000000.0000" } },
+    ];
+    const fetcher = vi.fn<GridFetcher>(async () => ({ rows, total: 2, aggregates: { "sum:credit_limit": "2234567.0000" }, groups }));
+    renderEs(<DataGrid entity="core.party" title="Terceros" columns={columns} fetcher={fetcher} debounceMs={20} />);
+    await screen.findByText("Almacenes Éxito S.A.");
+    expect(document.querySelector(".erp-grid__group")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Agrupar por" }));
+    fireEvent.change(screen.getByLabelText("Agregar campo para agrupar"), { target: { value: "dian_status" } });
+    await waitFor(() => expect(lastState(fetcher).groupBy).toEqual(["dian_status"]));
+    const groupRows = await waitFor(() => {
+      const found = [...document.querySelectorAll<HTMLElement>("tr.erp-grid__group.erp-grid__group--l1")];
+      expect(found).toHaveLength(2);
+      return found;
+    });
+    expect(groupRows[0]!.textContent).toContain("Datos DIAN: complete (1)");
+    // The subtotal of each group is the sum of its lines on the page.
+    const sums = groupRows.map((r) => r.textContent!.match(/\$ [\d.]+,\d\d/)?.[0]);
+    expect(sums).toEqual(["$ 1.234.567,00", "$ 1.000.000,00"]);
+    // A click collapses the group; the footer counts what is hidden.
+    fireEvent.click(within(groupRows[0]!).getByRole("button", { name: /Datos DIAN: complete/ }));
+    expect(screen.queryByText("Almacenes Éxito S.A.")).toBeNull();
+    expect(screen.getByText("1 oculta en grupos contraídos")).toBeTruthy();
+    // Ver líneas turns the group keys into conditions.
+    fireEvent.click(within(groupRows[1]!).getByRole("button", { name: "Ver líneas" }));
+    await waitFor(() => expect(lastState(fetcher).filters).toEqual([{ field: "dian_status", op: "eq", value: "missing: 2" }]));
+  });
+
   it("pages 10 / 25 / 50 / 100 on the server with page buttons", async () => {
     const { fetcher } = setup();
     await screen.findByText("Almacenes Éxito S.A.");

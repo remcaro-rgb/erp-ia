@@ -1,6 +1,7 @@
 import { orGroups } from "@erp/kernel/query";
+import { MAX_GROUP_LEVELS } from "./types";
 import { columnOrder, initialView, viewFilters } from "./grid-model";
-import type { Condition, GridColumn, GridStateInput, GridView, SortEntry } from "./types";
+import type { AggregateFn, Condition, GridColumn, GridStateInput, GridView, SortEntry } from "./types";
 
 // Saved views (design §9, rule 20): what a view keeps of a grid (filters with their Y / O joins, sort, page size and
 // columns, never the page) and how a grid comes back from one. The filter row and the advanced conditions are kept
@@ -16,6 +17,9 @@ export interface SavedGridState {
   columns?: string[];
   /** Every field the column chooser offers, shown or not, in the user's order (design §22.12); older views have none. */
   order?: string[];
+  /** Agrupar por (up to three fields) and the functions of the group subtotals. */
+  groupBy?: string[];
+  aggregateFns?: AggregateFn[];
   /** A report's parameter set (entity `report:<id>`); the report's own schema checks it when it runs. */
   params?: Record<string, unknown>;
 }
@@ -34,7 +38,7 @@ export interface SavedViewItem {
  * comes back to its place when shown again (design §22.12).
  */
 export function savedStateOf(columns: readonly GridColumn[], view: GridView): SavedGridState {
-  return { filters: viewFilters(columns, view), sort: view.sort, pageSize: view.pageSize, columns: view.columns, order: columnOrder(columns, view) };
+  return { filters: viewFilters(columns, view), sort: view.sort, groupBy: view.groupBy, aggregateFns: view.aggregateFns, pageSize: view.pageSize, columns: view.columns, order: columnOrder(columns, view) };
 }
 
 /** The grid view a saved state comes back as; fields the caller no longer sees are dropped. */
@@ -51,6 +55,8 @@ export function viewFromSaved(columns: readonly GridColumn[], saved: SavedGridSt
     ...base,
     conditions: keepGroups(saved.filters ?? [], usable),
     sort: (saved.sort ?? []).filter((s) => usable(s.field)),
+    groupBy: (saved.groupBy ?? []).filter((f) => usable(f)).slice(0, MAX_GROUP_LEVELS),
+    aggregateFns: saved.aggregateFns && saved.aggregateFns.length > 0 ? saved.aggregateFns : base.aggregateFns,
     pageSize: saved.pageSize ?? base.pageSize,
   };
 }
