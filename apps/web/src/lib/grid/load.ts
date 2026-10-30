@@ -1,6 +1,6 @@
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
-import { gridPageAccess, ProcessError, runnableProcesses, runProcess, type Caller, type ResolvedEntityDef } from "@erp/kernel";
+import { flattenNav, gridPageAccess, ProcessError, runnableProcesses, runProcess, type Caller, type ResolvedEntityDef } from "@erp/kernel";
 import type { GridColumn, PartyScope, SavedViewItem } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { recordEntity } from "@/lib/records/entities";
@@ -49,7 +49,7 @@ async function savedViews(caller: Caller, entity: string): Promise<SavedViewItem
 
 /** The menu label of the screen at `href` (plural: "Terceros"), or the entity's own label. */
 function screenLabel(deps: ReturnType<typeof processDeps>, href: string, fallback: string): string {
-  const items = deps.registry.modules().flatMap((m) => [...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])]);
+  const items = deps.registry.modules().flatMap((m) => flattenNav([...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])]));
   return items.find((item) => item.href === href)?.label ?? fallback;
 }
 

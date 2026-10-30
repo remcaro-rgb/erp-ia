@@ -5,6 +5,7 @@ import {
   hasRecordPage,
   loadCustomFields,
   matrixProcesses,
+  flattenNav,
   moduleStates,
   readAiUsage,
   readPermissionMatrix,
@@ -268,7 +269,7 @@ export const loadModules = (): Promise<ModulesData | null> =>
     return {
       modules: states.map((state) => {
         const def = registry.module(state.id);
-        const items = [...def.navigation, ...def.features.flatMap((f) => f.nav ?? [])].filter((item) => item.menu !== false);
+        const items = flattenNav([...def.navigation, ...def.features.flatMap((f) => f.nav ?? [])]).filter((item) => item.menu !== false);
         return {
           ...state,
           usedBy: states.filter((other) => other.dependsOn.includes(state.id)).map((other) => other.id),

@@ -620,6 +620,14 @@
   .erp-home-help { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
   .erp-home-help button { text-align: left; }
 
+  /* A group of the module bar (prototype `.moditems .dd` / `.ddm`): `Maestros ▾` and its menu, rows of 36 px. */
+  .erp-modbar-dd { position: relative; display: flex; align-items: stretch; }
+  .erp-modbar-menu { position: absolute; top: 100%; left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 200px; padding: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); }
+  .erp-modbar-menu button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font-size: 13px; text-align: left; white-space: nowrap; }
+  .erp-modbar-menu button:hover, .erp-modbar-menu button:focus-visible { background: var(--head); }
+  .erp-modbar-menu button[aria-current="page"] { background: var(--accent); font-weight: 600; }
+  @media (max-width: 760px) { .erp-modbar-menu { position: fixed; left: 8px; right: 8px; top: 48px; min-width: 0; } }
+
   /* No blink, slide or fade for readers who ask for reduced motion (WCAG 2.3.3); globals.css shortens the rest. */
   @media (prefers-reduced-motion: reduce) { .erp-typing i { animation: none; opacity: 1; } .erp-toggle, .erp-toggle::after, .erp-drop, .erp-photos__drop, .erp-attachments__drop { transition: none; } }
 }

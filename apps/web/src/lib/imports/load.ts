@@ -1,6 +1,6 @@
 import "server-only";
 import { getTranslations } from "next-intl/server";
-import { ProcessError, runnableProcesses, runProcess, type Caller } from "@erp/kernel";
+import { flattenNav, ProcessError, runnableProcesses, runProcess, type Caller } from "@erp/kernel";
 import type { ImportHistoryItem } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { processDeps } from "@/lib/server/runtime";
@@ -33,7 +33,7 @@ export async function loadImportPage(): Promise<ImportPageData> {
   const navLabel = (href: string, fallback: string) =>
     deps.registry
       .modules()
-      .flatMap((m) => [...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])])
+      .flatMap((m) => flattenNav([...m.navigation, ...m.features.flatMap((f) => f.nav ?? [])]))
       .find((item) => item.href === href)?.label ?? fallback;
   const screens = importScreens(deps.registry, runnable).map((s) => ({ ...s, title: t(navLabel(s.href, deps.registry.entity(s.entity).label)) }));
   return { screens, titles: Object.fromEntries(screens.map((s) => [s.entity, s.title])), history: items };

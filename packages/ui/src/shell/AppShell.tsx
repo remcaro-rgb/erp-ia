@@ -177,14 +177,14 @@ function ShellFrame(props: AppShellProps) {
   // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
   // choice wins until the page changes (a pick from a page of another module would otherwise never show).
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
-  const hrefModule = nav.find((i) => isActiveHref(i.href, currentHref));
+  const hrefModule = nav.flatMap((i) => i.children ?? [i]).find((i) => isActiveHref(i.href, currentHref));
   const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
   /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
   const selectModule = (moduleId: string) => {
     setSelectedModule(moduleId);
-    const items = (itemsByModule[moduleId] ?? []).filter((i) => i.menu !== false);
+    const items = (itemsByModule[moduleId] ?? []).filter((i) => i.menu !== false).flatMap((i) => i.children ?? [i]);
     const openTab = store.getState().tabs.find((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
     if (openTab) store.getState().activate(openTab.id);
     else if (items[0]) navigate(items[0].href);
@@ -276,7 +276,8 @@ function ShellFrame(props: AppShellProps) {
   const paletteItems = useMemo<CommandItem[]>(
     () => [
       { id: "go:home", label: t("nav.shell.palette.go", { label: t("nav.shell.home") }), kind: "go", href: "/" },
-      ...nav.map((item): CommandItem => {
+      // ⌘K lists the screens: the children of a group, never the group itself.
+      ...nav.flatMap((item) => item.children ?? [item]).map((item): CommandItem => {
         const keywords = t.has(`nav.keywords.${item.id}`) ? t(`nav.keywords.${item.id}`).split(/\s+/) : undefined;
         return { id: `go:${item.id}`, label: t("nav.shell.palette.go", { label: t(item.label) }), kind: "go", href: item.href, ...(keywords ? { keywords } : {}) };
       }),

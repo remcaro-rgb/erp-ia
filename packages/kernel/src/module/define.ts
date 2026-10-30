@@ -1,10 +1,22 @@
 import { ENTITY_ID } from "../registry/fields";
-import type { ModuleDef } from "../registry/types";
+import type { ModuleDef, NavItem } from "../registry/types";
 
 export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem } from "../registry/types";
 
 /** Module ids are Postgres schema names, so they follow the same lowercase identifier shape. */
 const MODULE_ID = /^[a-z][a-z0-9_]*$/;
+
+/** The items with every group replaced by its children, in order: the openable screens of a menu. */
+export const flattenNav = (items: readonly NavItem[]): NavItem[] => items.flatMap((item) => item.children ?? [item]);
+
+/** A group holds leaves only: a child that has children of its own is refused (one dropdown level). */
+function checkNavigation(moduleId: string, items: readonly NavItem[]): void {
+  for (const item of items) {
+    for (const child of item.children ?? []) {
+      if (child.children) throw new Error(`navigation item ${child.id} of module ${moduleId} is a child of ${item.id} and cannot have children`);
+    }
+  }
+}
 
 /**
  * Validates a module manifest and returns it. Throws when: the id is malformed; the module depends
@@ -40,6 +52,9 @@ export function defineModule(def: ModuleDef): ModuleDef {
   }
 
   // `events.consumes` keys are event names or "*" (every event); the loader registers them as they are.
+  checkNavigation(def.id, def.navigation);
+  for (const feature of def.features) checkNavigation(def.id, feature.nav ?? []);
+
   const providerIds = new Set<string>();
   for (const provider of def.homeKpis ?? []) {
     if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`KPI provider ${provider.id} must be named "${def.id}.<name>"`);

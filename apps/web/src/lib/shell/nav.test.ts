@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { kernelModule, loadModules, Registry } from "@erp/kernel";
+import { z } from "zod";
+import { defineModule, defineProcess, kernelModule, loadModules, Registry, type NavItem } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
@@ -81,5 +82,46 @@ describe("buildShellNav", () => {
     const shell = buildShellNav(registry, { ...all, runnable });
     expect(shell.nav.map((i) => i.href)).toEqual(["/parties"]);
     expect(shell.creates).toEqual([]);
+  });
+});
+
+// A module whose menu has a group (design §8, §10b.19): `Maestros ▾` with two children, each behind its own feature.
+const consult = (name: string) =>
+  defineProcess({ id: `grp.${name}.consult`, module: "grp", kind: "consult", description: "prueba", input: z.object({}), output: z.object({}), handler: async () => ({}) });
+const child = (name: string): NavItem => ({ id: `grp.${name}`, label: `nav.grp.${name}`, href: `/${name}`, icon: "list", feature: `grp.${name}` });
+const grouped = new Registry();
+loadModules(grouped, [
+  kernelModule,
+  defineModule({
+    id: "grp",
+    version: "1",
+    dependsOn: [],
+    entities: [],
+    processes: [consult("alpha"), consult("beta")],
+    features: ["alpha", "beta"].map((name) => ({ id: `grp.${name}`, label: `feature.grp.${name}`, processes: [`grp.${name}.consult`], entities: [] })),
+    events: { emits: [], consumes: {} },
+    navigation: [{ id: "grp.masters", label: "nav.grp.masters", href: "#", icon: "list", children: [child("alpha"), child("beta")] }],
+  }),
+]);
+const groupedKeys = shellAccessKeys(grouped);
+const groupedAll = { entitled: new Set(groupedKeys.entitlements), runnable: new Set(groupedKeys.processes) };
+
+describe("shell nav groups", () => {
+  it("asks for the entitlements and processes behind the children of a group", () => {
+    expect(groupedKeys.entitlements).toEqual(expect.arrayContaining(["module:grp", "feature:grp.alpha", "feature:grp.beta"]));
+    expect(groupedKeys.processes).toEqual(expect.arrayContaining(["grp.alpha.consult", "grp.beta.consult"]));
+  });
+
+  it("drops children the caller may not open and the group when none is left", () => {
+    const grp = (shell: ReturnType<typeof buildShellNav>) => shell.nav.filter((i) => i.id.startsWith("grp."));
+    expect(grp(buildShellNav(grouped, groupedAll)).map((g) => g.children?.map((c) => c.href))).toEqual([["/alpha", "/beta"]]);
+
+    const noBeta = { ...groupedAll, entitled: new Set([...groupedAll.entitled].filter((k) => k !== "feature:grp.beta")) };
+    expect(grp(buildShellNav(grouped, noBeta)).map((g) => g.children?.map((c) => c.href))).toEqual([["/alpha"]]);
+
+    const none = { ...groupedAll, runnable: new Set([...groupedAll.runnable].filter((p) => !p.startsWith("grp."))) };
+    const shell = buildShellNav(grouped, none);
+    expect(grp(shell)).toEqual([]);
+    expect(shell.modules.map((m) => m.id)).not.toContain("grp");
   });
 });

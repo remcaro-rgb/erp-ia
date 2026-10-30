@@ -111,7 +111,7 @@ export function TopBar(props: TopBarProps) {
             <DropdownMenuItem key={m.id} className={itemClass} onSelect={() => props.onSelectModule(m.id)}>
               <span className="inline-flex w-4 justify-center">{m.id === active?.id && <Check className="size-4" aria-hidden="true" />}</span>
               {t(m.label)}
-              <span className="ml-auto text-xs text-text-muted">{s("module_options", { count: itemsByModule[m.id]?.length ?? 0 })}</span>
+              <span className="ml-auto text-xs text-text-muted">{s("module_options", { count: (itemsByModule[m.id] ?? []).flatMap((i) => i.children ?? [i]).length })}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

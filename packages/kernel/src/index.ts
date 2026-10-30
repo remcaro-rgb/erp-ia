@@ -33,7 +33,7 @@ export type { RunProcessDeps, RunProcessOptions } from "./process/run";
 export { isMembershipInactive, MEMBERSHIP_INACTIVE, ProcessError } from "./process/errors";
 export type { ProcessErrorCode, ProcessErrorStage } from "./process/errors";
 export type { Caller, ProcessContext } from "./process/context";
-export { defineModule } from "./module/define";
+export { defineModule, flattenNav } from "./module/define";
 export { loadModules } from "./module/loader";
 export { entitled, entitlementLimit, enableModule, syncModuleManifest } from "./entitlements/resolver";
 export type { EntitledFn } from "./entitlements/resolver";

@@ -58,6 +58,12 @@ export interface NavItem {
   process?: string;
   /** Shows in the active module's horizontal items bar. Default true. */
   menu?: boolean;
+  /**
+   * Makes the item a group: a dropdown in the items bar (`Maestros ▾`) listing these items. One level only (a child never
+   * has children); the group's `href` is `"#"`. The shell keeps only the children the caller may open and drops an empty
+   * group; ⌘K lists the children, never the group.
+   */
+  children?: NavItem[];
 }
 
 /** A named group of processes and entities a tenant can be entitled to (design §5.12). */

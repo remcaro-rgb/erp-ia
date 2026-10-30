@@ -1,0 +1,27 @@
+import { Box, Building2, Check, Circle, Eye, File, History, LayoutGrid, LifeBuoy, List, Lock, Package, Shield, Sparkles, Tags, Upload, Users, type LucideIcon } from "lucide-react";
+
+/** The icon names a manifest's `NavItem.icon` may use, by their lucide component; any other name shows a plain dot. */
+const NAV_ICONS: Record<string, LucideIcon> = {
+  box: Box,
+  building: Building2,
+  check: Check,
+  eye: Eye,
+  file: File,
+  grid: LayoutGrid,
+  history: History,
+  "life-buoy": LifeBuoy,
+  list: List,
+  lock: Lock,
+  package: Package,
+  shield: Shield,
+  sparkles: Sparkles,
+  tags: Tags,
+  upload: Upload,
+  users: Users,
+};
+
+/** The icon of a menu item (decorative: the label names the item). */
+export function NavIcon({ name }: { name: string }) {
+  const Icon = NAV_ICONS[name] ?? Circle;
+  return <Icon className="size-4 shrink-0" aria-hidden="true" />;
+}

@@ -69,6 +69,18 @@ describe("AppShell", () => {
     expect(screen.getByText("LM")).toBeTruthy();
   });
 
+  it("⌘K lists the children of a navigation group, never the group", () => {
+    const grouped: NavItem[] = [
+      { id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users" },
+      { id: "core.masters", label: "nav.core.products", href: "#", icon: "list", children: [{ id: "core.categories", label: "nav.core.categories", href: "/categories", icon: "tags" }] },
+    ];
+    shell("/", vi.fn(), { nav: grouped });
+    fireEvent.click(screen.getByLabelText("Comando"));
+    const options = screen.getAllByRole("option").map((o) => o.textContent ?? "");
+    expect(options.some((o) => o.includes("Categorías"))).toBe(true);
+    expect(options.some((o) => o.includes("Productos"))).toBe(false);
+  });
+
   it("the page being shown opens its tab, and a module item navigates", () => {
     const navigate = vi.fn();
     shell("/parties", navigate);

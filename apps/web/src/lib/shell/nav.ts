@@ -1,4 +1,4 @@
-import type { NavItem, Registry } from "@erp/kernel";
+import { flattenNav, type NavItem, type Registry } from "@erp/kernel";
 import type { ShellModule } from "@erp/ui";
 
 // What the application shell offers the caller, from the registry (design §19a, rules 4 and 13). Pure: the
@@ -42,7 +42,7 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
   const entitlements = new Set<string>();
   const processes = new Set<string>();
   for (const mod of registry.modules()) {
-    const items = moduleItems(mod);
+    const items = moduleItems(mod).flatMap((item) => [item, ...(item.children ?? [])]);
     if (items.length === 0) continue;
     if (mod.id !== PLATFORM) entitlements.add(`module:${mod.id}`);
     for (const item of items) if (item.process) processes.add(item.process);
@@ -66,15 +66,22 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
   const creates: ShellCreate[] = [];
   for (const mod of shellModules(registry)) {
     if (mod.id !== PLATFORM && !access.entitled.has(`module:${mod.id}`)) continue;
-    const visible = moduleItems(mod).filter((item) => {
+    const opens = (item: NavItem) => {
       if (item.process && !access.runnable.has(item.process)) return false;
       if (!item.feature) return true;
       const feature = mod.features.find((f) => f.id === item.feature);
       return access.entitled.has(`feature:${item.feature}`) && (feature?.processes.some((p) => access.runnable.has(p)) ?? false);
+    };
+    // A group keeps the children the caller may open and is dropped when none is left.
+    const visibleItems = moduleItems(mod).flatMap((item): NavItem[] => {
+      if (!item.children) return opens(item) ? [item] : [];
+      const children = opens(item) ? item.children.filter(opens) : [];
+      return children.length > 0 ? [{ ...item, children }] : [];
     });
-    if (visible.length === 0) continue;
+    if (visibleItems.length === 0) continue;
     modules.push({ id: mod.id, label: `nav.modules.${mod.id}` });
-    nav.push(...visible);
+    nav.push(...visibleItems);
+    const visible = flattenNav(visibleItems);
     for (const item of visible) {
       const feature = mod.features.find((f) => f.id === item.feature);
       for (const processId of feature?.processes ?? []) {
