@@ -87,7 +87,7 @@ describe("fiscal years", () => {
     await expect(h.run(h.admin, "accounting.fiscal_year.open", { year: year + 1 })).rejects.toMatchObject({ code: "invalid_input" });
   });
 
-  it("fiscal_year.consult and period.consult read the masked views", async () => {
+  it("fiscal_year.consult and period.consult read the masked rows", async () => {
     const [period] = await h.sql<{ id: string }[]>`select id from accounting.periods where company_id = ${h.companyId} order by starts_on limit 1`;
     const row = await h.run<{ id: string; status: string }>(h.contador, "accounting.period.consult", { id: period!.id });
     expect(row).toMatchObject({ id: period!.id, status: "open" });
