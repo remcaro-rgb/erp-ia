@@ -105,5 +105,6 @@ export { ADMIN_NAVIGATION } from "./admin/navigation";
 export { aiTokensKpi, dailySeries, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
 export type { SuggestedAction } from "./home";
 
+export type { AccountingPack, AccountLevel, AccountSeed, ExogenaCompany, ExogenaFormat, ExogenaRow, JournalKind, LineCode, StatementSection } from "./localization/country-pack";
 export { ACCOUNT_ROLES, composeEntry, postingConsumer, POSTING_CONSUMER, interpolate, PathError, resolvePath, RuleLine, RuleTemplate } from "./posting";
 export type { AccountRole, ComposeResult, ComposedEntry, ComposedLine, DefaultPostingRule, EventRef, PostingFailure, PostingFailureCode, PostingProvider, PostingRule, ResolvedAccount } from "./posting";

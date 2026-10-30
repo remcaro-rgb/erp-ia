@@ -1,0 +1,2325 @@
+{
+"_comment": "Plan Único de Cuentas para comerciantes (Decreto 2650 de 1993, modificado por el Decreto 2894 de 1994): clases 1 a 9, grupos y cuentas completos y subcuentas de las cuentas de uso común. Transcrito a mano del PUC publicado; el pack nunca lista 238095 ni 530595, que añade extraAccounts(). Un contador completa las subcuentas faltantes con el proceso de cuentas.",
+"accounts": [
+[
+"1",
+"Activo"
+],
+[
+"2",
+"Pasivo"
+],
+[
+"3",
+"Patrimonio"
+],
+[
+"4",
+"Ingresos"
+],
+[
+"5",
+"Gastos"
+],
+[
+"6",
+"Costos de ventas"
+],
+[
+"7",
+"Costos de producción o de operación"
+],
+[
+"8",
+"Cuentas de orden deudoras"
+],
+[
+"9",
+"Cuentas de orden acreedoras"
+],
+[
+"11",
+"Disponible"
+],
+[
+"1105",
+"Caja"
+],
+[
+"110505",
+"Caja general"
+],
+[
+"110510",
+"Cajas menores"
+],
+[
+"110515",
+"Moneda extranjera"
+],
+[
+"1110",
+"Bancos"
+],
+[
+"111005",
+"Moneda nacional"
+],
+[
+"111010",
+"Moneda extranjera"
+],
+[
+"1115",
+"Remesas en tránsito"
+],
+[
+"1120",
+"Cuentas de ahorro"
+],
+[
+"112005",
+"Bancos"
+],
+[
+"112010",
+"Corporaciones de ahorro y vivienda"
+],
+[
+"112015",
+"Organismos cooperativos financieros"
+],
+[
+"1125",
+"Fondos"
+],
+[
+"112505",
+"Fondo de inversión"
+],
+[
+"112510",
+"Fondo de empleados"
+],
+[
+"12",
+"Inversiones"
+],
+[
+"1205",
+"Acciones"
+],
+[
+"1210",
+"Cuotas o partes de interés social"
+],
+[
+"1215",
+"Bonos"
+],
+[
+"1220",
+"Cédulas"
+],
+[
+"1225",
+"Certificados"
+],
+[
+"1230",
+"Papeles comerciales"
+],
+[
+"1235",
+"Títulos"
+],
+[
+"1240",
+"Aceptaciones bancarias o financieras"
+],
+[
+"1245",
+"Derechos fiduciarios"
+],
+[
+"1255",
+"Derechos de recompra de inversiones negociadas (CR)"
+],
+[
+"1260",
+"Obligatorias"
+],
+[
+"1295",
+"Otras inversiones"
+],
+[
+"1299",
+"Provisiones"
+],
+[
+"13",
+"Deudores"
+],
+[
+"1305",
+"Clientes"
+],
+[
+"130505",
+"Nacionales"
+],
+[
+"130510",
+"Del exterior"
+],
+[
+"130515",
+"Deudores del sistema"
+],
+[
+"1310",
+"Cuentas corrientes comerciales"
+],
+[
+"1315",
+"Cuentas por cobrar a casa matriz"
+],
+[
+"1320",
+"Cuentas por cobrar a vinculados económicos"
+],
+[
+"1323",
+"Cuentas por cobrar a directores"
+],
+[
+"1325",
+"Cuentas por cobrar a socios y accionistas"
+],
+[
+"1328",
+"Aportes por cobrar"
+],
+[
+"1330",
+"Anticipos y avances"
+],
+[
+"133005",
+"A proveedores"
+],
+[
+"133010",
+"A contratistas"
+],
+[
+"133015",
+"A trabajadores"
+],
+[
+"133020",
+"A agentes"
+],
+[
+"133095",
+"Otros"
+],
+[
+"1332",
+"Cuentas de operación conjunta"
+],
+[
+"1335",
+"Depósitos"
+],
+[
+"133505",
+"Para importaciones"
+],
+[
+"133510",
+"Para servicios"
+],
+[
+"133515",
+"Para contratos"
+],
+[
+"133520",
+"Para responsabilidades"
+],
+[
+"133525",
+"Para juicios ejecutivos"
+],
+[
+"133595",
+"Otros"
+],
+[
+"1340",
+"Promesas de compraventa"
+],
+[
+"1345",
+"Ingresos por cobrar"
+],
+[
+"134505",
+"Dividendos y/o participaciones"
+],
+[
+"134510",
+"Intereses"
+],
+[
+"134515",
+"Comisiones"
+],
+[
+"134520",
+"Honorarios"
+],
+[
+"134525",
+"Servicios"
+],
+[
+"134595",
+"Otros"
+],
+[
+"1350",
+"Retención sobre contratos"
+],
+[
+"1355",
+"Anticipo de impuestos y contribuciones o saldos a favor"
+],
+[
+"135505",
+"Anticipo de impuestos de renta y complementarios"
+],
+[
+"135510",
+"Anticipo de impuestos de industria y comercio"
+],
+[
+"135515",
+"Retención en la fuente"
+],
+[
+"135517",
+"Impuesto a las ventas retenido"
+],
+[
+"135518",
+"Impuesto de industria y comercio retenido"
+],
+[
+"135519",
+"Sobrantes en liquidación privada de impuestos"
+],
+[
+"135595",
+"Otros"
+],
+[
+"1360",
+"Reclamaciones"
+],
+[
+"1365",
+"Cuentas por cobrar a trabajadores"
+],
+[
+"136505",
+"Vivienda"
+],
+[
+"136510",
+"Vehículos"
+],
+[
+"136515",
+"Educación"
+],
+[
+"136520",
+"Médicos, odontológicos y similares"
+],
+[
+"136525",
+"Calamidad doméstica"
+],
+[
+"136530",
+"Responsabilidades"
+],
+[
+"136595",
+"Otros"
+],
+[
+"1370",
+"Préstamos a particulares"
+],
+[
+"1380",
+"Deudores varios"
+],
+[
+"138005",
+"Depositarios"
+],
+[
+"138010",
+"Comisionistas de bolsas"
+],
+[
+"138015",
+"Fondo de reposición"
+],
+[
+"138020",
+"Fondo de capitalización social"
+],
+[
+"138095",
+"Otros"
+],
+[
+"1390",
+"Deudas de difícil cobro"
+],
+[
+"1399",
+"Provisiones"
+],
+[
+"139905",
+"Clientes"
+],
+[
+"139910",
+"Cuentas corrientes comerciales"
+],
+[
+"139995",
+"Otras"
+],
+[
+"14",
+"Inventarios"
+],
+[
+"1405",
+"Materias primas"
+],
+[
+"1410",
+"Productos en proceso"
+],
+[
+"1415",
+"Obras de construcción en curso"
+],
+[
+"1420",
+"Contratos en ejecución"
+],
+[
+"1425",
+"Cultivos en desarrollo"
+],
+[
+"1430",
+"Productos terminados"
+],
+[
+"1435",
+"Mercancías no fabricadas por la empresa"
+],
+[
+"143505",
+"Mercancías no fabricadas por la empresa"
+],
+[
+"1440",
+"Bienes raíces para la venta"
+],
+[
+"1445",
+"Semovientes"
+],
+[
+"1450",
+"Terrenos"
+],
+[
+"1455",
+"Materiales, repuestos y accesorios"
+],
+[
+"1460",
+"Envases y empaques"
+],
+[
+"1465",
+"Inventario en tránsito"
+],
+[
+"1499",
+"Provisiones"
+],
+[
+"15",
+"Propiedades, planta y equipo"
+],
+[
+"1504",
+"Terrenos"
+],
+[
+"1506",
+"Materiales proyectos petroleros"
+],
+[
+"1508",
+"Construcciones en curso"
+],
+[
+"1510",
+"Maquinaria en montaje"
+],
+[
+"1512",
+"Propiedades, planta y equipo en tránsito"
+],
+[
+"1516",
+"Construcciones y edificaciones"
+],
+[
+"1520",
+"Maquinaria y equipo"
+],
+[
+"1524",
+"Equipo de oficina"
+],
+[
+"152405",
+"Muebles y enseres"
+],
+[
+"152410",
+"Equipos"
+],
+[
+"152495",
+"Otros"
+],
+[
+"1528",
+"Equipo de computación y comunicación"
+],
+[
+"152805",
+"Equipos de procesamiento de datos"
+],
+[
+"152810",
+"Equipos de telecomunicaciones"
+],
+[
+"152815",
+"Equipos de radio"
+],
+[
+"152895",
+"Otros"
+],
+[
+"1532",
+"Equipo médico-científico"
+],
+[
+"1536",
+"Equipo de hoteles y restaurantes"
+],
+[
+"1540",
+"Flota y equipo de transporte"
+],
+[
+"154005",
+"Autos, camionetas y camperos"
+],
+[
+"154008",
+"Camiones, volquetas y furgones"
+],
+[
+"154010",
+"Tractomulas y remolques"
+],
+[
+"1544",
+"Flota y equipo fluvial y/o marítimo"
+],
+[
+"1548",
+"Flota y equipo aéreo"
+],
+[
+"1552",
+"Flota y equipo férreo"
+],
+[
+"1556",
+"Acueductos, plantas y redes"
+],
+[
+"1560",
+"Armamento de vigilancia"
+],
+[
+"1562",
+"Envases y empaques"
+],
+[
+"1564",
+"Plantaciones agrícolas"
+],
+[
+"1568",
+"Vías de comunicación"
+],
+[
+"1572",
+"Minas y canteras"
+],
+[
+"1576",
+"Pozos artesianos"
+],
+[
+"1580",
+"Yacimientos"
+],
+[
+"1592",
+"Depreciación acumulada"
+],
+[
+"159205",
+"Construcciones y edificaciones"
+],
+[
+"159210",
+"Maquinaria y equipo"
+],
+[
+"159215",
+"Equipo de oficina"
+],
+[
+"159220",
+"Equipo de computación y comunicación"
+],
+[
+"159225",
+"Equipo médico-científico"
+],
+[
+"159230",
+"Equipo de hoteles y restaurantes"
+],
+[
+"159235",
+"Flota y equipo de transporte"
+],
+[
+"1596",
+"Depreciación diferida"
+],
+[
+"1597",
+"Amortización y agotamiento acumulado"
+],
+[
+"1598",
+"Depreciación flexible"
+],
+[
+"1599",
+"Provisiones"
+],
+[
+"16",
+"Intangibles"
+],
+[
+"1605",
+"Crédito mercantil"
+],
+[
+"1610",
+"Marcas"
+],
+[
+"1615",
+"Patentes"
+],
+[
+"1620",
+"Concesiones y franquicias"
+],
+[
+"1625",
+"Derechos"
+],
+[
+"1630",
+"Know how"
+],
+[
+"1635",
+"Licencias"
+],
+[
+"1698",
+"Depreciación y/o amortización acumulada"
+],
+[
+"1699",
+"Provisiones"
+],
+[
+"17",
+"Diferidos"
+],
+[
+"1705",
+"Gastos pagados por anticipado"
+],
+[
+"170505",
+"Intereses"
+],
+[
+"170510",
+"Honorarios"
+],
+[
+"170515",
+"Comisiones"
+],
+[
+"170520",
+"Seguros y fianzas"
+],
+[
+"170525",
+"Arrendamientos"
+],
+[
+"170530",
+"Bodegajes"
+],
+[
+"170535",
+"Mantenimiento de equipos"
+],
+[
+"170540",
+"Servicios"
+],
+[
+"170545",
+"Suscripciones"
+],
+[
+"170595",
+"Otros"
+],
+[
+"1710",
+"Cargos diferidos"
+],
+[
+"1715",
+"Costos de exploración por amortizar"
+],
+[
+"1720",
+"Costos de explotación y desarrollo"
+],
+[
+"1730",
+"Cargos por corrección monetaria diferida"
+],
+[
+"1798",
+"Amortización acumulada"
+],
+[
+"18",
+"Otros activos"
+],
+[
+"1805",
+"Bienes de arte y cultura"
+],
+[
+"1895",
+"Diversos"
+],
+[
+"1899",
+"Provisiones"
+],
+[
+"19",
+"Valorizaciones"
+],
+[
+"1905",
+"De inversiones"
+],
+[
+"1910",
+"De propiedades, planta y equipo"
+],
+[
+"1995",
+"De otros activos"
+],
+[
+"21",
+"Obligaciones financieras"
+],
+[
+"2105",
+"Bancos nacionales"
+],
+[
+"210505",
+"Sobregiros"
+],
+[
+"210510",
+"Pagarés"
+],
+[
+"210515",
+"Cartas de crédito"
+],
+[
+"210520",
+"Aceptaciones financieras"
+],
+[
+"2110",
+"Bancos del exterior"
+],
+[
+"2115",
+"Corporaciones financieras"
+],
+[
+"2120",
+"Compañías de financiamiento comercial"
+],
+[
+"2125",
+"Corporaciones de ahorro y vivienda"
+],
+[
+"2130",
+"Entidades financieras del exterior"
+],
+[
+"2135",
+"Compromisos de recompra de inversiones negociadas"
+],
+[
+"2140",
+"Compromisos de recompra de cartera negociada"
+],
+[
+"2145",
+"Obligaciones gubernamentales"
+],
+[
+"2195",
+"Otras obligaciones"
+],
+[
+"22",
+"Proveedores"
+],
+[
+"2205",
+"Nacionales"
+],
+[
+"220505",
+"Proveedores nacionales"
+],
+[
+"2210",
+"Del exterior"
+],
+[
+"2215",
+"Cuentas corrientes comerciales"
+],
+[
+"2220",
+"Casa matriz"
+],
+[
+"2225",
+"Compañías vinculadas"
+],
+[
+"2230",
+"Contratistas"
+],
+[
+"2235",
+"Proveedores varios"
+],
+[
+"23",
+"Cuentas por pagar"
+],
+[
+"2305",
+"Cuentas corrientes comerciales"
+],
+[
+"2310",
+"A casa matriz"
+],
+[
+"2315",
+"A compañías vinculadas"
+],
+[
+"2320",
+"A contratistas"
+],
+[
+"2330",
+"Órdenes de compra por utilizar"
+],
+[
+"2335",
+"Costos y gastos por pagar"
+],
+[
+"233505",
+"Gastos financieros"
+],
+[
+"233510",
+"Gastos legales"
+],
+[
+"233515",
+"Libros, suscripciones, periódicos y revistas"
+],
+[
+"233520",
+"Comisiones"
+],
+[
+"233525",
+"Honorarios"
+],
+[
+"233530",
+"Servicios técnicos"
+],
+[
+"233535",
+"Servicios de mantenimiento"
+],
+[
+"233540",
+"Arrendamientos"
+],
+[
+"233545",
+"Transportes, fletes y acarreos"
+],
+[
+"233550",
+"Servicios públicos"
+],
+[
+"233555",
+"Seguros"
+],
+[
+"233595",
+"Otros"
+],
+[
+"2340",
+"Instalamentos por pagar"
+],
+[
+"2345",
+"Acreedores oficiales"
+],
+[
+"2350",
+"Regalías por pagar"
+],
+[
+"2355",
+"Deudas con accionistas o socios"
+],
+[
+"2357",
+"Deudas con directores"
+],
+[
+"2360",
+"Dividendos o participaciones por pagar"
+],
+[
+"2365",
+"Retención en la fuente"
+],
+[
+"236505",
+"Salarios y pagos laborales"
+],
+[
+"236510",
+"Dividendos y/o participaciones"
+],
+[
+"236515",
+"Honorarios"
+],
+[
+"236520",
+"Comisiones"
+],
+[
+"236525",
+"Servicios"
+],
+[
+"236530",
+"Arrendamientos"
+],
+[
+"236535",
+"Rendimientos financieros"
+],
+[
+"236540",
+"Compras"
+],
+[
+"236570",
+"Otras retenciones y patrimonio"
+],
+[
+"236575",
+"Autorretenciones"
+],
+[
+"2367",
+"Impuesto a las ventas retenido"
+],
+[
+"236701",
+"Impuesto a las ventas retenido"
+],
+[
+"2368",
+"Impuesto de industria y comercio retenido"
+],
+[
+"236801",
+"Impuesto de industria y comercio retenido"
+],
+[
+"2370",
+"Retenciones y aportes de nómina"
+],
+[
+"237005",
+"Aportes a entidades promotoras de salud, EPS"
+],
+[
+"237006",
+"Aportes a administradoras de riesgos profesionales, ARP"
+],
+[
+"237010",
+"Aportes al ICBF, SENA y cajas de compensación"
+],
+[
+"237015",
+"Aportes al FIC"
+],
+[
+"237025",
+"Embargos judiciales"
+],
+[
+"237030",
+"Libranzas"
+],
+[
+"237045",
+"Otros"
+],
+[
+"2375",
+"Cuotas por devolver"
+],
+[
+"2380",
+"Acreedores varios"
+],
+[
+"238005",
+"Depositarios"
+],
+[
+"238010",
+"Comisionistas de bolsas"
+],
+[
+"238015",
+"Sociedad administradora - fondos de inversión"
+],
+[
+"238020",
+"Reintegros por pagar"
+],
+[
+"238030",
+"Fondos de cesantías y/o pensiones"
+],
+[
+"24",
+"Impuestos, gravámenes y tasas"
+],
+[
+"2404",
+"De renta y complementarios"
+],
+[
+"2408",
+"Impuesto sobre las ventas por pagar"
+],
+[
+"240801",
+"IVA generado tarifa general 19%"
+],
+[
+"240802",
+"IVA generado tarifa 5%"
+],
+[
+"240810",
+"IVA descontable"
+],
+[
+"2412",
+"De industria y comercio"
+],
+[
+"2416",
+"A la propiedad raíz"
+],
+[
+"2420",
+"Derechos sobre instrumentos públicos"
+],
+[
+"2424",
+"De valorización"
+],
+[
+"2428",
+"De turismo"
+],
+[
+"2432",
+"Tasa por utilización de puertos"
+],
+[
+"2436",
+"De vehículos"
+],
+[
+"2440",
+"De espectáculos públicos"
+],
+[
+"2444",
+"De hidrocarburos y minas"
+],
+[
+"2495",
+"Otros"
+],
+[
+"249505",
+"Impuesto nacional al consumo"
+],
+[
+"25",
+"Obligaciones laborales"
+],
+[
+"2505",
+"Salarios por pagar"
+],
+[
+"2510",
+"Cesantías consolidadas"
+],
+[
+"2515",
+"Intereses sobre cesantías"
+],
+[
+"2520",
+"Prima de servicios"
+],
+[
+"2525",
+"Vacaciones consolidadas"
+],
+[
+"2530",
+"Prestaciones extralegales"
+],
+[
+"2532",
+"Pensiones por pagar"
+],
+[
+"2535",
+"Pensiones de jubilación"
+],
+[
+"26",
+"Pasivos estimados y provisiones"
+],
+[
+"2605",
+"Para costos y gastos"
+],
+[
+"2610",
+"Para obligaciones laborales"
+],
+[
+"2615",
+"Para obligaciones fiscales"
+],
+[
+"2620",
+"Pensiones de jubilación"
+],
+[
+"2625",
+"Para obras de urbanismo"
+],
+[
+"2630",
+"Para mantenimiento y reparaciones"
+],
+[
+"2635",
+"Para contingencias"
+],
+[
+"2640",
+"Para obligaciones de garantías"
+],
+[
+"2695",
+"Provisiones diversas"
+],
+[
+"27",
+"Diferidos"
+],
+[
+"2705",
+"Ingresos recibidos por anticipado"
+],
+[
+"2710",
+"Abonos diferidos"
+],
+[
+"2715",
+"Utilidad diferida en ventas a plazo"
+],
+[
+"2725",
+"Impuestos diferidos"
+],
+[
+"28",
+"Otros pasivos"
+],
+[
+"2805",
+"Anticipos y avances recibidos"
+],
+[
+"280505",
+"De clientes"
+],
+[
+"280510",
+"Para obras en construcción"
+],
+[
+"280595",
+"Otros"
+],
+[
+"2810",
+"Depósitos recibidos"
+],
+[
+"2815",
+"Ingresos recibidos para terceros"
+],
+[
+"2820",
+"Cuentas de operación conjunta"
+],
+[
+"2825",
+"Retenciones a terceros sobre contratos"
+],
+[
+"2830",
+"Embargos judiciales"
+],
+[
+"2835",
+"Acreedores del sistema"
+],
+[
+"2840",
+"Cuentas en participación"
+],
+[
+"29",
+"Bonos y papeles comerciales"
+],
+[
+"2905",
+"Bonos en circulación"
+],
+[
+"2910",
+"Bonos obligatoriamente convertibles en acciones"
+],
+[
+"2915",
+"Papeles comerciales"
+],
+[
+"31",
+"Capital social"
+],
+[
+"3105",
+"Capital suscrito y pagado"
+],
+[
+"310505",
+"Capital autorizado"
+],
+[
+"310510",
+"Capital por suscribir (DB)"
+],
+[
+"310515",
+"Capital suscrito por cobrar (DB)"
+],
+[
+"3115",
+"Aportes sociales"
+],
+[
+"3120",
+"Capital de personas naturales"
+],
+[
+"32",
+"Superávit de capital"
+],
+[
+"3205",
+"Prima en colocación de acciones"
+],
+[
+"3210",
+"Donaciones"
+],
+[
+"3215",
+"Crédito mercantil"
+],
+[
+"3225",
+"Valorización del patrimonio"
+],
+[
+"33",
+"Reservas"
+],
+[
+"3305",
+"Reservas obligatorias"
+],
+[
+"330505",
+"Reserva legal"
+],
+[
+"3310",
+"Reservas estatutarias"
+],
+[
+"3315",
+"Reservas ocasionales"
+],
+[
+"34",
+"Revalorización del patrimonio"
+],
+[
+"3405",
+"Ajustes por inflación"
+],
+[
+"35",
+"Dividendos o participaciones decretados en acciones"
+],
+[
+"3505",
+"Dividendos o participaciones decretados en acciones"
+],
+[
+"36",
+"Resultados del ejercicio"
+],
+[
+"3605",
+"Utilidad del ejercicio"
+],
+[
+"360505",
+"Utilidad del ejercicio"
+],
+[
+"3610",
+"Pérdida del ejercicio"
+],
+[
+"361005",
+"Pérdida del ejercicio"
+],
+[
+"37",
+"Resultados de ejercicios anteriores"
+],
+[
+"3705",
+"Utilidades acumuladas"
+],
+[
+"370505",
+"Utilidades acumuladas"
+],
+[
+"3710",
+"Pérdidas acumuladas"
+],
+[
+"371005",
+"Pérdidas acumuladas"
+],
+[
+"38",
+"Superávit por valorizaciones"
+],
+[
+"3805",
+"De inversiones"
+],
+[
+"3810",
+"De propiedades, planta y equipo"
+],
+[
+"3895",
+"De otros activos"
+],
+[
+"41",
+"Operacionales"
+],
+[
+"4105",
+"Agricultura, ganadería, caza y silvicultura"
+],
+[
+"4110",
+"Pesca"
+],
+[
+"4115",
+"Explotación de minas y canteras"
+],
+[
+"4120",
+"Industrias manufactureras"
+],
+[
+"4125",
+"Suministro de electricidad, gas y agua"
+],
+[
+"4130",
+"Construcción"
+],
+[
+"4135",
+"Comercio al por mayor y al por menor"
+],
+[
+"413505",
+"Venta de productos alimenticios y bebidas"
+],
+[
+"413595",
+"Otros"
+],
+[
+"4140",
+"Hoteles y restaurantes"
+],
+[
+"414005",
+"Alojamiento"
+],
+[
+"414010",
+"Servicio de restaurante"
+],
+[
+"414095",
+"Otros"
+],
+[
+"4145",
+"Transporte, almacenamiento y comunicaciones"
+],
+[
+"4150",
+"Actividad financiera"
+],
+[
+"4155",
+"Actividades inmobiliarias, empresariales y de alquiler"
+],
+[
+"4160",
+"Enseñanza"
+],
+[
+"4165",
+"Servicios sociales y de salud"
+],
+[
+"4170",
+"Otras actividades de servicios comunitarios, sociales y personales"
+],
+[
+"4175",
+"Devoluciones, rebajas y descuentos en ventas (DB)"
+],
+[
+"417505",
+"Devoluciones en ventas"
+],
+[
+"417510",
+"Rebajas y descuentos concedidos"
+],
+[
+"42",
+"No operacionales"
+],
+[
+"4205",
+"Otras ventas"
+],
+[
+"4210",
+"Financieros"
+],
+[
+"421005",
+"Intereses"
+],
+[
+"421010",
+"Reajuste monetario - UVR"
+],
+[
+"421015",
+"Descuentos comerciales condicionados"
+],
+[
+"4215",
+"Dividendos y participaciones"
+],
+[
+"4220",
+"Arrendamientos"
+],
+[
+"4225",
+"Comisiones"
+],
+[
+"4230",
+"Honorarios"
+],
+[
+"4235",
+"Servicios"
+],
+[
+"4240",
+"Utilidad en venta de inversiones"
+],
+[
+"4245",
+"Utilidad en venta de propiedades, planta y equipo"
+],
+[
+"4248",
+"Utilidad en venta de otros bienes"
+],
+[
+"4250",
+"Recuperaciones"
+],
+[
+"4255",
+"Indemnizaciones"
+],
+[
+"4260",
+"Participaciones en concesiones"
+],
+[
+"4265",
+"Ingresos de ejercicios anteriores"
+],
+[
+"4295",
+"Diversos"
+],
+[
+"429581",
+"Ajuste al peso"
+],
+[
+"47",
+"Ajustes por inflación"
+],
+[
+"4705",
+"Corrección monetaria"
+],
+[
+"51",
+"Operacionales de administración"
+],
+[
+"5105",
+"Gastos de personal"
+],
+[
+"510503",
+"Salario integral"
+],
+[
+"510506",
+"Sueldos"
+],
+[
+"510515",
+"Horas extras y recargos"
+],
+[
+"510518",
+"Comisiones"
+],
+[
+"510521",
+"Viáticos"
+],
+[
+"510524",
+"Incapacidades"
+],
+[
+"510527",
+"Auxilio de transporte"
+],
+[
+"510530",
+"Cesantías"
+],
+[
+"510533",
+"Intereses sobre cesantías"
+],
+[
+"510536",
+"Prima de servicios"
+],
+[
+"510539",
+"Vacaciones"
+],
+[
+"510545",
+"Auxilios"
+],
+[
+"510548",
+"Bonificaciones"
+],
+[
+"510551",
+"Dotación y suministro a trabajadores"
+],
+[
+"510554",
+"Seguros"
+],
+[
+"510557",
+"Cuotas partes pensiones de jubilación"
+],
+[
+"510560",
+"Indemnizaciones laborales"
+],
+[
+"510563",
+"Capacitación al personal"
+],
+[
+"510566",
+"Gastos deportivos y de recreación"
+],
+[
+"510568",
+"Aportes a administradoras de riesgos profesionales, ARP"
+],
+[
+"510569",
+"Aportes a entidades promotoras de salud, EPS"
+],
+[
+"510570",
+"Aportes a fondos de pensiones y/o cesantías"
+],
+[
+"510572",
+"Aportes cajas de compensación familiar"
+],
+[
+"510575",
+"Aportes ICBF"
+],
+[
+"510578",
+"SENA"
+],
+[
+"510595",
+"Otros"
+],
+[
+"5110",
+"Honorarios"
+],
+[
+"511005",
+"Junta directiva"
+],
+[
+"511010",
+"Revisoría fiscal"
+],
+[
+"511015",
+"Auditoría externa"
+],
+[
+"511020",
+"Avalúos"
+],
+[
+"511025",
+"Asesoría jurídica"
+],
+[
+"511030",
+"Asesoría financiera"
+],
+[
+"511035",
+"Asesoría técnica"
+],
+[
+"511095",
+"Otros"
+],
+[
+"5115",
+"Impuestos"
+],
+[
+"511505",
+"Industria y comercio"
+],
+[
+"511510",
+"De timbres"
+],
+[
+"511515",
+"A la propiedad raíz"
+],
+[
+"511520",
+"Derechos sobre instrumentos públicos"
+],
+[
+"511525",
+"De valorización"
+],
+[
+"511530",
+"De turismo"
+],
+[
+"511535",
+"Tasa por utilización de puertos"
+],
+[
+"511540",
+"De vehículos"
+],
+[
+"511545",
+"De espectáculos públicos"
+],
+[
+"511550",
+"Cuotas de fomento"
+],
+[
+"511570",
+"IVA descontable"
+],
+[
+"511595",
+"Otros"
+],
+[
+"5120",
+"Arrendamientos"
+],
+[
+"512010",
+"Construcciones y edificaciones"
+],
+[
+"512015",
+"Maquinaria y equipo"
+],
+[
+"512020",
+"Equipo de oficina"
+],
+[
+"512025",
+"Equipo de computación y comunicación"
+],
+[
+"512095",
+"Otros"
+],
+[
+"5125",
+"Contribuciones y afiliaciones"
+],
+[
+"5130",
+"Seguros"
+],
+[
+"5135",
+"Servicios"
+],
+[
+"513505",
+"Aseo y vigilancia"
+],
+[
+"513510",
+"Temporales"
+],
+[
+"513515",
+"Asistencia técnica"
+],
+[
+"513520",
+"Procesamiento electrónico de datos"
+],
+[
+"513525",
+"Acueducto y alcantarillado"
+],
+[
+"513530",
+"Energía eléctrica"
+],
+[
+"513535",
+"Teléfono"
+],
+[
+"513540",
+"Correo, portes y telegramas"
+],
+[
+"513550",
+"Transporte, fletes y acarreos"
+],
+[
+"513555",
+"Gas"
+],
+[
+"513595",
+"Otros"
+],
+[
+"5140",
+"Gastos legales"
+],
+[
+"5145",
+"Mantenimiento y reparaciones"
+],
+[
+"5150",
+"Adecuación e instalación"
+],
+[
+"5155",
+"Gastos de viaje"
+],
+[
+"5160",
+"Depreciaciones"
+],
+[
+"516005",
+"Construcciones y edificaciones"
+],
+[
+"516010",
+"Maquinaria y equipo"
+],
+[
+"516015",
+"Equipo de oficina"
+],
+[
+"516020",
+"Equipo de computación y comunicación"
+],
+[
+"5165",
+"Amortizaciones"
+],
+[
+"5195",
+"Diversos"
+],
+[
+"519510",
+"Útiles, papelería y fotocopias"
+],
+[
+"519525",
+"Combustibles y lubricantes"
+],
+[
+"519530",
+"Taxis y buses"
+],
+[
+"519595",
+"Otros"
+],
+[
+"5199",
+"Provisiones"
+],
+[
+"52",
+"Operacionales de ventas"
+],
+[
+"5205",
+"Gastos de personal"
+],
+[
+"5210",
+"Honorarios"
+],
+[
+"5215",
+"Impuestos"
+],
+[
+"5220",
+"Arrendamientos"
+],
+[
+"5225",
+"Contribuciones y afiliaciones"
+],
+[
+"5230",
+"Seguros"
+],
+[
+"5235",
+"Servicios"
+],
+[
+"5240",
+"Gastos legales"
+],
+[
+"5245",
+"Mantenimiento y reparaciones"
+],
+[
+"5250",
+"Adecuación e instalación"
+],
+[
+"5255",
+"Gastos de viaje"
+],
+[
+"5260",
+"Depreciaciones"
+],
+[
+"5265",
+"Amortizaciones"
+],
+[
+"5270",
+"Diversos"
+],
+[
+"5299",
+"Provisiones"
+],
+[
+"53",
+"No operacionales"
+],
+[
+"5305",
+"Financieros"
+],
+[
+"530505",
+"Gastos bancarios"
+],
+[
+"530510",
+"Comisiones"
+],
+[
+"530515",
+"Intereses"
+],
+[
+"530520",
+"Diferencia en cambio"
+],
+[
+"5310",
+"Pérdida en venta y retiro de bienes"
+],
+[
+"5313",
+"Pérdida en método de participación"
+],
+[
+"5315",
+"Gastos extraordinarios"
+],
+[
+"5395",
+"Gastos diversos"
+],
+[
+"54",
+"Impuesto de renta y complementarios"
+],
+[
+"5405",
+"Impuesto de renta y complementarios"
+],
+[
+"540505",
+"Impuesto de renta y complementarios"
+],
+[
+"59",
+"Ganancias y pérdidas"
+],
+[
+"5905",
+"Ganancias y pérdidas"
+],
+[
+"590505",
+"Ganancias y pérdidas"
+],
+[
+"61",
+"Costo de ventas y de prestación de servicios"
+],
+[
+"6105",
+"Agricultura, ganadería, caza y silvicultura"
+],
+[
+"6110",
+"Pesca"
+],
+[
+"6115",
+"Explotación de minas y canteras"
+],
+[
+"6120",
+"Industrias manufactureras"
+],
+[
+"6125",
+"Suministro de electricidad, gas y agua"
+],
+[
+"6130",
+"Construcción"
+],
+[
+"6135",
+"Comercio al por mayor y al por menor"
+],
+[
+"613505",
+"Venta de productos alimenticios y bebidas"
+],
+[
+"613595",
+"Otros"
+],
+[
+"6140",
+"Hoteles y restaurantes"
+],
+[
+"6145",
+"Transporte, almacenamiento y comunicaciones"
+],
+[
+"6150",
+"Actividad financiera"
+],
+[
+"6155",
+"Actividades inmobiliarias, empresariales y de alquiler"
+],
+[
+"6160",
+"Enseñanza"
+],
+[
+"6165",
+"Servicios sociales y de salud"
+],
+[
+"6170",
+"Otras actividades de servicios comunitarios, sociales y personales"
+],
+[
+"62",
+"Compras"
+],
+[
+"6205",
+"De mercancías"
+],
+[
+"6210",
+"De materias primas"
+],
+[
+"6215",
+"De materiales indirectos"
+],
+[
+"6225",
+"Devoluciones en compras (CR)"
+],
+[
+"71",
+"Materia prima"
+],
+[
+"7105",
+"Gastos de personal"
+],
+[
+"72",
+"Mano de obra directa"
+],
+[
+"7205",
+"Costos de nómina"
+],
+[
+"73",
+"Costos indirectos"
+],
+[
+"7305",
+"Costos de personal"
+],
+[
+"74",
+"Contratos de servicios"
+],
+[
+"7405",
+"Costos de contratos de servicios"
+],
+[
+"81",
+"Derechos contingentes"
+],
+[
+"8105",
+"Bienes y valores entregados en custodia"
+],
+[
+"8110",
+"Bienes y valores entregados en garantía"
+],
+[
+"82",
+"Deudoras fiscales"
+],
+[
+"8205",
+"Pérdidas fiscales por amortizar"
+],
+[
+"83",
+"Deudoras de control"
+],
+[
+"8305",
+"Bienes y valores entregados en custodia"
+],
+[
+"89",
+"Deudoras por contra (CR)"
+],
+[
+"8905",
+"Derechos contingentes por contra (CR)"
+],
+[
+"91",
+"Responsabilidades contingentes"
+],
+[
+"9105",
+"Bienes y valores recibidos en custodia"
+],
+[
+"92",
+"Acreedoras fiscales"
+],
+[
+"9205",
+"Ajustes por inflación patrimonio"
+],
+[
+"93",
+"Acreedoras de control"
+],
+[
+"9305",
+"Bienes y valores recibidos en custodia"
+],
+[
+"99",
+"Acreedoras por contra (DB)"
+],
+[
+"9905",
+"Responsabilidades contingentes por contra (DB)"
+]
+]
+}

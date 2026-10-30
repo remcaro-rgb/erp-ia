@@ -58,6 +58,43 @@ export type ProductFiscalInput = {
   minStock?: number;
 };
 
+// Accounting pack contract (accounting design §5.9). The kernel owns the shapes; each pack fills them with its chart.
+
+export interface AccountSeed {
+  code: string;
+  name: string;
+  nature: "debit" | "credit";
+  requiresParty: boolean;
+  requiresCostCenter: boolean;
+  statementSection?: string;
+  isOpeningResult: boolean;
+}
+export type AccountLevel = "class" | "group" | "account" | "subaccount" | "auxiliary";
+export type JournalKind = "general" | "sales" | "purchases" | "receipts" | "payments" | "opening" | "closing";
+/** A statement section: `code` is the `statementSection` of the accounts it gathers, `label` an i18n key. */
+export interface StatementSection { code: string; label: string }
+/** A line of a tax form (formato 2516) that reads the accounts whose code starts with one of `prefixes`. */
+export interface LineCode { code: string; label: string; prefixes: string[] }
+export interface ExogenaFormat { format: string; version: string; name: string; side: "debit" | "credit" | "balance"; threshold: number; concepts: { code: string; name: string }[] }
+export interface ExogenaRow { partyId: string; documentType: string; documentNumber: string; concept: string; amount: number; [column: string]: unknown }
+export interface ExogenaCompany { taxId: string; checkDigit: string; legalName: string; year: number }
+
+export interface AccountingPack {
+  chartOfAccounts(): AccountSeed[];
+  /** The account each role resolves to by default, with the optional dimension qualifier (design §4.2). */
+  defaultRoleMappings(): { role: string; dimension?: string; code: string }[];
+  /** Auxiliaries the mappings need and the chart does not list. */
+  extraAccounts(): AccountSeed[];
+  validateAccountCode(code: string, parentCode?: string): { ok: true; level: AccountLevel } | { ok: false; reason: string };
+  fiscalYearFor(date: string): { year: number; startsOn: string; endsOn: string };
+  statementLayouts(): { balanceSheet: StatementSection[]; incomeStatement: StatementSection[]; f2516: { esf: LineCode[]; eri: LineCode[] } };
+  defaultJournals(): { code: string; name: string; kind: JournalKind; manualEntries: boolean }[];
+  taxCodes(): { code: string; family: "IVA" | "INC" | "RTEFTE" | "RTEIVA" | "RTEICA"; rate: number | null; label: string }[];
+  defaultConceptMappings(): { format: string; concept: string; code: string }[];
+  exogenaFormats(year: number): ExogenaFormat[];
+  exogenaXml(format: ExogenaFormat, rows: ExogenaRow[], company: ExogenaCompany): string;
+}
+
 /** `errors` = format, length and coherence violations (block the save); `missing` = data required for e-invoicing or exógena (warn, sets dian_status). */
 export type PartyValidation = {
   errors: string[];
@@ -104,11 +141,8 @@ export interface CountryPack {
    * "Colombia". A fiscal code keeps the code in front of its name; places read by name. Undefined for an unknown code.
    */
   codeLabel(table: CodeTable, code: string, locale: string): string | undefined;
-  /**
-   * The chart code each account role maps to by default (design §5.3, §5.9); absent while a pack has no accounting
-   * chart. `kernel.admin.module.enable` refuses a module whose `accountRoles` are not all covered.
-   */
-  defaultRoleMappings?(): { role: string; dimension?: string; code: string }[];
+  /** Chart, role mappings, journals, statement layouts, tax codes and exógena of the country (design §5.9). */
+  accounting: AccountingPack;
   // phase 2 adds taxes, sequences, eInvoicing, payroll hooks
 }
 

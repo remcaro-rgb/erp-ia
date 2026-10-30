@@ -93,7 +93,7 @@ describe("module.enable and the country pack's role mappings", () => {
   const base = { version: "1", dependsOn: [], entities: [], features: [], events: { emits: [], consumes: {} }, navigation: [] };
   const ledger = defineModule({ ...base, id: "ledger", processes: [consult("ledger.thing.consult")], accountRoles: ["tips"] });
   const plain = defineModule({ ...base, id: "plain", processes: [consult("plain.thing.consult")] });
-  const pack = (roles: string[]): CountryPack => ({ ...({} as CountryPack), code: "CO", defaultRoleMappings: () => roles.map((role) => ({ role, code: "1" })) });
+  const pack = (roles: string[]): CountryPack => ({ ...({} as CountryPack), code: "CO", accounting: { defaultRoleMappings: () => roles.map((role) => ({ role, code: "1" })) } as never });
 
   let sql: ReturnType<typeof testDb>;
   let seed: Awaited<ReturnType<typeof seedTenant>>;

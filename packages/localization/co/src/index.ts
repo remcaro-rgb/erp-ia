@@ -1,4 +1,5 @@
 import type { CountryPack } from "@erp/kernel";
+import { accounting } from "./accounting";
 import { codeLabel } from "./code-label";
 import { DOCUMENT_TYPE_CODES } from "./document-types";
 import { validateTaxId } from "./nit";
@@ -14,6 +15,7 @@ export const co: CountryPack = {
   validateParty,
   validateProduct,
   codeLabel,
+  accounting,
 };
 
 export { codeLabel } from "./code-label";

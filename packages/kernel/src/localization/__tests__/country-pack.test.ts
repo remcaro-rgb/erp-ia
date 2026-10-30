@@ -10,6 +10,7 @@ const fake: CountryPack = {
   validateParty: (input) => ({ errors: [], missing: [], normalized: { ...input, checkDigit: null, legalName: "" } }),
   validateProduct: (input) => ({ errors: [], missing: [], normalized: input }),
   codeLabel: (_table, code) => code,
+  accounting: {} as CountryPack["accounting"],
 };
 
 describe("country pack registry", () => {

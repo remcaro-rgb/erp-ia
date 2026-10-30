@@ -34,7 +34,7 @@ export const moduleEnable = defineProcess({
     const roles = ctx.registry.module(moduleId).accountRoles ?? [];
     if (roles.length > 0) {
       const [company] = await ctx.tx<{ country_code: string }[]>`select country_code from kernel.companies where id = ${ctx.companyId}`;
-      const mapped = new Set(countryPackOf(company?.country_code)?.defaultRoleMappings?.().map((m) => m.role));
+      const mapped = new Set(countryPackOf(company?.country_code)?.accounting?.defaultRoleMappings().map((m) => m.role));
       const unmapped = roles.filter((role) => !mapped.has(role));
       if (unmapped.length > 0) throw invalid(`country pack does not map roles ${unmapped.join(", ")}`, `El pack del país no mapea los roles contables: ${unmapped.join(", ")}`);
     }
