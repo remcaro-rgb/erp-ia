@@ -212,7 +212,9 @@ export const entryConsult = defineProcess({
   handler: async (ctx, { id: entryId }) => {
     const [row] = await ctx.tx`select * from accounting.v_entries where id = ${entryId}`;
     if (!row) throw new ProcessError("not_found", `entry ${entryId} not found`);
-    return { ...row, id: entryId, extra: await visibleExtra(ctx, "accounting.entry", row.extra), lines: await entryLinesOf(ctx, entryId) };
+    // Who created it: the approval screen needs it to tell the creator's button apart (four-eyes, §5.5). Not a field of the entity.
+    const [owner] = await ctx.tx<{ created_by: string | null }[]>`select created_by from accounting.entries where id = ${entryId}`;
+    return { ...row, id: entryId, created_by: owner?.created_by ?? null, extra: await visibleExtra(ctx, "accounting.entry", row.extra), lines: await entryLinesOf(ctx, entryId) };
   },
 });
 

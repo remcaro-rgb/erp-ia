@@ -35,7 +35,7 @@ export interface RecordLabels {
 }
 
 export const DEFAULT_RECORD_LABELS: RecordLabels = {
-  tabs: { datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos" },
+  tabs: { datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos", origen: "Origen" },
   number: "N.º",
   uuid: "uuid",
   assignedOnCreate: "N.º y uuid se asignan al crear",
@@ -56,12 +56,13 @@ export { recordHref } from "@erp/kernel/href";
 export const shortId = (uuid: string): string => uuid.slice(0, 8);
 
 /**
- * The tabs an entity needs, in order: parties add Contactos, products add Fotos, tickets add Mensajes; the tabs modules
+ * The tabs an entity needs, in order: a comprobante adds Origen, parties add Contactos, products add Fotos, tickets add Mensajes; the tabs modules
  * contribute (`contributed`, their ids) come next; every record has Datos adicionales and Archivos.
  */
 export function recordTabIds(entity: string, contributed: readonly string[] = []): RecordTabId[] {
   return [
     "datos",
+    ...(entity === "accounting.entry" ? (["origen"] as const) : []),
     ...(entity === "core.party" ? (["contactos"] as const) : []),
     ...(entity === "core.product" ? (["fotos"] as const) : []),
     ...(entity === "support.ticket" ? (["mensajes"] as const) : []),

@@ -60,7 +60,8 @@
         "fotos": "Photos",
         "extra": "Additional data",
         "archivos": "Files",
-        "mensajes": "Messages"
+        "mensajes": "Messages",
+        "origen": "Origin"
       },
       "number": "No.",
       "uuid": "uuid",
@@ -698,23 +699,130 @@
       "error": "Offline",
       "updated": "Updated {time}",
       "resume": "Resume"
+    },
+    "entry": {
+      "draft_title": "Draft",
+      "title_new": "New voucher",
+      "header": "Header",
+      "journal": "Journal",
+      "date": "Date",
+      "description": "Description",
+      "business_unit": "Business unit",
+      "business_unit_header_hint": "Lines without a business unit of their own use the header's",
+      "reverse_on": "Reverse on",
+      "reverse_on_hint": "Accrual: the mirror entry is created on that date",
+      "number": "Voucher",
+      "status": "Status",
+      "none_yet": "Assigned when posted",
+      "lines": "Lines",
+      "lines_label": "Voucher lines",
+      "col": {
+        "account": "Account",
+        "party": "Party",
+        "cost_center": "Cost center",
+        "open_auxiliary": "Open auxiliary",
+        "item": "Item",
+        "business_unit": "Business unit",
+        "description": "Description",
+        "debit": "Debit",
+        "credit": "Credit"
+      },
+      "add_line": "Add line",
+      "remove_line": "Remove line {n}",
+      "line_n": "Line {n}",
+      "total_debit": "Debit",
+      "total_credit": "Credit",
+      "difference": "Difference",
+      "balanced": "Balanced",
+      "unbalanced": "Unbalanced: {amount} missing",
+      "restricted_line": "Line on a restricted account",
+      "restricted_note": "This voucher has lines on restricted accounts: they are masked and cannot be edited.",
+      "lookup_empty": "No matches",
+      "lookup_hint": "Type to search",
+      "keyboard_hint": "Tab moves across columns · Enter on the last cell adds a line",
+      "read_only": "Read only: the voucher is no longer a draft",
+      "actions": {
+        "submit": "Send for approval",
+        "approve": "Approve and post",
+        "return": "Return to draft",
+        "post": "Post",
+        "reverse": "Reverse",
+        "void": "Void draft"
+      },
+      "hint": {
+        "same_user": "Someone else must approve: the person who created the voucher cannot approve it"
+      },
+      "reason": "Reason",
+      "reason_required": "Write the reason",
+      "reason_confirm": "Confirm",
+      "reason_cancel": "Cancel",
+      "acting": "Working…",
+      "done": {
+        "submit": "Sent for approval",
+        "approve": "Posted as {number}",
+        "post": "Posted as {number}",
+        "return": "Returned to draft",
+        "reverse": "Reversed with {number}",
+        "void": "Voided"
+      },
+      "needs_attachment": "Attach the supporting document in the Files tab before posting",
+      "return_blocked": "A voucher with lines on restricted accounts cannot be returned to draft",
+      "clone_note": "The header was copied; add the lines.",
+      "origin": {
+        "title": "Origin",
+        "kind": "Type",
+        "source": "Source document",
+        "event": "Event",
+        "rule": "Posting rule",
+        "chain": "Causal chain",
+        "manual": "Manual voucher: a person created it.",
+        "template": "Created from a template.",
+        "auto": "Automatic voucher: the engine posted it from an event.",
+        "import": "Imported.",
+        "reversal_of": "Reversal of",
+        "reversed_by": "Reversed by",
+        "created_by": "Created by",
+        "posted_by": "Posted by",
+        "submitted_by": "Sent for approval by",
+        "timeline": "History",
+        "timeline_empty": "No audit entries visible to your role",
+        "none": "—"
+      },
+      "grid": {
+        "filters": "Quick filters",
+        "today": "Today",
+        "period": "This period",
+        "drafts": "Drafts",
+        "pending": "To approve",
+        "auto": "Automatic",
+        "manual": "Manual",
+        "from_template": "New from template",
+        "template": "Template",
+        "template_pick": "Choose a template",
+        "template_none": "There are no templates",
+        "template_date": "Date",
+        "template_amounts": "Amount per line",
+        "template_create": "Create draft",
+        "template_failed": "The draft could not be created: {reason}"
+      },
+      "totals_label": "Voucher totals"
     }
   },
   "nav": {
-      "accounting": {
-        "entries": "Entries",
-        "movements": "Movements",
-        "masters": "Masters",
-        "accounts": "Chart of accounts",
-        "cost_centers": "Cost centers",
-        "open_auxiliaries": "Open auxiliaries",
-        "items": "Items",
-        "business_units": "Business units",
-        "journals": "Sources",
-        "periods": "Periods",
-        "reports": "Reports",
-        "posting": "Posting rules"
-      },
+    "accounting": {
+      "entries": "Entries",
+      "movements": "Movements",
+      "masters": "Masters",
+      "accounts": "Chart of accounts",
+      "cost_centers": "Cost centers",
+      "open_auxiliaries": "Open auxiliaries",
+      "items": "Items",
+      "business_units": "Business units",
+      "journals": "Sources",
+      "periods": "Periods",
+      "reports": "Reports",
+      "posting": "Posting rules"
+    },
     "shell": {
       "modules": "Modules",
       "search": "Search or go to…",
@@ -834,6 +942,9 @@
       },
       "support": {
         "ticket": "support ticket"
+      },
+      "accounting": {
+        "entry": "voucher"
       }
     },
     "support": {
@@ -855,14 +966,15 @@
     }
   },
   "entity": {
-      "accounting": {
-        "account": "Account",
-        "cost_center": "Cost center",
-        "open_auxiliary": "Open auxiliary",
-        "item": "Item",
-        "business_unit": "Business unit",
-        "journal": "Source"
-      },
+    "accounting": {
+      "account": "Account",
+      "cost_center": "Cost center",
+      "open_auxiliary": "Open auxiliary",
+      "item": "Item",
+      "business_unit": "Business unit",
+      "journal": "Source",
+      "entry": "Voucher"
+    },
     "core": {
       "party": "Party",
       "party_contact": "Contact",
@@ -885,91 +997,125 @@
     }
   },
   "field": {
-      "accounting": {
-        "account": {
-          "seq": "No.",
-          "code": "Code",
-          "name": "Description",
-          "parent_id": "Parent account",
-          "level": "Level",
-          "nature": "Nature",
-          "allows_movement": "Allows postings",
-          "requires_party": "Requires third party",
-          "requires_cost_center": "Requires cost center",
-          "requires_open_auxiliary": "Requires open auxiliary",
-          "requires_item": "Requires item",
-          "requires_business_unit": "Requires business unit",
-          "statement_section": "Statement section",
-          "is_opening_result": "Opening result account",
-          "is_active": "Active",
-          "access": "Security",
-          "extra": "Additional data",
-          "extra_free": "Free data",
-          "created_at": "Created",
-          "updated_at": "Updated"
-        },
-        "journal": {
-          "seq": "No.",
-          "code": "Code",
-          "name": "Description",
-          "kind": "Kind",
-          "next_number": "Next number",
-          "manual_entries": "Allows manual entries",
-          "is_active": "Active",
-          "extra": "Additional data",
-          "extra_free": "Free data",
-          "created_at": "Created",
-          "updated_at": "Updated"
-        },
-        "cost_center": {
-          "seq": "No.",
-          "code": "Code",
-          "name": "Description",
-          "parent_id": "Parent",
-          "kind": "Type",
-          "is_active": "Active",
-          "extra": "Additional data",
-          "extra_free": "Free data",
-          "created_at": "Created",
-          "updated_at": "Updated"
-        },
-        "open_auxiliary": {
-          "seq": "No.",
-          "code": "Code",
-          "name": "Description",
-          "parent_id": "Parent",
-          "kind": "Type",
-          "is_active": "Active",
-          "extra": "Additional data",
-          "extra_free": "Free data",
-          "created_at": "Created",
-          "updated_at": "Updated"
-        },
-        "item": {
-          "seq": "No.",
-          "code": "Code",
-          "name": "Description",
-          "parent_id": "Parent",
-          "kind": "Type",
-          "is_active": "Active",
-          "extra": "Additional data",
-          "extra_free": "Free data",
-          "created_at": "Created",
-          "updated_at": "Updated"
-        },
-        "business_unit": {
-          "seq": "No.",
-          "code": "Code",
-          "name": "Description",
-          "parent_id": "Parent",
-          "kind": "Type",
-          "is_active": "Active",
-          "extra": "Additional data",
-          "extra_free": "Free data",
-          "created_at": "Created",
-          "updated_at": "Updated"
-        }
+    "accounting": {
+      "account": {
+        "seq": "No.",
+        "code": "Code",
+        "name": "Description",
+        "parent_id": "Parent account",
+        "level": "Level",
+        "nature": "Nature",
+        "allows_movement": "Allows postings",
+        "requires_party": "Requires third party",
+        "requires_cost_center": "Requires cost center",
+        "requires_open_auxiliary": "Requires open auxiliary",
+        "requires_item": "Requires item",
+        "requires_business_unit": "Requires business unit",
+        "statement_section": "Statement section",
+        "is_opening_result": "Opening result account",
+        "is_active": "Active",
+        "access": "Security",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
       },
+      "journal": {
+        "seq": "No.",
+        "code": "Code",
+        "name": "Description",
+        "kind": "Kind",
+        "next_number": "Next number",
+        "manual_entries": "Allows manual entries",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "cost_center": {
+        "seq": "No.",
+        "code": "Code",
+        "name": "Description",
+        "parent_id": "Parent",
+        "kind": "Type",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "open_auxiliary": {
+        "seq": "No.",
+        "code": "Code",
+        "name": "Description",
+        "parent_id": "Parent",
+        "kind": "Type",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "item": {
+        "seq": "No.",
+        "code": "Code",
+        "name": "Description",
+        "parent_id": "Parent",
+        "kind": "Type",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "business_unit": {
+        "seq": "No.",
+        "code": "Code",
+        "name": "Description",
+        "parent_id": "Parent",
+        "kind": "Type",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "entry": {
+        "seq": "No.",
+        "journal_id": "Journal",
+        "number": "Number",
+        "date": "Date",
+        "period_id": "Period",
+        "status": "Status",
+        "origin": "Origin",
+        "reverse_on": "Reverse on",
+        "submitted_by": "Sent by",
+        "submitted_at": "Sent on",
+        "description": "Description",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "total_debit": "Total debit",
+        "total_credit": "Total credit",
+        "source_event_id": "Source event",
+        "posting_rule_id": "Posting rule",
+        "source_entity": "Source entity",
+        "source_record_id": "Source document",
+        "chain_id": "Causal chain",
+        "business_unit_id": "Business unit",
+        "reversal_of_id": "Reversal of",
+        "reversed_by_id": "Reversed by",
+        "is_opening": "Is opening",
+        "is_closing": "Is closing",
+        "is_auto_reversal": "Is automatic reversal",
+        "posted_at": "Posted on",
+        "posted_by": "Posted by",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
+    },
     "core": {
       "party": {
         "seq": "No.",
@@ -1242,45 +1388,45 @@
     }
   },
   "grid": {
-      "tree": {
-        "search": "Search by code or name",
-        "levels": "Open by level",
-        "level": "Open to level {n}",
-        "all": "All",
-        "node": "Node",
-        "empty": "No results",
-        "restricted": "Restricted account"
-      },
-      "master": {
-        "view": "View",
-        "table": "Table",
-        "tree": "Tree",
-        "period": "Period",
-        "no_period": "No periods",
-        "restricted_filter": "Restricted",
-        "new_account": "New auxiliary account",
-        "new_account_hint": "Select a subaccount or an auxiliary without postings to create an account under it",
-        "new": "New",
-        "balance": "Balance",
-        "result": "Result",
-        "movement": "Net movement",
-        "tree_label": "{title} tree",
-        "children_of": "Inside {node}",
-        "top_level": "Top level",
-        "dialog_account": "New auxiliary account",
-        "dialog_node": "New: {title}",
-        "under": "Under {node}",
-        "code": "Code",
-        "name": "Description",
-        "parent": "Parent",
-        "kind": "Type",
-        "active": "Active",
-        "create": "Create",
-        "cancel": "Cancel",
-        "failed": "Could not create: {reason}",
-        "created": "Created",
-        "step_up": "This action asks for your verification code"
-      },
+    "tree": {
+      "search": "Search by code or name",
+      "levels": "Open by level",
+      "level": "Open to level {n}",
+      "all": "All",
+      "node": "Node",
+      "empty": "No results",
+      "restricted": "Restricted account"
+    },
+    "master": {
+      "view": "View",
+      "table": "Table",
+      "tree": "Tree",
+      "period": "Period",
+      "no_period": "No periods",
+      "restricted_filter": "Restricted",
+      "new_account": "New auxiliary account",
+      "new_account_hint": "Select a subaccount or an auxiliary without postings to create an account under it",
+      "new": "New",
+      "balance": "Balance",
+      "result": "Result",
+      "movement": "Net movement",
+      "tree_label": "{title} tree",
+      "children_of": "Inside {node}",
+      "top_level": "Top level",
+      "dialog_account": "New auxiliary account",
+      "dialog_node": "New: {title}",
+      "under": "Under {node}",
+      "code": "Code",
+      "name": "Description",
+      "parent": "Parent",
+      "kind": "Type",
+      "active": "Active",
+      "create": "Create",
+      "cancel": "Cancel",
+      "failed": "Could not create: {reason}",
+      "created": "Created",
+      "step_up": "This action asks for your verification code"
+    },
     "empty": "No results",
     "loading": "Loading…",
     "search_placeholder": "Search…",
@@ -1414,7 +1560,9 @@
     "select_all": "Select every row on the page",
     "select_row": "Select row",
     "sort_by": "Sort by {label}",
-    "sort": { "max_levels": "At most 5 sort levels" },
+    "sort": {
+      "max_levels": "At most 5 sort levels"
+    },
     "group": {
       "group_by": "Group by",
       "aggregates": "Aggregates",
@@ -1424,8 +1572,20 @@
       "remove": "Remove grouping by {label}",
       "chip": "{level}. {label}",
       "functions": "Subtotal functions",
-      "fn": { "sum": "Σ Sum", "avg": "⌀ Average", "min": "Min", "max": "Max", "count": "# Count" },
-      "fn_mark": { "sum": "Σ", "avg": "⌀", "min": "Min", "max": "Max", "count": "#" },
+      "fn": {
+        "sum": "Σ Sum",
+        "avg": "⌀ Average",
+        "min": "Min",
+        "max": "Max",
+        "count": "# Count"
+      },
+      "fn_mark": {
+        "sum": "Σ",
+        "avg": "⌀",
+        "min": "Min",
+        "max": "Max",
+        "count": "#"
+      },
       "collapse_all": "Collapse all",
       "expand_all": "Expand all",
       "hidden_in_collapsed": "{count, plural, one {# row} other {# rows}} hidden in collapsed groups",
@@ -1568,34 +1728,34 @@
       "picked": "Selected: {label}"
     },
     "values": {
-        "account_level": {
-          "class": "Class",
-          "group": "Group",
-          "account": "Account",
-          "subaccount": "Subaccount",
-          "auxiliary": "Auxiliary"
-        },
-        "nature": {
-          "debit": "Debit",
-          "credit": "Credit"
-        },
-        "account_access": {
-          "open": "Open",
-          "restricted": "Restricted"
-        },
-        "dimension_kind": {
-          "group": "Group",
-          "leaf": "Leaf"
-        },
-        "journal_kind": {
-          "general": "General",
-          "sales": "Sales",
-          "purchases": "Purchases",
-          "receipts": "Receipts",
-          "payments": "Payments",
-          "opening": "Opening",
-          "closing": "Closing"
-        },
+      "account_level": {
+        "class": "Class",
+        "group": "Group",
+        "account": "Account",
+        "subaccount": "Subaccount",
+        "auxiliary": "Auxiliary"
+      },
+      "nature": {
+        "debit": "Debit",
+        "credit": "Credit"
+      },
+      "account_access": {
+        "open": "Open",
+        "restricted": "Restricted"
+      },
+      "dimension_kind": {
+        "group": "Group",
+        "leaf": "Leaf"
+      },
+      "journal_kind": {
+        "general": "General",
+        "sales": "Sales",
+        "purchases": "Purchases",
+        "receipts": "Receipts",
+        "payments": "Payments",
+        "opening": "Opening",
+        "closing": "Closing"
+      },
       "party_kind": {
         "customer": "Customer",
         "supplier": "Supplier",
@@ -1650,6 +1810,19 @@
         "delete": "Deleted",
         "consult": "Consulted",
         "denied": "Denied"
+      },
+      "entry_status": {
+        "draft": "Draft",
+        "pending": "To approve",
+        "posted": "Posted",
+        "reversed": "Reversed",
+        "voided": "Voided"
+      },
+      "entry_origin": {
+        "manual": "Manual",
+        "auto": "Automatic",
+        "import": "Imported",
+        "template": "Template"
       }
     },
     "record_title": {

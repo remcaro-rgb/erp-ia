@@ -9,6 +9,7 @@ describe("record entities", () => {
     expect(recordEntity("core.party")).toMatchObject({ consult: "core.party.consult", create: "core.party.create", update: "core.party.update", titleField: "legal_name" });
     expect(recordEntity("core.product")).toMatchObject({ consult: "core.product.consult", create: "core.product.create", update: "core.product.update", titleField: "description" });
     expect(recordEntity("core.product_category")).toMatchObject({ consult: "core.category.consult", create: "core.category.create", update: "core.category.update", titleField: "name" });
+    expect(recordEntity("accounting.entry")).toMatchObject({ consult: "accounting.entry.consult", create: "accounting.entry.create", update: "accounting.entry.update", titleField: "number" });
     expect(NEW_RECORD_ID).toBe("new");
   });
 

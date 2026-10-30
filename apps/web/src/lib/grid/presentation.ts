@@ -82,6 +82,17 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       journal_code: { display: "mono" },
     },
   },
+  // Comprobantes (accounting design §4.6, §8): the number names the row; a draft has none yet, so the date leads the columns after it.
+  "accounting.entry": {
+    title: "number",
+    shown: ["number", "date", "journal_id", "description", "total_debit", "status", "origin"],
+    exclude: ["extra", "extra_free"],
+    fields: {
+      number: { display: "mono" },
+      status: { valuesKey: "grid.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
+      origin: { valuesKey: "grid.values.entry_origin" },
+    },
+  },
   // Plan de cuentas (accounting design §8): the code names the row; Seguridad is the access column, restricted ones in amber.
   "accounting.account": {
     shown: ["code", "name", "level", "nature", "parent_id", "access", "allows_movement", "is_active"],

@@ -2,7 +2,8 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { CategoryForm, gridFetcher, PartyForm, ProductForm, useTabs, type FieldMode, type SaveRecord } from "@erp/ui";
+import { CategoryForm, EntryForm, gridFetcher, PartyForm, ProductForm, useTabs, type FieldMode, type SaveRecord } from "@erp/ui";
+import { lookupLineAction, runEntryAction } from "@/lib/accounting/entry-actions";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { saveRecordAction } from "@/lib/records/actions";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
@@ -41,6 +42,32 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
   const common = { record, initial: record ? null : (clone?.values ?? null), readOnly, save, requestStepUp, onSaved };
   // A new copy (or none after a save) starts the form over: the page may have been kept alive with an earlier one.
   const key = record ? record.id : clone ? `copy-${clone.handoffId}` : "new";
+  if (form.kind === "entry") {
+    const entry = form;
+    // A copy names its business unit by the label the clone read for it.
+    const copied = clone?.values.business_unit_id;
+    const labels = typeof copied === "string" && clone?.refLabels.business_unit_id ? { ...entry.labels, [copied]: clone.refLabels.business_unit_id } : entry.labels;
+    return (
+      <EntryForm
+        key={key}
+        settings={entry.settings}
+        journals={entry.journals}
+        defaultJournalId={entry.defaultJournalId}
+        userId={entry.userId}
+        can={entry.can}
+        labels={labels}
+        record={record}
+        initial={record ? null : (clone?.values ?? null)}
+        canSave={!readOnly}
+        lookup={lookupLineAction}
+        runAction={runEntryAction}
+        requestStepUp={requestStepUp}
+        save={save}
+        onSaved={onSaved}
+        onActed={() => router.refresh()}
+      />
+    );
+  }
   if (form.kind === "party") return <PartyForm key={key} {...common} tables={form.tables} modes={modes} />;
   if (form.kind === "category") return <CategoryForm key={key} {...common} tables={form.tables} productCount={form.productCount} />;
   return (

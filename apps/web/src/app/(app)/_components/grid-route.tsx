@@ -3,10 +3,11 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { loadGridPage } from "@/lib/grid/load";
-import { GridPage } from "./grid-page";
+import type { ReactNode } from "react";
+import { GridPage, type QuickFilter } from "./grid-page";
 
 /** The body of the grid page of `entity` at `href`, read as the caller; a page the caller may not open says why. */
-export async function GridRoute({ entity, href }: { entity: string; href: string }) {
+export async function GridRoute({ entity, href, quickFilters, toolbarExtra }: { entity: string; href: string; quickFilters?: readonly QuickFilter[]; toolbarExtra?: ReactNode }) {
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
   let result;
@@ -24,5 +25,5 @@ export async function GridRoute({ entity, href }: { entity: string; href: string
       </div>
     );
   }
-  return <GridPage data={result.data} />;
+  return <GridPage data={result.data} {...(quickFilters ? { quickFilters } : {})} {...(toolbarExtra ? { toolbarExtra } : {})} />;
 }

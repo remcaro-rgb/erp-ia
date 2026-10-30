@@ -96,12 +96,14 @@ describe("entry-draft", () => {
     await h.runStepUp(h.admin, "accounting.account_permission.update", {
       accountId: await accountId("5105"), access: "restricted", grants: [{ subjectKind: "role", subjectId: h.contador.roleId, canView: true, canPost: true }],
     });
-    type Consult = { id: string; status: string; total_debit: string; lines: { line_no: number; account_code: string | null; debit: string | null; is_restricted: boolean }[] };
+    type Consult = { id: string; created_by: string | null; status: string; total_debit: string; lines: { line_no: number; account_code: string | null; debit: string | null; is_restricted: boolean }[] };
     const full = await h.run<Consult>(h.contador, "accounting.entry.consult", { id });
     expect(full.lines.map((l) => [l.line_no, l.account_code, l.is_restricted])).toEqual([[1, "510506", false], [2, "111005", false]]);
     const masked = await h.run<Consult>(h.auxiliar, "accounting.entry.consult", { id });
     expect(masked.lines.map((l) => [l.line_no, l.account_code, l.debit, l.is_restricted])).toEqual([[1, null, null, true], [2, "111005", "0.0000", false]]);
     expect(masked.total_debit).toBe("100.0000");
+    // The creator rides along for the approval screen (four-eyes), though it is not a field of the entity.
+    expect(masked).toMatchObject({ created_by: h.contador.userId });
     const lines = await h.run<{ lines: { line_no: number; is_restricted: boolean }[] }>(h.auxiliar, "accounting.entry_line.consult", { entryId: id });
     expect(lines.lines.map((l) => [l.line_no, l.is_restricted])).toEqual([[1, true], [2, false]]);
     await expect(h.run(h.contador, "accounting.entry.consult", { id: newId() })).rejects.toMatchObject({ code: "not_found" });

@@ -24,6 +24,7 @@ import { buildColumns } from "@/lib/grid/columns";
 import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
+import { loadEntryForm, type EntryFormData } from "@/lib/accounting/entry-load";
 import { loadContributedTabs, type LoadedContribution } from "./contributed-load";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
 import { partyTables, productTables } from "./tables";
@@ -41,7 +42,8 @@ export type FormData =
       categories: CategoryOption[];
       supplier: { fields: GridColumn[]; label: string | null; entityLabel: string; linkable: boolean };
     }
-  | { kind: "category"; tables: ProductTables; productCount: number };
+  | { kind: "category"; tables: ProductTables; productCount: number }
+  | ({ kind: "entry" } & EntryFormData);
 
 /** What the caller may do on the record's tabs: each flag is the process (and, for files, the owner's update) they may run. */
 export interface RecordAbilities {
@@ -187,6 +189,7 @@ export async function refLabelsOf(caller: Caller, entity: EntityDef, values: Rec
 async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"]): Promise<FormData> {
   const locale = await getLocale();
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
+  if (entity.id === "accounting.entry") return { kind: "entry", ...(await loadEntryForm(caller, record)) };
   if (entity.id === "core.product_category") {
     const products = record
       ? await gridRows(caller, "core.product", { filters: [{ field: "category_id", op: "eq", value: record.id }], sort: [], page: 1, pageSize: 1, columns: ["seq"] })

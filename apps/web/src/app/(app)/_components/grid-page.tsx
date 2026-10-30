@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { DataGrid, decodeGridQuery, defaultView, ImportDialog, ImportIcon, partyKindFilters, PartyScopeSwitches, useTabs, viewFromSaved, type GridRow, type PartySwitches, type SavedGridState } from "@erp/ui";
@@ -9,19 +9,34 @@ import { deleteViewAction, saveViewAction } from "@/lib/grid/actions";
 import type { GridPageData } from "@/lib/grid/load";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
 
+/** A toggle that narrows the grid (Hoy, Borradores…); one per group is on at a time, and the groups combine with AND. */
+export interface QuickFilter {
+  id: string;
+  group: string;
+  label: string;
+  filters: { field: string; op: "eq" | "between"; value: string; value2?: string }[];
+}
+
 /**
  * A grid page (design §9, §19a): no page title (the grid header names the entity), "Nuevo" and "Importar" (the import
  * dialog, for callers who may import) next to the grid's own buttons, the party switches on Terceros, saved views,
  * and a record opening in its own tab.
  */
-export function GridPage({ data }: { data: GridPageData }) {
+export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { data: GridPageData; quickFilters?: readonly QuickFilter[]; toolbarExtra?: ReactNode }) {
   const t = useTranslations();
   const open = useTabs((s) => s.open);
   const searchParams = useSearchParams();
   const [views, setViews] = useState(data.views);
   const [switches, setSwitches] = useState<PartySwitches>({ customers: true, suppliers: true });
   const [importing, setImporting] = useState(false);
-  const baseFilters = useMemo(() => (data.partyScope ? partyKindFilters(data.partyScope, switches) : []), [data.partyScope, switches]);
+  const [quick, setQuick] = useState<Record<string, string>>({});
+  const baseFilters = useMemo(
+    () => [
+      ...(data.partyScope ? partyKindFilters(data.partyScope, switches) : []),
+      ...quickFilters.filter((q) => quick[q.group] === q.id).flatMap((q) => q.filters),
+    ],
+    [data.partyScope, switches, quick, quickFilters],
+  );
   // The assistant's "Abrir como grid" lands here with ?q=<the query>: the grid starts from it (what the caller may not
   // filter or sort on is dropped by viewFromSaved); otherwise from the user's default view.
   const query = searchParams.get("q");
@@ -70,6 +85,25 @@ export function GridPage({ data }: { data: GridPageData }) {
               <button type="button" className="erp-btn erp-btn--primary" onClick={openNew}>
                 {t("grid.new")}
               </button>
+            )}
+            {toolbarExtra}
+            {quickFilters.length > 0 && (
+              <span className="erp-row" role="group" aria-label={t("common.entry.grid.filters")}>
+                {quickFilters.map((q) => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    className="erp-btn"
+                    aria-pressed={quick[q.group] === q.id}
+                    onClick={() => setQuick((current) => {
+                      const { [q.group]: on, ...rest } = current;
+                      return on === q.id ? rest : { ...rest, [q.group]: q.id };
+                    })}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </span>
             )}
             {data.canImport && (
               <button type="button" className="erp-btn" onClick={() => setImporting(true)}>

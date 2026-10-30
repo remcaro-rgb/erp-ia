@@ -25,6 +25,16 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
     titleField: "name",
     nounKey: "nav.create.core.category",
   },
+  // Comprobantes (accounting design §4.6, §8): the header and the lines are one record, saved by the draft processes; the number
+  // is assigned on posting, so a draft has none yet.
+  {
+    id: "accounting.entry",
+    consult: "accounting.entry.consult",
+    create: "accounting.entry.create",
+    update: "accounting.entry.update",
+    titleField: "number",
+    nounKey: "nav.create.accounting.entry",
+  },
 ];
 
 /** The id of a record not created yet: `/r/<entity>/new` opens the empty form. */

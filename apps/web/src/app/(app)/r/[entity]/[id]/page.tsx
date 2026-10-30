@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
+import { OriginTab } from "@erp/ui";
 import { loadRecord } from "@/lib/records/load";
 import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
@@ -83,6 +84,14 @@ async function RecordView({ params }: { params: Params }) {
     archivos: { content: <FilesPanel entity={entity.id} recordId={record.id} requiredTags={requiredTags} attachments={attachments} can={can} /> },
   };
 
+  // A comprobante also tells where it came from (accounting design §8).
+  if (form.kind === "entry" && form.origin) {
+    const o = form.origin;
+    content.origen = {
+      content: <OriginTab origin={o.origin} source={o.source} event={o.event} rule={o.rule} reversalOf={o.reversalOf} reversedBy={o.reversedBy} chainId={o.chainId} timeline={o.timeline} />,
+    };
+  }
+
   // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
   for (const tab of contributed) {
     content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
@@ -95,7 +104,7 @@ async function RecordView({ params }: { params: Params }) {
         recordId={record.id}
         canDuplicate={can.duplicate}
         newTitle={newTitle}
-        title={String(record[entity.titleField] ?? record.id)}
+        title={record[entity.titleField] ? String(record[entity.titleField]) : form.kind === "entry" ? t("common.entry.draft_title") : record.id}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
         deepLinkHref={recordHref(entity.id, record.id)}
@@ -117,6 +126,7 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
       mensajes: t("common.record.tabs.mensajes"),
       extra: t("common.record.tabs.extra"),
       archivos: t("common.record.tabs.archivos"),
+      origen: t("common.record.tabs.origen"),
     },
     number: t("common.record.number"),
     uuid: t("common.record.uuid"),

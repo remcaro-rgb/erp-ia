@@ -671,6 +671,39 @@
   .erp-modbar-menu button[aria-current="page"] { background: var(--accent); font-weight: 600; }
   @media (max-width: 760px) { .erp-modbar-menu { position: fixed; left: 8px; right: 8px; top: 48px; min-width: 0; } }
 
+  /* The lines of a comprobante (accounting design §4.7, §8): 36 px rows, the lookup list under the focused cell, totals in the footer. */
+  .erp-lines { display: flex; flex-direction: column; gap: 8px; }
+  .erp-lines__scroll { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  /* The lookup list hangs below its cell, so the box scrolls sideways only where the columns do not fit. */
+  @media (max-width: 1100px) { .erp-lines__scroll { overflow-x: auto; } }
+  .erp-lines__table { width: 100%; border-collapse: collapse; }
+  .erp-lines__table th { height: 32px; padding: 0 8px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .erp-lines__table td { height: 36px; padding: 0 4px; border-bottom: 1px solid var(--line-2); font-size: 13px; vertical-align: middle; }
+  .erp-lines__table th.erp-num, .erp-lines__table td.erp-num { text-align: right; }
+  .erp-lines__table input { width: 100%; min-width: 120px; height: 30px; padding: 0 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text); font-size: 13px; }
+  .erp-lines__table input:hover:not(:disabled) { border-color: var(--line); }
+  .erp-lines__table input:focus { outline: 2px solid var(--focus-ring); outline-offset: 0; background: var(--surface); }
+  .erp-lines__table input.erp-lines__inherit::placeholder { color: var(--text-muted); font-style: italic; opacity: 1; }
+  .erp-lines__table td.erp-num input { text-align: right; font-variant-numeric: tabular-nums; }
+  .erp-lines__no { width: 32px; text-align: center; }
+  .erp-lines__act { width: 32px; }
+  .erp-lines__masked { color: var(--text-muted); letter-spacing: 2px; }
+  .erp-lines__lookup { position: relative; }
+  .erp-lines__list { position: absolute; z-index: 20; top: 100%; left: 0; min-width: 100%; width: max-content; max-width: 420px; margin: 2px 0 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); }
+  .erp-lines__list li { padding: 6px 8px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .erp-lines__list li.is-active, .erp-lines__list li:hover { background: var(--head); }
+  .erp-lines__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 4px 4px 0; font-size: 13px; }
+  .erp-lines__foot .erp-num { font-variant-numeric: tabular-nums; }
+  .erp-lines__diff.is-bad b { color: var(--danger); }
+  .erp-entry-status { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .erp-entry-status__reason input { min-width: 260px; }
+  .erp-origin { display: flex; flex-direction: column; gap: 12px; padding: 4px 0; }
+  .erp-origin__facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+  .erp-origin__facts dt { color: var(--text-muted); font-size: 12px; }
+  .erp-origin__facts dd { margin: 0; }
+  .erp-origin__title { margin: 8px 0 0; font-size: 13px; font-weight: 600; }
+  .erp-origin__timeline { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
   /* No blink, slide or fade for readers who ask for reduced motion (WCAG 2.3.3); globals.css shortens the rest. */
   @media (prefers-reduced-motion: reduce) { .erp-typing i { animation: none; opacity: 1; } .erp-toggle, .erp-toggle::after, .erp-drop, .erp-photos__drop, .erp-attachments__drop { transition: none; } }
 }
