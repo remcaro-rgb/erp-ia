@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
-    "@workflow/vitest": "^5.0.6"
+    "@workflow/vitest": "^5.0.6",
+    "fast-check": "^4.10.2"
   }
 }

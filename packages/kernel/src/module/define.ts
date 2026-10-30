@@ -1,4 +1,6 @@
 import { ENTITY_ID } from "../registry/fields";
+import { ACCOUNT_ROLES } from "../posting/roles";
+import { RuleTemplate } from "../posting/template";
 import type { ModuleDef, NavItem } from "../registry/types";
 
 export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, ModuleDef, NavItem } from "../registry/types";
@@ -82,6 +84,15 @@ export function defineModule(def: ModuleDef): ModuleDef {
     if (providerIds.has(provider.id)) throw new Error(`duplicate KPI provider ${provider.id} in module ${def.id}`);
     providerIds.add(provider.id);
     if (!featureIds.has(provider.feature)) throw new Error(`KPI provider ${provider.id} names feature ${provider.feature}, which module ${def.id} does not declare`);
+  }
+
+  const roles = new Set<string>([...ACCOUNT_ROLES, ...(def.accountRoles ?? [])]);
+  for (const rule of def.postingRules ?? []) {
+    const parsed = RuleTemplate.safeParse(rule.template);
+    if (!parsed.success) throw new Error(`posting rule "${rule.name}" of module ${def.id} has an invalid template: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+    for (const line of parsed.data.lines) {
+      if (line.role && !roles.has(line.role)) throw new Error(`posting rule "${rule.name}" of module ${def.id} names role ${line.role}, which is neither in the catalogue nor in accountRoles`);
+    }
   }
   return def;
 }

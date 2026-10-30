@@ -4,6 +4,7 @@ import type { Sql } from "postgres";
 import type { ProcessContext } from "../process/context";
 import type { Origin } from "../audit/audit";
 import type { EntityDef } from "./entities";
+import type { DefaultPostingRule, PostingProvider } from "../posting/provider";
 
 export type ProcessKind = "create" | "update" | "delete" | "consult";
 
@@ -179,5 +180,11 @@ export interface ModuleDef {
   recordTabs?: RecordTabContribution[];
   /** Reports the module ships (design §9): a parameter bar over a consult process. */
   reports?: ReportDef[];
+  /** Receives the posting engine's composed entries (design §5.1); at most one module provides it. */
+  postingProvider?: PostingProvider;
+  /** Posting rules the module ships for its events (design §5.4). */
+  postingRules?: DefaultPostingRule[];
+  /** Account roles the module adds to the kernel catalogue; the country pack must map them. */
+  accountRoles?: string[];
   migrationsDir?: string;
 }
