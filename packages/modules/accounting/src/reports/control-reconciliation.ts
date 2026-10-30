@@ -17,7 +17,9 @@ export interface PartyDifference {
 export interface SideControl {
   ledger: number;
   open: number;
-  /** Parties (per account) whose ledger balance and open items differ by more than the tolerance. */
+  /** Every party (per account) with a ledger balance or open items. */
+  parties: PartyDifference[];
+  /** Those whose ledger balance and open items differ by more than the tolerance. */
   differences: PartyDifference[];
 }
 
@@ -79,7 +81,9 @@ export async function controlReconciliation(ctx: ProcessContext, asOf: string, f
       order by l.code, l.party_id`;
     const build = (receivable: boolean): SideControl => {
       const own = rows.filter((r) => r.is_receivable === receivable);
+      const all = own.map((r) => ({ accountId: r.account_id, accountCode: r.code, partyId: r.party_id, ledger: num(r.balance), open: num(r.open) }));
       return {
+        parties: all,
         ledger: own.reduce((sum, r) => sum + num(r.balance), 0),
         open: own.reduce((sum, r) => sum + num(r.open), 0),
         differences: own

@@ -4,6 +4,7 @@ import { ACCOUNT_PROCESSES } from "./account";
 import { CHART_PROCESSES } from "./chart";
 import { DIMENSION_PROCESSES } from "./dimension";
 import { ENTRY_PROCESSES } from "./entry";
+import { EXOGENA_XML_PROCESSES } from "./exogena-xml";
 import { ENTRY_POST_PROCESSES } from "./entry-post";
 import { CONCEPT_MAPPING_PROCESSES } from "./concept-mapping";
 import { FISCAL_YEAR_PROCESSES } from "./fiscal-year";
@@ -40,4 +41,5 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...PERIOD_PROCESSES,
   ...YEAR_PROCESSES,
   ...REPORT_PROCESSES,
+  ...EXOGENA_XML_PROCESSES,
 ];
