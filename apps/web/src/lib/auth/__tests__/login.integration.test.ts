@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../../../../test-support/auth-fixtures";
+import { enrolTotp, removeTotpFactors, seedAuthUser, totpCode, type AuthFixture } from "../../../../test-support/auth-fixtures";
 import { MemoryJar } from "../../../../test-support/memory-jar";
 
 const state = vi.hoisted(() => ({ jar: undefined as unknown }));
@@ -206,6 +206,36 @@ describe("a user who enrolled TOTP is asked for it whatever their role", () => {
     expect((await loginAudit(fixture)).at(-1)).toMatchObject({ origin: "ui", input: { remember: true, mfa: "totp" } });
     // The second step's session keeps the 30-day mode.
     for (const [, cookie] of sessionCookies(jar)) expect(cookie.options.maxAge).toBe(THIRTY_DAYS);
+  });
+});
+
+describe("a session whose second-step factor was removed (design §22.19)", () => {
+  let fixture: AuthFixture;
+  let secret: string;
+  beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "member" });
+    secret = await enrolTotp(fixture);
+  });
+  afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  it("is signed out by the proxy while its token still claims the factor, and lands on the sign-in notice", async () => {
+    const jar = new MemoryJar();
+    state.jar = jar;
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/mfa/verify" });
+    expect(await completeMfa(jar, { code: totpCode(secret) })).toEqual({ ok: true, next: "/" });
+    const ok = await proxy(requestWith(jar, "/parties"));
+    expect(ok.headers.get("location")).toBeNull();
+
+    // The factor goes through the Auth admin API alone (no session revoked): the token still says mfa_enrolled.
+    await removeTotpFactors(fixture.admin, fixture.userId);
+    const response = await proxy(requestWith(jar, "/parties"));
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname + location.search).toBe("/login?notice=mfa_disabled");
+    const cleared = response.cookies.getAll().filter((c) => /^sb-.*-auth-token/.test(c.name));
+    expect(cleared.length).toBeGreaterThan(0);
+    for (const cookie of cleared) expect(cookie.value).toBe("");
   });
 });
 

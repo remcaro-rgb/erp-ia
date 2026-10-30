@@ -1,12 +1,20 @@
 import type { Sql } from "postgres";
 import type { AuthAdmin } from "@erp/infra";
+import { revokeUserSessions } from "../users/sessions";
 
 /**
  * Test double of the identity provider's admin API: an invitation inserts the Auth user straight into `auth.users`
- * (kernel.users references it) and is recorded in `invited`; no e-mail leaves. `cleanup` removes what it created.
+ * (kernel.users references it) and is recorded in `invited`; no e-mail leaves. Removing a user's factors deletes their
+ * TOTP rows of `auth.mfa_factors` (what the access-token hook reads) and records the user in `deletedFactorsOf`; ending
+ * their sessions deletes their rows of `auth.refresh_tokens` and `auth.sessions` and records them in `signedOut`.
+ * `cleanup` removes what it created.
  */
 export class DbAuthAdmin implements AuthAdmin {
   readonly invited: string[] = [];
+  /** The users whose factors were removed, one entry per call. */
+  readonly deletedFactorsOf: string[] = [];
+  /** The users whose sessions were ended, one entry per call. */
+  readonly signedOut: string[] = [];
   private readonly created: string[] = [];
 
   constructor(private readonly sql: Sql) {}
@@ -23,6 +31,18 @@ export class DbAuthAdmin implements AuthAdmin {
   async getUserByEmail(email: string): Promise<{ id: string } | null> {
     const [row] = await this.sql<{ id: string }[]>`select id from auth.users where lower(email) = lower(${email}) limit 1`;
     return row ? { id: row.id } : null;
+  }
+
+  async deleteFactors(userId: string): Promise<number> {
+    const removed = await this.sql`delete from auth.mfa_factors where user_id = ${userId} and factor_type = 'totp' returning id`;
+    this.deletedFactorsOf.push(userId);
+    return removed.length;
+  }
+
+  /** Ends the user's sessions as the server does (the kernel's `revokeUserSessions`) and records the call. */
+  async signOutUser(userId: string): Promise<void> {
+    await revokeUserSessions(this.sql, userId);
+    this.signedOut.push(userId);
   }
 
   /** Deletes the users it invited, with their memberships. */

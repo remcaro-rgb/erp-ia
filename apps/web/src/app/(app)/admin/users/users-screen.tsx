@@ -65,7 +65,14 @@ export function UsersScreen({ data }: { data: UsersData }) {
                   ))}
                 </td>
                 <td>
-                  <span className={`erp-pill erp-pill--${member.mfaEnrolled ? "ok" : "warn"}`}>{member.mfaEnrolled ? t("common.admin.users.mfa_on") : t("common.admin.users.mfa_off")}</span>
+                  {/* Exempt and without a factor (design §22.19): nothing is pending for them. */}
+                  {member.mfaEnrolled ? (
+                    <span className="erp-pill erp-pill--ok">{t("common.admin.users.mfa_on")}</span>
+                  ) : member.mfaExempt ? (
+                    <span className="erp-pill erp-pill--info">{t("common.admin.users.mfa_exempt")}</span>
+                  ) : (
+                    <span className="erp-pill erp-pill--warn">{t("common.admin.users.mfa_off")}</span>
+                  )}
                 </td>
                 <td>
                   <span className={`erp-pill erp-pill--${member.isActive ? "ok" : "gray"}`}>{member.isActive ? t("common.admin.users.active") : t("common.admin.users.inactive")}</span>

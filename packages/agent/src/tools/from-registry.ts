@@ -15,14 +15,16 @@ export const processIdOfTool = (name: string): string => name.replaceAll("__", "
 
 /**
  * Registered processes never offered in a chat, with the reason. Each needs something only its screen provides: an
- * uploaded file, or a background job that the screen's route starts after the process committed (a chat run would
- * leave the job queued forever).
+ * uploaded file, a background job that the screen's route starts after the process committed (a chat run would
+ * leave the job queued forever), or the sign-out and notice that follow the removal of a second-step factor.
  */
 export const EXCLUDED_PROCESSES: ReadonlyMap<string, string> = new Map([
   ["kernel.export.run", "creates a queued export job that only the export route starts; the chat cannot hand over the file"],
   ["kernel.import.run", "needs the uploaded file, which the import route stores and then starts the import workflow"],
   ["kernel.import.preview", "validates an uploaded file the chat does not have"],
   ["kernel.attachment.add", "records a file already stored by the attachments route; the chat uploads none"],
+  ["kernel.user.mfa.disable", "removing the caller's factor must end their session with the sign-in notice; the user menu handles the sign-out and the notice, the chat cannot"],
+  ["kernel.admin.user.mfa.set", "removing a factor must be followed by the sign-out and the notice; the user page handles them (the admin's own factor included), the chat cannot"],
 ]);
 
 /**

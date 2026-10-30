@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { ENROLL_HREF } from "../forms/StepUpPrompt";
 
 export interface StepUpFieldProps {
   /** The one-time token once the code is verified; `null` when the code changes or the attempt fails. */
@@ -102,6 +103,15 @@ export function StepUpField({ onToken, fetcher, endpoint = "/api/auth/step-up", 
       {failure && (
         <span role="alert" className="erp-field__error">
           {t(`agent.ui.stepup.${failure}`)}
+          {/* No second step (design §22.19): the way to turn it on. */}
+          {failure === "no_factor" && (
+            <>
+              {" "}
+              <a className="erp-link erp-link--inline" href={ENROLL_HREF}>
+                {t("process.step_up.enroll")}
+              </a>
+            </>
+          )}
         </span>
       )}
     </div>

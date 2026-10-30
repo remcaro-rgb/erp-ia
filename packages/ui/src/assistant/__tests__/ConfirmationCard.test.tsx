@@ -67,6 +67,15 @@ describe("ConfirmationCard", () => {
     expect(onDecide).toHaveBeenCalledWith("confirm", "tok-123");
   });
 
+  it("with stepUp and no second step, the card says to activate it from the user menu and links to /mfa/enroll", async () => {
+    const fetcher = vi.fn(async () => json({ code: "no_factor" }, 409));
+    renderEs(<ConfirmationCard processId="p" preview={{ ...preview, stepUp: true }} onDecide={vi.fn()} fetcher={fetcher as unknown as typeof fetch} />);
+    fireEvent.change(screen.getByLabelText("Código de verificación"), { target: { value: "123456" } });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción");
+    expect(screen.getByRole("link", { name: "Activarla ahora" }).getAttribute("href")).toBe("/mfa/enroll");
+  });
+
   it("the token is single use: after a confirm (refused or not) the next attempt asks for a fresh code", async () => {
     const onDecide = vi.fn();
     const fetcher = vi.fn(async () => json({ token: "tok-1" }));

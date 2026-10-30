@@ -4,7 +4,8 @@ routes:
   - /login
   - /mfa/verify
   - /mfa/enroll
-processes: []
+processes:
+  - kernel.user.mfa.disable
 ---
 
 # Ingresar y verificación en dos pasos
@@ -48,7 +49,34 @@ Si el administrador exige la verificación en dos pasos a tu rol y aún no la ti
 3. Escribe el primer código de 6 dígitos que muestra la app.
 4. Al verificarlo, la verificación queda activa y entras a **Inicio**.
 
-Guarda bien tu app: desde ahora la necesitarás en cada ingreso. Una cuenta que ya tiene la verificación activada no puede volver a registrar otra app por su cuenta (primero tiene que verificar la que tiene); si perdiste tu celular, pide ayuda al administrador de tu empresa.
+Guarda bien tu app: desde ahora la necesitarás en cada ingreso. Una cuenta que ya tiene la verificación activada no puede volver a registrar otra app por su cuenta (primero tiene que verificar la que tiene); si perdiste tu celular, pide al administrador de tu empresa que **quite tu segundo paso** (ver «Administración de la empresa»): vuelves a entrar con tu contraseña y registras la app nueva.
+
+### Activarla por tu cuenta
+
+Aunque tu rol no la exija, puedes activar la verificación cuando quieras:
+
+1. Abre el menú de tu usuario (el círculo con tus iniciales, arriba a la derecha) y elige **Verificación en dos pasos**. El cuadro dice **Estado: No configurada**.
+2. Pulsa **Activar**. Ves la misma pantalla de activación de arriba: escanea el QR (o escribe la **Clave**) y escribe el primer código.
+3. Al verificarlo vuelves a **Inicio**. Desde ese momento cada ingreso te pide el código.
+
+Si cambias de idea antes de escribir el código, pulsa **Omitir por ahora**: vuelves a la aplicación sin activarla. Ese enlace solo aparece cuando tu rol no exige la verificación.
+
+## Desactivar la verificación en dos pasos
+
+Si tu rol no la exige, puedes desactivarla:
+
+1. Abre el menú de tu usuario y elige **Verificación en dos pasos**. El cuadro dice **Estado: Activa**.
+2. Pulsa **Desactivar**. Como es una acción sensible, el cuadro te pide un código **nuevo** de tu app: escríbelo (al sexto dígito se envía solo).
+3. La verificación queda desactivada y tus sesiones abiertas se cierran, también en otros navegadores o equipos. La página de ingreso te dice «Segundo paso desactivado. Vuelve a ingresar con tu contraseña.»
+4. Desde ahora entras solo con tu correo y tu contraseña.
+
+Si tu rol exige la verificación en dos pasos (por ejemplo, el rol admin), el cuadro dice «Tu rol exige la verificación en dos pasos, así que no puedes desactivarla. Si necesitas hacerlo, pídele a un administrador que te exima.» y el botón **Desactivar** aparece apagado. Si un administrador te eximió, el cuadro lo indica y puedes desactivarla como cualquier otra persona.
+
+El asistente no la desactiva: se hace solo desde tu menú de usuario.
+
+### Qué pasa con las acciones sensibles
+
+Sin la verificación en dos pasos no puedes confirmar acciones sensibles (las de administración, importar datos y las que el administrador marque): no tienes de dónde sacar el código. Si intentas una, aparece el cuadro **Verificación requerida**; al enviar un código, el cuadro te dice «Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.» con el enlace **Activarla ahora**, que te lleva a la pantalla de activación. **Cancelar** (o **Esc**) cierra el cuadro sin hacer la acción. Cuando la activas de nuevo, las acciones sensibles vuelven a funcionar con tu código.
 
 ## Confirmar una acción sensible
 
@@ -65,7 +93,7 @@ Detalles que conviene conocer:
 - La verificación vale **5 minutos** y se usa **una sola vez**: la acción que la consume queda confirmada; la siguiente acción sensible pide un código nuevo.
 - La verificación queda ligada a tu usuario y a la empresa en la que estás trabajando; nadie más puede usarla.
 - Si el código no es válido ves «El código no es válido. Inténtalo de nuevo.». También hay un límite de intentos por usuario (10 en 5 minutos).
-- Para confirmar una acción sensible necesitas tener la verificación en dos pasos activada.
+- Para confirmar una acción sensible necesitas tener la verificación en dos pasos activada (ver «Qué pasa con las acciones sensibles»).
 
 ## Salir
 

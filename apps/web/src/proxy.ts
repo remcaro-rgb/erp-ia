@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { companyMove, mfaStep, readSession, redirectPathFor, type SessionState } from "@/lib/auth/claims";
 import { LOCALE_HEADER } from "@/i18n/constants";
+import { MFA_DISABLED_LOGIN } from "@/lib/auth/notices";
 import { type CookieJar, type CookieOptions } from "@/lib/supabase/cookies";
 import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 
@@ -10,6 +11,7 @@ import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 //  2. Lets only the sign-in surface through without a session: /login, /mfa/*, /api/auth/* (assets are not matched).
 //  3. Holds a session back until its MFA is complete: a verified TOTP factor with aal1 goes to /mfa/verify; a
 //     role that requires MFA (hook claim) without a factor goes to /mfa/enroll.
+//  3a. Signs out a session whose token still claims a second-step factor the user no longer has (design §22.19).
 //  3b. Settles an automatic company move the access token hook made on a renewal (lib/auth/inactive.ts).
 //  4. Hands the user's locale to the render as the `x-erp-locale` request header (the i18n layer reads it);
 //     a header of that name sent by the client is always discarded, so only a verified claim can set it.
@@ -78,6 +80,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   if (!state) return isApi ? deny("unauthenticated") : redirectTo(redirectPathFor("no_session"));
+  // A token issued before the user's factor was removed (design §22.19): signed out here, the sign-in page says why.
+  // Only a token that claims a factor costs the lookup.
+  if (state.mfaEnrolled) {
+    const { factorRemoved } = await import("@/lib/auth/factor-gone");
+    if (await factorRemoved(state)) {
+      await supabase.auth.signOut({ scope: "local" });
+      return isApi ? deny("unauthenticated") : redirectTo(MFA_DISABLED_LOGIN);
+    }
+  }
   const step = mfaStep(state);
   if (step === "verify") return isApi ? deny("mfa_required") : redirectTo(redirectPathFor("mfa_required"));
   if (step === "enroll") return isApi ? deny("mfa_enrollment_required") : redirectTo(redirectPathFor("mfa_enrollment_required"));

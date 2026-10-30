@@ -3,7 +3,7 @@ import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "../test-support/streamed";
 import postgres from "postgres";
 import { DEMO_COMPANY_ID, LAURA, MARCELA } from "../../../scripts/demo/accounts";
-import { enrolTotp, seedAuthUser, totpCode, type AuthFixture } from "../test-support/auth-fixtures";
+import { adminClient, enrolTotp, removeTotpFactors, seedAuthUser, totpCode, verifiedTotpCount, type AuthFixture } from "../test-support/auth-fixtures";
 import { testEnv } from "../test-support/env";
 
 // Administration in a real browser (design §6, prototype v5 "Administración"): the admin creates a role, assigns a
@@ -526,5 +526,159 @@ test.describe("editable users on the demo company", () => {
     await expect(page.getByRole("region", { name: "Marcela Rojas" }).getByRole("button", { name: "Desactivar" })).toBeVisible();
     await signIn(marcela, MARCELA.email, MARCELA.password);
     await marcelaContext.close();
+  });
+});
+
+// Design §22.19: the admin removes a user's second step ("Quitar segundo paso", step-up) and exempts a holder of the admin
+// role from the role's requirement ("Exento del segundo paso", step-up), both through kernel.admin.user.mfa.set. On the
+// demo company Laura removes Marcela's factor (the session Marcela had open ends; she signs in with her password only) and
+// exempts herself.
+test.describe("the second step of the demo users", () => {
+  const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
+  const admin = adminClient();
+  let marcelaId = "";
+  /** As the seed leaves them: Marcela has no factor and nobody of the demo company is exempt. */
+  const restoreSeed = async () => {
+    await removeTotpFactors(admin, marcelaId);
+    await sql`update kernel.memberships set mfa_exempt = false where company_id = ${DEMO_COMPANY_ID}`;
+  };
+  test.beforeAll(async () => {
+    marcelaId = (await sql<{ id: string }[]>`select id from kernel.users where email = ${MARCELA.email}`)[0]!.id;
+    await restoreSeed();
+  });
+  test.afterAll(async () => {
+    await restoreSeed();
+    await sql.end({ timeout: 5 });
+  });
+
+  test("Laura removes Marcela's factor so she signs in with her password only, and exempts herself", async ({ page, browser }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const marcelaSecret = await enrolTotp(MARCELA);
+    expect(marcelaSecret.length).toBeGreaterThan(10);
+    // Marcela is working in another browser, signed in with her code, before Laura removes her factor.
+    const marcelaOpen = await browser.newContext();
+    const marcelaBefore = await marcelaOpen.newPage();
+    await signInWithCode(marcelaBefore, MARCELA.email, MARCELA.password, marcelaSecret);
+    await marcelaBefore.goto("/parties");
+    await expect(marcelaBefore).toHaveURL(/\/parties$/);
+    await signInWithCode(page, LAURA.email, LAURA.password, LAURA.totpSecret!);
+
+    await page.goto("/admin/users");
+    await expect(page.getByRole("row", { name: /Marcela Rojas/ })).toContainText("activo");
+    await page.getByRole("row", { name: /Marcela Rojas/ }).getByRole("link", { name: "Marcela Rojas" }).click();
+    const user = page.getByRole("region", { name: "Marcela Rojas" });
+    await expect(user).toContainText("Activa");
+    // A cashier holds no admin role: nothing to exempt her from.
+    await expect(user.getByRole("switch", { name: "Exento del segundo paso" })).toHaveCount(0);
+    await user.getByRole("button", { name: "Quitar segundo paso" }).click();
+    const confirm = page.getByRole("dialog", { name: "¿Quitar el segundo paso de Marcela Rojas?" });
+    await expect(confirm).toContainText("Marcela Rojas entrará solo con su contraseña");
+    await confirm.getByRole("button", { name: "Quitar segundo paso" }).click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(confirm).toBeHidden();
+    // Laura's own session goes on: the page shows the new state.
+    await expect(user).toContainText("No configurada");
+    await expect(user.getByRole("button", { name: "Quitar segundo paso" })).toHaveCount(0);
+    expect(await verifiedTotpCount(admin, marcelaId)).toBe(0);
+
+    // Removing the factor ended every session of Marcela's: the page she had open, reloaded, lands on the sign-in.
+    await marcelaBefore.reload();
+    await expect(marcelaBefore).toHaveURL(/\/login(\?|$)/);
+    await marcelaOpen.close();
+
+    // Marcela's next sign-in is her password only.
+    const marcelaContext = await browser.newContext();
+    await signIn(await marcelaContext.newPage(), MARCELA.email, MARCELA.password);
+    await marcelaContext.close();
+
+    // Laura's own page: she holds the admin role, so the exemption switch is there; it asks for the code.
+    await page.goto("/admin/users");
+    await page.getByRole("row", { name: /Laura Méndez/ }).getByRole("link", { name: "Laura Méndez" }).click();
+    const own = page.getByRole("region", { name: "Laura Méndez" });
+    const exempt = own.getByRole("switch", { name: "Exento del segundo paso" });
+    await expect(exempt).toHaveAttribute("aria-checked", "false");
+    await exempt.click();
+    await confirmStepUp(page, LAURA.totpSecret!);
+    await expect(own.getByRole("status")).toHaveText("Cambios guardados");
+    await expect(exempt).toHaveAttribute("aria-checked", "true");
+    await expect(own.locator(".erp-pill", { hasText: "exenta" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("region", { name: "Laura Méndez" }).getByRole("switch", { name: "Exento del segundo paso" })).toHaveAttribute("aria-checked", "true");
+    await expect
+      .poll(async () => (await sql`select m.mfa_exempt from kernel.memberships m join kernel.users u on u.id = m.user_id where u.email = ${LAURA.email} and m.company_id = ${DEMO_COMPANY_ID}`)[0]?.mfa_exempt)
+      .toBe(true);
+  });
+});
+
+// Review Focus 3: after a reset, the next sign-in asks for enrolment while the requirement still applies (an admin who is
+// not exempt), and is password only once the admin exempts them.
+test.describe("an admin resets another admin's second step", () => {
+  let fixture: AuthFixture;
+  let secret: string;
+  let companyId: string;
+  const rosa = { email: `rosa-${randomUUID().slice(0, 8)}@test.local`, password: `pw-${randomUUID()}`, id: "" };
+
+  test.beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "admin" });
+    secret = await enrolTotp(fixture);
+    companyId = fixture.companyIds[0]!;
+    const { sql } = fixture;
+    const [adminRole] = await sql<{ id: string }[]>`select id from kernel.roles where company_id = ${companyId} and name = 'admin'`;
+    await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${adminRole!.id}, 'kernel.admin.user.mfa.set')`;
+    // A second admin of the company, with her own second step.
+    const { data, error } = await fixture.admin.auth.admin.createUser({ email: rosa.email, password: rosa.password, email_confirm: true });
+    if (error || !data.user) throw new Error(`could not create rosa: ${error?.message}`);
+    rosa.id = data.user.id;
+    await sql`insert into kernel.users(id, email, full_name) values (${rosa.id}, ${rosa.email}, 'Rosa Pardo')`;
+    const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${rosa.id}, ${companyId}) returning id`;
+    await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${adminRole!.id})`;
+    await enrolTotp(rosa);
+  });
+
+  test.afterAll(async () => {
+    const { sql } = fixture;
+    await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where user_id = ${rosa.id})`;
+    await sql`delete from kernel.memberships where user_id = ${rosa.id}`;
+    await sql`delete from kernel.user_prefs where user_id = ${rosa.id}`;
+    await sql`delete from kernel.step_up_verifications where company_id = ${companyId}`;
+    await sql`delete from kernel.process_permissions where company_id = ${companyId}`;
+    await sql`delete from kernel.users where id = ${rosa.id}`;
+    await fixture.admin.auth.admin.deleteUser(rosa.id);
+    await fixture.cleanup();
+  });
+
+  test("Rosa enrols again at her next sign-in, and signs in with her password only once exempt", async ({ page, browser }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signInWithCode(page, fixture.email, fixture.password, secret);
+    await page.goto(`/admin/users/${rosa.id}`);
+    const user = page.getByRole("region", { name: "Rosa Pardo" });
+    await user.getByRole("button", { name: "Quitar segundo paso" }).click();
+    await page.getByRole("dialog", { name: "¿Quitar el segundo paso de Rosa Pardo?" }).getByRole("button", { name: "Quitar segundo paso" }).click();
+    await confirmStepUp(page, secret);
+    await expect(user).toContainText("No configurada");
+
+    // Her role still requires the second step: the sign-in goes to the enrolment.
+    const context = await browser.newContext();
+    const rosaPage = await context.newPage();
+    await rosaPage.goto("/login");
+    await rosaPage.getByLabel("Correo").fill(rosa.email);
+    await rosaPage.getByLabel("Contraseña", { exact: true }).fill(rosa.password);
+    await rosaPage.getByRole("button", { name: "Entrar" }).click();
+    await expect(rosaPage).toHaveURL(/\/mfa\/enroll$/);
+    // Required: no way around it.
+    await expect(rosaPage.getByRole("link", { name: "Omitir por ahora" })).toHaveCount(0);
+    await context.clearCookies();
+
+    // Exempt: the list says so (no factor), and her sign-in is password only.
+    await user.getByRole("switch", { name: "Exento del segundo paso" }).click();
+    await confirmStepUp(page, secret);
+    await expect(user.getByRole("status")).toHaveText("Cambios guardados");
+    await expect(user.getByRole("switch", { name: "Exento del segundo paso" })).toHaveAttribute("aria-checked", "true");
+    await page.goto("/admin/users");
+    await expect(page.getByRole("row", { name: /Rosa Pardo/ })).toContainText("exenta");
+    await signIn(rosaPage, rosa.email, rosa.password);
+    await context.close();
   });
 });

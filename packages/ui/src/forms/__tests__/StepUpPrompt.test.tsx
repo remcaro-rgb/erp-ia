@@ -61,3 +61,33 @@ describe("StepUpPrompt", () => {
     expect(box.value).toBe("");
   });
 });
+
+// Design §22.19, Review Focus 5: a user who turned their second step off (or never set it up) cannot produce a code; the
+// prompt says how to turn it on again, with the way there, instead of a bare "the code is not valid".
+describe("StepUpPrompt without a second step", () => {
+  it("says to activate it from the user menu and links to /mfa/enroll", () => {
+    const onCancel = vi.fn();
+    renderEs(<StepUpPrompt onConfirm={vi.fn()} onCancel={onCancel} error="no_factor" />);
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción");
+    expect(alert.textContent).not.toContain("El código no es válido");
+    const link = screen.getByRole("link", { name: "Activarla ahora" });
+    expect(link.getAttribute("href")).toBe("/mfa/enroll");
+    // There is no code to type: only Cancelar is left.
+    expect(screen.queryByLabelText("Código de 6 dígitos")).toBeNull();
+    screen.getByRole("button", { name: "Cancelar" }).click();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the caret to Cancelar (the code box is gone) and Esc cancels, as the normal prompt does", async () => {
+    const onCancel = vi.fn();
+    const { rerender } = renderEs(<StepUpPrompt onConfirm={vi.fn()} onCancel={onCancel} error={null} />);
+    expect(document.activeElement).toBe(screen.getByLabelText("Código de 6 dígitos"));
+    // The code was sent and the endpoint answered that there is no second step: the box unmounts.
+    rerender(<StepUpPrompt onConfirm={vi.fn()} onCancel={onCancel} error="no_factor" />);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancelar" }));
+    await userEvent.setup().keyboard("{Escape}");
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+

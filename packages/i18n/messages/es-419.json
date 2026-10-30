@@ -500,8 +500,14 @@
           "last_activity": "Última actividad",
           "no_activity": "Sin actividad registrada",
           "back": "Usuarios",
-          "photo_alt": "Foto de {name}"
-        }
+          "photo_alt": "Foto de {name}",
+          "mfa_reset": "Quitar segundo paso",
+          "mfa_reset_title": "¿Quitar el segundo paso de {name}?",
+          "mfa_reset_confirm": "{name} entrará solo con su contraseña y sus sesiones abiertas se cierran. Si su rol exige la verificación en dos pasos, la activará de nuevo en su próximo inicio de sesión.",
+          "mfa_exempt": "Exento del segundo paso",
+          "mfa_exempt_hint": "El rol admin exige la verificación en dos pasos; un usuario exento entra solo con su contraseña si no la tiene activa."
+        },
+        "mfa_exempt": "exenta"
       },
       "fields": {
         "title": "Visibilidad por campo y rol",
@@ -749,7 +755,24 @@
         "close": "Cerrar asistente"
       },
       "skip_to_content": "Saltar al contenido",
-      "assistant_toggle_title": "Mostrar u ocultar el asistente (Ctrl+/ o ⌘/)"
+      "assistant_toggle_title": "Mostrar u ocultar el asistente (Ctrl+/ o ⌘/)",
+      "mfa": {
+        "menu": "Verificación en dos pasos",
+        "title": "Verificación en dos pasos",
+        "state": "Estado",
+        "on": "Activa",
+        "off": "No configurada",
+        "menu_on": "activa",
+        "menu_off": "no configurada",
+        "on_hint": "Cada inicio de sesión te pide, además de tu contraseña, el código de 6 dígitos de tu app de autenticación. Las acciones sensibles también lo piden.",
+        "off_hint": "Protege tu cuenta: además de tu contraseña, cada inicio de sesión te pedirá el código de tu app de autenticación. Sin ella no puedes ejecutar acciones sensibles.",
+        "disable_hint": "Si la desactivas entrarás solo con tu contraseña y no podrás ejecutar acciones sensibles hasta activarla de nuevo. Se cierran tus sesiones abiertas y vuelves a ingresar.",
+        "required_by_role": "Tu rol exige la verificación en dos pasos, así que no puedes desactivarla. Si necesitas hacerlo, pídele a un administrador que te exima.",
+        "exempt": "Un administrador te eximió del segundo paso que exige tu rol.",
+        "disable": "Desactivar",
+        "enable": "Activar",
+        "failed": "No se pudo desactivar: {reason}"
+      }
     },
     "core": {
       "parties": "Terceros",
@@ -1027,7 +1050,8 @@
         "locale": "Idioma",
         "mobile": "Celular",
         "created_at": "Creado",
-        "is_active": "Activo"
+        "is_active": "Activo",
+        "mfa_exempt": "Exento del segundo paso"
       }
     },
     "support": {
@@ -1096,7 +1120,9 @@
     "step_up": {
       "title": "Verificación requerida",
       "hint": "Esta acción es sensible. Ingresa el código de 6 dígitos de tu app de autenticación.",
-      "submit": "Verificar"
+      "submit": "Verificar",
+      "no_factor": "Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.",
+      "enroll": "Activarla ahora"
     }
   },
   "grid": {
@@ -1575,7 +1601,7 @@
         "verified": "Verificado",
         "invalid_code": "Código incorrecto. Revisa tu app de autenticación.",
         "too_many_attempts": "Demasiados intentos. Espera unos minutos.",
-        "no_factor": "No tienes un segundo paso configurado.",
+        "no_factor": "Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.",
         "failed": "No se pudo verificar el código. Inténtalo de nuevo."
       },
       "result": {
@@ -1629,7 +1655,9 @@
       "qr_alt": "Código QR para tu app de autenticación",
       "secret_label": "Clave",
       "code_hint": "Ingresa el primer código de 6 dígitos que muestra la app.",
-      "preparing": "Preparando el código…"
+      "preparing": "Preparando el código…",
+      "hint_optional": "Escanea el código QR con tu app de autenticación (Google Authenticator, Authy, 1Password) o escribe la clave. Desde ahora cada inicio de sesión te pedirá el código.",
+      "skip": "Omitir por ahora"
     },
     "errors": {
       "invalid_credentials": "Correo o contraseña incorrectos.",
@@ -1641,6 +1669,9 @@
       "too_many_attempts": "Demasiados intentos, espera unos minutos.",
       "unavailable": "No pudimos conectar con el servicio de acceso. Inténtalo de nuevo.",
       "account_disabled": "Cuenta desactivada. Contacta a un administrador."
+    },
+    "notices": {
+      "mfa_disabled": "Segundo paso desactivado. Vuelve a ingresar con tu contraseña."
     }
   },
   "errors": {

@@ -71,8 +71,15 @@ describe("input schemas", () => {
 });
 
 describe("excluded processes", () => {
-  it("leaves out what needs a file or a job the chat cannot start, each with its reason", () => {
-    expect([...EXCLUDED_PROCESSES.keys()].sort()).toEqual(["kernel.attachment.add", "kernel.export.run", "kernel.import.preview", "kernel.import.run"]);
+  it("leaves out what needs a file, a job or a sign-out the chat cannot handle, each with its reason", () => {
+    expect([...EXCLUDED_PROCESSES.keys()].sort()).toEqual([
+      "kernel.admin.user.mfa.set",
+      "kernel.attachment.add",
+      "kernel.export.run",
+      "kernel.import.preview",
+      "kernel.import.run",
+      "kernel.user.mfa.disable",
+    ]);
     for (const reason of EXCLUDED_PROCESSES.values()) expect(reason.length).toBeGreaterThan(10);
   });
 });

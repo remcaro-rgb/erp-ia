@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { signIn, type FormState } from "@/lib/auth/actions";
 import { useTranslations } from "next-intl";
 import type { LoginError } from "@/lib/auth/login";
+import type { LoginNotice } from "@/lib/auth/notices";
 import { fieldClass, FormError, SubmitButton } from "./form-parts";
 
 function EyeIcon({ off }: { off: boolean }) {
@@ -26,13 +27,19 @@ function EyeIcon({ off }: { off: boolean }) {
 }
 
 /** E-mail + password, the eye toggle and "Recordarme en este dispositivo por 30 días" (prototype step 1). */
-export function LoginForm({ defaultEmail, defaultRemember, initialError }: { defaultEmail: string; defaultRemember: boolean; initialError: LoginError | null }) {
+export function LoginForm({ defaultEmail, defaultRemember, initialError, notice = null }: { defaultEmail: string; defaultRemember: boolean; initialError: LoginError | null; notice?: LoginNotice | null }) {
   const t = useTranslations("auth");
   const [state, action] = useActionState<FormState, FormData>(signIn, { error: initialError, nonce: 0 });
   const [shown, setShown] = useState(false);
 
   return (
     <form action={action} className="flex flex-col gap-3">
+      {/* Why the last session ended on purpose; gone once a submit answers. */}
+      {notice && state.nonce === 0 && (
+        <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+          {t(`notices.${notice}`)}
+        </p>
+      )}
       <FormError error={state.error} />
       <div className="flex flex-col gap-1">
         <label htmlFor="email" className="text-sm font-medium">

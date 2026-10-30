@@ -11,6 +11,7 @@ import { FormPrefsProvider } from "../forms/form-context";
 import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
+import { MfaDialog, type MfaDisableResult, type MfaState } from "./MfaDialog";
 import { isActiveHref } from "./ModuleBar";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
@@ -66,6 +67,14 @@ export interface AppShellProps {
   onTabsChange?: (snapshot: TabsSnapshot, savedAt: number) => void;
   onSwitchCompany?: (companyId: string) => void;
   signOutAction?: () => void | Promise<void>;
+  /** The caller's second step (design §22.19); with `onDisableMfa`, the user menu offers "Verificación en dos pasos". */
+  mfa?: MfaState;
+  /** Runs kernel.user.mfa.disable through the app's step-up flow; on success the app ends the session. */
+  onDisableMfa?: () => Promise<MfaDisableResult>;
+  /** The app's step-up prompt while that run waits for the code (rendered inside the dialog). */
+  mfaStepUpPrompt?: ReactNode;
+  /** Cancels that waiting step-up (the dialog was closed). */
+  onCancelMfaStepUp?: () => void;
   /** The preference cache; the browser's localStorage by default. */
   storage?: Storage | null;
 }
@@ -182,6 +191,8 @@ function ShellFrame(props: AppShellProps) {
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
+  const mfaWired = props.mfa !== undefined && props.onDisableMfa !== undefined;
   // The drawer: the user's saved choice when there is one (the server's copy, or this browser's when it is newer), else
   // closed below 1280 px (OD-10). Decided once, on the first mount; the server render and hydration use the saved choice
   // or "open", and a narrow viewport closes it before the first paint. A resize afterwards never moves it.
@@ -308,6 +319,7 @@ function ShellFrame(props: AppShellProps) {
             onToggleAssistant={() => chooseAssistant(!assistantOpen)}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
+            {...(mfaWired ? { mfaEnrolled: props.mfa!.enrolled, onOpenMfa: () => setMfaOpen(true) } : {})}
           />
           <TabsBar onNew={() => setPaletteOpen(true)} />
           <div className="flex min-h-0 flex-1">
@@ -336,6 +348,16 @@ function ShellFrame(props: AppShellProps) {
             onAsk={ask}
             onSelect={(item) => navigate(item.href)}
           />
+          {mfaWired && (
+            <MfaDialog
+              open={mfaOpen}
+              onOpenChange={setMfaOpen}
+              {...props.mfa!}
+              onDisable={() => props.onDisableMfa!()}
+              stepUpPrompt={props.mfaStepUpPrompt}
+              {...(props.onCancelMfaStepUp ? { onCancelStepUp: props.onCancelMfaStepUp } : {})}
+            />
+          )}
           <Toaster position="bottom-center" />
         </div>
         </ExportJobsProvider>

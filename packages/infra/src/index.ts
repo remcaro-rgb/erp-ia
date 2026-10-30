@@ -8,7 +8,7 @@ import { target, type Env } from "./target";
 export { ATTACHMENTS_BUCKET, EXPORTS_BUCKET, SIGNED_URL_TTL_SECONDS, SupabaseFileStore } from "./file-store";
 export type { FileStore } from "./file-store";
 export { SupabaseAuthAdmin } from "./auth-admin";
-export type { AuthAdmin } from "./auth-admin";
+export type { AuthAdmin, SessionRevoker } from "./auth-admin";
 export { cloudDurableRunner, dockerDurableRunner, POSTGRES_WORLD } from "./durable-runner";
 export type { DurableRunner } from "./durable-runner";
 export { MAX_BACKOFF_MS, runEvery, tickScheduler } from "./scheduler";

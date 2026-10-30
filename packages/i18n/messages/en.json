@@ -500,8 +500,14 @@
           "last_activity": "Last activity",
           "no_activity": "No activity recorded",
           "back": "Users",
-          "photo_alt": "Photo of {name}"
-        }
+          "photo_alt": "Photo of {name}",
+          "mfa_reset": "Remove second step",
+          "mfa_reset_title": "Remove {name}'s second step?",
+          "mfa_reset_confirm": "{name} will sign in with their password only and their open sessions end. If their role requires two-step verification, they set it up again at their next sign-in.",
+          "mfa_exempt": "Exempt from the second step",
+          "mfa_exempt_hint": "The admin role requires two-step verification; an exempt user signs in with their password only when they have none set up."
+        },
+        "mfa_exempt": "exempt"
       },
       "fields": {
         "title": "Visibility by field and role",
@@ -749,7 +755,24 @@
         "close": "Close assistant"
       },
       "skip_to_content": "Skip to content",
-      "assistant_toggle_title": "Show or hide the assistant (Ctrl+/ or ⌘/)"
+      "assistant_toggle_title": "Show or hide the assistant (Ctrl+/ or ⌘/)",
+      "mfa": {
+        "menu": "Two-step verification",
+        "title": "Two-step verification",
+        "state": "Status",
+        "on": "On",
+        "off": "Not set up",
+        "menu_on": "on",
+        "menu_off": "not set up",
+        "on_hint": "Every sign-in asks, besides your password, for the 6-digit code of your authenticator app. Sensitive actions ask for it too.",
+        "off_hint": "Protect your account: besides your password, every sign-in will ask for the code of your authenticator app. Without it you cannot run sensitive actions.",
+        "disable_hint": "If you turn it off you will sign in with your password only and cannot run sensitive actions until you turn it on again. Your open sessions end and you sign in again.",
+        "required_by_role": "Your role requires two-step verification, so you cannot turn it off. If you need to, ask an administrator to exempt you.",
+        "exempt": "An administrator exempted you from the second step your role requires.",
+        "disable": "Turn off",
+        "enable": "Turn on",
+        "failed": "Could not turn it off: {reason}"
+      }
     },
     "core": {
       "parties": "Parties",
@@ -1027,7 +1050,8 @@
         "locale": "Language",
         "mobile": "Mobile",
         "created_at": "Created",
-        "is_active": "Active"
+        "is_active": "Active",
+        "mfa_exempt": "Exempt from the second step"
       }
     },
     "support": {
@@ -1096,7 +1120,9 @@
     "step_up": {
       "title": "Verification required",
       "hint": "This action is sensitive. Enter the 6-digit code from your authenticator app.",
-      "submit": "Verify"
+      "submit": "Verify",
+      "no_factor": "Turn on two-step verification in your user menu to run this action.",
+      "enroll": "Turn it on now"
     }
   },
   "grid": {
@@ -1575,7 +1601,7 @@
         "verified": "Verified",
         "invalid_code": "Wrong code. Check your authenticator app.",
         "too_many_attempts": "Too many attempts. Wait a few minutes.",
-        "no_factor": "You have no second step set up.",
+        "no_factor": "Turn on two-step verification in your user menu to run this action.",
         "failed": "The code could not be verified. Please try again."
       },
       "result": {
@@ -1629,7 +1655,9 @@
       "qr_alt": "QR code for your authenticator app",
       "secret_label": "Key",
       "code_hint": "Enter the first 6-digit code the app shows.",
-      "preparing": "Preparing the code…"
+      "preparing": "Preparing the code…",
+      "hint_optional": "Scan the QR code with your authenticator app (Google Authenticator, Authy, 1Password) or type the key. From now on every sign-in will ask for the code.",
+      "skip": "Skip for now"
     },
     "errors": {
       "invalid_credentials": "Wrong e-mail or password.",
@@ -1641,6 +1669,9 @@
       "too_many_attempts": "Too many attempts, wait a few minutes.",
       "unavailable": "We could not reach the sign-in service. Please try again.",
       "account_disabled": "Account disabled. Contact an administrator."
+    },
+    "notices": {
+      "mfa_disabled": "Second step turned off. Sign in again with your password."
     }
   },
   "errors": {

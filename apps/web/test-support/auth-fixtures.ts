@@ -122,3 +122,20 @@ export async function enrolTotp(fixture: Pick<AuthFixture, "email" | "password">
   await client.auth.signOut();
   return enrolled.data.totp.secret;
 }
+
+/** Removes every TOTP factor of `userId` (verified or not) through the Auth admin API, as an admin's reset does. */
+export async function removeTotpFactors(admin: SupabaseClient, userId: string): Promise<void> {
+  const { data, error } = await admin.auth.admin.mfa.listFactors({ userId });
+  if (error) throw new Error(`could not list the factors of ${userId}: ${error.message}`);
+  for (const factor of data.factors.filter((f) => f.factor_type === "totp")) {
+    const removed = await admin.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
+    if (removed.error) throw new Error(`could not remove factor ${factor.id}: ${removed.error.message}`);
+  }
+}
+
+/** The number of verified TOTP factors of `userId`. */
+export async function verifiedTotpCount(admin: SupabaseClient, userId: string): Promise<number> {
+  const { data, error } = await admin.auth.admin.mfa.listFactors({ userId });
+  if (error) throw new Error(`could not list the factors of ${userId}: ${error.message}`);
+  return data.factors.filter((f) => f.factor_type === "totp" && f.status === "verified").length;
+}

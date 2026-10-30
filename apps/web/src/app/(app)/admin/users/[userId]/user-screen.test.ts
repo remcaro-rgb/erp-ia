@@ -8,6 +8,7 @@ import { UserScreen } from "./user-screen";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => "/admin/users/x" }));
 vi.mock("@/lib/admin/actions", () => ({ adminAction: vi.fn() }));
+vi.mock("@/lib/auth/mfa-actions", () => ({ setUserMfaAction: vi.fn() }));
 // The shell's tabs store is not mounted here: the page only titles its tab through it.
 vi.mock("@erp/ui", async (original) => ({ ...(await original<typeof import("@erp/ui")>()), useTabs: () => () => {} }));
 
@@ -29,6 +30,7 @@ const data: UserPageData = {
     photo: null,
     roleIds: ["r-cajero"],
     mfaEnrolled: false,
+    mfaExempt: false,
     locale: "es-419",
     isActive: true,
   },
@@ -72,5 +74,26 @@ describe("UserScreen", () => {
   it("the admin's own page cannot deactivate them: the button is disabled and says why", () => {
     const html = render({ ...data, self: true });
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*title="No puedes desactivar tu propia cuenta"[^>]*>Desactivar<\/button>|<button[^>]*title="No puedes desactivar tu propia cuenta"[^>]*disabled=""[^>]*>Desactivar<\/button>/);
+  });
+
+  // Design §22.19: the admin removes a member's factor ("Quitar segundo paso", only when one is set up) and, for a holder
+  // of the system admin role, exempts them from the role's requirement (a switch). Both run kernel.admin.user.mfa.set.
+  it("no second step: no Quitar segundo paso; a member without the admin role has no exemption switch", () => {
+    const html = render(data);
+    expect(text(html)).not.toContain("Quitar segundo paso");
+    expect(html).not.toContain('role="switch"');
+  });
+
+  it("a set-up second step offers Quitar segundo paso", () => {
+    const html = render({ ...data, member: { ...data.member, mfaEnrolled: true } });
+    expect(html).toMatch(/<button[^>]*>Quitar segundo paso<\/button>/);
+  });
+
+  it("a holder of the admin role gets the Exento del segundo paso switch, checked when exempt", () => {
+    const admin = { ...data.member, roleIds: ["r-admin"], mfaEnrolled: true };
+    const off = render({ ...data, member: admin });
+    expect(off).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="false"[^>]*aria-label="Exento del segundo paso"/);
+    const on = render({ ...data, member: { ...admin, mfaExempt: true } });
+    expect(on).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="true"[^>]*aria-label="Exento del segundo paso"/);
   });
 });
