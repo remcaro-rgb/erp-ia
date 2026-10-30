@@ -32,6 +32,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as OTPAuth from "otpauth";
 import type { Sql } from "postgres";
 import { co } from "@erp/loc-co";
+import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { SupabaseAuthAdmin, SupabaseFileStore, type FileStore } from "@erp/infra";
@@ -411,7 +412,7 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     await sql.file(SEED_SQL);
 
     const registry = new Registry();
-    loadModules(registry, [kernelModule, core, support]);
+    loadModules(registry, [kernelModule, core, accounting, support]);
     registerCountryPack(co);
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);

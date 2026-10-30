@@ -23,11 +23,14 @@ export function gridEntity(registry: Registry, id: string): ResolvedEntityDef | 
 /**
  * The entity's own consult process, which opens its grid: `<entity>.consult` (`core.party.consult`), or the consult of
  * the entity's last name segment where the module names it so (`core.product_category` → `core.category.consult`).
- * Never another entity's: a role allowed to consult categories does not read price lists. Empty when the entity has none.
+ * A `query` entity opens its grid through `<entity>.list`. Never another entity's: a role allowed to consult categories does not read price lists. Empty when the entity has none.
  */
 export function consultProcessesOf(registry: Registry, entity: ResolvedEntityDef): string[] {
   const name = entity.id.slice(entity.id.indexOf(".") + 1);
-  const ids = [`${entity.id}.consult`, `${entity.module}.${name.split("_").at(-1)}.consult`];
+  const ids =
+    entity.kind === "query"
+      ? [`${entity.id}.list`, `${entity.id}.consult`]
+      : [`${entity.id}.consult`, `${entity.module}.${name.split("_").at(-1)}.consult`];
   return [...new Set(ids)].filter((id) => {
     try {
       const process = registry.process(id);

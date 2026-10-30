@@ -9,6 +9,12 @@ export interface EntityDef {
   table: string;
   /** i18n key. */
   label: string;
+  /**
+   * `table` (default) is a base table with a create process; `query` is a read-only entity over a view that joins other tables
+   * (`table` names the view's stem: its masked view is `v_<table>`). A query entity has no create process, so the importer, the
+   * clone and "Nuevo" skip it, and its grid consult is `<entity id>.list`.
+   */
+  kind?: "table" | "query";
   fields: FieldDef[];
   displayField: string;
   defaultSort: { field: string; dir: "asc" | "desc" };

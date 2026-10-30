@@ -33,6 +33,7 @@
     "@erp/infra": "workspace:*",
     "@erp/kernel": "workspace:*",
     "@erp/loc-co": "workspace:*",
+    "@erp/module-accounting": "workspace:*",
     "@erp/module-core": "workspace:*",
     "@erp/module-support": "workspace:*",
     "@eslint/js": "^9.39.5",
