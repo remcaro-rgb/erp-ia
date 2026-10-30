@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { defineEntity, maskedViewSql } from "@erp/kernel";
-import { LEDGER_ENTITIES, MASTER_ENTITIES } from "../entities";
+import { LEDGER_ENTITIES, MASTER_ENTITIES, ledgerLineEntity } from "../entities";
 
 const read = (name: string) => readFileSync(new URL(`../../../../../supabase/migrations/${name}`, import.meta.url), "utf8");
 const masters = read("0031_accounting_masters.sql");
 const ledger = read("0032_accounting_ledger.sql");
+const views = read("0033_accounting_views.sql");
 
 // The masked views are pasted into the migrations from maskedViewSql (rule 14). This guards against drift between the entity
 // definitions and the SQL: the generated column list must appear verbatim. Views that add a filter (the account security of
@@ -28,5 +29,20 @@ describe("accounting masked views, migration 0032 (ledger)", () => check(ledger,
 describe("the accounts view", () => {
   it("adds the account security filter of design §5.13", () => {
     expect(masters).toMatch(/from accounting\.accounts\s+where accounting\.can_view_account\(id\);/);
+  });
+});
+
+describe("accounting views, migration 0033 (published views)", () => {
+  it("accounting.v_ledger_lines is the generated masked view of accounting.ledger_line over the base view", () => {
+    const generated = maskedViewSql(defineEntity(ledgerLineEntity));
+    expect(views).toContain(generated);
+    expect(views).toMatch(/create or replace view accounting\.ledger_lines[\s\S]*where accounting\.can_view_account\(l\.account_id\);/);
+  });
+
+  it("v_entry_lines keeps the generated masking and masks a restricted line", () => {
+    const start = views.indexOf("create or replace view accounting.v_entry_lines");
+    const block = views.slice(start, views.indexOf("grant select on accounting.v_entry_lines", start));
+    expect(block).toContain(`case when (select kernel.field_visible('accounting.entry_line', 'debit')) and "can_view" then "debit" else null end as "debit"`);
+    expect(block).toContain(`not "can_view" as "is_restricted"`);
   });
 });
