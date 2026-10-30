@@ -39,7 +39,9 @@ afterAll(async () => {
 });
 
 const dateIn = (month: number, day = 15) => `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-const periodId = async (n: number) => (await h.sql<{ id: string }[]>`select id from accounting.periods where company_id = ${h.companyId} and number = ${n}`)[0]!.id;
+// The year is named: other years may be open too (the balance sheet test opens the previous one), and period numbers repeat.
+const periodId = async (n: number) =>
+  (await h.sql<{ id: string }[]>`select p.id from accounting.periods p join accounting.fiscal_years y on y.id = p.fiscal_year_id where p.company_id = ${h.companyId} and y.year = ${year} and p.number = ${n}`)[0]!.id;
 const accountId = async (code: string) => (await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = ${code}`)[0]!.id;
 const state = { filters: [], sort: [], page: 1, pageSize: 500 };
 // Report rows are read cell by cell in the assertions: a loose record keeps them readable.

@@ -33,7 +33,9 @@ afterAll(async () => {
 });
 
 const dateIn = (y: number, month: number, day = 15) => `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-const periodId = async (n: number) => (await h.sql<{ id: string }[]>`select id from accounting.periods where company_id = ${h.companyId} and number = ${n}`)[0]!.id;
+// The year is named: other years may be open too (the balance sheet test opens the previous one), and period numbers repeat.
+const periodId = async (n: number) =>
+  (await h.sql<{ id: string }[]>`select p.id from accounting.periods p join accounting.fiscal_years y on y.id = p.fiscal_year_id where p.company_id = ${h.companyId} and y.year = ${year} and p.number = ${n}`)[0]!.id;
 const state = { filters: [], sort: [], page: 1, pageSize: 500 };
 // Report rows are read cell by cell in the assertions: a loose record keeps them readable.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,11 +51,12 @@ const byCode = (rows: Row[], code: string) => rows.find((r) => r.account_code ==
 const accountId = async (code: string) => (await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = ${code}`)[0]!.id;
 
 describe("statement reports", () => {
-  it("the module registers its nine reports against consult processes", () => {
+  it("the module registers its thirteen reports against consult processes", () => {
     expect(h.deps.registry.reports("accounting").map((r) => r.id).sort()).toEqual([
       "accounting.account_detail", "accounting.balance_sheet", "accounting.cost_center_statement", "accounting.dimension_detail", "accounting.income_statement",
       "accounting.journal_book", "accounting.ledger", "accounting.party_detail", "accounting.trial_balance",
-    ]);
+      "accounting.aging", "accounting.control_reconciliation", "accounting.exogena", "accounting.manual_entries_audit",
+    ].sort());
   });
 
   it("trial balance equals the ledger: per account, opening + movement = closing; totals debit = credit; level 2 sums level 4", async () => {
