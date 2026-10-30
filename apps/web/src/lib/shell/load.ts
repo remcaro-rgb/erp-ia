@@ -6,6 +6,7 @@ import { isThemeMode, type CommandItem, type MfaState, type ResultColumn, type N
 import { assertComplete, getSessionState, Unauthenticated, type SessionState } from "@/lib/auth/claims";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
+import { hasOptionalMasters, hideOptionalMasters, readOptionalMasters } from "@/lib/accounting/nav";
 import { loadAssistantColumns } from "./assistant-columns";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
@@ -68,6 +69,8 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
   const assistantOpen = savedFrom(prefs["assistant.open"]);
   const dianHints = savedFrom(prefs["forms.dian_hints"]);
   const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable });
+  // The optional analytic masters of the accounting module follow the company's settings (accounting design §8).
+  const nav = hasOptionalMasters(shell.nav) ? hideOptionalMasters(shell.nav, await readOptionalMasters(deps.sql, claims)) : shell.nav;
 
   const commands: CommandItem[] = shell.creates
     .filter((create) => t.has(create.labelKey))
@@ -81,7 +84,7 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
     companies: profile.companies,
     user: { id: profile.user.id, name: profile.user.name, email: profile.user.email, roles: profile.roles },
     modules: shell.modules,
-    nav: shell.nav,
+    nav,
     commands,
     assistantColumns,
     theme: theme && isThemeMode(theme.value) ? { value: theme.value, savedAt: theme.savedAt } : null,

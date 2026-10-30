@@ -82,6 +82,36 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       journal_code: { display: "mono" },
     },
   },
+  // Plan de cuentas (accounting design §8): the code names the row; Seguridad is the access column, restricted ones in amber.
+  "accounting.account": {
+    shown: ["code", "name", "level", "nature", "parent_id", "access", "allows_movement", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: {
+      code: { display: "mono" },
+      level: { valuesKey: "grid.values.account_level" },
+      nature: { valuesKey: "grid.values.nature" },
+      access: { valuesKey: "grid.values.account_access", pills: { open: "gray", restricted: "warn" } },
+      allows_movement: ready,
+      is_active: active,
+    },
+  },
+  // The four analytic dimensions share one shape (§4.5): código, descripción, padre, tipo, estado.
+  ...Object.fromEntries(
+    ["accounting.cost_center", "accounting.open_auxiliary", "accounting.item", "accounting.business_unit"].map((id) => [
+      id,
+      {
+        shown: ["code", "name", "parent_id", "kind", "is_active"],
+        exclude: ["extra", "extra_free"],
+        fields: { code: { display: "mono" }, kind: { valuesKey: "grid.values.dimension_kind", pills: { group: "info", leaf: "gray" } }, is_active: active },
+      } satisfies GridPresentation,
+    ]),
+  ),
+  // Fuentes (§4.3, §10b.18): the consecutivo is the next number the journal will give.
+  "accounting.journal": {
+    shown: ["code", "name", "kind", "next_number", "manual_entries", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: { code: { display: "mono" }, kind: { valuesKey: "grid.values.journal_kind" }, manual_entries: ready, is_active: active },
+  },
   "core.product_category": {
     shown: ["seq", "name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "income_account", "status"],
     exclude: ["extra", "extra_free"],

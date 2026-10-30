@@ -701,6 +701,20 @@
     }
   },
   "nav": {
+      "accounting": {
+        "entries": "Comprobantes",
+        "movements": "Movimientos",
+        "masters": "Maestros",
+        "accounts": "Plan de cuentas",
+        "cost_centers": "Centros de costo",
+        "open_auxiliaries": "Auxiliares abiertos",
+        "items": "Ítems",
+        "business_units": "Unidades de negocio",
+        "journals": "Fuentes",
+        "periods": "Períodos",
+        "reports": "Informes",
+        "posting": "Reglas contables"
+      },
     "shell": {
       "modules": "Módulos",
       "search": "Buscar o ir a…",
@@ -789,6 +803,7 @@
       "import": "Importar datos"
     },
     "modules": {
+      "accounting": "Contabilidad",
       "core": "Núcleo",
       "support": "Soporte",
       "kernel": "Sistema"
@@ -840,6 +855,14 @@
     }
   },
   "entity": {
+      "accounting": {
+        "account": "Cuenta",
+        "cost_center": "Centro de costo",
+        "open_auxiliary": "Auxiliar abierto",
+        "item": "Ítem",
+        "business_unit": "Unidad de negocio",
+        "journal": "Fuente"
+      },
     "core": {
       "party": "Tercero",
       "party_contact": "Contacto",
@@ -862,6 +885,91 @@
     }
   },
   "field": {
+      "accounting": {
+        "account": {
+          "seq": "N.º",
+          "code": "Código",
+          "name": "Descripción",
+          "parent_id": "Cuenta madre",
+          "level": "Nivel",
+          "nature": "Naturaleza",
+          "allows_movement": "Admite movimientos",
+          "requires_party": "Exige tercero",
+          "requires_cost_center": "Exige centro de costo",
+          "requires_open_auxiliary": "Exige auxiliar abierto",
+          "requires_item": "Exige ítem",
+          "requires_business_unit": "Exige unidad de negocio",
+          "statement_section": "Sección del estado",
+          "is_opening_result": "Cuenta de resultado del ejercicio",
+          "is_active": "Activa",
+          "access": "Seguridad",
+          "extra": "Datos adicionales",
+          "extra_free": "Datos libres",
+          "created_at": "Creado",
+          "updated_at": "Actualizado"
+        },
+        "journal": {
+          "seq": "N.º",
+          "code": "Código",
+          "name": "Descripción",
+          "kind": "Clase",
+          "next_number": "Consecutivo",
+          "manual_entries": "Admite comprobantes manuales",
+          "is_active": "Activa",
+          "extra": "Datos adicionales",
+          "extra_free": "Datos libres",
+          "created_at": "Creado",
+          "updated_at": "Actualizado"
+        },
+        "cost_center": {
+          "seq": "N.º",
+          "code": "Código",
+          "name": "Descripción",
+          "parent_id": "Padre",
+          "kind": "Tipo",
+          "is_active": "Activo",
+          "extra": "Datos adicionales",
+          "extra_free": "Datos libres",
+          "created_at": "Creado",
+          "updated_at": "Actualizado"
+        },
+        "open_auxiliary": {
+          "seq": "N.º",
+          "code": "Código",
+          "name": "Descripción",
+          "parent_id": "Padre",
+          "kind": "Tipo",
+          "is_active": "Activo",
+          "extra": "Datos adicionales",
+          "extra_free": "Datos libres",
+          "created_at": "Creado",
+          "updated_at": "Actualizado"
+        },
+        "item": {
+          "seq": "N.º",
+          "code": "Código",
+          "name": "Descripción",
+          "parent_id": "Padre",
+          "kind": "Tipo",
+          "is_active": "Activo",
+          "extra": "Datos adicionales",
+          "extra_free": "Datos libres",
+          "created_at": "Creado",
+          "updated_at": "Actualizado"
+        },
+        "business_unit": {
+          "seq": "N.º",
+          "code": "Código",
+          "name": "Descripción",
+          "parent_id": "Padre",
+          "kind": "Tipo",
+          "is_active": "Activo",
+          "extra": "Datos adicionales",
+          "extra_free": "Datos libres",
+          "created_at": "Creado",
+          "updated_at": "Actualizado"
+        }
+      },
     "core": {
       "party": {
         "seq": "N.º",
@@ -1134,6 +1242,45 @@
     }
   },
   "grid": {
+      "tree": {
+        "search": "Buscar por código o descripción",
+        "levels": "Abrir por nivel",
+        "level": "Abrir hasta el nivel {n}",
+        "all": "Todo",
+        "node": "Nodo",
+        "empty": "Sin resultados",
+        "restricted": "Cuenta restringida"
+      },
+      "master": {
+        "view": "Vista",
+        "table": "Tabla",
+        "tree": "Árbol",
+        "period": "Período",
+        "no_period": "Sin períodos",
+        "restricted_filter": "Restringidas",
+        "new_account": "Nueva cuenta auxiliar",
+        "new_account_hint": "Selecciona una subcuenta o un auxiliar sin movimientos para crear una cuenta bajo ella",
+        "new": "Nuevo",
+        "balance": "Saldo",
+        "result": "Resultado",
+        "movement": "Movimiento neto",
+        "tree_label": "Árbol de {title}",
+        "children_of": "Dentro de {node}",
+        "top_level": "Nivel superior",
+        "dialog_account": "Nueva cuenta auxiliar",
+        "dialog_node": "Nuevo: {title}",
+        "under": "Bajo {node}",
+        "code": "Código",
+        "name": "Descripción",
+        "parent": "Padre",
+        "kind": "Tipo",
+        "active": "Activo",
+        "create": "Crear",
+        "cancel": "Cancelar",
+        "failed": "No se pudo crear: {reason}",
+        "created": "Creado",
+        "step_up": "Esta acción pide tu código de verificación"
+      },
     "empty": "Sin resultados",
     "loading": "Cargando…",
     "search_placeholder": "Buscar…",
@@ -1421,6 +1568,34 @@
       "picked": "Seleccionado: {label}"
     },
     "values": {
+        "account_level": {
+          "class": "Clase",
+          "group": "Grupo",
+          "account": "Cuenta",
+          "subaccount": "Subcuenta",
+          "auxiliary": "Auxiliar"
+        },
+        "nature": {
+          "debit": "Débito",
+          "credit": "Crédito"
+        },
+        "account_access": {
+          "open": "Abierta",
+          "restricted": "Restringida"
+        },
+        "dimension_kind": {
+          "group": "Grupo",
+          "leaf": "Hoja"
+        },
+        "journal_kind": {
+          "general": "General",
+          "sales": "Ventas",
+          "purchases": "Compras",
+          "receipts": "Recibos",
+          "payments": "Pagos",
+          "opening": "Apertura",
+          "closing": "Cierre"
+        },
       "party_kind": {
         "customer": "Cliente",
         "supplier": "Proveedor",

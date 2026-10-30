@@ -45,6 +45,37 @@
   .erp-btn--danger { color: var(--danger); border-color: var(--danger); font-weight: 600; }
   .erp-btn--danger:hover:not(:disabled) { background: var(--danger-bg); }
 
+  /* tree pane of the chart and the analytic masters (accounting design §8) */
+  .erp-tree { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .erp-tree__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid var(--line); }
+  .erp-tree__search { display: flex; align-items: center; gap: 6px; flex: 1 1 140px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; background: var(--surface); color: var(--text-muted); }
+  .erp-tree__search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); padding: 6px 0; font-size: 13px; outline: none; }
+  .erp-tree__search:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-tree__levels { display: flex; gap: 4px; }
+  .erp-tree__head { display: flex; justify-content: space-between; padding: 4px 12px; border-bottom: 1px solid var(--line-2); background: var(--head); }
+  .erp-tree__list { overflow: auto; min-height: 0; flex: 1; padding: 4px 0; }
+  .erp-tree__row { display: flex; align-items: center; gap: 6px; min-height: 30px; padding-right: 10px; font-size: 13px; cursor: pointer; border-left: 3px solid transparent; }
+  .erp-tree__row:hover { background: var(--head); }
+  .erp-tree__row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .erp-tree__row.is-selected { background: var(--info-bg); border-left-color: var(--primary); }
+  .erp-tree__row.is-inactive { color: var(--text-muted); }
+  .erp-tree__twisty { display: inline-flex; width: 16px; justify-content: center; flex: 0 0 auto; color: var(--text-muted); }
+  .erp-tree__twisty svg { transition: transform .12s; }
+  .erp-tree__twisty.is-open svg { transform: rotate(90deg); }
+  .erp-tree__code { color: var(--text-muted); font-size: 12px; flex: 0 0 auto; }
+  .erp-tree__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .erp-tree__lock { color: var(--text-muted); flex: 0 0 auto; }
+  .erp-tree__figure { margin-left: auto; padding-left: 8px; flex: 0 0 auto; text-align: right; }
+  .erp-tree__empty { padding: 12px; }
+  .erp-master { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex-grow: 1; }
+  .erp-master__split { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 12px; min-height: 0; flex-grow: 1; }
+  @media (max-width: 800px) { .erp-master__split { grid-template-columns: minmax(0, 1fr); } }
+  .erp-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .erp-seg > button { padding: 6px 12px; font-size: 13px; background: var(--surface); color: var(--text); border: 0; }
+  .erp-seg > button + button { border-left: 1px solid var(--line); }
+  .erp-seg > button[aria-pressed="true"] { background: var(--primary); color: #fff; font-weight: 600; }
+  .erp-seg > button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
   /* pills */
   .erp-pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 4px; white-space: nowrap; margin-right: 4px; }
   .erp-pill--ok { background: var(--ok-bg); color: var(--ok); }

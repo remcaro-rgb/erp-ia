@@ -701,6 +701,20 @@
     }
   },
   "nav": {
+      "accounting": {
+        "entries": "Entries",
+        "movements": "Movements",
+        "masters": "Masters",
+        "accounts": "Chart of accounts",
+        "cost_centers": "Cost centers",
+        "open_auxiliaries": "Open auxiliaries",
+        "items": "Items",
+        "business_units": "Business units",
+        "journals": "Sources",
+        "periods": "Periods",
+        "reports": "Reports",
+        "posting": "Posting rules"
+      },
     "shell": {
       "modules": "Modules",
       "search": "Search or go to…",
@@ -789,6 +803,7 @@
       "import": "Import data"
     },
     "modules": {
+      "accounting": "Accounting",
       "core": "Core",
       "support": "Support",
       "kernel": "System"
@@ -840,6 +855,14 @@
     }
   },
   "entity": {
+      "accounting": {
+        "account": "Account",
+        "cost_center": "Cost center",
+        "open_auxiliary": "Open auxiliary",
+        "item": "Item",
+        "business_unit": "Business unit",
+        "journal": "Source"
+      },
     "core": {
       "party": "Party",
       "party_contact": "Contact",
@@ -862,6 +885,91 @@
     }
   },
   "field": {
+      "accounting": {
+        "account": {
+          "seq": "No.",
+          "code": "Code",
+          "name": "Description",
+          "parent_id": "Parent account",
+          "level": "Level",
+          "nature": "Nature",
+          "allows_movement": "Allows postings",
+          "requires_party": "Requires third party",
+          "requires_cost_center": "Requires cost center",
+          "requires_open_auxiliary": "Requires open auxiliary",
+          "requires_item": "Requires item",
+          "requires_business_unit": "Requires business unit",
+          "statement_section": "Statement section",
+          "is_opening_result": "Opening result account",
+          "is_active": "Active",
+          "access": "Security",
+          "extra": "Additional data",
+          "extra_free": "Free data",
+          "created_at": "Created",
+          "updated_at": "Updated"
+        },
+        "journal": {
+          "seq": "No.",
+          "code": "Code",
+          "name": "Description",
+          "kind": "Kind",
+          "next_number": "Next number",
+          "manual_entries": "Allows manual entries",
+          "is_active": "Active",
+          "extra": "Additional data",
+          "extra_free": "Free data",
+          "created_at": "Created",
+          "updated_at": "Updated"
+        },
+        "cost_center": {
+          "seq": "No.",
+          "code": "Code",
+          "name": "Description",
+          "parent_id": "Parent",
+          "kind": "Type",
+          "is_active": "Active",
+          "extra": "Additional data",
+          "extra_free": "Free data",
+          "created_at": "Created",
+          "updated_at": "Updated"
+        },
+        "open_auxiliary": {
+          "seq": "No.",
+          "code": "Code",
+          "name": "Description",
+          "parent_id": "Parent",
+          "kind": "Type",
+          "is_active": "Active",
+          "extra": "Additional data",
+          "extra_free": "Free data",
+          "created_at": "Created",
+          "updated_at": "Updated"
+        },
+        "item": {
+          "seq": "No.",
+          "code": "Code",
+          "name": "Description",
+          "parent_id": "Parent",
+          "kind": "Type",
+          "is_active": "Active",
+          "extra": "Additional data",
+          "extra_free": "Free data",
+          "created_at": "Created",
+          "updated_at": "Updated"
+        },
+        "business_unit": {
+          "seq": "No.",
+          "code": "Code",
+          "name": "Description",
+          "parent_id": "Parent",
+          "kind": "Type",
+          "is_active": "Active",
+          "extra": "Additional data",
+          "extra_free": "Free data",
+          "created_at": "Created",
+          "updated_at": "Updated"
+        }
+      },
     "core": {
       "party": {
         "seq": "No.",
@@ -1134,6 +1242,45 @@
     }
   },
   "grid": {
+      "tree": {
+        "search": "Search by code or name",
+        "levels": "Open by level",
+        "level": "Open to level {n}",
+        "all": "All",
+        "node": "Node",
+        "empty": "No results",
+        "restricted": "Restricted account"
+      },
+      "master": {
+        "view": "View",
+        "table": "Table",
+        "tree": "Tree",
+        "period": "Period",
+        "no_period": "No periods",
+        "restricted_filter": "Restricted",
+        "new_account": "New auxiliary account",
+        "new_account_hint": "Select a subaccount or an auxiliary without postings to create an account under it",
+        "new": "New",
+        "balance": "Balance",
+        "result": "Result",
+        "movement": "Net movement",
+        "tree_label": "{title} tree",
+        "children_of": "Inside {node}",
+        "top_level": "Top level",
+        "dialog_account": "New auxiliary account",
+        "dialog_node": "New: {title}",
+        "under": "Under {node}",
+        "code": "Code",
+        "name": "Description",
+        "parent": "Parent",
+        "kind": "Type",
+        "active": "Active",
+        "create": "Create",
+        "cancel": "Cancel",
+        "failed": "Could not create: {reason}",
+        "created": "Created",
+        "step_up": "This action asks for your verification code"
+      },
     "empty": "No results",
     "loading": "Loading…",
     "search_placeholder": "Search…",
@@ -1421,6 +1568,34 @@
       "picked": "Selected: {label}"
     },
     "values": {
+        "account_level": {
+          "class": "Class",
+          "group": "Group",
+          "account": "Account",
+          "subaccount": "Subaccount",
+          "auxiliary": "Auxiliary"
+        },
+        "nature": {
+          "debit": "Debit",
+          "credit": "Credit"
+        },
+        "account_access": {
+          "open": "Open",
+          "restricted": "Restricted"
+        },
+        "dimension_kind": {
+          "group": "Group",
+          "leaf": "Leaf"
+        },
+        "journal_kind": {
+          "general": "General",
+          "sales": "Sales",
+          "purchases": "Purchases",
+          "receipts": "Receipts",
+          "payments": "Payments",
+          "opening": "Opening",
+          "closing": "Closing"
+        },
       "party_kind": {
         "customer": "Customer",
         "supplier": "Supplier",

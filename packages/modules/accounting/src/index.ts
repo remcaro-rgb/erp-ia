@@ -34,3 +34,5 @@ export const accounting: ModuleDef = defineModule({
 export { ACCOUNTING_ENTITIES } from "./entities";
 export { DIMENSIONS, DIMENSION_DEFS } from "./dimensions";
 export type { Dimension, DimensionDef } from "./dimensions";
+export { figureOf, MASTER_ENTITIES, masterTree } from "./masters/tree";
+export type { MasterEntity, MasterFigure, MasterTree, MasterTreeItem } from "./masters/tree";
