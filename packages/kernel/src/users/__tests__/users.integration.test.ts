@@ -58,9 +58,9 @@ describe("kernel users: v_users and kernel.user.consult", () => {
 
   const users = (caller: Caller) => withClaims(sql, caller.claims, (tx) => tx<Record<string, unknown>[]>`select * from kernel.v_users order by email`);
 
-  it("lists the members of the active company with id, full_name, email, locale, mobile, created_at and is_active, never a user of another tenant", async () => {
+  it("lists the members of the active company with id, full_name, email, locale, mobile, created_at, is_active and mfa_exempt, never a user of another tenant", async () => {
     const rows = await users(member);
-    expect(Object.keys(rows[0]!).sort()).toEqual(["created_at", "email", "full_name", "id", "is_active", "locale", "mobile"]);
+    expect(Object.keys(rows[0]!).sort()).toEqual(["created_at", "email", "full_name", "id", "is_active", "locale", "mfa_exempt", "mobile"]);
     const ids = rows.map((r) => r.id);
     expect(ids).toEqual(expect.arrayContaining([seed.users.both, seed.users.onlyA, seed.users.member!, other.users.shared!]));
     expect(ids).toHaveLength(4);

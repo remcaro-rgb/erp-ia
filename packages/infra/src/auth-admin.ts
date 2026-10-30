@@ -2,7 +2,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * The identity provider's admin side (rule 6: the interface, never a provider API in business code): the admin
- * process `kernel.admin.user.create` invites a person by e-mail and finds one who already has an account. The cloud
+ * process `kernel.admin.user.create` invites a person by e-mail and finds one who already has an account, and the
+ * second-step processes (`kernel.user.mfa.disable`, `kernel.admin.user.mfa.set`) remove a user's factors. The cloud
  * build uses Supabase Auth with the service role; it must only be created and used server-side (rule 12).
  */
 export interface AuthAdmin {
@@ -10,6 +11,8 @@ export interface AuthAdmin {
   inviteUserByEmail(email: string, profile: { fullName: string }): Promise<{ id: string }>;
   /** The user with this e-mail (any case), or null. */
   getUserByEmail(email: string): Promise<{ id: string } | null>;
+  /** Removes every TOTP factor of the user (verified or not) and answers how many were removed (0 without one). */
+  deleteFactors(userId: string): Promise<number>;
 }
 
 /** Supabase Auth implementation (service-role client). */
@@ -43,5 +46,17 @@ export class SupabaseAuthAdmin implements AuthAdmin {
       if (found) return { id: found.id };
       if (data.users.length < this.perPage) return null;
     }
+  }
+
+  async deleteFactors(userId: string): Promise<number> {
+    const { data, error } = await this.client.auth.admin.mfa.listFactors({ userId });
+    if (error || !data) throw new Error(`could not list the factors of ${userId}: ${error?.message ?? "no factors returned"}`);
+    let removed = 0;
+    for (const factor of data.factors.filter((f) => f.factor_type === "totp")) {
+      const { error: failed } = await this.client.auth.admin.mfa.deleteFactor({ id: factor.id, userId });
+      if (failed) throw new Error(`could not remove factor ${factor.id} of ${userId}: ${failed.message}`);
+      removed++;
+    }
+    return removed;
   }
 }

@@ -1027,7 +1027,8 @@
         "locale": "Idioma",
         "mobile": "Celular",
         "created_at": "Creado",
-        "is_active": "Activo"
+        "is_active": "Activo",
+        "mfa_exempt": "Exento del segundo paso"
       }
     },
     "support": {

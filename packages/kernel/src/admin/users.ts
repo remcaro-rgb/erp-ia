@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
+import { adminUserMfaSet } from "../users/mfa";
 import { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "../validation";
 import { authAdmin } from "./auth-admin";
 import { ADMIN_FEATURE, companyRole, invalid, requireAdmin } from "./common";
@@ -178,4 +179,5 @@ export const userUpdate = defineProcess({
   },
 });
 
-export const USER_PROCESSES = [userCreate, userUpdate];
+// The second step of a member's sign-in (design §22.19): kernel.admin.user.mfa.set, in ../users/mfa.ts beside the user's own.
+export const USER_PROCESSES = [userCreate, userUpdate, adminUserMfaSet];

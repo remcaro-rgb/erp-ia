@@ -5,6 +5,7 @@ export { writeAudit, setAuditContext } from "./audit/audit";
 export { AUDIT_ACTIONS, AUDIT_FEATURE, AUDIT_ORIGINS, AUDIT_PROCESSES, auditConsult, auditEntity } from "./audit/viewer";
 export type { AuditAction, AuditContext, AuditEntry, Origin } from "./audit/audit";
 export { USER_PROCESSES, USERS_FEATURE, userConsult, userEntity } from "./users/entity";
+export { adminUserMfaSet, USER_MFA_PROCESSES, userMfaDisable } from "./users/mfa";
 export { membershipInactive } from "./users/membership";
 export { auditEntityOf, auditEntryDetail, auditEntryRead, describeAuditEntry, readAuditEntry } from "./audit/detail";
 export type { AuditEntryDetail, AuditEntrySummary, AuditFieldChange, AuditInputValue, AuditRecord } from "./audit/detail";

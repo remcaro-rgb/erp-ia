@@ -1027,7 +1027,8 @@
         "locale": "Language",
         "mobile": "Mobile",
         "created_at": "Created",
-        "is_active": "Active"
+        "is_active": "Active",
+        "mfa_exempt": "Exempt from the second step"
       }
     },
     "support": {

@@ -17,6 +17,7 @@ import { ADMIN_NAVIGATION } from "../admin/navigation";
 import { HOME_FEATURE, HOME_PROCESSES, KERNEL_KPI_PROVIDERS } from "../home";
 import { AUDIT_FEATURE, AUDIT_PROCESSES, auditEntity } from "../audit/viewer";
 import { USER_PROCESSES, USERS_FEATURE, userEntity } from "../users/entity";
+import { USER_MFA_PROCESSES } from "../users/mfa";
 
 /**
  * The kernel as a module, so its processes are registered, audited and permissioned like any other.
@@ -27,7 +28,7 @@ export const kernelModule: ModuleDef = defineModule({
   version: "0.1.0",
   dependsOn: [],
   entities: [importEntity, exportJobEntity, auditEntity, userEntity],
-  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES],
+  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES],
   features: [
     {
       id: "kernel.attachments",
@@ -110,7 +111,7 @@ export const kernelModule: ModuleDef = defineModule({
     {
       id: USERS_FEATURE,
       label: "feature.kernel.users",
-      processes: USER_PROCESSES.map((p) => p.id),
+      processes: [...USER_PROCESSES, ...USER_MFA_PROCESSES].map((p) => p.id),
       entities: [userEntity.id],
     },
   ],
