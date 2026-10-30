@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect } from "react";
-import { requestExport, type ExportOptions, type ExportResult } from "./export-client";
+import { requestExport, type ExportOptions, type ExportResult, type ExportSource } from "./export-client";
 import { useExportJobs } from "./export-jobs";
 import type { ExportFormat, GridStateInput } from "./types";
 
@@ -29,6 +29,8 @@ export interface UseGridExportOptions extends Pick<ExportOptions, "endpoint" | "
   entity: string;
   /** The screen's name: the exported file and its sheet are named after it. */
   title?: string;
+  /** Exports a report (`source: { kind: "report" }`) instead of the entity's rows. */
+  source?: ExportSource;
   download?: (result: ExportResult) => void;
 }
 
@@ -36,7 +38,7 @@ export interface UseGridExportOptions extends Pick<ExportOptions, "endpoint" | "
  * Runs the PDF / Excel / CSV export of a grid and tells how it is going (one at a time per entity). Inside the shell the
  * job belongs to `ExportJobsProvider` and survives this grid (a tab change); a bare grid aborts it when it unmounts.
  */
-export function useGridExport({ entity, title, endpoint, fetcher, pollMs, maxWaitMs, download = browserDownload }: UseGridExportOptions) {
+export function useGridExport({ entity, title, source, endpoint, fetcher, pollMs, maxWaitMs, download = browserDownload }: UseGridExportOptions) {
   const jobs = useExportJobs();
   const { attach } = jobs;
   useEffect(() => attach(entity), [attach, entity]);
@@ -45,11 +47,11 @@ export function useGridExport({ entity, title, endpoint, fetcher, pollMs, maxWai
   const run = useCallback(
     (format: ExportFormat, state: GridStateInput) =>
       jobs.start(entity, format, title, async (signal, onJob) => {
-        const result = await requestExport({ entity, format, state, ...(title ? { title } : {}) }, { endpoint, fetcher, pollMs, maxWaitMs, signal, onJob });
+        const result = await requestExport({ entity, format, state, ...(title ? { title } : {}), ...(source ? { source } : {}) }, { endpoint, fetcher, pollMs, maxWaitMs, signal, onJob });
         download(result);
         return result.fileName ?? `${entity}.${format}`;
       }),
-    [jobs, entity, title, endpoint, fetcher, pollMs, maxWaitMs, download],
+    [jobs, entity, title, source, endpoint, fetcher, pollMs, maxWaitMs, download],
   );
 
   return { status, run, busy: status.phase === "working" || status.phase === "job" };

@@ -16,6 +16,8 @@ export interface SavedGridState {
   columns?: string[];
   /** Every field the column chooser offers, shown or not, in the user's order (design §22.12); older views have none. */
   order?: string[];
+  /** A report's parameter set (entity `report:<id>`); the report's own schema checks it when it runs. */
+  params?: Record<string, unknown>;
 }
 
 /** A saved view of the user, as `kernel.saved_view.list` returns it. */

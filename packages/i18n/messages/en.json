@@ -1696,5 +1696,20 @@
     "export_timeout": "The export is taking longer than expected. It carries on in the background; try again in a few minutes.",
     "ai_budget_exceeded": "Your company reached its monthly AI usage limit. Ask your administrator to raise it; meanwhile you can keep working in the app.",
     "confirmation_expired": "The confirmation card expired. Ask the assistant for the action again."
+  },
+  "report": {
+    "params": "Report parameters",
+    "all": "All",
+    "range": {
+      "title": "Quick ranges",
+      "today": "Today",
+      "period": "This period",
+      "year": "This year"
+    },
+    "denied": {
+      "not_entitled": "Your company does not have this report enabled.",
+      "forbidden": "Your role cannot run this report.",
+      "not_found": "This report does not exist."
+    }
   }
 }

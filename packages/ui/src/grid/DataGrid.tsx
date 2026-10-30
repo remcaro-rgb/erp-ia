@@ -18,6 +18,7 @@ import { savedStateOf, viewFromSaved, type SavedGridState, type SavedViewItem } 
 import { SavedViewsMenu } from "./SavedViewsMenu";
 import { useGrid } from "./use-grid";
 import { exportFailureText as failureText } from "./export-jobs";
+import type { ExportSource } from "./export-client";
 import { useGridExport } from "./use-grid-export";
 import type { Condition, ExportFormat, GridColumn, GridFetcher, GridRow, GridStateInput, GridView } from "./types";
 
@@ -91,6 +92,10 @@ export interface DataGridProps {
   };
   /** Where the export is requested; POST /api/export by default. */
   exportEndpoint?: string;
+  /** A report's grid exports the report with its parameters (`source: { kind: "report" }`), not the entity's rows. */
+  exportSource?: ExportSource;
+  /** Called after a saved view is applied (a report restores the parameters it saved). */
+  onViewApplied?: (view: SavedViewItem) => void;
   debounceMs?: number;
 }
 
@@ -100,12 +105,12 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, onExport, exportEndpoint, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, debounceMs });
   const { view, data } = grid;
-  const exporter = useGridExport({ entity, title, endpoint: exportEndpoint });
+  const exporter = useGridExport({ entity, title, source: exportSource, endpoint: exportEndpoint });
   const shown = shownColumns(columns, view);
   const rows = data.page?.rows ?? NO_ROWS;
   const total = data.page?.total ?? 0;
@@ -320,7 +325,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
             current={() => savedStateOf(columns, view)}
             onSave={savedViews.onSave}
             onDelete={savedViews.onDelete}
-            onApply={(v) => grid.apply(viewFromSaved(columns, v.state))}
+            onApply={(v) => (grid.apply(viewFromSaved(columns, v.state)), onViewApplied?.(v))}
           />
         )}
         <button type="button" className={view.conditions.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} onClick={() => setAdvancedOpen(true)}>

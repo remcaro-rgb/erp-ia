@@ -4,11 +4,19 @@ import type { ExportFormat, GridStateInput } from "./types";
 // answer is the file itself; from there on it is 202 { mode: "job", jobId } and GET /api/export/:jobId is polled until
 // the job is done and carries a signed link. Pure over an injected `fetch`, so it is tested without a browser.
 
+export interface ExportSource {
+  kind: "report";
+  id: string;
+  params: Record<string, unknown>;
+}
+
 export interface ExportRequest {
   entity: string;
   format: ExportFormat;
   state: GridStateInput;
   title?: string;
+  /** A report's export: the server reads the report's consult with these parameters instead of an entity's grid. */
+  source?: ExportSource;
 }
 
 export type ExportResult =

@@ -1696,5 +1696,20 @@
     "export_timeout": "La exportación tarda más de lo esperado. Sigue en segundo plano; inténtalo de nuevo en unos minutos.",
     "ai_budget_exceeded": "Tu empresa alcanzó el tope mensual de uso de IA. Pide al administrador que lo amplíe; mientras tanto puedes seguir trabajando en la aplicación.",
     "confirmation_expired": "La tarjeta de confirmación venció. Pide de nuevo la acción al asistente."
+  },
+  "report": {
+    "params": "Parámetros del informe",
+    "all": "Todos",
+    "range": {
+      "title": "Rangos rápidos",
+      "today": "Hoy",
+      "period": "Este período",
+      "year": "Este año"
+    },
+    "denied": {
+      "not_entitled": "Tu empresa no tiene habilitado este informe.",
+      "forbidden": "Tu rol no puede consultar este informe.",
+      "not_found": "Este informe no existe."
+    }
   }
 }

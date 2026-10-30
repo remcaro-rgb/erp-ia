@@ -52,5 +52,5 @@ export { ExportJobsProvider, exportFailureText, useExportJobs } from "./export-j
 export type { ExportJobs } from "./export-jobs";
 export type { ExportStatus, UseGridExportOptions } from "./use-grid-export";
 export { ExportRequestError, fileNameOf, requestExport } from "./export-client";
-export type { ExportOptions, ExportRequest, ExportResult } from "./export-client";
+export type { ExportOptions, ExportRequest, ExportResult, ExportSource } from "./export-client";
 export type * from "./types";
