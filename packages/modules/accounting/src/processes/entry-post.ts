@@ -32,6 +32,8 @@ interface EntryRow {
   exchange_rate: string;
   source_entity: string | null;
   source_record_id: string | null;
+  is_closing: boolean;
+  is_opening: boolean;
 }
 
 interface LineRow {
@@ -87,7 +89,7 @@ async function insertMirror(ctx: ProcessContext, from: string, to: string): Prom
 export async function postEntry(ctx: ProcessContext, entryId: string, opts: PostOptions): Promise<{ id: string; number: string; periodId: string }> {
   const [entry] = await ctx.tx<EntryRow[]>`
     select id, journal_id, date::text, status, origin, created_by, business_unit_id, reverse_on::text, is_auto_reversal, reversal_of_id,
-           exchange_rate, source_entity, source_record_id
+           exchange_rate, source_entity, source_record_id, is_closing, is_opening
     from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
   if (!entry) throw new ProcessError("not_found", `entry ${entryId} not found`);
   if (entry.status !== "draft" && entry.status !== "pending") {
@@ -105,7 +107,7 @@ export async function postEntry(ctx: ProcessContext, entryId: string, opts: Post
 
   const stored = await linesOf(ctx, entryId);
   const lines = stored.map(asInput);
-  assertValid(await validateLines(ctx, { journalId: entry.journal_id, date: entry.date, businessUnitId: entry.business_unit_id, origin: entry.origin }, lines, "post", { engine: opts.engine === true }));
+  assertValid(await validateLines(ctx, { journalId: entry.journal_id, date: entry.date, businessUnitId: entry.business_unit_id, origin: entry.origin, isClosing: entry.is_closing }, lines, "post", { engine: opts.engine === true }));
 
   const rate = Number(entry.exchange_rate);
   const debit = round4(lines.reduce((sum, l) => sum + l.debit, 0));
@@ -179,7 +181,7 @@ export const entrySubmit = defineProcess({
   handler: async (ctx, { id: entryId }) => {
     const [entry] = await ctx.tx<EntryRow[]>`
       select id, journal_id, date::text, status, origin, created_by, business_unit_id, reverse_on::text, is_auto_reversal, reversal_of_id,
-             exchange_rate, source_entity, source_record_id
+             exchange_rate, source_entity, source_record_id, is_closing, is_opening
       from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
     if (!entry) throw new ProcessError("not_found", `entry ${entryId} not found`);
     if (entry.status !== "draft") throw invalid(`entry ${entryId} is ${entry.status}`, "Solo se envía a aprobación un borrador");
@@ -209,6 +211,46 @@ export const entryPost = defineProcess({
   },
 });
 
+/**
+ * Reverses a posted comprobante with a mirrored one in the same Fuente, dated `date` (today by default) in an open period: links
+ * both ways, marks the original reversed, voids a pending auto-reversal draft so the entry is not reversed twice. The year-close
+ * entries are reversed only by `year.reopen`, which passes `allowClosing`.
+ */
+export async function reverseEntry(
+  ctx: ProcessContext,
+  entryId: string,
+  input: { date?: string | undefined; reason: string },
+  opts: { allowClosing?: boolean } = {},
+): Promise<{ id: string; number: string }> {
+  const [original] = await ctx.tx<(EntryRow & { number: string })[]>`
+    select id, journal_id, date::text, status, origin, created_by, business_unit_id, reverse_on::text, is_auto_reversal, reversal_of_id,
+           exchange_rate, source_entity, source_record_id, is_closing, is_opening, number
+    from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
+  if (!original) throw new ProcessError("not_found", `entry ${entryId} not found`);
+  if (original.status !== "posted") throw invalid(`entry ${entryId} is ${original.status}`, "Solo se revierte un comprobante contabilizado que no haya sido revertido");
+  if (original.reversal_of_id) throw invalid(`entry ${entryId} is a reversal`, "Un comprobante de reversión no se revierte: crea uno nuevo");
+  if (original.is_closing && !opts.allowClosing) {
+    throw invalid(`entry ${entryId} is a closing entry`, "Los comprobantes de cierre del año se revierten reabriendo el año fiscal (year.reopen)");
+  }
+  // A pending auto-reversal draft would reverse it a second time.
+  await ctx.tx`
+    update accounting.entries set status = 'voided', extra = extra || ${ctx.tx.json({ void_reason: `Reemplazado por la reversión de ${original.number}` })}
+     where reversal_of_id = ${entryId} and is_auto_reversal and status in ('draft', 'pending')`;
+  const [reversal] = await ctx.tx<{ id: string }[]>`
+    insert into accounting.entries ${ctx.tx({
+      company_id: ctx.companyId, journal_id: original.journal_id, date: input.date ?? new Date().toISOString().slice(0, 10),
+      description: `Reversión de ${original.number}: ${input.reason}`, origin: "auto", status: "draft", reversal_of_id: entryId,
+      business_unit_id: original.business_unit_id, exchange_rate: original.exchange_rate, source_entity: original.source_entity,
+      source_record_id: original.source_record_id, chain_id: ctx.chainId, is_opening: original.is_opening, is_closing: original.is_closing,
+    })}
+    returning id`;
+  await insertMirror(ctx, entryId, reversal!.id);
+  const posted = await postEntry(ctx, reversal!.id, { origin: "human", skipFourEyes: true });
+  await ctx.tx`update accounting.entries set status = 'reversed', reversed_by_id = ${reversal!.id} where id = ${entryId}`;
+  await ctx.emit("accounting.entry.reversed", { entryId, reversalId: reversal!.id, number: original.number, reversalNumber: posted.number, reason: input.reason });
+  return { id: reversal!.id, number: posted.number };
+}
+
 export const entryReverse = defineProcess({
   id: "accounting.entry.reverse",
   module: "accounting",
@@ -219,32 +261,7 @@ export const entryReverse = defineProcess({
   idempotencyKey: (input) => `reverse:${input.id}`,
   input: z.object({ id, date: z.iso.date().optional(), reason: z.string().trim().min(1).max(500) }).strict(),
   output: postOutput,
-  handler: async (ctx, { id: entryId, date, reason }) => {
-    const [original] = await ctx.tx<(EntryRow & { number: string })[]>`
-      select id, journal_id, date::text, status, origin, created_by, business_unit_id, reverse_on::text, is_auto_reversal, reversal_of_id,
-             exchange_rate, source_entity, source_record_id, number
-      from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
-    if (!original) throw new ProcessError("not_found", `entry ${entryId} not found`);
-    if (original.status !== "posted") throw invalid(`entry ${entryId} is ${original.status}`, "Solo se revierte un comprobante contabilizado que no haya sido revertido");
-    if (original.reversal_of_id) throw invalid(`entry ${entryId} is a reversal`, "Un comprobante de reversión no se revierte: crea uno nuevo");
-    // A pending auto-reversal draft would reverse it a second time.
-    await ctx.tx`
-      update accounting.entries set status = 'voided', extra = extra || ${ctx.tx.json({ void_reason: `Reemplazado por la reversión de ${original.number}` })}
-       where reversal_of_id = ${entryId} and is_auto_reversal and status in ('draft', 'pending')`;
-    const [reversal] = await ctx.tx<{ id: string }[]>`
-      insert into accounting.entries ${ctx.tx({
-        company_id: ctx.companyId, journal_id: original.journal_id, date: date ?? new Date().toISOString().slice(0, 10),
-        description: `Reversión de ${original.number}: ${reason}`, origin: "auto", status: "draft", reversal_of_id: entryId,
-        business_unit_id: original.business_unit_id, exchange_rate: original.exchange_rate, source_entity: original.source_entity,
-        source_record_id: original.source_record_id, chain_id: ctx.chainId,
-      })}
-      returning id`;
-    await insertMirror(ctx, entryId, reversal!.id);
-    const posted = await postEntry(ctx, reversal!.id, { origin: "human", skipFourEyes: true });
-    await ctx.tx`update accounting.entries set status = 'reversed', reversed_by_id = ${reversal!.id} where id = ${entryId}`;
-    await ctx.emit("accounting.entry.reversed", { entryId, reversalId: reversal!.id, number: original.number, reversalNumber: posted.number, reason });
-    return { id: reversal!.id, number: posted.number };
-  },
+  handler: (ctx, { id: entryId, date, reason }) => reverseEntry(ctx, entryId, { date, reason }),
 });
 
 export const ENTRY_POST_PROCESSES = [entrySubmit, entryPost, entryReverse];

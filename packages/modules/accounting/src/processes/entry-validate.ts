@@ -24,6 +24,8 @@ export interface EntryHeader {
   date: string;
   businessUnitId?: string | null;
   origin: EntryOrigin;
+  /** The year-close entries: dated in a period that is already closed and posted to the summary accounts without analytic dimensions (§5.7). */
+  isClosing?: boolean;
 }
 
 /** A line as the processes receive it: the account by id or by code. Amounts are in company currency. */
@@ -193,7 +195,7 @@ export async function validateLines(
       if (effective) {
         const problem = await dimensionOf(dimension, effective);
         if (problem) add("inactive_dimension", problem, lineNo);
-      } else if (mode === "post" && account[REQUIRES[dimension]]) {
+      } else if (mode === "post" && !header.isClosing && account[REQUIRES[dimension]]) {
         add(MISSING_CODE[dimension], `La cuenta ${labelOf(account)} exige ${def.noun}`, lineNo);
       }
     }
@@ -211,8 +213,8 @@ export async function validateLines(
       select status, reopened_for::text, starts_on::text from accounting.periods
       where company_id = ${ctx.companyId} and ${header.date}::date between starts_on and ends_on`;
     if (!period) add("closed_period", `No hay un período contable para la fecha ${header.date}`);
-    else if (period.status === "closed") add("closed_period", `El período de ${header.date} está cerrado`);
-    else if (period.reopened_for && period.reopened_for !== header.date) {
+    else if (period.status === "closed" && !header.isClosing) add("closed_period", `El período de ${header.date} está cerrado`);
+    else if (period.reopened_for && period.reopened_for !== header.date && !header.isClosing) {
       add("closed_period", `El período fue reabierto solo para el ${period.reopened_for}: la fecha ${header.date} está cerrada`);
     }
   }
