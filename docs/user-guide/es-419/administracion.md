@@ -133,13 +133,16 @@ El segundo paso es de la **cuenta** de la persona, no de una empresa:
 - Si la persona es también administradora de **otra empresa de tu organización**, al quitárselo aquí lo pierde también allá, y el sistema le pide activarlo de nuevo cuando ingresa a esa empresa.
 - Si la persona pertenece también a **otra organización**, el sistema no lo quita y responde «Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí». Sí puedes eximirla del segundo paso en tu empresa.
 
-
 **Exento del segundo paso** es un interruptor que aparece solo para quienes tienen el rol **admin**, porque ese rol exige la verificación en dos pasos:
 
 1. Pulsa el interruptor **Exento del segundo paso** e ingresa tu código.
 2. Junto al estado aparece **exenta**; en la lista de **Usuarios**, una persona exenta sin segundo paso dice **exenta** en vez de **pendiente**.
 
 Una persona exenta entra solo con su contraseña si no tiene la verificación activa, y puede desactivarla desde su menú de usuario. Si ya la tiene activa, se la sigue pidiendo hasta que la desactive. Para quitar la exención, vuelve a pulsar el interruptor e ingresa tu código: su próximo ingreso le exigirá la verificación otra vez. Puedes eximirte a ti mismo.
+
+La exención queda guardada en la persona, dentro de esta empresa, **hasta que un administrador la quite** con el interruptor; cambiarle los roles no la borra. Mientras la tenga, su página muestra **exenta** junto al estado. Si le quitas el rol admin, el interruptor deja de aparecer pero la exención sigue (su página sigue diciendo **exenta**), y vuelve a valer si más adelante le das otra vez el rol admin. Para quitarla, apágala antes de quitarle el rol, o devuélvele el rol admin y apágala entonces.
+
+Estas dos acciones no están en el asistente: se hacen solo desde la página del usuario.
 
 Ojo: quien no tiene la verificación activa no puede confirmar **acciones sensibles** (como las de esta sección de administración). Un administrador exento sin segundo paso tendrá que activarlo para volver a administrar.
 
