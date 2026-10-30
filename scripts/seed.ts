@@ -52,7 +52,8 @@ import {
   type RunProcessDeps,
 } from "@erp/kernel";
 import { CATEGORIES, INVOICE_READY_PARTIES, PARTIES, PRODUCTS } from "./demo/data";
-import { DEMO_ACCOUNTS, DEMO_COMPANY_ID, DEMO_ROLE_IDS, LAURA, MARCELA, type DemoAccount } from "./demo/accounts";
+import { ANDRES, DEMO_ACCOUNTS, DEMO_COMPANY_ID, DEMO_ROLE_IDS, LAURA, MARCELA, type DemoAccount } from "./demo/accounts";
+import { seedAccounting } from "./demo/accounting";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 const SEED_SQL = join(ROOT, "supabase", "seed.sql");
@@ -213,9 +214,9 @@ function claimsOf(accessToken: string): JwtClaims {
   return { sub, tenant_id, company_ids: company_ids as string[], active_company_id, role_ids: role_ids as string[], locale: typeof locale === "string" ? locale : "es-419" };
 }
 
-interface Session {
+export interface Session {
   caller: Caller;
-  /** A fresh step-up of the account (a correct TOTP code, then the verification row, as POST /api/auth/step-up does). */
+  /** A fresh step-up of the account (a correct TOTP code, then the verification row, as POST /api/auth/step-up does); only for an account with a second step. */
   stepUp(): Promise<Caller>;
 }
 
@@ -224,6 +225,15 @@ async function signIn(sql: Sql, env: SeedEnv, account: DemoAccount): Promise<Ses
   const client = createClient(env.supabaseUrl, env.anonKey, noSession);
   const signedIn = await client.auth.signInWithPassword({ email: account.email, password: account.password });
   if (signedIn.error) throw new Error(`db:seed: ${account.email} could not sign in: ${signedIn.error.message}`);
+  if (!account.totpSecret) {
+    // An account without a second step acts with the session it just got; it has no step-up to raise.
+    return {
+      caller: { claims: claimsOf(signedIn.data.session.access_token), origin: "api" },
+      async stepUp() {
+        throw new Error(`db:seed: ${account.email} has no second step to raise a step-up with`);
+      },
+    };
+  }
   const { data: factors, error } = await client.auth.mfa.listFactors();
   const factor = factors?.totp[0];
   if (error || !factor) throw new Error(`db:seed: ${account.email} has no verified TOTP factor`);
@@ -415,7 +425,7 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     loadModules(registry, [kernelModule, core, accounting, support]);
     registerCountryPack(co);
     await syncRegistry(sql, registry);
-    for (const moduleId of ["core", "support"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
+    for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
 
     const admin = createClient(env.supabaseUrl, env.serviceKey, noSession);
     // kernel.admin.user.create looks people up through the AuthAdmin adapter: this stack's.
@@ -433,14 +443,18 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     const created = await seedMasterData(sql, deps, laura.caller);
     const files = await seedRequiredFiles(sql, deps, laura.caller, new SupabaseFileStore(admin));
     const recommendations = await seedRecommendations(sql, ids.get(LAURA.email)!, ids.get(MARCELA.email)!);
+    const andres = await signIn(sql, env, ANDRES);
+    const ledger = await seedAccounting(sql, deps, { laura, andres, ids }, ids.get(LAURA.email)!);
 
     console.log(
       `db:seed done: Café del Norte S.A.S. · ${adminRuns} admin change(s), ${created.categories} categories, ${created.parties} parties, ` +
         `${created.products} products, ${files} required file(s) and ${recommendations} recommendation(s) created (existing ones kept).`,
     );
+    console.log(`  Contabilidad: ${ledger.entriesFromEvents} document(s) posted from events, ${ledger.periodsClosed} period(s) closed (existing ones kept).`);
     console.log("Demo accounts (LOCAL USE ONLY):");
     console.log(`  ${LAURA.email} / ${LAURA.password} · admin + gerente comercial · TOTP secret ${LAURA.totpSecret}`);
     console.log(`  ${MARCELA.email} / ${MARCELA.password} · cajero · no second step`);
+    console.log(`  ${ANDRES.email} / ${ANDRES.password} · contador · no second step`);
   } finally {
     await sql.end();
   }

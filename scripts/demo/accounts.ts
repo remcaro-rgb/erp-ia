@@ -47,4 +47,13 @@ export const MARCELA: DemoAccount = {
   mobile: "3165550123",
 };
 
-export const DEMO_ACCOUNTS = [LAURA, MARCELA] as const;
+/** Andrés is the accountant (contador): he writes comprobantes, sends them to approval and reads the ledger; no second step enrolled. */
+export const ANDRES: DemoAccount = {
+  email: "andres@demo.local",
+  password: "demo-andres-2026",
+  fullName: "Andrés Rojas",
+  roles: ["contador"],
+  mobile: "3175550188",
+};
+
+export const DEMO_ACCOUNTS = [LAURA, MARCELA, ANDRES] as const;

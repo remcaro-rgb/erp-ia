@@ -55,6 +55,20 @@ describe("the mock agent model", () => {
     expect(out.at(-1)).toMatchObject({ type: "finish", finishReason: { unified: "tool-calls" } });
   });
 
+  it("answers «gastos de octubre por centro de costo» with a grouped query over the ledger lines, and only when the turn offers the tool", async () => {
+    const out = await parts(options(user("gastos de octubre por centro de costo"), ["kernel__data__query"]));
+    const call = callOf(out);
+    expect(call?.toolName).toBe("kernel__data__query");
+    const year = new Date().getFullYear();
+    expect(JSON.parse(call!.input)).toMatchObject({
+      entity: "accounting.ledger_line",
+      filters: [{ field: "account_class", op: "eq", value: "5" }, { field: "date", op: "between", value: `${year}-10-01`, value2: `${year}-10-31` }],
+      groupBy: ["cost_center_code"],
+      aggregates: [{ field: "net", fn: "sum" }],
+    });
+    expect(callOf(await parts(options(user("gastos de octubre por centro de costo"), [])))).toBeUndefined();
+  });
+
   it("refuses in the user's language when the tool is not offered, and calls nothing", async () => {
     const out = await parts(options(user("crea el proveedor Tostadora Andina, NIT 860002964-4"), ["kernel__data__query"]));
     expect(callOf(out)).toBeUndefined();

@@ -6,10 +6,10 @@
 --      (docker-compose.test.yml mounts it; the production compose file does not), and again, it is idempotent, by
 --      `pnpm db:seed`): the tenant "Demo", the company Café del Norte S.A.S. (NIT 900373115-3), its roles
 --      admin, gerente_comercial, contador and cajero, the Colombian required files, and the starter plan's entitlements
---      (module:core, module:support, limit:ai_tokens_month = 2000000).
+--      (module:core, module:support, limit:ai_tokens_month = 2000000) and the manual entitlement module:accounting.
 --   2. `DEMO_SEED=1 pnpm db:seed` (scripts/seed.ts, the test stack's `seed` job): registers the modules' manifests,
 --      enables the modules, creates the Auth users laura@demo.local (admin + gerente comercial, TOTP) and
---      marcela@demo.local (cajero) through the Auth Admin API, seeds the company's role defaults, then as Laura with her
+--      marcela@demo.local (cajero) and andres@demo.local (contador) through the Auth Admin API, seeds the company's role defaults, then as Laura with her
 --      step-up adds Marcela and sets roles and permissions through the kernel.admin.* processes, creates 6 categories,
 --      40 parties and 25 products and the required files of 6 parties through their processes, and offers
 --      2 recommendations. The accounts are in README.md.
@@ -51,6 +51,15 @@ where p.id = 'starter'
     select 1 from kernel.tenant_entitlements te
     where te.tenant_id = '019a2c4e-0000-7000-8000-00000000d001' and te.company_id is null and te.key = k.key
   );
+
+-- Contabilidad (phase 2A) is not part of the starter plan: the demo tenant holds it as a manual entitlement, which is also
+-- what `kernel.admin.module.enable` needs to find it purchased.
+insert into kernel.tenant_entitlements (tenant_id, key, source)
+select '019a2c4e-0000-7000-8000-00000000d001', 'module:accounting', 'manual'
+where not exists (
+  select 1 from kernel.tenant_entitlements te
+  where te.tenant_id = '019a2c4e-0000-7000-8000-00000000d001' and te.company_id is null and te.key = 'module:accounting'
+);
 
 insert into kernel.tenant_entitlements (tenant_id, key, limit_value, source)
 select '019a2c4e-0000-7000-8000-00000000d001', 'limit:ai_tokens_month', (p.limits ->> 'ai_tokens_month')::numeric, 'plan'

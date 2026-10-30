@@ -12,6 +12,8 @@ import { catalogueOf, message } from "./preview";
 // It answers like a well-behaved model, from the user's words and the tools the turn offers:
 //   «crea el cliente <nombre>, NIT <número>[-DV]»  → core__party__create with the process's input shape;
 //   «busca el cliente <nombre>»                    → kernel__data__query over core.party by name;
+//   «gastos de <mes> por centro de costo»          → kernel__data__query over accounting.ledger_line: class 5 lines of the month,
+//                                                    grouped by cost center with the sum of the net (Task 31, the accounting smoke);
 //   after a tool result                            → the card is ready / what was found / why it could not;
 //   a tool the turn does not offer                 → it says the role does not allow it, and calls nothing (rule 17);
 //   anything else                                  → what it can do.
@@ -33,6 +35,9 @@ const USAGE = {
 
 const CREATE = /\b(?:crea|crear|create)\s+(?:(?:el|la|un|una|a|the)\s+)?(cliente|proveedor|tercero|customer|supplier|party)\s+(.+?)\s*,?\s+(?:con\s+|with\s+)?NIT\s+([\d.]+)(?:\s*-\s*(\d+))?\s*[.!]*$/i;
 const SEARCH = /\b(?:busca|buscar|consulta|encuentra|find|search)\s+(?:(?:el|la|los|las|the)\s+)?(?:cliente|clientes|proveedor|proveedores|tercero|terceros|customer|customers|supplier|suppliers|party|parties)\s+(.+?)\s*[?.!]*$/i;
+
+const EXPENSES = /\bgastos\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s+por\s+centro\s+de\s+costo\s*[?.!]*$/i;
+const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
 const PARTY_CREATE = "core__party__create";
 const DATA_QUERY = "kernel__data__query";
@@ -121,6 +126,24 @@ function answer(options: LanguageModelV4CallOptions): Answer {
   if (search) {
     if (!offered.has(DATA_QUERY)) return { text: words(locale, "not_permitted_query") };
     return { tool: DATA_QUERY, input: { entity: "core.party", filters: [{ field: "legal_name", op: "contains", value: search[1]!.trim() }], limit: 20 } };
+  }
+  const expenses = EXPENSES.exec(said);
+  if (expenses) {
+    if (!offered.has(DATA_QUERY)) return { text: words(locale, "not_permitted_query") };
+    const month = MONTHS.indexOf(expenses[1]!.toLowerCase().replace("setiembre", "septiembre"));
+    const year = new Date().getFullYear();
+    const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    const day = (d: number) => `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    return {
+      tool: DATA_QUERY,
+      input: {
+        entity: "accounting.ledger_line",
+        filters: [{ field: "account_class", op: "eq", value: "5" }, { field: "date", op: "between", value: day(1), value2: day(last) }],
+        groupBy: ["cost_center_code"],
+        aggregates: [{ field: "net", fn: "sum" }],
+        limit: 20,
+      },
+    };
   }
   return { text: words(locale, "fallback") };
 }

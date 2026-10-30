@@ -22,7 +22,7 @@ pnpm install
 cp apps/web/.env.example apps/web/.env.local   # the local stack's public demo keys are already in it
 supabase start        # the local stack: API on 127.0.0.1:55321, database on 127.0.0.1:54322
 pnpm db:reset         # migrations + supabase/seed.sql (tenant, company, roles, entitlements)
-DEMO_SEED=1 pnpm db:seed   # the demo company: Auth users, people and permissions, 40 parties, 25 products, files
+DEMO_SEED=1 pnpm db:seed   # the demo company: Auth users, people and permissions, 40 parties, 25 products, files, the 2026 ledger
 pnpm dev              # http://localhost:3000
 ```
 
@@ -61,6 +61,7 @@ demo passwords are public. The access-token hook must be enabled once in the hos
 | --- | --- | --- | --- |
 | `laura@demo.local` | `demo-laura-2026` | admin + gerente comercial | TOTP, secret `CAFEDELNORTEDEMOLAURATOTPSECRETX` |
 | `marcela@demo.local` | `demo-marcela-2026` | cajero | none |
+| `andres@demo.local` | `demo-andres-2026` | contador | none |
 
 Company: Café del Norte S.A.S., NIT 900373115-3 (country pack `co`, COP, America/Bogota). Add Laura's secret to an
 authenticator app as a manual key (TOTP, SHA1, 6 digits, 30 s). Marcela sees customers only, never the credit limit
@@ -68,6 +69,26 @@ authenticator app as a manual key (TOTP, SHA1, 6 digits, 30 s). Marcela sees cus
 Cámara de Comercio and are invoice-ready. These passwords and the secret are public: never seed them into a stack
 anyone else can reach (`pnpm db:seed` needs `DEMO_SEED=1` and only accepts local hosts; the production compose file has
 no seed job).
+
+### Accounting demo walkthrough (Contabilidad)
+
+`pnpm db:seed` also leaves the 2026 ledger of Café del Norte (`scripts/demo/accounting.ts`, every write through its process):
+the Colombian chart and the seven Fuentes, three centros de costo (Tiendas holds Chapinero and Usaquén), two auxiliares
+abiertos, two ítems and four unidades de negocio (the three optional masters turned on), the opening balances of 1 January,
+40 posted comprobantes from January to October (invoices, receipts with retefuente and ICA, credit notes, cost of sales,
+inventory adjustments and two voids, delivered to the posting engine as synthetic events), October's manual notes
+(**Nómina octubre**, the accrual **Acumulación energía octubre** with its auto-reversal draft dated 01/11/2026, a deposit
+in the suspense account) and **Provisión de arriendo de octubre**, which Andrés sent to approval. January to September are
+closed. Four-eyes is on, and approving a comprobante asks for the TOTP code.
+
+1. **Laura**: Contabilidad › Informes › Balance de prueba, Este período (the totals are equal); Movimientos › Agrupar por
+   Cuenta, then Centro de costo (subtotals per group); Períodos (September is closed); ask the assistant «gastos de octubre
+   por centro de costo» and open the result as a grid. Por aprobar shows Andrés' provision: she approves it with her code.
+2. **Marcela** (cajero) has no access to 5105, class 3 or the Davivienda account: her Balance de prueba folds them into one
+   **Cuentas restringidas** row with the same opening and movement totals, the Auxiliar of 510506 answers Sin acceso,
+   **Nómina octubre** shows its lines masked and the account lookup of a new comprobante offers no 5105.
+3. **Andrés** (contador): Comprobantes › Nuevo, a note with a centro de costo, Enviar a aprobación; the approve button is
+   disabled for him, Laura approves it. Borradores holds the accrual's auto-reversal dated 01/11/2026.
 
 ## Run in Docker
 
@@ -146,7 +167,8 @@ The end-to-end specs start `next dev` on port 3217 themselves with `AGENT_MODEL=
 set); outside CI they reuse a server already running on that port. `e2e/smoke.spec.ts` is the phase 1 smoke on the demo company: Laura
 signs in with her TOTP code, filters Terceros, exports to Excel, asks the assistant, confirms a party it prepares and
 finds that write in Administración › Auditoría with origin `agent`; Marcela never sees the credit limit and cannot
-create a party through the assistant.
+create a party through the assistant. `e2e/accounting-smoke.spec.ts` is the phase 2A smoke on the demo ledger (the walkthrough
+above: Laura, Marcela and Andrés; the comprobante it writes is removed afterwards).
 
 The same smoke against the Docker stack (after `pnpm docker:test:up`):
 

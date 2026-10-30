@@ -1,7 +1,8 @@
 # The Docker TEST stack (CI `docker-integration`, `pnpm docker:test:up`, the smoke checks), never a deployment:
 #  * publishes the database, the Supabase API and Mailpit on 127.0.0.1, which the plain stack keeps on its network;
 #  * loads the demo company: supabase/seed.sql in the `db-init` job and the `seed` job (`pnpm db:seed` with DEMO_SEED=1:
-#    laura@demo.local and marcela@demo.local, public passwords, README.md), which the web app waits for;
+#    laura@demo.local, marcela@demo.local and andres@demo.local, public passwords, README.md; it also posts the 2026 demo ledger of
+#    Contabilidad through the accounting processes), which the web app waits for;
 #  * runs the assistant on the AI SDK mock model (the smoke needs no provider), allowed on this production build by
 #    ALLOW_MOCK_MODEL=1, unless AGENT_MODEL says otherwise.
 services:
@@ -18,8 +19,9 @@ services:
     volumes:
       - ./supabase/seed.sql:/supabase/seed.sql:ro
   # One-shot: the demo company (`pnpm db:seed`, scripts/seed.ts, Task 22) once the migrations, supabase/seed.sql and Auth
-  # are in: the registry synced, the modules enabled, the Auth users created through the Admin API (kong), people and
-  # permissions through the admin processes, 6 categories, 40 parties and 25 products through theirs. Idempotent.
+  # are in: the registry synced, the modules (core, support, accounting) enabled, the Auth users created through the Admin API
+  # (kong), people and permissions through the admin processes, 6 categories, 40 parties and 25 products through theirs, then the
+  # Contabilidad demo ledger (Task 31: chart, masters, opening balances, 40 posted comprobantes, closed periods). Idempotent.
   seed:
     # The tools image the help-index job builds.
     image: erp-ia/tools:local
