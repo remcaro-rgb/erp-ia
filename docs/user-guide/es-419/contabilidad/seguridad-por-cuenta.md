@@ -21,7 +21,7 @@ Algunas cuentas no deben verlas todos: los sueldos (5105), el patrimonio (clase 
 
 Para quitar un permiso, **Quitar**; **Descartar** deshace los cambios sin guardar. Con **Abierta**, todos los que ven el plan de cuentas ven la cuenta y pueden contabilizar en ella.
 
-[Captura: pestaña Seguridad de una cuenta restringida]
+![pestaña Seguridad de una cuenta restringida](img/seguridad-cuenta-restringida.png)
 
 En el listado, la columna **Seguridad** y el filtro rápido **Restringidas** muestran cuáles son. En **Administración › Roles** y **Usuarios**, la pestaña **Cuentas** lista los permisos de cuenta de ese rol o usuario.
 

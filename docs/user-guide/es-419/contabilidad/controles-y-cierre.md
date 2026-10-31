@@ -36,7 +36,7 @@ La cuenta transitoria recibe lo que aún no se sabe dónde va. El período no se
 
 **Informes › Auditoría de comprobantes manuales** lista, por rango de fechas, todos los comprobantes no automáticos: quién los creó, quién los envió y quién los contabilizó, cuándo, cuántos **Adjuntos** y **Líneas** tienen, el valor, si se **Contabilizó tras el cierre** y si es **Valor redondo** (múltiplo de la cifra que fijes en **Valor redondo desde**; por defecto $ 1.000.000,00). Es la lista que pide un auditor. Haz clic en una fila para abrir el comprobante.
 
-[Captura: Auditoría de comprobantes manuales]
+![Auditoría de comprobantes manuales](img/auditoria-comprobantes-manuales.png)
 
 ## Quién puede qué
 

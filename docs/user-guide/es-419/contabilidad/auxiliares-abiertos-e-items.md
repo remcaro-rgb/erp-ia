@@ -30,7 +30,7 @@ Los dos son opcionales: **Auxiliares abiertos** e **Ítems** aparecen en **Conta
 
 Para apagarlos, desmarca la casilla: los datos ya registrados se conservan.
 
-[Captura: Auxiliares abiertos en vista Árbol]
+![Auxiliares abiertos en vista Árbol](img/auxiliares-abiertos-arbol.png)
 
 ## Trabajar con ellos
 

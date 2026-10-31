@@ -9,7 +9,8 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "next typegen && tsc --noEmit",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "guide:shots": "playwright test -c playwright.guides.config.ts"
   },
   "dependencies": {
     "@erp/agent": "workspace:*",

@@ -41,7 +41,7 @@ El listado de **Reglas** muestra Evento, Módulo, Fuente, Prioridad y si está *
 
 Para cambiarla: edita las líneas, pruébalas y pulsa **Guardar** (pide el código de verificación). Cada cambio queda en la auditoría.
 
-[Captura: regla contable con sus líneas y la vista previa]
+![regla contable con sus líneas y la vista previa](img/regla-contable-lineas.png)
 
 ## Configuración
 

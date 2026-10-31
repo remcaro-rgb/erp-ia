@@ -12,7 +12,7 @@ processes:
 
 Un **centro de costo** responde «¿dónde se gastó o se ganó?»: una sede, un proyecto, un área. Se asigna a cada línea de un comprobante y permite ver el estado de resultados por centro. Entra por **Contabilidad › Maestros › Centros de costo**.
 
-[Captura: Centros de costo en vista Árbol]
+![Centros de costo en vista Árbol](img/centros-de-costo-arbol.png)
 
 ## Tabla o Árbol
 

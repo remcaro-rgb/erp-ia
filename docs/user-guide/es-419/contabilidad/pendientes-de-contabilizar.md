@@ -14,7 +14,7 @@ Cuando una factura, un recibo u otro documento llega a contabilidad y ninguna re
 
 Entra por **Contabilidad › Reglas contables › Pendientes de contabilizar**.
 
-[Captura: lista de Pendientes de contabilizar]
+![lista de Pendientes de contabilizar](img/pendientes-de-contabilizar.png)
 
 ## La lista
 

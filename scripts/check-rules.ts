@@ -118,7 +118,7 @@ function checkCrossSchemaWrites(root: string): Violation[] {
 // entities and have no masked views; module schemas do, and grids, exports and the assistant must read those.
 const TABLE_READ = /\b(from|join)\s+([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\b/gi;
 const PLATFORM_SCHEMAS = new Set(["kernel", "auth", "storage", "extensions", "public", "pg_catalog", "information_schema", "realtime", "vault", "cron"]);
-const isTestFile = (path: string) => /\.test\.tsx?$/.test(path) || /(^|\/)(__tests__|e2e|test-support)\//.test(path);
+const isTestFile = (path: string) => /\.test\.tsx?$/.test(path) || /(^|\/)(__tests__|e2e|guide-shots|test-support)\//.test(path);
 /** Blanks comments, keeping line breaks so line numbers stay right. */
 const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (c) => c.replace(/[^\n]/g, " "));
 

@@ -24,7 +24,7 @@ La información exógena es lo que reportas a la DIAN cada año sobre tus pagos,
 
 Cuando el aviso diga «Todas las cuentas con movimiento en el año están cubiertas por un concepto», el mapeo está completo. El país trae un catálogo de conceptos por año gravable; si no existe para el año que eliges, la pantalla lo dice.
 
-[Captura: Conceptos exógena con cuentas sin concepto]
+![Conceptos exógena con cuentas sin concepto](img/conceptos-exogena-sin-concepto.png)
 
 ## 2. Ver el informe
 

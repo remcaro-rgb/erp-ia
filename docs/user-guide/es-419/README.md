@@ -35,3 +35,17 @@ Guías para quien usa ERP-IA todos los días, en español latinoamericano. El as
 - [Información exógena](contabilidad/exogena.md): asociar cuentas a conceptos, el informe por formato y la exportación.
 - [Reglas contables](contabilidad/reglas-contables.md): configurar la contabilidad, mapeo de cuentas, reglas, probarlas y la configuración.
 - [Pendientes de contabilizar](contabilidad/pendientes-de-contabilizar.md): qué hacer cuando un documento no se pudo contabilizar.
+
+## Actualizar las capturas de pantalla
+
+Las imágenes de `contabilidad/img/` las genera `apps/web/guide-shots/accounting.shots.ts` (una prueba por imagen) sobre la empresa demo, con Laura, tema claro y la fecha fija del 30 de octubre de 2026. No forman parte de `pnpm -F web e2e`, así que la integración continua nunca las reescribe.
+
+```bash
+pnpm db:reset && DEMO_SEED=1 pnpm db:seed
+```
+
+```bash
+E2E_BASE_URL=http://127.0.0.1:3100 pnpm -F web guide:shots
+```
+
+Con la aplicación corriendo en el puerto 3100. Los estados que la demo no trae (un borrador con líneas, un pendiente de contabilizar) los crea y los borra la propia prueba. Revisa cada imagen: debe mostrar lo que dice su texto alternativo, en español, sin la marca del servidor de desarrollo.
