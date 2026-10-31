@@ -31,3 +31,7 @@ export type { PromptFacts, ScreenContext } from "./runtime/system-prompt";
 export { agentTurn, MAX_STEPS } from "./runtime/turn.workflow";
 export type { TurnArgs } from "./runtime/turn.workflow";
 export { recordUsage, stepUsage } from "./runtime/usage";
+export { matchCall } from "./evals/match";
+export type { EvalCall, EvalCase, EvalTier } from "./evals/match";
+export { buildReport, EVAL_PASS_RATE, evalsPassed, runEvalCases, runEvals } from "./evals/run-evals";
+export type { EvalReport, EvalResult, EvalRun, EvalTokens } from "./evals/run-evals";

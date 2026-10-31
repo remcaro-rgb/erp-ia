@@ -1,32 +1,37 @@
 {
-  "$comment": "Spanish prompt -> the tool the assistant must call (process id) and the part of its input that matters. Rule 30. `confirmation: true` means a write: the assistant shows a confirmation card and never executes it by itself (rule 17).",
+  "$comment": "Spanish prompt -> the tool the assistant must call (process id) and the part of its input that matters. Rule 30. `tier`: core cases must all pass in the model-backed run, extended ones count toward its 90 % overall rate (docs/evals.md). `confirmation: true` means a write: the assistant shows a confirmation card and never executes it by itself (rule 17).",
   "cases": [
     {
       "id": "accounting-income-by-cost-center",
       "prompt": "¿cuánto vendimos en septiembre por centro de costo?",
+      "tier": "core",
       "expect": { "process": "accounting.report.income_statement", "input": { "params": { "byCostCenter": true } } }
     },
     {
       "id": "accounting-accrual-entry",
       "prompt": "registra la provisión de arriendo de octubre por $ 2.500.000",
+      "tier": "core",
       "expect": { "process": "accounting.entry.create", "confirmation": true, "input": { "description": "Provisión de arriendo de octubre" } }
     },
     {
       "id": "accounting-what-happened-to-invoice",
       "prompt": "¿qué pasó contablemente con la factura FE-1234?",
+      "tier": "core",
       "expect": {
         "process": "kernel.data.query",
-        "input": { "entity": "accounting.ledger_line", "filters": [{ "field": "source_ref", "op": "eq", "value": "FE-1234" }], "sort": [{ "field": "date", "dir": "asc" }] }
+        "input": { "entity": "accounting.ledger_line", "filters": [{ "field": "entry_description", "op": "contains", "value": "FE-1234" }], "sort": [{ "field": "date", "dir": "asc" }] }
       }
     },
     {
       "id": "accounting-aging-over-90",
       "prompt": "¿quién me debe más de 90 días?",
+      "tier": "core",
       "expect": { "process": "accounting.report.aging", "input": { "params": { "kind": "receivable" } } }
     },
     {
       "id": "accounting-expenses-by-cost-center",
       "prompt": "gastos de octubre por centro de costo",
+      "tier": "core",
       "expect": {
         "process": "kernel.data.query",
         "input": {

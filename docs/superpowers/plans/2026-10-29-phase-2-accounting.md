@@ -1147,5 +1147,6 @@ Tasks 1-32 executed on `main`; tag `phase-2a-accounting`. Departures and facts t
 - Marcela's (restricted) Balance de prueba closing columns differ from Laura's by the restricted row netting; both are internally consistent (sumas iguales).
 - "Cerrar año" has no e2e. The assistant evals are structural (no model call). There is no top-level `accounting.*` i18n namespace (copy lives under `nav.accounting`, `entity.accounting`, `field.accounting`, `report.accounting`, `common.entry`, `common.acc_*`, `grid.*`).
 - The exógena XML is a consult process (`accounting.report.exogena_xml`); the report page has no XML button yet (Excel / CSV / PDF only).
+- The FE-1234 assistant eval queries `accounting.ledger_line` by `entry_description` (`contains`), because `accounting.entry` has no `source_ref` and `source_ref` holds `entity:uuid`; `source_ref` as the document number is for plan 2B (gaps Task 3).
 - Screenshots: the guides carry one `[Captura: …]` placeholder per screen; no images were captured.
 

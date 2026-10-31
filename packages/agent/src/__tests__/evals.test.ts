@@ -17,6 +17,7 @@ import { EXCLUDED_PROCESSES, inputJsonSchema, toolName } from "../tools/from-reg
 interface EvalCase {
   id: string;
   prompt: string;
+  tier: "core" | "extended";
   expect: { process: string; confirmation?: boolean; input?: Record<string, unknown> };
 }
 
@@ -61,6 +62,11 @@ describe("evaluation set", () => {
         "gastos de octubre por centro de costo",
       ]),
     );
+  });
+
+  it("every case has a tier, and the five plan prompts are core", () => {
+    for (const c of cases) expect(["core", "extended"], c.id).toContain(c.tier);
+    expect(cases.filter((c) => c.id.startsWith("accounting-")).every((c) => c.tier === "core")).toBe(true);
   });
 
   describe.each(cases)("$id", (c) => {
