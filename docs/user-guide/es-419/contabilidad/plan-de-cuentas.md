@@ -15,7 +15,7 @@ El **Plan de cuentas** es la lista de cuentas en las que se contabiliza. En Colo
 
 Si es la primera vez, la contabilidad todavía no está configurada: pide al administrador que pulse **Configurar contabilidad** (ver la guía **Reglas contables**). Esa acción instala el plan de cuentas del país, las fuentes y el año fiscal.
 
-[Captura: Plan de cuentas en vista Árbol]
+![Plan de cuentas en vista Árbol](img/plan-de-cuentas-arbol.png)
 
 ## Tabla o Árbol
 

@@ -21,7 +21,7 @@ processes:
 
 Un **comprobante** es un asiento contable: una fecha, una fuente y líneas que suman lo mismo al débito que al crédito. Entra por **Contabilidad › Comprobantes**.
 
-[Captura: listado de Comprobantes]
+![listado de Comprobantes](img/comprobantes-listado.png)
 
 ## El listado
 
@@ -43,7 +43,7 @@ Los comprobantes automáticos no se escriben: nacen de las reglas contables (gu�
 
 Para causar un gasto que se anula solo al mes siguiente, llena **Reversar el** con la fecha en que debe crearse el comprobante espejo (guía **Controles y cierre**).
 
-[Captura: comprobante en borrador con la tabla de líneas]
+![comprobante en borrador con la tabla de líneas](img/comprobante-borrador-lineas.png)
 
 ## Nuevo desde plantilla
 

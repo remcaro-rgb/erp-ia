@@ -89,7 +89,8 @@ export function chunkGuide(guide: Guide, maxChars: number = CHUNK_CHARS): GuideC
   for (const line of guide.body.split("\n")) {
     const heading = /^#{1,3}\s+(.+?)\s*$/.exec(line);
     if (heading) sections.push({ heading: heading[1]!, lines: [] });
-    else sections.at(-1)!.lines.push(line);
+    // A screenshot reaches the index as its alt text: the file name and the markdown mean nothing to a reader of the answer.
+    else sections.at(-1)!.lines.push(line.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1"));
   }
   const chunks: GuideChunk[] = [];
   for (const section of sections) {

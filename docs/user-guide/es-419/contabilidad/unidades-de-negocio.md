@@ -21,7 +21,7 @@ Es opcional. **Unidades de negocio** aparece en **Contabilidad › Maestros** so
 2. En **Dimensiones analíticas en uso**, marca **Usar unidades de negocio**.
 3. **Guardar** (pide tu código de verificación).
 
-[Captura: Unidades de negocio en vista Tabla]
+![Unidades de negocio en vista Tabla](img/unidades-de-negocio-tabla.png)
 
 ## Crear y administrar
 

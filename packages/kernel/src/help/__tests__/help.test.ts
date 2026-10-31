@@ -104,6 +104,16 @@ describe("chunkGuide", () => {
   });
 });
 
+describe("chunkGuide image lines", () => {
+  it("a guide image line reaches its chunk as its alt text only", () => {
+    const guide = parseGuide("plan.md", "# Plan\n\nAntes del árbol.\n\n![Plan de cuentas en vista Árbol](img/plan-de-cuentas-arbol.png)\n\nDespués.");
+    const text = chunkGuide(guide).map((c) => c.body).join("\n");
+    expect(text).toContain("Plan de cuentas en vista Árbol");
+    expect(text).not.toContain("img/");
+    expect(text).not.toContain("![");
+  });
+});
+
 describe("processChunks", () => {
   const registry = new Registry();
   const partyCreate = defineProcess({

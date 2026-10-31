@@ -16,7 +16,7 @@ processes:
 
 Cada mes del año fiscal es un **período**. Mientras está **Abierto** se contabiliza en él; al cerrarlo, ya no. Cerrar el mes protege las cifras que ya reportaste. Entra por **Contabilidad › Períodos**.
 
-[Captura: Períodos del año con el botón Cerrar]
+![Períodos del año con el botón Cerrar](img/periodos-cerrar.png)
 
 ## Qué ves
 
