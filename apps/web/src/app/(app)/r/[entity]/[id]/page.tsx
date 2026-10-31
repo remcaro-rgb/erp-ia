@@ -137,7 +137,14 @@ async function RestrictedAccount({ id }: { id: string }) {
         recordId={id}
         newTitle={t("grid.record_title.new", { entity: t("nav.create.accounting.account") })}
         title={t("common.acc_record.restricted_account")}
+        seq="masked"
         uuid={id}
+        deepLinkHref={recordHref("accounting.account", id)}
+        status={
+          <span data-testid="record-status" className="erp-record__status">
+            <span className="erp-pill erp-pill--gray">{t("common.acc_record.no_access")}</span>
+          </span>
+        }
         tabs={[
           { id: "saldos", ...denied },
           { id: "movimientos", ...denied },
