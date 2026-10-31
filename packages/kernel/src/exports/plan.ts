@@ -4,7 +4,7 @@ import { ProcessError } from "../process/errors";
 import { buildQuery } from "../query/build-query";
 import { EXTRA_PREFIX, type GridStateInput } from "../query/grid-state";
 import { gridEntity, requireGridAccess } from "../query/access";
-import { gridAccess, visibleIn, type GridAccess } from "../query/run";
+import { applyGridParams, gridAccess, visibleIn, type GridAccess } from "../query/run";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
 import { exportColumns, selectColumns, type ExportPresentation } from "./columns";
@@ -37,6 +37,8 @@ export interface ExportPlan {
   grouped?: GroupedSpec;
   /** The `groupBy` fields (empty when not grouped). */
   groupFields: string[];
+  /** The grid params of the state (`erp.param.*`), which every page's transaction sets before it reads. */
+  params?: Record<string, string>;
   /** The select of rows `offset`..`offset + limit` (parameters included). */
   page(offset: number, limit: number): { sql: string; params: unknown[] };
 }
@@ -50,6 +52,8 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
   const entity = gridEntity(registry, spec.entity);
   if (!entity) throw new ProcessError("invalid_input", `unknown entity ${spec.entity}`, { details: [`La entidad ${spec.entity} no existe`] });
   await requireGridAccess(tx, registry, entity);
+  const params = spec.state.params;
+  await applyGridParams(tx, entity, params);
   const access = await gridAccess(tx, entity);
   const columns = exportColumns(entity, access, spec.state, spec);
   if (columns.length === 0) throw new ProcessError("invalid_input", `${spec.entity}: no exportable columns`, { details: ["No hay columnas visibles para exportar"] });
@@ -91,6 +95,7 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
     total: count?.total ?? 0,
     ...(grouped ? { grouped } : {}),
     groupFields,
+    ...(params ? { params } : {}),
     page(offset, limit) {
       const q = build({ offset, limit });
       return { sql: q.sql, params: q.params };
@@ -114,7 +119,10 @@ function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[],
 export async function* exportRows(sql: Sql, claims: JwtClaims, plan: ExportPlan): AsyncGenerator<ExportRow> {
   for (let offset = 0; ; offset += EXPORT_PAGE_SIZE) {
     const { sql: text, params } = plan.page(offset, EXPORT_PAGE_SIZE);
-    const page = await withClaims(sql, claims, (tx) => tx.unsafe<Record<string, unknown>[]>(text, params as never[]));
+    const page = await withClaims(sql, claims, async (tx) => {
+      await applyGridParams(tx, plan.entity, plan.params);
+      return tx.unsafe<Record<string, unknown>[]>(text, params as never[]);
+    });
     for (const row of page) yield flatten(row, plan.columns, plan.groupFields);
     if (page.length < EXPORT_PAGE_SIZE) return;
   }

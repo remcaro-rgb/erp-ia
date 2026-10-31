@@ -34,6 +34,11 @@ const trailer = (f: F): FieldDef[] => [
   f("updated_at", "datetime"),
 ];
 
+/** The figure the masters' Tabla shows for the period its grid param `period_id` names (gaps plan Task 7, migration 0036). */
+const periodFigure = (f: F, kind: string): FieldDef =>
+  ({ ...f("period_figure", "money", { exportable: true }), label: "field.accounting.period_figure", viewExpr: `accounting.period_figure('${kind}', "id", nullif(current_setting('erp.param.period_id', true), '')::uuid)` });
+const PERIOD_PARAM: Pick<EntityDef, "gridParams"> = { gridParams: [{ name: "period_id", type: "uuid" }] };
+
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
 const account = ref("accounting.account", "code");
 const party = ref("core.party", "legal_name");
@@ -74,8 +79,9 @@ export const accountEntity: EntityDef = entity(
     f("is_active", "boolean"),
     f("access", "enum", { required: true, enumValues: ["open", "restricted"], valuesKey: "grid.values.account_access" }),
     ...trailer(f),
+    periodFigure(f, "account"),
   ],
-  { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq"] },
+  { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq", "period_figure"], ...PERIOD_PARAM },
 );
 
 // §4.2 Mapeo de cuentas: one row per (role, dimension).
@@ -161,8 +167,9 @@ function dimension(id: string, table: string): EntityDef {
       f("kind", "enum", { required: true, enumValues: ["group", "leaf"], valuesKey: "grid.values.dimension_kind" }),
       f("is_active", "boolean"),
       ...trailer(f),
+      periodFigure(f, id.slice("accounting.".length)),
     ],
-    { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq"] },
+    { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq", "period_figure"], ...PERIOD_PARAM },
   );
 }
 export const costCenterEntity = dimension("accounting.cost_center", "cost_centers");

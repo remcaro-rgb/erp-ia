@@ -1736,7 +1736,8 @@
         "use_business_units": "Usa unidades de negocio",
         "use_items": "Usa ítems",
         "use_open_auxiliaries": "Usa auxiliares abiertos"
-      }
+      },
+      "period_figure": "Cifra del período"
     },
     "core": {
       "party": {

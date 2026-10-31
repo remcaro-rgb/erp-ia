@@ -80,6 +80,8 @@ export interface DataGridProps {
   headerExtra?: ReactNode;
   /** Filters every request carries. */
   baseFilters?: Filter[];
+  /** Values of the entity's grid params (`EntityDef.gridParams`, e.g. the period of a figure column): merged into every request, preview and export. */
+  params?: Record<string, string>;
   /**
    * Exports the current filter (all pages, visible columns). The grid runs the export itself (POST /api/export,
    * `kernel.export.run`) unless a handler is given. The state carries the grid's filters and sort and the shown
@@ -108,10 +110,10 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, params, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
-  const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, debounceMs });
+  const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, params, debounceMs });
   const { view, data } = grid;
   const exporter = useGridExport({ entity, title, source: exportSource, endpoint: exportEndpoint });
   const shown = shownColumns(columns, view);
@@ -310,6 +312,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       page: 1,
       pageSize: 50,
       columns: [...new Set(["id", ...shown.map((c) => (c.field.startsWith("extra.") ? "extra" : c.field))])],
+      ...(params ? { params } : {}),
     });
 
   const exportState = (): GridStateInput => ({ ...grid.state, aggregates: groupFields.length > 0 ? grid.state.aggregates : undefined, page: 1, columns: shown.map((c) => c.field) });

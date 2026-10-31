@@ -1736,7 +1736,8 @@
         "use_business_units": "Uses business units",
         "use_items": "Uses items",
         "use_open_auxiliaries": "Uses open auxiliaries"
-      }
+      },
+      "period_figure": "Period figure"
     },
     "core": {
       "party": {

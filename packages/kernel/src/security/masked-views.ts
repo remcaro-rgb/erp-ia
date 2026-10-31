@@ -29,7 +29,7 @@ export function maskedViewSql(entity: ResolvedEntityDef): string {
   for (const field of entity.fields) {
     if (field.name === "id" || field.name === "company_id") continue;
     // `extra` also loses the keys of custom fields the caller's roles may not view (roles_view, design §5.14).
-    const shown = field.name === "extra" ? `kernel.mask_extra('${entity.id}', "extra")` : `"${field.name}"`;
+    const shown = field.viewExpr ?? (field.name === "extra" ? `kernel.mask_extra('${entity.id}', "extra")` : `"${field.name}"`);
     columns.push(
       UNMASKED_COLUMNS.has(field.name)
         ? `  "${field.name}"`

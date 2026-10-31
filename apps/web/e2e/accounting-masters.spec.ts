@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import type { Page } from "@playwright/test";
 import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
@@ -63,7 +64,7 @@ test.describe("accounting masters", () => {
     await sql.begin(async (tx) => {
       // Replica role: no triggers and no foreign key checks, so the order does not matter.
       await tx`set local session_replication_role = replica`;
-      for (const table of ["settings", "periods", "fiscal_years", "cost_centers", "accounts"]) await tx`delete from ${tx(`accounting.${table}`)} where company_id = ${companyId}`;
+      for (const table of ["entry_lines", "entries", "journals", "settings", "periods", "fiscal_years", "cost_centers", "accounts"]) await tx`delete from ${tx(`accounting.${table}`)} where company_id = ${companyId}`;
       await tx`delete from core.entity_sequences where company_id = ${companyId}`;
     });
     await sql`delete from kernel.saved_views where company_id = ${companyId}`;
@@ -168,5 +169,44 @@ test.describe("accounting masters", () => {
     const [row] = await fixture.sql<{ parent: string; kind: string }[]>`
       select p.code as parent, c.kind from accounting.cost_centers c join accounting.cost_centers p on p.id = c.parent_id where c.company_id = ${companyId} and c.code = 'VTA'`;
     expect(row).toEqual({ parent: "SEDE", kind: "leaf" });
+  });
+
+  test("Plan de cuentas → Tabla → período octubre de 2026 → ordenar por Saldo: the largest October balance leads, and the Excel carries the column", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const { sql } = fixture;
+    const [journal] = await sql<{ id: string }[]>`insert into accounting.journals (company_id, code, name, kind, manual_entries) values (${companyId}, 'NC', 'Notas contables', 'general', true) returning id`;
+    const [period] = await sql<{ id: string }[]>`select id from accounting.periods where company_id = ${companyId} and number = 10`;
+    const account = async (code: string) => (await sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${companyId} and code = ${code}`)[0]!.id;
+    // 130505 +9.000 and 130510 +3.000 against 22: the Activo adds both, so the larger balance is the one the sort must put first.
+    const [entry] = await sql<{ id: string }[]>`
+      insert into accounting.entries (company_id, journal_id, date, period_id, status, origin, description) values (${companyId}, ${journal!.id}, '2026-10-12', ${period!.id}, 'draft', 'manual', 'Octubre') returning id`;
+    let line = 0;
+    for (const [code, debit, credit] of [["130505", 9000, 0], ["130510", 3000, 0], ["22", 0, 12000]] as const) {
+      await sql`insert into accounting.entry_lines (company_id, entry_id, line_no, account_id, debit, credit, debit_doc, credit_doc) values (${companyId}, ${entry!.id}, ${++line}, ${await account(code)}, ${debit}, ${credit}, ${debit}, ${credit})`;
+    }
+    await sql`update accounting.entries set status = 'posted', number = 'NC-1', total_debit = 12000, total_credit = 12000, posted_at = now() where id = ${entry!.id}`;
+
+    await signIn(page, fixture);
+    await page.goto("/accounting/accounts");
+    const plan = grid(page, "Plan de cuentas");
+    // The earlier test left the user on Árbol.
+    await plan.getByRole("button", { name: "Tabla" }).click();
+    await expect(plan.getByRole("columnheader", { name: /Saldo/ })).toBeVisible();
+    await plan.getByRole("combobox", { name: "Período" }).selectOption({ label: "octubre de 2026" });
+    await expect(bodyRows(page).filter({ hasText: "Nacionales" })).toContainText("9.000,00");
+    await expect(bodyRows(page).filter({ hasText: "Extranjeros" })).toContainText("3.000,00");
+
+    // Sorted by the figure, largest first: the three accounts that add both lines lead with the same 12.000,00.
+    await plan.getByRole("columnheader", { name: /Saldo/ }).getByRole("button").click();
+    await plan.getByRole("columnheader", { name: /Saldo/ }).getByRole("button").click();
+    await expect(bodyRows(page).first()).toContainText("12.000,00");
+    await expect(bodyRows(page).nth(7)).not.toContainText("12.000,00");
+
+    const [file] = await Promise.all([page.waitForEvent("download"), plan.getByRole("button", { name: "Excel", exact: true }).click()]);
+    expect(file.suggestedFilename()).toMatch(/\.xlsx$/);
+    const sheet = execFileSync("unzip", ["-p", (await file.path())!, "xl/*"], { encoding: "utf8", maxBuffer: 1 << 24 });
+    // The file names the column by the catalogue label and carries the figures in the order of the screen (largest first).
+    expect(sheet).toContain("Cifra del período");
+    expect([...sheet.matchAll(/<c r="I\d+" s="2"><v>(\d+)<\/v>/g)].map((m) => Number(m[1])).slice(0, 7)).toEqual([12000, 12000, 12000, 12000, 12000, 9000, 3000]);
   });
 });

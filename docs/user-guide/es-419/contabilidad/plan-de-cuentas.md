@@ -21,7 +21,7 @@ Si es la primera vez, la contabilidad todavía no está configurada: pide al adm
 
 Arriba a la derecha, el interruptor **Vista** ofrece **Tabla** y **Árbol**. El sistema recuerda tu elección.
 
-- **Tabla**: un listado con todas las cuentas. Trae Código, Descripción, Cuenta madre, Nivel (**Clase**, **Grupo**, **Cuenta**, **Subcuenta**, **Auxiliar**), Naturaleza, Seguridad y Activa. Se ordena, filtra, agrupa, exporta y guarda en vistas como cualquier listado (guía **Listados**). La vista Tabla no muestra el movimiento del período: para ver cifras por cuenta usa **Árbol**.
+- **Tabla**: un listado con todas las cuentas. Trae Código, Descripción, Cuenta madre, Nivel (**Clase**, **Grupo**, **Cuenta**, **Subcuenta**, **Auxiliar**), Naturaleza, Seguridad y Activa. Se ordena, filtra, agrupa, exporta y guarda en vistas como cualquier listado (guía **Listados**). Además trae la columna **Saldo** del período que elijas en el selector **Período** (el mismo del Árbol): el saldo al cierre de ese período, con las cuentas hijas incluidas. Se ordena, se filtra y sale en los archivos de exportación como las demás columnas. Una cuenta restringida que no puedes ver no aparece ni suma en el saldo de su cuenta madre.
 - **Árbol**: el PUC como árbol. Escribe en **Buscar por código o descripción** para encontrar una cuenta; **Abrir por nivel** despliega hasta el nivel que elijas (o **Todo**). Junto a cada cuenta ves su **Saldo** del período que elijas en **Período**. A la derecha, el listado de las cuentas que cuelgan de la cuenta seleccionada.
 
 Una cuenta restringida para ti aparece como **Cuenta restringida**, con un candado y sin cifras (guía **Seguridad por cuenta**). El filtro rápido **Restringidas** muestra solo esas.
