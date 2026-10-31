@@ -949,7 +949,8 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "period_figure": "Period figure"
       },
       "journal": {
         "seq": "No.",
@@ -974,7 +975,8 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "period_figure": "Period figure"
       },
       "open_auxiliary": {
         "seq": "No.",
@@ -986,7 +988,8 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "period_figure": "Period figure"
       },
       "item": {
         "seq": "No.",
@@ -998,7 +1001,8 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "period_figure": "Period figure"
       },
       "business_unit": {
         "seq": "No.",
@@ -1010,7 +1014,8 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "period_figure": "Period figure"
       },
       "entry": {
         "seq": "No.",
@@ -1278,8 +1283,7 @@
         "use_business_units": "Uses business units",
         "use_items": "Uses items",
         "use_open_auxiliaries": "Uses open auxiliaries"
-      },
-      "period_figure": "Period figure"
+      }
     },
     "core": {
       "party": {

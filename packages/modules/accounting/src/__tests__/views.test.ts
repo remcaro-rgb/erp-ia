@@ -16,7 +16,7 @@ function check(migration: string, entities: typeof MASTER_ENTITIES) {
   for (const entity of entities) {
     it(`accounting.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       // A computed column (`viewExpr`) is added by a later migration with `create or replace view`; this one has the stored ones.
-      const generated = maskedViewSql(defineEntity({ ...entity, fields: entity.fields.filter((f) => !f.viewExpr) }));
+      const generated = maskedViewSql(defineEntity({ ...entity, fields: entity.fields.filter((f) => !f.viewExpr), cloneReset: entity.cloneReset?.filter((n) => entity.fields.find((f) => f.name === n && !f.viewExpr)) }));
       const head = generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`));
       expect(migration).toContain(head);
       expect(migration).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
