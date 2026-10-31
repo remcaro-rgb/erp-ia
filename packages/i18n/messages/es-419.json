@@ -217,7 +217,9 @@
       "copied": "Copiado",
       "copy_failed": "No se pudo copiar",
       "combo_empty": "Sin coincidencias",
-      "combo_more": "{count} más: escribe para acotar"
+      "combo_more": "{count} más: escribe para acotar",
+      "details": "Detalles",
+      "unsaved": "Sin guardar"
     },
     "party_form": {
       "identification": "Identificación",
@@ -569,7 +571,8 @@
         "edit_title": "Dato adicional · {label}",
         "create": "Crear",
         "save": "Guardar",
-        "confirm_remove": "¿Quitar {label}? Los valores guardados se conservan, pero nadie los ve."
+        "confirm_remove": "¿Quitar {label}? Los valores guardados se conservan, pero nadie los ve.",
+        "entity": "Entidad"
       },
       "required_files": {
         "title": "Archivos obligatorios",
@@ -714,6 +717,16 @@
       "error": "Sin conexión",
       "updated": "Actualizado {time}",
       "resume": "Reanudar"
+    },
+    "unsaved": {
+      "title": "Hay cambios sin guardar",
+      "body": "Guarda o descarta los cambios de este registro antes de salir.",
+      "save": "Guardar",
+      "discard": "Descartar",
+      "cancel": "Cancelar",
+      "tab": "Sin guardar",
+      "saving": "Guardando…",
+      "failed": "No se pudo guardar: revisa los datos del registro."
     }
   },
   "nav": {
@@ -790,7 +803,8 @@
         "input": "Pregunta, pide una acción o “¿cómo hago…?”",
         "input_label": "Escribe",
         "send": "Enviar",
-        "close": "Cerrar asistente"
+        "close": "Cerrar asistente",
+        "close_short": "Cerrar"
       },
       "skip_to_content": "Saltar al contenido",
       "assistant_toggle_title": "Mostrar u ocultar el asistente (Ctrl+/ o ⌘/)",
@@ -811,7 +825,25 @@
         "enable": "Activar",
         "failed": "No se pudo desactivar: {reason}"
       },
-      "badge": "{count} pendientes"
+      "badge": "{count} pendientes",
+      "routes": {
+        "accounting_setup": "Configurar contabilidad",
+        "admin_roles": "Roles",
+        "admin_users": "Usuarios",
+        "admin_fields": "Visibilidad de campos",
+        "admin_extra": "Datos adicionales",
+        "admin_required_files": "Archivos requeridos",
+        "admin_sensitive": "Acciones sensibles",
+        "admin_verifiers": "Verificadores",
+        "admin_modules": "Módulos",
+        "admin_companies": "Empresas"
+      },
+      "more": "Más",
+      "menu": "Menú",
+      "menu_title": "Menú de navegación",
+      "close_menu": "Cerrar menú",
+      "modules_heading": "Módulos",
+      "page": "Página"
     },
     "core": {
       "parties": "Terceros",
@@ -1576,7 +1608,7 @@
       "empty": "Sin resultados",
       "restricted": "Cuenta restringida"
     },
-    "empty": "Sin resultados",
+    "empty": "Aún no hay registros",
     "loading": "Cargando…",
     "search_placeholder": "Buscar…",
     "columns": "Columnas",
@@ -1942,7 +1974,10 @@
       "not_found": "Este listado no existe."
     },
     "refreshing": "Actualizando…",
-    "keys_hint": "↑↓ moverse · Espacio seleccionar · Enter abrir · / filtrar"
+    "keys_hint": "↑↓ moverse · Espacio seleccionar · Enter abrir · / filtrar",
+    "json_items": "{count, plural, one {# elemento} other {# elementos}}",
+    "json_fields": "{count, plural, one {# campo} other {# campos}}",
+    "total_unknown": "No se puede totalizar: la jerarquía no es visible para tu rol"
   },
   "home": {
     "greeting": {
@@ -2004,7 +2039,8 @@
       "accounting_drafts": {
         "label": "Comprobantes en borrador",
         "detail": "{pending, plural, =0 {Ninguno por aprobar} one {# por aprobar} other {# por aprobar}}"
-      }
+      },
+      "open": "Abrir {label}"
     },
     "recommendations": {
       "subtitle": "Sugerencias para tu rol. Nada se ejecuta sin tu confirmación.",
@@ -2111,7 +2147,9 @@
         "excel": "Excel",
         "exporting": "Exportando…",
         "save_report": "Guardar reporte",
-        "phase5": "Fase 5"
+        "phase5": "Fase 5",
+        "all_columns": "Ver todas las columnas ({count})",
+        "fewer_columns": "Ver menos columnas"
       },
       "errors": {
         "message_too_long": "El mensaje es demasiado largo. Acórtalo e inténtalo de nuevo.",
@@ -2466,7 +2504,16 @@
         "template_create": "Crear borrador",
         "template_failed": "No se pudo crear el borrador: {reason}"
       },
-      "totals_label": "Totales del comprobante"
+      "totals_label": "Totales del comprobante",
+      "no_lines": "Sin líneas",
+      "problems": {
+        "title": "Falta para completar el comprobante",
+        "date": "Indica la fecha",
+        "description": "Escribe la descripción",
+        "lines": "Agrega al menos una línea con valor",
+        "account": "Hay líneas con valor y sin cuenta",
+        "unbalanced": "El débito y el crédito deben ser iguales"
+      }
     },
     "record": {
       "no_access": "Sin acceso",

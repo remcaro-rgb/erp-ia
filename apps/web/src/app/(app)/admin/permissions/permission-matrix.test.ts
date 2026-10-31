@@ -19,10 +19,10 @@ const data: PermissionsData = {
     { id: "r-ventas", name: "Ventas", description: "Vende", isSystemAdmin: false, partyScope: "clientes" },
   ],
   processes: [
-    { id: "core.party.consult", module: "core", kind: "consult", entity: "core.party", entityLabel: "entity.core.party", stepUp: false, admin: false },
-    { id: "core.party.create", module: "core", kind: "create", entity: "core.party", entityLabel: "entity.core.party", stepUp: false, admin: false },
-    { id: "kernel.admin.role.create", module: "kernel", kind: "create", entity: "kernel.admin.role", entityLabel: "feature.kernel.admin", stepUp: true, admin: true },
-    { id: "kernel.import.run", module: "kernel", kind: "create", entity: "kernel.import", entityLabel: "entity.kernel.import", stepUp: false, admin: false },
+    { id: "core.party.consult", description: "Consulta terceros", module: "core", kind: "consult", entity: "core.party", entityLabel: "entity.core.party", stepUp: false, admin: false },
+    { id: "core.party.create", description: "Crea un tercero", module: "core", kind: "create", entity: "core.party", entityLabel: "entity.core.party", stepUp: false, admin: false },
+    { id: "kernel.admin.role.create", description: "Crea un rol", module: "kernel", kind: "create", entity: "kernel.admin.role", entityLabel: "feature.kernel.admin", stepUp: true, admin: true },
+    { id: "kernel.import.run", description: "Importa datos", module: "kernel", kind: "create", entity: "kernel.import", entityLabel: "entity.kernel.import", stepUp: false, admin: false },
   ],
   grants: { "r-admin": [], "r-ventas": ["core.party.consult", "kernel.import.run"] },
 };
@@ -46,7 +46,7 @@ describe("PermissionMatrix staging", () => {
     // Ventas holds every process of Sistema it may hold (kernel.import.run): the button takes them away, it never
     // offers an administration process.
     expect(html).toContain('aria-label="Quitar a Ventas todos los procesos de Sistema"');
-    expect(html).toMatch(/<label class="erp-matrix__hit" title="Solo el rol admin ejecuta los procesos de administración"><input type="checkbox" aria-label="Ventas kernel.admin.role.create" disabled=""/);
+    expect(html).toMatch(/<label class="erp-matrix__hit" title="Solo el rol admin ejecuta los procesos de administración"><input type="checkbox" aria-label="Ventas Crea un rol" disabled=""/);
   });
 
   it("offers no module button when every process of the module is an administration one", () => {
@@ -67,6 +67,15 @@ describe("PermissionMatrix staging", () => {
     expect(html).not.toContain("Aplicar cambios");
     expect(html).not.toContain("is-dirty");
     // The whole cell is the target of its checkbox.
-    expect(html).toMatch(/<label class="erp-matrix__hit"[^>]*><input type="checkbox" aria-label="Ventas core.party.create"/);
+    expect(html).toMatch(/<label class="erp-matrix__hit"[^>]*><input type="checkbox" aria-label="Ventas Crea un tercero"/);
+  });
+});
+
+describe("PermissionMatrix labels (T11)", () => {
+  it("names each row by what the process does; its id is secondary, in mono", () => {
+    const html = render(allGranted);
+    expect(html).toContain(">Crea un tercero</span>");
+    expect(html).toContain('<span class="erp-hint erp-mono">core.party.create</span>');
+    expect(html).not.toMatch(/<span class="erp-mono erp-small">core\.party/);
   });
 });

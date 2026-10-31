@@ -154,3 +154,36 @@ describe("ResultTable", () => {
     expect(save.title).toBe("Fase 5");
   });
 });
+
+describe("ResultTable, closed sets as the grid shows them (T11)", () => {
+  it("an enum shows its label, never the raw value", () => {
+    const cols = [{ field: "kind", label: "Tipo", type: "enum", options: [{ value: "customer", label: "Cliente" }, { value: "supplier", label: "Proveedor" }] }];
+    renderEs(<ResultTable entity="core.party" rows={[{ id: "1", kind: "customer" }]} columns={cols} state={state} />);
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Cliente")).toBeTruthy();
+    expect(within(table).queryByText("customer")).toBeNull();
+  });
+});
+
+describe("ResultTable, which columns show (UX-OD-6, T12)", () => {
+  const many = ["a", "b", "c", "d", "e", "f", "g", "h"].map((field, i) => ({ field, label: `Col ${field.toUpperCase()}`, type: "text", ...(i === 2 ? { identity: true } : {}), ...(i >= 6 ? { hiddenByDefault: true } : {}) }));
+  const row = { id: "1", a: "1", b: "2", c: "3", d: "4", e: "5", f: "6", g: "7", h: "8" };
+  const heads = () => within(screen.getByRole("table")).getAllByRole("columnheader").map((h) => h.textContent);
+
+  it("shows the identity column first and at most six columns of the entity's default view", () => {
+    renderEs(<ResultTable entity="core.party" rows={[row]} columns={many} state={state} />);
+    expect(heads()).toEqual(["Col C", "Col A", "Col B", "Col D", "Col E", "Col F"]);
+    expect(screen.getByRole("button", { name: "Ver todas las columnas (8)" })).toBeTruthy();
+  });
+
+  it("Ver todas las columnas expands in place, Ver menos folds it back; a table that fits has no button", () => {
+    renderEs(<ResultTable entity="core.party" rows={[row]} columns={many} state={state} />);
+    fireEvent.click(screen.getByRole("button", { name: "Ver todas las columnas (8)" }));
+    expect(heads()).toHaveLength(8);
+    fireEvent.click(screen.getByRole("button", { name: "Ver menos columnas" }));
+    expect(heads()).toHaveLength(6);
+    cleanup();
+    renderEs(<ResultTable entity="core.party" rows={[row]} columns={many.slice(0, 3)} state={state} />);
+    expect(screen.queryByRole("button", { name: /columnas/ })).toBeNull();
+  });
+});

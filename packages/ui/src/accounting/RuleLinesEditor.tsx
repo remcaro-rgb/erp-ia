@@ -7,6 +7,7 @@ import type { RequestStepUp, SaveRecord } from "../forms/save-model";
 import { StepUpPrompt } from "../forms/StepUpPrompt";
 import { useSaveFlow } from "../forms/use-save";
 import { blankRuleLine, linesIncomplete, ruleLinesInput, RULE_COLUMNS, setLineField, type RuleLine } from "./rule-lines-model";
+import { ProcessId } from "../forms/ProcessId";
 
 // The Líneas tab of a Regla contable (accounting design §4.8, §8): the template's lines as a grid, one row per line with its role (or
 // fixed account), side, the payload path of the amount and of each dimension, and the tax fields. Guardar is `posting_rule.update`,
@@ -124,7 +125,7 @@ export function RuleLinesEditor({ ruleId, template, lines: stored, roles, canSav
           )}
           <div className="erp-row">
             <span className="erp-small erp-muted erp-grow" role="status">
-              {flow.saving ? t("saving") : dirty && incomplete ? t("incomplete") : ""} <span className="erp-mono">accounting.posting_rule.update</span>
+              {flow.saving ? t("saving") : dirty && incomplete ? t("incomplete") : ""} <ProcessId id="accounting.posting_rule.update" />
             </span>
             {dirty && (
               <button type="button" className="erp-btn" disabled={flow.saving} onClick={() => setLines([...stored])}>

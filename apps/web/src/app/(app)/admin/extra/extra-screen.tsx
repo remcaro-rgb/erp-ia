@@ -1,5 +1,6 @@
 "use client";
 
+import { ProcessId } from "@erp/ui";
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@erp/kernel/custom-fields";
@@ -26,6 +27,10 @@ const keyOf = (label: string) =>
 export function ExtraScreen({ data }: { data: ExtraData }) {
   const t = useTranslations();
   const { perform, prompt, status } = useAdminAction();
+  // One entity at a time: the first one that already has fields (else the first), chosen from a list instead of every table at once.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const selectId = useId();
+  const current = data.entities.find((e) => e.id === chosen) ?? data.entities.find((e) => e.customFields.length > 0) ?? data.entities[0];
   const [editing, setEditing] = useState<{ entity: Entity; field?: Field } | null>(null);
   const roleName = (id: string) => data.roles.find((r) => r.id === id)?.name ?? id;
   const pills = (ids: readonly string[]) =>
@@ -41,7 +46,19 @@ export function ExtraScreen({ data }: { data: ExtraData }) {
   return (
     <div className="erp-stack">
       {status}
-      {data.entities.map((entity) => (
+      <div className="erp-row">
+        <label htmlFor={selectId} className="erp-small">
+          {t("common.admin.extra.entity")}
+        </label>
+        <select id={selectId} value={current?.id ?? ""} onChange={(e) => setChosen(e.target.value)}>
+          {data.entities.map((entity) => (
+            <option key={entity.id} value={entity.id}>
+              {(t.has(entity.label) ? t(entity.label) : entity.id) + (entity.customFields.length > 0 ? ` (${entity.customFields.length})` : "")}
+            </option>
+          ))}
+        </select>
+      </div>
+      {(current ? [current] : []).map((entity) => (
         <section key={entity.id} className="erp-card">
           <div className="erp-admin__head">
             <h2>{t.has(entity.label) ? t(entity.label) : entity.id}</h2>
@@ -222,7 +239,7 @@ function FieldDialog({ data, entity, field, onClose }: { data: ExtraData; entity
         {checks("rolesEdit", t("common.admin.extra.col_edit"))}
         {checks("rolesView", t("common.admin.extra.col_view"))}
       </div>
-      <div className="erp-small erp-muted">{t("common.admin.process", { process: "kernel.custom_field.set" })}</div>
+      <div className="erp-small erp-muted"><ProcessId id={"kernel.custom_field.set"} /></div>
       {status}
       {prompt}
     </AdminDialog>

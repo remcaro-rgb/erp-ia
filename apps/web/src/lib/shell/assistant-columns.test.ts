@@ -17,6 +17,12 @@ describe("assistantColumnsOf", () => {
     expect(columns.find((c) => c.field === "credit_limit")).toMatchObject({ mode: "hidden" });
   });
 
+  it("carries the labels of an enum's values, as the grid shows them", () => {
+    const kind = columns.find((c) => c.field === "kind");
+    expect(kind?.options?.map((o) => o.value)).toEqual(["customer", "supplier", "employee"]);
+    expect(kind?.options?.[0]?.label).toBe("«grid.values.party_kind.customer»");
+  });
+
   it("leaves out what the grid leaves out: the internal JSON, and admin-defined fields (a query returns none of them as a column)", () => {
     expect(columns.map((c) => c.field)).not.toContain("extra");
     expect(columns.map((c) => c.field)).not.toContain("extra_free");

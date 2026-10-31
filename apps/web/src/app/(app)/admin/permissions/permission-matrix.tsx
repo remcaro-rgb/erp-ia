@@ -17,6 +17,12 @@ const cellKey = (roleId: string, processId: string) => `${roleId}:${processId}`;
  * role holds everything and is not edited here; the administration processes are its own, so their cells are locked for
  * every other role and the module buttons leave them out.
  */
+/** A registry description is a sentence or two: its first clause (up to 70 characters) names the row; the full text is the tooltip. */
+const shortDescription = (text: string): string => {
+  const first = text.split(/[:.]/)[0]!.trim();
+  return first.length > 70 ? `${first.slice(0, 69)}…` : first;
+};
+
 export function PermissionMatrix({ data }: { data: PermissionsData }) {
   const t = useTranslations();
   const roleIds = new Set(data.roles.filter((r) => !r.isSystemAdmin).map((r) => r.id));
@@ -90,7 +96,7 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
                   {processes.map((process) => (
                     <tr key={process.id}>
                       <td className="erp-matrix__left">
-                        <span className="erp-mono erp-small">{process.id}</span>{" "}
+                        <span title={process.description}>{shortDescription(process.description)}</span>{" "}
                         <span className="erp-pill erp-pill--gray" title={t("common.admin.permissions.col_kind")}>
                           {t(`common.admin.kind.${process.kind}`)}
                         </span>
@@ -101,12 +107,12 @@ export function PermissionMatrix({ data }: { data: PermissionsData }) {
                         )}
                         <div className="erp-small erp-muted" title={t("common.admin.permissions.col_entity")}>
                           <span>{t.has(process.entityLabel) ? t(process.entityLabel) : process.entity}</span>{" "}
-                          <span className="erp-hint erp-mono">{process.entity}</span>
+                          <span className="erp-hint erp-mono">{process.id}</span>
                         </div>
                       </td>
                       {data.roles.map((role) => {
                         const key = cellKey(role.id, process.id);
-                        const label = `${role.name} ${process.id}`;
+                        const label = `${role.name} ${shortDescription(process.description)}`;
                         const isStaged = staged.isStaged(key);
                         const refusal = staged.refusal(key);
                         // Only the admin role holds an administration process; one another role still holds (granted

@@ -117,7 +117,7 @@ test.describe("administration", () => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await signIn(page, pedro.email, pedro.password);
-    const items = page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("button");
+    const items = page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("link");
     await expect(items.first()).toBeVisible();
     const texts = await items.allTextContents();
     await context.close();
@@ -150,7 +150,7 @@ test.describe("administration", () => {
     await row.getByRole("button", { name: "Editar y asignar" }).click();
     const edit = page.getByRole("dialog", { name: "Rol · Bodega" });
     await edit.getByRole("checkbox", { name: /Pedro Ruiz/ }).check();
-    await edit.getByRole("button", { name: "Guardar" }).click();
+    await edit.getByRole("button", { name: "Guardar", exact: true }).click();
     await confirmStepUp(page, secret);
     await expect(row.getByText("Pedro Ruiz")).toBeVisible();
 
@@ -163,7 +163,7 @@ test.describe("administration", () => {
     await page.goto("/admin/permissions");
     const importRow = page.getByRole("row").filter({ hasText: "kernel.import.run" });
     await expect(importRow.getByText("Importación", { exact: true })).toBeVisible();
-    const toggle = importRow.getByRole("checkbox", { name: "Bodega kernel.import.run" });
+    const toggle = importRow.getByRole("checkbox", { name: /^Bodega / });
     await expect(toggle).not.toBeChecked();
     const saved = page.getByRole("status").filter({ hasText: "Cambios guardados" });
     // The outcome lands in the fixed bar under the matrix, so the table never moves under the pointer (UI density audit
@@ -192,7 +192,7 @@ test.describe("administration", () => {
     expect(await pedroMenu(browser)).not.toContain("Importar datos");
   });
 
-  const cell = (page: Page, processId: string, role = "Despachos") => page.getByRole("row").filter({ hasText: processId }).getByRole("checkbox", { name: `${role} ${processId}` });
+  const cell = (page: Page, processId: string, role = "Despachos") => page.getByRole("row").filter({ hasText: processId }).getByRole("checkbox", { name: new RegExp(`^${role} `) });
   const stepUps = async () => Number((await fixture.sql<{ n: string }[]>`select count(*) as n from kernel.step_up_verifications where company_id = ${companyId}`)[0]!.n);
   // Sorted here, not by the database: its collation orders `kernel.user.consult` / `kernel.user_prefs.set` unlike JavaScript.
   const grantsOf = async (roleId: string) =>
@@ -216,8 +216,8 @@ test.describe("administration", () => {
     await expect(cell(page, "core.party.create")).toBeChecked();
     await expect(bar.locator(".erp-admin__pending")).toHaveText("3 cambios sin aplicar");
     for (const id of ["kernel.import.run", "kernel.export.run", "core.party.create"]) {
-      await expect(page.getByRole("row").filter({ hasText: id }).locator("td.is-dirty").filter({ has: page.getByRole("checkbox", { name: `Despachos ${id}` }) })).toHaveCount(1);
-      await expect(cell(page, id)).toHaveAccessibleName(`Despachos ${id} (sin aplicar)`);
+      await expect(page.getByRole("row").filter({ hasText: id }).locator("td.is-dirty").filter({ has: page.getByRole("checkbox", { name: /^Despachos / }) })).toHaveCount(1);
+      await expect(cell(page, id)).toHaveAccessibleName(/^Despachos .* \(sin aplicar\)$/);
     }
     // Unticking a staged cell puts it back: no longer a change.
     await cell(page, "kernel.export.run").uncheck();
@@ -389,7 +389,7 @@ test.describe("administration", () => {
     const sections: [string, string][] = [
       ["/admin/users", "Usuarios"],
       ["/admin/fields", "Visibilidad por campo y rol"],
-      ["/admin/extra", "Tercero"],
+      ["/admin/extra", "Entidad"],
       ["/admin/required-files", "Tercero"],
       ["/admin/sensitive", "Procesos que exigen verificación en dos pasos"],
       ["/admin/verifiers", "Verificación externa de datos"],
@@ -428,7 +428,7 @@ test.describe("administration", () => {
     await signInWithCode(page, fixture.email, fixture.password, secret);
     await page.goto(`/r/core.party/${party!.id}`);
     await page.getByLabel("Nombre comercial").fill("Bosque QA");
-    await page.getByRole("button", { name: "Guardar" }).click();
+    await page.getByRole("button", { name: "Guardar", exact: true }).click();
     await expect.poll(async () => (await sql`select trade_name from core.parties where id = ${party!.id}`)[0]?.trade_name).toBe("Bosque QA");
 
     await page.goto("/admin/audit");
@@ -475,7 +475,7 @@ test.describe("editable users on the demo company", () => {
     await row.getByRole("button", { name: "Editar" }).click();
     const dialog = page.getByRole("dialog", { name: "Usuario · Marcela Rojas" });
     await dialog.getByLabel(/^Celular/).fill("3001112233");
-    await dialog.getByRole("button", { name: "Guardar" }).click();
+    await dialog.getByRole("button", { name: "Guardar", exact: true }).click();
     await confirmStepUp(page, LAURA.totpSecret!);
     await expect(dialog).toBeHidden();
     await expect.poll(async () => (await sql`select mobile from kernel.users where email = ${MARCELA.email}`)[0]?.mobile).toBe("3001112233");

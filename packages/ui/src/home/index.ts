@@ -28,3 +28,4 @@ export {
   sanitizeHomeLayout,
 } from "./home-model";
 export type { WidgetLayout } from "./home-model";
+export { numberLocale } from "./format";

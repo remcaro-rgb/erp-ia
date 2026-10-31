@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { refLabelKey } from "@erp/kernel/query";
 import { formatCellValue, isEmptyCell, useCellTimeZone } from "../grid/cell-format";
@@ -29,6 +30,9 @@ export interface ResultTableProps {
   fetcher?: typeof fetch;
   download?: (result: ExportResult) => void;
 }
+
+/** The columns a result table shows before "Ver todas las columnas". */
+const MAX_COLUMNS = 6;
 
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
@@ -61,12 +65,17 @@ function columnsOf(rows: Record<string, unknown>[], given?: ResultColumn[]): Res
  */
 export function ResultTable({ entity, rows, columns, total, truncated, state, onOpenGrid, timeZone, fetcher, download = browserDownload }: ResultTableProps) {
   const t = useTranslations();
-  const cols = columnsOf(rows, columns);
+  const allCols = columnsOf(rows, columns);
+  // UX-OD-6: the identity column first, then the entity's default view, six at most; the rest sits behind "Ver todas las columnas".
+  const [expanded, setExpanded] = useState(false);
+  const preferred = [...allCols.filter((c) => c.identity), ...allCols.filter((c) => !c.identity && !c.hiddenByDefault)].slice(0, MAX_COLUMNS);
+  const folded = preferred.length < allCols.length;
+  const cols = expanded || !folded ? allCols : preferred;
   const exporter = useGridExport({ entity, download, ...(fetcher ? { fetcher } : {}) });
 
   const companyZone = useCellTimeZone();
   const zone = timeZone ?? companyZone;
-  const text = (column: ResultColumn, value: unknown) => formatCellValue({ type: column.type ?? "text" }, value, { yes: t("common.yes"), no: t("common.no"), timeZone: zone });
+  const text = (column: ResultColumn, value: unknown) => formatCellValue({ type: column.type ?? "text", options: column.options }, value, { yes: t("common.yes"), no: t("common.no"), timeZone: zone });
 
   /**
    * A cell's content (rule 21): a reference names its record (`<field>_label`, else its short id) and the identity column
@@ -131,6 +140,11 @@ export function ResultTable({ entity, rows, columns, total, truncated, state, on
         {truncated && <span>{`${total !== undefined && rows.length > 0 ? " · " : ""}${t("agent.ui.result.truncated")}`}</span>}
       </div>
       <div className="erp-result__actions">
+        {folded && (
+          <button type="button" className="erp-btn erp-btn--sm" aria-expanded={expanded} onClick={() => setExpanded((on) => !on)}>
+            {expanded ? t("agent.ui.result.fewer_columns") : t("agent.ui.result.all_columns", { count: allCols.length })}
+          </button>
+        )}
         {onOpenGrid && (
           <button type="button" className="erp-btn erp-btn--sm" onClick={() => onOpenGrid(entity, state)}>
             {t("agent.ui.result.open_grid")}

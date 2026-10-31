@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import type { AiUsage } from "@erp/kernel";
-import { ShareMeter } from "@erp/ui";
+import { numberLocale, ShareMeter } from "@erp/ui";
 
 /**
  * Uso de IA (rule 27, design §20.2): the month's tokens against the company's allowance with its meter (ticks at 80 % and
@@ -12,7 +12,7 @@ import { ShareMeter } from "@erp/ui";
  */
 export function AiUsageScreen({ data }: { data: AiUsage }) {
   const t = useTranslations();
-  const locale = useLocale();
+  const locale = numberLocale(useLocale());
   const router = useRouter();
   const tokens = new Intl.NumberFormat(locale);
   // Fixed decimals, so a column of costs aligns on the decimal separator.

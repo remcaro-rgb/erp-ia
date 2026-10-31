@@ -265,7 +265,7 @@ test.describe("universal grid", () => {
     // Saved as a view, it comes back with the conditions.
     await terceros.getByRole("button", { name: "Guardar vista" }).click();
     await page.getByLabel("Nombre de la vista").fill("Éxito o Tostadora");
-    await page.getByRole("group", { name: "Vistas" }).getByRole("button", { name: "Guardar" }).click();
+    await page.getByRole("group", { name: "Vistas" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(page.getByText("Vista guardada: Éxito o Tostadora")).toBeVisible();
     await expect
       .poll(async () => (await fixture.sql`select name from kernel.saved_views where company_id = ${companyId}`).map((r) => r.name))
@@ -350,7 +350,7 @@ test.describe("universal grid", () => {
     await terceros.getByRole("button", { name: "Guardar vista" }).click();
     await page.getByLabel("Nombre de la vista").fill("Municipio primero");
     await page.getByLabel("Usarla como vista por defecto").check();
-    await page.getByRole("group", { name: "Vistas" }).getByRole("button", { name: "Guardar" }).click();
+    await page.getByRole("group", { name: "Vistas" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(page.getByText("Vista guardada: Municipio primero")).toBeVisible();
     await page.reload();
     await expect(bodyRows(page)).toHaveCount(10);
@@ -425,7 +425,7 @@ test.describe("universal grid", () => {
     await expect(options.first()).toContainText("Café del Norte S.A.S.");
     await options.first().click();
     await expect(lookup).toHaveValue("Café del Norte S.A.S.");
-    await page.getByRole("button", { name: "Guardar" }).click();
+    await page.getByRole("button", { name: "Guardar", exact: true }).click();
     await expect
       .poll(async () => (await fixture.sql`select supplier_id from core.products where id = ${productId}`)[0]?.supplier_id)
       .toBe(norteId);

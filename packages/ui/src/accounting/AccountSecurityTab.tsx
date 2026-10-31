@@ -7,6 +7,7 @@ import type { RequestStepUp, SaveRecord } from "../forms/save-model";
 import { StepUpPrompt } from "../forms/StepUpPrompt";
 import { useSaveFlow } from "../forms/use-save";
 import { addGrant, removeGrant, securityChanged, securityInput, setGrant, stepUpFor, type Access, type Grant, type SecurityDraft, type Subject } from "./account-security-model";
+import { ProcessId } from "../forms/ProcessId";
 
 // The Seguridad tab of a Cuenta (accounting design §4.15, §5.13, §8): the Abierta / Restringida switch and the grants grid (rol o
 // usuario · ver · contabilizar) with Agregar and Quitar. Only the company admin sees it. Every change is `account_permission.update`,
@@ -164,7 +165,7 @@ export function AccountSecurityTab({ accountId, stored, effective, inheritedFrom
         )}
         <div className="erp-row">
           <span className="erp-small erp-muted erp-grow" role="status">
-            {flow.saving ? t("saving") : ""} <span className="erp-mono">{stepUpFor("toggle").process}</span>
+            {flow.saving ? t("saving") : ""} <ProcessId id={stepUpFor("toggle").process} />
           </span>
           {dirty && (
             <button type="button" className="erp-btn" disabled={flow.saving} onClick={() => setDraft(stored)}>

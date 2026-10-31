@@ -1,8 +1,9 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { Kpi } from "@erp/kernel";
+import { formatLabel } from "../date-format";
 import { formatCellValue, useCellTimeZone } from "../grid/cell-format";
 import { KpiCard } from "./KpiCard";
 import { RecommendationCard, type RecommendationItem } from "./RecommendationCard";
@@ -85,6 +86,7 @@ export interface RecentWidgetProps {
 
 export function RecentWidget({ records, onOpen }: RecentWidgetProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const timeZone = useCellTimeZone();
   if (records.length === 0) return <p className="erp-muted erp-small" style={{ padding: "14px 16px" }}>{t("home.recent.empty")}</p>;
   const open = (href: string) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -106,7 +108,7 @@ export function RecentWidget({ records, onOpen }: RecentWidgetProps) {
         </thead>
         <tbody>
           {records.map((record) => {
-            const title = record.title ?? t("home.recent.untitled");
+            const title = record.title ? formatLabel(record.title, locale) : t("home.recent.untitled");
             return (
               <tr key={`${record.entity}:${record.id}`}>
                 <td>

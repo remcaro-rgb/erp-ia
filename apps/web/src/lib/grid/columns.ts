@@ -37,6 +37,7 @@ export function buildColumns(entity: EntityDef, access: GridAccess, presentation
       ...(options ? { options: [...options] } : {}),
       ...(p.pills ? { pills: p.pills } : {}),
       ...(p.display ? { display: p.display } : {}),
+      ...(f.rollup ? { rollup: true } : {}),
       ...(shown.length > 0 && !shown.includes(f.name) ? { hiddenByDefault: true } : {}),
       // A reference to another entity's record: named by its label and linked to its page when the viewer may open it.
       ...(f.type === "ref" && f.ref ? { ref: { entity: f.ref.entity, display: f.ref.display }, ...(linkable.has(f.ref.entity) ? { linkable: true } : {}) } : {}),

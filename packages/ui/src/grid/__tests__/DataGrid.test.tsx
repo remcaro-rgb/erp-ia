@@ -348,3 +348,19 @@ describe("DataGrid", () => {
     }
   });
 });
+
+describe("DataGrid, empty states (T13)", () => {
+  const none = async () => ({ rows: [], total: 0, aggregates: {} });
+  it("an entity with no records says so, with the entity's create action; a base filter or a sort is not the user's filtering", async () => {
+    setup({ fetcher: vi.fn<GridFetcher>(none), baseFilters: [{ field: "status", op: "eq", value: "draft" }], emptyAction: <button type="button">Crear tercero</button> });
+    expect(await screen.findByText("Aún no hay registros")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Crear tercero" })).toBeTruthy();
+    expect(screen.queryByText("Sin resultados con estos filtros")).toBeNull();
+  });
+
+  it("the user's own column filter says nothing matches, without the create action", async () => {
+    setup({ fetcher: vi.fn<GridFetcher>(none), emptyAction: <button type="button">Crear tercero</button>, initialState: { columnFilters: { legal_name: "zzz" } } });
+    expect(await screen.findByText("Sin resultados con estos filtros")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Crear tercero" })).toBeNull();
+  });
+});

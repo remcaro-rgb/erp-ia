@@ -24,6 +24,8 @@ export function assistantColumnsOf(entity: EntityDef, access: GridAccess, t: Tra
       label: column.label,
       type: column.type,
       mode: column.mode,
+      ...(column.options ? { options: column.options } : {}),
+      ...(column.hiddenByDefault ? { hiddenByDefault: true } : {}),
       ...(column.identity ? { identity: true, ...(linkable.has(entity.id) ? { linkable: true } : {}) } : {}),
       ...(column.ref ? { ref: column.ref, ...(column.linkable ? { linkable: true } : {}) } : {}),
     }));

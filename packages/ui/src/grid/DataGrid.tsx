@@ -80,6 +80,8 @@ export interface DataGridProps {
   headerExtra?: ReactNode;
   /** Filters every request carries. */
   baseFilters?: Filter[];
+  /** Shown under "Aún no hay registros" when the entity has none (its create action, when the caller may create); never under a filtered empty result. */
+  emptyAction?: ReactNode;
   /** Values of the entity's grid params (`EntityDef.gridParams`, e.g. the period of a figure column): merged into every request, preview and export. */
   params?: Record<string, string>;
   /**
@@ -110,7 +112,7 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, params, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, emptyAction, params, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, params, debounceMs });
@@ -303,6 +305,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const filterFields = columns.filter((c) => c.mode !== "hidden");
   const hiddenCount = columns.filter((c) => c.mode === "hidden" && !c.filterOnly).length;
   const maskedCount = shown.filter((c) => c.mode === "masked").length;
+  // Only what the user typed makes an empty page "no matches"; a sort, a base filter or a scope does not.
+  const filtering = Object.keys(view.columnFilters).length > 0 || view.conditions.length > 0;
   const dirty = view.sort.length > 0 || Object.keys(view.columnFilters).length > 0 || view.conditions.length > 0;
 
   const preview = (conditions: Condition[]) =>
@@ -556,7 +560,14 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
             {!data.loading && rows.length === 0 && (
               <tr>
                 <td colSpan={shown.length + 1} className="erp-muted erp-grid__empty">
-                  {dirty ? t("grid.empty_filtered") : t("grid.empty")}
+                  {filtering ? (
+                    t("grid.empty_filtered")
+                  ) : (
+                    <>
+                      <div>{t("grid.empty")}</div>
+                      {emptyAction ? <div className="erp-grid__empty-action">{emptyAction}</div> : null}
+                    </>
+                  )}
                 </td>
               </tr>
             )}
@@ -570,7 +581,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                   const sum = sums.find((s) => s.column.field === column.field);
                   return (
                     <td key={column.field} className={cn(column.field === pinned && pinClass, sum && "erp-num text-right")}>
-                      {sum ? formatMoney(sum.sum as number | string) || formatMoney(0) : i === sumLabelAt ? (footFn === "sum" ? t("grid.totals") : t(`grid.group.fn.${footFn}`)) : null}
+                      {sum ? (sum.sum === null ? <span className="erp-muted" title={t("grid.total_unknown")}>—</span> : formatMoney(sum.sum as number | string) || formatMoney(0)) : i === sumLabelAt ? (footFn === "sum" ? t("grid.totals") : t(`grid.group.fn.${footFn}`)) : null}
                     </td>
                   );
                 })}

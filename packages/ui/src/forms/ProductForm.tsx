@@ -119,10 +119,11 @@ export function ProductForm({ record, initial: copy, tables, categories, modes, 
   const pct = costMode === "visible" ? margin(draft) : null;
   const ivaNote = draft.ivaRate === "EXC" ? t("iva_exc") : draft.ivaRate === "0" ? t("iva_zero") : draft.ivaRate ? t("iva_rate", { rate: draft.ivaRate }) : "";
 
-  const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...productInput(draft, { standardCostVisible: costMode === "visible" }) });
+  const send = () => flow.submit({ ...(record ? { id: record.id } : {}), ...productInput(draft, { standardCostVisible: costMode === "visible" }) });
+  const submit = () => void send();
 
   return (
-    <RecordForm canSave={!readOnly && !productBlocked(draft) && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !productBlocked(draft) && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">

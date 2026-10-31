@@ -1,5 +1,6 @@
 "use client";
 
+import { ProcessId } from "@erp/ui";
 import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { RolesData } from "@/lib/admin/load";
@@ -154,7 +155,7 @@ function RoleDialog({ data, role, onClose }: { data: RolesData; role?: Role; onC
       {role && <SubjectAccounts kind="role" subjectId={role.id} />}
       {!role && <div className="erp-small erp-muted">{t("common.admin.roles.create_hint")}</div>}
       <div className="erp-small erp-muted">
-        {t("common.admin.process", { process: role ? "kernel.admin.role.update · kernel.admin.user_role.set" : "kernel.admin.role.create" })}
+        <ProcessId id={role ? "kernel.admin.role.update · kernel.admin.user_role.set" : "kernel.admin.role.create"} />
       </div>
       {status}
       {prompt}

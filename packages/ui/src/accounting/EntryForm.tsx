@@ -11,7 +11,7 @@ import type { CodeOption, RequestStepUp, SaveRecord } from "../forms/save-model"
 import { useSaveFlow } from "../forms/use-save";
 import { LinesEditor, LookupCell, type LineLookup } from "./LinesEditor";
 import { EntryStatusBar, type ActionOutcome } from "./EntryStatusBar";
-import { allowedActions, blankLine, entryDraftOf, entryInput, lineExportFields, lineTotals, visibleColumns, type Chosen, type EditorLine, type LineColumn, type EntryAction, type EntryHeader, type EntrySettings } from "./entry-model";
+import { allowedActions, blankLine, entryDraftOf, entryInput, entryProblems, type EntryProblem, lineExportFields, lineTotals, visibleColumns, type Chosen, type EditorLine, type LineColumn, type EntryAction, type EntryHeader, type EntrySettings } from "./entry-model";
 
 // The Datos tab of a comprobante (accounting design §4.6, §4.7, §8): the header (Fuente, fecha, descripción, unidad de negocio
 // and the automatic reversal date), the keyboard-first lines editor and the status buttons. Only a draft is edited; a pending,
@@ -99,12 +99,14 @@ export function EntryForm(props: EntryFormProps) {
   const totals = lineTotals(lines);
   const dirty = JSON.stringify([header, lines.map(contentOf)]) !== JSON.stringify([initial.header, initial.lines.map(contentOf)]);
   const missing = header.description.trim() === "" || header.date === "";
+  const problems = editable ? entryProblems(header, lines) : [];
 
-  const submit = () =>
-    void flow.submit({
+  const send = () =>
+    flow.submit({
       ...(record ? { id: record.id } : {}),
       ...entryInput({ journalId: header.journalId, date: header.date, description: header.description, businessUnitId: header.businessUnit?.id ?? null, reverseOn: header.reverseOn }, lines),
     });
+  const submit = () => void send();
 
   const facts = record
     ? { status, origin: String(record.origin ?? "manual"), createdBy: typeof record.created_by === "string" ? record.created_by : null, isClosing: record.is_closing === true, reversalOfId: typeof record.reversal_of_id === "string" ? record.reversal_of_id : null }
@@ -118,7 +120,7 @@ export function EntryForm(props: EntryFormProps) {
   const journalOptions = journals.some((j) => j.code === header.journalId) || !header.journalId ? journals : [...journals, { code: header.journalId, name: String(record?.journal_id ?? header.journalId) }];
 
   return (
-    <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
       {record && (
         <div className="erp-row">
           <Pill tone={STATUS_TONE[status] ?? "gray"}>{tv(status)}</Pill>
@@ -184,6 +186,20 @@ export function EntryForm(props: EntryFormProps) {
           knownTotals={restricted && record ? { debit: Number(record.total_debit ?? 0), credit: Number(record.total_credit ?? 0) } : null}
         />
       </Section>
+      {problems.length > 0 && (
+        <div role="status" className="erp-dian erp-dian--info" data-testid="entry-problems">
+          <b>{t("problems.title")}</b>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+            {problems.map((problem) => (
+              <li key={problem}>
+                <button type="button" className="erp-link" onClick={() => focusProblem(problem, t)}>
+                  {t(`problems.${problem}`)}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {failed.panel.length > 0 && (
         <div role="alert" tabIndex={-1} data-error-summary="" className="erp-dian erp-dian--bad">
           <b>{failed.panel.join(" · ")}</b>
@@ -206,6 +222,16 @@ export function EntryForm(props: EntryFormProps) {
       )}
     </RecordForm>
   );
+}
+
+/** Takes the caret to what a listed problem is about: a header field by its label, the lines by their first cell. */
+function focusProblem(problem: EntryProblem, t: (key: string) => string): void {
+  const labelOf = { date: t("date"), description: t("description") } as Partial<Record<EntryProblem, string>>;
+  const wanted = labelOf[problem];
+  const target = wanted
+    ? Array.from(document.querySelectorAll<HTMLLabelElement>("label")).find((l) => l.textContent?.trim().startsWith(wanted))?.control
+    : document.querySelector<HTMLElement>(".erp-lines input, .erp-lines button");
+  (target as HTMLElement | null | undefined)?.focus();
 }
 
 /** A row without its browser identity: what makes two states of the editor the same. */

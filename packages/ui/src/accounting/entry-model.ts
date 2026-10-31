@@ -54,6 +54,23 @@ export function lineTotals(lines: readonly EditorLine[]): { debit: number; credi
   return { debit: round4(debit), credit: round4(credit), difference: round4(debit - credit), partial: lines.some((l) => l.restricted) };
 }
 
+/** Whether any line carries an amount: an entry with none is empty, not balanced. */
+export const hasAmounts = (lines: readonly EditorLine[]): boolean => lines.some((l) => (l.debit ?? 0) !== 0 || (l.credit ?? 0) !== 0);
+
+export type EntryProblem = "date" | "description" | "lines" | "account" | "unbalanced";
+
+/** What still stands between the form and a complete entry, in the order the form shows it (restricted lines hide figures, so they add none). */
+export function entryProblems(header: { description: string; date: string }, lines: readonly EditorLine[]): EntryProblem[] {
+  const problems: EntryProblem[] = [];
+  if (header.date === "") problems.push("date");
+  if (header.description.trim() === "") problems.push("description");
+  if (!hasAmounts(lines)) problems.push("lines");
+  if (lines.some((l) => !l.restricted && !l.account && ((l.debit ?? 0) !== 0 || (l.credit ?? 0) !== 0))) problems.push("account");
+  const totals = lineTotals(lines);
+  if (hasAmounts(lines) && !totals.partial && totals.difference !== 0) problems.push("unbalanced");
+  return problems;
+}
+
 /** The editor's columns: the three optional dimensions only while the company uses them (§4.11). */
 export function visibleColumns(settings: PickOf<EntrySettings, "useOpenAuxiliaries" | "useItems" | "useBusinessUnits">): LineColumn[] {
   return [

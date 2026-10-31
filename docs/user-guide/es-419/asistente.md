@@ -72,3 +72,14 @@ Si el código es incorrecto verás «Código incorrecto». Tras varios intentos 
 - Cada empresa tiene un tope mensual de uso de IA. Al alcanzarlo, el asistente avisa y deja de responder hasta que el administrador lo amplíe; el resto de la aplicación sigue funcionando.
 - Si no tienes permiso para algo, el asistente no lo ofrece y te lo explica. Pídele al administrador de tu empresa el permiso o crea un [ticket de soporte](soporte.md).
 - Una respuesta del asistente puede equivocarse: revisa siempre la tarjeta antes de confirmar.
+
+## El asistente según el tamaño de la pantalla
+
+- **Desde 1280 px** el asistente es el panel fijo de 400 px a la derecha.
+- **De 768 a 1279 px** se abre **sobre** la página, sin angostarla.
+- **Por debajo de 768 px** ocupa toda la pantalla; el campo de texto sube con el teclado de la pantalla.
+- En todos los casos tiene su propio botón **Cerrar** y la tecla **Esc** lo cierra. Al abrirlo el cursor queda en el campo de texto, y al cerrarlo vuelve al botón **Asistente**.
+
+## Tablas de resultados
+
+Una tabla que muestra el asistente trae primero hasta **seis columnas** de la vista por omisión del listado (la identidad primero), con los mismos nombres, valores y enlaces del listado: un estado se lee «Cliente», no el código interno, y una persona es un enlace a su página. **Ver todas las columnas** despliega el resto en el mismo lugar y **Ver menos columnas** lo repliega. **Abrir como listado** y **Excel** no cambian.

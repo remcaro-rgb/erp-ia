@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowRight, Columns3, X } from "lucide-react";
 import { formatMoney, MoneyInput } from "../money";
-import { blankLine, lineTotals, nextFocus, type Chosen, type EditorLine, type LineColumn } from "./entry-model";
+import { blankLine, hasAmounts, lineTotals, nextFocus, type Chosen, type EditorLine, type LineColumn } from "./entry-model";
 
 // The lines of a comprobante, keyboard first (accounting design §4.7, §8): Tab walks account → tercero → centro de costo →
 // auxiliar abierto → ítem → unidad de negocio → débito → crédito, Enter on the last cell opens another line. The optional
@@ -142,7 +142,8 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
 
   const totals = lineTotals(lines);
   const shown = totals.partial && knownTotals ? { debit: knownTotals.debit, credit: knownTotals.credit, difference: Math.round((knownTotals.debit - knownTotals.credit) * 10_000) / 10_000 } : totals;
-  const balanced = shown.difference === 0;
+  const empty = !totals.partial && !hasAmounts(lines);
+  const balanced = shown.difference === 0 && !empty;
 
   return (
     <div className="erp-lines">
@@ -283,11 +284,11 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
         <span>
           {t("total_credit")} <b className="erp-num" data-total="credit">{formatMoney(shown.credit)}</b>
         </span>
-        <span className={balanced ? "erp-lines__diff is-ok" : "erp-lines__diff is-bad"}>
+        <span className={empty ? "erp-lines__diff" : balanced ? "erp-lines__diff is-ok" : "erp-lines__diff is-bad"}>
           {t("difference")} <b className="erp-num" data-total="difference">{formatMoney(shown.difference)}</b>
         </span>
-        <span role="status" className={balanced ? "erp-pill erp-pill--ok" : "erp-pill erp-pill--danger"}>
-          {balanced ? t("balanced") : t("unbalanced", { amount: formatMoney(Math.abs(shown.difference)) })}
+        <span role="status" className={empty ? "erp-pill erp-pill--gray" : balanced ? "erp-pill erp-pill--ok" : "erp-pill erp-pill--danger"}>
+          {empty ? t("no_lines") : balanced ? t("balanced") : t("unbalanced", { amount: formatMoney(Math.abs(shown.difference)) })}
         </span>
       </div>
     </div>

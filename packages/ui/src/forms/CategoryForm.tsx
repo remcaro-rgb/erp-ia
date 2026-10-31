@@ -57,10 +57,11 @@ export function CategoryForm({ record, initial: copy, tables, productCount = 0, 
   const fe = failed.field;
   const problems = [...(accountBad ? [t("income_account_error")] : []), ...failed.panel];
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
-  const submit = () => void flow.submit({ ...(record ? { id: record.id } : {}), ...categoryInput(draft) });
+  const send = () => flow.submit({ ...(record ? { id: record.id } : {}), ...categoryInput(draft) });
+  const submit = () => void send();
 
   return (
-    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("category")}>
         <div className="erp-form2">

@@ -74,6 +74,10 @@ export interface ResultColumn {
   mode?: "visible" | "masked" | "hidden";
   /** The entity's identity column (its display field): with `linkable`, each row's name links to the row's record. */
   identity?: boolean;
+  /** The grid's default view leaves this column out until chosen: the result table folds it behind "Ver todas las columnas". */
+  hiddenByDefault?: boolean;
+  /** The labels of a closed set of values (enum, boolean), as the grid shows them. */
+  options?: readonly { value: string; label: string }[];
   /** A reference to another entity's record: the cell shows the row's `<field>_label` and, with `linkable`, links to it. */
   ref?: { entity: string; display: string };
   /** The viewer may open the records this column names (rule 21). */

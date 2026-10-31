@@ -81,3 +81,7 @@ Una **Fuente** es el tipo de comprobante (NC Notas de contabilidad, VT Ventas, C
 - «Descuadrado»: ajusta las líneas hasta que la **Diferencia** sea cero.
 - El período está cerrado: pide a quien administra los períodos que lo reabra (guía **Períodos y cierre**).
 - La cuenta exige un dato (tercero, centro de costo…) y la línea no lo trae: el sistema lo pide antes de contabilizar.
+
+## Qué falta para completar el comprobante
+
+Mientras el comprobante no está completo, el cuadro **Falta para completar el comprobante** lista lo pendiente (la fecha, la descripción, al menos una línea con valor, líneas con valor sin cuenta, y la diferencia entre débito y crédito); al hacer clic en cada punto el cursor va al campo. Un comprobante sin valores muestra **Sin líneas** en gris, no **Cuadrado**.

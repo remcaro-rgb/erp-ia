@@ -52,3 +52,7 @@ Los importes se muestran como `$ 1.234.567,00`. Las cuentas que tu rol no ve se 
 ## Preguntarle al asistente
 
 El asistente consulta los mismos informes: «dame el balance de prueba de octubre» o «¿cuánto se gastó en arriendo este año?» devuelven una tabla con el enlace a la página del informe.
+
+## Parámetros del informe
+
+Los parámetros (períodos, nivel, centro de costo, tercero…) pasan a una línea nueva cuando no caben, en lugar de recortarse, también con el asistente abierto. Los rangos rápidos **Hoy · Período · Año** forman su propio grupo.

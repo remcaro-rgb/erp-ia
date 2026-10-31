@@ -152,3 +152,13 @@ Las vistas son **tuyas**: son por usuario y por empresa, y nadie más las ve ni 
 - «Un campo oculto o enmascarado para tu rol no se puede usar para filtrar ni ordenar.»: quita ese filtro u orden.
 - «Tu rol no puede consultar este listado» o «Tu empresa no tiene habilitado este listado»: pide acceso al administrador de tu empresa.
 - «Sin resultados» en un listado sin filtros: no hay registros todavía. «Sin resultados con estos filtros»: ningún registro cumple lo que aplicaste; usa **Limpiar filtros**.
+
+## Totales de columnas con jerarquía
+
+En los maestros con árbol (Plan de cuentas, Centros de costo, Auxiliares abiertos, Ítems y Unidades de negocio), la columna **Cifra del período** de cada grupo **ya incluye a sus hijos**. Por eso su total no suma todas las filas: suma solo las filas que no tienen un ancestro en el resultado (sin filtros, las raíces del árbol). Es un total del servidor, sobre todas las páginas y filtros que tu rol puede ver, y el de la **selección** y el de los archivos exportados siguen la misma regla; al exportar agrupado, la columna no lleva subtotal por grupo. Si tu rol no puede ver la jerarquía, el total se muestra como «—».
+
+## Listado vacío
+
+- **Aún no hay registros** significa que no hay nada que mostrar; si puedes crear, el botón **Nuevo** aparece ahí mismo.
+- **Sin resultados con estos filtros** aparece solo cuando los filtros o la búsqueda que tú pusiste no dejan nada; ordenar o el alcance propio del listado no cuentan como filtro.
+- Una columna con una estructura (por ejemplo la plantilla de una regla contable) se lee como «3 elementos»; pasa el mouse para ver el contenido.

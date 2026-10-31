@@ -73,6 +73,26 @@ test.describe("accounting reports", () => {
     await expect(page.locator("input#report-param-from")).toHaveValue("2026-10-01");
     await expect(page.locator("input#report-param-to")).toHaveValue("2026-10-31");
   });
+  test("Balance de prueba parameters wrap instead of truncating: every control is whole at 1280 px with the assistant open and at 390 px (T10)", async ({ page }) => {
+    test.setTimeout(120_000);
+    await signInWithCode(page, fixture, secret);
+    for (const [width, assistant] of [[1280, true], [390, false]] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/accounting/reports/trial_balance");
+      if (assistant && !(await page.getByRole("complementary", { name: "Asistente" }).isVisible())) await page.getByRole("button", { name: "Asistente", exact: true }).click();
+      const bar = page.getByRole("group", { name: "Parámetros" });
+      await expect(bar).toBeVisible();
+      for (const control of await bar.locator("select, input").all()) {
+        const box = await control.boundingBox();
+        if (!box) continue;
+        // Nothing is clipped by the viewport and each control keeps a readable width.
+        expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+        if ((await control.getAttribute("type")) !== "checkbox") expect(box.width).toBeGreaterThanOrEqual(120);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  });
+
   test("Información exógena 1001 de 2026 → Exportar XML downloads `Dmuisca_001001<versión>2026.xml`; with an unmapped account the page lists the errors", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1600, height: 900 });

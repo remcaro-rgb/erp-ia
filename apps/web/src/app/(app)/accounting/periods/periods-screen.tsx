@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { formatMoney, periodName, Pill } from "@erp/ui";
+import { formatMoney, periodName, Pill, ProcessId } from "@erp/ui";
 import type { PeriodSummary, YearPreview, YearSummary } from "@erp/module-accounting";
 import type { PeriodsPageData } from "@/lib/accounting/periods";
 import { closePeriodAction, closeYearAction, reopenPeriodAction, reopenYearAction, yearPreviewAction, type CloseCheckResult } from "@/lib/accounting/period-actions";
@@ -160,7 +160,7 @@ function ClosePeriodDialog({ period, onClose }: { period: PeriodSummary; onClose
           </ul>
         </>
       )}
-      <div className="erp-small erp-muted">{tc("admin.process", { process: "accounting.period.close" })}</div>
+      <div className="erp-small erp-muted"><ProcessId id={"accounting.period.close"} /></div>
       {checks ? null : status}
       {prompt}
     </AdminDialog>
@@ -215,7 +215,7 @@ export function ReopenPeriodDialog({ period, today, initialDay = false, onClose 
           <div className="erp-small erp-muted">{t("reopen_day_hint")}</div>
         </div>
       )}
-      <div className="erp-small erp-muted">{tc("admin.process", { process: "accounting.period.reopen" })}</div>
+      <div className="erp-small erp-muted"><ProcessId id={"accounting.period.reopen"} /></div>
       {status}
       {prompt}
     </AdminDialog>
@@ -301,7 +301,7 @@ function YearDialog({ year, mode, onClose }: { year: YearSummary; mode: "close_y
           )}
         </div>
       )}
-      <div className="erp-small erp-muted">{tc("admin.process", { process: closing ? "accounting.year.close" : "accounting.year.reopen" })}</div>
+      <div className="erp-small erp-muted"><ProcessId id={closing ? "accounting.year.close" : "accounting.year.reopen"} /></div>
       {status}
       {prompt}
     </AdminDialog>

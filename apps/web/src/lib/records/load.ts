@@ -2,6 +2,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import {
   addRefLabels,
   GridState,
+  labelText,
   gridPageAccess,
   ProcessError,
   refLabelKey,
@@ -88,6 +89,8 @@ export interface LoadedRecord {
   caller: Caller;
   /** Null for a new record. */
   record: (Record<string, unknown> & { id: string }) | null;
+  /** The record's title as text (`labelText` of its title field); the page formats it with `formatLabel`. */
+  title: string | null;
   defs: Awaited<ReturnType<typeof customFields>>;
   contacts: Awaited<ReturnType<typeof contacts>>;
   /** The caller's mode of each field of the entity. */
@@ -309,7 +312,9 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   };
   const contributed = record ? await loadContributedTabs(caller, entity.id, record.id, gridRows) : [];
   const accounting = record && MASTER_KINDS[entity.id] ? await loadAccountingTabs(caller, entity.id, record) : null;
-  return { entity, caller, record, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting) };
+  const titleValue = record?.[entity.titleField];
+  const title = titleValue === null || titleValue === undefined || titleValue === "" ? null : labelText(titleValue, registered.fields.find((f) => f.name === entity.titleField));
+  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting) };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

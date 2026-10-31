@@ -77,3 +77,15 @@ describe("LinesEditor", () => {
     expect(screen.getByText("Línea de una cuenta restringida")).toBeTruthy();
   });
 });
+
+describe("LinesEditor, the empty entry (T9)", () => {
+  it("shows a neutral 'Sin líneas' and not 'Cuadrado' while no line has an amount, and 'Cuadrado' once the sides match", () => {
+    renderEs(<Harness />);
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Sin líneas");
+    expect(status.className).not.toMatch(/ok/);
+    cleanup();
+    renderEs(<Harness start={[{ ...blankLine(), debit: 50 }, { ...blankLine(), credit: 50 }]} />);
+    expect(screen.getByRole("status").textContent).toBe("Cuadrado");
+  });
+});

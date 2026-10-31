@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderEs } from "../../shell/__tests__/intl";
 import { KpiCard } from "../KpiCard";
+import { NavigateProvider } from "../../shell/navigate";
 
 afterEach(cleanup);
 
@@ -72,5 +73,30 @@ describe("KpiCard", () => {
     expect(slot2).not.toBeNull();
     expect(slot2!.className).toBe(slot!.className);
     expect(slot2!.querySelector("svg.erp-home-kpi__trend")).not.toBeNull();
+  });
+});
+
+describe("KpiCard drill-down (UX-OD-7, T13)", () => {
+  const kpi = { id: "accounting.draft_entries", label: "home.kpi.accounting_drafts.label", value: 3, unit: "count" as const, href: "/accounting/entries?q=%7B%7D" };
+
+  it("with an href the card is a link: a plain click moves inside the shell, a modified click is the browser's", () => {
+    const navigate = vi.fn();
+    renderEs(
+      <NavigateProvider navigate={navigate}>
+        <KpiCard kpi={kpi} />
+      </NavigateProvider>,
+    );
+    const link = screen.getByRole("link", { name: /Abrir/ });
+    expect(link.getAttribute("href")).toBe(kpi.href);
+    expect(fireEvent.click(link)).toBe(false);
+    expect(navigate).toHaveBeenCalledWith(kpi.href);
+    navigate.mockClear();
+    expect(fireEvent.click(link, { ctrlKey: true })).toBe(true);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("without an href it is not a link", () => {
+    renderEs(<KpiCard kpi={{ ...kpi, href: undefined }} />);
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });

@@ -273,3 +273,7 @@ La auditoría es de **solo inserción**: nadie, ni siquiera el administrador, pu
 **¿Puedo borrar un rol o un usuario?** En esta versión no. A un usuario lo **desactivas** (pierde el acceso y conserva su historial); a un rol le quitas sus permisos.
 
 **¿Puedo borrar o corregir una entrada de la auditoría?** No. La auditoría es de solo inserción para todos; si algo se hizo mal, corrígelo en el registro y la corrección quedará como una entrada nueva.
+
+## Etiquetas de negocio primero
+
+La **matriz de permisos** nombra cada fila por lo que hace el proceso («Crea un tercero») y deja su identificador técnico, en letra monoespaciada, en segundo plano; los pies de formulario muestran el proceso detrás de **Detalles**. **Uso de IA** escribe los números con puntos de miles y coma decimal, como el resto de la aplicación.

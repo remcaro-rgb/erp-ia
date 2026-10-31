@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
-import { NoAccess, OriginTab } from "@erp/ui";
+import { formatLabel, NoAccess, OriginTab } from "@erp/ui";
 import { accountingContent } from "./accounting-content";
 import { loadRecord } from "@/lib/records/load";
 import { ContactsPanel } from "./contacts-panel";
@@ -58,8 +58,9 @@ async function RecordView({ params }: { params: Params }) {
     if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} />;
     notFound();
   }
-  const { entity, record, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
+  const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
   const t = await getTranslations();
+  const locale = await getLocale();
 
   // A comprobante has wide lines: it takes the whole width of the page; the other records keep a readable column.
   const wrapperClass = form.kind === "entry" ? "w-full" : "mx-auto w-full max-w-6xl";
@@ -115,7 +116,7 @@ async function RecordView({ params }: { params: Params }) {
         recordId={record.id}
         canDuplicate={can.duplicate}
         newTitle={newTitle}
-        title={record[entity.titleField] ? String(record[entity.titleField]) : form.kind === "entry" ? t("accounting.entry.draft_title") : record.id}
+        title={title ? formatLabel(title, locale) : form.kind === "entry" ? t("accounting.entry.draft_title") : record.id}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
         deepLinkHref={recordHref(entity.id, record.id)}

@@ -14,7 +14,7 @@ export interface GridFooterProps {
   onPage: (page: number) => void;
   onPageSize: (size: number) => void;
   /** Selected rows and their money totals. */
-  selection?: { count: number; totals: { column: GridColumn; sum: number }[] };
+  selection?: { count: number; totals: { column: GridColumn; sum: number | null }[] };
   /** Rows of the page hidden in collapsed groups. */
   hiddenInGroups?: number;
   /** Shows the keyboard hint of the rows (↑↓ · Espacio · Enter · /). */
@@ -76,7 +76,7 @@ export function GridFooter({ page, pageSize, total, loading = false, onPage, onP
               <b>{t("grid.selected", { count: selection.count })}</b>
               {selection.totals.map(({ column, sum }) => (
                 <span key={column.field} className="erp-num">
-                  {t("grid.selection_sum", { label: column.label, amount: formatMoney(sum) })}
+                  {t("grid.selection_sum", { label: column.label, amount: sum === null ? "—" : formatMoney(sum) })}
                 </span>
               ))}
             </>

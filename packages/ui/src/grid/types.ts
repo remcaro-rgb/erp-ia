@@ -32,6 +32,8 @@ export interface GridColumn {
   display?: "mono" | "dian";
   /** Offered by the column chooser and the advanced filter, but not shown until chosen. */
   hiddenByDefault?: boolean;
+  /** The value of a row already includes its descendants: totals count only the rows with no ancestor in the result or the selection. */
+  rollup?: boolean;
   /** Only in the advanced filter (stored fields not shown in the grid, admin-defined extra data). */
   filterOnly?: boolean;
   /**

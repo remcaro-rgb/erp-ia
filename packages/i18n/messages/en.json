@@ -217,7 +217,9 @@
       "copied": "Copied",
       "copy_failed": "Could not copy",
       "combo_empty": "No matches",
-      "combo_more": "{count} more: type to narrow"
+      "combo_more": "{count} more: type to narrow",
+      "details": "Details",
+      "unsaved": "Unsaved"
     },
     "party_form": {
       "identification": "Identification",
@@ -569,7 +571,8 @@
         "edit_title": "Extra field · {label}",
         "create": "Create",
         "save": "Save",
-        "confirm_remove": "Remove {label}? Stored values are kept, but nobody sees them."
+        "confirm_remove": "Remove {label}? Stored values are kept, but nobody sees them.",
+        "entity": "Entity"
       },
       "required_files": {
         "title": "Required files",
@@ -714,6 +717,16 @@
       "error": "Offline",
       "updated": "Updated {time}",
       "resume": "Resume"
+    },
+    "unsaved": {
+      "title": "You have unsaved changes",
+      "body": "Save or discard the changes to this record before leaving.",
+      "save": "Save",
+      "discard": "Discard",
+      "cancel": "Cancel",
+      "tab": "Unsaved",
+      "saving": "Saving…",
+      "failed": "Could not save: check the record's data."
     }
   },
   "nav": {
@@ -790,7 +803,8 @@
         "input": "Ask, request an action or “how do I…?”",
         "input_label": "Type",
         "send": "Send",
-        "close": "Close assistant"
+        "close": "Close assistant",
+        "close_short": "Close"
       },
       "skip_to_content": "Skip to content",
       "assistant_toggle_title": "Show or hide the assistant (Ctrl+/ or ⌘/)",
@@ -811,7 +825,25 @@
         "enable": "Turn on",
         "failed": "Could not turn it off: {reason}"
       },
-      "badge": "{count} pending"
+      "badge": "{count} pending",
+      "routes": {
+        "accounting_setup": "Set up accounting",
+        "admin_roles": "Roles",
+        "admin_users": "Users",
+        "admin_fields": "Field visibility",
+        "admin_extra": "Extra data",
+        "admin_required_files": "Required files",
+        "admin_sensitive": "Sensitive actions",
+        "admin_verifiers": "Verifiers",
+        "admin_modules": "Modules",
+        "admin_companies": "Companies"
+      },
+      "more": "More",
+      "menu": "Menu",
+      "menu_title": "Navigation menu",
+      "close_menu": "Close menu",
+      "modules_heading": "Modules",
+      "page": "Page"
     },
     "core": {
       "parties": "Parties",
@@ -1576,7 +1608,7 @@
       "empty": "No results",
       "restricted": "Restricted account"
     },
-    "empty": "No results",
+    "empty": "No records yet",
     "loading": "Loading…",
     "search_placeholder": "Search…",
     "columns": "Columns",
@@ -1942,7 +1974,10 @@
       "not_found": "This list does not exist."
     },
     "refreshing": "Updating…",
-    "keys_hint": "↑↓ move · Space select · Enter open · / filter"
+    "keys_hint": "↑↓ move · Space select · Enter open · / filter",
+    "json_items": "{count, plural, one {# item} other {# items}}",
+    "json_fields": "{count, plural, one {# field} other {# fields}}",
+    "total_unknown": "Cannot total: the hierarchy is not visible to your role"
   },
   "home": {
     "greeting": {
@@ -2004,7 +2039,8 @@
       "accounting_drafts": {
         "label": "Draft entries",
         "detail": "{pending, plural, =0 {None awaiting approval} one {# awaiting approval} other {# awaiting approval}}"
-      }
+      },
+      "open": "Open {label}"
     },
     "recommendations": {
       "subtitle": "Suggestions for your role. Nothing runs without your confirmation.",
@@ -2111,7 +2147,9 @@
         "excel": "Excel",
         "exporting": "Exporting…",
         "save_report": "Save report",
-        "phase5": "Phase 5"
+        "phase5": "Phase 5",
+        "all_columns": "Show all columns ({count})",
+        "fewer_columns": "Show fewer columns"
       },
       "errors": {
         "message_too_long": "The message is too long. Shorten it and try again.",
@@ -2466,7 +2504,16 @@
         "template_create": "Create draft",
         "template_failed": "The draft could not be created: {reason}"
       },
-      "totals_label": "Voucher totals"
+      "totals_label": "Voucher totals",
+      "no_lines": "No lines",
+      "problems": {
+        "title": "Still missing from the entry",
+        "date": "Enter the date",
+        "description": "Write the description",
+        "lines": "Add at least one line with an amount",
+        "account": "Some lines have an amount but no account",
+        "unbalanced": "Debit and credit must be equal"
+      }
     },
     "record": {
       "no_access": "No access",

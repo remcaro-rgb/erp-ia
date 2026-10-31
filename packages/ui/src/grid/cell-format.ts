@@ -19,6 +19,8 @@ export interface CellFormatOptions {
   no: string;
   /** The company's time zone (IANA); the runtime's when absent. */
   timeZone?: string | undefined;
+  /** A structured (`json`) value reads as a count ("3 líneas") instead of its raw text; the raw JSON goes in the cell's tooltip. */
+  json?: ((count: number, kind: "items" | "fields") => string) | undefined;
 }
 
 /** True when the value shows as a dash: no value, empty text, or a zero amount. */
@@ -31,6 +33,7 @@ export function isEmptyCell(column: Pick<CellColumn, "type">, value: unknown): b
 export function formatCellValue(column: CellColumn, value: unknown, options: CellFormatOptions): string {
   if (value === null || value === undefined || value === "") return "";
   const label = (v: unknown) => column.options?.find((o) => o.value === String(v))?.label ?? String(v);
+  if (column.type === "json" && options.json && typeof value === "object") return Array.isArray(value) ? options.json(value.length, "items") : options.json(Object.keys(value as object).length, "fields");
   if (Array.isArray(value)) return value.map(label).join(", ");
   if (typeof value === "boolean") return column.options ? label(value) : value ? options.yes : options.no;
   if (column.type === "money") return formatMoney(value as number | string);

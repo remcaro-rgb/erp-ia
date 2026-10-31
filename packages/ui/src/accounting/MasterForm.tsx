@@ -7,6 +7,7 @@ import type { CodeOption, RequestStepUp, SaveRecord } from "../forms/save-model"
 import { StepUpPrompt } from "../forms/StepUpPrompt";
 import { useSaveFlow } from "../forms/use-save";
 import { activeSpecs, masterDraft, masterInput, masterMissing, type MasterKind } from "./master-form-model";
+import { ProcessId } from "../forms/ProcessId";
 
 // The Datos tab of the masters (accounting design §8): Cuenta, the four analytic dimensions, Fuente, Plantilla de comprobante and
 // Período, one form driven by the field specs of `master-form-model`. It saves through the entity's create / update process and asks
@@ -52,7 +53,8 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
   const missing = masterMissing(kind, draft, isNew);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const editable = specs.some((s) => s.control !== "fixed") && !readOnly;
-  const submit = () => void flow.submit(masterInput(kind, draft, record ? record.id : null));
+  const send = () => flow.submit(masterInput(kind, draft, record ? record.id : null));
+  const submit = () => void send();
   const set = (key: string) => (value: string | boolean) => setDraft((d) => ({ ...d, [key]: value }));
   const valueText = (key: string, valuesKey?: string) => {
     const v = draft[key];
@@ -116,7 +118,7 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
   });
 
   return (
-    <RecordForm canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
       {readOnly && editable && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t(`section.${kind}`)}>
         <div className="erp-form2">{fields}</div>
@@ -132,7 +134,7 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
           {flow.stepUp && <StepUpPrompt onConfirm={(code) => void flow.confirmStepUp(code)} onCancel={flow.cancelStepUp} error={flow.stepUpError} busy={flow.saving} />}
           <div className="erp-row">
             <span className="erp-small erp-muted erp-grow" role="status">
-              {flow.saving ? tf("saving") : missing ? t("missing") : ""} <span className="erp-mono">{tf("process", { process: isNew ? processes.create : processes.update })}</span> · <kbd className="erp-mono">{tf("save_hint")}</kbd>
+              {flow.saving ? tf("saving") : missing ? t("missing") : ""} <kbd className="erp-mono">{tf("save_hint")}</kbd> · <ProcessId id={isNew ? processes.create : processes.update} />
             </span>
             {dirty && !isNew && (
               <button type="button" className="erp-btn" onClick={() => setDraft(initial)} disabled={flow.saving}>

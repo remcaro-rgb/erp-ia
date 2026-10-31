@@ -7,7 +7,9 @@ import { invoiceBlockers } from "../lookup/lookup-model";
 import { CodeCombobox } from "./fields/CodeCombobox";
 import { DianHintsProvider, useDianHints, useFormPrefs } from "./form-context";
 import { enterTarget, focusField, isEnterSource } from "./form-keyboard";
+import { ProcessId } from "./ProcessId";
 import { StepUpPrompt } from "./StepUpPrompt";
+import { useUnsavedChanges } from "./unsaved-guard";
 import type { CodeOption } from "./save-model";
 import type { SaveFlow } from "./use-save";
 
@@ -33,6 +35,10 @@ export interface RecordFormProps {
   /** A save would run now (not read-only, not blocked by the client's checks, not saving, something to save). */
   canSave: boolean;
   onSave: () => void;
+  /** The form has unsaved changes: the shell asks before they are lost and the form says "Sin guardar" (UX-OD-4). */
+  dirty?: boolean;
+  /** Saves the form for the shell's "Guardar" of that question: true when it saved. */
+  save?: () => Promise<boolean>;
   /** The last refusal: when it changes, the caret goes to the first field in error or to the error summary. */
   failure: SaveFlow["failure"];
   /** Shows the "Ver códigos DIAN" switch (default); a form with no DIAN codes leaves it out. */
@@ -54,8 +60,10 @@ function useDianHintsState(): [boolean, (on: boolean) => void] {
  * form) the caret goes to the first field in error, else to the error summary (`data-error-summary`). The "Ver
  * códigos DIAN" switch shows or hides the schema hints and the codes before names for every field below (OD-12).
  */
-export function RecordForm({ canSave, onSave, failure, dianToggle = true, children }: RecordFormProps) {
+export function RecordForm({ canSave, onSave, dirty = false, save, failure, dianToggle = true, children }: RecordFormProps) {
   const t = useTranslations("common.forms");
+  // The shell's "Guardar" saves only what the form itself would let the user save (blocked or read-only forms do not).
+  useUnsavedChanges(dirty, async () => (canSave && save ? save() : false));
   const ref = useRef<HTMLFormElement>(null);
   const [dianHints, setDianHints] = useDianHintsState();
   const switchId = useId();
@@ -105,6 +113,13 @@ export function RecordForm({ canSave, onSave, failure, dianToggle = true, childr
   };
   return (
     <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
+      <div role="status" className="erp-form__unsaved-note">
+        {dirty && (
+          <span className="erp-pill erp-pill--warn">
+            <i aria-hidden="true" className="erp-unsaved-dot" /> {t("unsaved")}
+          </span>
+        )}
+      </div>
       {dianToggle && (
         <div className="erp-form__tools">
           <span className="erp-switch">
@@ -419,7 +434,7 @@ export function FormActions({ flow, isNew, dirty, blocked, pendingCount, onSave,
       {flow.stepUp && <StepUpPrompt onConfirm={(code) => void flow.confirmStepUp(code)} onCancel={flow.cancelStepUp} error={flow.stepUpError} busy={flow.saving} />}
       <div className="erp-row">
         <span className="erp-small erp-muted erp-grow" role="status">
-          {flow.saving ? t("saving") : status} · <span className="erp-mono">{t("process", { process })}</span> · <kbd className="erp-mono">{t("save_hint")}</kbd>
+          {flow.saving ? t("saving") : status} · <kbd className="erp-mono">{t("save_hint")}</kbd> · <ProcessId id={process} />
         </span>
         {dirty && !isNew && (
           <button type="button" className="erp-btn" onClick={onDiscard} disabled={flow.saving}>

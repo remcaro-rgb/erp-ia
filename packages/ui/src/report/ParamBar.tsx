@@ -30,7 +30,7 @@ export function ParamBar({ specs, value, onChange, today, period }: ParamBarProp
   ];
 
   return (
-    <div className="erp-row erp-report__params" role="group" aria-label={t("report.params")}>
+    <div className="erp-report__params" role="group" aria-label={t("report.params")}>
       {specs.map((spec) => {
         const id = `report-param-${spec.name}`;
         const current = value[spec.name];
@@ -72,7 +72,7 @@ export function ParamBar({ specs, value, onChange, today, period }: ParamBarProp
         );
       })}
       {quick && (
-        <span className="erp-row" role="group" aria-label={t("report.range.title")}>
+        <span className="erp-row erp-report__ranges" role="group" aria-label={t("report.range.title")}>
           {quick.map(({ key, label, range }) => (
             <button key={key} type="button" className="erp-btn erp-btn--sm" onClick={() => onChange({ ...value, from: range.from, to: range.to })}>
               {label}

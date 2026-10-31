@@ -62,3 +62,7 @@ Sin permiso de actualizar (o si tu rol tiene la columna de datos adicionales enm
 ## En los listados
 
 Los datos adicionales que tu rol puede ver están disponibles en el selector **Columnas** y en el **Filtro avanzado** (marcados «(adicional)»), con las reglas propias de su tipo, pero no se muestran hasta que los eliges. La guía **Listados** explica ambos.
+
+## Una entidad a la vez
+
+La pantalla de administración **Datos adicionales** ya no lista todas las tablas a la vez: elige la entidad en el selector (muestra cuántos datos tiene cada una) y abre primero la que ya tiene datos definidos.

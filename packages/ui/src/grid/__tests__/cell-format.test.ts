@@ -45,3 +45,12 @@ describe("isEmptyCell (null, empty text and a zero amount show as a dash)", () =
     expect(isEmptyCell({ type: "money" }, 5)).toBe(false);
   });
 });
+
+describe("formatCellValue, structured values (T11)", () => {
+  const json = (count: number, kind: "items" | "fields") => `${count} ${kind}`;
+  it("a JSON value reads as a count when the screen gives one; the raw JSON stays available", () => {
+    expect(formatCellValue({ type: "json" }, [{ a: 1 }, { a: 2 }], { ...text, json })).toBe("2 items");
+    expect(formatCellValue({ type: "json" }, { a: 1, b: 2, c: 3 }, { ...text, json })).toBe("3 fields");
+    expect(formatCellValue({ type: "json" }, { a: 1 }, text)).toBe('{"a":1}');
+  });
+});

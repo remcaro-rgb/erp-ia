@@ -310,11 +310,19 @@ export function pagerButtons(page: number, pages: number): (number | "…")[] {
 export const pageCount = (total: number, pageSize: number): number => Math.max(1, Math.ceil(total / pageSize));
 
 /** Sums of the selected rows per visible money column. */
-export function selectionTotals(rows: readonly GridRow[], selected: ReadonlySet<string>, columns: readonly GridColumn[]): { column: GridColumn; sum: number }[] {
+export function selectionTotals(rows: readonly GridRow[], selected: ReadonlySet<string>, columns: readonly GridColumn[]): { column: GridColumn; sum: number | null }[] {
   const chosen = rows.filter((r) => selected.has(r.id));
+  // A roll-up column (UX-OD-3) counts the rows with no selected ancestor: the ancestors are walked through the loaded rows (`parent_id`).
+  const parentOf = new Map(rows.map((r) => [r.id, typeof r.parent_id === "string" ? r.parent_id : null]));
+  const covered = (id: string): boolean => {
+    for (let up = parentOf.get(id) ?? null, hops = 0; up !== null && hops < 64; up = parentOf.get(up) ?? null, hops++) if (selected.has(up)) return true;
+    return false;
+  };
+  const tops = chosen.filter((r) => !covered(r.id));
   return moneyColumns(columns).map((column) => ({
     column,
-    sum: chosen.reduce((sum, row) => sum + (Number(row[column.field] ?? 0) || 0), 0),
+    // Without `parent_id` on every selected row the hierarchy is unknown: no total rather than a double count.
+    sum: column.rollup && chosen.some((r) => !("parent_id" in r)) ? null : (column.rollup ? tops : chosen).reduce((sum, row) => sum + (Number(row[column.field] ?? 0) || 0), 0),
   }));
 }
 

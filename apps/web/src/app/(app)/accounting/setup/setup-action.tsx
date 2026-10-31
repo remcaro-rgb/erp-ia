@@ -1,5 +1,6 @@
 "use client";
 
+import { ProcessId } from "@erp/ui";
 import { useTranslations } from "next-intl";
 import { seedChartAction } from "@/lib/accounting/posting-actions";
 import { useAdminAction } from "../../admin/_components/use-admin-action";
@@ -26,7 +27,7 @@ export function SetupAction() {
           {busy ? t("running") : t("action")}
         </button>
       </div>
-      <div className="erp-small erp-muted">{t("process", { process: "accounting.chart.seed" })}</div>
+      <div className="erp-small erp-muted"><ProcessId id={"accounting.chart.seed"} /></div>
       {status}
       {prompt}
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Pill } from "@erp/ui";
+import { Pill, ProcessId } from "@erp/ui";
 import type { FailureRow } from "@/lib/accounting/posting";
 import { dismissFailureAction, retryFailureAction } from "@/lib/accounting/posting-actions";
 import { AdminDialog } from "../../admin/_components/admin-dialog";
@@ -115,7 +115,7 @@ function DismissDialog({ failure, onClose }: { failure: FailureRow; onClose: () 
         <label htmlFor="dismiss-reason">{t("dismiss_reason")}</label>
         <input id="dismiss-reason" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
       </div>
-      <div className="erp-small erp-muted">{tc("admin.process", { process: "accounting.posting_failure.dismiss" })}</div>
+      <div className="erp-small erp-muted"><ProcessId id={"accounting.posting_failure.dismiss"} /></div>
       {status}
     </AdminDialog>
   );

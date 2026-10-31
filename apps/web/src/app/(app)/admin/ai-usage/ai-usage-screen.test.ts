@@ -78,3 +78,13 @@ describe("AiUsageScreen allowance", () => {
     expect(text(html)).toContain("límite alcanzado");
   });
 });
+
+describe("AiUsageScreen numbers (rule 23, T11)", () => {
+  it("tokens, costs and shares follow the app's convention: dots for thousands, a decimal comma", () => {
+    const t = text(render(base));
+    expect(t).toContain("1.912.400");
+    expect(t).toContain("2.500.000");
+    expect(t).toContain("12,5000");
+    expect(t).not.toContain("1,912,400");
+  });
+});

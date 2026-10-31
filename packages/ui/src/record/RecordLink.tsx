@@ -1,8 +1,9 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@erp/ui/lib/utils";
+import { formatLabel } from "../date-format";
 import { useNavigate } from "../shell/navigate";
 import { recordHref } from "./record-model";
 
@@ -15,6 +16,7 @@ import { recordHref } from "./record-model";
  */
 export function RecordLink({ entity, id, label, mono = false, inRow = false }: { entity: string; id: string; label: string; mono?: boolean; inRow?: boolean }) {
   const t = useTranslations();
+  const shown = formatLabel(label, useLocale());
   const navigate = useNavigate();
   const href = recordHref(entity, id);
   const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -25,8 +27,8 @@ export function RecordLink({ entity, id, label, mono = false, inRow = false }: {
     navigate(href);
   };
   return (
-    <a className={cn("erp-link erp-link--inline", mono && "erp-mono")} href={href} title={t("grid.open_record", { label })} tabIndex={inRow ? -1 : undefined} onClick={onClick}>
-      {label}
+    <a className={cn("erp-link erp-link--inline", mono && "erp-mono")} href={href} title={t("grid.open_record", { label: shown })} tabIndex={inRow ? -1 : undefined} onClick={onClick}>
+      {shown}
     </a>
   );
 }

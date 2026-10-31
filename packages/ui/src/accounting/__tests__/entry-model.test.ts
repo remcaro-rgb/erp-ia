@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedActions, entryDraftOf, entryInput, lineTotals, nextFocus, visibleColumns, type EditorLine, type EntrySettings } from "../entry-model";
+import { allowedActions, entryDraftOf, entryInput, entryProblems, hasAmounts, lineTotals, nextFocus, visibleColumns, type EditorLine, type EntrySettings } from "../entry-model";
 
 const settings = (over: Partial<EntrySettings> = {}): EntrySettings => ({ requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false, ...over });
 const pick = (id: string, label = id) => ({ id, label });
@@ -101,5 +101,18 @@ describe("the form's data", () => {
     expect(draft.header).toMatchObject({ journalId: "j1", date: "2026-10-30", description: "Nota" });
     expect(draft.lines[0]).toMatchObject({ account: { id: "a1", label: "110505 · Caja" }, debit: 1000, credit: null });
     expect(draft.lines[1]).toMatchObject({ restricted: true });
+  });
+});
+
+describe("entryProblems (T9)", () => {
+  const ok = { description: "Venta", date: "2026-10-31" };
+  it("an empty entry is not balanced, it has no lines: it names the description, the date and the lines that are missing", () => {
+    expect(hasAmounts([line(), line()])).toBe(false);
+    expect(entryProblems({ description: " ", date: "" }, [line()])).toEqual(["date", "description", "lines"]);
+  });
+  it("a line with an amount and no account, and a difference, are named", () => {
+    const lines = [line({ debit: 100 }), line({ account: pick("a"), credit: 40 })];
+    expect(entryProblems(ok, lines)).toEqual(["account", "unbalanced"]);
+    expect(entryProblems(ok, [line({ account: pick("a"), debit: 100 }), line({ account: pick("b"), credit: 100 })])).toEqual([]);
   });
 });

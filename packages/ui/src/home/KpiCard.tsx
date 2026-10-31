@@ -1,8 +1,10 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { Kpi } from "@erp/kernel";
 import { formatMoney } from "../money";
+import { useNavigate } from "../shell/navigate";
 import { detailParams, formatCompact, formatCount } from "./format";
 import { Sparkline } from "./Sparkline";
 
@@ -23,8 +25,17 @@ export function KpiCard({ kpi }: KpiCardProps) {
   // The trend of a count is in whole numbers; the percent and token cards trend the tokens of each day (compact, like the value).
   const show = kpi.unit === "count" ? formatCount : formatCompact;
   const series = kpi.series && kpi.series.length >= 2 ? kpi.series : null;
-  return (
-    <div className="erp-home-kpi" data-kpi={kpi.id}>
+  // UX-OD-7: a card with an `href` is a link to the grid or report that holds its work; a plain click moves inside the shell.
+  const navigate = useNavigate();
+  const go = kpi.href
+    ? (event: MouseEvent<HTMLAnchorElement>) => {
+        if (!navigate || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigate(kpi.href!);
+      }
+    : undefined;
+  const body = (
+    <>
       <div className="erp-home-kpi__label">{t(kpi.label)}</div>
       <div className="erp-home-kpi__value" data-testid="kpi-value" data-tone={kpi.tone ?? "default"}>
         {value}
@@ -46,6 +57,15 @@ export function KpiCard({ kpi }: KpiCardProps) {
         </div>
       ) : null}
       {kpi.detail ? <div className="erp-home-kpi__detail">{t(kpi.detail.key, detailParams(locale, kpi.detail.params))}</div> : null}
+    </>
+  );
+  return kpi.href ? (
+    <a className="erp-home-kpi erp-home-kpi--link" data-kpi={kpi.id} href={kpi.href} onClick={go} aria-label={t("home.kpi.open", { label: t(kpi.label) })}>
+      {body}
+    </a>
+  ) : (
+    <div className="erp-home-kpi" data-kpi={kpi.id}>
+      {body}
     </div>
   );
 }

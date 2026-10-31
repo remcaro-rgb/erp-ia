@@ -22,7 +22,7 @@ export function Pill({ tone, children, title }: { tone: PillTone; children: Reac
 export function useValueText() {
   const t = useTranslations();
   const timeZone = useCellTimeZone();
-  return (column: GridColumn, value: unknown): string => formatCellValue(column, value, { yes: t("common.yes"), no: t("common.no"), timeZone });
+  return (column: GridColumn, value: unknown): string => formatCellValue(column, value, { yes: t("common.yes"), no: t("common.no"), timeZone, json: (count, kind) => t(`grid.json_${kind}`, { count }) });
 }
 
 const NUMERIC = new Set(["money", "number", "custom:number"]);
@@ -81,5 +81,6 @@ export function GridCell({ column, row, className, render }: { column: GridColum
     );
   }
   const tone = column.pills?.[String(value)];
+  if (column.type === "json" && typeof value === "object") return <td className={base}><span title={JSON.stringify(value)}>{shown}</span></td>;
   return <td className={base}>{tone ? <Pill tone={tone}>{shown}</Pill> : shown}</td>;
 }
