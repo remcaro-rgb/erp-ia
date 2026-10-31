@@ -63,6 +63,37 @@ export async function seedSmallLedger(fixture: AuthFixture): Promise<SmallLedger
   return { accounts, journal: nc!.id, year: year!.id, period: period!.id };
 }
 
+export interface YearLedger extends SmallLedger {
+  /** The twelve periods of 2026, in order (index 0 is January; October is the one `seedSmallLedger` made). */
+  periods: string[];
+  closingJournal: string;
+}
+
+/**
+ * `seedSmallLedger` plus periods 1–12 of 2026 (October reused), a `kind = 'closing'` Fuente CI "Cierre", and the role mapping already there.
+ * Every period stays open: the spec posts first and closes them after.
+ */
+export async function seedYearLedger(fixture: AuthFixture): Promise<YearLedger> {
+  const { sql } = fixture;
+  const companyId = fixture.companyIds[0]!;
+  const ledger = await seedSmallLedger(fixture);
+  const [ci] = await sql<{ id: string }[]>`insert into accounting.journals (company_id, code, name, kind) values (${companyId}, 'CI', 'Cierre', 'closing') returning id`;
+  const periods: string[] = [];
+  for (let number = 1; number <= 12; number++) {
+    if (number === 10) {
+      periods.push(ledger.period);
+      continue;
+    }
+    const start = new Date(Date.UTC(2026, number - 1, 1));
+    const end = new Date(Date.UTC(2026, number, 0));
+    const [row] = await sql<{ id: string }[]>`
+      insert into accounting.periods (company_id, fiscal_year_id, number, starts_on, ends_on)
+      values (${companyId}, ${ledger.year}, ${number}, ${start.toISOString().slice(0, 10)}, ${end.toISOString().slice(0, 10)}) returning id`;
+    periods.push(row!.id);
+  }
+  return { ...ledger, periods, closingJournal: ci!.id };
+}
+
 /** A posted comprobante dated `date` in the open period: `debit` account against `credit` account. */
 export async function postEntry(fixture: AuthFixture, ledger: SmallLedger, input: { date: string; debit: string; credit: string; amount: number; description?: string }): Promise<string> {
   const { sql } = fixture;

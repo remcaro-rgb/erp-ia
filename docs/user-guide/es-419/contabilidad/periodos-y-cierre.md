@@ -56,13 +56,17 @@ El período muestra cuántas veces se ha reabierto («reabierto 2 veces»), y to
 
 Con los 12 períodos cerrados:
 
-1. En la tarjeta del año pulsa **Cerrar año**.
-2. Revisa la **Vista previa del cierre**: **Ingresos del año**, **Gastos del año** y **Utilidad del ejercicio** (o **Pérdida del ejercicio**).
-3. Escribe tu código de verificación y confirma. Se saldan las cuentas de resultado contra ganancias y pérdidas, se crea el comprobante de cierre y se abre el año siguiente.
+1. En la tarjeta del año pulsa **Cerrar año**. Se abre «Cerrar el año 2026».
+2. Revisa la **Vista previa del cierre**, que muestra tres cifras: **Ingresos del año**, **Gastos del año** y **Utilidad del ejercicio** (o **Pérdida del ejercicio**). Por ejemplo: $ 10.000.000,00 de ingresos, $ 6.000.000,00 de gastos y $ 4.000.000,00 de utilidad.
+3. Pulsa **Cerrar año** y escribe tu código de verificación.
 
-Si faltan cuentas por mapear («Faltan por mapear las cuentas de ganancias y pérdidas…») ve a **Reglas contables › Mapeo de cuentas** (guía **Reglas contables**).
+Al confirmar, el sistema crea **dos comprobantes de cierre** en la Fuente **Cierre**, con fecha 31/12 del año: el primero salda las cuentas de ingresos y gastos contra ganancias y pérdidas, y el segundo lleva el resultado a **Utilidad del ejercicio** (o **Pérdida del ejercicio**). El año queda **Cerrado** y se abre el año siguiente con sus 12 períodos.
 
-**Reabrir año** revierte los comprobantes de cierre y vuelve a abrir el año y su último período; también pide el código.
+Si falta cerrar algún período, el diálogo dice «Falta cerrar 1 período del año.» (o «Faltan por cerrar N períodos del año.») y **Cerrar año** queda desactivado: cierra primero esos meses. Si faltan cuentas por mapear («Faltan por mapear las cuentas de ganancias y pérdidas…») ve a **Reglas contables › Mapeo de cuentas** (guía **Reglas contables**).
+
+## Reabrir el año
+
+En la tarjeta de un año cerrado pulsa **Reabrir año**. El diálogo lista los **Comprobantes de cierre por revertir** con su número. Al confirmar con tu código de verificación, esos comprobantes quedan **Revertidos**, el año vuelve a **Abierto** y su último período (diciembre) también. Los años se reabren del más reciente al más antiguo.
 
 ## Si algo no funciona
 
