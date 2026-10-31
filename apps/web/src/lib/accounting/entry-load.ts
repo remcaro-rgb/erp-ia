@@ -36,7 +36,7 @@ const PROCESS_OF: Record<EntryAction, string> = {
   submit: "accounting.entry.submit",
   approve: "accounting.entry.post",
   post: "accounting.entry.post",
-  return: "accounting.entry.update",
+  return: "accounting.entry.return_to_draft",
   reverse: "accounting.entry.reverse",
   void: "accounting.entry.void",
 };

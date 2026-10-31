@@ -25,6 +25,8 @@ export interface EntryStatusBarProps {
 
 const PRIMARY = new Set<EntryAction>(["submit", "approve", "post"]);
 const NEEDS_REASON = new Set<EntryAction>(["void", "reverse"]);
+/** Devolver a borrador asks for a reason too, but it is optional. */
+const OPTIONAL_REASON = new Set<EntryAction>(["return"]);
 
 export function EntryStatusBar({ actions, can, onRun, requestStepUp, disabled = false }: EntryStatusBarProps) {
   const t = useTranslations("common.entry");
@@ -64,7 +66,7 @@ export function EntryStatusBar({ actions, can, onRun, requestStepUp, disabled = 
   };
 
   const click = (action: EntryAction) => {
-    if (NEEDS_REASON.has(action)) {
+    if (NEEDS_REASON.has(action) || OPTIONAL_REASON.has(action)) {
       setAsking(action);
       setProblems([]);
       return;
@@ -113,10 +115,10 @@ export function EntryStatusBar({ actions, can, onRun, requestStepUp, disabled = 
       {asking && (
         <div className="erp-row erp-entry-status__reason">
           <label htmlFor={reasonId} className="erp-small">
-            {t("reason")}
+            {asking && OPTIONAL_REASON.has(asking) ? t("return_reason") : t("reason")}
           </label>
           <input id={reasonId} value={reason} maxLength={500} autoFocus onChange={(e) => setReason(e.target.value)} />
-          <button type="button" className="erp-btn erp-btn--primary" disabled={busy || reason.trim() === ""} onClick={() => void run(asking, { reason: reason.trim() })}>
+          <button type="button" className="erp-btn erp-btn--primary" disabled={busy || (reason.trim() === "" && !OPTIONAL_REASON.has(asking))} onClick={() => void run(asking, reason.trim() ? { reason: reason.trim() } : {})}>
             {t("reason_confirm")}
           </button>
           <button type="button" className="erp-btn" onClick={() => setAsking(null)}>

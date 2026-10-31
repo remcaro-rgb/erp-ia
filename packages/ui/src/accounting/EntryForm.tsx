@@ -95,7 +95,7 @@ export function EntryForm(props: EntryFormProps) {
   const facts = record
     ? { status, origin: String(record.origin ?? "manual"), createdBy: typeof record.created_by === "string" ? record.created_by : null, isClosing: record.is_closing === true, reversalOfId: typeof record.reversal_of_id === "string" ? record.reversal_of_id : null }
     : null;
-  const buttons = facts ? allowedActions(facts, settings, userId) : [];
+  const buttons = facts ? allowedActions(facts, settings, userId, { canReturn: can.return }) : [];
   const run = (action: EntryAction, input: { reason?: string }, stepUp?: string) => runAction(action, record!.id, input, stepUp).then((outcome) => {
     if (outcome.ok) onActed?.();
     return outcome;

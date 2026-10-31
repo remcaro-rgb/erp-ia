@@ -781,7 +781,7 @@
         "void": "Voided"
       },
       "needs_attachment": "Attach the supporting document in the Files tab before posting",
-      "return_blocked": "A voucher with lines on restricted accounts cannot be returned to draft",
+      "return_reason": "Reason (optional)",
       "clone_note": "The header was copied; add the lines.",
       "origin": {
         "title": "Origin",
@@ -2012,6 +2012,11 @@
       "submit": "Verify",
       "no_factor": "Turn on two-step verification in your user menu to run this action.",
       "enroll": "Turn it on now"
+    },
+    "accounting": {
+      "entry": {
+        "return_to_draft": "Return entry to draft"
+      }
     }
   },
   "grid": {

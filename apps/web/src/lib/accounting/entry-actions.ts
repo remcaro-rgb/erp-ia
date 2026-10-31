@@ -7,7 +7,6 @@ import { requireCaller } from "@/lib/auth/claims";
 import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { issuesOf } from "@/lib/records/issues";
 import { processDeps } from "@/lib/server/runtime";
-import { hasRestrictedLines, returnToDraftInput } from "./entry-return";
 
 // What the comprobante record asks of the server (accounting design §8): the lookups of the lines editor, the status buttons and the
 // "Nuevo desde plantilla" dialog. Every write is a registered process run as the session's user (rule 1).
@@ -63,30 +62,25 @@ export async function lookupLineAction(kind: LookupKind, search: string): Promis
   });
 }
 
-const PROCESS: Record<Exclude<EntryAction, "return">, string> = {
+const PROCESS: Record<EntryAction, string> = {
   submit: "accounting.entry.submit",
   approve: "accounting.entry.post",
   post: "accounting.entry.post",
+  return: "accounting.entry.return_to_draft",
   void: "accounting.entry.void",
   reverse: "accounting.entry.reverse",
 };
 
 /** Runs a status button of the comprobante. A step-up token answers a `step_up_required`. */
 export async function runEntryAction(action: EntryAction, id: string, input: { reason?: string }, stepUpToken?: string): Promise<ActionOutcome> {
-  if (action !== "return" && !(action in PROCESS)) return { ok: false, code: "invalid_input", messages: [] };
+  if (!(action in PROCESS)) return { ok: false, code: "invalid_input", messages: [] };
   if (typeof id !== "string") return { ok: false, code: "invalid_input", messages: [] };
   const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
   const deps = processDeps();
   const t = await getTranslations("common.entry");
   try {
-    if (action === "return") {
-      const entry = (await runProcess(deps, caller, "accounting.entry.consult", { id })) as Record<string, unknown>;
-      if (hasRestrictedLines(entry)) return { ok: false, code: "forbidden", messages: [t("return_blocked")] };
-      await runProcess(deps, caller, "accounting.entry.update", returnToDraftInput(entry));
-      return { ok: true, message: t("done.return") };
-    }
     const reason = input.reason?.trim();
-    const processInput = action === "void" || action === "reverse" ? { id, reason: reason ?? "" } : { id };
+    const processInput = action === "void" || action === "reverse" ? { id, reason: reason ?? "" } : action === "return" ? { id, ...(reason ? { reason } : {}) } : { id };
     const result = (await runProcess(deps, caller, PROCESS[action], processInput)) as { number?: string };
     return { ok: true, message: t(`done.${action}`, { number: result.number ?? "" }) };
   } catch (error) {

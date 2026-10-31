@@ -16,7 +16,7 @@ La contabilidad trae cinco controles pequeños, pensados para que un error o un 
 
 ## 1. Aprobación por otra persona
 
-En **Reglas contables › Configuración › Comprobantes manuales**, activa **Exigir aprobación de otra persona**. Desde entonces un comprobante manual (o el que prepara el asistente) pasa por **Enviar a aprobación** y lo contabiliza otra persona con **Aprobar y contabilizar**. Quien lo creó no puede aprobarlo. **Devolver a borrador** lo regresa al autor. Los comprobantes automáticos no pasan por aquí: su control es la regla contable, que solo se cambia con código de verificación.
+En **Reglas contables › Configuración › Comprobantes manuales**, activa **Exigir aprobación de otra persona**. Desde entonces un comprobante manual (o el que prepara el asistente) pasa por **Enviar a aprobación** y lo contabiliza otra persona con **Aprobar y contabilizar**. Quien lo creó no puede aprobarlo. **Devolver a borrador** (con un motivo opcional) lo regresa al autor sin cambiar sus líneas; lo puede hacer quien tenga el permiso de contabilizar, aun si el comprobante incluye cuentas restringidas que no ve. Los comprobantes automáticos no pasan por aquí: su control es la regla contable, que solo se cambia con código de verificación.
 
 También puedes exigir **Un archivo adjunto** en cada comprobante manual.
 

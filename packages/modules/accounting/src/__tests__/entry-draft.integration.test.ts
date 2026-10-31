@@ -52,12 +52,14 @@ describe("entry-draft", () => {
     await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_input" });
   });
 
-  it("accepts an empty draft, takes the manual journal and header business unit, and a pending entry returns to draft on update", async () => {
+  it("accepts an empty draft, takes the manual journal and header business unit, and a pending entry is returned before it is updated", async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft([]));
     expect(await entryRow(id)).toMatchObject({ status: "draft", total_debit: "0.0000" });
     await h.sql`update accounting.entries set status = 'pending', submitted_by = ${h.contador.userId}, submitted_at = now() where id = ${id}`;
-    await h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) });
+    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_input" });
+    await h.run(h.contador, "accounting.entry.return_to_draft", { id });
     expect(await entryRow(id)).toMatchObject({ status: "draft", submitted_by: null, submitted_at: null });
+    await h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) });
     await h.run(h.contador, "accounting.entry.void", { id, reason: "Prueba" });
   });
 
