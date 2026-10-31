@@ -327,7 +327,9 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const errorText =
     data.error === null
       ? null
-      : t.has(`grid.query_errors.${data.error}`)
+      : data.errorNote
+        ? data.errorNote
+        : t.has(`grid.query_errors.${data.error}`)
         ? t(`grid.query_errors.${data.error}`)
         : t.has(`errors.${data.error}`)
           ? t(`errors.${data.error}`)

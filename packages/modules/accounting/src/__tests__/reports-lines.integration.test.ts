@@ -120,7 +120,22 @@ describe("line reports", () => {
     } finally {
       await restrict("open");
     }
-    await expect(report(h.admin, "accounting.account_detail", { accountId: "00000000-0000-4000-8000-000000000000", ...range })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("account detail: a missing and a restricted account answer the same Sin acceso", async () => {
+    const missing = "00000000-0000-4000-8000-000000000000";
+    const refusal = { code: "forbidden", details: ["Sin acceso"] };
+    await expect(report(h.admin, "accounting.account_detail", { accountId: missing, ...range })).rejects.toMatchObject(refusal);
+    await restrict("restricted");
+    try {
+      await expect(report(h.auxiliar, "accounting.account_detail", { accountId: missing, ...range })).rejects.toMatchObject(refusal);
+      await expect(report(h.auxiliar, "accounting.account_detail", { accountId: await accountId("5105"), ...range })).rejects.toMatchObject(refusal);
+      const dim = (accountId: string) => report(h.auxiliar, "accounting.dimension_detail", { dimension: "cost_center", nodeId: group, ...range, accountId });
+      await expect(dim(missing)).rejects.toMatchObject(refusal);
+      await expect(dim(await accountId("5105"))).rejects.toMatchObject(refusal);
+    } finally {
+      await restrict("open");
+    }
   });
 
   it("party detail follows one party across accounts with a running balance and can be narrowed to some accounts", async () => {

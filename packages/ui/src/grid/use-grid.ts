@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { failureCode } from "./fetch-grid";
+import { failureOf } from "./fetch-grid";
 import { identityField, initialView, moveColumn, setColumnShown, stepColumn, toggleSort, toGridState } from "./grid-model";
 import { MAX_GROUP_LEVELS, type AggregateFn, type ColumnFilterValue, type Condition, type GridColumn, type GridFetcher, type GridPage, type GridStateInput, type GridView } from "./types";
 
@@ -22,6 +22,8 @@ export interface GridData {
   loading: boolean;
   /** Code of the last failure (`field_hidden`, `forbidden`, `network`…), or null. */
   error: string | null;
+  /** The refusal's own note (first detail of a forbidden, not_found or invalid_input), or null. */
+  errorNote: string | null;
 }
 
 /**
@@ -31,7 +33,7 @@ export interface GridData {
  */
 export function useGrid({ columns, fetcher, initialView: start, baseFilters = [], debounceMs = 300 }: UseGridOptions) {
   const [view, setView] = useState<GridView>(() => initialView(columns, start));
-  const [data, setData] = useState<GridData>({ page: null, loading: true, error: null });
+  const [data, setData] = useState<GridData>({ page: null, loading: true, error: null, errorNote: null });
   const fetcherRef = useRef(fetcher);
   useEffect(() => {
     fetcherRef.current = fetcher;
@@ -67,10 +69,10 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
       setData((d) => ({ ...d, loading: true }));
       fetcherRef.current(stateRef.current, controller.signal).then(
         (page) => {
-          if (!controller.signal.aborted) setData({ page, loading: false, error: null });
+          if (!controller.signal.aborted) setData({ page, loading: false, error: null, errorNote: null });
         },
         (error: unknown) => {
-          if (!controller.signal.aborted) setData((d) => ({ ...d, loading: false, error: failureCode(error) }));
+          if (!controller.signal.aborted) setData((d) => ({ ...d, loading: false, ...(({ code, note }) => ({ error: code, errorNote: note }))(failureOf(error)) }));
         },
       );
     }, delay);

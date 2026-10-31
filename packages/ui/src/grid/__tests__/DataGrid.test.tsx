@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderEs } from "../../shell/__tests__/intl";
 import { DataGrid } from "../DataGrid";
+import { GridFetchError } from "../fetch-grid";
 import type { GridColumn, GridFetcher, GridRow } from "../types";
 
 afterEach(cleanup);
@@ -255,6 +256,22 @@ describe("DataGrid", () => {
     expect(row.tabIndex).toBe(0);
     fireEvent.keyDown(row, { key: "Enter" });
     expect(onRowOpen).toHaveBeenLastCalledWith(rows[0]);
+  });
+
+  it("a refused fetch with details shows the first detail in the alert instead of the code's message", async () => {
+    const fetcher = vi.fn<GridFetcher>(async () => {
+      throw new GridFetchError("forbidden", 403, ["Sin acceso"]);
+    });
+    renderEs(<DataGrid entity="accounting.report" title="Auxiliar" columns={columns} fetcher={fetcher} debounceMs={20} />);
+    expect((await screen.findByRole("alert")).textContent).toBe("Sin acceso");
+  });
+
+  it("a refusal without details keeps the code's message ('No tienes permiso para hacer esto.')", async () => {
+    const fetcher = vi.fn<GridFetcher>(async () => {
+      throw new GridFetchError("forbidden", 403, []);
+    });
+    renderEs(<DataGrid entity="accounting.report" title="Auxiliar" columns={columns} fetcher={fetcher} debounceMs={20} />);
+    expect((await screen.findByRole("alert")).textContent).toContain("No tienes permiso para hacer esto.");
   });
 
   it("applies fixed filters (the party switches) to every result and shows the server's refusal", async () => {

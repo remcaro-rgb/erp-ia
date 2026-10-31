@@ -31,6 +31,7 @@ El dinero nunca se oculta, solo el detalle:
 
 - **Informes de totales** (Balance de prueba, Libro mayor y balances, Estado de resultados, Estado de situación financiera): las cuentas restringidas se reemplazan por una línea **Cuentas restringidas** («Cuentas restringidas (n)») con sus cifras sumadas; los totales y las ecuaciones cuadran. La línea muestra los saldos deudores y acreedores de esas cuentas, cada uno en su lado, así que los seis totales son iguales para todas las personas.
 - **Informes de líneas** (Auxiliar, Libro diario…): las líneas no salen y una nota dice **Líneas omitidas por falta de acceso**.
+- **Auxiliar de una cuenta restringida**: si pides el Auxiliar de una cuenta que no puedes ver, el informe responde solo **Sin acceso**, sin código, nombre ni saldos. Pedir una cuenta que no existe da la misma respuesta, así que no se puede averiguar qué cuentas existen.
 - **Movimientos**: igual, con la nota de las líneas omitidas.
 - **Una cuenta restringida abierta directamente**: sus pestañas **Saldos** y **Movimientos** responden **Sin acceso**; si abres la página de la cuenta por su enlace, puede aparecer en cambio el aviso general de que no tienes permiso.
 - **Comprobantes**: una línea de cuenta restringida se ve como **Línea de una cuenta restringida**, sin cifras, y no se puede editar; los totales del comprobante están completos.

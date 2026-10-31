@@ -1,4 +1,4 @@
-import { GridFetchError } from "../grid/fetch-grid";
+import { GridFetchError, detailsOf } from "../grid/fetch-grid";
 import type { GridColumn, GridFetcher, GridPage } from "../grid/types";
 
 // A report is a parameter bar over a grid (design §9, accounting design §10a.5). The server turns the report's zod
@@ -100,8 +100,8 @@ export function reportFetcher(id: string, params: ReportParams, endpoint = "/api
       body: JSON.stringify({ params, state }),
       signal,
     });
-    const body = (await response.json().catch(() => null)) as (GridPage & { code?: string }) | null;
-    if (!response.ok || !body) throw new GridFetchError(body?.code ?? "handler_failed", response.status);
+    const body = (await response.json().catch(() => null)) as (GridPage & { code?: string; details?: unknown }) | null;
+    if (!response.ok || !body) throw new GridFetchError(body?.code ?? "handler_failed", response.status, detailsOf(body?.details));
     return body;
   };
 }
