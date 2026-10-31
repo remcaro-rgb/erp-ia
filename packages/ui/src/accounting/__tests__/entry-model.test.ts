@@ -35,6 +35,15 @@ describe("allowedActions", () => {
   });
 });
 
+describe("allowedActions · return needs canReturn", () => {
+  const pending = { status: "pending", origin: "manual", createdBy: "andres" } as const;
+  const fourEyes = settings({ requireApprovalOnManual: true });
+  it("offers Devolver only when the caller may run it", () => {
+    expect(allowedActions(pending, fourEyes, "laura", { canReturn: false }).map((a) => a.action)).toEqual(["approve", "void"]);
+    expect(allowedActions(pending, fourEyes, "laura", { canReturn: true }).map((a) => a.action)).toEqual(["approve", "return", "void"]);
+  });
+});
+
 describe("lineTotals", () => {
   it("adds both sides to four decimals and reports the difference; a restricted line makes the sum partial", () => {
     const lines = [line({ debit: 0.1 }), line({ debit: 0.2 }), line({ credit: 0.3 })];

@@ -55,7 +55,7 @@ Si el administrador activó **Aprobación de comprobantes manuales** en Reglas c
 
 1. Quien lo hizo pulsa **Enviar a aprobación**: pasa a **Por aprobar** y queda de solo lectura.
 2. Otra persona con permiso lo abre y pulsa **Aprobar y contabilizar**. Quien creó el comprobante no puede aprobarlo («Otra persona debe aprobar»).
-3. Si hay algo por corregir, **Devolver a borrador** lo regresa al autor.
+3. Si hay algo por corregir, quien aprueba pulsa **Devolver a borrador** y puede escribir el **motivo** (opcional): el comprobante vuelve al autor tal como estaba, con sus mismas líneas, y queda guardado el motivo. Lo puede devolver quien tenga el permiso de contabilizar; también si el comprobante tiene líneas de cuentas restringidas que esa persona no ve, porque las líneas no se tocan. El autor lo corrige y lo envía otra vez. Un comprobante por aprobar no se edita: primero se devuelve.
 
 El filtro **Por aprobar** y el indicador de Inicio cuentan los pendientes.
 

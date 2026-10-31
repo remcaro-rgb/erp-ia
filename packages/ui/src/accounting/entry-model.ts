@@ -119,13 +119,17 @@ export interface ActionState {
  * manual draft goes to approval and another person approves it (the creator's button is disabled with the reason); an automatic
  * entry is controlled by its rule and is never sent. A posted entry is reversed unless it is a reversal or a year-closing one.
  */
-export function allowedActions(entry: EntryFacts, settings: PickOf<EntrySettings, "requireApprovalOnManual">, userId: string): ActionState[] {
+export function allowedActions(entry: EntryFacts, settings: PickOf<EntrySettings, "requireApprovalOnManual">, userId: string, may: { canReturn?: boolean } = {}): ActionState[] {
   if (entry.status === "draft") {
     return settings.requireApprovalOnManual && entry.origin !== "auto" ? [{ action: "submit" }, { action: "void" }] : [{ action: "post" }, { action: "void" }];
   }
   if (entry.status === "pending") {
     const own = entry.createdBy !== null && entry.createdBy === userId;
-    return [{ action: "approve", ...(own ? { disabled: true, hint: "accounting.entry.same_user" } : {}) }, { action: "return" }, { action: "void" }];
+    return [
+      { action: "approve", ...(own ? { disabled: true, hint: "accounting.entry.same_user" } : {}) },
+      ...(may.canReturn === false ? [] : [{ action: "return" } as const]),
+      { action: "void" },
+    ];
   }
   if (entry.status === "posted" && !entry.reversalOfId && !entry.isClosing) return [{ action: "reverse" }];
   return [];

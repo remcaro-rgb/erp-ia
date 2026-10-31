@@ -781,7 +781,7 @@
         "void": "Anulado"
       },
       "needs_attachment": "Adjunta el soporte en la pestaña Archivos antes de contabilizar",
-      "return_blocked": "No se puede devolver a borrador un comprobante con líneas de cuentas restringidas",
+      "return_reason": "Motivo (opcional)",
       "clone_note": "Se copió el encabezado; agrega las líneas.",
       "origin": {
         "title": "Origen",
@@ -2012,6 +2012,11 @@
       "submit": "Verificar",
       "no_factor": "Activa la verificación en dos pasos en tu menú de usuario para ejecutar esta acción.",
       "enroll": "Activarla ahora"
+    },
+    "accounting": {
+      "entry": {
+        "return_to_draft": "Devolver comprobante a borrador"
+      }
     }
   },
   "grid": {

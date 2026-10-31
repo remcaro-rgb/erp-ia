@@ -104,10 +104,10 @@ describe("entry post", () => {
       await h.run(h.contador, "accounting.entry.post", { id });
       expect(await entryRow(id)).toMatchObject({ status: "posted", posted_by: h.contador.userId, created_by: h.auxiliar.userId });
 
-      // Update returns a pending entry to draft (devolver).
+      // Devolver a borrador is its own process; update no longer takes a pending entry.
       const back = await create(h.auxiliar, expense(31));
       await h.run(h.auxiliar, "accounting.entry.submit", { id: back });
-      await h.run(h.contador, "accounting.entry.update", { id: back, ...draft(expense(32)) });
+      await h.run(h.contador, "accounting.entry.return_to_draft", { id: back });
       expect(await entryRow(back)).toMatchObject({ status: "draft", submitted_by: null });
 
       // Submit is for drafts only.
@@ -187,5 +187,88 @@ describe("entry post", () => {
     const out = await h.run<{ id: string }>(h.contador, "accounting.entry.reverse", { id, date: dateIn(7, 2), reason: "Antes" });
     expect(await entryRow(auto!.id)).toMatchObject({ status: "voided" });
     expect(await entryRow(id)).toMatchObject({ status: "reversed", reversed_by_id: out.id });
+  });
+  describe("return_to_draft", () => {
+    const lineIds = async (id: string) => (await h.sql<{ id: string }[]>`select id from accounting.entry_lines where entry_id = ${id} order by line_no`).map((l) => l.id);
+    const auditRows = (table: string, rowIds: string[]) =>
+      h.sql`select id from kernel.audit_log where company_id = ${h.companyId} and entity = ${table} and row_id = any(${rowIds}::uuid[])`;
+
+    const pending = async (lines: object[] = expense(40)) => {
+      const id = await create(h.auxiliar, lines);
+      await h.run(h.auxiliar, "accounting.entry.submit", { id });
+      return id;
+    };
+
+    it("return_to_draft returns in place: same line ids, one audit row on the entry, none on the lines, reason kept", async () => {
+      await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: true });
+      try {
+        const id = await pending();
+        const before = await lineIds(id);
+        const entryAuditBefore = (await auditRows("accounting.entries", [id])).length;
+        const lineAuditBefore = (await auditRows("accounting.entry_lines", before)).length;
+        await expect(h.run(h.contador, "accounting.entry.return_to_draft", { id, reason: "Falta el soporte" })).resolves.toEqual({ id });
+        expect(await lineIds(id)).toEqual(before);
+        expect(await entryRow(id)).toMatchObject({ status: "draft", submitted_by: null, submitted_at: null, extra: { return_reason: "Falta el soporte" } });
+        expect((await auditRows("accounting.entries", [id])).length - entryAuditBefore).toBe(1);
+        expect((await auditRows("accounting.entry_lines", before)).length - lineAuditBefore).toBe(0);
+        // The creator edits and resubmits.
+        await h.run(h.auxiliar, "accounting.entry.submit", { id });
+        expect(await entryRow(id)).toMatchObject({ status: "pending" });
+
+        // Two returns at once leave one change: the second finds a draft.
+        const results = await Promise.allSettled([
+          h.run(h.contador, "accounting.entry.return_to_draft", { id }),
+          h.run(h.contador, "accounting.entry.return_to_draft", { id }),
+        ]);
+        expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+        expect(results.find((r) => r.status === "rejected")).toMatchObject({ reason: { code: "invalid_input" } });
+      } finally {
+        await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: false });
+      }
+    });
+
+    it("return_to_draft works on an entry with a restricted line for an approver without view on it", async () => {
+      await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: true });
+      const [acct] = await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = '510506'`;
+      try {
+        const id = await pending(expense(41));
+        await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: acct!.id, access: "restricted", grants: [] });
+        const before = await lineIds(id);
+        await expect(h.run(h.contador, "accounting.entry.return_to_draft", { id })).resolves.toEqual({ id });
+        expect(await entryRow(id)).toMatchObject({ status: "draft" });
+        expect(await lineIds(id)).toEqual(before);
+        const [first] = await h.sql`select debit, account_id from accounting.entry_lines where entry_id = ${id} and line_no = 1`;
+        expect(Number(first!.debit)).toBe(41);
+        expect(first!.account_id).toBe(acct!.id);
+      } finally {
+        await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: acct!.id, access: "open", grants: [] });
+        await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: false });
+      }
+    });
+
+    it("return_to_draft refuses a draft, a posted and a voided entry; entry.update refuses a pending entry", async () => {
+      const refused = { code: "invalid_input", details: [expect.stringContaining("Solo un comprobante pendiente de aprobación vuelve a borrador")] };
+      const draftId = await create(h.auxiliar, expense(5));
+      await expect(h.run(h.contador, "accounting.entry.return_to_draft", { id: draftId })).rejects.toMatchObject(refused);
+      const posted = await create(h.contador, expense(6));
+      await h.run(h.contador, "accounting.entry.post", { id: posted });
+      await expect(h.run(h.contador, "accounting.entry.return_to_draft", { id: posted })).rejects.toMatchObject(refused);
+      const voided = await create(h.contador, expense(7));
+      await h.run(h.contador, "accounting.entry.void", { id: voided, reason: "Prueba" });
+      await expect(h.run(h.contador, "accounting.entry.return_to_draft", { id: voided })).rejects.toMatchObject(refused);
+      await expect(h.run(h.contador, "accounting.entry.return_to_draft", { id: newId() })).rejects.toMatchObject({ code: "not_found" });
+
+      await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: true });
+      try {
+        const id = await pending();
+        await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(expense(8)) })).rejects.toMatchObject({
+          code: "invalid_input",
+          details: [expect.stringContaining("Devuelve el comprobante a borrador antes de modificarlo")],
+        });
+        expect(await entryRow(id)).toMatchObject({ status: "pending" });
+      } finally {
+        await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: false });
+      }
+    });
   });
 });

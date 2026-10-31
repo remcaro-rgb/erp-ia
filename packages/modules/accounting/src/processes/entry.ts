@@ -139,25 +139,25 @@ export const entryUpdate = defineProcess({
   module: "accounting",
   kind: "update",
   feature: "accounting.ledger",
-  description: "Reemplaza el encabezado y las líneas de un borrador; un comprobante pendiente de aprobación vuelve a borrador",
+  description: "Reemplaza el encabezado y las líneas de un borrador; uno pendiente de aprobación se devuelve a borrador antes de modificarlo",
   input: z.object({ id, ...entryHeaderShape, extraPatch }).strict(),
   output: idOutput,
   handler: async (ctx, { id: entryId, extraPatch: patch, ...input }) => {
     const [current] = await ctx.tx<{ status: string; origin: EntryOrigin; journal_id: string; extra: Record<string, unknown> }[]>`
       select status, origin, journal_id, extra from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
     if (!current) throw new ProcessError("not_found", `entry ${entryId} not found`);
-    if (current.status !== "draft" && current.status !== "pending") {
-      throw invalid(`entry ${entryId} is ${current.status}`, "Solo se puede modificar un borrador o un comprobante pendiente de aprobación; uno contabilizado se corrige con una reversión");
+    if (current.status === "pending") throw invalid(`entry ${entryId} is pending`, "Devuelve el comprobante a borrador antes de modificarlo");
+    if (current.status !== "draft") {
+      throw invalid(`entry ${entryId} is ${current.status}`, "Solo se puede modificar un borrador; uno contabilizado se corrige con una reversión");
     }
     assertReverseOn(input.date, input.reverseOn);
     const journalId = input.journalId ?? current.journal_id;
     const lines = await inheritParty(ctx, input.partyId, input.lines);
     assertValid(await validateLines(ctx, { journalId, date: input.date, businessUnitId: input.businessUnitId, origin: current.origin }, lines, "draft"));
     const custom = await extraForUpdate(ctx, "accounting.entry", "accounting.entry.update", current.extra, { ...input, extraPatch: patch });
-    // The status goes back to draft first: the lines of an entry that is not a draft are frozen.
     await ctx.tx`
       update accounting.entries set ${ctx.tx({
-        status: "draft", submitted_by: null, submitted_at: null, journal_id: journalId, date: input.date, description: input.description,
+        journal_id: journalId, date: input.date, description: input.description,
         currency: input.currency, exchange_rate: input.exchangeRate, business_unit_id: input.businessUnitId ?? null, reverse_on: input.reverseOn ?? null,
         ...Object.fromEntries(Object.entries(custom).filter(([, value]) => value !== undefined)),
       })} where id = ${entryId}`;

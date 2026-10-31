@@ -13,6 +13,7 @@ const PROCESSES = [
   "accounting.entry.update",
   "accounting.entry.void",
   "accounting.entry.submit",
+  "accounting.entry.return_to_draft",
   "accounting.entry.post",
   "accounting.entry.reverse",
   "accounting.settings.consult",
@@ -214,5 +215,36 @@ test.describe("accounting entry", () => {
     expect(row).toMatchObject({ status: "posted", submitted_by: andres.userId, posted_by: laura.userId });
     expect(row!.number).toMatch(/^NC-\d+$/);
     await other.close();
+  });
+  test("Devolver a borrador: laura returns it with a reason, andres edits and sends it again", async ({ page, browser }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await andres.sql`update accounting.settings set require_approval_on_manual = true where company_id = ${companyId}`;
+    await signIn(page, andres);
+    await writeEntry(page, "Nota para devolver");
+    await page.getByRole("button", { name: "Enviar a aprobación" }).click();
+    await expect(page.getByText("Por aprobar", { exact: true }).first()).toBeVisible();
+    const entryId = page.url().split("/").pop()!;
+
+    const other = await browser.newContext();
+    const lauraPage = await other.newPage();
+    await signIn(lauraPage, laura);
+    await lauraPage.goto(`/r/accounting.entry/${entryId}`);
+    await lauraPage.getByRole("button", { name: "Devolver a borrador" }).click();
+    await lauraPage.getByLabel("Motivo (opcional)").fill("Falta el soporte");
+    await lauraPage.getByRole("button", { name: "Confirmar", exact: true }).click();
+    await expect(lauraPage.getByRole("status").filter({ hasText: "Devuelto a borrador" })).toBeVisible();
+    const [row] = await andres.sql`select status, submitted_by, extra from accounting.entries where id = ${entryId}`;
+    expect(row).toMatchObject({ status: "draft", submitted_by: null, extra: { return_reason: "Falta el soporte" } });
+    await other.close();
+
+    // The creator edits and sends it again.
+    await page.reload();
+    await expect(page.getByText("Borrador", { exact: true }).first()).toBeVisible();
+    await page.getByRole("textbox", { name: "Descripción", exact: true }).fill("Nota corregida");
+    await page.getByRole("button", { name: "Guardar", exact: true }).click();
+    await page.getByRole("button", { name: "Enviar a aprobación" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Enviado a aprobación" })).toBeVisible();
+    const [again] = await andres.sql`select status, description from accounting.entries where id = ${entryId}`;
+    expect(again).toMatchObject({ status: "pending", description: "Nota corregida" });
   });
 });

@@ -29,6 +29,12 @@
       "expect": { "process": "accounting.report.aging", "input": { "params": { "kind": "receivable" } } }
     },
     {
+      "id": "accounting-return-entry-to-draft",
+      "prompt": "devuelve a borrador el comprobante NC-2026-0042",
+      "tier": "core",
+      "expect": { "process": "accounting.entry.return_to_draft", "confirmation": true }
+    },
+    {
       "id": "accounting-expenses-by-cost-center",
       "prompt": "gastos de octubre por centro de costo",
       "tier": "core",
