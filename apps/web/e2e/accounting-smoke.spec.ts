@@ -149,8 +149,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     expect(answer.status()).toBe(403);
     expect(await answer.json()).toMatchObject({ code: "forbidden", details: ["Sin acceso"] });
     await page.goto(`/accounting/reports/account_detail?p=${encodeURIComponent(JSON.stringify(params))}`);
-    await expect(page.getByRole("region", { name: "Auxiliar por cuenta" }).getByRole("alert")).toBeVisible();
-    await expect(page.getByText("Sin acceso")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Auxiliar por cuenta" }).getByRole("alert")).toHaveText("Sin acceso");
 
     // Nómina octubre: the comprobante shows, its 5105 lines masked.
     const [payroll] = await sql<{ id: string }[]>`select id from accounting.entries where company_id = ${DEMO_COMPANY_ID} and description = 'Nómina octubre'`;

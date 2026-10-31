@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { paramsFromSearch, paramsToSearch, quickRanges, hasDateRange } from "../report-model";
+import { describe, expect, it, vi } from "vitest";
+import { paramsFromSearch, paramsToSearch, quickRanges, hasDateRange, reportFetcher } from "../report-model";
 import type { ParamSpec } from "../report-model";
 
 describe("report-model", () => {
@@ -26,5 +26,15 @@ describe("report-model", () => {
     const ranges = quickRanges("2026-10-30", { from: "2026-10-01", to: "2026-10-31" });
     expect(ranges).toEqual({ today: { from: "2026-10-30", to: "2026-10-30" }, period: { from: "2026-10-01", to: "2026-10-31" }, year: { from: "2026-01-01", to: "2026-12-31" } });
     expect(quickRanges("2026-02-10").period).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+  });
+
+  it("reportFetcher keeps the details of a 403", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ code: "forbidden", details: ["Sin acceso"] }), { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await expect(reportFetcher("accounting.account_detail", {})({ page: 1, pageSize: 10, sort: [], filters: [] } as never)).rejects.toMatchObject({ code: "forbidden", status: 403, details: ["Sin acceso"] });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

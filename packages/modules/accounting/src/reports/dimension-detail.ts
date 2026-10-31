@@ -33,8 +33,8 @@ export const dimensionDetailConsult = defineProcess({
     let accountLike: string | null = null;
     if (p.accountId) {
       const [account] = await ctx.tx<{ code: string; visible: boolean }[]>`select code, accounting.can_view_account(id) as visible from accounting.accounts where id = ${p.accountId} and company_id = ${ctx.companyId}`;
-      if (!account) throw new ProcessError("invalid_input", `account ${p.accountId} not found`, { details: ["La cuenta indicada no existe"] });
-      if (!account.visible) throw new ProcessError("forbidden", "the account is restricted for the caller", { details: ["Sin acceso"] });
+      // A missing account answers like a restricted one: the refusal never tells whether an account id exists.
+      if (!account || !account.visible) throw new ProcessError("forbidden", "the account is restricted for the caller", { details: ["Sin acceso"] });
       accountLike = `${account.code}%`;
     }
     const tree = ctx.tx`with recursive tree as (

@@ -30,8 +30,8 @@ export const accountDetailConsult = defineProcess({
   handler: async (ctx, { params: p, state }) => {
     const [account] = await ctx.tx<{ code: string; name: string; nature: "debit" | "credit"; visible: boolean }[]>`
       select code, name, nature, accounting.can_view_account(id) as visible from accounting.accounts where id = ${p.accountId} and company_id = ${ctx.companyId}`;
-    if (!account) throw new ProcessError("invalid_input", `account ${p.accountId} not found`, { details: ["La cuenta indicada no existe"] });
-    if (!account.visible) throw new ProcessError("forbidden", "the account is restricted for the caller", { details: ["Sin acceso"] });
+    // A missing account answers like a restricted one: the refusal never tells whether an account id exists.
+    if (!account || !account.visible) throw new ProcessError("forbidden", "the account is restricted for the caller", { details: ["Sin acceso"] });
     const sign = account.nature === "debit" ? 1 : -1;
     const like = `${account.code}%`;
     const filter = {
