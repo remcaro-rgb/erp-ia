@@ -37,7 +37,17 @@ Reglas básicas: los formatos de pagos (1001, 1005) toman el débito de las cuen
 
 ## 3. Exportar
 
-**Excel**, **CSV** y **PDF** exportan lo que ves. El archivo **XML** para el prevalidador de la DIAN lo genera el proceso «Genera el archivo XML de exógena de un formato y año gravable»; se niega mientras el informe tenga errores, y entrega el archivo con nombre `Dmuisca_…xml`. Hoy lo corres pidiéndoselo al asistente («genera el XML de la exógena 1001 de 2026»); la pantalla del informe aún no tiene un botón propio para el XML.
+**Excel**, **CSV** y **PDF** exportan lo que ves, con los botones de siempre. El archivo **XML** para el prevalidador de la DIAN sale del botón **Exportar XML**, junto a ellos.
+
+1. Elige el **Formato** y el **Año gravable** (y la **Cuantía mínima**, si la cambiaste). El XML se arma con esos mismos parámetros.
+2. Pulsa **Exportar XML**. Mientras trabaja, el botón dice «Generando el archivo…».
+3. Si todo está en orden, el navegador descarga el archivo `Dmuisca_<formato><versión><año>.xml`: el formato con seis dígitos, la versión del formato con dos y el año gravable (por ejemplo `Dmuisca_001001102026.xml` para el 1001 de 2026). El enlace de descarga dura **10 minutos**; si lo pierdes, vuelve a pulsar el botón.
+
+Cuando no se puede generar, aparece el aviso **«No se generó el archivo:»** con la lista de motivos y no se guarda ningún archivo. Son los mismos que el panel de errores del informe: cuentas con movimiento sin concepto, líneas sin tercero, terceros sin tipo de documento o sin código DANE, que el formato no tenga información para el año, o que la empresa no tenga NIT registrado. Corrige lo que dice la lista (en el tercero, el comprobante, el mapeo o los datos de la empresa) y pulsa el botón otra vez.
+
+Si el administrador marcó «Genera el archivo XML de exógena» como proceso sensible, el botón pide tu código de verificación una vez y sigue solo. Si tu rol no puede generar el archivo, el botón no te sirve: te lo dice el aviso de sin permiso. El archivo respeta tus cuentas visibles: lo que no puedes ver en el informe tampoco está en el XML.
+
+También puedes pedírselo al asistente («genera el XML de la exógena 1001 de 2026»).
 
 El formato y los topes cambian cada año gravable con el paquete de Colombia, sin tocar el módulo.
 

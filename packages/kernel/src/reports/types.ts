@@ -16,6 +16,23 @@ export interface ReportColumn {
   link?: { entity: string; idField: string };
 }
 
+/**
+ * A file a report page offers next to its export buttons: a consult process of the report's feature that writes a
+ * document from the report's parameters (the exógena's XML). The route stores the document in the exports store and
+ * answers a signed link; the process, not the route, decides what is refused (permission, step-up, its own errors).
+ */
+export interface ReportFileAction {
+  /** `[a-z][a-z0-9_]*`, unique in the report; the route is `/api/report/<report>/file/<id>`. */
+  id: string;
+  /** i18n key of the button. */
+  label: string;
+  /** Consult process id: input the report's parameters, output `{ fileName: string, [contentField]: string }`. */
+  process: string;
+  contentType: string;
+  /** The field of the process's output that holds the document's text. */
+  contentField: string;
+}
+
 export interface ReportDef<P extends z.ZodObject = z.ZodObject> {
   /** `<module>.<name>`, e.g. `accounting.trial_balance`. */
   id: string;
@@ -31,6 +48,8 @@ export interface ReportDef<P extends z.ZodObject = z.ZodObject> {
   columns: ReportColumn[];
   /** Columns the footer totals (sum over the whole filter, from `aggregates`). */
   totals?: string[];
+  /** Files the page offers besides the PDF / Excel / CSV exports. */
+  fileActions?: ReportFileAction[];
   /** PDF header: the book's name; the company, NIT, parameters and "página x de y" are added by the writer. */
   pdfTitle?: string;
 }

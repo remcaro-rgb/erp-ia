@@ -132,4 +132,29 @@ describe("exógena", () => {
     // A format with no information is refused with a clear reason.
     await expect(h.run(h.admin, "accounting.report.exogena_xml", { year, format: "1003" })).rejects.toMatchObject({ code: "invalid_input", details: [expect.stringContaining("1003")] });
   });
+  it("exógena XML as a restricted user equals the report's rows (restricted accounts aggregated as the report does)", async () => {
+    // P2 holds 7.000.000 more on 130510, an account only the admin may see: the admin's 1008 lists P2 on its own row.
+    await post(dateIn(7, 1), [{ code: "130510", debit: 7_000_000, party: p2 }, { code: "413595", credit: 7_000_000, cc: true }]);
+    const accountId = (await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = '130510'`)[0]!.id;
+    await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId, access: "restricted", grants: [] });
+    try {
+      const asAdmin = (await runReport(h.deps, h.admin, "accounting.exogena", { year, format: "1008" }, state)) as Out;
+      const asContador = (await runReport(h.deps, h.contador, "accounting.exogena", { year, format: "1008" }, state)) as Out;
+      expect(asAdmin.rows.map((r) => r.party_document)).toContain("900777888");
+      expect(asContador.rows.map((r) => r.party_document)).not.toContain("900777888");
+      expect(asContador.aggregates.errors).toEqual([]);
+
+      // The file says what the report shows that user: one entry per row, the same parties, nothing of the restricted account.
+      const xml = await h.run<{ xml: string; rows: number }>(h.contador, "accounting.report.exogena_xml", { year, format: "1008" });
+      expect(xml.rows).toBe(asContador.rows.length);
+      expect(xml.xml.match(/<formato1008 /g)).toHaveLength(asContador.rows.length);
+      for (const row of asContador.rows) expect(xml.xml).toContain(`nid="${row.party_document}"`);
+      expect(xml.xml).not.toContain('nid="900777888"');
+      expect(xml.xml).toContain(`saldocxc="${asContador.rows.find((r) => r.party_document === "900555666")!.saldocxc}"`);
+      // The admin's file carries the row the restricted user's cannot.
+      expect((await h.run<{ xml: string }>(h.admin, "accounting.report.exogena_xml", { year, format: "1008" })).xml).toContain('nid="900777888"');
+    } finally {
+      await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId, access: "open", grants: [] });
+    }
+  });
 });

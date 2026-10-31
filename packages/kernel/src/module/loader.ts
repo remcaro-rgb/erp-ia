@@ -50,7 +50,9 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
   }
 
   // A KPI provider's `consult` gate must be a consult process some module declares: a typo would silently hide the card.
-  const kinds = new Map([...registry.processes(), ...modules.flatMap((m) => m.processes)].map((p) => [p.id, p.kind]));
+  const declared = [...registry.processes(), ...modules.flatMap((m) => m.processes)];
+  const kinds = new Map(declared.map((p) => [p.id, p.kind]));
+  const features = new Map(declared.map((p) => [p.id, p.feature]));
   for (const module of modules) {
     for (const provider of module.homeKpis ?? []) {
       if (provider.consult === undefined) continue;
@@ -66,6 +68,13 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
       const kind = kinds.get(report.consult);
       if (kind === undefined) throw new Error(`report ${report.id}: unknown consult process ${report.consult}`);
       if (kind !== "consult") throw new Error(`report ${report.id}: ${report.consult} is not a consult process`);
+      // A file action runs a consult of the report's own feature: the entitlement and the role matrix read the same feature.
+      for (const action of report.fileActions ?? []) {
+        const actionKind = kinds.get(action.process);
+        if (actionKind === undefined) throw new Error(`report ${report.id}: file action ${action.id} names unknown process ${action.process}`);
+        if (actionKind !== "consult") throw new Error(`report ${report.id}: file action ${action.id}: ${action.process} is not a consult process`);
+        if (features.get(action.process) !== report.feature) throw new Error(`report ${report.id}: file action ${action.id}: ${action.process} is of feature ${features.get(action.process)}, not ${report.feature}`);
+      }
     }
   }
 

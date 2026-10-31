@@ -120,6 +120,7 @@ export async function loadReportPage(id: string, options: LoadReportOptions = {}
         hiddenParams: options.hiddenParams ?? [],
         columns: columns.map((c) => gridColumn(c, translate, has)),
         totals: def.totals ?? [],
+        fileActions: (def.fileActions ?? []).map((a) => ({ id: a.id, label: has(a.label) ? translate(a.label) : a.label })),
         links: Object.fromEntries(columns.filter((c) => c.link).map((c) => [c.field, c.link!])),
         ...(options.period ? { period: options.period } : {}),
       },

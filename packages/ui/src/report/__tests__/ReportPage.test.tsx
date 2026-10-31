@@ -25,6 +25,7 @@ const report: ReportDefClient = {
   ],
   totals: ["debit"],
   links: { code: { entity: "accounting.account", idField: "account_id" } },
+  fileActions: [],
 };
 
 const setup = (props: Partial<Parameters<typeof ReportPage>[0]> = {}) => {
@@ -101,5 +102,17 @@ describe("ReportPage", () => {
     expect(screen.getByText("Resultado neto")).toBeTruthy();
     // A key the catalogue does not have is shown as it is.
     expect(screen.getByText("report.not_in_the_catalogue")).toBeTruthy();
+  });
+  it("ReportPage shows one button per file action and calls onFileAction with the current parameters", async () => {
+    const onFileAction = vi.fn(async () => {});
+    setup({ onFileAction, report: { ...report, fileActions: [{ id: "xml", label: "Exportar XML" }] } });
+    await screen.findByText("1105");
+    fireEvent.click(screen.getByRole("button", { name: "Exportar XML" }));
+    await waitFor(() => expect(onFileAction).toHaveBeenCalledWith("xml", expect.objectContaining({ from: "2026-10-01", to: "2026-10-31", level: 2 })));
+    cleanup();
+    // No file action, or no handler: no button.
+    setup({ report: { ...report, fileActions: [{ id: "xml", label: "Exportar XML" }] } });
+    await screen.findByText("1105");
+    expect(screen.queryByRole("button", { name: "Exportar XML" })).toBeNull();
   });
 });

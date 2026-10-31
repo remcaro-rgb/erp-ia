@@ -2760,6 +2760,11 @@
     "confirmation_expired": "The confirmation card expired. Ask the assistant for the action again."
   },
   "report": {
+    "file": {
+      "exogena_xml": "Export XML",
+      "running": "Generating the file…",
+      "refused": "The file was not generated:"
+    },
     "params": "Report parameters",
     "all": "All",
     "range": {

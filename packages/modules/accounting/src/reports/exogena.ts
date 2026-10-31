@@ -273,5 +273,6 @@ export const exogenaReport = defineReport({
   consult: "accounting.report.exogena",
   columns,
   totals: ["col1", "col2", "col3"],
+  fileActions: [{ id: "xml", label: "report.file.exogena_xml", process: "accounting.report.exogena_xml", contentType: "application/xml", contentField: "xml" }],
   pdfTitle: "Información exógena",
 });

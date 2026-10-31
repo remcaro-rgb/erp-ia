@@ -94,15 +94,15 @@ export async function seedYearLedger(fixture: AuthFixture): Promise<YearLedger> 
   return { ...ledger, periods, closingJournal: ci!.id };
 }
 
-/** A posted comprobante dated `date` in the open period: `debit` account against `credit` account. */
-export async function postEntry(fixture: AuthFixture, ledger: SmallLedger, input: { date: string; debit: string; credit: string; amount: number; description?: string }): Promise<string> {
+/** A posted comprobante dated `date` in the open period: `debit` account against `credit` account; `partyId` is on the debit line. */
+export async function postEntry(fixture: AuthFixture, ledger: SmallLedger, input: { date: string; debit: string; credit: string; amount: number; description?: string; partyId?: string }): Promise<string> {
   const { sql } = fixture;
   const companyId = fixture.companyIds[0]!;
   const [entry] = await sql<{ id: string }[]>`
     insert into accounting.entries (company_id, journal_id, date, period_id, status, origin, description)
     values (${companyId}, ${ledger.journal}, ${input.date}, ${ledger.period}, 'draft', 'manual', ${input.description ?? "Movimiento de prueba"})
     returning id`;
-  await sql`insert into accounting.entry_lines (company_id, entry_id, line_no, account_id, debit, credit, debit_doc, credit_doc) values (${companyId}, ${entry!.id}, 1, ${ledger.accounts[input.debit]!}, ${input.amount}, 0, ${input.amount}, 0)`;
+  await sql`insert into accounting.entry_lines (company_id, entry_id, line_no, account_id, party_id, debit, credit, debit_doc, credit_doc) values (${companyId}, ${entry!.id}, 1, ${ledger.accounts[input.debit]!}, ${input.partyId ?? null}, ${input.amount}, 0, ${input.amount}, 0)`;
   await sql`insert into accounting.entry_lines (company_id, entry_id, line_no, account_id, debit, credit, debit_doc, credit_doc) values (${companyId}, ${entry!.id}, 2, ${ledger.accounts[input.credit]!}, 0, ${input.amount}, 0, ${input.amount})`;
   // Lines can only be written while the comprobante is a draft: it is posted afterwards.
   await sql`

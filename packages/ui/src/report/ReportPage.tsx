@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { DataGrid } from "../grid/DataGrid";
+import { detailsOf } from "../grid/fetch-grid";
 import { useCellTimeZone } from "../grid/cell-format";
 import type { SavedGridState, SavedViewItem } from "../grid/saved-views";
 import type { GridFetcher, GridRow } from "../grid/types";
@@ -26,7 +27,16 @@ export interface ReportPageProps {
   /** The parameters changed: the route keeps them in the URL (`?p=`). */
   onParamsChange?: (params: ReportParams) => void;
   /** The caller's saved parameter sets of the report (entity `report:<id>`). */
-  savedViews?: { views: readonly SavedViewItem[]; onSave: (name: string, isDefault: boolean, state: SavedGridState) => Promise<void>; onDelete?: (id: string) => Promise<void> };
+  savedViews?: {
+    views: readonly SavedViewItem[];
+    onSave: (name: string, isDefault: boolean, state: SavedGridState) => Promise<void>;
+    onDelete?: (id: string) => Promise<void>;
+  };
+  /**
+   * A file action's button was pressed (`report.fileActions`): the app generates the file with the current parameters.
+   * It rejects with the refusal (`code`, `details`) when no file was made; the page lists the reasons. Without it the page shows no file button.
+   */
+  onFileAction?: (actionId: string, params: ReportParams) => Promise<void>;
   /** The fetcher for a set of parameters; POST /api/report/<id> by default. */
   reportFetcher?: (params: ReportParams) => GridFetcher;
   /** Today as `YYYY-MM-DD`; the company's today by default. */
@@ -39,13 +49,34 @@ export interface ReportPageProps {
  * grid. The parameters travel with every grid state to POST /api/report/<id>, the footer totals only the columns in
  * `totals`, the export buttons export the report with these parameters and Guardar vista keeps them with the view.
  */
-export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChange, savedViews, reportFetcher, today, debounceMs }: ReportPageProps) {
+export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChange, savedViews, reportFetcher, today, debounceMs, onFileAction }: ReportPageProps) {
   const timeZone = useCellTimeZone();
   const t = useTranslations();
   const [params, setParams] = useState<ReportParams>(initialParams);
   const change = (next: ReportParams) => {
     setParams(next);
     onParamsChange?.(next);
+  };
+
+  const [running, setRunning] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<{
+    code: string;
+    details: string[];
+  } | null>(null);
+  const runFile = async (actionId: string) => {
+    setRunning(actionId);
+    setRefusal(null);
+    try {
+      await onFileAction?.(actionId, params);
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "network";
+      setRefusal({
+        code,
+        details: detailsOf(typeof error === "object" && error !== null && "details" in error ? error.details : null),
+      });
+    } finally {
+      setRunning(null);
+    }
   };
 
   // A new parameter set is a new report: the grid starts over from page 1 on it.
@@ -79,8 +110,30 @@ export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChan
   return (
     <div className="erp-report">
       <ParamBar specs={visibleParams(report)} value={params} onChange={change} today={today ?? todayIn(timeZone ?? "America/Bogota")} period={report.period} />
+      {refusal && (
+        <div role="alert" className="erp-confirm__note erp-field__error">
+          <p>{t("report.file.refused")}</p>
+          {refusal.details.length > 0 ? (
+            <ul>
+              {refusal.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>{t.has(`errors.${refusal.code}` as never) ? t(`errors.${refusal.code}` as never) : t("grid.load_failed")}</p>
+          )}
+        </div>
+      )}
       <DataGrid
         key={paramsKey}
+        toolbar={
+          onFileAction &&
+          report.fileActions.map((action) => (
+            <button key={action.id} type="button" className="erp-btn" disabled={running !== null} onClick={() => void runFile(action.id)}>
+              {running === action.id ? t("report.file.running") : action.label}
+            </button>
+          ))
+        }
         entity={report.id}
         title={report.label}
         columns={report.columns}

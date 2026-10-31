@@ -2760,6 +2760,11 @@
     "confirmation_expired": "La tarjeta de confirmación venció. Pide de nuevo la acción al asistente."
   },
   "report": {
+    "file": {
+      "exogena_xml": "Exportar XML",
+      "running": "Generando el archivo…",
+      "refused": "No se generó el archivo:"
+    },
     "params": "Parámetros del informe",
     "all": "Todos",
     "range": {
