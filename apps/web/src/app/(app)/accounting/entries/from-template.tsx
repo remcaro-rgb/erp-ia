@@ -15,7 +15,7 @@ const today = () => {
 };
 
 export function FromTemplateButton() {
-  const t = useTranslations("common.entry.grid");
+  const t = useTranslations("accounting.entry.grid");
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -32,7 +32,7 @@ export function FromTemplateButton() {
 }
 
 function Body({ onClose }: { onClose: () => void }) {
-  const t = useTranslations("common.entry.grid");
+  const t = useTranslations("accounting.entry.grid");
   const tc = useTranslations();
   const open = useTabs((s) => s.open);
   const ids = { template: useId(), date: useId() };
@@ -63,7 +63,7 @@ function Body({ onClose }: { onClose: () => void }) {
     start(async () => {
       const result = await fromTemplateAction({ templateId, date, amounts });
       if (result.ok) {
-        open({ title: tc("common.entry.draft_title"), href: `/r/accounting.entry/${result.id}`, kind: "record" });
+        open({ title: tc("accounting.entry.draft_title"), href: `/r/accounting.entry/${result.id}`, kind: "record" });
         onClose();
       } else {
         setError(t("template_failed", { reason: result.messages[0] ?? tc(`errors.${tc.has(`errors.${result.code}`) ? result.code : "unknown"}`) }));

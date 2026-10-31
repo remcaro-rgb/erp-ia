@@ -8,7 +8,7 @@ import { useAdminAction } from "../../admin/_components/use-admin-action";
 
 /** Configuración contable (accounting design §4.11): the settings of the ledger, saved under step-up, and the events that predate its start. */
 export function SettingsForm({ settings, canEdit }: { settings: SettingsData; canEdit: boolean }) {
-  const t = useTranslations("common.acc_pages.posting");
+  const t = useTranslations("accounting.pages.posting");
   const { execute, prompt, status, busy } = useAdminAction();
   const [form, setForm] = useState<SettingsEdit>({
     useOpenAuxiliaries: settings.useOpenAuxiliaries,

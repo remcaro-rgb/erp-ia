@@ -21,7 +21,7 @@ export interface DimensionBalancesTabProps {
 }
 
 export function DimensionBalancesTab({ mode, periods, accounts, results, allowed }: DimensionBalancesTabProps) {
-  const t = useTranslations("common.acc_record");
+  const t = useTranslations("accounting.record");
   const locale = useLocale();
   const ordered = [...periods].sort((a, b) => a.startsOn.localeCompare(b.startsOn));
   // Opens on the range of the latest year that has movement: its first period to its last.

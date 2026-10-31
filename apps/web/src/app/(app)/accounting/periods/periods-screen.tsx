@@ -18,8 +18,8 @@ type Dialog = { kind: "close"; period: PeriodSummary } | { kind: "reopen"; perio
 const startYear = (years: readonly YearSummary[]): string => (years.find((y) => y.status === "open") ?? years[0]!).id;
 
 export function PeriodsScreen({ data }: { data: PeriodsPageData }) {
-  const t = useTranslations("common.acc_pages.periods");
-  const tv = useTranslations("grid.values");
+  const t = useTranslations("accounting.pages.periods");
+  const tv = useTranslations("accounting.values");
   const locale = useLocale();
   const [yearId, setYearId] = useState(() => startYear(data.years));
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -111,9 +111,9 @@ export function PeriodsScreen({ data }: { data: PeriodsPageData }) {
 
 /** Cerrar período: the checks run under TOTP; a failed check keeps the period open and the dialog lists what failed. */
 function ClosePeriodDialog({ period, onClose }: { period: PeriodSummary; onClose: () => void }) {
-  const t = useTranslations("common.acc_pages.periods");
+  const t = useTranslations("accounting.pages.periods");
   const tc = useTranslations("common");
-  const tv = useTranslations("grid.values");
+  const tv = useTranslations("accounting.values");
   const locale = useLocale();
   const { execute, prompt, status, busy } = useAdminAction();
   const [checks, setChecks] = useState<CloseCheckResult[] | null>(null);
@@ -169,7 +169,7 @@ function ClosePeriodDialog({ period, onClose }: { period: PeriodSummary; onClose
 
 /** Reabrir período: all of it, or only one day (then only comprobantes dated that day post while it is open). */
 export function ReopenPeriodDialog({ period, today, initialDay = false, onClose }: { period: Pick<PeriodSummary, "id" | "startsOn" | "endsOn">; today: string; initialDay?: boolean; onClose: () => void }) {
-  const t = useTranslations("common.acc_pages.periods");
+  const t = useTranslations("accounting.pages.periods");
   const tc = useTranslations("common");
   const locale = useLocale();
   const { execute, prompt, status, busy } = useAdminAction();
@@ -224,7 +224,7 @@ export function ReopenPeriodDialog({ period, today, initialDay = false, onClose 
 
 /** Cerrar año / Reabrir año with the preview of what the closing entries will do. */
 function YearDialog({ year, mode, onClose }: { year: YearSummary; mode: "close_year" | "reopen_year"; onClose: () => void }) {
-  const t = useTranslations("common.acc_pages.periods");
+  const t = useTranslations("accounting.pages.periods");
   const tc = useTranslations("common");
   const { execute, prompt, status, busy } = useAdminAction();
   const [preview, setPreview] = useState<YearPreview | null | undefined>(undefined);

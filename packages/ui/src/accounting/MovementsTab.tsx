@@ -26,7 +26,7 @@ export interface MovementsTabProps {
 }
 
 export function MovementsTab({ entity, title, columns, filters, allowed = true, entryField = "entry_id", sort }: MovementsTabProps) {
-  const t = useTranslations("common.acc_record");
+  const t = useTranslations("accounting.record");
   const open = useTabs((s) => s.open);
   if (!allowed) return <NoAccess text={t("no_access")} />;
   const openRow = (row: GridRow) => {

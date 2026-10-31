@@ -30,7 +30,7 @@ export async function accountingContent(entityId: string, record: Record<string,
   } else if (tabs.kind === "dimension") {
     const results = tabs.dimension === "cost_center";
     out[results ? "resultados" : "saldos"] = {
-      ...(results ? {} : { label: t("common.acc_record.balances_by_account") }),
+      ...(results ? {} : { label: t("accounting.record.balances_by_account") }),
       content: (
         <DimensionBalancesTab
           mode={results ? "results" : "accounts"}

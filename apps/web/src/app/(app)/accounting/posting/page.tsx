@@ -17,7 +17,7 @@ async function Posting({ searchParams }: { searchParams: Promise<{ tab?: string;
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
   const query = await searchParams;
-  const t = await getTranslations("common.acc_pages.posting");
+  const t = await getTranslations("accounting.pages.posting");
   let data: PostingPageData;
   try {
     const year = Number(query.year);

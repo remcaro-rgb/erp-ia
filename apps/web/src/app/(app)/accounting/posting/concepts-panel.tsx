@@ -20,7 +20,7 @@ interface Added {
  * no concept covers yet (the few the pack could not guess). Changes are staged and saved together under step-up.
  */
 export function ConceptsPanel({ data, lookup, canEdit }: { data: ConceptsData; lookup: AccountLookup | null; canEdit: boolean }) {
-  const t = useTranslations("common.acc_pages.posting");
+  const t = useTranslations("accounting.pages.posting");
   const router = useRouter();
   const { execute, prompt, status, busy } = useAdminAction();
   const [added, setAdded] = useState<Map<string, Added>>(new Map());

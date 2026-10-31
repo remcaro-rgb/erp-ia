@@ -31,8 +31,8 @@ async function Reports() {
       }),
     )
   ).filter((r): r is { name: (typeof REPORT_ORDER)[number]; label: string } => r !== null);
-  if (allowed.length === 0) return <p className="erp-muted">{t("common.acc_pages.reports.none")}</p>;
-  return <ReportCards items={allowed.map((r) => ({ name: r.name, label: r.label, description: t(`common.acc_pages.reports.desc.${r.name}`) }))} />;
+  if (allowed.length === 0) return <p className="erp-muted">{t("accounting.pages.reports.none")}</p>;
+  return <ReportCards items={allowed.map((r) => ({ name: r.name, label: r.label, description: t(`accounting.pages.reports.desc.${r.name}`) }))} />;
 }
 
 export default function ReportsPage() {

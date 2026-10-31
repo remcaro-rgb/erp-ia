@@ -30,10 +30,10 @@ export interface MasterFormProps {
 }
 
 export function MasterForm({ kind, processes, record, initial: copy, readOnly = false, options, footer, save, requestStepUp, onSaved }: MasterFormProps) {
-  const t = useTranslations("common.acc_record.form");
+  const t = useTranslations("accounting.record.form");
   const tf = useTranslations("common.forms");
   const tc = useTranslations("common");
-  const tv = useTranslations("grid.values");
+  const tv = useTranslations("accounting.values");
   const errorText = useErrorText();
   const isNew = record === null;
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";

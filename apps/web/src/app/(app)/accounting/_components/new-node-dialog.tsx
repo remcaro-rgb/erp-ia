@@ -45,7 +45,7 @@ function NewNodeBody({ entity, title, parent, onClose, onCreated }: { entity: st
         onCreated();
         onClose();
       } else {
-        setError(t("grid.master.failed", { reason: result.details[0] ?? t(`errors.${result.code}`) }));
+        setError(t("accounting.master.failed", { reason: result.details[0] ?? t(`errors.${result.code}`) }));
       }
     });
 
@@ -60,27 +60,27 @@ function NewNodeBody({ entity, title, parent, onClose, onCreated }: { entity: st
         <DialogTitle className="erp-dialog__title">{title}</DialogTitle>
       </div>
       <div className="erp-dialog__body">
-        <p className="erp-small erp-muted">{parent ? t("grid.master.under", { node: `${parent.code} ${parent.name}` }) : t("grid.master.top_level")}</p>
+        <p className="erp-small erp-muted">{parent ? t("accounting.master.under", { node: `${parent.code} ${parent.name}` }) : t("accounting.master.top_level")}</p>
         <div className="erp-field">
-          <label htmlFor={ids.code}>{t("grid.master.code")}</label>
+          <label htmlFor={ids.code}>{t("accounting.master.code")}</label>
           <input id={ids.code} className="erp-mono" value={code} onChange={(e) => { setCode(e.target.value); setError(null); }} autoFocus inputMode={isAccount ? "numeric" : undefined} required />
         </div>
         <div className="erp-field">
-          <label htmlFor={ids.name}>{t("grid.master.name")}</label>
+          <label htmlFor={ids.name}>{t("accounting.master.name")}</label>
           <input id={ids.name} value={name} onChange={(e) => { setName(e.target.value); setError(null); }} required maxLength={200} />
         </div>
         {!isAccount && (
           <>
             <div className="erp-field">
-              <label htmlFor={ids.kind}>{t("grid.master.kind")}</label>
+              <label htmlFor={ids.kind}>{t("accounting.master.kind")}</label>
               <select id={ids.kind} value={kind} onChange={(e) => setKind(e.target.value as "group" | "leaf")}>
-                <option value="leaf">{t("grid.values.dimension_kind.leaf")}</option>
-                <option value="group">{t("grid.values.dimension_kind.group")}</option>
+                <option value="leaf">{t("accounting.values.dimension_kind.leaf")}</option>
+                <option value="group">{t("accounting.values.dimension_kind.group")}</option>
               </select>
             </div>
             <label className="erp-switch">
-              <button type="button" role="switch" aria-checked={active} aria-label={t("grid.master.active")} className={active ? "erp-toggle is-on" : "erp-toggle"} onClick={() => setActive((a) => !a)} />
-              {t("grid.master.active")}
+              <button type="button" role="switch" aria-checked={active} aria-label={t("accounting.master.active")} className={active ? "erp-toggle is-on" : "erp-toggle"} onClick={() => setActive((a) => !a)} />
+              {t("accounting.master.active")}
             </label>
           </>
         )}
@@ -92,10 +92,10 @@ function NewNodeBody({ entity, title, parent, onClose, onCreated }: { entity: st
       </div>
       <div className="erp-dialog__foot">
         <button type="button" className="erp-btn" onClick={onClose}>
-          {t("grid.master.cancel")}
+          {t("accounting.master.cancel")}
         </button>
         <button type="submit" className="erp-btn erp-btn--primary" disabled={pending || code.trim() === "" || name.trim() === ""}>
-          {t("grid.master.create")}
+          {t("accounting.master.create")}
         </button>
       </div>
     </form>

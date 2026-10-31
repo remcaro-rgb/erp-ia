@@ -19,7 +19,7 @@ async function Periods() {
     throw error;
   }
   if (data.years.length === 0) {
-    const t = await getTranslations("common.acc_pages.periods");
+    const t = await getTranslations("accounting.pages.periods");
     return <p className="erp-muted">{t("none")}</p>;
   }
   return <PeriodsScreen data={data} />;

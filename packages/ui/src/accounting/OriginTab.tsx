@@ -41,8 +41,8 @@ export interface OriginTabProps {
 const KINDS = new Set(["manual", "template", "auto", "import"]);
 
 export function OriginTab({ origin, source, event, rule, reversalOf, reversedBy, chainId, timeline }: OriginTabProps) {
-  const t = useTranslations("common.entry.origin");
-  const tv = useTranslations("grid.values.entry_origin");
+  const t = useTranslations("accounting.entry.origin");
+  const tv = useTranslations("accounting.values.entry_origin");
   const anchor = (l: OriginLink | null) => (l ? (l.record ? <RecordLink entity={l.record.entity} id={l.record.id} label={l.label} /> : <span>{l.label}</span>) : <span className="erp-muted">{t("none")}</span>);
   const kind = KINDS.has(origin) ? origin : "manual";
   return (

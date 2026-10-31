@@ -21,7 +21,7 @@ export interface PeriodSummaryRow {
 }
 
 export function PeriodSummaryTab({ rows }: { rows: readonly PeriodSummaryRow[] }) {
-  const t = useTranslations("common.acc_record");
+  const t = useTranslations("accounting.record");
   return (
     <SimpleTable
       label={t("summary_label")}
@@ -66,8 +66,8 @@ export interface PeriodCloseTabProps {
 }
 
 export function PeriodCloseTab({ status, closedAt, closedBy, reopenedCount, reopenedFor, checks, history }: PeriodCloseTabProps) {
-  const t = useTranslations("common.acc_record");
-  const tv = useTranslations("grid.values");
+  const t = useTranslations("accounting.record");
+  const tv = useTranslations("accounting.values");
   const name = (check: string) => (tv.has(`close_check.${check}`) ? tv(`close_check.${check}`) : check);
   return (
     <div className="erp-stack">

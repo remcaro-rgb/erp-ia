@@ -11,7 +11,7 @@ import { SetupAction } from "./setup-action";
 async function Setup() {
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
-  const t = await getTranslations("common.acc_pages.setup");
+  const t = await getTranslations("accounting.pages.setup");
   let configured: boolean;
   let allowed = false;
   try {

@@ -26,7 +26,7 @@ export interface RuleLinesEditorProps {
 }
 
 export function RuleLinesEditor({ ruleId, template, lines: stored, roles, canSave, save, requestStepUp, onSaved }: RuleLinesEditorProps) {
-  const t = useTranslations("common.acc_record.rule");
+  const t = useTranslations("accounting.record.rule");
   const te = useTranslations("errors");
   const key = JSON.stringify(stored);
   const [seen, setSeen] = useState(key);

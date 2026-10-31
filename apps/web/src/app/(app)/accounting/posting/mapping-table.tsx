@@ -13,7 +13,7 @@ const keyOf = (role: string, dimension: string | null) => `${role}|${dimension ?
 
 /** Mapeo de cuentas: the account each posting role resolves to (by dimension too); the roles still without one come first. */
 export function MappingTable({ rows, unmapped, lookup, canEdit }: { rows: MappingRow[]; unmapped: string[]; lookup: AccountLookup; canEdit: boolean }) {
-  const t = useTranslations("common.acc_pages.posting");
+  const t = useTranslations("accounting.pages.posting");
   const tr = useTranslations("common.record.contributed.roles");
   const { execute, prompt, status, busy } = useAdminAction();
   const all = useMemo<MappingRow[]>(() => [...unmapped.map((role) => ({ role, dimension: null, account: null })), ...rows], [rows, unmapped]);

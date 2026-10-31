@@ -11,7 +11,7 @@ import { subjectAccountsAction, type SubjectGrant } from "@/lib/accounting/subje
  * nothing while the company has no accounting or the caller cannot consult the grants.
  */
 export function SubjectAccounts({ kind, subjectId }: { kind: "role" | "user"; subjectId: string }) {
-  const t = useTranslations("common.acc_pages.subject");
+  const t = useTranslations("accounting.pages.subject");
   const [grants, setGrants] = useState<SubjectGrant[] | null>(null);
   useEffect(() => {
     let live = true;

@@ -38,7 +38,7 @@ describe("locales", () => {
   });
 
   it("has the namespaces of the design in every catalogue", () => {
-    const namespaces = ["agent", "auth", "common", "entity", "errors", "feature", "field", "grid", "home", "nav", "process", "report"];
+    const namespaces = ["accounting", "agent", "auth", "common", "entity", "errors", "feature", "field", "grid", "home", "nav", "process", "report"];
     expect(Object.keys(es).sort()).toEqual(namespaces);
     expect(Object.keys(en).sort()).toEqual(namespaces);
   });
@@ -132,7 +132,7 @@ describe("process errors", () => {
 });
 
 // The accounting catalogue (Task 30, rule 24). The statuses, origins, close checks and refusal codes live where their entity
-// fields point (`grid.values.*`), the entry screens under `common.entry.*`, the reports under `report.*`: one place for each,
+// fields point (`grid.values.*`), the entry screens under `accounting.entry.*`, the reports under `report.*`: one place for each,
 // es-419 and en alike.
 describe("accounting catalogue", () => {
   const both = (key: string) => [
@@ -162,16 +162,16 @@ describe("accounting catalogue", () => {
       .entities()
       .filter((e) => e.module === "accounting")
       .flatMap((e) => e.fields.filter((f) => f.type === "enum" && f.valuesKey).flatMap((f) => f.enumValues!.map((v) => `${f.valuesKey}.${v}`)));
-    expect(keys).toEqual(expect.arrayContaining(["grid.values.entry_status.pending", "grid.values.entry_origin.template", "grid.values.failure_code.no_journal"]));
+    expect(keys).toEqual(expect.arrayContaining(["accounting.values.entry_status.pending", "accounting.values.entry_origin.template", "accounting.values.failure_code.no_journal"]));
     expect(missing(keys)).toEqual([]);
   });
 
   it("has the five statuses, the four origins, the ten close checks and the refusal codes of the validation", () => {
     const keys = [
-      ...["draft", "pending", "posted", "reversed", "voided"].map((v) => `grid.values.entry_status.${v}`),
-      ...["manual", "auto", "import", "template"].map((v) => `grid.values.entry_origin.${v}`),
-      ...["drafts", "pending_approvals", "pending_failures", "undispatched_events", "control_receivable", "control_payable", "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances"].map((v) => `grid.values.close_check.${v}`),
-      ...["unbalanced", "missing_account_mapping", "closed_period", "inactive_account", "missing_party", "missing_cost_center", "missing_open_auxiliary", "missing_item", "missing_business_unit", "inactive_dimension", "invalid_template", "no_journal", "account_forbidden", "same_user_approval", "manual_journal_only"].map((v) => `grid.values.failure_code.${v}`),
+      ...["draft", "pending", "posted", "reversed", "voided"].map((v) => `accounting.values.entry_status.${v}`),
+      ...["manual", "auto", "import", "template"].map((v) => `accounting.values.entry_origin.${v}`),
+      ...["drafts", "pending_approvals", "pending_failures", "undispatched_events", "control_receivable", "control_payable", "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances"].map((v) => `accounting.values.close_check.${v}`),
+      ...["unbalanced", "missing_account_mapping", "closed_period", "inactive_account", "missing_party", "missing_cost_center", "missing_open_auxiliary", "missing_item", "missing_business_unit", "inactive_dimension", "invalid_template", "no_journal", "account_forbidden", "same_user_approval", "manual_journal_only"].map((v) => `accounting.values.failure_code.${v}`),
     ];
     expect(missing(keys)).toEqual([]);
   });
@@ -196,6 +196,6 @@ describe("accounting catalogue", () => {
   it("has the home cards and the entry screen texts", () => {
     const keys = ["accounting_result", "accounting_pending", "accounting_periods", "accounting_drafts"].flatMap((k) => [`home.kpi.${k}.label`, `home.kpi.${k}.detail`]);
     expect(missing(keys)).toEqual([]);
-    expect(missing(["common.entry.actions.submit", "common.entry.actions.approve", "common.entry.balanced", "common.entry.unbalanced", "common.entry.keyboard_hint"])).toEqual([]);
+    expect(missing(["accounting.entry.actions.submit", "accounting.entry.actions.approve", "accounting.entry.balanced", "accounting.entry.unbalanced", "accounting.entry.keyboard_hint"])).toEqual([]);
   });
 });

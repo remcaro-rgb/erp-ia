@@ -46,9 +46,9 @@ export interface EntryFormProps {
 
 export function EntryForm(props: EntryFormProps) {
   const { record, initial: copy, labels, settings, journals, defaultJournalId, userId, lookup, canSave, can, save, requestStepUp, runAction, onSaved, onActed } = props;
-  const t = useTranslations("common.entry");
+  const t = useTranslations("accounting.entry");
   const tf = useTranslations("common.forms");
-  const tv = useTranslations("grid.values.entry_status");
+  const tv = useTranslations("accounting.values.entry_status");
   const errorText = useErrorText();
   const isNew = record === null;
 
