@@ -32,6 +32,7 @@ describe("support home KPI", () => {
     delete card.series;
     expect(card).toEqual({
       id: "support.tickets",
+      href: "/support",
       label: "home.kpi.support_tickets.label",
       value: 2,
       unit: "count",

@@ -85,3 +85,20 @@ describe("accounting manifest", () => {
     expect(accounting.homeKpis?.map((k) => k.id)).toEqual(["accounting.result_month", "accounting.pending_failures", "accounting.open_periods", "accounting.draft_entries"]);
   });
 });
+
+describe("people on accounting records are references (rule 21, T11)", () => {
+  it("who submitted, posted or closed is a ref to kernel.user, so it reads as a name and links to the user", () => {
+    const field = (entity: string, name: string) => ACCOUNTING_ENTITIES.find((e) => e.id === entity)?.fields.find((f) => f.name === name);
+    for (const [entity, name] of [["accounting.entry", "submitted_by"], ["accounting.entry", "posted_by"], ["accounting.period", "closed_by"]] as const) {
+      expect(field(entity, name)).toMatchObject({ type: "ref", ref: { entity: "kernel.user", display: "full_name" } });
+    }
+  });
+});
+
+describe("period names (T3)", () => {
+  it("a period is named by its month: its display field starts_on reads as YYYY-MM", () => {
+    const period = ACCOUNTING_ENTITIES.find((e) => e.id === "accounting.period")!;
+    expect(period.displayField).toBe("starts_on");
+    expect(period.fields.find((f) => f.name === "starts_on")?.displayFormat).toBe("month");
+  });
+});

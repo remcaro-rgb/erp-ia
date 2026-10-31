@@ -64,6 +64,7 @@ describe("core home KPIs", () => {
   it("counts the active parties of the company and how many cannot be invoiced yet", async () => {
     expect(withoutSeries(await kpi(admin, "core.parties"))).toEqual({
       id: "core.parties",
+      href: "/parties",
       label: "home.kpi.core_parties.label",
       value: 2,
       unit: "count",
@@ -122,6 +123,7 @@ describe("core home KPIs", () => {
   it("counts the products and how many are not invoice ready", async () => {
     expect(withoutSeries(await kpi(admin, "core.products"))).toEqual({
       id: "core.products",
+      href: "/products",
       label: "home.kpi.core_products.label",
       value: 2,
       unit: "count",

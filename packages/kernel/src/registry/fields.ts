@@ -42,6 +42,13 @@ export interface FieldDef {
    * with `create or replace view`.
    */
   viewExpr?: string;
+  /**
+   * The value of a row already includes its descendants (`accounting.period_figure` on the hierarchical masters; the entity
+   * has a `parent_id`). Its total is the sum over the rows with no ancestor in the result, never a generic sum (design §22.21).
+   */
+  rollup?: boolean;
+  /** How this field reads when it is the display field of a record: `month` → `YYYY-MM` (a period named by its start). */
+  displayFormat?: "month";
 }
 
 /** A field with every default applied. */

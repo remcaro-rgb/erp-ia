@@ -16,7 +16,7 @@ export const ticketsKpi: HomeKpiProvider = {
     return [
       {
         id: "support.tickets",
-        label: "home.kpi.support_tickets.label",
+        href: "/support", label: "home.kpi.support_tickets.label",
         value: open,
         unit: "count",
         ...(open > 0 ? { tone: "warn" as const } : {}),

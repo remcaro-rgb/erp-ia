@@ -313,3 +313,50 @@ describe("buildQuery grouped aggregates", () => {
   });
 });
 
+
+// UX-OD-3 (T4, owner 2026-10-31): a roll-up column (its value already includes its descendants) is totalled over the rows that
+// have no ancestor in the result; a generic sum would add a group and its children twice.
+describe("roll-up columns", () => {
+  const tree = defineEntity({
+    id: "probe.node",
+    module: "probe",
+    schema: "probe",
+    table: "nodes",
+    label: "entity.probe.node",
+    displayField: "code",
+    defaultSort: { field: "code", dir: "asc" },
+    fields: [
+      { name: "code", type: "text", label: "field.code" },
+      { name: "parent_id", type: "ref", label: "field.parent_id", ref: { entity: "probe.node", display: "code" } },
+      { name: "figure", type: "money", label: "field.figure", rollup: true },
+      { name: "own", type: "money", label: "field.own" },
+    ],
+  });
+  const all = (name: string) => tree.fields.some((f) => f.name === name);
+  const state = (aggregates: { field: string; fn: "sum" | "avg" | "count" }[]) => GridState.parse({ filters: [{ field: "code", op: "contains", value: "A" }], sort: [], page: 1, pageSize: 50, aggregates });
+
+  it("the sum of a roll-up column is taken over the rows with no ancestor in the filtered result", () => {
+    const q = buildQuery(tree, state([{ field: "figure", fn: "sum" }, { field: "own", fn: "sum" }]), all);
+    expect(q.aggregateSql).toContain("with recursive");
+    expect(q.aggregateSql).toMatch(/not exists/i);
+    // The ordinary column keeps its plain sum; the filter's parameters are shared, not repeated.
+    expect(q.aggregateSql).toContain('sum("own")');
+    expect(q.params).toHaveLength(1);
+  });
+
+  it("without a visible parent_id the total is unknown (null), never the generic sum", () => {
+    const q = buildQuery(tree, state([{ field: "figure", fn: "sum" }]), (name) => name !== "parent_id");
+    expect(q.aggregateSql).toContain("null::numeric");
+    expect(q.aggregateSql).not.toContain("sum(");
+  });
+
+  it("group subtotals leave a roll-up column out", () => {
+    const q = buildQuery(tree, GridState.parse({ filters: [], sort: [], page: 1, pageSize: 50, groupBy: ["code"], aggregates: [{ field: "figure", fn: "sum" }, { field: "own", fn: "sum" }] }), all);
+    expect(q.groupAggregateSql).toContain('"sum:own"');
+    expect(q.groupAggregateSql).not.toContain('"sum:figure"');
+  });
+
+  it("an entity declaring a roll-up column needs a parent_id field", () => {
+    expect(() => defineEntity({ ...tree, fields: tree.fields.filter((f) => f.name !== "parent_id") })).toThrow(/rollup.*parent_id/);
+  });
+});

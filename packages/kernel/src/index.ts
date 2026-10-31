@@ -54,7 +54,7 @@ export type { VerifierAdapter, VerifyContext, VerifyKind, VerifyOutcome, VerifyS
 export { callerProfile, MAX_USER_PREF_BYTES, readUserPrefs, USER_PREF_KEY, USER_PREF_PROCESSES, userPrefSet } from "./user-prefs";
 export type { CallerProfile, StoredUserPref } from "./user-prefs";
 export { runnableProcesses } from "./process/permissions";
-export { buildQuery, GridState, operatorsFor, QueryError, refLabelKey } from "./query";
+export { buildQuery, GridState, operatorsFor, QueryError, labelText, refLabelKey } from "./query";
 export type { BuildQueryOptions, BuiltQuery, FilterOp, GridStateInput, QueryErrorCode } from "./query";
 export { gridAccess, gridPageAccess, gridQueryInTx, runGridQuery, visibleIn } from "./query/run";
 export { DATA_PROCESSES, DATA_QUERY_MAX_ROWS, dataQuery } from "./query/data-query.process";
@@ -102,7 +102,7 @@ export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcess
 export type { AiUsage, MatrixProcess, ModuleState, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
 
-export { aiTokensKpi, dailySeries, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
+export { aiTokensKpi, dailySeries, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiGridHref, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
 export type { SuggestedAction } from "./home";
 
 export type { AccountingPack, AccountLevel, AccountSeed, ExogenaCompany, ExogenaFormat, ExogenaRow, JournalKind, LineCode, StatementSection } from "./localization/country-pack";

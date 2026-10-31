@@ -36,7 +36,7 @@ const trailer = (f: F): FieldDef[] => [
 
 /** The figure the masters' Tabla shows for the period its grid param `period_id` names (gaps plan Task 7, migration 0036). */
 const periodFigure = (f: F, kind: string): FieldDef =>
-  ({ ...f("period_figure", "money", { exportable: true }), viewExpr: `accounting.period_figure('${kind}', "id", nullif(current_setting('erp.param.period_id', true), '')::uuid)` });
+  ({ ...f("period_figure", "money", { exportable: true }), rollup: true, viewExpr: `accounting.period_figure('${kind}', "id", nullif(current_setting('erp.param.period_id', true), '')::uuid)` });
 const PERIOD_PARAM: Pick<EntityDef, "gridParams"> = { gridParams: [{ name: "period_id", type: "uuid" }] };
 
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
@@ -141,11 +141,11 @@ export const periodEntity: EntityDef = entity(
     f("seq", "number", { required: true }),
     f("fiscal_year_id", "ref", { required: true, ...ref("accounting.fiscal_year", "year") }),
     f("number", "number", { required: true }),
-    f("starts_on", "date", { required: true }),
+    f("starts_on", "date", { required: true, displayFormat: "month" }),
     f("ends_on", "date", { required: true }),
     f("status", "enum", { required: true, enumValues: ["open", "closed"], valuesKey: "accounting.values.period_status" }),
     f("closed_at", "datetime"),
-    f("closed_by", "uuid"),
+    f("closed_by", "ref", ref("kernel.user", "full_name")),
     f("reopened_count", "number"),
     f("reopened_for", "date"),
     ...trailer(f),
@@ -216,7 +216,7 @@ export const entryEntity: EntityDef = entity(
     f("status", "enum", { required: true, enumValues: ENTRY_STATUSES, valuesKey: "accounting.values.entry_status" }),
     f("origin", "enum", { required: true, enumValues: ENTRY_ORIGINS, valuesKey: "accounting.values.entry_origin" }),
     f("reverse_on", "date"),
-    f("submitted_by", "uuid"),
+    f("submitted_by", "ref", ref("kernel.user", "full_name")),
     f("submitted_at", "datetime"),
     f("description", "text", { searchable: true }),
     f("currency", "text"),
@@ -235,7 +235,7 @@ export const entryEntity: EntityDef = entity(
     f("is_closing", "boolean"),
     f("is_auto_reversal", "boolean"),
     f("posted_at", "datetime"),
-    f("posted_by", "uuid"),
+    f("posted_by", "ref", ref("kernel.user", "full_name")),
     ...trailer(f),
   ],
   { defaultSort: { field: "date", dir: "desc" }, recordPage: true },
@@ -357,7 +357,7 @@ export const ledgerLineEntity: EntityDef = entity(
       f("status", "enum", { enumValues: ENTRY_STATUSES, valuesKey: "accounting.values.entry_status" }),
       f("origin", "enum", { enumValues: ENTRY_ORIGINS, valuesKey: "accounting.values.entry_origin" }),
       f("created_by", "uuid"),
-      f("posted_by", "uuid"),
+      f("posted_by", "ref", ref("kernel.user", "full_name")),
       f("posted_at", "datetime"),
       f("source_entity", "text"),
       f("source_record_id", "uuid"),

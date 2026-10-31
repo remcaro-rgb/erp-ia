@@ -81,6 +81,16 @@ describe("defineModule", () => {
     expect(() => defineModule(manifest("core", [], { features: [{ id: "core.things", label: "f", processes: [], entities: [], nav: [nested] }] }))).toThrow(/children/);
   });
 
+  it("rejects a feature menu item that is neither a top-level item nor a group child of the navigation", () => {
+    const leaf = { id: "core.leaf", label: "nav.leaf", href: "/leaf", icon: "list" };
+    const group = { id: "core.group", label: "nav.group", href: "#", icon: "list", children: [leaf] };
+    const feature = { id: "core.things", label: "f", processes: [], entities: [] };
+    expect(() => defineModule(manifest("core", [], { navigation: [group], features: [{ ...feature, nav: [leaf] }] }))).not.toThrow();
+    expect(() => defineModule(manifest("core", [], { navigation: [group], features: [{ ...feature, nav: [{ ...leaf, id: "core.stray" }] }] }))).toThrow(
+      /core\.stray.*neither a top-level item nor a group child/,
+    );
+  });
+
   it("rejects a malformed id and a feature outside the module's namespace", () => {
     expect(() => defineModule({ ...manifest("core"), id: "Core" })).toThrow(/invalid module id/);
     const foreign = { id: "sales.things", label: "feature.things", processes: [], entities: [] };

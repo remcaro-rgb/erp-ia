@@ -4,7 +4,7 @@ import type { Registry } from "../registry";
 import type { EntityDef } from "../registry/entities";
 import { IDENTIFIER } from "../registry/fields";
 import { gridEntity, requireGridAccess } from "./access";
-import { refLabelKey } from "./ref-label";
+import { labelText, refLabelKey } from "./ref-label";
 
 // The names of the records a page of rows refers to (design §22.15, rule 21): for each `ref` field of the entity, the
 // display field of the referenced records, read in the caller's transaction through the target entity's masked view, so
@@ -56,7 +56,7 @@ export async function addRefLabels(tx: Tx, registry: Registry, entity: EntityDef
       for (const { field, display } of fields) {
         const value = row[field];
         const label = typeof value === "string" ? byId.get(value)?.[display] : undefined;
-        if (label !== null && label !== undefined && label !== "") row[refLabelKey(field)] = String(label);
+        if (label !== null && label !== undefined && label !== "") row[refLabelKey(field)] = labelText(label, target.fields.find((f) => f.name === display));
       }
     }
   }

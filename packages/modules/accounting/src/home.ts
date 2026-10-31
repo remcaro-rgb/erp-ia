@@ -1,4 +1,4 @@
-import { ReportState, type HomeKpiProvider, type Kpi } from "@erp/kernel";
+import { kpiGridHref, ReportState, type HomeKpiProvider, type Kpi } from "@erp/kernel";
 import { incomeStatementConsult } from "./reports/income-statement";
 
 // The accounting module's cards on the home screen (accounting design §8, main design §19a). All of them read the published masked
@@ -34,7 +34,7 @@ export const resultKpi: HomeKpiProvider = {
     const params = { from: period.id, to: period.id, byCostCenter: false, comparePrevious: false, level: 4 };
     const report = await incomeStatementConsult.handler(ctx, { params, state: ReportState.parse({ filters: [], sort: [], page: 1, pageSize: 1 }) } as never);
     const result = Number((report as { aggregates?: { result?: number } }).aggregates?.result ?? 0);
-    return [{ id: "accounting.result_month", label: "home.kpi.accounting_result.label", value: cents(result), unit: "money", detail: { key: "home.kpi.accounting_result.detail", params: { month: period.starts_on.slice(0, 7) } } }];
+    return [{ id: "accounting.result_month", href: "/accounting/reports/income_statement", label: "home.kpi.accounting_result.label", value: cents(result), unit: "money", detail: { key: "home.kpi.accounting_result.detail", params: { month: period.starts_on.slice(0, 7) } } }];
   },
 };
 
@@ -46,7 +46,7 @@ export const pendingKpi: HomeKpiProvider = {
   compute: async (ctx) => {
     const [row] = await ctx.tx<{ pending: number }[]>`select count(*)::int as pending from accounting.v_posting_failures where status = 'pending'`;
     const pending = row!.pending;
-    const kpi: Kpi = { id: "accounting.pending_failures", label: "home.kpi.accounting_pending.label", value: pending, unit: "count", ...(pending > 0 ? { tone: "warn" as const } : {}), detail: { key: "home.kpi.accounting_pending.detail", params: { pending } } };
+    const kpi: Kpi = { id: "accounting.pending_failures", href: "/accounting/posting", label: "home.kpi.accounting_pending.label", value: pending, unit: "count", ...(pending > 0 ? { tone: "warn" as const } : {}), detail: { key: "home.kpi.accounting_pending.detail", params: { pending } } };
     return [kpi];
   },
 };
@@ -61,7 +61,7 @@ export const openPeriodsKpi: HomeKpiProvider = {
       select count(*)::int as total, count(*) filter (where status = 'open')::int as open from accounting.v_periods where company_id = ${ctx.companyId}`;
     const { total, open } = row!;
     if (total === 0) return [];
-    return [{ id: "accounting.open_periods", label: "home.kpi.accounting_periods.label", value: open, unit: "count", progress: open / total, detail: { key: "home.kpi.accounting_periods.detail", params: { total } } }];
+    return [{ id: "accounting.open_periods", href: kpiGridHref("/accounting/periods", [{ field: "status", op: "eq", value: "open" }]), label: "home.kpi.accounting_periods.label", value: open, unit: "count", progress: open / total, detail: { key: "home.kpi.accounting_periods.detail", params: { total } } }];
   },
 };
 
@@ -74,7 +74,7 @@ export const draftsKpi: HomeKpiProvider = {
     const [row] = await ctx.tx<{ drafts: number; pending: number }[]>`
       select count(*) filter (where status = 'draft')::int as drafts, count(*) filter (where status = 'pending')::int as pending
       from accounting.v_entries where company_id = ${ctx.companyId}`;
-    return [{ id: "accounting.draft_entries", label: "home.kpi.accounting_drafts.label", value: row!.drafts, unit: "count", detail: { key: "home.kpi.accounting_drafts.detail", params: { pending: row!.pending } } }];
+    return [{ id: "accounting.draft_entries", href: kpiGridHref("/accounting/entries", [{ field: "status", op: "eq", value: "draft" }]), label: "home.kpi.accounting_drafts.label", value: row!.drafts, unit: "count", detail: { key: "home.kpi.accounting_drafts.detail", params: { pending: row!.pending } } }];
   },
 };
 

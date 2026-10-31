@@ -114,6 +114,11 @@ export interface Kpi {
   progress?: number;
   /** `warn` tints the number (something wants attention). */
   tone?: "default" | "warn";
+  /**
+   * Where the number's work is (owner 2026-10-31, UX-OD-7): the grid or report holding it, with the KPI's filter (`kpiGridHref`).
+   * The card is a link to it for a caller who may open it; absent: the card is not a link.
+   */
+  href?: string;
   /** The line under the number: an i18n key and the values it shows. */
   detail?: { key: string; params: Record<string, string | number> };
   /**

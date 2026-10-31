@@ -23,6 +23,8 @@ export const kpiSchema = z.object({
   tone: z.enum(["default", "warn"]).optional(),
   detail: z.object({ key: z.string(), params: z.record(z.string(), z.union([z.string(), z.number()])) }).optional(),
   series: z.array(z.number().finite().min(0)).length(SERIES_DAYS).optional(),
+  /** An address of the app (never another site): where the card leads. */
+  href: z.string().regex(/^\/(?!\/)/).optional(),
 });
 
 /** At 80 % of the monthly token allowance the card asks for attention. */
@@ -45,13 +47,14 @@ export const aiTokensKpi: HomeKpiProvider = {
       return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", detail: { key: "home.kpi.kernel_ai_tokens.own", params: {} }, series }];
     }
     if (usage.limit === null || usage.limit <= 0) {
-      return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", detail: { key: "home.kpi.kernel_ai_tokens.no_cap", params: {} }, series }];
+      return [{ id: "kernel.ai_tokens", label, value: usage.used, unit: "tokens", href: "/admin/ai-usage", detail: { key: "home.kpi.kernel_ai_tokens.no_cap", params: {} }, series }];
     }
     const share = usage.used / usage.limit;
     return [
       {
         id: "kernel.ai_tokens",
         label,
+        href: "/admin/ai-usage",
         value: Math.round(share * 100),
         unit: "percent",
         progress: Math.min(share, 1),

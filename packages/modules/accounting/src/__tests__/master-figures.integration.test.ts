@@ -188,3 +188,70 @@ describe("the period figure of Tabla", () => {
     expect(Number(rows.find((r) => r.code === "1110")!.period_figure)).toBe(10_700);
   });
 });
+
+describe("roll-up total of the period figure (UX-OD-3, T4)", () => {
+  const total = async (claims: typeof h.admin.claims, periodId: string, filters: unknown[] = []) => {
+    const page = await runGridQuery(h.sql, claims, costCenterEntity, GridState.parse({ filters, sort: [], page: 1, pageSize: 500, columns: ["id", "code", "parent_id", "period_figure"], aggregates: [{ field: "period_figure", fn: "sum" }], params: { period_id: periodId } }));
+    return { rows: page.rows, sum: page.aggregates?.["sum:period_figure"] };
+  };
+  let feb: string;
+  let vta: string;
+  beforeAll(async () => {
+    feb = (await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId))).find((p) => p.number === 2)!.id;
+    vta = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, parent_id, kind) values (${h.companyId}, 'VTA', 'Ventas', ${sede}, 'leaf') returning id`)[0]!.id;
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
+      date: `${year}-02-20`, description: "Ventas del centro",
+      lines: [{ accountCode: "111005", debit: 300, credit: 0 }, { accountCode: "413595", debit: 0, credit: 300, costCenterId: vta }],
+    });
+    await h.run(h.contador, "accounting.entry.post", { id });
+  });
+  const figureOf = (rows: Record<string, unknown>[], code: string) => Number(rows.find((r) => r.code === code)!.period_figure);
+
+  it("a group with its two leaves totals the group once, not the group plus the leaves", async () => {
+    const { rows, sum } = await total(h.admin.claims, feb, [{ field: "code", op: "in", value: ["SEDE", "ADM", "VTA"] }]);
+    const group = figureOf(rows, "SEDE");
+    expect(group).toBeCloseTo(figureOf(rows, "ADM") + figureOf(rows, "VTA"), 2);
+    expect(Number(sum)).toBeCloseTo(group, 2);
+    expect(Number(sum)).not.toBeCloseTo(group * 2, 2);
+  });
+
+  it("a filter that drops the group totals its remaining leaves; a filter keeping only the group totals the group", async () => {
+    const leaves = await total(h.admin.claims, feb, [{ field: "code", op: "in", value: ["ADM", "VTA"] }]);
+    expect(Number(leaves.sum)).toBeCloseTo(figureOf(leaves.rows, "ADM") + figureOf(leaves.rows, "VTA"), 2);
+    const root = await total(h.admin.claims, feb, [{ field: "code", op: "eq", value: "SEDE" }]);
+    expect(Number(root.sum)).toBeCloseTo(figureOf(root.rows, "SEDE"), 2);
+  });
+
+  it("a leaf whose group is outside the filter still counts, and a grand total over rows with no figure is null-safe", async () => {
+    const one = await total(h.admin.claims, feb, [{ field: "code", op: "eq", value: "VTA" }]);
+    expect(Number(one.sum)).toBeCloseTo(300, 2);
+  });
+});
+
+describe("roll-up total in exports and for a restricted caller (T4 review)", () => {
+  it("a grouped export totals the roll-up column over the roots; the groups carry no subtotal of it", async () => {
+    const feb = (await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId))).find((p) => p.number === 2)!;
+    const state = { filters: [], sort: [], page: 1, pageSize: 50, columns: ["code", "kind", "parent_id", "period_figure"], groupBy: ["kind"], aggregates: [{ field: "period_figure", fn: "sum" as const }], params: { period_id: feb.id } };
+    const plan = await withClaims(h.sql, h.admin.claims, (tx) => planExport(tx, h.deps.registry, { entity: "accounting.cost_center", format: "csv" as const, state }));
+    const rows = (await figureRows(h.admin.claims, "accounting.cost_center", feb.id, { columns: ["id", "code", "parent_id", "period_figure"] })) as Record<string, unknown>[];
+    const roots = rows.filter((r) => r.parent_id === null).reduce((a, r) => a + Number(r.period_figure), 0);
+    expect(Number(plan.grouped!.grand["sum:period_figure"])).toBeCloseTo(roots, 2);
+    expect(plan.grouped!.groups.every((g) => !("sum:period_figure" in g.aggregates))).toBe(true);
+  });
+
+  it("a caller who cannot view a restricted account totals only what the caller sees, from the roots of that view", async () => {
+    const feb = (await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId))).find((p) => p.number === 2)!;
+    const gastos = await accountId("5105");
+    await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: gastos, access: "restricted", grants: [{ subjectKind: "role", subjectId: h.contador.roleId, canView: true, canPost: true }] });
+    try {
+      const page = await runGridQuery(h.sql, h.auxiliar.claims, accountEntity, gridState({ period_id: feb.id }, { filters: [{ field: "code", op: "contains", value: "51" }], columns: ["id", "code", "parent_id", "period_figure"], aggregates: [{ field: "period_figure", fn: "sum" }] }));
+      const seen = new Set(page.rows.map((r) => r.id as string));
+      const expected = page.rows.filter((r) => !(r.parent_id && seen.has(r.parent_id as string))).reduce((a, r) => a + Number(r.period_figure ?? 0), 0);
+      expect(page.rows.some((r) => r.code === "5105")).toBe(false);
+      expect(page.rows.length).toBeGreaterThan(0);
+      expect(Number(page.aggregates?.["sum:period_figure"])).toBeCloseTo(expected, 0);
+    } finally {
+      await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: gastos, access: "open", grants: [] });
+    }
+  });
+});

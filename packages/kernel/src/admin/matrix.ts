@@ -16,6 +16,8 @@ export interface MatrixProcess {
    * label of the feature the process belongs to (`feature.kernel.admin` → "Administración"), else the module's name.
    */
   entityLabel: string;
+  /** What the process does, in the registry's words (Spanish): the primary text of its row; the id is secondary. */
+  description: string;
   /** The process always asks for the step-up (its definition says so); the admin cannot lower it. */
   stepUp: boolean;
   /** An administration process (feature kernel.admin): only the system admin role holds it, never given to another role. */
@@ -32,6 +34,7 @@ export function matrixProcess(registry: Registry, process: ProcessDef): MatrixPr
     id: process.id,
     module: process.module,
     kind: process.kind,
+    description: process.description,
     entity,
     entityLabel: registered?.label ?? feature?.label ?? `nav.modules.${process.module}`,
     stepUp: process.sensitivity === "step-up",

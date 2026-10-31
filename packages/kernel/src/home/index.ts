@@ -5,6 +5,8 @@ import { recommendationDecide, recommendationList } from "./recommendations";
 export { aiTokensKpi, HOME_FEATURE, homeKpis, KERNEL_KPI_PROVIDERS, kpiSchema } from "./kpis";
 export { dailySeries, SERIES_DAYS } from "./series";
 export { homeRecent } from "./recent";
+export { kpiGridHref } from "./links";
+export type { KpiFilter } from "./links";
 export { recommendationDecide, recommendationList, suggestedAction } from "./recommendations";
 export type { SuggestedAction } from "./recommendations";
 

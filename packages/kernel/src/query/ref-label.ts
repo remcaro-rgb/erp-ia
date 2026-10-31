@@ -4,3 +4,18 @@
 
 /** The row key that names the record a `ref` field points to: `supplier_id` → `supplier_id_label`. */
 export const refLabelKey = (field: string): string => `${field}_label`;
+
+/**
+ * The text a display field gives a record's title or reference label. A `date` the driver returns as a `Date` (UTC midnight)
+ * becomes `YYYY-MM-DD` (`YYYY-MM` for `displayFormat: "month"`), never the runtime's `toString`, so no time zone shifts the
+ * day; a `datetime` becomes its ISO instant. The UI turns these into the company's reading (`formatLabel`).
+ */
+export function labelText(value: unknown, field?: { displayFormat?: "month" }): string {
+  if (value instanceof Date) {
+    const day = value.toISOString();
+    if (field?.displayFormat === "month") return day.slice(0, 7);
+    return day.endsWith("T00:00:00.000Z") ? day.slice(0, 10) : day;
+  }
+  const text = String(value);
+  return field?.displayFormat === "month" && /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 7) : text;
+}

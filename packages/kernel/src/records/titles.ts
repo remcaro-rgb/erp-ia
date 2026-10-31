@@ -1,6 +1,7 @@
 import type { Tx } from "../db/client";
 import { ProcessError } from "../process/errors";
 import { requireGridAccess } from "../query/access";
+import { labelText } from "../query/ref-label";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
 
@@ -31,7 +32,7 @@ export async function recordTitles(tx: Tx, registry: Registry, refs: readonly Re
     }
     const rows = await tx<{ id: string; title: unknown }[]>`
       select id, ${tx(entity.displayField)} as title from ${tx(`${entity.schema}.v_${entity.table}`)} where id = any (${[...ids]}::uuid[])`;
-    for (const row of rows) titles.set(`${entity.id}:${row.id}`, row.title === null || row.title === undefined ? null : String(row.title));
+    for (const row of rows) titles.set(`${entity.id}:${row.id}`, row.title === null || row.title === undefined ? null : labelText(row.title, entity.fields.find((f) => f.name === entity.displayField)));
   }
   return titles;
 }

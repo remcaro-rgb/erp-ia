@@ -75,6 +75,8 @@ export function defineEntity(def: EntityDef): ResolvedEntityDef {
     if (names.has(field.name)) throw new Error(`entity ${def.id}: duplicate field ${field.name}`);
     names.add(field.name);
   }
+  const rolled = fields.find((f) => f.rollup);
+  if (rolled && !names.has("parent_id")) throw new Error(`entity ${def.id}: rollup field ${rolled.name} needs a parent_id field`);
   if (!names.has(def.displayField)) throw new Error(`entity ${def.id}: displayField ${def.displayField} is not a field`);
   for (const key of def.importKey ?? []) {
     if (!names.has(key)) throw new Error(`entity ${def.id}: importKey ${key} is not a field`);

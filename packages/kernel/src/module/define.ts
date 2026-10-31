@@ -56,6 +56,13 @@ export function defineModule(def: ModuleDef): ModuleDef {
   // `events.consumes` keys are event names or "*" (every event); the loader registers them as they are.
   checkNavigation(def.id, def.navigation);
   for (const feature of def.features) checkNavigation(def.id, feature.nav ?? []);
+  // A feature's menu item unlocks an item of the module's navigation (top level or group child); the shell never lists it a second time.
+  const navIds = new Set(def.navigation.flatMap((i) => [i.id, ...(i.children ?? []).map((c) => c.id)]));
+  for (const feature of def.features) {
+    for (const item of feature.nav ?? []) {
+      if (!navIds.has(item.id)) throw new Error(`feature ${feature.id} lists menu item ${item.id}, which is neither a top-level item nor a group child of module ${def.id}'s navigation`);
+    }
+  }
 
   const tabIds = new Set<string>();
   for (const tab of def.recordTabs ?? []) {

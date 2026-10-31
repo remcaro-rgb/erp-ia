@@ -25,7 +25,7 @@ export const partiesKpi: HomeKpiProvider = {
     const readyVisible = total === 0 || knownReady === total;
     const kpi: Kpi = {
       id: "core.parties",
-      label: activeVisible ? "home.kpi.core_parties.label" : "home.kpi.core_parties.label_total",
+      href: "/parties", label: activeVisible ? "home.kpi.core_parties.label" : "home.kpi.core_parties.label_total",
       value: activeVisible ? active : total,
       unit: "count",
       ...(activeVisible && total > 0 ? { progress: active / total } : {}),
@@ -50,7 +50,7 @@ export const productsKpi: HomeKpiProvider = {
     return [
       {
         id: "core.products",
-        label: "home.kpi.core_products.label",
+        href: "/products", label: "home.kpi.core_products.label",
         value: total,
         unit: "count",
         ...(total === 0 || knownReady === total ? { detail: { key: "home.kpi.core_products.detail", params: { not_ready } } } : {}),

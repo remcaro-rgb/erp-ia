@@ -331,13 +331,28 @@ export function buildQuery(
     if (!columns.includes(name)) columns.push(name);
   }
 
-  const aggregates = (state.aggregates ?? []).map(({ field, fn }) => {
+  const isRollupSum = (field: string, fn: AggregateFn) => fn === "sum" && entity.fields.some((f) => f.name === field && f.rollup);
+  const aggregateOf = ({ field, fn }: { field: string; fn: AggregateFn }, rollupAware: boolean): string => {
     const t = target(field);
     if (!aggregateApplies(fn, t.kind)) throw new QueryError("bad_operator", t.name, `${fn} does not apply to ${t.kind}`);
+    if (rollupAware && isRollupSum(field, fn)) {
+      // UX-OD-3: the total of a roll-up column is the sum of the rows with no ancestor in the result (a group and its leaves are
+      // never both added). The ancestors are walked in the whole visible view, so a root outside the filter still covers its
+      // descendants inside it. Without a visible parent_id the structure is unknown and so is the total.
+      if (!visibleFields("parent_id")) return `null::numeric as "sum:${t.name}"`;
+      const column = quote(t.name);
+      return `(with recursive hit as (select "id", "parent_id", ${column} as val from ${view}${where}),
+        up(id, anc) as (select "id", "parent_id" from hit where "parent_id" is not null
+          union select up.id, v."parent_id" from up join ${view} v on v."id" = up.anc where v."parent_id" is not null)
+        select sum(val) from hit where not exists (select 1 from up where up.id = hit."id" and up.anc in (select "id" from hit))) as "sum:${t.name}"`;
+    }
     // A date aggregates as stored (no day conversion, so no zone parameter).
     const expr = t.kind === "date" ? t.sortExpr : t.filterExpr();
     return `${fn}(${expr}) as "${fn}:${t.name}"`;
-  });
+  };
+  const aggregates = (state.aggregates ?? []).map((a) => aggregateOf(a, true));
+  // Group subtotals leave a roll-up column out: its group row already carries it and a sum would repeat the descendants.
+  const groupAggregates = (state.aggregates ?? []).filter((a) => !isRollupSum(a.field, a.fn)).map((a) => aggregateOf(a, false));
 
   // Distinct group fields only (a repeated one would make a level that adds nothing).
   const groupExprs = [...new Map(groups.map((t) => [t.name, t])).values()].map((t) => ({ name: t.name, expr: t.sortExpr }));
@@ -347,7 +362,7 @@ export function buildQuery(
           ...groupExprs.map((g) => `${g.expr} as ${quote(g.name)}`),
           `grouping(${groupExprs.map((g) => g.expr).join(", ")}) as "grouping"`,
           `count(*)::int as "count"`,
-          ...aggregates,
+          ...groupAggregates,
         ].join(", ")} from ${view}${where} group by rollup(${groupExprs.map((g) => g.expr).join(", ")}) order by ${groupExprs.map((g) => `${g.expr} nulls last`).join(", ")}`
       : undefined;
 
