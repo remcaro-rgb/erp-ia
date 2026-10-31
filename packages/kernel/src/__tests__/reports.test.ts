@@ -72,4 +72,21 @@ describe("reports", () => {
     expect(registry.reports("core")).toEqual([]);
     expect(() => registry.report("probe.nope")).toThrow(/unknown report/);
   });
+  it("defineReport refuses a file action whose process is missing, not a consult or of another feature", () => {
+    const action = (overrides: Record<string, unknown> = {}) => ({ id: "xml", label: "report.file.probe", process: "probe.trial.file", contentType: "application/xml", contentField: "xml", ...overrides });
+    const withAction = (a: Record<string, unknown>) => report({ fileActions: [a] });
+    // Shape: a duplicate id is refused by the definition itself.
+    expect(() => report({ fileActions: [action(), action()] })).toThrow(/duplicate file action xml/);
+    expect(() => withAction(action({ id: "Bad Id" }))).toThrow(/file action/);
+    // The process is resolved when modules load: it must exist, be a consult and belong to the report's feature.
+    const file = (id: string, kind: "consult" | "create" = "consult", feature = "probe.reports") => ({ ...consult(id, kind), feature });
+    expect(() => loadModules(new Registry(), [manifest([consult("probe.trial.consult")], [withAction(action())])])).toThrow(/probe\.trial.*file action xml.*unknown process probe\.trial\.file/);
+    expect(() => loadModules(new Registry(), [manifest([consult("probe.trial.consult"), file("probe.trial.file", "create")], [withAction(action())])])).toThrow(/file action xml.*not a consult process/);
+    const other = manifest([consult("probe.trial.consult"), file("probe.trial.file", "consult", "probe.other")], [withAction(action())]);
+    other.features = [...other.features, { id: "probe.other", label: "feature.other", processes: ["probe.trial.file"], entities: [] }];
+    expect(() => loadModules(new Registry(), [other])).toThrow(/file action xml.*feature probe\.other/);
+    const registry = new Registry();
+    loadModules(registry, [manifest([consult("probe.trial.consult"), file("probe.trial.file")], [withAction(action())])]);
+    expect(registry.report("probe.trial").fileActions?.map((a) => a.id)).toEqual(["xml"]);
+  });
 });

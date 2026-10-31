@@ -4,7 +4,7 @@ import type { Caller } from "../process/context";
 import { ProcessError } from "../process/errors";
 import { runnableProcesses } from "../process/permissions";
 import { runProcess, type RunProcessDeps } from "../process/run";
-import type { ReportDef, ReportResult } from "./types";
+import type { ReportDef, ReportFileAction, ReportResult } from "./types";
 import type { ReportState } from "./state";
 
 /** The registered report `id`, or null. */
@@ -42,4 +42,29 @@ export async function runReport(deps: RunProcessDeps, caller: Caller, id: string
   const parsed = def.params.safeParse(params ?? {});
   if (!parsed.success) throw new ProcessError("invalid_input", `invalid parameters for report ${id}`, { details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
   return runProcess<never>(deps, caller, def.consult, { params: parsed.data, state }) as Promise<ReportResult>;
+}
+
+export interface ReportFile {
+  fileName: string;
+  content: string;
+  contentType: string;
+}
+
+/**
+ * Runs file action `actionId` of report `id` as the caller: the action's process with the report's parameters as its
+ * input, through `runProcess`, so permission, entitlement, sensitivity (step-up) and the process's own refusals apply.
+ * Throws `ProcessError`: `not_found` for an unknown report or action, `invalid_input` for parameters the report's schema
+ * refuses or a process that answered no document.
+ */
+export async function runReportFile(deps: RunProcessDeps, caller: Caller, id: string, actionId: string, params: unknown): Promise<ReportFile> {
+  const def = reportOf(deps, id);
+  if (!def) throw new ProcessError("not_found", `unknown report ${id}`);
+  const action: ReportFileAction | undefined = def.fileActions?.find((a) => a.id === actionId);
+  if (!action) throw new ProcessError("not_found", `report ${id} has no file action ${actionId}`);
+  const parsed = def.params.safeParse(params ?? {});
+  if (!parsed.success) throw new ProcessError("invalid_input", `invalid parameters for report ${id}`, { details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
+  const out = (await runProcess<never>(deps, caller, action.process, parsed.data)) as Record<string, unknown>;
+  const content = out[action.contentField];
+  if (typeof out.fileName !== "string" || typeof content !== "string") throw new ProcessError("handler_failed", `${action.process} answered no ${action.contentField}`);
+  return { fileName: out.fileName, content, contentType: action.contentType };
 }

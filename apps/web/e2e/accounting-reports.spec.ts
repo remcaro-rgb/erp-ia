@@ -73,4 +73,37 @@ test.describe("accounting reports", () => {
     await expect(page.locator("input#report-param-from")).toHaveValue("2026-10-01");
     await expect(page.locator("input#report-param-to")).toHaveValue("2026-10-31");
   });
+  test("Información exógena 1001 de 2026 → Exportar XML downloads `Dmuisca_001001<versión>2026.xml`; with an unmapped account the page lists the errors", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1600, height: 900 });
+    const { sql } = fixture;
+    const companyId = fixture.companyIds[0]!;
+    await sql`update kernel.companies set tax_id = '900373115-3', legal_name = 'Café del Norte S.A.S.' where id = ${companyId}`;
+    const [role] = await sql<{ id: string }[]>`select id from kernel.roles where company_id = ${companyId} and name = 'admin'`;
+    await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${role!.id}, 'accounting.report.exogena_xml') on conflict do nothing`;
+    // The nómina of October (510506) is mapped to a concept and carries no tercero: the file is refused.
+    await sql`insert into accounting.fiscal_concept_mappings (company_id, format, concept, account_id) values (${companyId}, '1001', '5001', ${ledger.accounts["5105"]!})`;
+    await signInWithCode(page, fixture, secret);
+    const url = `/accounting/reports/exogena?p=${encodeURIComponent(JSON.stringify({ year: 2026, format: "1001" }))}`;
+    await page.goto(url);
+    await expect(page.getByRole("button", { name: "Exportar XML" })).toBeVisible();
+    await page.getByRole("button", { name: "Exportar XML" }).click();
+    const refusal = page.getByRole("alert").filter({ hasText: "No se generó el archivo:" });
+    await expect(refusal).toContainText("510506");
+
+    // With its tercero on the line: the file is generated and downloads.
+    const [party] = await sql<{ id: string }[]>`
+      insert into core.parties (company_id, kind, person_type, document_type, document_number, check_digit, legal_name, department_code, municipality_code, dian_status)
+      values (${companyId}, '{customer,supplier}', '1', '31', '900555666', '5', 'Proveedor Uno S.A.S.', '11', '11001', 'complete') returning id`;
+    await sql.begin(async (tx) => {
+      await tx`set local session_replication_role = replica`;
+      await tx`update accounting.entry_lines set party_id = ${party!.id} where company_id = ${companyId} and account_id = ${ledger.accounts["510506"]!}`;
+    });
+    await page.goto(url);
+    const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Exportar XML" }).click()]);
+    expect(file.suggestedFilename()).toMatch(/^Dmuisca_001001\d{2}2026\.xml$/);
+    expect((await readFile((await file.path())!)).toString("utf8")).toContain("<Formato>1001</Formato>");
+    await expect(page.getByRole("alert").filter({ hasText: "No se generó el archivo:" })).toHaveCount(0);
+    await sql`delete from core.parties where company_id = ${companyId}`;
+  });
 });

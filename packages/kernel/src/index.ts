@@ -71,8 +71,8 @@ export { exportsStore, fileStore, setExportsStore, setFileStore } from "./files/
 export { consultProcessesOf, entitlementKeyOf, gridDenial, gridEntity, requireGridAccess } from "./query/access";
 export type { GridDenial } from "./query/access";
 export { EXPORT_PROCESSES, exportJobEntity } from "./exports";
-export { defineReport, reportDenial, reportOf, ReportState, runReport } from "./reports";
-export type { ReportColumn, ReportDef, ReportDenial, ReportResult } from "./reports";
+export { defineReport, reportDenial, reportOf, ReportState, runReport, runReportFile } from "./reports";
+export type { ReportColumn, ReportDef, ReportDenial, ReportFile, ReportFileAction, ReportResult } from "./reports";
 export {
   buildHelpIndex,
   chunkGuide,
