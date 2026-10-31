@@ -36,7 +36,7 @@ const trailer = (f: F): FieldDef[] => [
 
 /** The figure the masters' Tabla shows for the period its grid param `period_id` names (gaps plan Task 7, migration 0036). */
 const periodFigure = (f: F, kind: string): FieldDef =>
-  ({ ...f("period_figure", "money", { exportable: true }), label: "field.accounting.period_figure", viewExpr: `accounting.period_figure('${kind}', "id", nullif(current_setting('erp.param.period_id', true), '')::uuid)` });
+  ({ ...f("period_figure", "money", { exportable: true }), viewExpr: `accounting.period_figure('${kind}', "id", nullif(current_setting('erp.param.period_id', true), '')::uuid)` });
 const PERIOD_PARAM: Pick<EntityDef, "gridParams"> = { gridParams: [{ name: "period_id", type: "uuid" }] };
 
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
