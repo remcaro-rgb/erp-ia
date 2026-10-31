@@ -47,7 +47,7 @@ Entra por **Contabilidad › Informes**: una tarjeta por informe. Solo ves los q
 
 ## Montos y cuentas restringidas
 
-Los importes se muestran como `$ 1.234.567,00`. Las cuentas que tu rol no ve se resumen en **Cuentas restringidas** o se omiten con una nota; los totales no cambian (guía **Seguridad por cuenta**).
+Los importes se muestran como `$ 1.234.567,00`. Las cuentas que tu rol no ve se resumen en **Cuentas restringidas** o se omiten con una nota; los totales no cambian (guía **Seguridad por cuenta**). La línea de cuentas restringidas muestra el saldo deudor y el saldo acreedor de sus cuentas, cada uno en su columna.
 
 ## Preguntarle al asistente
 

@@ -128,6 +128,43 @@ describe("statement reports", () => {
     }
   });
 
+  it("trial balance with restricted accounts of both natures keeps each side: six totals equal to the admin's, opening and closing", async () => {
+    // 5105 is a debit account with movement; 3105 a credit account with an opening entry (period 1 entry, opening for period 2).
+    const restrict = (code: string, access: "restricted" | "open") => async () =>
+      h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: await accountId(code), access, grants: [] });
+    await restrict("5105", "restricted")();
+    await restrict("3105", "restricted")();
+    try {
+      for (const level of [4, 6]) {
+        const admin = await trial(h.admin, 2, 3, { level, includeClosing: true });
+        const aux = await trial(h.auxiliar, 2, 3, { level, includeClosing: true });
+        for (const field of MONEY) expect(aux.aggregates[field], `${field} at level ${level}`).toBe(admin.aggregates[field]);
+        const locked = aux.rows.filter((r) => r.account_code === "🔒");
+        expect(locked).toHaveLength(1);
+        expect(locked[0]).toMatchObject({ n: 2, opening_debit: 0, opening_credit: 10_000, debit: 800 + 0, credit: 0, closing_debit: 800, closing_credit: 10_000 });
+      }
+    } finally {
+      await restrict("5105", "open")();
+      await restrict("3105", "open")();
+    }
+  });
+
+  it("libro mayor keeps each side of the restricted row at level 2", async () => {
+    await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: await accountId("31"), access: "restricted", grants: [] });
+    await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: await accountId("51"), access: "restricted", grants: [] });
+    try {
+      const params = { period: await periodId(2), level: 2 };
+      const admin = await report(h.admin, "accounting.ledger", params);
+      const aux = await report(h.auxiliar, "accounting.ledger", params);
+      for (const field of MONEY) expect(aux.aggregates[field], field).toBe(admin.aggregates[field]);
+      const locked = aux.rows.find((r) => r.account_code === "🔒")!;
+      expect(locked).toMatchObject({ n: 2, opening_credit: 10_000, closing_credit: 10_000, closing_debit: 800 });
+    } finally {
+      await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: await accountId("31"), access: "open", grants: [] });
+      await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: await accountId("51"), access: "open", grants: [] });
+    }
+  });
+
   it("balance sheet at October: assets = liabilities + equity + result; comparative column from December previous year", async () => {
     await h.run(h.admin, "accounting.fiscal_year.open", { year: year - 1 });
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
