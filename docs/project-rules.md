@@ -1,6 +1,6 @@
 # ERP-IA · Rules of the project
 
-Date: 2026-10-29 (rules 16, 20, 21, 37 updated) · These rules bind every phase, every module and every contributor (human or agent). They come from the design (`docs/superpowers/specs/2026-10-26-erp-ia-design.md`), the phase 1 plan's Global Constraints and the owner decisions of 2026-10-27/28. When a rule and a convenience conflict, the rule wins; changing a rule is an owner decision recorded in the design's §22.
+Date: 2026-10-30 (rules 24, 30 updated; 16, 20, 21, 37 on 2026-10-29) · These rules bind every phase, every module and every contributor (human or agent). They come from the design (`docs/superpowers/specs/2026-10-26-erp-ia-design.md`), the phase 1 plan's Global Constraints and the owner decisions of 2026-10-27/28. When a rule and a convenience conflict, the rule wins; changing a rule is an owner decision recorded in the design's §22.
 
 ## 1. Architecture
 1. **One process registry.** Every state change is a registered process executed through `runProcess`. No module code writes tables outside a process handler. The UI, the assistant, background agents, the scheduler and the public API call the same processes. The assistant has no tool that is not a registered process.
@@ -32,7 +32,7 @@ Date: 2026-10-29 (rules 16, 20, 21, 37 updated) · These rules bind every phase,
 21. Every record opens in the record frame: title with N.º and UUID, open-in-new-browser-tab, tabs `Datos · Contactos · Fotos · Datos adicionales · Archivos` as the entity needs, status footer. Every entity text box has the magnifier for the advanced filter. Every reference to a record of another entity shown anywhere in the UI (grids, forms, audit, assistant results, home) is a link to that record's page.
 22. Files: drag-and-drop and chooser, a tag per file, admin-defined required files per entity, confirmation before removal, 25 MB per file, signed downloads.
 23. Money renders as `$ 1.234.567,00` (es-CO, two decimals, right-aligned, tabular figures); inputs show raw digits while editing.
-24. Spanish (Latam) copy everywhere; every string goes through `packages/i18n` with an `en` catalogue of the same keys. Fonts Source Sans 3 and JetBrains Mono; 36 px grid rows; 44 px minimum touch targets on POS and mobile.
+24. Spanish (Latam) copy everywhere; every string goes through `packages/i18n` with an `en` catalogue of the same keys; registry keys live in their kind's namespace, a module's page copy in the module's namespace (`accounting.*`, owner 2026-10-30). Fonts Source Sans 3 and JetBrains Mono; 36 px grid rows; 44 px minimum touch targets on POS and mobile.
 25. Nothing changes under the user's feet: suggested or promoted UIs are offered and activated only on acceptance; the home layout is the user's own and resettable.
 
 ## 5. AI
@@ -40,7 +40,7 @@ Date: 2026-10-29 (rules 16, 20, 21, 37 updated) · These rules bind every phase,
 27. Every LLM call is logged with cost per user and company. Token allowance per seat, metered above it, per-company cap the admin can raise; when the cap is hit the assistant answers consult questions only.
 28. Background agents run as the audience role's permissions, never above them; their recommendations are offered, never executed without the user's accept.
 29. Statistics detect, the model composes: adaptive proposals and recommendations are built from evidence computed in SQL; the model only writes the artifact and the explanation inside a validated schema.
-30. A growing evaluation set of Spanish prompts → expected tool calls runs in CI.
+30. A growing evaluation set of Spanish prompts → expected tool calls runs in CI: structurally and on the mock model on every push, against the policy model nightly when the gateway secret is set (every core case and ≥ 90 % overall must pass; owner 2026-10-30).
 
 ## 6. Quality and workflow
 31. Test first: each task starts with a failing test (Vitest unit, integration against the Docker Supabase stack, Playwright end to end); a task is done when its tests pass and a fresh reviewer approves it.
