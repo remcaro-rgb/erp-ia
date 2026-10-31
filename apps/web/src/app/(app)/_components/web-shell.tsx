@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
-import { AppShell, themeScript, type TabsSnapshot, type ThemeMode } from "@erp/ui";
+import { AppShell, themeScript, UnsavedProvider, type TabsSnapshot, type ThemeMode, type UnsavedState } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
 import { disableOwnMfaAction } from "@/lib/auth/mfa-actions";
@@ -11,8 +11,30 @@ import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import { installCapture, noteRoute } from "@/lib/support/capture";
 import type { ShellData } from "@/lib/shell/load";
-import { guardedNavigate } from "./leave-guard";
+import { guardedNavigate, useLeaveGuard } from "./leave-guard";
 import { useStepUpAction } from "./use-step-up";
+
+/**
+ * The record forms with unsaved changes (UX-OD-4), reported by the forms while they are mounted. While any exists the leave
+ * guard holds navigation, the tab close, the company switch and the sign-out behind "Guardar · Descartar · Cancelar", and the
+ * browser asks on refresh or close. `dialog` is the question to render while one waits.
+ */
+function useUnsavedBridge() {
+  const forms = useRef(new Map<string, UnsavedState>());
+  const [count, setCount] = useState(0);
+  const report = useCallback((id: string, state: UnsavedState | null) => {
+    if (state) forms.current.set(id, state);
+    else forms.current.delete(id);
+    setCount(forms.current.size);
+  }, []);
+  const save = useCallback(async () => {
+    for (const form of [...forms.current.values()]) if (!(await form.save())) return false;
+    return true;
+  }, []);
+  const dialog = useLeaveGuard(count, { save });
+  const value = useMemo(() => ({ report, hasUnsaved: count > 0 }), [report, count]);
+  return { value, dialog };
+}
 
 /** Tabs change in bursts (open, open, close): save the last state once things settle. */
 const SAVE_TABS_AFTER_MS = 800;
@@ -30,6 +52,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<PendingSave | null>(null);
   // "Verificación en dos pasos" of the user menu: kernel.user.mfa.disable through the step-up flow every sensitive run uses.
+  const unsaved = useUnsavedBridge();
   const { run: runWithStepUp, prompt: mfaStepUpPrompt, cancel: cancelMfaStepUp } = useStepUpAction();
 
   // The saved theme on <html> before the first paint of a server render; a client render applies it in the shell.
@@ -73,6 +96,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
   }, []);
 
   return (
+    <UnsavedProvider value={unsaved.value}>
     <AppShell
       company={data.company}
       companies={data.companies}
@@ -92,14 +116,22 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       onAssistantOpenChange={(open, savedAt) => void saveShellPrefAction({ key: "assistant.open", value: open, savedAt })}
       onDianHintsChange={(on, savedAt) => void saveShellPrefAction({ key: "forms.dian_hints", value: on, savedAt })}
       onTabsChange={saveTabs}
-      onSwitchCompany={async (companyId) => {
-        // The pending tabs belong to the company being left: store them there before the claims change.
-        await flush();
-        // A copy on its way to a create form ("Duplicar") belongs to the company being left.
-        clearCloneHandoff();
-        await setActiveCompany(companyId);
-        router.refresh();
-      }}
+      confirmLeave={guardedNavigate}
+      onSwitchCompany={(companyId) =>
+        // Unsaved changes belong to the company being left: the question comes before the claims change, never after.
+        new Promise<void>((resolve) =>
+          guardedNavigate(() => {
+            void (async () => {
+              // The pending tabs belong to the company being left: store them there before the claims change.
+              await flush();
+              // A copy on its way to a create form ("Duplicar") belongs to the company being left.
+              clearCloneHandoff();
+              await setActiveCompany(companyId);
+              router.refresh();
+            })().finally(resolve);
+          }),
+        )
+      }
       mfa={data.mfa}
       mfaStepUpPrompt={mfaStepUpPrompt}
       onCancelMfaStepUp={cancelMfaStepUp}
@@ -115,13 +147,21 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
         }
         return result;
       }}
-      signOutAction={async () => {
-        // Nothing of this session's records stays in the tab's memory.
-        clearCloneHandoff();
-        await signOut();
-      }}
+      signOutAction={() =>
+        new Promise<void>((resolve) =>
+          guardedNavigate(() => {
+            // Nothing of this session's records stays in the tab's memory.
+            clearCloneHandoff();
+            void signOut().finally(resolve);
+          }),
+        )
+      }
     >
       {children}
     </AppShell>
+    {unsaved.dialog && (
+      <div className="fixed inset-x-3 bottom-6 z-[70] mx-auto flex max-w-[640px] rounded-lg border border-line bg-surface p-3 text-text shadow-[0_10px_30px_var(--shadow)]">{unsaved.dialog}</div>
+    )}
+    </UnsavedProvider>
   );
 }

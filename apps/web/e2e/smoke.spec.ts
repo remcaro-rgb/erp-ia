@@ -99,7 +99,7 @@ test.describe("phase 1 smoke on the demo company", () => {
     await expect(page.locator("header").first().getByRole("button", { name: /Café del Norte/ })).toBeVisible();
 
     // Terceros from the module bar opens its tab; the name filter finds Éxito on the server.
-    await page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Terceros" }).click();
+    await page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("link", { name: "Terceros" }).click();
     await expect(page).toHaveURL(/\/parties$/);
     await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).getByRole("button", { name: "Terceros", exact: true })).toHaveAttribute("aria-current", "page");
     const terceros = page.getByRole("region", { name: "Terceros" });

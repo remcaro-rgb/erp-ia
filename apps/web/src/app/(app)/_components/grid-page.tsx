@@ -78,6 +78,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
         initialState={initialState}
         baseFilters={baseFilters}
         onRowOpen={openRow}
+        emptyAction={data.canCreate ? <button type="button" className="erp-btn erp-btn--primary" onClick={openNew}>{t("grid.new")}</button> : undefined}
         headerExtra={data.partyScope ? <PartyScopeSwitches scope={data.partyScope} value={switches} onChange={setSwitches} /> : null}
         toolbar={
           <>

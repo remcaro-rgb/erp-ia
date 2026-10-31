@@ -24,6 +24,9 @@ export interface ShellNav {
   creates: ShellCreate[];
 }
 
+/** The palette offers only `<module>.<noun>.create` (owner 2026-10-31, UX-OD-5): from a template, reversals and openings stay on their screens. */
+const CREATE_NAME = /^[a-z_]+\.[a-z_]+\.create$/;
+
 /** The kernel is the platform (Sistema: administration, AI usage): always entitled, listed after the modules. */
 const PLATFORM = "kernel";
 
@@ -32,9 +35,15 @@ const shellModules = (registry: Registry) => [...registry.modules().filter((m) =
 
 /** Every menu item of a module: its navigation plus the ones its features unlock, once each, in manifest order. */
 function moduleItems(mod: ReturnType<Registry["modules"]>[number]): NavItem[] {
-  const items = new Map<string, NavItem>();
-  for (const item of [...mod.navigation, ...mod.features.flatMap((f) => f.nav ?? [])]) if (!items.has(item.id)) items.set(item.id, item);
-  return [...items.values()];
+  // A feature lists its group children flat (`FeatureDef.nav`): those already sit under their group, so ids are compared across the whole tree.
+  const seen = new Set(flattenNav(mod.navigation).map((i) => i.id));
+  const items = [...mod.navigation];
+  for (const item of mod.features.flatMap((f) => f.nav ?? [])) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    items.push(item);
+  }
+  return items;
 }
 
 /** The keys `buildShellNav` needs resolved: entitlements to check and processes to ask permission for. */
@@ -86,7 +95,7 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
       const feature = mod.features.find((f) => f.id === item.feature);
       for (const processId of feature?.processes ?? []) {
         const process = registry.process(processId);
-        if (process.kind !== "create" || !access.runnable.has(processId) || creates.some((c) => c.processId === processId)) continue;
+        if (process.kind !== "create" || !CREATE_NAME.test(processId) || !access.runnable.has(processId) || creates.some((c) => c.processId === processId)) continue;
         const stem = processId.slice(0, processId.lastIndexOf("."));
         const noun = stem.slice(stem.indexOf(".") + 1);
         const target = visible.find((v) => v.feature === item.feature && v.id.startsWith(`${mod.id}.${noun.slice(0, -1)}`));

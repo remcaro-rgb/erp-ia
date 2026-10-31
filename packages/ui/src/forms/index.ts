@@ -4,6 +4,7 @@ export { ProductForm } from "./ProductForm";
 export type { ProductFormProps } from "./ProductForm";
 export { CategoryForm } from "./CategoryForm";
 export type { CategoryFormProps } from "./CategoryForm";
+export { ProcessId } from "./ProcessId";
 export { StepUpPrompt } from "./StepUpPrompt";
 export type { StepUpPromptProps } from "./StepUpPrompt";
 export { useSaveFlow } from "./use-save";
@@ -16,3 +17,5 @@ export { margin, productDraft, productInput, taxesOverridden, withCategory } fro
 export type { CategoryOption, IdSchemeOption, ProductDraft, ProductTables } from "./product-form-model";
 export { categoryDraft, categoryInput } from "./category-form-model";
 export type { CategoryDraft } from "./category-form-model";
+export { UnsavedProvider, useHasUnsaved, useUnsavedChanges } from "./unsaved-guard";
+export type { UnsavedState } from "./unsaved-guard";

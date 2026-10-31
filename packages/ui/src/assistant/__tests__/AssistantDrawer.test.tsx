@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { AssistantDrawer } from "../AssistantDrawer";
@@ -130,5 +132,55 @@ describe("AssistantDrawer", () => {
     fireEvent.change(screen.getByLabelText("Escribe"), { target: { value: "x" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(/demasiado largo/i));
+  });
+});
+
+describe("AssistantDrawer on small screens (UX-OD-2, T6)", () => {
+  const quiet = vi.fn(async () => json({ conversationId: null, messages: [], cards: {} }));
+  const mount = (onClose = vi.fn()) => {
+    renderEs(<AssistantDrawer open context="x" screen={{ route: "/" }} onClose={onClose} fetcher={quiet as unknown as typeof fetch} />);
+    return onClose;
+  };
+
+  it("has its own Cerrar control, which closes it", () => {
+    const onClose = mount();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar asistente" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("Escape inside it closes it; a dialog's Escape (the confirmation, the palette) does not reach it", () => {
+    const onClose = mount();
+    fireEvent.keyDown(screen.getByLabelText("Escribe"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("the layout is CSS by width: a fixed overlay under 1280 px and a full-screen sheet under 768 px, safe areas and dvh included", () => {
+    const css = readFileSync(join(import.meta.dirname, "..", "..", "styles", "components.css"), "utf8");
+    expect(css).toMatch(/@media \(max-width: 1279px\)\s*\{[^}]*#erp-assistant:not\(\[hidden\]\)[^}]*position: fixed/);
+    const sheet = css.match(/@media \(max-width: 767px\)\s*\{[^@]*#erp-assistant:not\(\[hidden\]\)\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(sheet).toMatch(/inset: 0|top: 0/);
+    expect(sheet).toMatch(/100dvh/);
+    expect(sheet).toMatch(/env\(safe-area-inset-bottom\)/);
+  });
+});
+
+describe("AssistantDrawer as a modal sheet (review T6)", () => {
+  it("under 768 px the page behind is inert and the drawer is a modal dialog; wider, nothing changes", () => {
+    const listeners: (() => void)[] = [];
+    const mql = (matches: boolean) => ({ matches, addEventListener: (_: string, f: () => void) => listeners.push(f), removeEventListener: () => {} }) as unknown as MediaQueryList;
+    document.body.insertAdjacentHTML("afterbegin", '<header data-bar></header><main id="erp-main"></main>');
+    const spy = vi.spyOn(window, "matchMedia").mockImplementation(() => mql(true));
+    const quiet = vi.fn(async () => json({ conversationId: null, messages: [], cards: {} }));
+    renderEs(<AssistantDrawer open context="x" screen={{ route: "/" }} fetcher={quiet as unknown as typeof fetch} />);
+    expect(document.getElementById("erp-main")!.hasAttribute("inert")).toBe(true);
+    expect(screen.getByRole("dialog", { name: "Asistente" }).getAttribute("aria-modal")).toBe("true");
+    cleanup();
+    expect(document.getElementById("erp-main")!.hasAttribute("inert")).toBe(false);
+    spy.mockImplementation(() => mql(false));
+    renderEs(<AssistantDrawer open context="x" screen={{ route: "/" }} fetcher={quiet as unknown as typeof fetch} />);
+    expect(document.getElementById("erp-main")!.hasAttribute("inert")).toBe(false);
+    spy.mockRestore();
+    document.querySelector("header[data-bar]")?.remove();
+    document.getElementById("erp-main")?.remove();
   });
 });

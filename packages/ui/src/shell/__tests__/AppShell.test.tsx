@@ -63,7 +63,7 @@ describe("AppShell", () => {
   it("shows the active module's items next to the module button, the current one marked", () => {
     shell("/parties");
     expect(screen.getByRole("button", { name: /^Núcleo/ })).toBeTruthy();
-    const items = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getAllByRole("button");
+    const items = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getAllByRole("link");
     expect(items.map((b) => b.textContent)).toEqual(["Inicio", "Terceros", "Productos", "Categorías"]);
     expect(items[1]!.getAttribute("aria-current")).toBe("page");
     expect(screen.getByText("LM")).toBeTruthy();
@@ -86,7 +86,7 @@ describe("AppShell", () => {
     shell("/parties", navigate);
     const tabs = screen.getByRole("navigation", { name: "Pestañas abiertas" });
     expect(within(tabs).getByRole("button", { name: "Terceros" }).getAttribute("aria-current")).toBe("page");
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: "Productos" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Productos" }));
     expect(navigate).toHaveBeenCalledWith("/products");
   });
 
@@ -226,7 +226,7 @@ describe("AppShell", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
     // The bar switches to the chosen module even though the page shown belongs to Núcleo.
     expect(screen.getByRole("button", { name: /^Sistema/ })).toBeTruthy();
-    expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: "Usuarios" })).toBeTruthy();
+    expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Usuarios" })).toBeTruthy();
     // Its open tab comes to the front (the shell then navigates to it) instead of nothing happening.
     await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
   });
@@ -482,5 +482,64 @@ describe("AppShell, the DIAN hints preference", () => {
     writeCachedPref(storage, dianHintsStorageKey("u1"), "c1", { value: true, savedAt: 50 });
     renderEs(withForm({ storage, dianHints: { value: false, savedAt: 10 } }));
     expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
+  });
+});
+
+describe("AppShell, module context and tab titles (T7)", () => {
+  const accountingNav: NavItem[] = [
+    { id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users" },
+    { id: "accounting.entries", label: "nav.accounting.entries", href: "/accounting/entries", icon: "book-open" },
+    { id: "accounting.reports", label: "nav.accounting.reports", href: "/accounting/reports", icon: "file-bar-chart" },
+  ];
+  const modules = [
+    { id: "core", label: "nav.modules.core" },
+    { id: "accounting", label: "nav.modules.accounting" },
+  ];
+  const moduleNames = () => within(screen.getByRole("navigation", { name: "Menú del módulo" })).getAllByRole("link").map((b) => b.textContent);
+
+  it("a record page keeps the module of its entity: /r/accounting.entry/<id> shows Contabilidad", () => {
+    shell("/r/accounting.entry/0198-x", vi.fn(), { nav: accountingNav, modules });
+    expect(moduleNames()).toEqual(["Comprobantes", "Informes"]);
+  });
+
+  it("a record's tab is named after its entity, not Registro; a path with no menu item is not shown raw", () => {
+    shell("/r/accounting.entry/0198-x", vi.fn(), { nav: accountingNav, modules });
+    expect(tabNames()).toContain("Comprobante");
+    cleanup();
+    shell("/accounting/setup", vi.fn(), { nav: accountingNav, modules });
+    expect(tabNames()).toContain("Configurar contabilidad");
+    cleanup();
+    shell("/accounting/reports/trial-balance", vi.fn(), { nav: accountingNav, modules });
+    expect(tabNames()).toContain("Informes");
+  });
+
+  it("a tab whose page redirects is replaced by the page it lands on, not kept beside it", () => {
+    const saved = { value: { tabs: [{ id: "home", title: "Inicio", href: "/", kind: "home", pinned: true }, { id: "/accounting/setup", title: "Configurar contabilidad", href: "/accounting/setup", kind: "grid" }], activeId: "home" }, savedAt: 1 };
+    const navigate = vi.fn();
+    const view = shell("/", navigate, { nav: accountingNav, modules, initialTabs: saved });
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Pestañas abiertas" })).getByRole("button", { name: "Configurar contabilidad" }));
+    expect(navigate).toHaveBeenCalledWith("/accounting/setup");
+    // The server redirected: the shell now shows /accounting/entries.
+    view.rerender(shellElement("/accounting/entries", navigate, { nav: accountingNav, modules, initialTabs: saved }));
+    expect(tabNames()).toEqual(["Inicio", "Comprobantes"]);
+  });
+});
+
+describe("AppShell, ⌘K identities (T2)", () => {
+  it("an item listed twice in the navigation appears once in the palette", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dup: NavItem[] = [...nav, nav[0]!];
+    shell("/", vi.fn(), { nav: dup });
+    fireEvent.click(screen.getByLabelText("Comando"));
+    const labels = screen.getAllByRole("option").map((o) => o.textContent ?? "");
+    expect(labels.filter((l) => l.includes("Terceros"))).toHaveLength(1);
+    spy.mockRestore();
+  });
+
+  it("ordinary navigation accumulates tabs: /parties then /products then /categories leaves all open", () => {
+    const view = shell("/parties");
+    view.rerender(shellElement("/products"));
+    view.rerender(shellElement("/categories"));
+    expect(tabNames()).toEqual(["Inicio", "Terceros", "Productos", "Categorías"]);
   });
 });

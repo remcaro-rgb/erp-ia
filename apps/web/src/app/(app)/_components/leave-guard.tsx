@@ -61,9 +61,10 @@ export function guardedNavigate(go: () => void): void {
 
 /**
  * Guards the screen while `count` changes are staged. Answers the in-page question to render (an alertdialog with
- * "Seguir editando" and "Salir sin aplicar") while a navigation waits for it, else null.
+ * "Seguir editando" and "Salir sin aplicar") while a navigation waits for it, else null. A form with unsaved changes
+ * passes `save` (UX-OD-4): the question is then "Guardar · Descartar · Cancelar", and Guardar leaves only when the save worked.
  */
-export function useLeaveGuard(count: number): ReactNode {
+export function useLeaveGuard(count: number, options: { save?: () => Promise<boolean> } = {}): ReactNode {
   const t = useTranslations();
   const router = useRouter();
   const base = useId();
@@ -72,6 +73,9 @@ export function useLeaveGuard(count: number): ReactNode {
   const released = useRef(false);
   /** Ends the walk back past the screen (`goBackPast`) as the screen unmounts. */
   const stopWalk = useRef<(() => void) | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const save = options.save;
   const dirty = count > 0;
   // Nothing staged any more (applied or discarded): a question still open has no reason left.
   if (!dirty && waiting) setWaiting(null);
@@ -131,13 +135,26 @@ export function useLeaveGuard(count: number): ReactNode {
   }, [dirty, router]);
 
   if (!waiting || !dirty) return null;
-  const stay = () => setWaiting(null);
+  const stay = () => {
+    setSaveFailed(false);
+    setWaiting(null);
+  };
   const leave = () => {
     const { go } = waiting;
     released.current = true;
     active = null;
     setWaiting(null);
     go();
+  };
+  const saveAndLeave = async () => {
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      if (await save!()) leave();
+      else setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
   };
   return (
     <div
@@ -149,17 +166,33 @@ export function useLeaveGuard(count: number): ReactNode {
         if (event.key === "Escape") stay();
       }}
     >
-      <b id={`${base}-title`}>{t("common.admin.leave_title")}</b>
+      <b id={`${base}-title`}>{save ? t("common.unsaved.title") : t("common.admin.leave_title")}</b>
       <span id={`${base}-body`} className="erp-small erp-muted erp-grow">
-        {t("common.admin.leave_body", { count })}
+        {save ? (saveFailed ? t("common.unsaved.failed") : saving ? t("common.unsaved.saving") : t("common.unsaved.body")) : t("common.admin.leave_body", { count })}
       </span>
-      {/* The safe answer has the focus. */}
-      <button type="button" className="erp-btn erp-btn--primary" autoFocus onClick={stay}>
-        {t("common.admin.leave_stay")}
-      </button>
-      <button type="button" className="erp-btn" onClick={leave}>
-        {t("common.admin.leave_go")}
-      </button>
+      {save ? (
+        <>
+          <button type="button" className="erp-btn erp-btn--primary" autoFocus disabled={saving} onClick={() => void saveAndLeave()}>
+            {t("common.unsaved.save")}
+          </button>
+          <button type="button" className="erp-btn" disabled={saving} onClick={leave}>
+            {t("common.unsaved.discard")}
+          </button>
+          <button type="button" className="erp-btn" disabled={saving} onClick={stay}>
+            {t("common.unsaved.cancel")}
+          </button>
+        </>
+      ) : (
+        <>
+          {/* The safe answer has the focus. */}
+          <button type="button" className="erp-btn erp-btn--primary" autoFocus onClick={stay}>
+            {t("common.admin.leave_stay")}
+          </button>
+          <button type="button" className="erp-btn" onClick={leave}>
+            {t("common.admin.leave_go")}
+          </button>
+        </>
+      )}
     </div>
   );
 }

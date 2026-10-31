@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineModule, defineProcess, kernelModule, loadModules, Registry, type NavItem } from "@erp/kernel";
 import { core } from "@erp/module-core";
+import { accounting } from "@erp/module-accounting";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
 // What the shell offers a caller (design §19a, rule 4, rule 13): modules the company is entitled to, menu items
@@ -123,5 +124,42 @@ describe("shell nav groups", () => {
     const shell = buildShellNav(grouped, none);
     expect(grp(shell)).toEqual([]);
     expect(shell.modules.map((m) => m.id)).not.toContain("grp");
+  });
+});
+
+describe("a feature's menu items already listed as group children (UX-OD-1, T1)", () => {
+  const reg = new Registry();
+  loadModules(reg, [kernelModule, core, accounting]);
+  const k = shellAccessKeys(reg);
+  const shell = buildShellNav(reg, { entitled: new Set(k.entitlements), runnable: new Set(k.processes) });
+  const accountingNav = shell.nav.filter((i) => i.id.startsWith("accounting."));
+
+  it("accounting lists the six bar items with the six masters only under Maestros", () => {
+    expect(accountingNav.map((i) => i.id)).toEqual(["accounting.entries", "accounting.movements", "accounting.masters", "accounting.periods", "accounting.reports", "accounting.posting"]);
+    expect(accountingNav.find((i) => i.id === "accounting.masters")?.children?.map((c) => c.id)).toEqual([
+      "accounting.accounts", "accounting.cost_centers", "accounting.open_auxiliaries", "accounting.items", "accounting.business_units", "accounting.journals",
+    ]);
+  });
+
+  it("every item id of the shell appears once, groups and children together", () => {
+    const flat = shell.nav.flatMap((i) => [i, ...(i.children ?? [])]).map((i) => i.id);
+    expect(new Set(flat).size).toBe(flat.length);
+  });
+});
+
+describe("⌘K create commands (UX-OD-5, T2)", () => {
+  const reg = new Registry();
+  loadModules(reg, [kernelModule, core, accounting]);
+  const k = shellAccessKeys(reg);
+  const { creates } = buildShellNav(reg, { entitled: new Set(k.entitlements), runnable: new Set(k.processes) });
+
+  it("only processes named <module>.<noun>.create are offered: never from_template, reverse or the openings", () => {
+    expect(creates.map((c) => c.processId).every((id) => /^[a-z_]+\.[a-z_]+\.create$/.test(id))).toBe(true);
+    expect(creates.some((c) => /from_template|reverse|opening|seed/.test(c.processId))).toBe(false);
+  });
+
+  it("each command has its own label and its own destination, so the palette never shows three 'Crear comprobante'", () => {
+    expect(new Set(creates.map((c) => c.labelKey)).size).toBe(creates.length);
+    expect(creates.filter((c) => c.labelKey === "nav.create.accounting.entry")).toHaveLength(1);
   });
 });

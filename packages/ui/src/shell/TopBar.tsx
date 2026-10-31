@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@erp/ui/components/ui/dropdown-menu";
+import { MobileMenu } from "./MobileMenu";
 import { ModuleBar } from "./ModuleBar";
 import { ThemeToggle } from "./ThemeToggle";
 import { nextTheme } from "./theme";
@@ -49,7 +50,8 @@ export interface TopBarProps {
 const menuClass = "min-w-[240px] rounded-lg border border-line bg-surface p-1.5 text-text shadow-[0_10px_30px_var(--shadow)]";
 const itemClass = "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-[13px] text-text focus:bg-head data-[disabled]:opacity-70";
 const headClass = "px-2.5 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-[.04em] text-text-muted uppercase";
-const barButton = "rounded-md px-2.5 py-1.5 text-[13px] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-focus";
+const TOUCH = "max-md:min-h-11 [@media(pointer:coarse)]:min-h-11";
+const barButton = `${TOUCH} rounded-md px-2.5 py-1.5 text-[13px] whitespace-nowrap focus-visible:outline-2 focus-visible:outline-focus`;
 
 export const initialsOf = (name: string): string =>
   name
@@ -71,14 +73,17 @@ export function TopBar(props: TopBarProps) {
   const themeName = s(`theme_${props.theme}`).toLowerCase();
 
   return (
-    <header data-bar className="relative z-10 flex h-12 shrink-0 items-center gap-2.5 bg-bar px-4 text-bar-text">
-      <div className="mr-1.5 flex items-center gap-2 text-[15px] font-bold whitespace-nowrap text-white">
+    <header data-bar className="relative z-10 flex h-12 shrink-0 items-center gap-1.5 bg-bar px-3 text-bar-text sm:gap-2.5 sm:px-4">
+      <div className="mr-1.5 flex shrink-0 items-center gap-2 text-[15px] font-bold whitespace-nowrap text-white">
         <i aria-hidden="true" className="inline-block size-[22px] rounded-md bg-focus" />
-        {s("brand")}
+        <span className="hidden sm:inline">{s("brand")}</span>
       </div>
 
       <DropdownMenu>
-        <DropdownMenuTrigger className={cn(barButton, "bg-bar-ctl text-white")}>{company.name} ▾</DropdownMenuTrigger>
+        <DropdownMenuTrigger className={cn(barButton, "flex min-w-[44px] max-w-[96px] items-center bg-bar-ctl text-white sm:max-w-[200px]")} title={company.name}>
+          <span className="truncate">{company.name}</span>
+          <span aria-hidden="true" className="ml-1 shrink-0">▾</span>
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={menuClass}>
           <DropdownMenuLabel className={headClass}>{s("active_company")}</DropdownMenuLabel>
           {companies.map((c) => (
@@ -102,7 +107,7 @@ export function TopBar(props: TopBarProps) {
       </DropdownMenu>
 
       <DropdownMenu>
-        <DropdownMenuTrigger className={cn(barButton, "border border-bar-line bg-transparent text-bar-text")} title={s("modules")}>
+        <DropdownMenuTrigger className={cn(barButton, "hidden border border-bar-line bg-transparent text-bar-text lg:block")} title={s("modules")}>
           {active ? t(active.label) : s("modules")} ▾
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className={menuClass}>
@@ -117,6 +122,16 @@ export function TopBar(props: TopBarProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <MobileMenu
+        modules={modules}
+        itemsByModule={itemsByModule}
+        activeModuleId={active?.id}
+        onSelectModule={props.onSelectModule}
+        activeHref={activeHref}
+        onNavigate={props.onNavigate}
+        showHome={active?.id === modules[0]?.id}
+      />
+
       {active && (
         <ModuleBar
           items={(itemsByModule[active.id] ?? []).filter((item) => item.menu !== false)}
@@ -126,7 +141,7 @@ export function TopBar(props: TopBarProps) {
         />
       )}
 
-      <div className="grow" />
+      <div className="grow lg:hidden" />
 
       <label htmlFor="erp-cmd" className="sr-only">
         {s("command_label")}
@@ -140,15 +155,18 @@ export function TopBar(props: TopBarProps) {
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") props.onOpenPalette();
         }}
-        className="w-[200px] cursor-pointer rounded-md border border-bar-line bg-bar-ctl px-3 py-[7px] text-[13px] whitespace-pre text-white placeholder:text-bar-text focus-visible:outline-2 focus-visible:outline-focus"
+        className="w-[52px] min-w-0 shrink-0 sm:w-[120px] max-md:min-h-11 [@media(pointer:coarse)]:min-h-11 cursor-pointer lg:w-[200px] rounded-md border border-bar-line bg-bar-ctl px-3 py-[7px] text-[13px] whitespace-pre text-white placeholder:text-bar-text focus-visible:outline-2 focus-visible:outline-focus"
       />
 
-      <ThemeToggle mode={props.theme} onChange={props.onThemeChange} />
+      {/* Under 640 px the theme and the notifications live in the user menu (labelled), so the bar keeps the actions that fit. */}
+      <div className="hidden sm:contents">
+        <ThemeToggle mode={props.theme} onChange={props.onThemeChange} />
+      </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={s("notifications")}
-          className="relative grid size-[34px] shrink-0 place-items-center rounded-md border border-bar-line bg-transparent text-bar-text hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus"
+          className="relative hidden size-[34px] max-md:size-11 [@media(pointer:coarse)]:size-11 shrink-0 place-items-center rounded-md border sm:grid border-bar-line bg-transparent text-bar-text hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Bell aria-hidden="true" className="size-[18px]" />
           {(props.notificationCount ?? 0) > 0 && (
@@ -169,6 +187,7 @@ export function TopBar(props: TopBarProps) {
         type="button"
         onClick={props.onToggleAssistant}
         aria-expanded={props.assistantOpen ?? true}
+        id="erp-assistant-toggle"
         aria-controls="erp-assistant"
         aria-keyshortcuts="Control+/ Meta+/"
         title={s("assistant_toggle_title")}
@@ -180,7 +199,7 @@ export function TopBar(props: TopBarProps) {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={s("user_menu")}
-          className="grid size-[30px] shrink-0 place-items-center overflow-hidden rounded-full bg-focus text-xs font-bold text-bar focus-visible:outline-2 focus-visible:outline-white"
+          className="grid size-[30px] shrink-0 place-items-center overflow-hidden rounded-full max-md:size-11 [@media(pointer:coarse)]:size-11 bg-focus text-xs font-bold text-bar focus-visible:outline-2 focus-visible:outline-white"
         >
           {initialsOf(user.name)}
         </DropdownMenuTrigger>
@@ -188,6 +207,10 @@ export function TopBar(props: TopBarProps) {
           <DropdownMenuLabel className={headClass}>{user.name}</DropdownMenuLabel>
           <DropdownMenuItem disabled className={itemClass}>
             {[user.email, user.roles.join(", ")].filter(Boolean).join(" · ")}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled className={cn(itemClass, "sm:hidden")}>
+            {s("notifications")}
+            <span className="ml-auto text-xs text-text-muted">{(props.notificationCount ?? 0) > 0 ? props.notificationCount : s("notifications_empty")}</span>
           </DropdownMenuItem>
           {props.onOpenMfa && (
             <DropdownMenuItem className={itemClass} onSelect={props.onOpenMfa}>

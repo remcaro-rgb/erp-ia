@@ -49,7 +49,7 @@ test.describe("application shell", () => {
     await expect(bar).toHaveCSS("background-color", "rgb(30, 58, 138)");
     await expect(bar.getByRole("button", { name: /Auth company 0/ })).toBeVisible();
     await expect(bar.getByRole("button", { name: /^Núcleo/ })).toHaveAttribute("title", "Módulos");
-    const items = bar.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button");
+    const items = bar.getByRole("navigation", { name: "Menú del módulo" }).getByRole("link");
     await expect(items).toHaveText(["Inicio", "Terceros", "Productos", "Categorías"]);
     await expect(items.first()).toHaveAttribute("aria-current", "page");
 

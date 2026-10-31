@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { TabsBar } from "../TabsBar";
@@ -148,5 +150,13 @@ describe("TabsBar with many tabs", () => {
     expect(document.activeElement).toBe(title("Pantalla 6"));
     fireEvent.keyDown(title("Pantalla 6"), { key: "Delete" });
     expect(store.getState().tabs.some((t) => t.href === "/p6")).toBe(false);
+  });
+});
+
+describe("TabsBar touch targets (rule 24, T5)", () => {
+  it("the close control and the row grow to 44 px on coarse pointers and under 768 px, and stay compact otherwise", () => {
+    const source = readFileSync(join(import.meta.dirname, "..", "TabsBar.tsx"), "utf8");
+    expect(source).toMatch(/size-5 max-md:size-11 \[@media\(pointer:coarse\)\]:size-11/);
+    expect(source).toMatch(/h-9 shrink-0[^"]*max-md:h-12 \[@media\(pointer:coarse\)\]:h-12/);
   });
 });

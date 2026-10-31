@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { KeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@erp/ui/lib/utils";
@@ -117,46 +117,147 @@ function NavGroup({ group, activeHref, open, onOpenChange, onNavigate }: GroupPr
   );
 }
 
-/** The active module's items, in the top bar right next to the module button (prototype `renderModbar`). */
+/** A plain left click moves inside the shell; a modified click or the middle button is the browser's (new tab, rule 21). */
+export const isPlainClick = (event: ReactMouseEvent): boolean => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
+interface Entry {
+  id: string;
+  /** i18n key of the title. */
+  label: string;
+  icon: string;
+  href: string;
+  title: string;
+  kind: "home" | "grid";
+  badge?: number;
+  /** A group of the module's items, shown as a menu. */
+  group?: NavItem;
+}
+
+/**
+ * The active module's items, in the top bar right next to the module button (prototype `renderModbar`). Each item is a real
+ * link (open in a new tab with ⌘/Ctrl or the middle button). The items that do not fit move, in order, into a trailing
+ * "Más ▾" menu measured at runtime (owner 2026-10-31, UX-OD-1); a hidden copy of the row gives the widths.
+ */
 export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBarProps) {
   const t = useTranslations();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const leaf = (id: string, href: string, title: string, kind: "home" | "grid", badge?: number) => {
-    const on = isActiveHref(href, activeHref);
+  const entries: Entry[] = [
+    ...(showHome ? [{ id: "home", label: "nav.shell.home", icon: "home", href: "/", title: t("nav.shell.home"), kind: "home" as const }] : []),
+    ...items.map((item): Entry => ({ id: item.id, label: item.label, icon: item.icon, href: item.href, title: t(item.label), kind: "grid", ...(item.badge ? { badge: item.badge } : {}), ...(item.children ? { group: item } : {}) })),
+  ];
+  const signature = entries.map((e) => `${e.id}:${e.title}:${e.badge ?? ""}`).join("|");
+
+  const row = useRef<HTMLElement>(null);
+  const ghost = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(entries.length);
+  useLayoutEffect(() => {
+    const nav = row.current;
+    const copy = ghost.current;
+    if (!nav || !copy) return;
+    const measure = () => {
+      // The room for the entries is the nav's content box; the entries sit `gap` apart.
+      const style = getComputedStyle(nav);
+      const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      const gap = parseFloat(style.columnGap) || 0;
+      const available = nav.clientWidth - padding;
+      const widths = [...copy.querySelectorAll<HTMLElement>("[data-entry]")].map((el) => el.offsetWidth);
+      const moreWidth = copy.querySelector<HTMLElement>("[data-more]")?.offsetWidth ?? 0;
+      // No layout (not rendered, or a test): everything is shown.
+      if (available <= 0 || widths.every((w) => w === 0)) return setFit(widths.length || entries.length);
+      if (widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, widths.length - 1) <= available) return setFit(widths.length);
+      let used = 0;
+      let count = 0;
+      for (const width of widths) {
+        if (used + width + gap + moreWidth > available) break;
+        used += width + gap;
+        count++;
+      }
+      setFit(count);
+    };
+    measure();
+    // The web font changes the widths once it loads.
+    void document.fonts?.ready.then(measure);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    return () => observer.disconnect();
+    // The entries' identity and labels decide the widths.
+  }, [signature]);
+
+  const shown = entries.slice(0, fit);
+  const hidden = entries.slice(fit);
+  const more: NavItem | null =
+    hidden.length === 0
+      ? null
+      : {
+          id: "__more",
+          label: "nav.shell.more",
+          href: "#",
+          icon: "list",
+          children: hidden.flatMap((e): NavItem[] =>
+            e.group ? (e.group.children ?? []) : [{ id: e.id, label: e.label, href: e.href, icon: e.icon }],
+          ),
+        };
+
+  const link = (entry: Entry, hiddenCopy = false) => {
+    const on = isActiveHref(entry.href, activeHref);
     return (
-      <button
-        key={id}
-        type="button"
-        aria-current={on ? "page" : undefined}
-        onClick={() => onNavigate({ href, title, kind })}
-        className={cn(BAR_BUTTON, on && BAR_BUTTON_ON)}
+      <a
+        key={entry.id}
+        href={entry.href}
+        data-entry={hiddenCopy ? "" : undefined}
+        aria-current={on && !hiddenCopy ? "page" : undefined}
+        tabIndex={hiddenCopy ? -1 : undefined}
+        onClick={(event) => {
+          if (!isPlainClick(event)) return;
+          event.preventDefault();
+          onNavigate({ href: entry.href, title: entry.title, kind: entry.kind });
+        }}
+        className={cn(BAR_BUTTON, "inline-flex items-center", on && BAR_BUTTON_ON)}
       >
-        {title}
-        {badge ? (
-          <span className="erp-modbar-badge" aria-label={t("nav.shell.badge", { count: badge })}>
-            {badge}
+        {entry.title}
+        {entry.badge ? (
+          <span className="erp-modbar-badge" aria-label={t("nav.shell.badge", { count: entry.badge })}>
+            {entry.badge}
           </span>
         ) : null}
-      </button>
+      </a>
     );
   };
+  const groupTrigger = (entry: Entry) => (
+    <span key={entry.id} data-entry="" className={cn(BAR_BUTTON, "inline-flex h-full items-center gap-1")}>
+      {entry.title}
+      <ChevronDown className="size-3.5" aria-hidden="true" />
+    </span>
+  );
+
   return (
-    <nav aria-label={t("nav.shell.module_menu")} className="ml-1.5 flex items-stretch gap-0.5 self-stretch border-l border-bar-line pl-2.5">
-      {showHome && leaf("home", "/", t("nav.shell.home"), "home")}
-      {items.map((item) =>
-        item.children ? (
+    <nav ref={row} aria-label={t("nav.shell.module_menu")} className="relative ml-1.5 hidden min-w-0 flex-1 items-stretch gap-0.5 self-stretch border-l border-bar-line pl-2.5 lg:flex">
+      {shown.map((entry) =>
+        entry.group ? (
           <NavGroup
-            key={item.id}
-            group={item}
+            key={entry.id}
+            group={entry.group}
             activeHref={activeHref}
-            open={openGroup === item.id}
-            onOpenChange={(open) => setOpenGroup(open ? item.id : null)}
+            open={openGroup === entry.id}
+            onOpenChange={(open) => setOpenGroup(open ? entry.id : null)}
             onNavigate={onNavigate}
           />
         ) : (
-          leaf(item.id, item.href, t(item.label), "grid", item.badge)
+          link(entry)
         ),
       )}
+      {more && (
+        <NavGroup group={more} activeHref={activeHref} open={openGroup === "__more"} onOpenChange={(open) => setOpenGroup(open ? "__more" : null)} onNavigate={onNavigate} />
+      )}
+      {/* The widths of every entry and of the "Más" trigger, never seen or reached. */}
+      <div ref={ghost} aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 flex h-0 overflow-hidden whitespace-nowrap">
+        {entries.map((entry) => (entry.group ? groupTrigger(entry) : link(entry, true)))}
+        <span data-more="" className={cn(BAR_BUTTON, "inline-flex items-center gap-1")}>
+          {t("nav.shell.more")}
+          <ChevronDown className="size-3.5" aria-hidden="true" />
+        </span>
+      </div>
     </nav>
   );
 }

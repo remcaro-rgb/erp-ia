@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { cn } from "@erp/ui/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@erp/ui/components/ui/dialog";
+import { useHasUnsaved } from "../forms/unsaved-guard";
 import { useTabs } from "./tabs-store";
 import type { Tab } from "./types";
 
@@ -13,6 +14,8 @@ export interface TabsBarProps {
   onNew: () => void;
   /** A tab was activated by the user (the shell navigates to its href). */
   onActivate?: (tab: Tab) => void;
+  /** Runs `go` now, or after the screen with unsaved changes lets it (Guardar · Descartar · Cancelar). Closing the shown tab goes through it. */
+  confirmLeave?: (go: () => void) => void;
 }
 
 /**
@@ -21,10 +24,14 @@ export interface TabsBarProps {
  * "Cerrar todas" closes everything but Inicio after a confirmation. The tabs scroll sideways when they do not fit
  * (OD-6) and the active one is kept in view; "+" and "Cerrar todas" stay pinned at the right, outside the scroll.
  */
-export function TabsBar({ onNew, onActivate }: TabsBarProps) {
+export function TabsBar({ onNew, onActivate, confirmLeave }: TabsBarProps) {
   const t = useTranslations("nav.shell");
   const tc = useTranslations("common");
-  const { tabs, activeId, activate, close, closeAll } = useTabs();
+  const { tabs, activeId, activate, close: closeNow, closeAll: closeAllNow } = useTabs();
+  const unsaved = useHasUnsaved();
+  // Only the shown tab can hold unsaved changes: closing it (or every tab) asks first.
+  const close = (id: string) => (confirmLeave && id === activeId ? confirmLeave(() => closeNow(id)) : closeNow(id));
+  const closeAll = () => (confirmLeave ? confirmLeave(closeAllNow) : closeAllNow());
   const [confirming, setConfirming] = useState(false);
   const titleOf = (tab: Tab) => (tab.kind === "home" ? t("home") : tab.title);
   const closable = tabs.filter((tab) => !tab.pinned);
@@ -68,7 +75,7 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
       ref={row}
       data-tabs-row=""
       aria-label={t("tabs.label")}
-      className="flex h-9 shrink-0 items-stretch gap-0.5 border-b border-tabrow-line bg-tabrow px-3"
+      className="flex h-9 shrink-0 items-stretch gap-0.5 max-md:h-12 [@media(pointer:coarse)]:h-12 border-b border-tabrow-line bg-tabrow px-3"
     >
       <div data-tabs-scroll="" className="-mb-px flex min-w-0 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab, index) => {
@@ -95,6 +102,12 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
                 className="h-full rounded-sm bg-transparent focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
               >
                 {titleOf(tab)}
+                {on && unsaved && (
+                  <>
+                    <i aria-hidden="true" className="erp-unsaved-dot ml-1.5" />
+                    <span className="sr-only"> {tc("unsaved.tab")}</span>
+                  </>
+                )}
               </button>
               {!tab.pinned && (
                 <button
@@ -103,7 +116,7 @@ export function TabsBar({ onNew, onActivate }: TabsBarProps) {
                   // A 20 px mouse target; from the keyboard, Delete on the tab closes it (one stop per tab, not two).
                   tabIndex={-1}
                   onClick={() => close(tab.id)}
-                  className="-mr-1.5 grid size-5 place-items-center rounded-sm text-xs opacity-60 hover:bg-tabrow-hover hover:opacity-100"
+                  className="-mr-1.5 grid size-5 max-md:size-11 [@media(pointer:coarse)]:size-11 place-items-center rounded-sm text-xs opacity-60 hover:bg-tabrow-hover hover:opacity-100"
                 >
                   ✕
                 </button>

@@ -35,6 +35,12 @@ export type AppRecordFrameProps = Omit<RecordFrameProps, "onDuplicate" | "duplic
 export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitle, ...frame }: AppRecordFrameProps) {
   const t = useTranslations();
   const open = useTabs((s) => s.open);
+  const rename = useTabs((s) => s.rename);
+  // The tab of a stored record is named by the record itself, as its page learns it (the shell only knew the entity).
+  const frameTitle = typeof frame.title === "string" ? frame.title : null;
+  useEffect(() => {
+    if (recordId !== null && frameTitle) rename(recordHref(entity, recordId), frameTitle);
+  }, [entity, recordId, frameTitle, rename]);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   // The create form shows the copy handed to its entity and takes it once shown; leaving the form (the router hides a

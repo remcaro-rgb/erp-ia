@@ -65,6 +65,8 @@ export interface AppShellProps {
   initialTabs?: Saved<unknown> | null;
   /** Every change of the tabs with its time, to save them (the shell already caches them in localStorage). */
   onTabsChange?: (snapshot: TabsSnapshot, savedAt: number) => void;
+  /** Asks before the shown screen's tab is closed while it has unsaved changes; runs `go` when it may (Guardar · Descartar · Cancelar). */
+  confirmLeave?: (go: () => void) => void;
   onSwitchCompany?: (companyId: string) => void;
   signOutAction?: () => void | Promise<void>;
   /** The caller's second step (design §22.19); with `onDisableMfa`, the user menu offers "Verificación en dos pasos". */
@@ -81,6 +83,8 @@ export interface AppShellProps {
 
 /** Below this viewport width the assistant drawer starts closed (OD-10: it would leave the page under ~920 px at 1366). */
 const ASSISTANT_MIN_WIDTH = 1280;
+/** Under this width the assistant is a full-screen sheet (UX-OD-2). */
+const SHEET_BELOW = 768;
 
 /** Grid and admin routes use the tighter page padding (OD-1); the home and the record page keep v5's. */
 const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/");
@@ -88,6 +92,38 @@ const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("
 function readBooleanPref(storage: Storage | null, key: string, companyId: string): Saved<boolean> | null {
   const cached = readCachedPref(storage, key, companyId);
   return cached && typeof cached.value === "boolean" ? { value: cached.value, savedAt: cached.savedAt } : null;
+}
+
+/** The palette's options keyed by id: an id never appears twice (React keys, one active option). */
+const uniqueById = (items: CommandItem[]): CommandItem[] => [...new Map(items.map((item) => [item.id, item])).values()];
+
+/** The entity id of a record page `/r/<entity>/<id>`, else undefined. */
+const recordEntityOf = (href: string): string | undefined => /^\/r\/([a-z_]+\.[a-z_]+)\//.exec(href)?.[1];
+
+/** Pages with no menu item of their own (the nav label of a covering item, an entity's noun, or the page's name) never show as a raw path. */
+const ROUTE_TITLES: Record<string, string> = {
+  "/accounting/setup": "nav.shell.routes.accounting_setup",
+  "/admin/roles": "nav.shell.routes.admin_roles",
+  "/admin/users": "nav.shell.routes.admin_users",
+  "/admin/fields": "nav.shell.routes.admin_fields",
+  "/admin/extra": "nav.shell.routes.admin_extra",
+  "/admin/required-files": "nav.shell.routes.admin_required_files",
+  "/admin/sensitive": "nav.shell.routes.admin_sensitive",
+  "/admin/verifiers": "nav.shell.routes.admin_verifiers",
+  "/admin/modules": "nav.shell.routes.admin_modules",
+  "/admin/companies": "nav.shell.routes.admin_companies",
+};
+
+function routeTitle(href: string, items: readonly NavItem[], t: ReturnType<typeof useTranslations>): string {
+  const entity = recordEntityOf(href);
+  if (entity) return t.has(`entity.${entity}`) ? t(`entity.${entity}`) : t("nav.shell.record");
+  const named = ROUTE_TITLES[href];
+  if (named) return t(named);
+  const covering = items.filter((i) => i.href !== "#" && isActiveHref(i.href, href)).sort((a, b) => b.href.length - a.href.length)[0];
+  if (covering) return t(covering.label);
+  // A sub-page of a named page (`/admin/users/<id>`) takes its parent's name; anything else is the generic "Página".
+  const parent = Object.keys(ROUTE_TITLES).find((route) => href.startsWith(`${route}/`));
+  return parent ? t(ROUTE_TITLES[parent]!) : t("nav.shell.page");
 }
 
 /**
@@ -166,19 +202,41 @@ function ShellFrame(props: AppShellProps) {
     [store],
   );
 
-  // The page decides the tab: a menu screen, a record, Inicio, or any other path.
+  // A tab the user activated: if its page redirects, the page it lands on replaces the tab instead of opening a second one.
+  const activated = useRef<{ id: string; href: string } | null>(null);
+  /** The page effect below opens its own tab: that activation is not the user's. */
+  const opening = useRef(false);
+  useEffect(
+    () =>
+      store.subscribe((state, previous) => {
+        if (state.activeId === previous.activeId || opening.current) return;
+        const tab = state.tabs.find((x) => x.id === state.activeId);
+        activated.current = tab && !tab.pinned ? { id: tab.id, href: tab.href } : null;
+      }),
+    [store],
+  );
+
+  // The page decides the tab: a menu screen, a record (named after its entity), Inicio, or any other path.
   useEffect(() => {
-    const item = nav.find((i) => i.href === currentHref);
+    const flat = nav.flatMap((i) => i.children ?? [i]);
+    const item = flat.find((i) => i.href === currentHref);
     const kind: TabKind = currentHref === "/" ? "home" : currentHref.startsWith("/r/") ? "record" : "grid";
-    const title = item ? t(item.label) : kind === "record" ? t("nav.shell.record") : currentHref;
+    const title = item ? t(item.label) : routeTitle(currentHref, flat, t);
+    const landed = activated.current;
+    activated.current = null;
+    if (landed && landed.href.split("?")[0] !== currentHref.split("?")[0] && !store.getState().tabs.some((x) => x.href === currentHref)) store.getState().close(landed.id);
+    opening.current = true;
     store.getState().open({ title, href: currentHref, kind });
+    opening.current = false;
   }, [currentHref, nav, store, t]);
 
   // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
   // choice wins until the page changes (a pick from a page of another module would otherwise never show).
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
   const hrefModule = nav.flatMap((i) => i.children ?? [i]).find((i) => isActiveHref(i.href, currentHref));
-  const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? visibleModules[0]?.id;
+  // A record page (/r/<module>.<entity>/<id>) belongs to its entity's module.
+  const recordModule = visibleModules.find((m) => m.id === recordEntityOf(currentHref)?.split(".")[0])?.id;
+  const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? recordModule ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
   /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
@@ -203,7 +261,8 @@ function ShellFrame(props: AppShellProps) {
   useLayoutEffect(() => {
     const saved = newerSaved(props.assistantOpen ?? null, readBooleanPref(storage, assistantOpenStorageKey(user.id), company.id));
     setAssistantAuto(false);
-    setAssistantOpen(saved ? saved.value : window.innerWidth >= ASSISTANT_MIN_WIDTH);
+    // Under 768 px the assistant is a full-screen sheet: a choice saved on a wider screen never opens it over a phone.
+    setAssistantOpen(saved && window.innerWidth >= SHEET_BELOW ? saved.value : window.innerWidth >= ASSISTANT_MIN_WIDTH);
     // Once per mounted shell: the first render's saved copies and viewport decide.
   }, []);
   /** A toggle by the user: remembered for the next visit. (Opening it to answer ⌘K is not a choice and is not saved.) */
@@ -211,6 +270,8 @@ function ShellFrame(props: AppShellProps) {
     (open: boolean) => {
       setAssistantAuto(false);
       setAssistantOpen(open);
+      // A choice made on a phone does not overwrite the one of the wider screens.
+      if (window.innerWidth < SHEET_BELOW) return;
       const savedAt = Date.now();
       writeCachedPref(storage, assistantOpenStorageKey(user.id), company.id, { value: open, savedAt });
       latest.current.onAssistantOpenChange?.(open, savedAt);
@@ -237,12 +298,22 @@ function ShellFrame(props: AppShellProps) {
     }),
     [dianHints, storage, user.id, company.id],
   );
+  const [focusInput, setFocusInput] = useState(0);
+  /** Opening puts the caret in the composer; closing returns the focus to the toggle (UX-OD-2). */
+  const openAssistant = useCallback(() => {
+    chooseAssistant(true);
+    setFocusInput((n) => n + 1);
+  }, [chooseAssistant]);
+  const closeAssistant = useCallback(() => {
+    chooseAssistant(false);
+    // After the sheet has released the page behind it (inert) on the next frame.
+    window.setTimeout(() => document.getElementById("erp-assistant-toggle")?.focus({ preventScroll: true }), 0);
+  }, [chooseAssistant]);
   // Ctrl+/ (⌘/ on a Mac) shows the assistant with the caret in its input, or hides it and returns the caret to the page.
   const openRef = useRef(assistantOpen);
   useEffect(() => {
     openRef.current = assistantOpen;
   }, [assistantOpen]);
-  const [focusInput, setFocusInput] = useState(0);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key !== "/") return;
@@ -274,7 +345,7 @@ function ShellFrame(props: AppShellProps) {
   };
 
   const paletteItems = useMemo<CommandItem[]>(
-    () => [
+    () => uniqueById([
       { id: "go:home", label: t("nav.shell.palette.go", { label: t("nav.shell.home") }), kind: "go", href: "/" },
       // ⌘K lists the screens: the children of a group, never the group itself.
       ...nav.flatMap((item) => item.children ?? [item]).map((item): CommandItem => {
@@ -282,7 +353,7 @@ function ShellFrame(props: AppShellProps) {
         return { id: `go:${item.id}`, label: t("nav.shell.palette.go", { label: t(item.label) }), kind: "go", href: item.href, ...(keywords ? { keywords } : {}) };
       }),
       ...commands,
-    ],
+    ]),
     [nav, commands, t],
   );
 
@@ -317,12 +388,12 @@ function ShellFrame(props: AppShellProps) {
             onThemeChange={(mode) => changeTheme(mode)}
             onOpenPalette={() => setPaletteOpen(true)}
             assistantOpen={assistantOpen}
-            onToggleAssistant={() => chooseAssistant(!assistantOpen)}
+            onToggleAssistant={() => (assistantOpen ? closeAssistant() : openAssistant())}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
             {...(mfaWired ? { mfaEnrolled: props.mfa!.enrolled, onOpenMfa: () => setMfaOpen(true) } : {})}
           />
-          <TabsBar onNew={() => setPaletteOpen(true)} />
+          <TabsBar onNew={() => setPaletteOpen(true)} {...(props.confirmLeave ? { confirmLeave: props.confirmLeave } : {})} />
           <div className="flex min-h-0 flex-1">
             <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
               <AskAssistantProvider ask={ask}>
@@ -333,6 +404,7 @@ function ShellFrame(props: AppShellProps) {
               open={assistantOpen}
               auto={assistantAuto}
               focusInput={focusInput}
+              onClose={closeAssistant}
               context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
               screen={screenOf(currentHref)}
               {...(asked ? { ask: asked } : {})}

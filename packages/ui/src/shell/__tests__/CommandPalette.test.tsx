@@ -76,3 +76,22 @@ describe("CommandPalette", () => {
     expect(screen.getAllByRole("option")[0]!.textContent).toContain("Preguntar al asistente");
   });
 });
+
+describe("CommandPalette keyboard (T2 review)", () => {
+  it("exactly one option is active; the arrows move it and Enter runs the active one; Esc closes", () => {
+    const onSelect = vi.fn();
+    renderEs(<CommandPalette items={items} onAsk={() => {}} onSelect={onSelect} />);
+    openWithShortcut();
+    const active = () => screen.getAllByRole("option").filter((o) => o.getAttribute("aria-selected") === "true");
+    expect(active()).toHaveLength(1);
+    const first = active()[0]!.textContent;
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
+    expect(active()).toHaveLength(1);
+    expect(active()[0]!.textContent).not.toBe(first);
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Enter" });
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    openWithShortcut();
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
