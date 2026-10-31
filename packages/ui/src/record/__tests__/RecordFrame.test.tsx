@@ -38,6 +38,12 @@ describe("RecordFrame", () => {
     expect(link.getAttribute("rel")).toContain("noopener");
   });
 
+  it("seq 'masked' shows N.º •••• with the UUID, never 'N.º y uuid se asignan al crear'", () => {
+    render(<RecordFrame title="Cuenta restringida" seq="masked" uuid={id} deepLinkHref={recordHref("accounting.account", id)} tabs={[tab("saldos")]} />);
+    expect(screen.getByText(`N.º •••• · uuid ${shortId(id)}…`)).toBeTruthy();
+    expect(screen.queryByText(/se asignan al crear/)).toBeNull();
+  });
+
   it("shows the title, N.º and the short UUID, and the status and actions in the footer", () => {
     render(party);
     expect(screen.getByRole("heading", { name: "Supermercados Éxito" })).toBeTruthy();

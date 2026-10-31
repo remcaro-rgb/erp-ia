@@ -33,7 +33,7 @@ El dinero nunca se oculta, solo el detalle:
 - **Informes de líneas** (Auxiliar, Libro diario…): las líneas no salen y una nota dice **Líneas omitidas por falta de acceso**.
 - **Auxiliar de una cuenta restringida**: si pides el Auxiliar de una cuenta que no puedes ver, el informe responde solo **Sin acceso**, sin código, nombre ni saldos. Pedir una cuenta que no existe da la misma respuesta, así que no se puede averiguar qué cuentas existen.
 - **Movimientos**: igual, con la nota de las líneas omitidas.
-- **Una cuenta restringida abierta directamente**: sus pestañas **Saldos** y **Movimientos** responden **Sin acceso**; si abres la página de la cuenta por su enlace, puede aparecer en cambio el aviso general de que no tienes permiso.
+- **Una cuenta restringida abierta directamente**: el marco se titula **Cuenta restringida**, el **N.º** aparece oculto (`N.º ••••`) junto al UUID del enlace, y **Abrir en una pestaña nueva** abre la misma dirección. Sus pestañas **Saldos** y **Movimientos** responden **Sin acceso**, y el pie del marco también dice **Sin acceso**. Un identificador que no existe se ve exactamente igual, así que no se puede averiguar qué cuentas existen.
 - **Comprobantes**: una línea de cuenta restringida se ve como **Línea de una cuenta restringida**, sin cifras, y no se puede editar; los totales del comprobante están completos.
 - **Al crear un comprobante** solo se ofrecen las cuentas donde puedes contabilizar. Si una línea usa una cuenta prohibida, el sistema la rechaza con «Sin permiso en la cuenta», nunca la descarta en silencio.
 

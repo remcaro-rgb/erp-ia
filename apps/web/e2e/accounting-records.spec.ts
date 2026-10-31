@@ -12,6 +12,7 @@ const READ = [
   "accounting.ledger_line.list",
   "accounting.ledger_line.consult",
   "accounting.cost_center.consult",
+  "accounting.report.account_detail",
   "kernel.saved_view.list",
   "kernel.saved_view.save",
   "kernel.saved_view.delete",
@@ -210,6 +211,46 @@ test.describe("accounting records", () => {
     await other.getByRole("button", { name: "Árbol" }).click();
     await expect(other.getByRole("treeitem", { name: /^5105 / })).toHaveCount(0);
     await expect(other.getByRole("treeitem", { name: /^4135 / })).toBeVisible();
+    await context.close();
+  });
+
+  test("missing and restricted Cuenta frames are identical: title Cuenta restringida, N.º ••••, the id's UUID, Abrir en una pestaña nueva opens the same URL, footer Sin acceso", async ({ browser }) => {
+    test.setTimeout(120_000);
+    // 510506 is restricted to contador (and its parent 5105 is, by inheritance); Marcela holds another role.
+    await fixture.sql`update accounting.accounts set access = 'restricted' where id = ${ids["510506"]!}`;
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, marcela);
+
+    // What the frame says about an id, with the id's own characters replaced so the two can be compared.
+    const frameOf = async (id: string) => {
+      await page.goto(`/r/accounting.account/${id}`);
+      const frame = page.locator("section.erp-record");
+      await expect(frame.getByRole("heading", { name: "Cuenta restringida" })).toBeVisible();
+      const short = id.slice(0, 8);
+      await expect(frame.locator(".erp-record__ids")).toHaveText(`N.º •••• · uuid ${short}…`);
+      const link = frame.getByRole("link", { name: /Abrir en una pestaña nueva/ });
+      await expect(link).toHaveAttribute("href", `/r/accounting.account/${id}`);
+      await expect(link).toHaveAttribute("target", "_blank");
+      await expect(frame.getByTestId("record-status")).toHaveText("Sin acceso");
+      const tabs = await frame.getByRole("tab").allTextContents();
+      const text = (await frame.innerText()).split(id.slice(0, 8)).join("<uuid>");
+      return { tabs, text };
+    };
+    const restricted = await frameOf(ids["510506"]!);
+    const missing = await frameOf(randomUUID());
+    expect(missing).toEqual(restricted);
+    expect(restricted.tabs).toEqual(["Saldos", "Movimientos"]);
+
+    // Task 4's records check: the Auxiliar of the restricted account answers Sin acceso, the same as for an id that does not exist.
+    const auxiliar = async (accountId: string) => {
+      const params = { accountId, from: "2026-10-01", to: "2026-10-31" };
+      await page.goto(`/accounting/reports/account_detail?p=${encodeURIComponent(JSON.stringify(params))}`);
+      await expect(page.getByRole("region", { name: "Auxiliar por cuenta" }).getByRole("alert")).toHaveText("Sin acceso");
+    };
+    await auxiliar(ids["510506"]!);
+    await auxiliar(randomUUID());
     await context.close();
   });
 

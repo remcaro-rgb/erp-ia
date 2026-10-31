@@ -7,8 +7,8 @@ export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
 
 export interface RecordFrameProps {
   title: string;
-  /** The record's consecutive number (`N.º`); absent while the record is new. */
-  seq?: number | null;
+  /** The record's consecutive number (`N.º`); absent while the record is new. `"masked"`: the caller may not see it (a restricted Cuenta), shown as •••• like a masked field. */
+  seq?: number | null | "masked";
   /** The record's UUID; absent while the record is new. */
   uuid?: string | null;
   /** `/r/<entity>/<id>`: the button that opens the same form as a full page in a new browser tab. Absent while the record is new. */
@@ -88,7 +88,7 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
       <div className="erp-record__top">
         <header className="erp-record__header">
           <h2>{title}</h2>
-          <span className="erp-record__ids">{seq != null && uuid ? `${labels.number} ${seq} · ${labels.uuid} ${shortId(uuid)}…` : labels.assignedOnCreate}</span>
+          <span className="erp-record__ids">{seq != null && uuid ? `${labels.number} ${seq === "masked" ? "••••" : seq} · ${labels.uuid} ${shortId(uuid)}…` : labels.assignedOnCreate}</span>
           {deepLinkHref && (
             <a className="erp-record__open" href={deepLinkHref} target="_blank" rel="noopener noreferrer">
               {labels.openInNewTab} ↗
