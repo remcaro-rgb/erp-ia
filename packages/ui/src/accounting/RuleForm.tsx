@@ -10,7 +10,7 @@ import { MasterForm, type MasterFormProps } from "./MasterForm";
 export type RuleFormProps = Omit<MasterFormProps, "kind" | "processes"> & { isDefault: boolean; isModified: boolean };
 
 export function RuleForm({ isDefault, isModified, ...props }: RuleFormProps) {
-  const t = useTranslations("common.acc_record.rule");
+  const t = useTranslations("accounting.record.rule");
   return (
     <div className="erp-stack">
       <p>

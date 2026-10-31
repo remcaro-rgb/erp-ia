@@ -77,7 +77,7 @@ export async function runEntryAction(action: EntryAction, id: string, input: { r
   if (typeof id !== "string") return { ok: false, code: "invalid_input", messages: [] };
   const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
   const deps = processDeps();
-  const t = await getTranslations("common.entry");
+  const t = await getTranslations("accounting.entry");
   try {
     const reason = input.reason?.trim();
     const processInput = action === "void" || action === "reverse" ? { id, reason: reason ?? "" } : action === "return" ? { id, ...(reason ? { reason } : {}) } : { id };

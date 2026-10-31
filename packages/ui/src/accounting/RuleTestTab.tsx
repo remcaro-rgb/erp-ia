@@ -36,7 +36,7 @@ export interface RuleTestTabProps {
 }
 
 export function RuleTestTab({ events, test, canTest }: RuleTestTabProps) {
-  const t = useTranslations("common.acc_record.rule");
+  const t = useTranslations("accounting.record.rule");
   const te = useTranslations("errors");
   const [chosen, setChosen] = useState(events[0]?.id ?? "");
   const [result, setResult] = useState<RuleTestResult | { error: string } | null>(null);

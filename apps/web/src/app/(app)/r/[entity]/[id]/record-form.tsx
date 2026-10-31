@@ -96,7 +96,7 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
 
 /** The lines of a plantilla de comprobante, read-only under its header (they are written in the plantilla's own process). */
 function TemplateLines({ lines }: { lines: TemplateLineView[] }) {
-  const t = useTranslations("common.acc_record.form");
+  const t = useTranslations("accounting.record.form");
   return (
     <section className="erp-sec">
       <h3>{t("template_lines")}</h3>

@@ -92,8 +92,8 @@ export function MasterPage({ data }: { data: MasterPageData }) {
   }, [selected, tree, isAccount]);
 
   const canNew = grid.canCreate && (!isAccount || view !== "tree" || canHangAuxiliary(selected?.level));
-  const newLabel = isAccount ? t("grid.master.new_account") : t("grid.master.new");
-  const figureLabel = t(`grid.master.${data.figure}`);
+  const newLabel = isAccount ? t("accounting.master.new_account") : t("accounting.master.new");
+  const figureLabel = t(`accounting.master.${data.figure}`);
 
   // Tabla shows the selected period's figure as a column (header: the figure's name, as the tree pane's); Árbol shows it beside the nodes instead.
   const columns = useMemo(
@@ -109,20 +109,20 @@ export function MasterPage({ data }: { data: MasterPageData }) {
 
   const toggle = (
     <span className="erp-row">
-      <span className="erp-seg" role="group" aria-label={t("grid.master.view")}>
+      <span className="erp-seg" role="group" aria-label={t("accounting.master.view")}>
         <button type="button" aria-pressed={view === "table"} onClick={() => choose("table")}>
-          {t("grid.master.table")}
+          {t("accounting.master.table")}
         </button>
         <button type="button" aria-pressed={view === "tree"} onClick={() => choose("tree")}>
-          {t("grid.master.tree")}
+          {t("accounting.master.tree")}
         </button>
       </span>
       <label className="erp-row erp-small">
-        <span className="erp-muted">{t("grid.master.period")}</span>
+        <span className="erp-muted">{t("accounting.master.period")}</span>
         {data.periods.length === 0 ? (
-          <span className="erp-muted">{t("grid.master.no_period")}</span>
+          <span className="erp-muted">{t("accounting.master.no_period")}</span>
         ) : (
-          <select aria-label={t("grid.master.period")} value={periodId ?? ""} onChange={(e) => setPeriodId(e.target.value)} className="erp-btn">
+          <select aria-label={t("accounting.master.period")} value={periodId ?? ""} onChange={(e) => setPeriodId(e.target.value)} className="erp-btn">
             {data.periods.map((p) => (
               <option key={p.id} value={p.id}>
                 {periodLabel(p.startsOn)}
@@ -148,7 +148,7 @@ export function MasterPage({ data }: { data: MasterPageData }) {
       toolbar={
         <>
           {grid.canCreate && (
-            <button type="button" className="erp-btn erp-btn--primary" disabled={!canNew} title={!canNew && isAccount ? t("grid.master.new_account_hint") : undefined} onClick={() => setCreating(true)}>
+            <button type="button" className="erp-btn erp-btn--primary" disabled={!canNew} title={!canNew && isAccount ? t("accounting.master.new_account_hint") : undefined} onClick={() => setCreating(true)}>
               {newLabel}
             </button>
           )}
@@ -160,7 +160,7 @@ export function MasterPage({ data }: { data: MasterPageData }) {
           )}
           {isAccount && (
             <button type="button" className="erp-btn" aria-pressed={restrictedOnly} onClick={() => setRestrictedOnly((r) => !r)}>
-              {t("grid.master.restricted_filter")}
+              {t("accounting.master.restricted_filter")}
             </button>
           )}
         </>
@@ -181,7 +181,7 @@ export function MasterPage({ data }: { data: MasterPageData }) {
             items={items}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            label={t("grid.master.tree_label", { title: grid.title })}
+            label={t("accounting.master.tree_label", { title: grid.title })}
             figureLabel={figureLabel}
           />
           <div className="erp-master__grid">{gridView}</div>
@@ -193,7 +193,7 @@ export function MasterPage({ data }: { data: MasterPageData }) {
         open={creating}
         onOpenChange={setCreating}
         entity={entity}
-        title={isAccount ? t("grid.master.dialog_account") : t("grid.master.dialog_node", { title: t(`entity.${entity}`) })}
+        title={isAccount ? t("accounting.master.dialog_account") : t("accounting.master.dialog_node", { title: t(`entity.${entity}`) })}
         parent={parent}
         onCreated={() => setVersion((v) => v + 1)}
       />

@@ -22,7 +22,7 @@ export function periodName(startsOn: string, locale: string): string {
 }
 
 export function BalancesTab({ periods, rows }: BalancesTabProps) {
-  const t = useTranslations("common.acc_record");
+  const t = useTranslations("accounting.record");
   const locale = useLocale();
   const withFigures = new Set((rows ?? []).filter((r) => r.debit !== 0 || r.credit !== 0).map((r) => r.periodId));
   const [chosen, setChosen] = useState<number | null>(null);

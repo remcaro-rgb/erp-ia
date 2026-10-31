@@ -11,8 +11,8 @@ import { ReopenPeriodDialog } from "../periods/periods-screen";
 
 /** Pendientes de contabilizar: the events no rule could post, each with the reason and the way out (Reintentar, Reabrir período, Descartar). */
 export function PendingTable({ failures, can, today }: { failures: FailureRow[]; can: { retry: boolean; dismiss: boolean; reopenPeriod: boolean }; today: string }) {
-  const t = useTranslations("common.acc_pages.posting");
-  const tv = useTranslations("grid.values");
+  const t = useTranslations("accounting.pages.posting");
+  const tv = useTranslations("accounting.values");
   const { execute, status, busy } = useAdminAction();
   const [answer, setAnswer] = useState<string | null>(null);
   const [dismissing, setDismissing] = useState<FailureRow | null>(null);
@@ -85,7 +85,7 @@ export function PendingTable({ failures, can, today }: { failures: FailureRow[];
 }
 
 function DismissDialog({ failure, onClose }: { failure: FailureRow; onClose: () => void }) {
-  const t = useTranslations("common.acc_pages.posting");
+  const t = useTranslations("accounting.pages.posting");
   const tc = useTranslations("common");
   const { execute, status, busy } = useAdminAction();
   const [reason, setReason] = useState("");

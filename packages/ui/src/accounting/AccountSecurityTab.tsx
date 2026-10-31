@@ -26,7 +26,7 @@ export interface AccountSecurityTabProps {
 }
 
 export function AccountSecurityTab({ accountId, stored, effective, inheritedFrom, subjects, save, requestStepUp, onSaved }: AccountSecurityTabProps) {
-  const t = useTranslations("common.acc_record.security");
+  const t = useTranslations("accounting.record.security");
   const te = useTranslations("errors");
   const key = JSON.stringify(stored);
   const [seen, setSeen] = useState(key);

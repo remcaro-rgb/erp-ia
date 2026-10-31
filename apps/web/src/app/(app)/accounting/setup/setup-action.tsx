@@ -6,7 +6,7 @@ import { useAdminAction } from "../../admin/_components/use-admin-action";
 
 /** The single action of the first visit: `accounting.chart.seed` behind the TOTP dialog; then a full load, so the layout reads the new settings. */
 export function SetupAction() {
-  const t = useTranslations("common.acc_pages.setup");
+  const t = useTranslations("accounting.pages.setup");
   const { execute, prompt, status, busy } = useAdminAction();
   return (
     <div className="erp-stack">

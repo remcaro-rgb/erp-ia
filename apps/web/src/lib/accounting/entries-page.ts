@@ -19,7 +19,7 @@ export const todayIn = (timeZone: string | undefined, now = new Date()): string 
 
 export async function entryQuickFilters(caller: Caller): Promise<{ filters: EntryQuickFilter[]; canTemplate: boolean }> {
   const deps = processDeps();
-  const t = await getTranslations("common.entry.grid");
+  const t = await getTranslations("accounting.entry.grid");
   const [{ periods, current }, profile, runnable] = await Promise.all([
     periodOptions(caller),
     callerProfile(deps.sql, caller.claims),

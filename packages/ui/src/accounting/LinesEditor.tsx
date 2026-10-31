@@ -40,7 +40,7 @@ export interface LinesEditorProps {
 const MASK = "••••";
 
 export function LinesEditor({ lines, onChange, columns, lookup, headerBusinessUnit = null, readOnly = false, knownTotals = null, debounceMs = 150 }: LinesEditorProps) {
-  const t = useTranslations("common.entry");
+  const t = useTranslations("accounting.entry");
   const tableRef = useRef<HTMLTableElement>(null);
   const [focusAt, setFocusAt] = useState<{ row: number; col: number } | null>(null);
 
@@ -197,7 +197,7 @@ export interface LookupCellProps {
  * choose the highlighted option when the user searched (a list that merely opened chooses nothing), then the editor moves on.
  */
 export function LookupCell({ cell, label, kind, value, placeholder, inherit, disabled, lookup, debounceMs, onPick }: LookupCellProps) {
-  const t = useTranslations("common.entry");
+  const t = useTranslations("accounting.entry");
   const listId = useId();
   const [text, setText] = useState<string | null>(null);
   const [open, setOpen] = useState(false);

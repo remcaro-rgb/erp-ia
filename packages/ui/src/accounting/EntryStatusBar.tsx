@@ -29,7 +29,7 @@ const NEEDS_REASON = new Set<EntryAction>(["void", "reverse"]);
 const OPTIONAL_REASON = new Set<EntryAction>(["return"]);
 
 export function EntryStatusBar({ actions, can, onRun, requestStepUp, disabled = false }: EntryStatusBarProps) {
-  const t = useTranslations("common.entry");
+  const t = useTranslations("accounting.entry");
   const te = useTranslations("errors");
   const reasonId = useId();
   const [asking, setAsking] = useState<EntryAction | null>(null);

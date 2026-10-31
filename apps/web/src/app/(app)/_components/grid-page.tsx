@@ -88,7 +88,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
             )}
             {toolbarExtra}
             {quickFilters.length > 0 && (
-              <span className="erp-row" role="group" aria-label={t("common.entry.grid.filters")}>
+              <span className="erp-row" role="group" aria-label={t("accounting.entry.grid.filters")}>
                 {quickFilters.map((q) => (
                   <button
                     key={q.id}

@@ -75,9 +75,9 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     shown: ["number", "date", "journal_code", "account_code", "account_name", "party_name", "cost_center_name", "description", "debit", "credit", "net", "status"],
     exclude: [],
     fields: {
-      status: { valuesKey: "grid.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
-      origin: { valuesKey: "grid.values.entry_origin" },
-      account_level: { valuesKey: "grid.values.account_level" },
+      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
+      origin: { valuesKey: "accounting.values.entry_origin" },
+      account_level: { valuesKey: "accounting.values.account_level" },
       account_code: { display: "mono" },
       journal_code: { display: "mono" },
     },
@@ -89,8 +89,8 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     exclude: ["extra", "extra_free"],
     fields: {
       number: { display: "mono" },
-      status: { valuesKey: "grid.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
-      origin: { valuesKey: "grid.values.entry_origin" },
+      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
+      origin: { valuesKey: "accounting.values.entry_origin" },
     },
   },
   // Plan de cuentas (accounting design §8): the code names the row; Seguridad is the access column, restricted ones in amber.
@@ -99,9 +99,9 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     exclude: ["extra", "extra_free"],
     fields: {
       code: { display: "mono" },
-      level: { valuesKey: "grid.values.account_level" },
-      nature: { valuesKey: "grid.values.nature" },
-      access: { valuesKey: "grid.values.account_access", pills: { open: "gray", restricted: "warn" } },
+      level: { valuesKey: "accounting.values.account_level" },
+      nature: { valuesKey: "accounting.values.nature" },
+      access: { valuesKey: "accounting.values.account_access", pills: { open: "gray", restricted: "warn" } },
       allows_movement: ready,
       is_active: active,
     },
@@ -113,7 +113,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       {
         shown: ["code", "name", "parent_id", "kind", "is_active", "period_figure"],
         exclude: ["extra", "extra_free"],
-        fields: { code: { display: "mono" }, kind: { valuesKey: "grid.values.dimension_kind", pills: { group: "info", leaf: "gray" } }, is_active: active },
+        fields: { code: { display: "mono" }, kind: { valuesKey: "accounting.values.dimension_kind", pills: { group: "info", leaf: "gray" } }, is_active: active },
       } satisfies GridPresentation,
     ]),
   ),
@@ -121,7 +121,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   "accounting.journal": {
     shown: ["code", "name", "kind", "next_number", "manual_entries", "is_active"],
     exclude: ["extra", "extra_free"],
-    fields: { code: { display: "mono" }, kind: { valuesKey: "grid.values.journal_kind" }, manual_entries: ready, is_active: active },
+    fields: { code: { display: "mono" }, kind: { valuesKey: "accounting.values.journal_kind" }, manual_entries: ready, is_active: active },
   },
   "core.product_category": {
     shown: ["seq", "name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "income_account", "status"],

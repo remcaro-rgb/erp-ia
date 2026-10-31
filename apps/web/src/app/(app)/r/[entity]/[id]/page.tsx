@@ -113,7 +113,7 @@ async function RecordView({ params }: { params: Params }) {
         recordId={record.id}
         canDuplicate={can.duplicate}
         newTitle={newTitle}
-        title={record[entity.titleField] ? String(record[entity.titleField]) : form.kind === "entry" ? t("common.entry.draft_title") : record.id}
+        title={record[entity.titleField] ? String(record[entity.titleField]) : form.kind === "entry" ? t("accounting.entry.draft_title") : record.id}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
         deepLinkHref={recordHref(entity.id, record.id)}
@@ -129,20 +129,20 @@ async function RecordView({ params }: { params: Params }) {
 
 async function RestrictedAccount({ id }: { id: string }) {
   const t = await getTranslations();
-  const denied = { content: <NoAccess text={t("common.acc_record.no_access")} /> };
+  const denied = { content: <NoAccess text={t("accounting.record.no_access")} /> };
   return (
     <div className="mx-auto w-full max-w-6xl">
       <AppRecordFrame
         entity="accounting.account"
         recordId={id}
         newTitle={t("grid.record_title.new", { entity: t("nav.create.accounting.account") })}
-        title={t("common.acc_record.restricted_account")}
+        title={t("accounting.record.restricted_account")}
         seq="masked"
         uuid={id}
         deepLinkHref={recordHref("accounting.account", id)}
         status={
           <span data-testid="record-status" className="erp-record__status">
-            <span className="erp-pill erp-pill--gray">{t("common.acc_record.no_access")}</span>
+            <span className="erp-pill erp-pill--gray">{t("accounting.record.no_access")}</span>
           </span>
         }
         tabs={[

@@ -25,7 +25,7 @@ export interface FieldSpec {
   optionsFrom?: "parents" | "journals";
   /** What a new record starts with. */
   initial?: string | boolean;
-  /** i18n key (under `common.acc_record.form`) of the hint under the field. */
+  /** i18n key (under `accounting.record.form`) of the hint under the field. */
   hint?: string;
 }
 

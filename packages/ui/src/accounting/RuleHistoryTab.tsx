@@ -18,7 +18,7 @@ export interface RuleChange {
 }
 
 export function RuleHistoryTab({ changes }: { changes: readonly RuleChange[] | null }) {
-  const t = useTranslations("common.acc_record.rule");
+  const t = useTranslations("accounting.record.rule");
   if (changes === null) return <p className="erp-muted erp-small">{t("history_denied")}</p>;
   if (changes.length === 0) return <p className="erp-muted erp-small">{t("history_empty")}</p>;
   return (
