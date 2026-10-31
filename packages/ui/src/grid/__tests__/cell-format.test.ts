@@ -15,12 +15,12 @@ describe("formatCellValue", () => {
 
   it("a date and time in the company's time zone, not the browser's or UTC", () => {
     // 03:30 UTC on the 28th is 22:30 on the 27th in Bogotá (UTC-5) and 12:30 on the 28th in Tokyo (UTC+9).
-    expect(formatCellValue({ type: "datetime" }, "2026-10-28T03:30:00Z", { ...text, timeZone: "America/Bogota" })).toMatch(/^27\/10\/26.*10:30\s?p\.\s?m\.$/);
-    expect(formatCellValue({ type: "datetime" }, "2026-10-28T03:30:00Z", { ...text, timeZone: "Asia/Tokyo" })).toMatch(/^28\/10\/26.*12:30\s?p\.\s?m\.$/);
+    expect(formatCellValue({ type: "datetime" }, "2026-10-28T03:30:00Z", { ...text, timeZone: "America/Bogota" })).toMatch(/^2026\/10\/27 22:30$/);
+    expect(formatCellValue({ type: "datetime" }, "2026-10-28T03:30:00Z", { ...text, timeZone: "Asia/Tokyo" })).toMatch(/^2026\/10\/28 12:30$/);
   });
 
   it("a date without time is the same day in every zone", () => {
-    for (const timeZone of ["America/Bogota", "Asia/Tokyo", "UTC"]) expect(formatCellValue({ type: "date" }, "2026-10-27", { ...text, timeZone })).toBe("27/10/26");
+    for (const timeZone of ["America/Bogota", "Asia/Tokyo", "UTC"]) expect(formatCellValue({ type: "date" }, "2026-10-27", { ...text, timeZone })).toBe("2026/10/27");
   });
 
   it("Sí / No, option labels (also in lists), JSON and plain text", () => {

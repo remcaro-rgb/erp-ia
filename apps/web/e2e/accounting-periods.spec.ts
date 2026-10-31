@@ -29,7 +29,7 @@ test.describe("accounting periods", () => {
     await fixture.cleanup();
   });
 
-  test("Períodos: Cerrar octubre with a draft open shows the failed check list; after voiding the draft, TOTP → closed; Reabrir solo el día 15 → the period shows 'reabierto para 15/10/2026'", async ({ page }) => {
+  test("Períodos: Cerrar octubre with a draft open shows the failed check list; after voiding the draft, TOTP → closed; Reabrir solo el día 15 → the period shows 'reabierto para 2026/10/15'", async ({ page }) => {
     test.setTimeout(180_000);
     const { sql } = fixture;
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -71,7 +71,7 @@ test.describe("accounting periods", () => {
     await reopen.getByRole("button", { name: "Reabrir período" }).click();
     await confirmStepUp(page, secret);
     await expect(reopen).toBeHidden();
-    await expect(october.getByText("reabierto para 15/10/2026")).toBeVisible();
+    await expect(october.getByText("reabierto para 2026/10/15")).toBeVisible();
     const [row] = await sql<{ status: string; reopened_for: Date | null }[]>`select status, reopened_for from accounting.periods where id = ${ledger.period}`;
     expect(row!.status).toBe("open");
     expect(row!.reopened_for?.toISOString().slice(0, 10)).toBe("2026-10-15");

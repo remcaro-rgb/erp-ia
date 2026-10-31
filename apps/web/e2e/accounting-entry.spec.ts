@@ -45,12 +45,13 @@ const cell = (page: Page, name: string) => page.getByRole(/^(Cuenta|Tercero|Cent
 async function writeEntry(page: Page, description: string) {
   await page.goto("/r/accounting.entry/new");
   await page.getByRole("textbox", { name: "Descripción", exact: true }).fill(description);
-  // Line 1: account by search, Tab across tercero and centro de costo to the débito; Enter on the crédito opens line 2.
+  // Line 1: account by search, Tab across tercero, centro de costo and descripción to the débito; Enter on the crédito opens line 2.
   await cell(page, "Cuenta, Línea 1").click();
   await page.keyboard.type("1105");
   await expect(page.getByRole("option", { name: "110505 · Caja general" })).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(cell(page, "Tercero, Línea 1")).toBeFocused();
+  await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await expect(cell(page, "Débito, Línea 1")).toBeFocused();
@@ -61,6 +62,7 @@ async function writeEntry(page: Page, description: string) {
   await expect(cell(page, "Cuenta, Línea 2")).toBeFocused();
   await page.keyboard.type("4135");
   await expect(page.getByRole("option", { name: "413505 · Ventas" })).toBeVisible();
+  await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");

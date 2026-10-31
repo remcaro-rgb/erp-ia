@@ -35,6 +35,8 @@ export interface RecordFormProps {
   onSave: () => void;
   /** The last refusal: when it changes, the caret goes to the first field in error or to the error summary. */
   failure: SaveFlow["failure"];
+  /** Shows the "Ver códigos DIAN" switch (default); a form with no DIAN codes leaves it out. */
+  dianToggle?: boolean;
   children: ReactNode;
 }
 
@@ -52,7 +54,7 @@ function useDianHintsState(): [boolean, (on: boolean) => void] {
  * form) the caret goes to the first field in error, else to the error summary (`data-error-summary`). The "Ver
  * códigos DIAN" switch shows or hides the schema hints and the codes before names for every field below (OD-12).
  */
-export function RecordForm({ canSave, onSave, failure, children }: RecordFormProps) {
+export function RecordForm({ canSave, onSave, failure, dianToggle = true, children }: RecordFormProps) {
   const t = useTranslations("common.forms");
   const ref = useRef<HTMLFormElement>(null);
   const [dianHints, setDianHints] = useDianHintsState();
@@ -103,12 +105,14 @@ export function RecordForm({ canSave, onSave, failure, children }: RecordFormPro
   };
   return (
     <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
-      <div className="erp-form__tools">
-        <span className="erp-switch">
-          <button type="button" id={switchId} role="switch" aria-checked={dianHints} aria-labelledby={`${switchId}-label`} className={dianHints ? "erp-toggle is-on" : "erp-toggle"} onClick={() => setDianHints(!dianHints)} />
-          <span id={`${switchId}-label`}>{t("dian_hints")}</span>
-        </span>
-      </div>
+      {dianToggle && (
+        <div className="erp-form__tools">
+          <span className="erp-switch">
+            <button type="button" id={switchId} role="switch" aria-checked={dianHints} aria-labelledby={`${switchId}-label`} className={dianHints ? "erp-toggle is-on" : "erp-toggle"} onClick={() => setDianHints(!dianHints)} />
+            <span id={`${switchId}-label`}>{t("dian_hints")}</span>
+          </span>
+        </div>
+      )}
       <DianHintsProvider value={dianHints}>{children}</DianHintsProvider>
     </form>
   );

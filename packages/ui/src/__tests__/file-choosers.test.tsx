@@ -6,6 +6,7 @@ import { createTranslator } from "next-intl";
 import { messages } from "@erp/i18n";
 import { AttachmentsPanel, PhotosTab, attachmentsLabels, type AttachmentItem, type AttachmentsTranslator } from "../index";
 import { CellFormatProvider } from "../grid/cell-format";
+import { formatDayTime } from "../date-format";
 import { ImportDialog } from "../import/ImportDialog";
 import { renderEs, stubLayoutApis } from "../shell/__tests__/intl";
 
@@ -69,7 +70,7 @@ describe("Archivos tab copy and time", () => {
         <AttachmentsPanel entity="core.party" recordId="p1" initialAttachments={[stored]} />
       </CellFormatProvider>,
     );
-    const expected = new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bogota" }).format(new Date(stored.uploadedAt));
+    const expected = formatDayTime(stored.uploadedAt, "America/Bogota");
     const time = document.querySelector("time")!;
     expect(time.getAttribute("datetime")).toBe(stored.uploadedAt);
     expect(time.textContent).toBe(expected);

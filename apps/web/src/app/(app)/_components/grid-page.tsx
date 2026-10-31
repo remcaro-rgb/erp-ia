@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { DataGrid, decodeGridQuery, defaultView, ImportDialog, ImportIcon, partyKindFilters, PartyScopeSwitches, useTabs, viewFromSaved, type GridRow, type PartySwitches, type SavedGridState } from "@erp/ui";
@@ -86,7 +86,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
                 {t("grid.new")}
               </button>
             )}
-            {toolbarExtra}
+            {toolbarExtra && <Fragment key="toolbar-extra">{toolbarExtra}</Fragment>}
             {quickFilters.length > 0 && (
               <span className="erp-row" role="group" aria-label={t("accounting.entry.grid.filters")}>
                 {quickFilters.map((q) => (

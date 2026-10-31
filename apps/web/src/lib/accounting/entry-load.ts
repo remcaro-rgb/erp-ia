@@ -1,7 +1,7 @@
 import "server-only";
 import { getTranslations } from "next-intl/server";
 import { callerProfile, ProcessError, recordTitles, runnableProcesses, runProcess, withClaims, type Caller, type ResolvedEntityDef } from "@erp/kernel";
-import { type CodeOption, type EntryAction, type EntrySettings, type OriginLink, type TimelineItem } from "@erp/ui";
+import { formatDayTime, type CodeOption, type EntryAction, type EntrySettings, type OriginLink, type TimelineItem } from "@erp/ui";
 import { gridEntity } from "@/lib/grid/access";
 import { recordEntity } from "@/lib/records/entities";
 import { processDeps } from "@/lib/server/runtime";
@@ -100,10 +100,9 @@ async function timelineOf(caller: Caller, entry: EntryRow, timeZone: string | un
   const filters = typeof entry.chain_id === "string" ? [{ field: "chain_id", op: "eq", value: entry.chain_id }] : [{ field: "row_id", op: "eq", value: entry.id }];
   try {
     const page = (await runProcess(processDeps(), caller, "kernel.audit.consult", { filters, sort: [{ field: "occurred_at", dir: "asc" }], page: 1, pageSize: 50 })) as { rows: Record<string, unknown>[] };
-    const format = new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeStyle: "short", ...(timeZone ? { timeZone } : {}) });
     return page.rows.map((r) => ({
       id: String(r.id),
-      at: r.occurred_at ? format.format(new Date(String(r.occurred_at))) : "",
+      at: r.occurred_at ? formatDayTime(String(r.occurred_at), timeZone) : "",
       actor: String(r.actor ?? ""),
       process: labels.process(String(r.process_id ?? "")),
       action: labels.action(String(r.action ?? "")),

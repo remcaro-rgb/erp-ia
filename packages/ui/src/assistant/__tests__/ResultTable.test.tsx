@@ -29,7 +29,7 @@ describe("ResultTable", () => {
     expect(within(table).getByText("Café del Norte S.A.S.")).toBeTruthy();
     expect(within(table).getByText("$ 1.234.567,00")).toBeTruthy();
     // 15:30 UTC is 10:30 in Bogotá.
-    expect(within(table).getByText(/27\/10\/26.*10:30/)).toBeTruthy();
+    expect(within(table).getByText(/2026\/10\/27 10:30/)).toBeTruthy();
     expect(within(table).getAllByText("Sí")).toHaveLength(1);
     expect(within(table).getAllByText("No")).toHaveLength(1);
     // Money is right-aligned.
@@ -40,12 +40,12 @@ describe("ResultTable", () => {
     const cols = [{ field: "created_at", label: "Creado", type: "datetime" }, { field: "due", label: "Vence", type: "date" }];
     const data = [{ id: "1", created_at: "2026-10-28T03:30:00Z", due: "2026-10-27" }];
     const { unmount } = renderEs(<ResultTable entity="e" rows={data} columns={cols} state={state} timeZone="America/Bogota" />);
-    expect(screen.getByText(/^27\/10\/26.*10:30/)).toBeTruthy();
-    expect(screen.getByText("27/10/26")).toBeTruthy();
+    expect(screen.getByText(/^2026\/10\/27 22:30/)).toBeTruthy();
+    expect(screen.getByText("2026/10/27")).toBeTruthy();
     unmount();
     renderEs(<ResultTable entity="e" rows={data} columns={cols} state={state} timeZone="Asia/Tokyo" />);
-    expect(screen.getByText(/^28\/10\/26.*12:30/)).toBeTruthy();
-    expect(screen.getByText("27/10/26")).toBeTruthy();
+    expect(screen.getByText(/^2026\/10\/28 12:30/)).toBeTruthy();
+    expect(screen.getByText("2026/10/27")).toBeTruthy();
   });
 
   it("a masked field shows •••••• like the grid, a hidden one has no column, and so does a field the host does not offer", () => {

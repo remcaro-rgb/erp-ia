@@ -143,7 +143,7 @@ describe("AppShell", () => {
         </table>
       </AppShell>,
     );
-    expect(screen.getByText(/^28\/10\/26.*12:30/)).toBeTruthy();
+    expect(screen.getByText(/^2026\/10\/28 12:30/)).toBeTruthy();
   });
 
   it("restores the server's tabs", () => {

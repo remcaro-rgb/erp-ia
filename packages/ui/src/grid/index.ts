@@ -1,4 +1,4 @@
-export { DataGrid } from "./DataGrid";
+export { DataGrid, GridStatusText } from "./DataGrid";
 export type { DataGridProps } from "./DataGrid";
 export { AdvancedFilter, PREVIEW_ROWS } from "./AdvancedFilter";
 export type { AdvancedFilterProps } from "./AdvancedFilter";

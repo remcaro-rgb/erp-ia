@@ -2388,6 +2388,8 @@
         "debit": "Débito",
         "credit": "Crédito"
       },
+      "move_column_left": "Mover {name} a la izquierda",
+      "move_column_right": "Mover {name} a la derecha",
       "add_line": "Agregar línea",
       "remove_line": "Quitar la línea {n}",
       "line_n": "Línea {n}",

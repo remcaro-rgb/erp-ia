@@ -75,7 +75,7 @@ export function PeriodCloseTab({ status, closedAt, closedBy, reopenedCount, reop
         <Pill tone={status === "closed" ? "gray" : "ok"}>{tv.has(`period_status.${status}`) ? tv(`period_status.${status}`) : status}</Pill>{" "}
         {status === "closed" && closedAt ? t("closed_on", { at: closedAt, by: closedBy ?? "—" }) : null}
         {reopenedCount > 0 ? <span className="erp-muted"> · {t("reopened", { count: reopenedCount })}</span> : null}
-        {reopenedFor ? <span> · {t("reopened_for", { date: reopenedFor })}</span> : null}
+        {reopenedFor ? <span> · {t("reopened_for", { date: reopenedFor.slice(0, 10).replaceAll("-", "/") })}</span> : null}
       </p>
       <h3 className="erp-origin__title">{t("checks")}</h3>
       <SimpleTable

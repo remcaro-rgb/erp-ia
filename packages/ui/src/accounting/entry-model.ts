@@ -8,7 +8,7 @@ export interface Chosen {
 }
 
 /** The columns of the lines editor, in Tab order. */
-export type LineColumn = "account" | "party" | "costCenter" | "openAuxiliary" | "item" | "businessUnit" | "debit" | "credit";
+export type LineColumn = "account" | "party" | "costCenter" | "openAuxiliary" | "item" | "businessUnit" | "description" | "debit" | "credit";
 
 /** The company settings the comprobante depends on (`accounting.settings.consult`). */
 export interface EntrySettings {
@@ -61,8 +61,15 @@ export function visibleColumns(settings: PickOf<EntrySettings, "useOpenAuxiliari
     ...(settings.useOpenAuxiliaries ? (["openAuxiliary"] as const) : []),
     ...(settings.useItems ? (["item"] as const) : []),
     ...(settings.useBusinessUnits ? (["businessUnit"] as const) : []),
-    "debit", "credit",
+    "description", "debit", "credit",
   ];
+}
+/** The `entry_lines` fields an export prints for the columns on screen: the line number, then each column in order. */
+export function lineExportFields(columns: readonly LineColumn[]): string[] {
+  const field: Record<LineColumn, string> = {
+    account: "account_id", party: "party_id", costCenter: "cost_center_id", openAuxiliary: "open_auxiliary_id", item: "item_id", businessUnit: "business_unit_id", description: "description", debit: "debit", credit: "credit",
+  };
+  return ["line_no", ...columns.map((c) => field[c])];
 }
 type PickOf<T, K extends keyof T> = { [P in K]: T[P] };
 

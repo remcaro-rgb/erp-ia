@@ -122,7 +122,7 @@ export function moneyText(amount: number): string {
 
 /**
  * The text of one value as the file or the page prints it. `paper` is the PDF: money as `$ 1.234.567,00` and dates as
- * `dd/mm/yyyy`; without it, the plain form of CSV (money as a bare decimal, dates in ISO).
+ * `AAAA/MM/DD`; without it, the plain form of CSV (money as a bare decimal, dates in ISO).
  */
 export function cellText(column: ExportColumn, value: unknown, options: WriterOptions & { paper?: boolean } = {}): string {
   const cell = cellOf(column, value, options);
@@ -139,10 +139,10 @@ export function cellText(column: ExportColumn, value: unknown, options: WriterOp
       return isSpanish(options.locale) ? text.replace(".", ",") : text;
     }
     case "date":
-      return options.paper ? `${pad(cell.value.getUTCDate())}/${pad(cell.value.getUTCMonth() + 1)}/${cell.value.getUTCFullYear()}` : isoDay(cell.value);
+      return options.paper ? `${cell.value.getUTCFullYear()}/${pad(cell.value.getUTCMonth() + 1)}/${pad(cell.value.getUTCDate())}` : isoDay(cell.value);
     case "datetime":
       return options.paper
-        ? `${pad(cell.wall.getUTCDate())}/${pad(cell.wall.getUTCMonth() + 1)}/${cell.wall.getUTCFullYear()} ${clock(cell.wall)}`
+        ? `${cell.wall.getUTCFullYear()}/${pad(cell.wall.getUTCMonth() + 1)}/${pad(cell.wall.getUTCDate())} ${clock(cell.wall)}`
         : isoWithOffset(cell.at, options.timeZone);
   }
 }

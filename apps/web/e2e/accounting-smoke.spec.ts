@@ -15,7 +15,7 @@ import { testEnv } from "../test-support/env";
 //  2. Marcela (cajero, no view on 5105, class 3 nor the Davivienda account): the restricted accounts collapse into one row with the
 //     same totals, the Auxiliar of 510506 answers Sin acceso, "Nómina octubre" shows masked lines and a new comprobante offers no 5105.
 //  3. Andrés (contador): drafts a comprobante and sends it to approval, cannot approve it; Laura approves it with her code; the
-//     auto-reversal draft of the accrual waits in Borradores dated 01/11/2026.
+//     auto-reversal draft of the accrual waits in Borradores dated 2026/11/01.
 
 const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
 
@@ -170,7 +170,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     await expect(page.getByRole("option", { name: /^5105/ })).toHaveCount(0);
   });
 
-  test("andres: creates a draft, Enviar a aprobación; cannot approve it; laura approves with TOTP → NC-<n>; the auto-reversal draft of the accrual appears in Borradores dated 01/11/2026", async ({ page, browser }) => {
+  test("andres: creates a draft, Enviar a aprobación; cannot approve it; laura approves with TOTP → NC-<n>; the auto-reversal draft of the accrual appears in Borradores dated 2026/11/01", async ({ page, browser }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1600, height: 900 });
     await login(page, ANDRES);
@@ -218,12 +218,12 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     expect(row).toMatchObject({ status: "posted" });
     expect(row!.number).toMatch(/^NC-\d+$/);
 
-    // The accrual's auto-reversal waits in Borradores, dated 01/11/2026.
+    // The accrual's auto-reversal waits in Borradores, dated 2026/11/01.
     await lauraPage.goto("/accounting/entries");
     await lauraPage.getByRole("button", { name: "Borradores" }).click();
     const reversal = lauraPage.getByRole("row", { name: /Reversión automática de NC-/ });
     await expect(reversal).toBeVisible();
-    await expect(reversal).toContainText(/1\/11\/26/);
+    await expect(reversal).toContainText(/2026\/11\/01/);
     await other.close();
   });
 });

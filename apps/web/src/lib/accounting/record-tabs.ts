@@ -2,7 +2,7 @@ import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ACCOUNT_ROLES, callerProfile, gridPageAccess, ProcessError, runnableProcesses, runProcess, withClaims, type Caller } from "@erp/kernel";
 import { DIMENSION_DEFS, DIMENSIONS, accountBalances, nodeFigures, type AccountBalances, type Dimension, type NodeFigures } from "@erp/module-accounting";
-import type { CloseCheckRow, CodeOption, GridColumn, PeriodSummaryRow, RuleChange, RuleTestEvent, SecurityDraft, Subject, TimelineItem } from "@erp/ui";
+import { formatDayTime, type CloseCheckRow, type CodeOption, type GridColumn, type PeriodSummaryRow, type RuleChange, type RuleTestEvent, type SecurityDraft, type Subject, type TimelineItem } from "@erp/ui";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
 import { buildColumns } from "@/lib/grid/columns";
 import { linkableEntities, refTargets } from "@/lib/grid/links";
@@ -74,8 +74,7 @@ async function gridTab(caller: Caller, entityId: string, filters: GridTab["filte
 async function clock(caller: Caller): Promise<(value: unknown) => string> {
   const profile = await callerProfile(processDeps().sql, caller.claims);
   const timeZone = profile.companies.find((c) => c.id === caller.claims.active_company_id)?.timeZone;
-  const format = new Intl.DateTimeFormat("es-CO", { dateStyle: "short", timeStyle: "short", ...(timeZone ? { timeZone } : {}) });
-  return (value) => (value ? format.format(new Date(value as string)) : "");
+  return (value) => (value ? formatDayTime(value as string, timeZone) : "");
 }
 
 // ---- Cuenta ------------------------------------------------------------------------------------------------------------

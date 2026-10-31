@@ -197,7 +197,7 @@ describe("writePdf", () => {
   it("prints the masked column as •••••• on every row and totals only the money it may show", async () => {
     const table = await pdfTable(columns, rows, { locale: "es-419", timeZone: "America/Bogota" });
     expect(table.body.map((row) => row[2])).toEqual([MASK, MASK, MASK]);
-    expect(table.body[0]).toEqual(["1", 'Café "del Norte"; S.A.S.', MASK, "$ 1.234.567,50", "28/10/2026 10:30", "05/03/2026", "Sí", "Cliente, Proveedor"]);
+    expect(table.body[0]).toEqual(["1", 'Café "del Norte"; S.A.S.', MASK, "$ 1.234.567,50", "2026/10/28 10:30", "2026/03/05", "Sí", "Cliente, Proveedor"]);
     expect(table.body[1]![3]).toBe("-$ 50,00");
     expect(table.totals).toEqual(["Total", "", "", "$ 1.234.517,50", "", "", "", ""]);
     const hidden = await pdfTable(columns.filter((c) => c.field !== "credit_limit"), rows, { locale: "en" });
@@ -210,8 +210,8 @@ describe("writePdf", () => {
     expect(cellText(money, "1234567.5000", { locale: "es-419", paper: true })).toBe("$ 1.234.567,50");
     expect(cellText(money, "-50", { locale: "en", paper: true })).toBe("-$ 50,00");
     expect(cellText(columns[2]!, "900373115", { locale: "es-419", paper: true })).toBe(MASK);
-    expect(cellText(columns[4]!, new Date("2026-10-28T15:30:00Z"), { locale: "es-419", timeZone: "America/Bogota", paper: true })).toBe("28/10/2026 10:30");
-    expect(cellText(columns[5]!, new Date("2026-03-05T00:00:00Z"), { locale: "es-419", paper: true })).toBe("05/03/2026");
+    expect(cellText(columns[4]!, new Date("2026-10-28T15:30:00Z"), { locale: "es-419", timeZone: "America/Bogota", paper: true })).toBe("2026/10/28 10:30");
+    expect(cellText(columns[5]!, new Date("2026-03-05T00:00:00Z"), { locale: "es-419", paper: true })).toBe("2026/03/05");
   });
 });
 

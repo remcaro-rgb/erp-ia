@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Pill } from "../grid/GridCell";
+import { ExportButtons } from "../grid/ExportButtons";
+import { GridStatusText } from "../grid/DataGrid";
+import { useGridExport } from "../grid/use-grid-export";
 import { Field, FormActions, RecordForm, Section, SelectField, TextField, failureMessages, useErrorText } from "../forms/form-parts";
 import type { CodeOption, RequestStepUp, SaveRecord } from "../forms/save-model";
 import { useSaveFlow } from "../forms/use-save";
 import { LinesEditor, LookupCell, type LineLookup } from "./LinesEditor";
 import { EntryStatusBar, type ActionOutcome } from "./EntryStatusBar";
-import { allowedActions, blankLine, entryDraftOf, entryInput, lineTotals, visibleColumns, type Chosen, type EditorLine, type EntryAction, type EntryHeader, type EntrySettings } from "./entry-model";
+import { allowedActions, blankLine, entryDraftOf, entryInput, lineExportFields, lineTotals, visibleColumns, type Chosen, type EditorLine, type LineColumn, type EntryAction, type EntryHeader, type EntrySettings } from "./entry-model";
 
 // The Datos tab of a comprobante (accounting design §4.6, §4.7, §8): the header (Fuente, fecha, descripción, unidad de negocio
 // and the automatic reversal date), the keyboard-first lines editor and the status buttons. Only a draft is edited; a pending,
@@ -51,6 +54,17 @@ export function EntryForm(props: EntryFormProps) {
   const tv = useTranslations("accounting.values.entry_status");
   const errorText = useErrorText();
   const isNew = record === null;
+  const [shownColumns, setShownColumns] = useState<readonly LineColumn[]>(() => visibleColumns(settings));
+  const exporter = useGridExport({ entity: "accounting.entry_line", title: t("lines") });
+  const exportLines = (format: "pdf" | "xlsx" | "csv") =>
+    record &&
+    void exporter.run(format, {
+      filters: [{ field: "entry_id", op: "eq", value: record.id }],
+      sort: [{ field: "line_no", dir: "asc" }],
+      page: 1,
+      pageSize: 500,
+      columns: lineExportFields(shownColumns),
+    });
 
   const fresh = () => {
     const source = record ?? copy ?? null;
@@ -104,7 +118,7 @@ export function EntryForm(props: EntryFormProps) {
   const journalOptions = journals.some((j) => j.code === header.journalId) || !header.journalId ? journals : [...journals, { code: header.journalId, name: String(record?.journal_id ?? header.journalId) }];
 
   return (
-    <RecordForm canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
+    <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} failure={flow.failure}>
       {record && (
         <div className="erp-row">
           <Pill tone={STATUS_TONE[status] ?? "gray"}>{tv(status)}</Pill>
@@ -158,6 +172,15 @@ export function EntryForm(props: EntryFormProps) {
           lookup={lookup}
           headerBusinessUnit={header.businessUnit?.label ?? null}
           readOnly={dis}
+          onShownChange={setShownColumns}
+          toolbarExtra={
+            record ? (
+              <>
+                <ExportButtons onExport={exportLines} busy={exporter.busy} />
+                <GridStatusText status={exporter.status} refreshing={false} notice="" />
+              </>
+            ) : null
+          }
           knownTotals={restricted && record ? { debit: Number(record.total_debit ?? 0), credit: Number(record.total_credit ?? 0) } : null}
         />
       </Section>

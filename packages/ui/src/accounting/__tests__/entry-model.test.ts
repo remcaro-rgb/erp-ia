@@ -55,9 +55,9 @@ describe("lineTotals", () => {
 
 describe("visibleColumns", () => {
   it("shows the dimension columns only while their setting is on", () => {
-    expect(visibleColumns(settings())).toEqual(["account", "party", "costCenter", "debit", "credit"]);
+    expect(visibleColumns(settings())).toEqual(["account", "party", "costCenter", "description", "debit", "credit"]);
     expect(visibleColumns(settings({ useOpenAuxiliaries: true, useItems: true, useBusinessUnits: true }))).toEqual([
-      "account", "party", "costCenter", "openAuxiliary", "item", "businessUnit", "debit", "credit",
+      "account", "party", "costCenter", "openAuxiliary", "item", "businessUnit", "description", "debit", "credit",
     ]);
   });
 });
@@ -66,14 +66,14 @@ describe("nextFocus", () => {
   const columns = visibleColumns(settings());
   it("Tab walks the columns then the next row; Shift+Tab goes back; the end of the last row adds a line only when that row has something", () => {
     expect(nextFocus({ columns, rows: 2, row: 0, col: 0, key: "Tab", shift: false, rowFilled: false })).toEqual({ row: 0, col: 1, addLine: false });
-    expect(nextFocus({ columns, rows: 2, row: 0, col: 4, key: "Tab", shift: false, rowFilled: true })).toEqual({ row: 1, col: 0, addLine: false });
-    expect(nextFocus({ columns, rows: 2, row: 1, col: 0, key: "Tab", shift: true, rowFilled: false })).toEqual({ row: 0, col: 4, addLine: false });
+    expect(nextFocus({ columns, rows: 2, row: 0, col: 5, key: "Tab", shift: false, rowFilled: true })).toEqual({ row: 1, col: 0, addLine: false });
+    expect(nextFocus({ columns, rows: 2, row: 1, col: 0, key: "Tab", shift: true, rowFilled: false })).toEqual({ row: 0, col: 5, addLine: false });
     expect(nextFocus({ columns, rows: 2, row: 0, col: 0, key: "Tab", shift: true, rowFilled: false })).toBeNull();
-    expect(nextFocus({ columns, rows: 1, row: 0, col: 4, key: "Tab", shift: false, rowFilled: true })).toEqual({ row: 1, col: 0, addLine: true });
-    expect(nextFocus({ columns, rows: 1, row: 0, col: 4, key: "Tab", shift: false, rowFilled: false })).toBeNull();
+    expect(nextFocus({ columns, rows: 1, row: 0, col: 5, key: "Tab", shift: false, rowFilled: true })).toEqual({ row: 1, col: 0, addLine: true });
+    expect(nextFocus({ columns, rows: 1, row: 0, col: 5, key: "Tab", shift: false, rowFilled: false })).toBeNull();
   });
   it("Enter on the last cell always adds a line; elsewhere it moves on like Tab", () => {
-    expect(nextFocus({ columns, rows: 1, row: 0, col: 4, key: "Enter", shift: false, rowFilled: false })).toEqual({ row: 1, col: 0, addLine: true });
+    expect(nextFocus({ columns, rows: 1, row: 0, col: 5, key: "Enter", shift: false, rowFilled: false })).toEqual({ row: 1, col: 0, addLine: true });
     expect(nextFocus({ columns, rows: 1, row: 0, col: 1, key: "Enter", shift: false, rowFilled: false })).toEqual({ row: 0, col: 2, addLine: false });
   });
 });

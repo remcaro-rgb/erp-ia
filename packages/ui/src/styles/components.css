@@ -686,6 +686,9 @@
 
   /* The lines of a comprobante (accounting design §4.7, §8): 36 px rows, the lookup list under the focused cell, totals in the footer. */
   .erp-lines { display: flex; flex-direction: column; gap: 8px; }
+  .erp-lines .erp-lines__tools { justify-content: flex-end; gap: 8px; margin-bottom: 6px; }
+  .erp-lines__table th[draggable="true"] { cursor: grab; }
+  .erp-lines__table th.is-dragging { opacity: .4; }
   .erp-lines__scroll { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
   /* The lookup list hangs below its cell, so the box scrolls sideways only where the columns do not fit. */
   @media (max-width: 1100px) { .erp-lines__scroll { overflow-x: auto; } }

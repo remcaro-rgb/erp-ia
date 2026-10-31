@@ -175,7 +175,7 @@ describe("confirmation preview", () => {
     local.registerProcess(def);
     const preview = buildPreview(local, def, { at: "2026-10-29T15:30:00Z", fee: 1234567 }, { locale: "es-419", stepUp: false, timeZone: "America/Bogota" });
     expect(preview.effects).toEqual([
-      { label: "at", value: "29/10/2026 10:30" },
+      { label: "at", value: "2026/10/29 10:30" },
       { label: "fee", value: "$ 1.234.567,00" },
     ]);
   });

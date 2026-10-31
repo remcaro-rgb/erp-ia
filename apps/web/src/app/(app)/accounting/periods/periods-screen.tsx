@@ -10,7 +10,7 @@ import { AdminDialog } from "../../admin/_components/admin-dialog";
 import { useAdminAction } from "../../admin/_components/use-admin-action";
 
 /** `2026-10-15` as `15/10/2026`. */
-export const dayText = (iso: string): string => iso.split("-").reverse().join("/");
+export const dayText = (iso: string): string => iso.slice(0, 10).replaceAll("-", "/");
 
 type Dialog = { kind: "close"; period: PeriodSummary } | { kind: "reopen"; period: PeriodSummary } | { kind: "close_year" | "reopen_year"; year: YearSummary } | null;
 

@@ -35,7 +35,7 @@ test.describe("accounting year close", () => {
     await fixture.cleanup();
   });
 
-  test("Períodos: Cerrar año 2026 shows the preview (ingresos 10.000.000, gastos 6.000.000, utilidad 4.000.000), TOTP → two closing comprobantes dated 31/12/2026, 2026 closed and 2027 open; Reabrir año → TOTP → the closing comprobantes reversed, 2026 and its December open", async ({ page }) => {
+  test("Períodos: Cerrar año 2026 shows the preview (ingresos 10.000.000, gastos 6.000.000, utilidad 4.000.000), TOTP → two closing comprobantes dated 2026/12/31, 2026 closed and 2027 open; Reabrir año → TOTP → the closing comprobantes reversed, 2026 and its December open", async ({ page }) => {
     test.setTimeout(180_000);
     const { sql } = fixture;
     await page.setViewportSize({ width: 1440, height: 900 });

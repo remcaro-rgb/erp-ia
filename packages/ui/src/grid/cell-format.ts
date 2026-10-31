@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, createElement, useContext, type ReactNode } from "react";
+import { formatDay, formatDayTime } from "../date-format";
 import { formatMoney } from "../money/format";
 
 // The text of one value of a column, in ONE place for the grid's cells (`GridCell`) and the assistant's result tables
@@ -20,18 +21,6 @@ export interface CellFormatOptions {
   timeZone?: string | undefined;
 }
 
-const formatters = new Map<string, Intl.DateTimeFormat>();
-function dateFormatter(kind: "datetime" | "date", timeZone: string | undefined): Intl.DateTimeFormat {
-  const key = `${kind}|${timeZone ?? ""}`;
-  let formatter = formatters.get(key);
-  if (!formatter) {
-    // A date has no time: it is the same day everywhere (UTC), never shifted by a zone.
-    formatter = new Intl.DateTimeFormat("es-CO", kind === "date" ? { dateStyle: "short", timeZone: "UTC" } : { dateStyle: "short", timeStyle: "short", ...(timeZone ? { timeZone } : {}) });
-    formatters.set(key, formatter);
-  }
-  return formatter;
-}
-
 /** True when the value shows as a dash: no value, empty text, or a zero amount. */
 export function isEmptyCell(column: Pick<CellColumn, "type">, value: unknown): boolean {
   if (value === null || value === undefined || value === "") return true;
@@ -47,7 +36,7 @@ export function formatCellValue(column: CellColumn, value: unknown, options: Cel
   if (column.type === "money") return formatMoney(value as number | string);
   if ((column.type === "datetime" || column.type === "date") && (typeof value === "string" || value instanceof Date)) {
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : dateFormatter(column.type, options.timeZone).format(date);
+    return Number.isNaN(date.getTime()) ? String(value) : column.type === "date" ? formatDay(date, "UTC") : formatDayTime(date, options.timeZone);
   }
   if (typeof value === "object") return JSON.stringify(value);
   return label(value);

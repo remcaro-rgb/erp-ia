@@ -34,8 +34,8 @@ describe("valueText", () => {
     expect(valueText({ type: "boolean" }, true, labels)).toBe("Sí");
     expect(valueText(undefined, false, labels)).toBe("No");
     // 15:30 UTC is 10:30 in Bogotá.
-    expect(valueText({ type: "datetime" }, "2026-10-29T15:30:00Z", labels)).toBe("29/10/2026 10:30");
-    expect(valueText({ type: "date" }, "2026-10-29", labels)).toBe("29/10/2026");
+    expect(valueText({ type: "datetime" }, "2026-10-29T15:30:00Z", labels)).toBe("2026/10/29 10:30");
+    expect(valueText({ type: "date" }, "2026-10-29", labels)).toBe("2026/10/29");
     expect(valueText({ type: "text" }, null, labels)).toBe("");
     expect(valueText({ type: "text" }, "", labels)).toBe("");
     expect(valueText(undefined, { a: 1 }, labels)).toBe('{"a":1}');

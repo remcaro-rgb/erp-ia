@@ -29,8 +29,8 @@ describe("GridCell", () => {
         {inRow(<GridCell column={column({ field: "due", type: "date" })} row={{ id: "1", due: "2026-10-27" }} />)}
       </CellFormatProvider>,
     );
-    expect(screen.getByText(/^28\/10\/26.*12:30/)).toBeTruthy();
-    expect(screen.getByText("27/10/26")).toBeTruthy();
+    expect(screen.getByText(/^2026\/10\/28 12:30/)).toBeTruthy();
+    expect(screen.getByText("2026/10/27")).toBeTruthy();
   });
 
   it("a grid cell and a result table cell show the same text for the same value", () => {
@@ -41,7 +41,7 @@ describe("GridCell", () => {
         <ResultTable entity="e" rows={[value]} columns={[{ field: "at", type: "datetime", label: "A" }]} state={{ filters: [], sort: [], page: 1, pageSize: 50 }} />
       </CellFormatProvider>,
     );
-    expect(screen.getAllByText(/^28\/10\/26.*12:30/)).toHaveLength(2);
+    expect(screen.getAllByText(/^2026\/10\/28 12:30/)).toHaveLength(2);
   });
 
   it("shows what the grid's renderer gives for a column, the default text when it gives nothing, and never unmasks", () => {

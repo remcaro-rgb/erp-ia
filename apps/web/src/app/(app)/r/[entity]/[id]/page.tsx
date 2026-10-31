@@ -61,12 +61,14 @@ async function RecordView({ params }: { params: Params }) {
   const { entity, record, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
   const t = await getTranslations();
 
+  // A comprobante has wide lines: it takes the whole width of the page; the other records keep a readable column.
+  const wrapperClass = form.kind === "entry" ? "w-full" : "mx-auto w-full max-w-6xl";
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
   const newTitle = t("grid.record_title.new", { entity: t(entity.nounKey) });
   if (!record) {
     // A record that does not exist yet has only its data; files, contacts and extra data need its id.
     return (
-      <div className="mx-auto w-full max-w-6xl">
+      <div className={wrapperClass}>
         <AppRecordFrame entity={entity.id} recordId={null} newTitle={newTitle} title={newTitle} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} />
       </div>
     );
@@ -107,7 +109,7 @@ async function RecordView({ params }: { params: Params }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className={wrapperClass}>
       <AppRecordFrame
         entity={entity.id}
         recordId={record.id}

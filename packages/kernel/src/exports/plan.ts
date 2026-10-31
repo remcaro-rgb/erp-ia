@@ -4,6 +4,8 @@ import { ProcessError } from "../process/errors";
 import { buildQuery } from "../query/build-query";
 import { EXTRA_PREFIX, type GridStateInput } from "../query/grid-state";
 import { gridEntity, requireGridAccess } from "../query/access";
+import { refLabelKey } from "../query/ref-label";
+import { addRefLabels } from "../query/ref-labels";
 import { applyGridParams, gridAccess, visibleIn, type GridAccess } from "../query/run";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
@@ -27,6 +29,8 @@ export interface ExportSpec extends ExportPresentation {
 
 export interface ExportPlan {
   entity: ResolvedEntityDef;
+  /** Names the records a page of rows refers to: a reference prints the referenced record's name, as the grid shows it. */
+  registry: Registry;
   columns: ExportColumn[];
   access: GridAccess;
   /** The company's legal name (the PDF's heading), when the caller can read it. */
@@ -89,6 +93,7 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
   const [company] = await tx<{ legal_name: string }[]>`select legal_name from kernel.companies where id = kernel.current_company_id()`;
   return {
     entity,
+    registry,
     columns,
     access,
     company: company?.legal_name ?? null,
@@ -104,10 +109,10 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
 }
 
 /** A database row keyed by export column: admin-defined values come out of the row's `extra` document. */
-function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[], groupFields: readonly string[] = []): ExportRow {
+function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[], groupFields: readonly string[] = [], refs: ReadonlySet<string> = new Set()): ExportRow {
   const extra = typeof row.extra === "object" && row.extra !== null ? (row.extra as Record<string, unknown>) : {};
   const out: ExportRow = {};
-  for (const column of columns) out[column.field] = column.field.startsWith(EXTRA_PREFIX) ? extra[column.field.slice(EXTRA_PREFIX.length)] : row[column.field];
+  for (const column of columns) out[column.field] = column.field.startsWith(EXTRA_PREFIX) ? extra[column.field.slice(EXTRA_PREFIX.length)] : refs.has(column.field) ? (row[refLabelKey(column.field)] ?? row[column.field]) : row[column.field];
   if (groupFields.length > 0) out[ROW_KEYS] = Object.fromEntries(groupFields.map((f) => [f, row[f]]));
   return out;
 }
@@ -117,13 +122,16 @@ function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[],
  * under the caller's claims (row-level security and masking apply to each page). Stops reading when the consumer does.
  */
 export async function* exportRows(sql: Sql, claims: JwtClaims, plan: ExportPlan): AsyncGenerator<ExportRow> {
+  const refs = new Set(plan.entity.fields.filter((f) => f.type === "ref").map((f) => f.name));
   for (let offset = 0; ; offset += EXPORT_PAGE_SIZE) {
     const { sql: text, params } = plan.page(offset, EXPORT_PAGE_SIZE);
     const page = await withClaims(sql, claims, async (tx) => {
       await applyGridParams(tx, plan.entity, plan.params);
-      return tx.unsafe<Record<string, unknown>[]>(text, params as never[]);
+      const rows = await tx.unsafe<Record<string, unknown>[]>(text, params as never[]);
+      await addRefLabels(tx, plan.registry, plan.entity, rows);
+      return rows;
     });
-    for (const row of page) yield flatten(row, plan.columns, plan.groupFields);
+    for (const row of page) yield flatten(row, plan.columns, plan.groupFields, refs);
     if (page.length < EXPORT_PAGE_SIZE) return;
   }
 }

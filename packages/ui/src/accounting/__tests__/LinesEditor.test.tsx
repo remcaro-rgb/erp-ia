@@ -32,7 +32,7 @@ describe("LinesEditor", () => {
     // The three optional dimensions are off: no column for them.
     expect(screen.queryByRole("columnheader", { name: /Auxiliar abierto|Ítem|Unidad de negocio/ })).toBeNull();
 
-    // Line 1: the account is chosen from the lookup with Tab, then Tab walks tercero → centro de costo → débito (nothing in between).
+    // Line 1: the account is chosen from the lookup with Tab, then Tab walks tercero → centro de costo → descripción → débito (nothing in between).
     await user.click(cell("Cuenta, Línea 1"));
     await user.type(cell("Cuenta, Línea 1"), "caja");
     await screen.findByRole("option", { name: "110505 · Caja general" });
@@ -40,6 +40,8 @@ describe("LinesEditor", () => {
     expect(document.activeElement).toBe(cell("Tercero, Línea 1"));
     await user.keyboard("{Tab}");
     expect(document.activeElement).toBe(cell("Centro de costo, Línea 1"));
+    await user.keyboard("{Tab}");
+    expect(document.activeElement).toBe(cell("Descripción, Línea 1"));
     await user.keyboard("{Tab}");
     expect(document.activeElement).toBe(cell("Débito, Línea 1"));
     await user.keyboard("1000{Tab}");
@@ -52,7 +54,7 @@ describe("LinesEditor", () => {
     expect(document.activeElement).toBe(cell("Cuenta, Línea 2"));
     await user.type(cell("Cuenta, Línea 2"), "4135");
     await screen.findByRole("option", { name: "413505 · Ventas" });
-    await user.keyboard("{Tab}{Tab}{Tab}");
+    await user.keyboard("{Tab}{Tab}{Tab}{Tab}");
     expect(document.activeElement).toBe(cell("Débito, Línea 2"));
     await user.keyboard("{Tab}1000{Tab}");
 

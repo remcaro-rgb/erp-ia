@@ -42,7 +42,7 @@ const MOVE_KEYS = "Alt+ArrowLeft Alt+ArrowRight";
  * One fixed slot for what the grid is doing (an export, a refetch, a column just moved), for screen readers and eyes
  * alike (role="status"). Always rendered, empty when idle, so the header never reflows (UI density audit M3).
  */
-function GridStatusText({ status, refreshing, notice }: { status: ReturnType<typeof useGridExport>["status"]; refreshing: boolean; notice: string }) {
+export function GridStatusText({ status, refreshing, notice }: { status: ReturnType<typeof useGridExport>["status"]; refreshing: boolean; notice: string }) {
   const t = useTranslations();
   const text =
     status.phase === "idle"

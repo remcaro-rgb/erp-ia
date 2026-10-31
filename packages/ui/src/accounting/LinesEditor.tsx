@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Columns3, X } from "lucide-react";
 import { formatMoney, MoneyInput } from "../money";
 import { blankLine, lineTotals, nextFocus, type Chosen, type EditorLine, type LineColumn } from "./entry-model";
 
@@ -18,11 +18,35 @@ export type LookupKind = "account" | "party" | "costCenter" | "openAuxiliary" | 
 export type LineLookup = (kind: LookupKind, search: string, signal?: AbortSignal) => Promise<Chosen[]>;
 
 const LABEL_KEY: Record<LineColumn, string> = {
-  account: "account", party: "party", costCenter: "cost_center", openAuxiliary: "open_auxiliary", item: "item", businessUnit: "business_unit", debit: "debit", credit: "credit",
+  account: "account", party: "party", costCenter: "cost_center", openAuxiliary: "open_auxiliary", item: "item", businessUnit: "business_unit", description: "description", debit: "debit", credit: "credit",
 };
-const FIELD: Record<Exclude<LineColumn, "debit" | "credit">, keyof EditorLine> = {
+const FIELD: Record<Exclude<LineColumn, "debit" | "credit" | "description">, keyof EditorLine> = {
   account: "account", party: "party", costCenter: "costCenter", openAuxiliary: "openAuxiliary", item: "item", businessUnit: "businessUnit",
 };
+
+/** Columns the user may not hide: an entry cannot be saved without them. */
+const REQUIRED: readonly LineColumn[] = ["account", "debit", "credit"];
+const PREFS_KEY = "erp.entry.line_columns";
+
+interface ColumnPrefs {
+  order: LineColumn[];
+  hidden: LineColumn[];
+}
+
+function readPrefs(): ColumnPrefs {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null") as Partial<ColumnPrefs> | null;
+    return { order: Array.isArray(parsed?.order) ? parsed.order : [], hidden: Array.isArray(parsed?.hidden) ? parsed.hidden : [] };
+  } catch {
+    return { order: [], hidden: [] };
+  }
+}
+
+/** The available columns in the user's order (new ones last) and the ones they chose to hide. */
+function arrange(available: readonly LineColumn[], prefs: ColumnPrefs): { order: LineColumn[]; shown: LineColumn[] } {
+  const order = [...prefs.order.filter((c) => available.includes(c)), ...available.filter((c) => !prefs.order.includes(c))];
+  return { order, shown: order.filter((c) => REQUIRED.includes(c) || !prefs.hidden.includes(c)) };
+}
 
 export interface LinesEditorProps {
   lines: readonly EditorLine[];
@@ -35,12 +59,47 @@ export interface LinesEditorProps {
   /** The comprobante's own totals, shown when a restricted line hides part of the sum. */
   knownTotals?: { debit: number; credit: number } | null;
   debounceMs?: number;
+  /** Told the columns on screen, in order, whenever they change (the export follows them). */
+  onShownChange?: (columns: readonly LineColumn[]) => void;
+  /** Sits at the right of the columns button, above the table. */
+  toolbarExtra?: React.ReactNode;
 }
 
 const MASK = "••••";
 
-export function LinesEditor({ lines, onChange, columns, lookup, headerBusinessUnit = null, readOnly = false, knownTotals = null, debounceMs = 150 }: LinesEditorProps) {
+export function LinesEditor({ lines, onChange, columns: available, lookup, headerBusinessUnit = null, readOnly = false, knownTotals = null, debounceMs = 150, onShownChange, toolbarExtra }: LinesEditorProps) {
   const t = useTranslations("accounting.entry");
+  const tg = useTranslations("grid");
+  const [prefs, setPrefs] = useState<ColumnPrefs>({ order: [], hidden: [] });
+  const [menu, setMenu] = useState(false);
+  const [dragging, setDragging] = useState<LineColumn | null>(null);
+  // The saved choice is read after hydration, so the server and the first client render agree.
+  useEffect(() => setPrefs(readPrefs()), []);
+  const { order, shown: columns } = useMemo(() => arrange(available, prefs), [available, prefs]);
+  const shownKey = columns.join(",");
+  const reportShown = useRef(onShownChange);
+  useEffect(() => {
+    reportShown.current = onShownChange;
+  });
+  useEffect(() => reportShown.current?.(shownKey.split(",") as LineColumn[]), [shownKey]);
+  const savePrefs = (next: ColumnPrefs) => {
+    setPrefs(next);
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    } catch {
+      // Private mode: the choice lasts until the page closes.
+    }
+  };
+  const move = (column: LineColumn, to: number) => {
+    const from = order.indexOf(column);
+    if (from < 0 || to < 0 || to >= order.length || to === from) return;
+    const next = [...order];
+    next.splice(from, 1);
+    next.splice(to, 0, column);
+    savePrefs({ ...prefs, order: next });
+  };
+  const toggle = (column: LineColumn) =>
+    savePrefs({ ...prefs, order, hidden: prefs.hidden.includes(column) ? prefs.hidden.filter((c) => c !== column) : [...prefs.hidden, column] });
   const tableRef = useRef<HTMLTableElement>(null);
   const [focusAt, setFocusAt] = useState<{ row: number; col: number } | null>(null);
 
@@ -87,6 +146,38 @@ export function LinesEditor({ lines, onChange, columns, lookup, headerBusinessUn
 
   return (
     <div className="erp-lines">
+      <div className="erp-row erp-lines__tools">
+        <span className="erp-pop">
+          <button type="button" className="erp-btn" aria-haspopup="true" aria-expanded={menu} onClick={() => setMenu((open) => !open)}>
+            <Columns3 size={14} aria-hidden="true" /> {tg("columns")}
+          </button>
+          {menu && (
+            <div className="erp-pop__panel" role="group" aria-label={tg("columns")} onKeyDown={(event) => event.key === "Escape" && setMenu(false)}>
+              {order.map((c, index) => (
+                <div key={c} className="erp-pop__check">
+                  <input
+                    type="checkbox"
+                    id={`line-col-${c}`}
+                    checked={columns.includes(c)}
+                    disabled={REQUIRED.includes(c)}
+                    onChange={() => toggle(c)}
+                  />
+                  <label htmlFor={`line-col-${c}`} className="erp-grow">
+                    {t(`col.${LABEL_KEY[c]}`)}
+                  </label>
+                  <button type="button" className="erp-iconbtn" disabled={index === 0} aria-label={t("move_column_left", { name: t(`col.${LABEL_KEY[c]}`) })} onClick={() => move(c, index - 1)}>
+                    <ArrowLeft size={14} aria-hidden="true" />
+                  </button>
+                  <button type="button" className="erp-iconbtn" disabled={index === order.length - 1} aria-label={t("move_column_right", { name: t(`col.${LABEL_KEY[c]}`) })} onClick={() => move(c, index + 1)}>
+                    <ArrowRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </span>
+        {toolbarExtra}
+      </div>
       <div className="erp-lines__scroll">
         <table ref={tableRef} className="erp-lines__table" aria-label={t("lines_label")} onKeyDown={onKeyDown}>
           <thead>
@@ -95,7 +186,23 @@ export function LinesEditor({ lines, onChange, columns, lookup, headerBusinessUn
                 #
               </th>
               {columns.map((c) => (
-                <th key={c} scope="col" className={c === "debit" || c === "credit" ? "erp-num" : undefined}>
+                <th
+                  key={c}
+                  scope="col"
+                  className={[c === "debit" || c === "credit" ? "erp-num" : "", dragging === c ? "is-dragging" : ""].filter(Boolean).join(" ") || undefined}
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    setDragging(c);
+                  }}
+                  onDragOver={(event) => dragging && event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (dragging) move(dragging, order.indexOf(c));
+                    setDragging(null);
+                  }}
+                  onDragEnd={() => setDragging(null)}
+                >
                   {t(`col.${LABEL_KEY[c]}`)}
                 </th>
               ))}
@@ -124,6 +231,15 @@ export function LinesEditor({ lines, onChange, columns, lookup, headerBusinessUn
                             // A line carries one side: an amount on one side clears the other.
                             edit(row, c === "debit" ? { debit: amount, ...(amount ? { credit: null } : {}) } : { credit: amount, ...(amount ? { debit: null } : {}) });
                           }}
+                        />
+                      ) : c === "description" ? (
+                        <input
+                          data-cell={`${row}:${col}`}
+                          aria-label={`${t(`col.${LABEL_KEY[c]}`)}, ${t("line_n", { n: row + 1 })}`}
+                          maxLength={500}
+                          disabled={readOnly}
+                          value={line.description}
+                          onChange={(event) => edit(row, { description: event.target.value })}
                         />
                       ) : (
                         <LookupCell
