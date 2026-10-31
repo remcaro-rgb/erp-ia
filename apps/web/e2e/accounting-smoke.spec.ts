@@ -137,11 +137,9 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     await lauraPage.goto("/accounting/reports/trial_balance");
     const lauraBalance = lauraPage.getByRole("region", { name: "Balance de prueba" });
     await expect(lauraBalance.locator("tfoot")).toContainText("$");
-    // Opening and movement are Laura's to the peso; the restricted accounts' closing balances are netted in their one row, so each side of
-    // the closing columns can differ from hers while the two stay equal.
+    // The restricted row keeps each side of its accounts, so all six totals are Laura's to the peso.
     const lauraCells = await money(lauraBalance.locator("tfoot").locator("th, td"));
-    expect(lauraCells.slice(0, 4)).toEqual(cells.slice(0, 4));
-    expect(lauraCells[4]).toBe(lauraCells[5]);
+    expect(lauraCells).toEqual(cells);
     await other.close();
 
     // The Auxiliar of a restricted account answers Sin acceso: the report refuses with that note, and the page shows the refusal.

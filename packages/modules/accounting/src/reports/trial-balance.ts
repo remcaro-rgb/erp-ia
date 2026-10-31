@@ -26,20 +26,28 @@ export type TrialBalanceParams = z.infer<typeof trialBalanceParams>;
 
 interface Folded extends BalanceRow {
   restricted: boolean;
+  /** Each folded account contributes its own debit and credit side, so the line's columns add up to the admin's. */
+  sides: Record<(typeof MONEY)[number], number>;
 }
 
-function toRow(row: BalanceRow, count?: number): Record<string, unknown> {
+function sidesOf(row: BalanceRow): Folded["sides"] {
   const closingNet = row.openingNet + row.debit - row.credit;
+  return {
+    opening_debit: Math.max(row.openingNet, 0),
+    opening_credit: Math.max(-row.openingNet, 0),
+    debit: row.debit,
+    credit: row.credit,
+    closing_debit: Math.max(closingNet, 0),
+    closing_credit: Math.max(-closingNet, 0),
+  };
+}
+
+function toRow(row: BalanceRow, count?: number, sides: Folded["sides"] = sidesOf(row)): Record<string, unknown> {
   return {
     account_id: row.nodeId,
     account_code: row.code,
     account_name: row.name,
-    opening_debit: cents(Math.max(row.openingNet, 0)),
-    opening_credit: cents(Math.max(-row.openingNet, 0)),
-    debit: cents(row.debit),
-    credit: cents(row.credit),
-    closing_debit: cents(Math.max(closingNet, 0)),
-    closing_credit: cents(Math.max(-closingNet, 0)),
+    ...Object.fromEntries(MONEY.map((field) => [field, cents(sides[field])])),
     is_restricted: row.restricted,
     ...(count === undefined ? {} : { n: count }),
   };
@@ -57,16 +65,17 @@ export async function trialBalanceRows(ctx: ProcessContext, p: Omit<TrialBalance
   const nonZero = (r: BalanceRow) => r.openingNet !== 0 || r.debit !== 0 || r.credit !== 0 || r.openingNet + r.debit - r.credit !== 0;
   const wanted = p.onlyWithMovement ? all.filter(nonZero) : all;
   const folded = foldRestricted<Folded>(
-    wanted,
-    () => ({ nodeId: null, code: RESTRICTED_CODE, name: RESTRICTED_NAME, nature: null, section: null, restricted: true, openingNet: 0, debit: 0, credit: 0 }),
+    wanted.map((r) => ({ ...r, sides: sidesOf(r) })),
+    () => ({ nodeId: null, code: RESTRICTED_CODE, name: RESTRICTED_NAME, nature: null, section: null, restricted: true, openingNet: 0, debit: 0, credit: 0, sides: { opening_debit: 0, opening_credit: 0, debit: 0, credit: 0, closing_debit: 0, closing_credit: 0 } }),
     (acc, row) => {
       acc.openingNet += row.openingNet;
       acc.debit += row.debit;
       acc.credit += row.credit;
+      for (const field of MONEY) acc.sides[field] += row.sides[field];
     },
   );
-  const rows = folded.visible.map((r) => toRow(r));
-  if (folded.restricted) rows.push(toRow(folded.restricted, folded.count));
+  const rows = folded.visible.map((r) => toRow(r, undefined, r.sides));
+  if (folded.restricted) rows.push(toRow(folded.restricted, folded.count, folded.restricted.sides));
   return { rows, restricted: folded.count };
 }
 
