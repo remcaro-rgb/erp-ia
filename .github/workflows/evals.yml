@@ -1,0 +1,61 @@
+name: Assistant evals
+
+# The model-backed evaluation of the assistant (rule 30, owner 2026-10-30): nightly on main and on demand, only when the
+# repository has the gateway secret. Every core case and 90 % overall must pass. On every push the same runner is
+# exercised with the mock model by the agent's integration test (CI), at no cost.
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # 01:17 Bogotá
+  workflow_dispatch:
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    env:
+      DEMO_SEED: "1"
+    steps:
+      - name: Gateway secret present?
+        id: key
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        run: |
+          if [ -n "$AI_GATEWAY_API_KEY" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "AI_GATEWAY_API_KEY is not set: the model-backed evals are skipped."; fi
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.present == 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.key.outputs.present == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: supabase/setup-cli@v1
+        if: steps.key.outputs.present == 'true'
+        with:
+          version: 2.117.0
+      - run: pnpm install --frozen-lockfile
+        if: steps.key.outputs.present == 'true'
+      - run: supabase start
+        if: steps.key.outputs.present == 'true'
+      - run: pnpm db:seed
+        if: steps.key.outputs.present == 'true'
+      - name: Run the evals
+        if: steps.key.outputs.present == 'true'
+        env:
+          AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+        run: |
+          set -o pipefail
+          pnpm evals | tee eval-summary.txt
+          { echo '### Assistant evals'; echo '```'; cat eval-summary.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.key.outputs.present == 'true'
+        with:
+          name: eval-report
+          path: eval-report.json
+          if-no-files-found: ignore
+      - run: supabase stop
+        if: always() && steps.key.outputs.present == 'true'

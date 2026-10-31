@@ -21,6 +21,7 @@
     "with-env": "tsx scripts/with-env.ts",
     "hosted": "tsx scripts/with-env.ts --env apps/web/.env.hosted.local",
     "db:seed": "tsx scripts/seed.ts",
+    "evals": "tsx scripts/evals.ts",
     "db:migrate:new": "tsx scripts/new-migration.ts",
     "help:index": "tsx scripts/help-index.ts",
     "docker:env": "tsx scripts/docker-env.ts",

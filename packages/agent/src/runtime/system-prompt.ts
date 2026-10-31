@@ -134,9 +134,11 @@ export interface LoadPromptOptions {
   userText: string;
   screen?: ScreenContext;
   permitted: readonly ProcessDef[];
-  conversationId: string;
+  conversationId?: string;
   /** The workflow run: the help embedding is metered once for it. */
   runId?: string;
+  /** No help chunks and no embedding call: the evaluation run measures the tool choice, not the help index. */
+  skipHelp?: boolean;
 }
 
 /**
@@ -151,10 +153,12 @@ export async function loadPromptFacts(sql: Sql, caller: Caller, options: LoadPro
   const usages: EmbeddingUsage[] = [];
   let embedding: number[] | undefined;
   try {
-    embedding = await embedQuery(helpEmbedder(), options.userText.slice(0, 500), {
-      signal: AbortSignal.timeout(PROMPT_HELP_TIMEOUT_MS),
-      onUsage: (usage) => void usages.push(usage),
-    });
+    if (!options.skipHelp) {
+      embedding = await embedQuery(helpEmbedder(), options.userText.slice(0, 500), {
+        signal: AbortSignal.timeout(PROMPT_HELP_TIMEOUT_MS),
+        onUsage: (usage) => void usages.push(usage),
+      });
+    }
   } catch (error) {
     console.warn("agent: help search skipped, the question could not be embedded", error);
   }

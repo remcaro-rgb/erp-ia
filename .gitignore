@@ -11,3 +11,4 @@ dist/
 .workflow-data/
 .workflow-vitest/
 .vercel
+eval-report.json

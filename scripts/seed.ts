@@ -221,7 +221,7 @@ export interface Session {
 }
 
 /** The account signed in with its password and TOTP code, acting through the processes with `origin`. */
-async function signIn(sql: Sql, env: SeedEnv, account: DemoAccount): Promise<Session> {
+export async function signIn(sql: Sql, env: SeedEnv, account: DemoAccount): Promise<Session> {
   const client = createClient(env.supabaseUrl, env.anonKey, noSession);
   const signedIn = await client.auth.signInWithPassword({ email: account.email, password: account.password });
   if (signedIn.error) throw new Error(`db:seed: ${account.email} could not sign in: ${signedIn.error.message}`);
