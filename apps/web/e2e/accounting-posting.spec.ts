@@ -45,7 +45,7 @@ test.describe("accounting posting rules", () => {
     await page.goto("/accounting/posting");
     await expect(page).toHaveURL(/\/accounting\/setup$/);
     await expect(page.getByRole("heading", { name: "Configurar contabilidad" })).toBeVisible();
-    await page.getByRole("button", { name: "Configurar contabilidad" }).click();
+    await page.locator("#erp-main").getByRole("button", { name: "Configurar contabilidad" }).click();
     await confirmStepUp(page, secret);
     await expect(page).toHaveURL(/\/accounting\/entries$/, { timeout: 120_000 });
     expect((await sql`select count(*)::int as n from accounting.settings where company_id = ${companyId}`)[0]!.n).toBe(1);
@@ -77,7 +77,7 @@ test.describe("accounting posting rules", () => {
     const tab = page.getByRole("navigation", { name: "Secciones de las reglas contables" });
     await expect(tab.getByRole("link", { name: /Pendientes de contabilizar/ })).toContainText("1");
     // The bar item carries the same count.
-    await expect(page.getByRole("button", { name: "Reglas contables 1 pendientes", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Reglas contables 1 pendientes", exact: true })).toBeVisible();
     const row = page.getByRole("row", { name: /qa\.sale\.issued/ });
     await expect(row).toContainText("Comprobante descuadrado");
     await row.getByRole("button", { name: "Reintentar" }).click();
