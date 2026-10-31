@@ -41,6 +41,19 @@ export interface EntityDef {
    * /r/<entity id>/<id>, or for the kernel's users their page under Administración › Usuarios (`recordHref`).
    */
   recordPage?: boolean;
+  /**
+   * Parameters the entity's view reads (design §9, gaps plan Task 7): a grid state may carry a value for each in `params`, and
+   * the query sets it as the transaction setting `erp.param.<name>` before reading, so a view can compute a column for the
+   * period or date the screen shows (`accounting.period_figure`). An entity without any refuses every param.
+   */
+  gridParams?: GridParamDef[];
+}
+
+export interface GridParamDef {
+  /** Lowercase identifier: the setting is `erp.param.<name>`. */
+  name: string;
+  type: "uuid" | "date" | "text";
+  required?: boolean;
 }
 
 export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFieldDef[] };
@@ -69,8 +82,14 @@ export function defineEntity(def: EntityDef): ResolvedEntityDef {
   for (const name of def.cloneReset ?? []) {
     if (!names.has(name)) throw new Error(`entity ${def.id}: cloneReset ${name} is not a field`);
   }
+  const params = new Set<string>();
+  for (const param of def.gridParams ?? []) {
+    if (!IDENTIFIER.test(param.name)) throw new Error(`entity ${def.id}: invalid grid param name "${param.name}"`);
+    if (params.has(param.name)) throw new Error(`entity ${def.id}: duplicate grid param ${param.name}`);
+    params.add(param.name);
+  }
   if (!names.has(def.defaultSort.field)) {
     throw new Error(`entity ${def.id}: defaultSort.field ${def.defaultSort.field} is not a field`);
   }
-  return { ...def, defaultSort: { ...def.defaultSort }, ...(def.cloneReset ? { cloneReset: [...def.cloneReset] } : {}), fields };
+  return { ...def, defaultSort: { ...def.defaultSort }, ...(def.gridParams ? { gridParams: def.gridParams.map((p) => ({ ...p })) } : {}), ...(def.cloneReset ? { cloneReset: [...def.cloneReset] } : {}), fields };
 }

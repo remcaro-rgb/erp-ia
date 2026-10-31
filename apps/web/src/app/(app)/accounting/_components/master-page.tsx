@@ -95,6 +95,13 @@ export function MasterPage({ data }: { data: MasterPageData }) {
   const newLabel = isAccount ? t("grid.master.new_account") : t("grid.master.new");
   const figureLabel = t(`grid.master.${data.figure}`);
 
+  // Tabla shows the selected period's figure as a column (header: the figure's name, as the tree pane's); Árbol shows it beside the nodes instead.
+  const columns = useMemo(
+    () => (view === "tree" ? grid.columns.filter((c) => c.field !== "period_figure") : grid.columns.map((c) => (c.field === "period_figure" ? { ...c, label: figureLabel } : c))),
+    [grid.columns, view, figureLabel],
+  );
+  const params = useMemo(() => (view === "table" && periodId ? { period_id: periodId } : undefined), [view, periodId]);
+
   const changeViews = async (result: Awaited<ReturnType<typeof saveViewAction>>) => {
     if (!result.ok) throw new Error(result.code);
     setViews(result.views);
@@ -110,22 +117,20 @@ export function MasterPage({ data }: { data: MasterPageData }) {
           {t("grid.master.tree")}
         </button>
       </span>
-      {view === "tree" && (
-        <label className="erp-row erp-small">
-          <span className="erp-muted">{t("grid.master.period")}</span>
-          {data.periods.length === 0 ? (
-            <span className="erp-muted">{t("grid.master.no_period")}</span>
-          ) : (
-            <select aria-label={t("grid.master.period")} value={periodId ?? ""} onChange={(e) => setPeriodId(e.target.value)} className="erp-btn">
-              {data.periods.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {periodLabel(p.startsOn)}
-                </option>
-              ))}
-            </select>
-          )}
-        </label>
-      )}
+      <label className="erp-row erp-small">
+        <span className="erp-muted">{t("grid.master.period")}</span>
+        {data.periods.length === 0 ? (
+          <span className="erp-muted">{t("grid.master.no_period")}</span>
+        ) : (
+          <select aria-label={t("grid.master.period")} value={periodId ?? ""} onChange={(e) => setPeriodId(e.target.value)} className="erp-btn">
+            {data.periods.map((p) => (
+              <option key={p.id} value={p.id}>
+                {periodLabel(p.startsOn)}
+              </option>
+            ))}
+          </select>
+        )}
+      </label>
     </span>
   );
 
@@ -134,9 +139,10 @@ export function MasterPage({ data }: { data: MasterPageData }) {
       key={`${view}:${version}`}
       entity={entity}
       title={grid.title}
-      columns={grid.columns}
+      columns={columns}
       initialState={initialState}
       baseFilters={baseFilters}
+      params={params}
       headerExtra={toggle}
       onRowOpen={view === "tree" ? (row) => setSelectedId(row.id) : undefined}
       toolbar={

@@ -44,6 +44,8 @@ export const GridState = z.object({
   aggregates: z.array(z.object({ field: z.string().min(1).max(80), fn: z.enum(AGGREGATE_FNS) })).max(20).optional(),
   /** Free text matched against the entity's searchable fields (the lookup's autocomplete). */
   search: z.string().max(200).optional(),
+  /** Values of the parameters the entity declares (`EntityDef.gridParams`), at most five; the query sets them as `erp.param.<name>`. */
+  params: z.record(z.string().regex(/^[a-z][a-z0-9_]*$/).max(40), z.string().max(200)).refine((p) => Object.keys(p).length <= 5, "at most 5 params").optional(),
 });
 export type GridState = z.infer<typeof GridState>;
 /** What callers write: optional parts may be left out. */

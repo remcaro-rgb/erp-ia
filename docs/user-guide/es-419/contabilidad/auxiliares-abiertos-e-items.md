@@ -34,7 +34,7 @@ Para apagarlos, desmarca la casilla: los datos ya registrados se conservan.
 
 ## Trabajar con ellos
 
-Los dos tienen la misma pantalla que los centros de costo (guía **Centros de costo**): **Vista** **Tabla** o **Árbol**, **Nuevo** para crear (Código, Descripción, Tipo, Bajo qué nodo) y registro con pestañas **Datos**, **Saldos por cuenta**, **Movimientos**, **Datos adicionales** y **Archivos**.
+Los dos tienen la misma pantalla que los centros de costo (guía **Centros de costo**): **Vista** **Tabla** o **Árbol** (la Tabla trae la columna **Movimiento neto** del **Período** elegido, que se ordena, se filtra y se exporta), **Nuevo** para crear (Código, Descripción, Tipo, Bajo qué nodo) y registro con pestañas **Datos**, **Saldos por cuenta**, **Movimientos**, **Datos adicionales** y **Archivos**.
 
 - El Árbol de **Auxiliares abiertos** muestra el **Movimiento neto** del período junto a cada nodo.
 - **Saldos por cuenta** muestra el débito, el crédito y el neto de cada cuenta para el rango de períodos que elijas (**Desde**, **Hasta**), incluyendo a los descendientes del nodo.

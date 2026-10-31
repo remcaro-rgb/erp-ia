@@ -35,6 +35,13 @@ export interface FieldDef {
   valuesKey?: string;
   /** The field holds a code of this country-pack table: its label comes from the pack (`CountryPack.codeLabel`). */
   codes?: CodeTable;
+  /**
+   * The masked view computes this column from this SQL expression instead of reading a stored column (a figure for the
+   * period a grid param names, `accounting.period_figure`). The field is read-only: no create process takes it, and a
+   * clone leaves it empty (list it in `cloneReset`). Declare it after the entity's stored fields so that a view can gain it
+   * with `create or replace view`.
+   */
+  viewExpr?: string;
 }
 
 /** A field with every default applied. */

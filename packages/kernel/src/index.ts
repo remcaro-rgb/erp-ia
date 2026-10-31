@@ -70,7 +70,7 @@ export type { ImportColumn, ImportColumnType } from "./import/columns";
 export { exportsStore, fileStore, setExportsStore, setFileStore } from "./files/store";
 export { consultProcessesOf, entitlementKeyOf, gridDenial, gridEntity, requireGridAccess } from "./query/access";
 export type { GridDenial } from "./query/access";
-export { EXPORT_PROCESSES, exportJobEntity } from "./exports";
+export { EXPORT_PROCESSES, exportJobEntity, exportRows, planExport } from "./exports";
 export { defineReport, reportDenial, reportOf, ReportState, runReport, runReportFile } from "./reports";
 export type { ReportColumn, ReportDef, ReportDenial, ReportFile, ReportFileAction, ReportResult } from "./reports";
 export {

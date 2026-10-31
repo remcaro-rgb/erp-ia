@@ -3,6 +3,7 @@ import type { CustomFieldType } from "../custom-fields/types";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import type { EntityDef } from "../registry/entities";
 import { buildQuery } from "./build-query";
+import { QueryError } from "./errors";
 import { EXTRA_PREFIX, type GridState } from "./grid-state";
 import { addRefLabels } from "./ref-labels";
 import type { Registry } from "../registry";
@@ -115,8 +116,41 @@ export async function runGridQuery(sql: Sql, claims: JwtClaims, entity: EntityDe
   return withClaims(sql, claims, (tx) => gridQueryInTx(tx, entity, state, options));
 }
 
+const PARAM_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const PARAM_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Whether `value` is a well-formed value of a grid param of `type`. */
+function paramFits(type: "uuid" | "date" | "text", value: string): boolean {
+  if (type === "uuid") return PARAM_UUID.test(value);
+  if (type === "date") {
+    const m = PARAM_DATE.exec(value);
+    if (!m) return false;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+  }
+  return true;
+}
+
+/**
+ * Sets the grid params of `state` as the transaction settings `erp.param.<name>` (local to `tx`, so they end with it) for the
+ * entity's view to read. Every name must be declared in `entity.gridParams` (an entity without any refuses all) and fit its
+ * type; throws `QueryError` `unknown_param` or `bad_value` otherwise, before any query runs.
+ */
+export async function applyGridParams(tx: Tx, entity: EntityDef, params: Record<string, string> | undefined): Promise<void> {
+  const declared = new Map((entity.gridParams ?? []).map((p) => [p.name, p]));
+  const given = Object.entries(params ?? {});
+  for (const [name, value] of given) {
+    const def = declared.get(name);
+    if (!def) throw new QueryError("unknown_param", name);
+    if (!paramFits(def.type, value)) throw new QueryError("bad_value", name, `${name} is not a valid ${def.type}`);
+  }
+  for (const def of declared.values()) if (def.required && params?.[def.name] === undefined) throw new QueryError("bad_value", def.name, `${def.name} is required`);
+  for (const [name, value] of given) await tx`select set_config(${`erp.param.${name}`}, ${value}, true)`;
+}
+
 /** One grid page read in `tx` (a transaction as the caller, e.g. a process's): see `runGridQuery`. */
 export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState, options: GridQueryOptions = {}): Promise<GridResult & { access: GridAccess }> {
+  await applyGridParams(tx, entity, state.params);
   const access = await gridAccess(tx, entity);
   const extras = Object.fromEntries(access.extras.map((e) => [e.key, e.type]));
   const q = buildQuery(entity, state, visibleIn(access), { extras, timeZone: access.timeZone });

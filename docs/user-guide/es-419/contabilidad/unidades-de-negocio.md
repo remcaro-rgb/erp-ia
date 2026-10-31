@@ -25,7 +25,7 @@ Es opcional. **Unidades de negocio** aparece en **Contabilidad › Maestros** so
 
 ## Crear y administrar
 
-Es la misma pantalla de los demás maestros jerárquicos (guía **Centros de costo**): **Vista** **Tabla** o **Árbol**, **Nuevo** con Código, Descripción, Tipo y el nodo **Bajo** el que se crea. El registro tiene **Datos**, **Saldos por cuenta**, **Movimientos**, **Datos adicionales** y **Archivos**.
+Es la misma pantalla de los demás maestros jerárquicos (guía **Centros de costo**): **Vista** **Tabla** o **Árbol** (la Tabla trae la columna **Movimiento neto** del **Período** elegido, que se ordena, se filtra y se exporta), **Nuevo** con Código, Descripción, Tipo y el nodo **Bajo** el que se crea. El registro tiene **Datos**, **Saldos por cuenta**, **Movimientos**, **Datos adicionales** y **Archivos**.
 
 ## En un comprobante
 

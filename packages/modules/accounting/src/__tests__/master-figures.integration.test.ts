@@ -1,6 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { exportRows, GridState, planExport, runGridQuery } from "@erp/kernel";
 import { withClaims } from "@erp/kernel/testing";
-import { accountBalances, nodeFigures } from "../masters/figures";
+import { accountBalances, listPeriods, nodeFigures } from "../masters/figures";
+import { masterTree, MASTER_ENTITIES as TREE_ENTITIES } from "../masters/tree";
+import { accountEntity, businessUnitEntity, costCenterEntity, itemEntity, openAuxiliaryEntity } from "../entities";
 import { accountingHarness, type AccountingHarness } from "./helpers";
 
 // The figures of the record pages (accounting design §8, Task 28): the Saldos of a Cuenta per period with its descendants, and the
@@ -82,5 +85,106 @@ describe("nodeFigures", () => {
       await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: gastos, access: "open", grants: [] });
     }
     expect(await withClaims(h.sql, h.admin.claims, (tx) => nodeFigures(tx, { dimension: "cost_center", companyId: h.companyId, nodeId: "00000000-0000-7000-8000-000000000000" }))).toBeNull();
+  });
+});
+
+// ---- the period figure of the masters' Tabla (gaps plan Task 7, OD-2 option A) ---------------------------------------------------
+
+const ENTITIES = { "accounting.account": accountEntity, "accounting.cost_center": costCenterEntity, "accounting.open_auxiliary": openAuxiliaryEntity, "accounting.item": itemEntity, "accounting.business_unit": businessUnitEntity } as const;
+const gridState = (params: Record<string, string> | undefined, extra: Record<string, unknown> = {}) =>
+  GridState.parse({ filters: [], sort: [], page: 1, pageSize: 500, columns: ["id", "code", "period_figure"], ...(params ? { params } : {}), ...extra });
+const figureRows = async (claims: typeof h.admin.claims, entity: keyof typeof ENTITIES, periodId: string | null, extra: Record<string, unknown> = {}) =>
+  (await runGridQuery(h.sql, claims, ENTITIES[entity], gridState(periodId ? { period_id: periodId } : undefined, extra))).rows;
+
+describe("the period figure of Tabla", () => {
+  it("Tabla figure equals the tree's figure for every node and period, descendants included, for the five masters", async () => {
+    // One node of each other dimension, with a parent group, moved in February.
+    const node = async (table: string, code: string, parent: string | null, kind: string) =>
+      (await h.sql<{ id: string }[]>`insert into ${h.sql("accounting." + table)} (company_id, code, name, parent_id, kind) values (${h.companyId}, ${code}, ${code}, ${parent}, ${kind}) returning id`)[0]!.id;
+    const ids: Record<string, string> = {};
+    for (const [table, key] of [["open_auxiliaries", "aux"], ["items", "item"], ["business_units", "unit"]] as const) {
+      const group = await node(table, `G-${key}`, null, "group");
+      ids[key] = await node(table, `L-${key}`, group, "leaf");
+    }
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
+      date: `${year}-02-07`, description: "Movimiento dimensiones",
+      lines: [
+        { accountCode: "111005", debit: 500, credit: 0 },
+        { accountCode: "413595", debit: 0, credit: 500, costCenterId: adm, openAuxiliaryId: ids.aux, itemId: ids.item, businessUnitId: ids.unit },
+      ],
+    });
+    await h.run(h.contador, "accounting.entry.post", { id });
+
+    const periods = await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId));
+    let compared = 0;
+    for (const entity of TREE_ENTITIES) {
+      // The chart has thousands of accounts: three periods of it, every period of the small dimension trees.
+      for (const period of entity === "accounting.account" ? periods.filter((p) => [1, 2, 12].includes(p.number)) : periods) {
+        const tree = await withClaims(h.sql, h.admin.claims, (tx) => masterTree(tx, { entity, companyId: h.companyId, periodId: period.id }));
+        const rows: Record<string, unknown>[] = [];
+        for (let page = 1; ; page++) {
+          const got = await figureRows(h.admin.claims, entity as keyof typeof ENTITIES, period.id, { page });
+          rows.push(...got);
+          if (got.length < 500) break;
+        }
+        const grid = new Map(rows.map((r) => [r.id as string, Number(r.period_figure)]));
+        expect(rows.length).toBe(tree.items.length);
+        for (const item of tree.items) {
+          expect(grid.get(item.id), `${entity} ${item.code} period ${period.number}`).toBeCloseTo(item.figure ?? NaN, 2);
+          compared++;
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(100);
+    // No period chosen: the column is empty.
+    expect((await figureRows(h.admin.claims, "accounting.cost_center", null)).every((r) => r.period_figure === null)).toBe(true);
+  });
+
+  it("period figure of a restricted account is masked and refuses sort and filter", async () => {
+    const gastos = await accountId("5105");
+    const feb = (await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId))).find((p) => p.number === 2)!;
+    await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: gastos, access: "restricted", grants: [{ subjectKind: "role", subjectId: h.contador.roleId, canView: true, canPost: true }] });
+    try {
+      // Who may view it reads its figure; who may not neither reads the row nor finds it in the figure of its parent.
+      const seen = await figureRows(h.contador.claims, "accounting.account", feb.id, { filters: [{ field: "code", op: "eq", value: "5105" }] });
+      expect(Number(seen[0]!.period_figure)).toBe(800);
+      const unseen = await runGridQuery(h.sql, h.auxiliar.claims, accountEntity, gridState({ period_id: feb.id }, { filters: [{ field: "code", op: "starts", value: "51" }] }));
+      expect(unseen.rows.map((r) => r.code)).not.toContain("5105");
+      expect(unseen.rows.map((r) => r.code)).not.toContain("510506");
+      const parent = (await figureRows(h.auxiliar.claims, "accounting.account", feb.id, { filters: [{ field: "code", op: "eq", value: "51" }] }))[0];
+      expect(parent === undefined || Number(parent.period_figure) === 0).toBe(true);
+
+      // A role whose field mode for the figure is masked reads null and can neither sort nor filter by it (rule 14).
+      await h.sql`insert into kernel.field_permissions (company_id, role_id, entity, field, mode) values (${h.companyId}, ${h.auxiliar.roleId}, 'accounting.account', 'period_figure', 'masked')`;
+      const masked = await figureRows(h.auxiliar.claims, "accounting.account", feb.id);
+      expect(masked.length).toBeGreaterThan(0);
+      expect(masked.every((r) => r.period_figure === null)).toBe(true);
+      const refused = (extra: Record<string, unknown>) => figureRows(h.auxiliar.claims, "accounting.account", feb.id, extra).then(() => null, (e: unknown) => e);
+      expect(await refused({ sort: [{ field: "period_figure", dir: "desc" }] })).toMatchObject({ code: "field_hidden", field: "period_figure" });
+      expect(await refused({ filters: [{ field: "period_figure", op: "gt", value: 0 }] })).toMatchObject({ code: "field_hidden", field: "period_figure" });
+    } finally {
+      await h.sql`delete from kernel.field_permissions where company_id = ${h.companyId} and entity = 'accounting.account' and field = 'period_figure'`;
+      await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId: gastos, access: "open", grants: [] });
+    }
+  });
+
+  it("sorts and filters by the figure and aggregates it", async () => {
+    const feb = (await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId))).find((p) => p.number === 2)!;
+    const sorted = await figureRows(h.admin.claims, "accounting.account", feb.id, { sort: [{ field: "period_figure", dir: "desc" }], pageSize: 3 });
+    expect(Number(sorted[0]!.period_figure)).toBeGreaterThanOrEqual(Number(sorted[1]!.period_figure));
+    const big = await figureRows(h.admin.claims, "accounting.account", feb.id, { filters: [{ field: "period_figure", op: "gt", value: 10_000 }] });
+    expect(big.length).toBeGreaterThan(0);
+    expect(big.every((r) => Number(r.period_figure) > 10_000)).toBe(true);
+  });
+
+  it("the export of Tabla with a period carries the figure column of that period", async () => {
+    const feb = (await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId))).find((p) => p.number === 2)!;
+    const registry = h.deps.registry;
+    const spec = { entity: "accounting.account", format: "csv" as const, state: { filters: [], sort: [{ field: "code", dir: "asc" as const }], page: 1, pageSize: 50, columns: ["code", "period_figure"], params: { period_id: feb.id } } };
+    const plan = await withClaims(h.sql, h.admin.claims, (tx) => planExport(tx, registry, spec));
+    expect(plan.columns.map((c) => c.field)).toEqual(["code", "period_figure"]);
+    const rows: Record<string, unknown>[] = [];
+    for await (const row of exportRows(h.sql, h.admin.claims, plan)) rows.push(row as Record<string, unknown>);
+    expect(Number(rows.find((r) => r.code === "1110")!.period_figure)).toBe(10_700);
   });
 });

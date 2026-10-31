@@ -13,6 +13,8 @@ export interface UseGridOptions {
   initialView?: Partial<GridView>;
   /** Filters every request carries (the party switches); a change goes back to page 1. */
   baseFilters?: readonly Filter[];
+  /** Values of the entity's grid params (`EntityDef.gridParams`) every request and export carries; a change asks again. */
+  params?: Readonly<Record<string, string>>;
   /** Wait after typing in the filter row before asking the server. */
   debounceMs?: number;
 }
@@ -31,7 +33,7 @@ export interface GridData {
  * fetcher; typing in the filter row waits `debounceMs`, everything else asks at once. A newer request cancels the
  * one in flight, so a slow answer never overwrites a newer one.
  */
-export function useGrid({ columns, fetcher, initialView: start, baseFilters = [], debounceMs = 300 }: UseGridOptions) {
+export function useGrid({ columns, fetcher, initialView: start, baseFilters = [], params, debounceMs = 300 }: UseGridOptions) {
   const [view, setView] = useState<GridView>(() => initialView(columns, start));
   const [data, setData] = useState<GridData>({ page: null, loading: true, error: null, errorNote: null });
   const fetcherRef = useRef(fetcher);
@@ -48,7 +50,11 @@ export function useGrid({ columns, fetcher, initialView: start, baseFilters = []
     setView((v) => ({ ...v, page: 1 }));
   }
 
-  const state = useMemo(() => toGridState(columns, view, { base: JSON.parse(baseKey) as Filter[] }), [columns, view, baseKey]);
+  const paramsKey = JSON.stringify(params ?? null);
+  const state = useMemo(() => {
+    const given = JSON.parse(paramsKey) as Record<string, string> | null;
+    return { ...toGridState(columns, view, { base: JSON.parse(baseKey) as Filter[] }), ...(given ? { params: given } : {}) };
+  }, [columns, view, baseKey, paramsKey]);
   // What the server is asked for, regardless of the column order: moving a column brings the same rows, so it asks
   // nothing (the rows, the selection and the active row stay). The request itself carries the shown order (rule 20).
   const fetchKey = JSON.stringify({

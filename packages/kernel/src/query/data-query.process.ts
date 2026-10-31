@@ -24,6 +24,7 @@ const input = z.object({
   groupBy: GridState.shape.groupBy,
   aggregates: GridState.shape.aggregates,
   search: GridState.shape.search,
+  params: GridState.shape.params,
   page: z.number().int().min(1).default(1),
   limit: z.number().int().min(1).max(DATA_QUERY_MAX_ROWS).default(20),
 });
@@ -50,7 +51,7 @@ export const dataQuery = defineProcess({
     const entity = gridEntity(ctx.registry, query.entity);
     if (!entity) throw new ProcessError("invalid_input", `unknown entity ${query.entity}`, { details: { reason: "unknown_entity", entity: query.entity } });
     await requireGridAccess(ctx.tx, ctx.registry, entity);
-    const state = GridState.parse({ filters: query.filters, sort: query.sort, page: query.page, pageSize: query.limit, columns: query.columns, groupBy: query.groupBy, aggregates: query.aggregates, search: query.search });
+    const state = GridState.parse({ filters: query.filters, sort: query.sort, page: query.page, pageSize: query.limit, columns: query.columns, groupBy: query.groupBy, aggregates: query.aggregates, search: query.search, params: query.params });
     try {
       // The rows name the records their references point to (`<field>_label`), as the grid does.
       const { rows, total, groups, aggregates } = await gridQueryInTx(ctx.tx, entity, state, { registry: ctx.registry });

@@ -7,6 +7,7 @@ const read = (name: string) => readFileSync(new URL(`../../../../../supabase/mig
 const masters = read("0031_accounting_masters.sql");
 const ledger = read("0032_accounting_ledger.sql");
 const views = read("0033_accounting_views.sql");
+const figures = read("0036_accounting_period_figures.sql");
 
 // The masked views are pasted into the migrations from maskedViewSql (rule 14). This guards against drift between the entity
 // definitions and the SQL: the generated column list must appear verbatim. Views that add a filter (the account security of
@@ -14,7 +15,8 @@ const views = read("0033_accounting_views.sql");
 function check(migration: string, entities: typeof MASTER_ENTITIES) {
   for (const entity of entities) {
     it(`accounting.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
-      const generated = maskedViewSql(defineEntity(entity));
+      // A computed column (`viewExpr`) is added by a later migration with `create or replace view`; this one has the stored ones.
+      const generated = maskedViewSql(defineEntity({ ...entity, fields: entity.fields.filter((f) => !f.viewExpr) }));
       const head = generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`));
       expect(migration).toContain(head);
       expect(migration).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
@@ -44,5 +46,19 @@ describe("accounting views, migration 0033 (published views)", () => {
     const block = views.slice(start, views.indexOf("grant select on accounting.v_entry_lines", start));
     expect(block).toContain(`case when (select kernel.field_visible('accounting.entry_line', 'debit')) and "can_view" then "debit" else null end as "debit"`);
     expect(block).toContain(`not "can_view" as "is_restricted"`);
+  });
+});
+
+describe("accounting masked views, migration 0036 (period figures)", () => {
+  for (const entity of MASTER_ENTITIES.filter((e) => e.fields.some((f) => f.viewExpr))) {
+    it(`accounting.v_${entity.table} gains the period_figure column of ${entity.id}`, () => {
+      const generated = maskedViewSql(defineEntity(entity));
+      expect(figures).toContain(generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`)));
+      expect(figures).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
+    });
+  }
+
+  it("keeps the account security filter of design §5.13 on v_accounts", () => {
+    expect(figures).toMatch(/from accounting\.accounts\s+where accounting\.can_view_account\(id\);/);
   });
 });

@@ -95,7 +95,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   // Plan de cuentas (accounting design §8): the code names the row; Seguridad is the access column, restricted ones in amber.
   "accounting.account": {
-    shown: ["code", "name", "level", "nature", "parent_id", "access", "allows_movement", "is_active"],
+    shown: ["code", "name", "level", "nature", "parent_id", "access", "allows_movement", "is_active", "period_figure"],
     exclude: ["extra", "extra_free"],
     fields: {
       code: { display: "mono" },
@@ -111,7 +111,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     ["accounting.cost_center", "accounting.open_auxiliary", "accounting.item", "accounting.business_unit"].map((id) => [
       id,
       {
-        shown: ["code", "name", "parent_id", "kind", "is_active"],
+        shown: ["code", "name", "parent_id", "kind", "is_active", "period_figure"],
         exclude: ["extra", "extra_free"],
         fields: { code: { display: "mono" }, kind: { valuesKey: "grid.values.dimension_kind", pills: { group: "info", leaf: "gray" } }, is_active: active },
       } satisfies GridPresentation,

@@ -18,7 +18,7 @@ Un **centro de costo** responde «¿dónde se gastó o se ganó?»: una sede, un
 
 Como en todos los maestros jerárquicos, el interruptor **Vista** ofrece **Tabla** y **Árbol** y recuerda tu elección.
 
-- **Tabla**: Código, Descripción, Padre, Tipo (**Grupo** u hoja), Activo.
+- **Tabla**: Código, Descripción, Padre, Tipo (**Grupo** u hoja), Activo y la columna **Resultado** del período que elijas en **Período**, la misma cifra del Árbol con los centros hijos incluidos. Se ordena, se filtra y sale en la exportación.
 - **Árbol**: los centros anidados, con el **Resultado** del período que elijas junto a cada nodo, y a la derecha lo que hay **Dentro de** el nodo seleccionado.
 
 ## Crear un centro de costo
