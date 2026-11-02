@@ -64,18 +64,18 @@ export async function loadAccounts(ctx: ProcessContext, lines: readonly LineInpu
   if (ids.length + codes.length === 0) return { byId, byCode };
   const rows = await ctx.tx<
     {
-      id: string; code: string; name: string; level: string; nature: "debit" | "credit"; allows_movement: boolean; requires_party: boolean;
+      id: string; code: string; name: string; level: string; nature: "debit" | "credit"; allows_movement: boolean; requires_party: boolean; requires_invoice_ready: boolean;
       requires_cost_center: boolean; requires_open_auxiliary: boolean; requires_item: boolean; requires_business_unit: boolean;
       statement_section: string | null; is_active: boolean; can_post: boolean;
     }[]
-  >`select id, code, name, level, nature, allows_movement, requires_party, requires_cost_center, requires_open_auxiliary, requires_item,
+  >`select id, code, name, level, nature, allows_movement, requires_party, requires_invoice_ready, requires_cost_center, requires_open_auxiliary, requires_item,
            requires_business_unit, statement_section, is_active, accounting.can_post_account(id) as can_post
     from accounting.accounts
     where company_id = ${ctx.companyId} and (id = any(${ids}::uuid[]) or code = any(${codes}::text[]))`;
   for (const row of rows) {
     const account: LoadedAccount = {
       id: row.id, code: row.code, name: row.name, level: row.level, nature: row.nature, allowsMovement: row.allows_movement,
-      requiresParty: row.requires_party, requiresCostCenter: row.requires_cost_center, requiresOpenAuxiliary: row.requires_open_auxiliary,
+      requiresParty: row.requires_party, requiresInvoiceReady: row.requires_invoice_ready, requiresCostCenter: row.requires_cost_center, requiresOpenAuxiliary: row.requires_open_auxiliary,
       requiresItem: row.requires_item, requiresBusinessUnit: row.requires_business_unit, statementSection: row.statement_section,
       isActive: row.is_active, canPost: row.can_post,
     };
@@ -167,6 +167,14 @@ export async function validateLines(
   const knownParties = new Set(
     partyIds.length === 0 ? [] : (await ctx.tx<{ id: string }[]>`select id from core.v_parties where company_id = ${ctx.companyId} and id = any(${partyIds}::uuid[])`).map((r) => r.id),
   );
+  // Rule 10: a party on an account flagged requires_invoice_ready must be invoice-ready. The flag is read unmasked from
+  // core.v_party_readiness (core.v_parties masks it by field visibility), only for the parties those lines name.
+  const gatedParties = [...new Set(lines.filter((l) => l.partyId && accountOf(accounts, l)?.requiresInvoiceReady).map((l) => l.partyId!))];
+  const readiness = new Map<string, boolean>(
+    gatedParties.length === 0
+      ? []
+      : (await ctx.tx<{ id: string; invoice_ready: boolean }[]>`select id, invoice_ready from core.v_party_readiness where company_id = ${ctx.companyId} and id = any(${gatedParties}::uuid[])`).map((r) => [r.id, r.invoice_ready]),
+  );
 
   let debit = 0;
   let credit = 0;
@@ -185,6 +193,9 @@ export async function validateLines(
       add("account_forbidden", `No tienes permiso para contabilizar en la cuenta ${labelOf(account)}`, lineNo);
     }
     if (line.partyId && !knownParties.has(line.partyId)) add("missing_party", `El tercero de la cuenta ${account.code} no existe o no es visible`, lineNo);
+    else if (line.partyId && account.requiresInvoiceReady && readiness.get(line.partyId) === false) {
+      add("missing_party", `El tercero de la cuenta ${account.code} no está listo para facturar: revisa sus datos DIAN y sus archivos requeridos`, lineNo);
+    }
     if (mode === "post" && account.requiresParty && !line.partyId) add("missing_party", `La cuenta ${labelOf(account)} exige tercero`, lineNo);
 
     for (const dimension of DIMENSIONS) {

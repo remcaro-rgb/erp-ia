@@ -8,6 +8,7 @@ const masters = read("0031_accounting_masters.sql");
 const ledger = read("0032_accounting_ledger.sql");
 const views = read("0033_accounting_views.sql");
 const figures = read("0036_accounting_period_figures.sql");
+const accountView = read("0039_accounting_account_view_invoice_ready.sql");
 
 // The masked views are pasted into the migrations from maskedViewSql (rule 14). This guards against drift between the entity
 // definitions and the SQL: the generated column list must appear verbatim. Views that add a filter (the account security of
@@ -24,7 +25,10 @@ function check(migration: string, entities: typeof MASTER_ENTITIES) {
   }
 }
 
-describe("accounting masked views, migration 0031 (masters)", () => check(masters, MASTER_ENTITIES));
+// The account view is created again by migration 0039 (the column order changed), so its generated text lives there.
+const NOT_ACCOUNT = MASTER_ENTITIES.filter((e) => e.id !== "accounting.account");
+
+describe("accounting masked views, migration 0031 (masters)", () => check(masters, NOT_ACCOUNT));
 
 describe("accounting masked views, migration 0032 (ledger)", () => check(ledger, LEDGER_ENTITIES));
 
@@ -50,7 +54,7 @@ describe("accounting views, migration 0033 (published views)", () => {
 });
 
 describe("accounting masked views, migration 0036 (period figures)", () => {
-  for (const entity of MASTER_ENTITIES.filter((e) => e.fields.some((f) => f.viewExpr))) {
+  for (const entity of NOT_ACCOUNT.filter((e) => e.fields.some((f) => f.viewExpr))) {
     it(`accounting.v_${entity.table} gains the period_figure column of ${entity.id}`, () => {
       const generated = maskedViewSql(defineEntity(entity));
       expect(figures).toContain(generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`)));
@@ -58,7 +62,18 @@ describe("accounting masked views, migration 0036 (period figures)", () => {
     });
   }
 
+});
+
+describe("accounting masked views, migration 0039 (account view)", () => {
+  it("accounting.v_accounts is the generated masked view of accounting.account, with invoice readiness and the period figure", () => {
+    const entity = MASTER_ENTITIES.find((e) => e.id === "accounting.account")!;
+    const generated = maskedViewSql(defineEntity(entity));
+    expect(accountView).toContain(generated.slice(0, generated.indexOf("from accounting.accounts")));
+    expect(accountView).toContain(`'requires_invoice_ready')) then "requires_invoice_ready"`);
+    expect(accountView).toContain("grant select on accounting.v_accounts to authenticated;");
+  });
+
   it("keeps the account security filter of design §5.13 on v_accounts", () => {
-    expect(figures).toMatch(/from accounting\.accounts\s+where accounting\.can_view_account\(id\);/);
+    expect(accountView).toMatch(/from accounting\.accounts\s+where accounting\.can_view_account\(id\);/);
   });
 });

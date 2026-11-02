@@ -1,6 +1,6 @@
 # ERP-IA · Rules of the project
 
-Date: 2026-10-31 (rule 19 updated; rules 24, 30 on 2026-10-30; 16, 20, 21, 37 on 2026-10-29) · These rules bind every phase, every module and every contributor (human or agent). They come from the design (`docs/superpowers/specs/2026-10-26-erp-ia-design.md`), the phase 1 plan's Global Constraints and the owner decisions of 2026-10-27/28. When a rule and a convenience conflict, the rule wins; changing a rule is an owner decision recorded in the design's §22.
+Date: 2026-11-02 (rule 10 narrowed for accounting, design §22.22; rule 19 updated 2026-10-31; rules 24, 30 on 2026-10-30; 16, 20, 21, 37 on 2026-10-29) · These rules bind every phase, every module and every contributor (human or agent). They come from the design (`docs/superpowers/specs/2026-10-26-erp-ia-design.md`), the phase 1 plan's Global Constraints and the owner decisions of 2026-10-27/28. When a rule and a convenience conflict, the rule wins; changing a rule is an owner decision recorded in the design's §22.
 
 ## 1. Architecture
 1. **One process registry.** Every state change is a registered process executed through `runProcess`. No module code writes tables outside a process handler. The UI, the assistant, background agents, the scheduler and the public API call the same processes. The assistant has no tool that is not a registered process.
@@ -14,7 +14,7 @@ Date: 2026-10-31 (rule 19 updated; rules 24, 30 on 2026-10-30; 16, 20, 21, 37 on
 7. Every business table has `id uuid` (v7), `company_id uuid not null`, `created_at`, `updated_at`, `created_by`, `updated_by`, plus `seq bigint` from `core.next_sequence(entity)` (gap-free per company) and `extra jsonb` / `extra_free jsonb` for admin-defined and free extra data.
 8. Money is `numeric(18,4)` with currency code and exchange-rate snapshot per document; amounts stored in document currency and company currency. Timestamps `timestamptz`; the tenant's timezone governs scheduling and reports.
 9. Documents are voided, never deleted. Soft delete only where the law requires it. Attachments are soft-deleted and stay in the audit.
-10. Fiscal master data is complete from day one: parties and products carry every DIAN field (design §5.8a, §5.8b); format errors block the save, missing data sets `dian_status`; a record that is not `invoice_ready` (DIAN complete, required files present, active) cannot be used on any document line.
+10. Fiscal master data is complete from day one: parties and products carry every DIAN field (design §5.8a, §5.8b); format errors block the save, missing data sets `dian_status`; a record that is not `invoice_ready` (DIAN complete, required files present, active) cannot be used on any document line. In accounting the gate is per account: an entry line on an account flagged `requires_invoice_ready` (the receivable and payable accounts by default) cannot name a party that is not `invoice_ready` (design §22.22).
 11. Phones are stored as country code + number and validated; e-mails validated; both expose the external verification hook. Identification numbers are stored without DV, dots or spaces.
 
 ## 3. Security

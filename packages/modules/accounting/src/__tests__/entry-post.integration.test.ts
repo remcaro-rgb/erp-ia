@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { accountingHarness, newId, type AccountingHarness } from "./helpers";
+import { accountingHarness, newId, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let ccLeaf: string;
@@ -14,6 +14,7 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
   year = (await h.sql<{ year: number }[]>`select year from accounting.fiscal_years where company_id = ${h.companyId}`)[0]!.year;
 }, 180_000);
 afterAll(async () => {

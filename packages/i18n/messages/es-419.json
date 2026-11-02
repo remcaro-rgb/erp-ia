@@ -973,6 +973,7 @@
         "requires_cost_center": "Exige centro de costo",
         "requires_open_auxiliary": "Exige auxiliar abierto",
         "requires_item": "Exige ítem",
+        "requires_invoice_ready": "Exige tercero listo para facturar",
         "requires_business_unit": "Exige unidad de negocio",
         "statement_section": "Sección del estado",
         "is_opening_result": "Cuenta de resultado del ejercicio",
@@ -2607,6 +2608,7 @@
           "journal": "Fuente",
           "template": "Plantilla de comprobante",
           "period": "Período",
+        "requires_invoice_ready_hint": "Solo acepta terceros listos para facturar: datos DIAN completos y archivos requeridos",
           "rule": "Regla contable"
         },
         "field": {
@@ -2631,6 +2633,7 @@
             "kind": "Tipo",
             "is_active": "Activo"
           },
+            "requires_invoice_ready": "Exige tercero listo para facturar",
           "journal": {
             "code": "Código",
             "name": "Nombre",

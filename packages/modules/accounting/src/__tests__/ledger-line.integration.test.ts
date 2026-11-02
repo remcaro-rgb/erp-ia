@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GridState, runGridQuery } from "@erp/kernel";
 import { withClaims } from "@erp/kernel/testing";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 // Movimientos (accounting design §4.16, §5.14): the `accounting.ledger_line` query entity read through the grid layer, its
 // `.list` process and the assistant's `kernel.data.query`. Account security lives in the view, so every level of a grouped
@@ -24,6 +24,7 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Tiendas D1 S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
   const entry = async (month: number, day: number, lines: { code: string; debit?: number; credit?: number; cc?: string; party?: boolean }[]) => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
       date: dateIn(month, day), description: `Movimiento ${month}/${day}`,

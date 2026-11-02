@@ -65,6 +65,7 @@ export interface AccountSeed {
   name: string;
   nature: "debit" | "credit";
   requiresParty: boolean;
+  requiresInvoiceReady: boolean;
   requiresCostCenter: boolean;
   statementSection?: string;
   isOpeningResult: boolean;

@@ -246,7 +246,7 @@ describe("statement reports", () => {
     expect(out.aggregates).toMatchObject({ income: 3_000, expense: 1_500, net: 1_500 });
     const subtree = await report(h.admin, "accounting.cost_center_statement", { ...params, nodeId: adm });
     expect(subtree.rows.map((r) => r.cost_center_code)).toEqual(["ADM"]);
-    await expect(report(h.admin, "accounting.cost_center_statement", { ...params, nodeId: group.replace(/.$/, "0") })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(report(h.admin, "accounting.cost_center_statement", { ...params, nodeId: "00000000-0000-4000-8000-000000000000" })).rejects.toMatchObject({ code: "invalid_input" });
     await h.sql`update accounting.cost_centers set parent_id = null where id in (${adm}, ${otr})`;
   });
 

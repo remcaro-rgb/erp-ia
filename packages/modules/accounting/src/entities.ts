@@ -70,6 +70,7 @@ export const accountEntity: EntityDef = entity(
     f("nature", "enum", { required: true, enumValues: ["debit", "credit"], valuesKey: "accounting.values.nature" }),
     f("allows_movement", "boolean"),
     f("requires_party", "boolean"),
+    f("requires_invoice_ready", "boolean"),
     f("requires_cost_center", "boolean"),
     f("requires_open_auxiliary", "boolean"),
     f("requires_item", "boolean"),

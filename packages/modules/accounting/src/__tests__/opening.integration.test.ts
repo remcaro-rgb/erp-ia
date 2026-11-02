@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let ccId: string;
@@ -7,9 +7,10 @@ beforeAll(async () => {
   h = await accountingHarness();
   await h.runStepUp(h.admin, "accounting.chart.seed", {});
   ccId = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
-  await h.sql`
+  const [party] = await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
-    values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors')`;
+    values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors') returning id`;
+  await markInvoiceReady(h, party!.id, "2");
 }, 180_000);
 afterAll(async () => {
   await h.cleanup();

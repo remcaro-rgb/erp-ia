@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runReport } from "@erp/kernel";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let year: number;
@@ -12,10 +12,13 @@ beforeAll(async () => {
   await h.runStepUp(h.admin, "accounting.chart.seed", {});
   year = (await h.sql<{ year: number }[]>`select year from accounting.fiscal_years where company_id = ${h.companyId}`)[0]!.year;
   adm = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
-  const party = async (document: string, name: string) =>
-    (await h.sql<{ id: string }[]>`
+  const party = async (document: string, name: string) => {
+    const [row] = await h.sql<{ id: string }[]>`
       insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
-      values (${h.companyId}, '{customer,supplier}', '2', '13', ${document}, ${name}, 'errors') returning id`)[0]!.id;
+      values (${h.companyId}, '{customer,supplier}', '2', '13', ${document}, ${name}, 'errors') returning id`;
+    await markInvoiceReady(h, row!.id, "2");
+    return row!.id;
+  };
   partyA = await party("900111222", "Cliente A S.A.S.");
   partyB = await party("900333444", "Proveedor B S.A.S.");
 }, 180_000);

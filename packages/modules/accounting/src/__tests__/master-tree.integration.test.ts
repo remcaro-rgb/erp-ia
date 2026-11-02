@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withClaims } from "@erp/kernel/testing";
 import { masterTree, type MasterEntity } from "../masters/tree";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 // The data of the tree pane (accounting design §8, Task 26): the nodes of the chart and of the analytic dimensions with the
 // figure of the selected period, rolled up through the groups, and the restricted accounts left out for who may not view them.
@@ -23,6 +23,7 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Tiendas D1 S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
   const entry = async (month: number, day: number, lines: { code: string; debit?: number; credit?: number; cc?: string; party?: boolean }[]) => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
       date: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, description: `Movimiento ${month}/${day}`,

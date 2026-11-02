@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runReport } from "@erp/kernel";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let year: number;
@@ -22,10 +22,13 @@ afterAll(async () => {
   await h.cleanup();
 });
 
-const party = async (document: string, name: string, dv: string, dpto: string | null, mun: string | null) =>
-  (await h.sql<{ id: string }[]>`
+const party = async (document: string, name: string, dv: string, dpto: string | null, mun: string | null) => {
+  const [row] = await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, check_digit, legal_name, department_code, municipality_code, dian_status)
-    values (${h.companyId}, '{customer,supplier}', '1', '31', ${document}, ${dv}, ${name}, ${dpto}, ${mun}, 'complete') returning id`)[0]!.id;
+    values (${h.companyId}, '{customer,supplier}', '1', '31', ${document}, ${dv}, ${name}, ${dpto}, ${mun}, 'complete') returning id`;
+  await markInvoiceReady(h, row!.id, "1");
+  return row!.id;
+};
 const dateIn = (month: number, day = 15) => `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 const state = { filters: [], sort: [], page: 1, pageSize: 500 };
 // Report rows are read cell by cell in the assertions: a loose record keeps them readable.

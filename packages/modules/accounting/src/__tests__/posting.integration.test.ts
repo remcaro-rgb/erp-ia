@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildConsumerContext, consumers, enqueueEvent, matrixProcesses } from "@erp/kernel";
-import { accountingHarness, newId, type AccountingHarness } from "./helpers";
+import { accountingHarness, newId, type AccountingHarness, markInvoiceReady } from "./helpers";
 import invoiceFixture from "../rules/fixtures/invoice-issued.json" with { type: "json" };
 import voidedFixture from "../rules/fixtures/invoice-voided.json" with { type: "json" };
 import paymentFixture from "../rules/fixtures/payment-received.json" with { type: "json" };
@@ -22,6 +22,7 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Tiendas D1 S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
   const account = async (code: string) => (await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = ${code}`)[0]!.id;
   await h.runStepUp(h.admin, "accounting.account_role_mapping.update", {
     mappings: [

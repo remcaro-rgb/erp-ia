@@ -973,6 +973,7 @@
         "requires_cost_center": "Requires cost center",
         "requires_open_auxiliary": "Requires open auxiliary",
         "requires_item": "Requires item",
+        "requires_invoice_ready": "Requires invoice-ready party",
         "requires_business_unit": "Requires business unit",
         "statement_section": "Statement section",
         "is_opening_result": "Opening result account",
@@ -2607,6 +2608,7 @@
           "journal": "Journal",
           "template": "Entry template",
           "period": "Period",
+        "requires_invoice_ready_hint": "Accepts only invoice-ready parties: complete DIAN data and required files",
           "rule": "Posting rule"
         },
         "field": {
@@ -2631,6 +2633,7 @@
             "kind": "Type",
             "is_active": "Active"
           },
+            "requires_invoice_ready": "Requires invoice-ready party",
           "journal": {
             "code": "Code",
             "name": "Name",

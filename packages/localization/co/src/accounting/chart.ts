@@ -5,6 +5,8 @@ import puc from "../../data/puc.json" with { type: "json" };
 // statement section are derived from the code, so the JSON stays the plain official list.
 
 const PARTY_GROUPS = ["13", "22", "23", "24", "25", "28"];
+// Receivables and payables: the third party must be invoice-ready (rule 10, design §5.17).
+const INVOICE_READY_GROUPS = ["1305", "2205"];
 const OPENING_RESULT = ["3605", "3705", "3710"];
 
 /** Accounts whose balance runs against their class: depreciation and provisions, returns, losses, contra groups. */
@@ -44,6 +46,7 @@ const seed = (code: string, name: string): AccountSeed => ({
   name,
   nature: natureOf(code),
   requiresParty: startsWith(code, PARTY_GROUPS),
+  requiresInvoiceReady: startsWith(code, INVOICE_READY_GROUPS),
   requiresCostCenter: "4567".includes(code[0]!),
   ...(sectionOf(code) ? { statementSection: sectionOf(code)! } : {}),
   isOpeningResult: startsWith(code, OPENING_RESULT),

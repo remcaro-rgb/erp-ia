@@ -79,10 +79,16 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
       );
     }
     if (spec.control === "check") {
+      const hintId = hint ? `${kind}-${spec.key}-hint` : undefined;
       return (
         <label key={spec.key} className="erp-row erp-field">
-          <input type="checkbox" checked={draft[spec.key] === true} disabled={readOnly} onChange={(e) => set(spec.key)(e.target.checked)} />
+          <input type="checkbox" checked={draft[spec.key] === true} disabled={readOnly} aria-describedby={hintId} onChange={(e) => set(spec.key)(e.target.checked)} />
           <span>{label}</span>
+          {hint && (
+            <span id={hintId} className="erp-field__hint">
+              {hint}
+            </span>
+          )}
         </label>
       );
     }

@@ -20,8 +20,13 @@ describe("master form model", () => {
     // The code is shown on a stored cuenta but never sent: it does not change.
     expect(activeSpecs("account", false).find((s) => s.key === "code")?.createOnly).toBe(true);
     expect(masterInput("account", { ...draft, name: "Sueldos y salarios" }, "a-1")).toEqual({
-      id: "a-1", name: "Sueldos y salarios", nature: "debit", requiresParty: false, requiresCostCenter: true, requiresOpenAuxiliary: false, requiresItem: false, requiresBusinessUnit: false, isActive: true,
+      id: "a-1", name: "Sueldos y salarios", nature: "debit", requiresParty: false, requiresInvoiceReady: false, requiresCostCenter: true, requiresOpenAuxiliary: false, requiresItem: false, requiresBusinessUnit: false, isActive: true,
     });
+    // The invoice-ready flag (rule 10) is a flag like the others: shown, stored, and sent on every update.
+    const ready = masterDraft("account", { ...row, requires_invoice_ready: true });
+    expect(ready.requiresInvoiceReady).toBe(true);
+    expect(masterInput("account", ready, "a-1")).toMatchObject({ requiresInvoiceReady: true });
+    expect(activeSpecs("account", true).find((s) => s.key === "requiresInvoiceReady")?.column).toBe("requires_invoice_ready");
     expect(activeSpecs("account", true).map((s) => s.key)).not.toContain("isActive");
   });
 

@@ -38,6 +38,7 @@ export const MASTER_SPECS: Record<MasterKind, readonly FieldSpec[]> = {
     { key: "nature", column: "nature", control: "select", codes: ["debit", "credit"], valuesKey: "nature", initial: "debit" },
     { key: "statementSection", column: "statement_section", control: "text", mono: true, hint: "statement_section_hint" },
     flag("requiresParty", "requires_party"),
+    { key: "requiresInvoiceReady", column: "requires_invoice_ready", control: "check", initial: false, hint: "requires_invoice_ready_hint" },
     flag("requiresCostCenter", "requires_cost_center"),
     flag("requiresOpenAuxiliary", "requires_open_auxiliary"),
     flag("requiresItem", "requires_item"),

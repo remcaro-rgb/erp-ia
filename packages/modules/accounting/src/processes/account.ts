@@ -11,6 +11,7 @@ const CODE_KEY = "accounts_company_id_code_key";
 const nature = z.enum(["debit", "credit"]);
 const flags = {
   requiresParty: z.boolean().optional(),
+  requiresInvoiceReady: z.boolean().optional(),
   requiresCostCenter: z.boolean().optional(),
   requiresOpenAuxiliary: z.boolean().optional(),
   requiresItem: z.boolean().optional(),
@@ -33,8 +34,8 @@ export const accountCreate = defineProcess({
     if (own.level !== "auxiliary") {
       throw invalid(`level ${own.level} cannot be created by a company`, "Solo se pueden crear cuentas auxiliares (8 o más dígitos) bajo una subcuenta; el plan hasta subcuenta lo trae el país");
     }
-    const [parent] = await ctx.tx<{ id: string; code: string; level: string; nature: "debit" | "credit"; requires_party: boolean; requires_cost_center: boolean; requires_open_auxiliary: boolean; requires_item: boolean; requires_business_unit: boolean; statement_section: string | null }[]>`
-      select id, code, level, nature, requires_party, requires_cost_center, requires_open_auxiliary, requires_item, requires_business_unit, statement_section
+    const [parent] = await ctx.tx<{ id: string; code: string; level: string; nature: "debit" | "credit"; requires_party: boolean; requires_invoice_ready: boolean; requires_cost_center: boolean; requires_open_auxiliary: boolean; requires_item: boolean; requires_business_unit: boolean; statement_section: string | null }[]>`
+      select id, code, level, nature, requires_party, requires_invoice_ready, requires_cost_center, requires_open_auxiliary, requires_item, requires_business_unit, statement_section
       from accounting.accounts
       where company_id = ${ctx.companyId} and length(code) < ${input.code.length} and ${input.code} like code || '%'
       order by length(code) desc limit 1 for update`;
@@ -55,6 +56,7 @@ export const accountCreate = defineProcess({
         nature: input.nature ?? parent.nature,
         allows_movement: true,
         requires_party: input.requiresParty ?? parent.requires_party,
+        requires_invoice_ready: input.requiresInvoiceReady ?? parent.requires_invoice_ready,
         requires_cost_center: input.requiresCostCenter ?? parent.requires_cost_center,
         requires_open_auxiliary: input.requiresOpenAuxiliary ?? parent.requires_open_auxiliary,
         requires_item: input.requiresItem ?? parent.requires_item,
@@ -91,6 +93,7 @@ export const accountUpdate = defineProcess({
       name: input.name,
       nature: input.nature,
       requires_party: input.requiresParty,
+      requires_invoice_ready: input.requiresInvoiceReady,
       requires_cost_center: input.requiresCostCenter,
       requires_open_auxiliary: input.requiresOpenAuxiliary,
       requires_item: input.requiresItem,

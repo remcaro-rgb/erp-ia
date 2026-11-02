@@ -30,6 +30,7 @@ async function seedAccounts(ctx: ProcessContext, seeds: AccountSeed[], levelOf: 
         nature: s.nature,
         allows_movement: ["subaccount", "auxiliary"].includes(levelOf(s.code) ?? "") && !prefixes.has(s.code),
         requires_party: s.requiresParty,
+        requires_invoice_ready: s.requiresInvoiceReady,
         requires_cost_center: s.requiresCostCenter,
         statement_section: s.statementSection ?? null,
         is_opening_result: s.isOpeningResult,

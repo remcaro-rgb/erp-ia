@@ -129,3 +129,18 @@ export async function accountingHarness(options: { companies?: number } = {}): P
 
 /** A fresh uuid for fixtures that need an id no row has. */
 export const newId = () => randomUUID();
+
+/**
+ * Makes a party `invoice_ready` the way a real one becomes so (rule 10, design §5.17): its DIAN data is complete and it
+ * holds the files its kind requires (RUT for every party, Cámara de Comercio for a juridical one, person type `1`). The
+ * party's own triggers compute the flag from these facts; a flagged account then accepts the party.
+ */
+export async function markInvoiceReady(h: AccountingHarness, partyId: string, personType: string): Promise<void> {
+  await h.sql`update core.parties set dian_status = 'complete' where id = ${partyId}`;
+  const tags = personType === "1" ? ["RUT", "Cámara de Comercio"] : ["RUT"];
+  for (const tag of tags) {
+    await h.sql`insert into kernel.attachments (company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path)
+      values (${h.companyId}, 'core.party', ${partyId}, ${tag}, ${`${tag}.pdf`}, 'application/pdf', 1024,
+        ${`${h.seed.tenantId}/${h.companyId}/core.party/${partyId}/${randomUUID()}-${tag}.pdf`})`;
+  }
+}

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withClaims } from "@erp/kernel/testing";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let journalId: string;
@@ -14,6 +14,7 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
   costCenterId = (await h.sql<{ id: string }[]>`
     insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
   year = (await h.sql<{ year: number }[]>`select year from accounting.fiscal_years where company_id = ${h.companyId}`)[0]!.year;
@@ -121,6 +122,7 @@ describe("published views", () => {
     const [other] = await h.sql<{ id: string }[]>`
       insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
       values (${h.companyId}, '{customer}', '2', '13', '900333444', 'Otro cliente S.A.S.', 'errors') returning id`;
+    await markInvoiceReady(h, other!.id, "2");
     const p2 = other!.id;
     const d1 = dateIn(9, 10);
     const d2 = dateIn(9, 25);

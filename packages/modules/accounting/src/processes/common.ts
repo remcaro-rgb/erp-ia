@@ -96,6 +96,7 @@ export interface AccountRow {
   nature: "debit" | "credit";
   allowsMovement: boolean;
   requiresParty: boolean;
+  requiresInvoiceReady: boolean;
   requiresCostCenter: boolean;
   requiresOpenAuxiliary: boolean;
   requiresItem: boolean;
@@ -108,17 +109,17 @@ export interface AccountRow {
 export async function accountByCode(ctx: ProcessContext, code: string): Promise<AccountRow | null> {
   const [row] = await ctx.tx<
     {
-      id: string; code: string; name: string; level: string; nature: "debit" | "credit"; allows_movement: boolean; requires_party: boolean;
+      id: string; code: string; name: string; level: string; nature: "debit" | "credit"; allows_movement: boolean; requires_party: boolean; requires_invoice_ready: boolean;
       requires_cost_center: boolean; requires_open_auxiliary: boolean; requires_item: boolean; requires_business_unit: boolean;
       statement_section: string | null; is_active: boolean;
     }[]
-  >`select id, code, name, level, nature, allows_movement, requires_party, requires_cost_center, requires_open_auxiliary, requires_item,
+  >`select id, code, name, level, nature, allows_movement, requires_party, requires_invoice_ready, requires_cost_center, requires_open_auxiliary, requires_item,
            requires_business_unit, statement_section, is_active
     from accounting.accounts where company_id = ${ctx.companyId} and code = ${code}`;
   if (!row) return null;
   return {
     id: row.id, code: row.code, name: row.name, level: row.level, nature: row.nature, allowsMovement: row.allows_movement,
-    requiresParty: row.requires_party, requiresCostCenter: row.requires_cost_center, requiresOpenAuxiliary: row.requires_open_auxiliary,
+    requiresParty: row.requires_party, requiresInvoiceReady: row.requires_invoice_ready, requiresCostCenter: row.requires_cost_center, requiresOpenAuxiliary: row.requires_open_auxiliary,
     requiresItem: row.requires_item, requiresBusinessUnit: row.requires_business_unit, statementSection: row.statement_section, isActive: row.is_active,
   };
 }
