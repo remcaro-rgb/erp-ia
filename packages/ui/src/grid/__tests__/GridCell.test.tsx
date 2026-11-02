@@ -135,3 +135,17 @@ describe("GridCell: a reference to another record is a link to its page (rule 21
     expect(screen.queryByText("Oculto")).toBeNull();
   });
 });
+
+describe("GridCell · empty lists", () => {
+  it("says 'Ninguno' (with the column in its tooltip) for an empty list, and counts a filled one", () => {
+    const other = column({ field: "other_taxes", label: "Otros impuestos", type: "json", kind: "json" });
+    renderEs(
+      <>
+        {inRow(<GridCell column={other} row={{ id: "1", other_taxes: [] }} />)}
+        {inRow(<GridCell column={other} row={{ id: "2", other_taxes: [{ a: 1 }, { a: 2 }] }} />)}
+      </>,
+    );
+    expect(screen.getByText("Ninguno").getAttribute("title")).toBe("Otros impuestos: ninguno definido");
+    expect(screen.getByText("2 elementos")).toBeTruthy();
+  });
+});

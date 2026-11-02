@@ -160,3 +160,31 @@ describe("TabsBar touch targets (rule 24, T5)", () => {
     expect(source).toMatch(/h-9 shrink-0[^"]*max-md:h-12 \[@media\(pointer:coarse\)\]:h-12/);
   });
 });
+
+describe("TabsBar overflow", () => {
+  it("offers scroll arrows and a list of every tab when the row is wider than its box", () => {
+    const store = createTabsStore();
+    for (let i = 0; i < 8; i++) store.getState().open({ title: `Tab ${i}`, href: `/t${i}`, kind: "grid" });
+    const original = Object.getOwnPropertyDescriptors(HTMLElement.prototype);
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, get: () => 900 });
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 300 });
+    try {
+      renderEs(
+        <TabsProvider store={store}>
+          <TabsBar onNew={vi.fn()} />
+        </TabsProvider>,
+      );
+      expect(screen.getByRole("button", { name: "Desplazar pestañas a la derecha" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Desplazar pestañas a la izquierda" }).hasAttribute("disabled")).toBe(true);
+      expect(screen.getByRole("button", { name: "Todas las pestañas abiertas (9)" })).toBeTruthy();
+      // Close and close-all stay.
+      expect(screen.getByRole("button", { name: "Cerrar Tab 0" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Cerrar todas/ })).toBeTruthy();
+    } finally {
+      for (const key of ["scrollWidth", "clientWidth"]) {
+        if (original[key]) Object.defineProperty(HTMLElement.prototype, key, original[key]!);
+        else delete (HTMLElement.prototype as unknown as Record<string, unknown>)[key];
+      }
+    }
+  });
+});

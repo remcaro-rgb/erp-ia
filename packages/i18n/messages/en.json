@@ -777,6 +777,9 @@
       "record": "Record",
       "tabs": {
         "label": "Open tabs",
+        "scroll_start": "Scroll tabs left",
+        "scroll_end": "Scroll tabs right",
+        "list": "All open tabs ({count})",
         "new": "New tab",
         "close": "Close {title}",
         "close_all": "Close all",
@@ -970,10 +973,10 @@
         "nature": "Nature",
         "allows_movement": "Allows postings",
         "requires_party": "Requires third party",
+        "requires_invoice_ready": "Requires invoice-ready party",
         "requires_cost_center": "Requires cost center",
         "requires_open_auxiliary": "Requires open auxiliary",
         "requires_item": "Requires item",
-        "requires_invoice_ready": "Requires invoice-ready party",
         "requires_business_unit": "Requires business unit",
         "statement_section": "Statement section",
         "is_opening_result": "Opening result account",
@@ -1652,7 +1655,7 @@
       "template_title": "1 · Template",
       "template_xlsx": "Excel template",
       "template_csv": "CSV template",
-      "template_hint": "Fill in the template without changing the headers. CSV separated by “;” or “,”, UTF-8; the NIT goes without its check digit; list values are separated by “|”.",
+      "template_hint": "Fill in the template without changing the headers. CSV separated by “;” or “,”, UTF-8; the NIT goes without check digit; values of a list are separated by “|”. Required columns are highlighted in the Excel template.",
       "file_title": "2 · File",
       "drop": "Drop here",
       "drop_or": "the .xlsx or .csv file, or",
@@ -1679,7 +1682,7 @@
       "missing_columns": "Required columns are missing: {columns}. Every row would be rejected.",
       "unknown_headers": "Columns that are not imported: {headers}",
       "preview_note": "Only rows without errors are loaded; rows with pending DIAN data are created and cannot be invoiced until completed. Rows with errors come back in errores.csv with the reason.",
-      "process_note": "Process kernel.import.run · requires two-step verification · runs in the background with the form's own validator and is audited with the original file attached",
+      "process_note": "Needs two-step verification · runs in the background with the same validator as the form and is kept in the audit log with the original file attached",
       "run": "Import valid rows",
       "running": "Importing…",
       "started": "Import in progress. The result and errores.csv will be in the import history.",
@@ -1713,7 +1716,9 @@
         "row_forbidden": "Your role cannot create these records; the import stopped.",
         "row_not_entitled": "Your company does not have creating these records enabled; the import stopped."
       },
-      "progress": "{done} of {total} rows"
+      "progress": "{done} of {total} rows",
+      "history_empty_hint": "Choose a record type above, download its template, fill it in and upload it. Each import will be listed here with its result.",
+      "no_file": "No file chosen yet. Once you choose one you will see it checked row by row here, before anything is saved."
     },
     "views": {
       "title": "Views",
@@ -1779,7 +1784,11 @@
     "filter_row": "Filters",
     "filter_label": "Filter {label}",
     "filter_text": "contains…",
-    "filter_number": ">= 1000",
+    "filters_hide": "Hide filters",
+    "filters_show": "Show filters",
+    "filter_number_help": "Type a number (at least that value), or an operator: >= 1000, < 50, = 3, or a range 1000..5000",
+    "filter_number": "e.g. >= 1000",
+    "more_columns": "More columns to the right: scroll sideways or choose which columns to show.",
     "filter_all": "All",
     "filter_masked": "masked",
     "filter_unavailable": "Filter not available",
@@ -1978,7 +1987,9 @@
     "keys_hint": "↑↓ move · Space select · Enter open · / filter",
     "json_items": "{count, plural, one {# item} other {# items}}",
     "json_fields": "{count, plural, one {# field} other {# fields}}",
-    "total_unknown": "Cannot total: the hierarchy is not visible to your role"
+    "total_unknown": "Cannot total: the hierarchy is not visible to your role",
+    "json_none": "None",
+    "json_none_title": "{label}: none set"
   },
   "home": {
     "greeting": {
@@ -2045,7 +2056,11 @@
     },
     "recommendations": {
       "subtitle": "Suggestions for your role. Nothing runs without your confirmation.",
-      "empty": "No pending recommendations.",
+      "empty": "No pending recommendations",
+      "empty_hint": "When an agent finds something worth your attention it will appear here; nothing runs without your confirmation.",
+      "loading": "Loading recommendations…",
+      "unavailable_title": "Recommendations could not be loaded",
+      "unavailable_body": "Reload the page to try again.",
       "dismiss": "Dismiss",
       "confidence": "Confidence {percent, number} %",
       "failed": "Your decision could not be saved. Try again.",
@@ -2593,6 +2608,7 @@
         "no_parent": "No parent (root)",
         "missing": "Required data is missing",
         "statement_section_hint": "Empty: inherits the parent account's",
+        "requires_invoice_ready_hint": "Accepts only invoice-ready parties: complete DIAN data and required files",
         "template_lines": "Template lines",
         "template_account": "Account",
         "template_side": "Side",
@@ -2608,7 +2624,6 @@
           "journal": "Journal",
           "template": "Entry template",
           "period": "Period",
-        "requires_invoice_ready_hint": "Accepts only invoice-ready parties: complete DIAN data and required files",
           "rule": "Posting rule"
         },
         "field": {
@@ -2618,6 +2633,7 @@
             "nature": "Nature",
             "statement_section": "Financial statement section",
             "requires_party": "Requires party",
+            "requires_invoice_ready": "Requires invoice-ready party",
             "requires_cost_center": "Requires cost center",
             "requires_open_auxiliary": "Requires open auxiliary",
             "requires_item": "Requires item",
@@ -2633,7 +2649,6 @@
             "kind": "Type",
             "is_active": "Active"
           },
-            "requires_invoice_ready": "Requires invoice-ready party",
           "journal": {
             "code": "Code",
             "name": "Name",

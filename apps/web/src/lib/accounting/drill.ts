@@ -27,3 +27,46 @@ export function drillHref(
   if (!from || !to) return null;
   return `/accounting/reports/account_detail?${paramsToSearch({ accountId: link.id, from, to })}`;
 }
+
+const present = (value: unknown): value is string | number => (typeof value === "string" && value.trim() !== "") || typeof value === "number";
+
+/**
+ * The tab title of a record opened from a report row: the clicked cell's value (the account's code) and the row's name
+ * for it (`account_name`), never the row's first column, which may be a raw section code (`assets_current`). With
+ * `period` (a drill-down's month), tabs of the same account over different ranges read differently.
+ */
+export function linkTitle(
+  row: Record<string, unknown>,
+  link: ReportLink,
+  report: { columns: readonly { field: string }[]; links: Record<string, { entity: string; idField: string }> },
+  fallback: string,
+  period?: string,
+): string {
+  const clicked = report.columns.find((c) => {
+    const l = report.links[c.field];
+    return l !== undefined && l.entity === link.entity && row[l.idField] === link.id;
+  });
+  const value = clicked ? row[clicked.field] : undefined;
+  const nameField = clicked ? [clicked.field.replace(/code$/, "name"), "name", "label"].find((f) => f !== clicked.field && present(row[f])) : undefined;
+  const parts = [value, nameField ? row[nameField] : undefined].filter(present).map(String);
+  const title = parts.length > 0 ? parts.join(" · ") : fallback;
+  return period ? `${title} · ${period}` : title;
+}
+
+/** The range a drill-down href was built for, or undefined. */
+export function drillRange(href: string): { from: string; to: string } | undefined {
+  try {
+    const p = JSON.parse(new URLSearchParams(href.split("?")[1] ?? "").get("p") ?? "{}") as { from?: unknown; to?: unknown };
+    return typeof p.from === "string" && typeof p.to === "string" ? { from: p.from, to: p.to } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * How a drill-down tab names its range: the month when it is one calendar month ("noviembre de 2026", `month` formats
+ * "2026-11"), else the dates ("2026/01/01 – 2026/11/30"), so tabs of one account over different ranges never read alike.
+ */
+export function rangeLabel(range: { from: string; to: string }, month: (yearMonth: string) => string): string {
+  return range.from.slice(0, 7) === range.to.slice(0, 7) ? month(range.to.slice(0, 7)) : `${range.from.replaceAll("-", "/")} – ${range.to.replaceAll("-", "/")}`;
+}

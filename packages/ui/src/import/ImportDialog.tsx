@@ -31,7 +31,7 @@ type Phase = { kind: "idle" } | { kind: "checking" } | { kind: "running" } | { k
 /**
  * The import dialog (design §9, prototype v5 "Importar"): 1 · the entity's Excel and CSV templates, 2 · a drop zone
  * (drag-and-drop or chooser), the preview of the file with each row's result from a dry run of the entity's create
- * process, and "Importar filas válidas", which runs kernel.import.run (asking the step-up code when needed) and
+ * process, and "Importar filas válidas", which runs the import process (asking the step-up code when needed) and
  * leaves the rest to the import workflow.
  */
 export function ImportDialog(props: ImportDialogProps) {
@@ -214,7 +214,7 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
             </div>
             <div className="erp-small">{t("grid.import.drop_hint")}</div>
           </div>
-          {file && <div className="erp-small">{t("grid.import.file", { name: file.name })}</div>}
+          {file ? <div className="erp-small">{t("grid.import.file", { name: file.name })}</div> : <div className="erp-small erp-muted">{t("grid.import.no_file")}</div>}
           {phase.kind === "checking" && <div className="erp-small erp-muted">{t("grid.import.checking")}</div>}
         </section>
 

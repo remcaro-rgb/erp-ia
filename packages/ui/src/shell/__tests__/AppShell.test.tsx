@@ -90,6 +90,14 @@ describe("AppShell", () => {
     expect(navigate).toHaveBeenCalledWith("/products");
   });
 
+  it("a report page opens a tab named by the report, with or without parameters, never the generic menu item", () => {
+    const { unmount } = shell("/accounting/reports/trial_balance");
+    expect(tabNames()).toContain("Balance de prueba");
+    unmount();
+    shell("/accounting/reports/balance_sheet?p=%7B%7D");
+    expect(tabNames()).toContain("Estado de situación financiera");
+  });
+
   it("closing the active tab navigates to its neighbour", () => {
     const navigate = vi.fn();
     shell("/parties", navigate);
@@ -541,5 +549,43 @@ describe("AppShell, ⌘K identities (T2)", () => {
     view.rerender(shellElement("/products"));
     view.rerender(shellElement("/categories"));
     expect(tabNames()).toEqual(["Inicio", "Terceros", "Productos", "Categorías"]);
+  });
+});
+
+describe("AppShell · saved tabs", () => {
+  it("a tab saved with the generic 'Informes' title takes the report's name; a drill-down title stays", () => {
+    const saved = {
+      value: {
+        tabs: [
+          { id: "home", href: "/", title: "home", kind: "home", pinned: true },
+          { id: "/accounting/reports/account_detail", href: "/accounting/reports/account_detail", title: "Informes", kind: "report" },
+          { id: "/accounting/reports/account_detail?p=1", href: "/accounting/reports/account_detail?p=1", title: "1110 · Bancos · noviembre de 2026", kind: "report" },
+        ],
+        activeId: "home",
+      },
+      savedAt: 1,
+    };
+    const items = [{ id: "accounting.reports", label: "nav.accounting.reports", href: "/accounting/reports", icon: "file-bar-chart" }];
+    shell("/", vi.fn(), { initialTabs: saved, nav: items });
+    expect(tabNames()).toEqual(expect.arrayContaining(["Auxiliar por cuenta", "1110 · Bancos · noviembre de 2026"]));
+    expect(tabNames()).not.toContain("Informes");
+  });
+});
+
+describe("AppShell · pages opened with parameters", () => {
+  it("does not open a second, bare tab for the page of the active tab that has a query", () => {
+    const href = "/accounting/reports/account_detail?p=%7B%7D";
+    const saved = {
+      value: {
+        tabs: [
+          { id: "home", href: "/", title: "home", kind: "home", pinned: true },
+          { id: href, href, title: "6135 · Comercio · 2026/01/01 – 2026/11/30", kind: "report" },
+        ],
+        activeId: href,
+      },
+      savedAt: 1,
+    };
+    shell("/accounting/reports/account_detail", vi.fn(), { initialTabs: saved });
+    expect(tabNames()).toEqual(["Inicio", "6135 · Comercio · 2026/01/01 – 2026/11/30"]);
   });
 });

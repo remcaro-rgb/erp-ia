@@ -72,6 +72,16 @@ export function GridCell({ column, row, className, render }: { column: GridColum
     const pill = dianPill(value);
     return <td className={className}>{pill ? <Pill tone={pill.tone}>{t(`grid.dian.${pill.key}`, { count: pill.count })}</Pill> : <span className="erp-muted">—</span>}</td>;
   }
+  // An empty list (a category with no "otros impuestos") says so in words: a dash read as "unknown" and "0 elementos" as a count of products.
+  if (column.type === "json" && typeof value === "object" && value !== null && (Array.isArray(value) ? value.length === 0 : Object.keys(value).length === 0)) {
+    return (
+      <td className={base}>
+        <span className="erp-muted" title={t("grid.json_none_title", { label: column.label })}>
+          {t("grid.json_none")}
+        </span>
+      </td>
+    );
+  }
   const shown = text(column, value);
   if (shown === "" || isEmptyCell(column, value)) {
     return (
@@ -82,5 +92,16 @@ export function GridCell({ column, row, className, render }: { column: GridColum
   }
   const tone = column.pills?.[String(value)];
   if (column.type === "json" && typeof value === "object") return <td className={base}><span title={JSON.stringify(value)}>{shown}</span></td>;
-  return <td className={base}>{tone ? <Pill tone={tone}>{shown}</Pill> : shown}</td>;
+  return (
+    <td className={base}>
+      {tone ? (
+        <Pill tone={tone}>{shown}</Pill>
+      ) : (
+        // A long value (company name, e-mail) is cut with an ellipsis; the whole text is the tooltip.
+        <span className="erp-grid__text" title={shown.length > 24 ? shown : undefined}>
+          {shown}
+        </span>
+      )}
+    </td>
+  );
 }

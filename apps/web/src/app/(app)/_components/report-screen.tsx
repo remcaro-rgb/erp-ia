@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useSearchParams } from "next/navigation";
-import { GridFetchError, paramsFromSearch, paramsToSearch, ReportPage, StepUpPrompt, useTabs, type GridRow, type ReportLink, type ReportParams, type SavedGridState } from "@erp/ui";
-import { drillHref } from "@/lib/accounting/drill";
+import { formatLabel, GridFetchError, paramsFromSearch, paramsToSearch, ReportPage, StepUpPrompt, useTabs, type GridRow, type ReportLink, type ReportParams, type SavedGridState } from "@erp/ui";
+import { drillHref, drillRange, linkTitle, rangeLabel } from "@/lib/accounting/drill";
+import { reportTabToRename } from "@/lib/reports/tab-title";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { deleteViewAction, saveViewAction } from "@/lib/grid/actions";
 import type { ReportPageData } from "@/lib/reports/load";
@@ -24,9 +25,19 @@ const detailsOf = (body: unknown): string[] =>
  */
 export function ReportScreen({ data }: { data: ReportPageData }) {
   const t = useTranslations();
+  const locale = useLocale();
   const open = useTabs((s) => s.open);
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  // The tab of a report is named by the report ("Balance de prueba"), not by the menu item that covers every report
+  // ("Informes"), however the page was reached (card, ⌘K, a typed address, a reload). A drill-down tab keeps its own title.
+  const tabs = useTabs((s) => s.tabs);
+  const rename = useTabs((s) => s.rename);
+  const generic = t("nav.accounting.reports");
+  useEffect(() => {
+    const tab = reportTabToRename(tabs, pathname, data.report.label, generic);
+    if (tab) rename(tab.href, data.report.label);
+  }, [tabs, pathname, data.report.label, generic, rename]);
   const [views, setViews] = useState(data.views);
   const entity = `report:${data.report.id}`;
   const initial = useMemo(() => ({ ...data.defaults, ...paramsFromSearch(searchParams.toString()) }), [data.defaults, searchParams]);
@@ -41,18 +52,14 @@ export function ReportScreen({ data }: { data: ReportPageData }) {
   const openLink = (row: GridRow, link?: ReportLink) => {
     // The account of a statement row opens the Auxiliar por cuenta of the range, in its own tab (accounting design §8).
     const drill = link ? drillHref(data.report.id, link, current.current, data.periodDates) : null;
-    if (link && drill)
-      open({
-        title: String(row[data.report.columns[0]?.field ?? "id"] ?? t("nav.shell.record")),
-        href: drill,
-        kind: "report",
-      });
-    else if (link)
-      open({
-        title: String(row[data.report.columns[0]?.field ?? "id"] ?? t("nav.shell.record")),
-        href: `/r/${link.entity}/${link.id}`,
-        kind: "record",
-      });
+    const fallback = String(row[data.report.columns[0]?.field ?? "id"] ?? t("nav.shell.record"));
+    if (link && drill) {
+      const range = drillRange(drill);
+      const title = linkTitle(row, link, data.report, fallback, range ? rangeLabel(range, (month) => formatLabel(month, locale)) : undefined);
+      open({ title, href: drill, kind: "report" });
+      // The tab of this very drill-down may exist from before (saved with an older title): it takes the current name.
+      rename(drill, title);
+    } else if (link) open({ title: linkTitle(row, link, data.report, fallback), href: `/r/${link.entity}/${link.id}`, kind: "record" });
   };
   const changeViews = async (result: Awaited<ReturnType<typeof saveViewAction>>) => {
     if (!result.ok) throw new Error(result.code);

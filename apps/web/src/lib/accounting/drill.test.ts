@@ -22,3 +22,28 @@ describe("drillHref", () => {
     expect(drillHref("accounting.trial_balance", { entity: "accounting.account", id: "a" }, { from: "nope", to: "p10" }, dates)).toBeNull();
   });
 });
+
+import { drillRange, linkTitle, rangeLabel } from "./drill";
+
+describe("linkTitle", () => {
+  const report = { columns: [{ field: "section" }, { field: "account_code" }, { field: "account_name" }], links: { account_code: { entity: "accounting.account", idField: "account_id" } } };
+  const row = { section: "assets_current", account_code: "1110", account_name: "Bancos", account_id: "a1" };
+  const link = { entity: "accounting.account", id: "a1" };
+
+  it("names the tab by the clicked account, never by the row's raw section code", () => {
+    expect(linkTitle(row, link, report, "assets_current")).toBe("1110 · Bancos");
+  });
+  it("adds the month so the same account over two ranges reads differently", () => {
+    expect(linkTitle(row, link, report, "x", "octubre de 2026")).toBe("1110 · Bancos · octubre de 2026");
+  });
+  it("falls back when the row has no readable value", () => {
+    expect(linkTitle({ account_id: "a1" }, link, report, "Registro")).toBe("Registro");
+  });
+  it("reads the range of a drill-down href and labels it", () => {
+    const href = "/x?p=" + encodeURIComponent(JSON.stringify({ from: "2026-01-01", to: "2026-11-30" }));
+    expect(drillRange(href)).toEqual({ from: "2026-01-01", to: "2026-11-30" });
+    const month = (ym: string) => `mes ${ym}`;
+    expect(rangeLabel({ from: "2026-01-01", to: "2026-11-30" }, month)).toBe("2026/01/01 – 2026/11/30");
+    expect(rangeLabel({ from: "2026-11-01", to: "2026-11-30" }, month)).toBe("mes 2026-11");
+  });
+});

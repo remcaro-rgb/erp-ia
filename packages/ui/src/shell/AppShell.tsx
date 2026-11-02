@@ -114,9 +114,17 @@ const ROUTE_TITLES: Record<string, string> = {
   "/admin/companies": "nav.shell.routes.admin_companies",
 };
 
+/** The name of a module's report page (`/accounting/reports/trial_balance`, query allowed), not the menu item covering all of them. */
+function reportTitleOf(href: string, t: ReturnType<typeof useTranslations>): string | undefined {
+  const report = /^\/([a-z_]+)\/reports\/([a-z_]+)(?:\?|$)/.exec(href);
+  return report && t.has(`report.${report[1]}.${report[2]}`) ? t(`report.${report[1]}.${report[2]}`) : undefined;
+}
+
 function routeTitle(href: string, items: readonly NavItem[], t: ReturnType<typeof useTranslations>): string {
   const entity = recordEntityOf(href);
   if (entity) return t.has(`entity.${entity}`) ? t(`entity.${entity}`) : t("nav.shell.record");
+  const report = reportTitleOf(href, t);
+  if (report) return report;
   const named = ROUTE_TITLES[href];
   if (named) return t(named);
   const covering = items.filter((i) => i.href !== "#" && isActiveHref(i.href, href)).sort((a, b) => b.href.length - a.href.length)[0];
@@ -224,11 +232,25 @@ function ShellFrame(props: AppShellProps) {
     const title = item ? t(item.label) : routeTitle(currentHref, flat, t);
     const landed = activated.current;
     activated.current = null;
+    // A tab the user opened for this page with parameters ("…/account_detail?p=…", the drill-down of a report row) already is
+    // this page: the shell sees only the path, so it must not open a second, bare tab for it.
+    const shown = store.getState().tabs.find((x) => x.id === store.getState().activeId);
+    if (shown && shown.href !== currentHref && shown.href.split("?")[0] === currentHref) return;
     if (landed && landed.href.split("?")[0] !== currentHref.split("?")[0] && !store.getState().tabs.some((x) => x.href === currentHref)) store.getState().close(landed.id);
     opening.current = true;
     store.getState().open({ title, href: currentHref, kind });
     opening.current = false;
   }, [currentHref, nav, store, t]);
+
+  // Tabs saved before reports were named by the report still read "Informes": they take the report's name once, on load.
+  useEffect(() => {
+    const flat = nav.flatMap((i) => i.children ?? [i]);
+    for (const tab of store.getState().tabs) {
+      const name = reportTitleOf(tab.href, t);
+      const covering = flat.find((i) => i.href !== "#" && isActiveHref(i.href, tab.href.split("?")[0]!));
+      if (name && covering && tab.title === t(covering.label)) store.getState().rename(tab.href, name);
+    }
+  }, [nav, store, t]);
 
   // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
   // choice wins until the page changes (a pick from a page of another module would otherwise never show).

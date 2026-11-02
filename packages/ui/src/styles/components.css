@@ -118,6 +118,13 @@
   .erp-grid__filters input:focus-visible, .erp-grid__filters select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -1px; }
   .erp-grid__filters .is-on { border-color: var(--primary); background: var(--accent); }
   .erp-grid__range { display: flex; gap: 4px; }
+  .erp-grid__text { display: block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+  /* Content past the right edge: an edge shadow plus a hint line, shown only while there is more to scroll to. */
+  .erp-grid__body { position: relative; }
+  .erp-grid__body[data-more-x] { box-shadow: inset -10px 0 8px -8px var(--shadow); }
+  .erp-grid__more { display: none; margin: 0; padding: 4px 14px; border-top: 1px solid var(--line-2); background: var(--head); }
+  .erp-grid:has(.erp-grid__body[data-more-x]) .erp-grid__more { display: block; }
+  .erp-grid__body:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .erp-grid__sort { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; white-space: nowrap; }
   .erp-grid__sort:hover { color: var(--text); }
   .erp-grid__unsorted { opacity: .55; }
@@ -322,7 +329,10 @@
   .erp-dian--warn { background: var(--warn-bg); color: var(--warn); }
   .erp-dian--bad { background: var(--danger-bg); color: var(--danger); }
   .erp-dian--info { background: var(--info-bg); color: var(--info); }
-  .erp-form__actions { position: sticky; bottom: 0; display: flex; flex-direction: column; gap: 8px; padding: 10px 0 0; background: var(--surface); border-top: 1px solid var(--line-2); }
+  /* The save bar closes the form, in the flow: it never covers a field or a message. Only on a tall viewport (the whole
+     form is nearly in view anyway) does it stay pinned to the bottom, and then the page reserves its height. */
+  .erp-form__actions { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; background: var(--surface); border-top: 1px solid var(--line-2); }
+  @media (min-height: 1000px) { .erp-form__actions { position: sticky; bottom: 0; z-index: 4; box-shadow: 0 -6px 8px -6px var(--shadow); } }
   .erp-stepup { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); }
   .erp-stepup input { width: 120px; padding: 6px 8px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); color: var(--text); letter-spacing: 3px; }
 
@@ -336,6 +346,8 @@
   .erp-record__copy { margin: 12px 18px 0; }
   .erp-record__copy a { color: inherit; text-decoration: underline; }
   .erp-record__top { position: sticky; top: 0; z-index: 5; background: var(--surface); border-radius: 8px 8px 0 0; }
+  /* On a short viewport the title and tabs scroll away with the form instead of keeping a fifth of it under them. */
+  @media (max-height: 640px) { .erp-record__top { position: static; } }
   .erp-record__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; }
   .erp-record__tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 4px; }
   .erp-record__tab { padding: 10px 12px; border: 0; background: transparent; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; }
@@ -650,9 +662,15 @@
   .erp-wg[data-dragging="true"] { opacity: .4; }
   .erp-wg[data-over="true"] { outline: 2px dashed var(--primary); outline-offset: 2px; }
   .erp-wg[data-resizing="true"] { outline: 2px solid var(--primary); }
-  .erp-home-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; flex-grow: 1; }
-  .erp-home-kpi { padding: 14px 16px; min-width: 0; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; }
-  .erp-home-kpi:last-child { border-right: 0; }
+  /* Balanced columns by the widget's own width (4 → 2 → 1), never an orphan on the last row; 1 px gaps draw the dividers. */
+  .erp-home-kpis { container-type: inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line-2); flex-grow: 1; align-content: start; }
+  @container (max-width: 719px) { .erp-home-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @container (max-width: 359px) { .erp-home-kpis { grid-template-columns: minmax(0, 1fr); } }
+  .erp-home-kpi { padding: 14px 16px; min-width: 0; background: var(--surface); display: flex; flex-direction: column; }
+  .erp-home-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px; border: 1px dashed var(--line); border-radius: 8px; background: var(--head); font-size: 13px; }
+  .erp-home-empty p { margin: 0; }
+  .erp-home-empty__title { font-weight: 700; }
+  .erp-home-empty--error { border-style: solid; border-color: var(--danger); }
   .erp-home-kpi__label { font-size: 12px; color: var(--text-muted); }
   /* A sign and its amount never split across lines ("-$" / "5.805.000,00"): one line, the size shrinking before the text wraps. */
   .erp-home-kpi__value { font-size: clamp(20px, 2.4vw, 26px); font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }

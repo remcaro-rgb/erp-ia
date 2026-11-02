@@ -184,7 +184,15 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       return next;
     });
 
-  const firstFilter = () => sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)");
+  const firstFilter = () => {
+    // Folded filters open first, so the caret has somewhere to land (it moves on the next frame, once drawn).
+    if (!filtersOpen) {
+      setFiltersOpen(true);
+      requestAnimationFrame(() => sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)")?.focus());
+      return null;
+    }
+    return sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)");
+  };
   const focusRow = (index: number) => {
     const next = Math.max(0, Math.min(rows.length - hiddenRows - 1, index));
     setActiveRow(next);
@@ -302,6 +310,25 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   });
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // The per-column filter row can be folded away; the typed filters keep working and are counted on the toggle.
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const activeFilters = Object.keys(view.columnFilters).length;
+  const bodyScroll = useRef<HTMLDivElement>(null);
+  // Content hidden to the right of / below the visible area is flagged (an edge shadow + a hint), not left to be guessed.
+  const markOverflow = (el: HTMLElement) => {
+    el.toggleAttribute("data-scrolled-x", el.scrollLeft > 0);
+    el.toggleAttribute("data-more-x", el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+  };
+  useEffect(() => {
+    const el = bodyScroll.current;
+    if (!el) return;
+    markOverflow(el);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => markOverflow(el));
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [shown.length, rows.length]);
   const filterFields = columns.filter((c) => c.mode !== "hidden");
   const hiddenCount = columns.filter((c) => c.mode === "hidden" && !c.filterOnly).length;
   const maskedCount = shown.filter((c) => c.mode === "masked").length;
@@ -379,6 +406,10 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
             {t("grid.group.aggregates")}
           </button>
         )}
+        <button type="button" className={filtersOpen ? "erp-btn" : "erp-btn erp-btn--ghost"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+          {filtersOpen ? t("grid.filters_hide") : t("grid.filters_show")}
+          {!filtersOpen && activeFilters > 0 ? ` (${activeFilters})` : ""}
+        </button>
         <button type="button" className={view.conditions.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} onClick={() => setAdvancedOpen(true)}>
           <Search aria-hidden="true" className="erp-icon" />
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
@@ -426,10 +457,13 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         </div>
       )}
       <div
+        ref={bodyScroll}
         className="erp-grid__body"
+        // Keyboard users reach sideways content by focusing the scroll area and using the arrows.
+        tabIndex={-1}
         onScroll={(e) => {
           // The pinned columns cast a shadow once the others slide under them (not managed by React: no re-render).
-          e.currentTarget.toggleAttribute("data-scrolled-x", e.currentTarget.scrollLeft > 0);
+          markOverflow(e.currentTarget);
         }}
       >
         <table>
@@ -496,7 +530,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                 );
               })}
             </tr>
-            <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable pinned={pinned} />
+            {filtersOpen && <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable pinned={pinned} />}
           </thead>
           <tbody ref={bodyRef}>
             {(() => {
@@ -590,6 +624,9 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           )}
         </table>
       </div>
+      <p className="erp-grid__more erp-small erp-muted" data-testid="grid-more-x">
+        {t("grid.more_columns")}
+      </p>
       <GridFooter
         page={view.page}
         pageSize={view.pageSize}

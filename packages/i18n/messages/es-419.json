@@ -777,6 +777,9 @@
       "record": "Registro",
       "tabs": {
         "label": "Pestañas abiertas",
+        "scroll_start": "Desplazar pestañas a la izquierda",
+        "scroll_end": "Desplazar pestañas a la derecha",
+        "list": "Todas las pestañas abiertas ({count})",
         "new": "Nueva pestaña",
         "close": "Cerrar {title}",
         "close_all": "Cerrar todas",
@@ -970,10 +973,10 @@
         "nature": "Naturaleza",
         "allows_movement": "Admite movimientos",
         "requires_party": "Exige tercero",
+        "requires_invoice_ready": "Exige tercero listo para facturar",
         "requires_cost_center": "Exige centro de costo",
         "requires_open_auxiliary": "Exige auxiliar abierto",
         "requires_item": "Exige ítem",
-        "requires_invoice_ready": "Exige tercero listo para facturar",
         "requires_business_unit": "Exige unidad de negocio",
         "statement_section": "Sección del estado",
         "is_opening_result": "Cuenta de resultado del ejercicio",
@@ -1652,7 +1655,7 @@
       "template_title": "1 · Plantilla",
       "template_xlsx": "Plantilla Excel",
       "template_csv": "Plantilla CSV",
-      "template_hint": "Llena la plantilla sin cambiar los encabezados. CSV separado por “;” o “,”, en UTF-8; el NIT va sin dígito de verificación; los valores de una lista van separados por “|”.",
+      "template_hint": "Llena la plantilla sin cambiar los encabezados. CSV separado por “;” o “,”, en UTF-8; el NIT va sin dígito de verificación; los valores de una lista van separados por “|”. En la plantilla Excel, las columnas obligatorias van resaltadas.",
       "file_title": "2 · Archivo",
       "drop": "Arrastra aquí",
       "drop_or": "el .xlsx o .csv, o",
@@ -1679,7 +1682,7 @@
       "missing_columns": "Faltan columnas obligatorias: {columns}. Todas las filas se rechazarían.",
       "unknown_headers": "Columnas que no se importan: {headers}",
       "preview_note": "Solo se cargan las filas sin errores; las que tienen datos DIAN pendientes se crean y no serán facturables hasta completarlas. Las filas con error se devuelven en errores.csv con el motivo.",
-      "process_note": "Proceso kernel.import.run · requiere verificación en dos pasos · corre en segundo plano con el mismo validador del formulario y queda en auditoría con el archivo original adjunto",
+      "process_note": "Requiere verificación en dos pasos · corre en segundo plano con el mismo validador del formulario y queda en auditoría con el archivo original adjunto",
       "run": "Importar filas válidas",
       "running": "Importando…",
       "started": "Importación en curso. El resultado y errores.csv quedan en el historial de importaciones.",
@@ -1713,7 +1716,9 @@
         "row_forbidden": "Tu rol no puede crear estos registros; la importación se detuvo.",
         "row_not_entitled": "Tu empresa no tiene habilitada la creación de estos registros; la importación se detuvo."
       },
-      "progress": "{done} de {total} filas"
+      "progress": "{done} de {total} filas",
+      "history_empty_hint": "Elige arriba el tipo de registro, descarga su plantilla, llénala y cárgala. Cada importación aparecerá aquí con su resultado.",
+      "no_file": "Aún no has elegido un archivo. Cuando lo elijas, lo verás revisado fila por fila aquí, antes de guardar nada."
     },
     "views": {
       "title": "Vistas",
@@ -1779,7 +1784,11 @@
     "filter_row": "Filtros",
     "filter_label": "Filtrar {label}",
     "filter_text": "contiene…",
-    "filter_number": ">= 1000",
+    "filters_hide": "Ocultar filtros",
+    "filters_show": "Mostrar filtros",
+    "filter_number_help": "Escribe un número (se muestran los mayores o iguales), o un operador: >= 1000, < 50, = 3, o un rango 1000..5000",
+    "filter_number": "Ej. >= 1000",
+    "more_columns": "Hay más columnas a la derecha: desplázate o elige las columnas visibles.",
     "filter_all": "Todos",
     "filter_masked": "enmascarado",
     "filter_unavailable": "Filtro no disponible",
@@ -1978,7 +1987,9 @@
     "keys_hint": "↑↓ moverse · Espacio seleccionar · Enter abrir · / filtrar",
     "json_items": "{count, plural, one {# elemento} other {# elementos}}",
     "json_fields": "{count, plural, one {# campo} other {# campos}}",
-    "total_unknown": "No se puede totalizar: la jerarquía no es visible para tu rol"
+    "total_unknown": "No se puede totalizar: la jerarquía no es visible para tu rol",
+    "json_none": "Ninguno",
+    "json_none_title": "{label}: ninguno definido"
   },
   "home": {
     "greeting": {
@@ -2045,7 +2056,11 @@
     },
     "recommendations": {
       "subtitle": "Sugerencias para tu rol. Nada se ejecuta sin tu confirmación.",
-      "empty": "Sin recomendaciones pendientes.",
+      "empty": "Sin recomendaciones pendientes",
+      "empty_hint": "Cuando un agente encuentre algo que merezca tu atención aparecerá aquí; nada se ejecuta sin tu confirmación.",
+      "loading": "Cargando recomendaciones…",
+      "unavailable_title": "No se pudieron cargar las recomendaciones",
+      "unavailable_body": "Recarga la página para intentarlo de nuevo.",
       "dismiss": "Descartar",
       "confidence": "Confianza {percent, number} %",
       "failed": "No se pudo guardar tu decisión. Inténtalo de nuevo.",
@@ -2593,6 +2608,7 @@
         "no_parent": "Sin padre (raíz)",
         "missing": "Faltan datos obligatorios",
         "statement_section_hint": "Vacía: hereda la de la cuenta madre",
+        "requires_invoice_ready_hint": "Solo acepta terceros listos para facturar: datos DIAN completos y archivos requeridos",
         "template_lines": "Líneas de la plantilla",
         "template_account": "Cuenta",
         "template_side": "Lado",
@@ -2608,7 +2624,6 @@
           "journal": "Fuente",
           "template": "Plantilla de comprobante",
           "period": "Período",
-        "requires_invoice_ready_hint": "Solo acepta terceros listos para facturar: datos DIAN completos y archivos requeridos",
           "rule": "Regla contable"
         },
         "field": {
@@ -2618,6 +2633,7 @@
             "nature": "Naturaleza",
             "statement_section": "Sección del estado financiero",
             "requires_party": "Exige tercero",
+            "requires_invoice_ready": "Exige tercero listo para facturar",
             "requires_cost_center": "Exige centro de costo",
             "requires_open_auxiliary": "Exige auxiliar abierto",
             "requires_item": "Exige ítem",
@@ -2633,7 +2649,6 @@
             "kind": "Tipo",
             "is_active": "Activo"
           },
-            "requires_invoice_ready": "Exige tercero listo para facturar",
           "journal": {
             "code": "Código",
             "name": "Nombre",

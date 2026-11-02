@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
+import { ChevronLeft, ChevronRight, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@erp/ui/lib/utils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@erp/ui/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@erp/ui/components/ui/dialog";
 import { useHasUnsaved } from "../forms/unsaved-guard";
 import { useTabs } from "./tabs-store";
@@ -49,6 +51,28 @@ export function TabsBar({ onNew, onActivate, confirmLeave }: TabsBarProps) {
     if (activeId === null) return;
     row.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(activeId)}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeId, tabs.length]);
+  // Tabs that do not fit are flagged (edge arrows that scroll, a menu that lists every tab), never left clipped in silence.
+  const scroller = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: false, end: false });
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setEdges((prev) => {
+      const next = { start: el.scrollLeft > 1, end: el.scrollWidth - el.clientWidth - el.scrollLeft > 1 };
+      return prev.start === next.start && prev.end === next.end ? prev : next;
+    });
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(el);
+    if (el.firstElementChild) observer?.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
+  }, [tabs.length]);
+  const overflowing = edges.start || edges.end;
+  const scrollBy = (direction: -1 | 1) => scroller.current?.scrollBy({ left: direction * Math.max(120, scroller.current.clientWidth * 0.6), behavior: "smooth" });
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (event.altKey || event.ctrlKey || event.metaKey || tabs.length === 0) return;
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -77,7 +101,18 @@ export function TabsBar({ onNew, onActivate, confirmLeave }: TabsBarProps) {
       aria-label={t("tabs.label")}
       className="flex h-9 shrink-0 items-stretch gap-0.5 max-md:h-12 [@media(pointer:coarse)]:h-12 border-b border-tabrow-line bg-tabrow px-3"
     >
-      <div data-tabs-scroll="" className="-mb-px flex min-w-0 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {overflowing && (
+        <button
+          type="button"
+          aria-label={t("tabs.scroll_start")}
+          disabled={!edges.start}
+          onClick={() => scrollBy(-1)}
+          className="mt-[5px] grid shrink-0 place-items-center rounded-t-md px-1 text-tabrow-text hover:bg-tabrow-hover disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <ChevronLeft className="size-4" aria-hidden="true" />
+        </button>
+      )}
+      <div ref={scroller} data-tabs-scroll="" data-overflow={overflowing ? "" : undefined} className="-mb-px flex min-w-0 items-stretch gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {tabs.map((tab, index) => {
           const on = tab.id === activeId;
           return (
@@ -125,6 +160,43 @@ export function TabsBar({ onNew, onActivate, confirmLeave }: TabsBarProps) {
           );
         })}
       </div>
+      {overflowing && (
+        <>
+          <button
+            type="button"
+            aria-label={t("tabs.scroll_end")}
+            disabled={!edges.end}
+            onClick={() => scrollBy(1)}
+            className="mt-[5px] grid shrink-0 place-items-center rounded-t-md px-1 text-tabrow-text hover:bg-tabrow-hover disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={t("tabs.list", { count: tabs.length })}
+              className="mt-[5px] flex shrink-0 items-center gap-1 rounded-t-md px-2 text-xs text-tabrow-text hover:bg-tabrow-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+            >
+              <span aria-hidden="true">{tabs.length}</span>
+              <ChevronsUpDown className="size-3.5" aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-80 min-w-56 overflow-y-auto">
+              {tabs.map((tab) => (
+                <DropdownMenuItem
+                  key={tab.id}
+                  aria-current={tab.id === activeId ? "page" : undefined}
+                  className={cn(tab.id === activeId && "font-semibold")}
+                  onSelect={() => {
+                    activate(tab.id);
+                    onActivate?.(tab);
+                  }}
+                >
+                  {titleOf(tab)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
       <button
         type="button"
         aria-label={t("tabs.new")}

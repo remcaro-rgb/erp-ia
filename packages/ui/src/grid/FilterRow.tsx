@@ -23,7 +23,7 @@ function useOptions() {
 
 /**
  * The filter row under the header (design §9, prototype `tr.f`): text contains, a number comparison or range
- * (`>= 1000`, `1000..5000`), a date range, a select for enums and booleans. Masked columns show a disabled box;
+ * (`>= 1000`, `1000..5000`; a bare number means "at least"), a date range, a select for enums and booleans. Masked columns show a disabled box;
  * active filters are tinted.
  */
 export function FilterRow({ columns, values, onChange, selectable, pinned }: FilterRowProps) {
@@ -68,7 +68,7 @@ export function FilterRow({ columns, values, onChange, selectable, pinned }: Fil
           };
           return (
             <th key={column.field} className={th}>
-              <span className="erp-grid__range">
+              <span className="erp-grid__range" role="group" aria-label={label}>
                 <input type="date" aria-label={`${label} · ${t("grid.date_from")}`} className={on} value={range.from} onChange={(e) => set("from", e.target.value)} />
                 <input type="date" aria-label={`${label} · ${t("grid.date_to")}`} className={on} value={range.to} onChange={(e) => set("to", e.target.value)} />
               </span>
@@ -84,6 +84,7 @@ export function FilterRow({ columns, values, onChange, selectable, pinned }: Fil
                 className={on}
                 inputMode={numeric ? "decimal" : undefined}
                 placeholder={numeric ? t("grid.filter_number") : t("grid.filter_text")}
+                title={numeric ? t("grid.filter_number_help") : undefined}
                 style={numeric ? { textAlign: "right" } : undefined}
                 value={typeof value === "string" ? value : ""}
                 onChange={(e) => onChange(column.field, e.target.value, true)}

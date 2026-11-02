@@ -189,10 +189,10 @@ test.describe("home dashboard", () => {
 
     await recs.getByRole("button", { name: "Descartar" }).click();
     await expect(recs.getByText("Revisa tus productos")).toHaveCount(0);
-    await expect(recs.getByText("Sin recomendaciones pendientes.")).toBeVisible();
+    await expect(recs.getByText("Sin recomendaciones pendientes", { exact: true })).toBeVisible();
     expect((await fixture.sql`select status from kernel.recommendations where id = ${recLink}`)[0]!.status).toBe("dismissed");
     await reload(page);
-    await expect(page.getByRole("region", { name: "Recomendaciones para ti" }).getByText("Sin recomendaciones pendientes.")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Recomendaciones para ti" }).getByText("Sin recomendaciones pendientes", { exact: true })).toBeVisible();
   });
 
   test("an accepted action the role may not take is refused: the card stays, the assistant is not opened", async ({ page }) => {
