@@ -188,9 +188,14 @@ export const PARTIES: DemoParty[] = [
 /**
  * Parties (by document number) the seed gives their required files (RUT, and Cámara de Comercio for a company) through
  * kernel.attachment.add, so they are invoice-ready: Éxito first, two more customers, a supplier, a party that is both,
- * and a natural person (RUT only).
+ * and a natural person (RUT only); then every other party the demo ledger puts on receivables (1305) or payables (2205),
+ * which only take invoice-ready parties (rule 10, design §22.22): the customers of the invoices and the two coffee suppliers.
+ * The rest stay without files so the first recommendation has something to point out.
  */
-export const INVOICE_READY_PARTIES = ["890900608", "900456781", "860512347", "890801234", "900531642", "71654321"];
+export const INVOICE_READY_PARTIES = [
+  "890900608", "900456781", "860512347", "890801234", "900531642", "71654321",
+  "890112233", "901642753", "900888123", "900667788", "900135791", "900246802",
+];
 
 /** The input of core.product.create, with the category and the main supplier named instead of their ids. */
 export interface DemoProduct {

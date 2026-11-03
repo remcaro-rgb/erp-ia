@@ -38,25 +38,30 @@ describe("RecordFrame", () => {
     expect(link.getAttribute("rel")).toContain("noopener");
   });
 
-  it("seq 'masked' shows N.º •••• with the UUID, never 'N.º y uuid se asignan al crear'", () => {
+  it("seq 'masked' shows ID •••• (no copy) with the UUID, never 'El ID y el UUID se asignan al crear'", () => {
     render(<RecordFrame title="Cuenta restringida" seq="masked" uuid={id} deepLinkHref={recordHref("accounting.account", id)} tabs={[tab("saldos")]} />);
-    expect(screen.getByText(`N.º •••• · uuid ${shortId(id)}…`)).toBeTruthy();
+    expect(screen.getByText("ID ••••")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Copiar ID" })).toBeNull();
+    expect(screen.getByText(`UUID ${shortId(id)}…`)).toBeTruthy();
     expect(screen.queryByText(/se asignan al crear/)).toBeNull();
   });
 
-  it("shows the title, N.º and the short UUID, and the status and actions in the footer", () => {
+  it("shows the title, the ID (D16) and the short UUID with copy buttons, and the status and actions in the footer", () => {
     render(party);
     expect(screen.getByRole("heading", { name: "Supermercados Éxito" })).toBeTruthy();
-    expect(screen.getByText(`N.º 7 · uuid ${shortId(id)}…`)).toBeTruthy();
+    expect(screen.getByText("ID 7")).toBeTruthy();
+    expect(screen.getByText(`UUID ${shortId(id)}…`)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copiar ID" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copiar UUID" })).toBeTruthy();
     expect(shortId(id)).toBe("0192a1b2");
     const footer = screen.getByRole("contentinfo");
     expect(within(footer).getByText("Estado DIAN: completo")).toBeTruthy();
     expect(within(footer).getByRole("button", { name: "Guardar" })).toBeTruthy();
   });
 
-  it("says the number and uuid are assigned on create while the record is new, and offers no deep link", () => {
+  it("says the ID and UUID are assigned on create while the record is new, and offers no deep link", () => {
     render(<RecordFrame title="Nuevo tercero" tabs={[tab("datos")]} />);
-    expect(screen.getByText("N.º y uuid se asignan al crear")).toBeTruthy();
+    expect(screen.getByText("El ID y el UUID se asignan al crear")).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
   });
 
@@ -247,14 +252,23 @@ describe("record model", () => {
   });
 
   it("parties show Contactos, products show Fotos, every record shows Datos adicionales and Archivos", () => {
-    expect(recordTabIds("core.party")).toEqual(["datos", "contactos", "extra", "archivos"]);
-    expect(recordTabIds("core.product")).toEqual(["datos", "fotos", "extra", "archivos"]);
-    expect(recordTabIds("core.product_category")).toEqual(["datos", "extra", "archivos"]);
-    expect(recordTabIds("support.ticket")).toEqual(["datos", "mensajes", "extra", "archivos"]);
+    expect(recordTabIds("core.party")).toEqual(["datos", "contactos", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.product")).toEqual(["datos", "fotos", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.product_category")).toEqual(["datos", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("support.ticket")).toEqual(["datos", "mensajes", "extra", "archivos", "versiones", "acceso"]);
   });
 
   it("contributed tabs come after the entity's own and before Datos adicionales", () => {
-    expect(recordTabIds("core.party", ["accounting.entries"])).toEqual(["datos", "contactos", "accounting.entries", "extra", "archivos"]);
-    expect(recordTabIds("core.product_category", ["a.x", "a.y"])).toEqual(["datos", "a.x", "a.y", "extra", "archivos"]);
+    expect(recordTabIds("core.party", ["accounting.entries"])).toEqual(["datos", "contactos", "accounting.entries", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.product_category", ["a.x", "a.y"])).toEqual(["datos", "a.x", "a.y", "extra", "archivos", "versiones", "acceso"]);
+  });
+});
+
+describe("record frame ids (D16)", () => {
+  it("shows Número and Ref. of a documento with their copy buttons", () => {
+    render(<RecordFrame title="Comprobante" seq={1284} uuid={id} number="CE-000123" reference="FAC-77" tabs={[tab("datos")]} />);
+    expect(screen.getByText("Número CE-000123")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copiar Número" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copiar Ref." })).toBeTruthy();
   });
 });

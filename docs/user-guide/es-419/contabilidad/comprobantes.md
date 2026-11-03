@@ -4,12 +4,17 @@ routes:
   - /accounting/entries
   - /accounting/journals
 processes:
+  - kernel.doc_template.print
+  - kernel.record.notify
   - accounting.entry.create
   - accounting.entry.update
+  - accounting.entry.save
   - accounting.entry.submit
-  - accounting.entry.post
+  - accounting.entry.approve
+  - accounting.entry.reject
   - accounting.entry.reverse
   - accounting.entry.void
+  - accounting.entry.delete
   - accounting.entry.from_template
   - accounting.entry.consult
   - accounting.journal.create
@@ -19,15 +24,17 @@ processes:
 
 # Comprobantes contables y Fuentes
 
-Un **comprobante** es un asiento contable: una fecha, una fuente y líneas que suman lo mismo al débito que al crédito. Entra por **Contabilidad › Comprobantes**.
+Un **comprobante** es un asiento contable: una fecha, una fuente y líneas que suman lo mismo al débito que al crédito. Entra por **Contabilidad › Documentos › Comprobantes**.
+
+El comprobante es un **documento**: sus estados, su barra de acciones (**Guardar**, **Guardar y enviar a aprobación**, **Aprobar**, **No aprobar**, **Anular**, **Revertir**, **Imprimir**, **Notificar**, **Duplicar**), el **ID**, el pie y la pestaña **Versiones** funcionan como en todo documento (guía [Maestros y documentos](../maestros-y-documentos.md)).
 
 ![listado de Comprobantes](img/comprobantes-listado.png)
 
 ## El listado
 
-Trae Número, Fecha, Fuente, Descripción, Débito, Crédito, Estado y Origen. Los filtros rápidos son **Hoy**, **Este período**, **Borradores**, **Por aprobar**, **Automáticos** y **Manuales**.
+Trae ID, Número, Fecha, Fuente, Descripción, Débito, Crédito, Estado y Origen. Los filtros rápidos son **Hoy**, **Este período**, **Borradores**, **Por aprobar**, **Automáticos** y **Manuales**. **Borradores** muestra los comprobantes sin terminar: en **Borrador**, **Grabado** o **No Aprobado**, los mismos que cuenta el cierre del período.
 
-El **Estado** puede ser **Borrador**, **Por aprobar**, **Contabilizado**, **Revertido** o **Anulado**. El **Origen** es **Manual** (lo hizo una persona), **Automático** (lo contabilizó el sistema a partir de una factura, un recibo u otro documento), **Plantilla** o **Importado**.
+El **Estado** puede ser **Borrador**, **Grabado**, **Pendiente de Aprobación**, **No Aprobado**, **Aprobado**, **Contabilizado** o **Anulado**. Un comprobante reversado sigue **Contabilizado** y su ficha lo marca como **Revertido**. El **Origen** es **Manual** (lo hizo una persona), **Automático** (lo contabilizó el sistema a partir de una factura, un recibo u otro documento), **Plantilla** o **Importado**.
 
 Los comprobantes automáticos no se escriben: nacen de las reglas contables (guía **Reglas contables**).
 
@@ -39,7 +46,7 @@ Los comprobantes automáticos no se escriben: nacen de las reglas contables (gu�
 4. Con el teclado: **Tab** avanza entre columnas y **Enter** en la última celda agrega una línea. Para quitar una línea, usa **Quitar la línea n**.
 5. El pie muestra **Débito**, **Crédito** y **Diferencia**. Mientras no cuadre dice «Descuadrado: falta $ …»; cuando cuadra dice **Cuadrado**.
 6. Si la empresa exige soporte, adjúntalo en la pestaña **Archivos** («Adjunta el soporte en la pestaña Archivos antes de contabilizar»).
-7. Pulsa **Contabilizar**. El comprobante recibe su número consecutivo («Contabilizado como NC-…») y queda de solo lectura.
+7. Pulsa **Guardar**. Guardar revisa el comprobante completo y, si no necesita aprobación, lo contabiliza en el mismo paso: recibe su número consecutivo («Contabilizado como NC-…») y queda de solo lectura. Si requiere aprobación, pulsa **Guardar y enviar a aprobación** (o **Guardar**, que lo deja **Grabado**, y después **Enviar a aprobación**). Si algo no cumple (el período está cerrado, falta un dato, no cuadra), no se graba nada: el comprobante sigue en **Borrador**, sin número, y lo que escribiste sigue en el formulario. Mientras está en **Borrador** recibe su **ID**, no su número.
 
 Para causar un gasto que se anula solo al mes siguiente, llena **Reversar el** con la fecha en que debe crearse el comprobante espejo (guía **Controles y cierre**).
 
@@ -47,22 +54,30 @@ Para causar un gasto que se anula solo al mes siguiente, llena **Reversar el** c
 
 ## Nuevo desde plantilla
 
-Pulsa **Nuevo desde plantilla**, elige la **Plantilla**, la **Fecha** y los **Valores por línea**, y pulsa **Crear borrador**. Revísalo y pulsa **Contabilizar**.
+Pulsa **Nuevo desde plantilla**, elige la **Plantilla**, la **Fecha** y los **Valores por línea**, y pulsa **Crear borrador**. Revísalo y pulsa **Guardar**. Solo se usan las plantillas activas; el nombre de cada plantilla es único en la empresa.
 
 ## Aprobación por otra persona
 
-Si el administrador activó **Aprobación de comprobantes manuales** en Reglas contables › Configuración:
+Un comprobante requiere aprobación cuando el administrador activó **Aprobación de comprobantes manuales** en Reglas contables › Configuración, o cuando en **Parámetros** se marcó **Requiere aprobación** para los comprobantes. Los automáticos nunca la requieren: su control es la regla contable.
 
-1. Quien lo hizo pulsa **Enviar a aprobación**: pasa a **Por aprobar** y queda de solo lectura.
-2. Otra persona con permiso lo abre y pulsa **Aprobar y contabilizar**. Quien creó el comprobante no puede aprobarlo («Otra persona debe aprobar»).
-3. Si hay algo por corregir, quien aprueba pulsa **Devolver a borrador** y puede escribir el **motivo** (opcional): el comprobante vuelve al autor tal como estaba, con sus mismas líneas, y queda guardado el motivo. Lo puede devolver quien tenga el permiso de contabilizar; también si el comprobante tiene líneas de cuentas restringidas que esa persona no ve, porque las líneas no se tocan. El autor lo corrige y lo envía otra vez. Un comprobante por aprobar no se edita: primero se devuelve.
+1. Quien lo hizo pulsa **Guardar y enviar a aprobación** (o **Enviar a aprobación** si ya estaba **Grabado**): el comprobante se graba, completo y sin número, y pasa a **Pendiente de Aprobación**, de solo lectura.
+2. Una persona con permiso lo abre y pulsa **Aprobar**: se contabiliza en ese mismo paso y recibe su número. Si no se puede contabilizar (por ejemplo, el período se cerró), no se aprueba: sigue **Pendiente de Aprobación** y el aviso dice por qué. Con **Aprobación de comprobantes manuales** activada, quien lo creó no puede aprobarlo («Otra persona debe aprobar»); si la aprobación viene solo de Parámetros, puede aprobarlo cualquiera con el permiso.
+3. Si hay algo por corregir, quien aprueba pulsa **No aprobar** y escribe el **motivo** (obligatorio): el comprobante queda **No Aprobado**, tal como estaba, con sus mismas líneas, y el motivo queda en su historial. Lo puede hacer quien tenga el permiso; también si el comprobante tiene líneas de cuentas restringidas que esa persona no ve, porque las líneas no se tocan. El autor lo corrige, lo guarda y pulsa otra vez **Enviar a aprobación**. Un comprobante pendiente de aprobación no se edita.
 
-El filtro **Por aprobar** y el indicador de Inicio cuentan los pendientes.
+Un comprobante **Grabado** o **No Aprobado** todavía se puede editar; cada cambio queda guardado en su historial. El filtro **Por aprobar** y el indicador de Inicio cuentan los pendientes.
 
-## Reversar y anular
+## Revertir, eliminar y anular
 
-- **Reversar** (en un comprobante contabilizado): elige la fecha y escribe el **Motivo**; se crea un comprobante nuevo con las líneas invertidas. Los dos se enlazan con «Reversión de» y «Revertido por». Nunca se borra nada.
-- **Anular borrador**: descarta un borrador que no se contabilizó.
+- **Revertir** (en un comprobante contabilizado): elige la fecha y escribe el **Motivo de la reversión**; se crea un comprobante nuevo con las líneas invertidas. Los dos se enlazan con «Reversión de» y «Revertido por»; el original sigue **Contabilizado** y se ve **Contabilizado · Revertido**, y no se reversa dos veces. Nunca se borra nada.
+- **Eliminar** (en un **Borrador**): borra el borrador y sus líneas, después de confirmar. No aplica a la reversión automática de una causación ni a un borrador con archivos adjuntos (quítalos primero).
+- **Anular** (en un comprobante **Grabado**, **Pendiente de Aprobación**, **No Aprobado** o **Aprobado**): escribe el **Motivo de la anulación**; el comprobante queda **Anulado** con su motivo y no cambia más. Un comprobante **Contabilizado** no se anula: se revierte.
+
+## Imprimir, Notificar, Versiones y Acceso
+
+- **Imprimir** descarga el PDF del comprobante con la plantilla de la empresa (guía [Plantillas PDF e Imprimir](../plantillas-pdf.md)).
+- **Notificar** envía ese PDF por correo, en copia oculta, desde que el comprobante sale de Borrador (guía [Notificaciones por correo](../notificaciones.md)).
+- **Versiones** guarda una versión completa en cada cambio de datos o de estado desde que sale de Borrador, para verlas y compararlas.
+- **Acceso** (solo administradores) restringe un comprobante a ciertos roles o usuarios (guía [Acceso por registro](../acceso-por-registro.md)).
 
 ## La pestaña Origen
 

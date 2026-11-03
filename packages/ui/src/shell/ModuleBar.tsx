@@ -22,9 +22,10 @@ export interface ModuleBarProps {
 export const isActiveHref = (itemHref: string, activeHref: string): boolean =>
   itemHref === "/" ? activeHref === "/" : activeHref === itemHref || activeHref.startsWith(`${itemHref}/`);
 
+// Shell v7 items bar (prototype `.secbtn` / `.pill`): 30 px pills on the surface, 44 px touch targets on a phone or a coarse pointer.
 const BAR_BUTTON =
-  "border-y-[3px] border-transparent bg-transparent px-[11px] text-[13px] whitespace-nowrap text-bar-text hover:bg-bar-ctl hover:text-white";
-const BAR_BUTTON_ON = "border-b-focus font-semibold text-white";
+  "h-[30px] shrink-0 rounded-md border border-transparent bg-transparent px-[11px] text-[13px] whitespace-nowrap text-text-muted hover:bg-hover hover:text-text focus-visible:outline-2 focus-visible:outline-focus max-md:min-h-11 [@media(pointer:coarse)]:min-h-11";
+const BAR_BUTTON_ON = "border-line bg-head font-semibold text-link";
 
 interface GroupProps {
   group: NavItem;
@@ -34,19 +35,39 @@ interface GroupProps {
   onNavigate: ModuleBarProps["onNavigate"];
 }
 
-/** A group of the items bar: `Maestros ▾` opens a menu of its children (prototype `.dd` / `.ddm`). */
+/** The count beside a label (the pending postings of Reglas contables), read out as "N pendientes". */
+function Badge({ count }: { count: number }) {
+  const t = useTranslations();
+  return (
+    <span className="erp-modbar-badge" aria-label={t("nav.shell.badge", { count })}>
+      {count}
+    </span>
+  );
+}
+
+/** What a group's children are waiting for in all: the group's trigger shows it, so a count inside a menu stays visible on the bar. */
+const groupBadge = (group: NavItem): number => (group.children ?? []).reduce((sum, child) => sum + (child.badge ?? 0), 0);
+
+/**
+ * A group of the items bar: `Maestros ▾` opens a menu of its children (prototype `.dd` / `.ddm`). A menu section with no item says so
+ * ("Aún no hay elementos en esta sección", entity types spec §9.2) instead of disappearing.
+ */
 function NavGroup({ group, activeHref, open, onOpenChange, onNavigate }: GroupProps) {
   const t = useTranslations();
   const root = useRef<HTMLSpanElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const entries = useRef<Array<HTMLButtonElement | null>>([]);
-  const children = group.children ?? [];
+  const menu = useRef<HTMLDivElement>(null);
+  // The "Más" menu may hold an empty menu section (a child with no children): it shows its name and empty state, never an entry.
+  const children = (group.children ?? []).filter((child) => !child.children);
+  const emptySections = new Set((group.children ?? []).filter((child) => child.children).map((child) => child.id));
   const on = children.some((child) => isActiveHref(child.href, activeHref));
+  const waiting = groupBadge(group);
 
-  // Opening focuses the first entry; a pointer press outside the group closes it.
+  // Opening focuses the first entry (an empty section: the menu itself, so Esc still closes it); a pointer press outside the group closes it.
   useEffect(() => {
     if (!open) return;
-    entries.current[0]?.focus();
+    (entries.current[0] ?? menu.current)?.focus();
     const away = (event: MouseEvent) => {
       if (!root.current?.contains(event.target as Node)) onOpenChange(false);
     };
@@ -62,6 +83,7 @@ function NavGroup({ group, activeHref, open, onOpenChange, onNavigate }: GroupPr
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
     const at = entries.current.findIndex((el) => el === document.activeElement);
     if (event.key === "Escape") close(true);
+    else if (children.length === 0 && event.key !== "Tab") return;
     else if (event.key === "ArrowDown") move(at, 1);
     else if (event.key === "ArrowUp") move(at, -1);
     else if (event.key === "Home") move(-1, 1);
@@ -86,31 +108,55 @@ function NavGroup({ group, activeHref, open, onOpenChange, onNavigate }: GroupPr
             onOpenChange(true);
           }
         }}
-        className={cn(BAR_BUTTON, "inline-flex h-full items-center gap-1", on && BAR_BUTTON_ON)}
+        className={cn(BAR_BUTTON, "inline-flex items-center gap-1", on && BAR_BUTTON_ON)}
       >
         {t(group.label)}
+        {waiting > 0 ? (
+          <>
+            {" "}
+            <Badge count={waiting} />
+          </>
+        ) : null}
         <ChevronDown className="size-3.5" aria-hidden="true" />
       </button>
       {open && (
-        <div role="menu" aria-label={t(group.label)} className="erp-modbar-menu" onKeyDown={onMenuKey}>
-          {children.map((child, index) => (
-            <button
-              key={child.id}
-              ref={(el) => {
-                entries.current[index] = el;
-              }}
-              type="button"
-              role="menuitem"
-              aria-current={isActiveHref(child.href, activeHref) ? "page" : undefined}
-              onClick={() => {
-                close(false);
-                onNavigate({ href: child.href, title: t(child.label), kind: "grid" });
-              }}
-            >
-              <NavIcon name={child.icon} />
-              {t(child.label)}
-            </button>
-          ))}
+        <div ref={menu} role="menu" aria-label={t(group.label)} className="erp-modbar-menu" onKeyDown={onMenuKey} tabIndex={children.length === 0 ? -1 : undefined}>
+          {children.length === 0 && emptySections.size === 0 ? <p className="erp-modbar-empty">{t("nav.section.empty")}</p> : null}
+          {(group.children ?? []).map((child) => {
+            if (emptySections.has(child.id)) {
+              return (
+                <div key={child.id} role="group" aria-label={t(child.label)} className="erp-modbar-section">
+                  <p className="erp-modbar-heading">{t(child.label)}</p>
+                  <p className="erp-modbar-empty">{t("nav.section.empty")}</p>
+                </div>
+              );
+            }
+            const index = children.indexOf(child);
+            return (
+              <button
+                key={child.id}
+                ref={(el) => {
+                  entries.current[index] = el;
+                }}
+                type="button"
+                role="menuitem"
+                aria-current={isActiveHref(child.href, activeHref) ? "page" : undefined}
+                onClick={() => {
+                  close(false);
+                  onNavigate({ href: child.href, title: t(child.label), kind: "grid" });
+                }}
+              >
+                <NavIcon name={child.icon} />
+                {t(child.label)}
+                {child.badge ? (
+                  <>
+                    {" "}
+                    <Badge count={child.badge} />
+                  </>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
       )}
     </span>
@@ -134,7 +180,7 @@ interface Entry {
 }
 
 /**
- * The active module's items, in the top bar right next to the module button (prototype `renderModbar`). Each item is a real
+ * The active module's sections and items, in the items bar under the navy bar (shell v7, design §22.24; prototype `#itemsbar`), at every width. Each item is a real
  * link (open in a new tab with ⌘/Ctrl or the middle button). The items that do not fit move, in order, into a trailing
  * "Más ▾" menu measured at runtime (owner 2026-10-31, UX-OD-1); a hidden copy of the row gives the widths.
  */
@@ -145,7 +191,7 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
     ...(showHome ? [{ id: "home", label: "nav.shell.home", icon: "home", href: "/", title: t("nav.shell.home"), kind: "home" as const }] : []),
     ...items.map((item): Entry => ({ id: item.id, label: item.label, icon: item.icon, href: item.href, title: t(item.label), kind: "grid", ...(item.badge ? { badge: item.badge } : {}), ...(item.children ? { group: item } : {}) })),
   ];
-  const signature = entries.map((e) => `${e.id}:${e.title}:${e.badge ?? ""}`).join("|");
+  const signature = entries.map((e) => `${e.id}:${e.title}:${e.badge ?? (e.group ? groupBadge(e.group) : "")}`).join("|");
 
   const row = useRef<HTMLElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
@@ -194,8 +240,13 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
           label: "nav.shell.more",
           href: "#",
           icon: "list",
+          // A group's entries are listed in place of the group; an empty menu section keeps its name and empty state (spec §9.2).
           children: hidden.flatMap((e): NavItem[] =>
-            e.group ? (e.group.children ?? []) : [{ id: e.id, label: e.label, href: e.href, icon: e.icon }],
+            e.group
+              ? (e.group.children ?? []).length === 0 && e.group.section
+                ? [{ ...e.group, children: [] }]
+                : (e.group.children ?? [])
+              : [{ id: e.id, label: e.label, href: e.href, icon: e.icon, ...(e.badge ? { badge: e.badge } : {}) }],
           ),
         };
 
@@ -216,23 +267,20 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
         className={cn(BAR_BUTTON, "inline-flex items-center", on && BAR_BUTTON_ON)}
       >
         {entry.title}
-        {entry.badge ? (
-          <span className="erp-modbar-badge" aria-label={t("nav.shell.badge", { count: entry.badge })}>
-            {entry.badge}
-          </span>
-        ) : null}
+        {entry.badge ? <Badge count={entry.badge} /> : null}
       </a>
     );
   };
   const groupTrigger = (entry: Entry) => (
-    <span key={entry.id} data-entry="" className={cn(BAR_BUTTON, "inline-flex h-full items-center gap-1")}>
+    <span key={entry.id} data-entry="" className={cn(BAR_BUTTON, "inline-flex items-center gap-1")}>
       {entry.title}
+      {entry.group && groupBadge(entry.group) > 0 ? <Badge count={groupBadge(entry.group)} /> : null}
       <ChevronDown className="size-3.5" aria-hidden="true" />
     </span>
   );
 
   return (
-    <nav ref={row} aria-label={t("nav.shell.module_menu")} className="relative ml-1.5 hidden min-w-0 flex-1 items-stretch gap-0.5 self-stretch border-l border-bar-line pl-2.5 lg:flex">
+    <nav ref={row} aria-label={t("nav.shell.module_menu")} className="relative flex min-w-0 flex-1 items-center gap-1 self-stretch">
       {shown.map((entry) =>
         entry.group ? (
           <NavGroup

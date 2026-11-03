@@ -14,6 +14,7 @@ export const ADMIN_SECTIONS = [
   { href: "/admin/required-files", label: "nav.kernel.required_files" },
   { href: "/admin/sensitive", label: "nav.kernel.sensitive" },
   { href: "/admin/verifiers", label: "nav.kernel.verifiers" },
+  { href: "/admin/menu-access", label: "nav.kernel.menu_access" },
   { href: "/admin/modules", label: "nav.kernel.modules" },
   { href: "/admin/companies", label: "nav.kernel.companies" },
   { href: "/admin/audit", label: "nav.kernel.audit" },

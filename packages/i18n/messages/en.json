@@ -73,11 +73,13 @@
         "probar": "Test",
         "historial": "History",
         "contabilidad": "Accounting",
-        "cuentas": "Accounts"
+        "cuentas": "Accounts",
+        "versiones": "Versions",
+        "acceso": "Access"
       },
-      "number": "No.",
-      "uuid": "uuid",
-      "assigned_on_create": "No. and uuid are assigned on creation",
+      "number": "ID",
+      "uuid": "UUID",
+      "assigned_on_create": "ID and UUID are assigned on creation",
       "open_in_new_tab": "Open in a new tab",
       "pending": "Pending",
       "duplicate": "Duplicate",
@@ -99,6 +101,124 @@
         "complete": "DIAN: complete",
         "missing": "DIAN: {count, plural, one {# item missing} other {# items missing}}",
         "errors": "DIAN: with errors"
+      },
+      "actions": {
+        "group": "Record actions",
+        "new": "New",
+        "print": "Print",
+        "notify": "Notify",
+        "duplicate": "Duplicate",
+        "reverse": "Reverse",
+        "more": "More",
+        "save": "Save",
+        "save_submit": "Save and submit for approval",
+        "submit": "Submit for approval",
+        "approve": "Approve",
+        "reject": "Reject",
+        "void": "Void",
+        "delete": "Delete",
+        "acting": "Working…",
+        "unsaved": "Save your changes before changing the status",
+        "unsaved_print": "Save your changes before printing",
+        "draft_notify": "Save the document before sending it",
+        "posts_auto": "It posts automatically in the same action (there is no «Post» button).",
+        "back_to_pending": "If you change a field that requires approval, saving sends it back to Pending approval.",
+        "reason": "Reason",
+        "reason_reject": "Reason for rejecting",
+        "reason_void": "Reason for voiding",
+        "reason_reverse": "Reason for reversing",
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "delete_confirm": "Delete this record? The audit entry stays.",
+        "delete_yes": "Yes, delete",
+        "refused": "«{action}» could not be completed: {reason}",
+        "saved_not_submitted": "Saved, but not submitted for approval: {reason}. The record stays Saved.",
+        "stale": "Someone else changed this record while you had it open. Reload the page to see the current version.",
+        "reload": "Reload",
+        "done": "Done",
+        "print_failed": "Could not print: {reason}"
+      },
+      "ids": {
+        "id": "ID",
+        "number": "Number",
+        "reference": "Ref.",
+        "uuid": "UUID",
+        "copy": "Copy {what}",
+        "copied": "{what} copied"
+      },
+      "footer": {
+        "created": "Created on {at} by {by}",
+        "modified": "Modified on {at} by {by}",
+        "unknown_user": "—",
+        "status": "Status: {status}"
+      },
+      "versions": {
+        "intro": "Every data or status change, once the document leaves Draft, keeps a full version. Versions cannot be edited or deleted.",
+        "empty": "No versions yet: they are kept once the document leaves Draft.",
+        "version": "Version",
+        "status": "Status",
+        "at": "Date",
+        "by": "By",
+        "reason": "Reason",
+        "pick": "Compare",
+        "pick_hint": "Tick two versions to compare them side by side.",
+        "compare": "Compare v{a} with v{b}",
+        "changed": "{count, plural, one {# field changed} other {# fields changed}}",
+        "only_changes": "Only changes",
+        "field": "Field",
+        "lines": "Lines",
+        "line_field": "Line {n} · {field}",
+        "masked_note": "A field masked or hidden for you shows •••••••• in both versions and is never marked as changed."
+      },
+      "access": {
+        "intro": "Rules only restrict; they never apply to administrators. Without rules, the role permissions apply. With rules, only the listed people and roles have the ticked rights, never more than their role allows.",
+        "empty": "No rules: the role permissions apply.",
+        "grantee": "Role or user",
+        "roles": "Roles",
+        "users": "Users",
+        "role": "Role",
+        "user": "User",
+        "add": "Add rule",
+        "remove": "Remove",
+        "save": "Save rules",
+        "saved": "Rules saved · every change is audited",
+        "unsaved": "Unsaved rule changes",
+        "rights": {
+          "read": "View",
+          "use": "Use on documents",
+          "modify": "Modify",
+          "delete": "Delete",
+          "void": "Void"
+        }
+      },
+      "notify_dialog": {
+        "title": "Notify · {name}",
+        "to": "Recipients",
+        "to_hint": "{count} / 50 · Enter to add",
+        "placeholder": "Type an e-mail and press Enter",
+        "remove": "Remove {email}",
+        "bad": "{count, plural, one {# invalid e-mail} other {# invalid e-mails}}: fix or remove it to send",
+        "none": "Add at least one recipient",
+        "over": "At most 50 recipients",
+        "bcc": "Sent as blind copy (BCC): no recipient sees the others' addresses.",
+        "subject": "Subject",
+        "message": "Message",
+        "attach": "Attachment: the record's PDF, with what you can see.",
+        "send": "Send",
+        "cancel": "Cancel",
+        "sent": "Sent to {count, plural, one {# recipient} other {# recipients}} as blind copy",
+        "failed": "Could not send: {reason}",
+        "provider_failed": "the mail server did not accept the message. Try again",
+        "subject_id": "{tipo} ID {seq} · {estado}"
+      },
+      "status": {
+        "draft": "Draft",
+        "saved": "Saved",
+        "pending": "Pending approval",
+        "rejected": "Rejected",
+        "approved": "Approved",
+        "posted": "Posted",
+        "voided": "Voided"
       }
     },
     "contacts": {
@@ -346,7 +466,7 @@
     "category_form": {
       "category": "Category",
       "name": "Name",
-      "status": "Status",
+      "is_active": "Active",
       "active": "Active",
       "inactive": "Inactive",
       "taxes": "Default taxes",
@@ -648,7 +768,12 @@
         "currency": "Currency",
         "timezone": "Time zone",
         "timezone_hint": "governs reports, scheduling and the AI usage month",
-        "save": "Save"
+        "save": "Save",
+        "address": "Address",
+        "letterhead_hint": "printed by the PDF templates",
+        "city": "City",
+        "phone": "Phone",
+        "phone_cc": "Country calling code"
       },
       "ai_usage": {
         "title": "AI usage",
@@ -727,13 +852,158 @@
       "tab": "Unsaved",
       "saving": "Saving…",
       "failed": "Could not save: check the record's data."
+    },
+    "forbidden": {
+      "title": "No access",
+      "message": "You do not have access to this screen",
+      "hint": "Your role or your user cannot open this menu option. If you need it, ask the company administrator.",
+      "home": "Back to home"
+    },
+    "print": {
+      "page_number": "Page {n} of {total}",
+      "tax_id": "Tax ID"
+    },
+    "notify": {
+      "subject": "{tipo} {numero} · {estado}",
+      "state_body": "{tipo} {numero} is now {estado}. The document is attached.",
+      "body": "Please find {tipo} {numero} attached."
+    },
+    "parametros": {
+      "entity": "Entity",
+      "type": "Type",
+      "save": "Save",
+      "unsaved": "Unsaved changes",
+      "no_changes": "No changes",
+      "yes": "Yes",
+      "no": "No",
+      "entity_option": "{entity} ({kind})",
+      "kind": {
+        "maestro": "Master",
+        "documento": "Document"
+      },
+      "kind_lower": {
+        "maestro": "master",
+        "documento": "document"
+      },
+      "tipos": {
+        "copied_title": "The values are copied onto each record when it is created:",
+        "copied_body": "changing them here does not alter existing records.",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "note": "Note",
+        "maestro_no_posts": "Masters do not post.",
+        "own": "Set by the entity"
+      },
+      "destinatarios": {
+        "intro": "When a record enters a state, its PDF (default template) is sent to that state's list, in blind copy. No list, no e-mail. Up to {max} addresses per state.",
+        "invalid": "Invalid e-mail: {email} ({reason})",
+        "max": "Up to {max} addresses per state",
+        "save_first": "Save the changes before switching entity",
+        "state": "State",
+        "emails": "E-mails",
+        "count": "Count",
+        "remove": "Remove {email}",
+        "add": "Add e-mail to {state}",
+        "placeholder": "Add e-mail…"
+      },
+      "plantillas": {
+        "intro": "Each master and document prints with its default template; without one, with the system's. Every save creates a new version.",
+        "new": "New template",
+        "name": "Name",
+        "scope": "Scope",
+        "version": "Version",
+        "default": "Default",
+        "empty": "No templates yet: prints use the system template.",
+        "scope_record": "One record",
+        "scope_list": "List (report)",
+        "next_version": "saving makes v{version}",
+        "versions_hint": "every save creates a version",
+        "default_for": "Default for {entity} · {scope}",
+        "save_first": "Save the changes to view the PDF",
+        "view_pdf": "View PDF",
+        "stale": "Someone else saved this template while you were editing it. Reload it to see their version; your changes were not saved.",
+        "reload": "Reload",
+        "background": "Background (letterhead)",
+        "save_to_attach": "Save the template to attach files to it.",
+        "background_file": "Background PDF",
+        "no_background": "No background",
+        "upload_background": "Upload background PDF",
+        "background_hint": "First page as the background; optional second page for the following ones · 25 MB.",
+        "logo_title": "Company logo",
+        "logo_set": "The company has a logo: the empresa.logo variable prints it.",
+        "logo_none": "The company has no logo yet.",
+        "upload_logo": "Upload logo (PNG or JPEG)",
+        "remove_logo": "Remove logo",
+        "company_hint": "The address, city and phone are edited in Administration › Company.",
+        "upload_failed": "The file could not be uploaded.",
+        "blocks": "Blocks",
+        "block_kind": "Block type",
+        "kind": {
+          "text": "Fixed text",
+          "variable": "Variable",
+          "field": "Field",
+          "lines": "Lines table",
+          "image": "Image",
+          "page_number": "Page number"
+        },
+        "add_block": "Add block",
+        "new_text": "New text",
+        "up": "Move up",
+        "down": "Move down",
+        "remove_block": "Remove block",
+        "all_columns": "all columns",
+        "all_columns_hint": "With no column checked, all print.",
+        "variables": "Variables",
+        "variables_hint": "Click to add a block with the variable or field.",
+        "system": "System",
+        "record_fields": "Record fields",
+        "masked_hint": "A field the printing user cannot see prints empty. Money as $ 1.234.567,00.",
+        "preview": "Preview · A4 {w} × {h} pt",
+        "preview_hint": "Click a block to edit it. Position and size are edited in the form.",
+        "sample_user": "Printed by the user",
+        "logo": "Logo",
+        "no_logo": "No logo",
+        "text": "Text",
+        "format": "Format",
+        "columns": "Columns",
+        "x": "X (pt)",
+        "y": "Y (pt)",
+        "w": "Width",
+        "h": "Height",
+        "size": "Size",
+        "bold": "Bold",
+        "align": "Alignment",
+        "align_left": "Left",
+        "align_center": "Center",
+        "align_right": "Right"
+      },
+      "menu": {
+        "where": "Administration › Settings",
+        "narrow_title": "Rules only restrict; they never apply to admins.",
+        "narrow_body": "An «Allowed» rule never shows an item the role cannot open. A hidden item is refused on the server too (its screens and processes).",
+        "tree": "Menu items",
+        "rule_count": "{count, plural, one {# rule} other {# rules}}",
+        "who": "Role or user",
+        "allowed": "Allowed",
+        "allowed_for": "Allowed · {who}",
+        "empty": "No rules: whoever their role allows sees it.",
+        "role": "Role",
+        "user": "User",
+        "role_option": "Role · {name}",
+        "user_option": "User · {name}",
+        "remove": "Remove",
+        "new_rule": "New rule",
+        "choose": "Choose a role or a user…",
+        "add": "Add rule",
+        "inherit": "A rule on a module or a section applies to everything under it.",
+        "none": "The company uses no module with a menu."
+      }
     }
   },
   "nav": {
     "accounting": {
       "entries": "Entries",
       "movements": "Movements",
-      "masters": "Masters",
       "accounts": "Chart of accounts",
       "cost_centers": "Cost centers",
       "open_auxiliaries": "Open auxiliaries",
@@ -798,7 +1068,9 @@
         "create": "Create {entity}",
         "kind_go": "go",
         "kind_create": "create",
-        "kind_ask": "assistant"
+        "kind_ask": "assistant",
+        "kind_record": "Open",
+        "record_label": "{entity} · ID {id} · {name}"
       },
       "drawer": {
         "context": "Context: {context}",
@@ -846,6 +1118,10 @@
       "menu_title": "Navigation menu",
       "close_menu": "Close menu",
       "modules_heading": "Modules",
+      "side_menu": "Modules menu",
+      "collapse_menu": "Collapse menu",
+      "expand_menu": "Expand menu",
+      "toggle_menu": "Collapse or expand menu",
       "page": "Page"
     },
     "core": {
@@ -915,7 +1191,20 @@
       "verifiers": "Verifiers",
       "modules": "Modules",
       "companies": "Company",
-      "audit": "Audit"
+      "audit": "Audit",
+      "menu_access": "Menu access"
+    },
+    "section": {
+      "maestros": "Master data",
+      "documentos": "Documents",
+      "reportes": "Reports",
+      "parametros": "Settings",
+      "empty": "There are no items in this section yet",
+      "page": {
+        "entity_types": "Type settings",
+        "state_recipients": "Recipients by state",
+        "doc_templates": "PDF templates"
+      }
     }
   },
   "entity": {
@@ -955,7 +1244,8 @@
       "import": "Import",
       "export_job": "Export",
       "audit": "Audit",
-      "user": "User"
+      "user": "User",
+      "doc_template": "PDF template"
     },
     "support": {
       "ticket": "Ticket",
@@ -965,7 +1255,7 @@
   "field": {
     "accounting": {
       "account": {
-        "seq": "No.",
+        "seq": "ID",
         "code": "Code",
         "name": "Description",
         "parent_id": "Parent account",
@@ -986,10 +1276,12 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated",
-        "period_figure": "Period figure"
+        "period_figure": "Period figure",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "journal": {
-        "seq": "No.",
+        "seq": "ID",
         "code": "Code",
         "name": "Description",
         "kind": "Kind",
@@ -999,10 +1291,12 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "cost_center": {
-        "seq": "No.",
+        "seq": "ID",
         "code": "Code",
         "name": "Description",
         "parent_id": "Parent",
@@ -1012,10 +1306,12 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated",
-        "period_figure": "Period figure"
+        "period_figure": "Period figure",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "open_auxiliary": {
-        "seq": "No.",
+        "seq": "ID",
         "code": "Code",
         "name": "Description",
         "parent_id": "Parent",
@@ -1025,10 +1321,12 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated",
-        "period_figure": "Period figure"
+        "period_figure": "Period figure",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "item": {
-        "seq": "No.",
+        "seq": "ID",
         "code": "Code",
         "name": "Description",
         "parent_id": "Parent",
@@ -1038,10 +1336,12 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated",
-        "period_figure": "Period figure"
+        "period_figure": "Period figure",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "business_unit": {
-        "seq": "No.",
+        "seq": "ID",
         "code": "Code",
         "name": "Description",
         "parent_id": "Parent",
@@ -1051,10 +1351,12 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated",
-        "period_figure": "Period figure"
+        "period_figure": "Period figure",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "entry": {
-        "seq": "No.",
+        "seq": "ID",
         "journal_id": "Journal",
         "number": "Number",
         "date": "Date",
@@ -1085,10 +1387,13 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
       },
       "posting_rule": {
-        "seq": "No.",
+        "seq": "ID",
         "event": "Event",
         "name": "Name",
         "description": "Description",
@@ -1112,7 +1417,7 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "is_active": "Active",
-        "seq": "No.",
+        "seq": "ID",
         "subject_id": "Role or user",
         "subject_kind": "Subject type",
         "updated_at": "Updated"
@@ -1124,7 +1429,7 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "role": "Account role",
-        "seq": "No.",
+        "seq": "ID",
         "updated_at": "Updated"
       },
       "entry_line": {
@@ -1146,7 +1451,7 @@
         "open_auxiliary_id": "Open auxiliary",
         "party_id": "Party",
         "reference": "Reference",
-        "seq": "No.",
+        "seq": "ID",
         "tax_base": "Tax base",
         "tax_code": "Tax code",
         "tax_rate": "Tax rate",
@@ -1160,8 +1465,11 @@
         "extra_free": "Free data",
         "journal_id": "Source",
         "name": "Name",
-        "seq": "No.",
-        "updated_at": "Updated"
+        "seq": "ID",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "is_active": "Active"
       },
       "entry_template_line": {
         "account_id": "Account",
@@ -1176,7 +1484,7 @@
         "line_no": "Line",
         "open_auxiliary_id": "Open auxiliary",
         "party_id": "Party",
-        "seq": "No.",
+        "seq": "ID",
         "side": "Side",
         "template_id": "Template",
         "updated_at": "Updated"
@@ -1189,7 +1497,7 @@
         "extra_free": "Free data",
         "format": "Format",
         "is_active": "Active",
-        "seq": "No.",
+        "seq": "ID",
         "updated_at": "Updated"
       },
       "fiscal_year": {
@@ -1197,7 +1505,7 @@
         "ends_on": "To",
         "extra": "Additional data",
         "extra_free": "Free data",
-        "seq": "No.",
+        "seq": "ID",
         "starts_on": "From",
         "status": "Status",
         "updated_at": "Updated",
@@ -1269,7 +1577,7 @@
         "number": "Period no.",
         "reopened_count": "Times reopened",
         "reopened_for": "Reopened for",
-        "seq": "No.",
+        "seq": "ID",
         "starts_on": "From",
         "status": "Status",
         "updated_at": "Updated"
@@ -1282,7 +1590,7 @@
         "note": "Note",
         "passed": "Passed",
         "period_id": "Period",
-        "seq": "No.",
+        "seq": "ID",
         "updated_at": "Updated",
         "value": "Compared figures"
       },
@@ -1300,7 +1608,7 @@
         "payload": "Event payload",
         "posting_rule_id": "Posting rule",
         "resolved_entry_id": "Resulting voucher",
-        "seq": "No.",
+        "seq": "ID",
         "status": "Status",
         "updated_at": "Updated"
       },
@@ -1314,7 +1622,7 @@
         "require_approval_on_manual": "Approval of manual vouchers",
         "require_attachment_on_manual": "Attachment on manual vouchers",
         "rounding_tolerance": "Rounding tolerance",
-        "seq": "No.",
+        "seq": "ID",
         "updated_at": "Updated",
         "use_business_units": "Uses business units",
         "use_items": "Uses items",
@@ -1323,7 +1631,7 @@
     },
     "core": {
       "party": {
-        "seq": "No.",
+        "seq": "ID",
         "kind": "Party type",
         "person_type": "Person type",
         "document_type": "Document type",
@@ -1357,10 +1665,12 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "party_contact": {
-        "seq": "No.",
+        "seq": "ID",
         "party_id": "Party",
         "name": "Name",
         "job_title": "Job title",
@@ -1376,7 +1686,7 @@
         "updated_at": "Updated"
       },
       "product_category": {
-        "seq": "No.",
+        "seq": "ID",
         "name": "Name",
         "iva_rate": "VAT rate",
         "inc_rate": "INC rate",
@@ -1387,10 +1697,12 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "requires_approval": "Requires approval",
+        "is_active": "Active"
       },
       "product": {
-        "seq": "No.",
+        "seq": "ID",
         "sku": "SKU",
         "description": "Description",
         "kind": "Product type",
@@ -1419,23 +1731,28 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
       },
       "uom": {
         "code": "Code",
         "name": "Name"
       },
       "price_list": {
-        "seq": "No.",
+        "seq": "ID",
         "name": "Name",
         "currency_code": "Currency",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "is_active": "Active"
       },
       "price_list_item": {
-        "seq": "No.",
+        "seq": "ID",
         "price_list_id": "Price list",
         "product_id": "Product",
         "price": "Price",
@@ -1445,7 +1762,7 @@
         "updated_at": "Updated"
       },
       "document_sequence": {
-        "seq": "No.",
+        "seq": "ID",
         "document_type": "Document type",
         "prefix": "Prefix",
         "next_number": "Next number",
@@ -1473,6 +1790,7 @@
     "kernel": {
       "import": {
         "entity": "Entity",
+        "ref": "ref",
         "status": "Status",
         "rows_total": "Rows",
         "rows_ok": "Created",
@@ -1519,11 +1837,22 @@
         "created_at": "Created",
         "is_active": "Active",
         "mfa_exempt": "Exempt from the second step"
+      },
+      "doc_template": {
+        "entity": "Entity",
+        "scope": "Scope",
+        "name": "Name",
+        "version": "Version",
+        "is_default": "Default",
+        "background_file_id": "Background PDF",
+        "blocks": "Blocks",
+        "created_at": "Created",
+        "updated_at": "Updated"
       }
     },
     "support": {
       "ticket": {
-        "seq": "No.",
+        "seq": "ID",
         "reporter_user_id": "Reporter",
         "kind": "Type",
         "title": "Title",
@@ -1537,7 +1866,7 @@
         "updated_at": "Updated"
       },
       "ticket_message": {
-        "seq": "No.",
+        "seq": "ID",
         "ticket_id": "Ticket",
         "author_user_id": "Author",
         "body": "Message",
@@ -1569,7 +1898,9 @@
       "home": "Home screen: indicators, recommendations and recent records",
       "admin": "Administration",
       "audit": "Company audit",
-      "users": "Company users"
+      "users": "Company users",
+      "doc_templates": "Printing with PDF templates",
+      "notifications": "E-mail notifications"
     },
     "support": {
       "tickets": "Support tickets"
@@ -1598,7 +1929,23 @@
     },
     "accounting": {
       "entry": {
-        "return_to_draft": "Return entry to draft"
+        "reject": "Do not approve voucher"
+      }
+    },
+    "kernel": {
+      "record_access": {
+        "set": "Set record access"
+      },
+      "menu_access": {
+        "set": "Set access to the menu option"
+      },
+      "doc_template": {
+        "save": "Save a PDF template",
+        "set_default": "Choose the default PDF template",
+        "print": "Print to PDF"
+      },
+      "record": {
+        "notify": "E-mail a record's PDF (Notify)"
       }
     }
   },
@@ -1648,6 +1995,9 @@
       "failed_in": "{title} · The export failed. {reason}"
     },
     "import": {
+      "document_without_lines": "The document has no lines",
+      "line_errors": "Lines not imported ({count, plural, one {#} other {#}}): their ref matches no document of the Datos sheet.",
+      "line_error": "Líneas, row {row}: {error}",
       "title": "Import",
       "dialog_title": "Import {entity}",
       "template": "Download template",
@@ -1796,6 +2146,7 @@
     "date_to": "To",
     "empty_filtered": "No results with these filters",
     "masked_value": "Masked for your role",
+    "masked_row": "Line of an account restricted for your role",
     "open_record": "Open {label}",
     "columns_shown": "{shown} of {total} columns shown",
     "columns_reset": "Reset columns",
@@ -1928,11 +2279,20 @@
         "good": "Good",
         "service": "Service"
       },
-      "category_status": {
-        "active": "Active",
-        "inactive": "Inactive"
+      "record_status": {
+        "draft": "Draft",
+        "saved": "Saved",
+        "pending": "Pending approval",
+        "rejected": "Not approved",
+        "approved": "Approved",
+        "posted": "Posted",
+        "voided": "Voided"
       },
       "active": {
+        "true": "Active",
+        "false": "Inactive"
+      },
+      "active_feminine": {
         "true": "Active",
         "false": "Inactive"
       },
@@ -1989,7 +2349,9 @@
     "json_fields": "{count, plural, one {# field} other {# fields}}",
     "total_unknown": "Cannot total: the hierarchy is not visible to your role",
     "json_none": "None",
-    "json_none_title": "{label}: none set"
+    "json_none_title": "{label}: none set",
+    "print": "Print",
+    "print_failed": "The PDF could not be downloaded. Try again."
   },
   "home": {
     "greeting": {
@@ -2235,12 +2597,18 @@
     "not_found": "We could not find the record.",
     "handler_failed": "The action could not be completed. Please try again.",
     "idempotent_replay": "This action was already processed.",
+    "invalid_state": "This action is not allowed in the record's current status.",
+    "stale_record": "Someone else changed this record while you had it open. Reload it and try again.",
+    "maestro_not_usable": "The referenced record cannot be used: it must be active and Saved (or Approved if it requires approval).",
+    "record_forbidden": "You do not have permission on this record for this action. Ask an administrator to review its access.",
+    "record_referenced": "This record is used by other records and cannot be deleted. Set Active = no so it is no longer used.",
     "unknown": "An unexpected error occurred.",
     "network": "There is no connection to the server.",
     "export_failed": "The export could not be generated. Try again.",
     "export_timeout": "The export is taking longer than expected. It carries on in the background; try again in a few minutes.",
     "ai_budget_exceeded": "Your company reached its monthly AI usage limit. Ask your administrator to raise it; meanwhile you can keep working in the app.",
-    "confirmation_expired": "The confirmation card expired. Ask the assistant for the action again."
+    "confirmation_expired": "The confirmation card expired. Ask the assistant for the action again.",
+    "maestro_not_usable_named": "{field}: «{name}» cannot be used: it must be active and Saved (or Approved when it requires approval)."
   },
   "report": {
     "file": {
@@ -2409,6 +2777,8 @@
     "omitted_lines": "Lines omitted for lack of access",
     "difference": "Difference",
     "no_cost_center": "No cost center",
+    "restricted_cost_centers": "Restricted cost centers",
+    "restricted_parties": "Restricted parties",
     "opening_balance": "Opening balance",
     "period_result": "Result of the period",
     "total_assets": "Total assets",
@@ -2457,18 +2827,7 @@
       "lookup_empty": "No matches",
       "lookup_hint": "Type to search",
       "keyboard_hint": "Tab moves across columns · Enter on the last cell adds a line",
-      "read_only": "Read only: the voucher is no longer a draft",
-      "actions": {
-        "submit": "Send for approval",
-        "approve": "Approve and post",
-        "return": "Return to draft",
-        "post": "Post",
-        "reverse": "Reverse",
-        "void": "Void draft"
-      },
-      "hint": {
-        "same_user": "Someone else must approve: the person who created the voucher cannot approve it"
-      },
+      "read_only": "Read only: the voucher is pending approval, posted or voided",
       "reason": "Reason",
       "reason_confirm": "Confirm",
       "reason_cancel": "Cancel",
@@ -2477,11 +2836,11 @@
         "submit": "Sent for approval",
         "approve": "Posted as {number}",
         "post": "Posted as {number}",
-        "return": "Returned to draft",
+        "return": "Not approved: back to its creator",
         "reverse": "Reversed with {number}",
-        "void": "Voided"
+        "void": "Voided",
+        "delete": "Draft deleted"
       },
-      "return_reason": "Reason (optional)",
       "clone_note": "The header was copied; add the lines.",
       "origin": {
         "title": "Origin",
@@ -2529,6 +2888,10 @@
         "lines": "Add at least one line with an amount",
         "account": "Some lines have an amount but no account",
         "unbalanced": "Debit and credit must be equal"
+      },
+      "own_flags": {
+        "requires_approval": "By journal: «Requires approval on manual entries».",
+        "posts": "Always posts (it is the entry itself)."
       }
     },
     "record": {
@@ -2945,7 +3308,10 @@
       },
       "entry_status": {
         "draft": "Draft",
-        "pending": "To approve",
+        "saved": "Saved",
+        "pending": "Pending approval",
+        "rejected": "Not approved",
+        "approved": "Approved",
         "posted": "Posted",
         "reversed": "Reversed",
         "voided": "Voided"

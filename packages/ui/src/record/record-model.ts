@@ -22,6 +22,11 @@ export interface RecordLabels {
   /** Names of the frame's own tabs; a contributed tab carries its own `label`. */
   tabs: Record<string, string | undefined>;
   number: string;
+  /** A documento's number (Número) and reference (Ref.), next to the ID. */
+  docNumber: string;
+  reference: string;
+  /** The copy button's name; `{what}` is the identifier. */
+  copy: string;
   uuid: string;
   assignedOnCreate: string;
   openInNewTab: string;
@@ -38,11 +43,14 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
   tabs: {
     datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos", origen: "Origen",
     saldos: "Saldos", movimientos: "Movimientos", seguridad: "Seguridad", resultados: "Resultados", resumen: "Resumen", comprobantes: "Comprobantes", cierre: "Cierre",
-    lineas: "Líneas", probar: "Probar", historial: "Historial",
+    lineas: "Líneas", probar: "Probar", historial: "Historial", versiones: "Versiones", acceso: "Acceso",
   },
-  number: "N.º",
-  uuid: "uuid",
-  assignedOnCreate: "N.º y uuid se asignan al crear",
+  number: "ID",
+  docNumber: "Número",
+  reference: "Ref.",
+  copy: "Copiar {what}",
+  uuid: "UUID",
+  assignedOnCreate: "El ID y el UUID se asignan al crear",
   openInNewTab: "Abrir en una pestaña nueva",
   pending: "Pendientes",
   duplicate: "Duplicar",
@@ -89,5 +97,8 @@ export function recordTabIds(entity: string, contributed: readonly string[] = []
     ...contributed,
     "extra",
     "archivos",
+    // A maestro or documento (Task 15): a documento's Versiones, and Acceso for an admin; the page passes them only when they apply.
+    "versiones",
+    "acceso",
   ];
 }

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineModule } from "../../module/define";
 import { loadModules } from "../../module/loader";
+import { menuSections } from "../../module/menu";
 import { defineProcess } from "../../process/define";
 import { Registry } from "../../registry";
 import { EMBEDDING_DIMENSIONS, FakeEmbedder, GatewayEmbedder } from "../embedder";
@@ -193,7 +194,7 @@ describe("processChunks", () => {
         { id: "core.products", label: "f", processes: [categoryCreate.id], entities: [], nav: [nav[2]!, nav[3]!] },
       ],
       events: { emits: [], consumes: {} },
-      navigation: nav,
+      navigation: [...menuSections("core"), ...nav],
     }),
   ]);
   const chunks = processChunks(registry);
@@ -249,7 +250,7 @@ describe("guideProblems", () => {
   });
   const nav = { id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users" };
   loadModules(registry, [
-    defineModule({ id: "core", version: "0.0.0", dependsOn: [], entities: [], processes: [process], features: [], events: { emits: [], consumes: {} }, navigation: [nav] }),
+    defineModule({ id: "core", version: "0.0.0", dependsOn: [], entities: [], processes: [process], features: [], events: { emits: [], consumes: {} }, navigation: [...menuSections("core"), nav] }),
   ]);
   const guide = (over: Partial<ReturnType<typeof parseGuide>> = {}) => ({ ...parseGuide("terceros.md", "---\ntitle: T\n---\n# T\ntexto"), routes: ["/parties"], processes: ["core.party.consult"], ...over });
 
@@ -261,7 +262,7 @@ describe("guideProblems", () => {
     const grouped = new Registry();
     const child = { id: "acc.a", label: "nav.acc.a", href: "/acc/a", icon: "users" };
     loadModules(grouped, [
-      defineModule({ id: "acc", version: "0.0.0", dependsOn: [], entities: [], processes: [], features: [], events: { emits: [], consumes: {} }, navigation: [{ id: "acc.group", label: "nav.acc.group", href: "#", icon: "users", children: [child] }] }),
+      defineModule({ id: "acc", version: "0.0.0", dependsOn: [], entities: [], processes: [], features: [], events: { emits: [], consumes: {} }, navigation: menuSections("acc", { maestros: [child] }) }),
     ]);
     expect(knownRoutes(grouped)).toContain("/acc/a");
     expect(knownRoutes(grouped)).not.toContain("#");

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { GENERIC_VERBS } from "../typed/processes";
 import { z } from "zod";
 import { withClaims, type JwtClaims } from "../db/client";
 import { seedTenant, testDb } from "../db/test-db";
@@ -23,7 +24,7 @@ const proc = (id: string) => {
 };
 
 const party = defineEntity({
-  id: "core.party",
+  entityType: "maestro", id: "core.party",
   module: "core",
   schema: "core",
   table: "parties",
@@ -278,7 +279,8 @@ describe("entitlements", () => {
       sql<{ feature_id: string; process_ids: string[]; entity_ids: string[] }[]>`
         select feature_id, process_ids, entity_ids from kernel.module_features where module_id = 'core' order by feature_id`;
     expect(await stored()).toEqual([
-      { feature_id: "core.parties", process_ids: ["core.party.create"], entity_ids: ["core.party"] },
+      // core.party is a maestro: the loader put the generic lifecycle processes in the feature that lists it.
+      { feature_id: "core.parties", process_ids: ["core.party.create", ...GENERIC_VERBS.map((v) => `core.party.${v}`)], entity_ids: ["core.party"] },
       { feature_id: "core.reports", process_ids: ["core.report.run"], entity_ids: [] },
     ]);
     await syncModuleManifest(sql, { ...core, features: core.features.slice(0, 1) });

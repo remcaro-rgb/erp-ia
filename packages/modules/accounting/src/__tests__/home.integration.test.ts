@@ -22,7 +22,7 @@ beforeAll(async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
       date: today, description: "Movimiento del mes", lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, costCenterId: cc!.id })),
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
   };
   await post([{ code: "111005", debit: 5_000_000 }, { code: "413595", credit: 5_000_000 }]);
   await post([{ code: "510506", debit: 1_250_000 }, { code: "111005", credit: 1_250_000 }]);
@@ -39,7 +39,7 @@ afterAll(async () => {
 });
 
 const kpis = async (caller: typeof h.admin) => {
-  const out = await h.run<{ kpis: { id: string; value: number; unit: string; tone?: string; detail?: { params: Record<string, unknown> } }[] }>(caller, "kernel.home.kpis", {});
+  const out = await h.run<{ kpis: { id: string; value: number; unit: string; tone?: string; href?: string; detail?: { params: Record<string, unknown> } }[] }>(caller, "kernel.home.kpis", {});
   return new Map(out.kpis.map((k) => [k.id, k]));
 };
 
@@ -62,6 +62,22 @@ describe("accounting home KPIs", () => {
       select count(*) filter (where status = 'open')::int as open, count(*)::int as total from accounting.periods where company_id = ${h.companyId}`)[0]!;
     expect(cards.get("accounting.open_periods")).toMatchObject({ value: open, detail: { params: { total } } });
     expect(cards.get("accounting.draft_entries")).toMatchObject({ value: 1 });
+  });
+
+  it("Borradores counts what the period close counts as unfinished (Borrador, Grabado, No Aprobado) and links to the same states", async () => {
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
+      date: new Date().toISOString().slice(0, 10), description: "Grabado sin enviar", lines: [{ accountCode: "111005", debit: 3, credit: 0 }, { accountCode: "310505", debit: 0, credit: 3 }],
+    });
+    await h.sql`update accounting.entries set status = 'saved', requires_approval = true where id = ${id}`;
+    try {
+      const card = (await kpis(h.admin)).get("accounting.draft_entries")!;
+      expect(card).toMatchObject({ value: 2 });
+      const q = JSON.parse(new URL(card.href!, "http://x").searchParams.get("q")!);
+      expect(q.filters).toEqual([{ field: "status", op: "in", value: ["draft", "saved", "rejected"] }]);
+    } finally {
+      await h.sql`update accounting.entries set status = 'draft' where id = ${id}`;
+      await h.run(h.contador, "accounting.entry.delete", { id });
+    }
   });
 
   it("a role that may not consult the inbox does not get the pending card, and one that may not read the statement does not get the result", async () => {

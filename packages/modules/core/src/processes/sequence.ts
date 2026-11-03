@@ -12,6 +12,7 @@ export const sequenceNext = defineProcess({
   id: "core.sequence.next",
   module: "core",
   kind: "update",
+  recordAccess: "none",
   feature: "core.settings",
   description: "Toma el siguiente número de una numeración de documentos",
   input: z.object({ documentType: z.string().trim().min(1).max(20), prefix: z.string().max(20) }),

@@ -7,11 +7,18 @@ import { accounting } from "../index";
 
 export type Db = ReturnType<typeof testDb>;
 
-/** Every process the accounting module declares, plus the kernel attachment and custom field processes the record forms use. */
-export const ACCOUNTING_PROCESS_IDS = [...accounting.processes, ...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES].map((p) => p.id);
+/** The accounting processes as the loader registers them: the module's own and the generic lifecycle ones of its maestros and documentos. */
+const LOADED = (() => {
+  const registry = new Registry();
+  loadModules(registry, [kernelModule, core, accounting]);
+  return registry.processes({ module: "accounting" });
+})();
 
-/** The consult processes and the entry processes (create, update, void, submit, post, from_template) a `contador` or `auxiliar` role may run. */
-export const MEMBER_PROCESS_IDS = accounting.processes
+/** Every process the accounting module registers, plus the kernel attachment and custom field processes the record forms use. */
+export const ACCOUNTING_PROCESS_IDS = [...LOADED, ...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES].map((p) => p.id);
+
+/** The consult processes and the entry processes (create, update, the lifecycle verbs, from_template) a `contador` or `auxiliar` role may run. */
+export const MEMBER_PROCESS_IDS = LOADED
   .filter((p) => p.kind === "consult" || /^accounting\.(entry|entry_template|entry_line)\./.test(p.id) || p.id === "accounting.opening.create")
   .map((p) => p.id);
 

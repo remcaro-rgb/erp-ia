@@ -86,8 +86,10 @@ test.describe("accounting year close", () => {
     await expect(reopen).toBeHidden();
 
     await expect.poll(async () => (await sql`select status from accounting.fiscal_years where id = ${year}`)[0]!.status).toBe("open");
-    const states = await sql<{ status: string }[]>`select status from accounting.entries where id = any(${closing.map((e) => e.id)})`;
-    expect(states.map((s) => s.status)).toEqual(["reversed", "reversed"]);
+    // A reversed comprobante stays Contabilizado and carries the mark (entity types spec §8).
+    const states = await sql<{ status: string; reversed: boolean }[]>`
+      select status, coalesce((extra->>'reversed')::boolean, false) as reversed from accounting.entries where id = any(${closing.map((e) => e.id)})`;
+    expect(states.map((s) => [s.status, s.reversed])).toEqual([["posted", true], ["posted", true]]);
     expect((await sql`select status from accounting.periods where id = ${periods[11]!}`)[0]!.status).toBe("open");
   });
 

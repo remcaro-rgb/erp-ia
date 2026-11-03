@@ -38,7 +38,7 @@ export async function refuseDuplicate<T>(processId: string, constraint: string, 
   } catch (error) {
     const pg = error as { code?: string; constraint_name?: string };
     if (pg.code === UNIQUE_VIOLATION && pg.constraint_name === constraint) {
-      throw new ProcessError("invalid_input", `duplicate in ${processId}`, { details: [detail] });
+      throw new ProcessError("invalid_input", `duplicate in ${processId}`, { details: [detail], cause: error });
     }
     throw error;
   }

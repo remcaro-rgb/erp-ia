@@ -4,13 +4,14 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CategoryForm, EntryForm, formatMoney, gridFetcher, MasterForm, PartyForm, ProductForm, RuleForm, useTabs, type FieldMode, type SaveRecord } from "@erp/ui";
-import { lookupLineAction, runEntryAction } from "@/lib/accounting/entry-actions";
+import { lookupLineAction } from "@/lib/accounting/entry-actions";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { saveRecordAction } from "@/lib/records/actions";
+import { openCreatedRecord } from "@/lib/records/open-created";
 import { NEW_RECORD_ID, recordEntity } from "@/lib/records/entities";
 import type { TemplateLineView } from "@/lib/accounting/record-tabs";
 import type { FormData } from "@/lib/records/load";
-import { useRecordClone } from "./record-frame";
+import { useRecordClone, useSaveHold } from "./record-frame";
 
 export interface RecordFormProps {
   entity: string;
@@ -29,16 +30,28 @@ export interface RecordFormProps {
 export function RecordForm({ entity, record, modes, readOnly, form }: RecordFormProps) {
   const router = useRouter();
   const close = useTabs((s) => s.close);
+  const open = useTabs((s) => s.open);
+  const newTabTitle = useTabs((s) => s.tabs.find((tab) => tab.href === `/r/${entity}/${NEW_RECORD_ID}`)?.title ?? "");
   const { clone, done } = useRecordClone();
+  const saveHold = useSaveHold();
   const save: SaveRecord = useCallback(
-    (input, token) => (clone && !record ? saveRecordAction(entity, { ...clone.carry, ...input }, token, { sourceRowId: clone.sourceRowId }) : saveRecordAction(entity, input, token)),
-    [entity, clone, record],
+    async (input, token) => {
+      const result = await (clone && !record ? saveRecordAction(entity, { ...clone.carry, ...input }, token, { sourceRowId: clone.sourceRowId }) : saveRecordAction(entity, input, token));
+      // The version the save wrote goes to the bar's lifecycle step (minor 9: «Guardar y enviar a aprobación» submits with it).
+      if (result.ok) saveHold?.saved(result.id, result.updatedAt ?? null);
+      return result;
+    },
+    [entity, clone, record, saveHold],
   );
   const onSaved = (id: string, created: boolean) => {
+    // The action bar's Guardar goes on (lifecycle step) and then opens or reloads the record itself.
+    saveHold?.saved(id);
+    if (saveHold?.held()) return;
+    // Saved with the step-up code its save asked for: the bar's step goes on, then it opens or reloads the record (minor 6).
+    if (saveHold?.resume(id)) return;
     if (created) {
       done();
-      close(`/r/${entity}/${NEW_RECORD_ID}`);
-      router.replace(`/r/${entity}/${id}`);
+      openCreatedRecord({ open, close, replace: (href) => router.replace(href) }, entity, id, newTabTitle);
     } else router.refresh();
   };
   const common = { record, initial: record ? null : (clone?.values ?? null), readOnly, save, requestStepUp, onSaved };
@@ -55,18 +68,15 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
         settings={entry.settings}
         journals={entry.journals}
         defaultJournalId={entry.defaultJournalId}
-        userId={entry.userId}
-        can={entry.can}
         labels={labels}
+        linesGrid={entry.linesGrid}
         record={record}
         initial={record ? null : (clone?.values ?? null)}
         canSave={!readOnly}
         lookup={lookupLineAction}
-        runAction={runEntryAction}
         requestStepUp={requestStepUp}
         save={save}
         onSaved={onSaved}
-        onActed={() => router.refresh()}
       />
     );
   }

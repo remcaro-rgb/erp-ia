@@ -9,6 +9,7 @@ export const settingsUpdate = defineProcess({
   id: "accounting.settings.update",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Cambia la configuración contable: dimensiones en uso, aprobación de comprobantes manuales, tolerancia de redondeo y fuente manual",

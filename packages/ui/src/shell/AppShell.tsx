@@ -12,11 +12,12 @@ import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { MfaDialog, type MfaDisableResult, type MfaState } from "./MfaDialog";
-import { isActiveHref } from "./ModuleBar";
+import { isActiveHref, ModuleBar } from "./ModuleBar";
+import { SideMenu } from "./SideMenu";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
 import { NavigateProvider } from "./navigate";
-import { assistantOpenStorageKey, browserStorage, dianHintsStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+import { assistantOpenStorageKey, browserStorage, dianHintsStorageKey, sideMenuStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
@@ -32,6 +33,8 @@ export interface AssistantOptions {
 }
 
 export interface AppShellProps {
+  /** ⌘K by ID (D16): the records whose ID is `id`. */
+  findRecords?: (id: number) => Promise<CommandItem[]>;
   company: ShellCompany;
   /** Every company of the user (the switcher). */
   companies: ShellCompany[];
@@ -87,6 +90,9 @@ const ASSISTANT_MIN_WIDTH = 1280;
 const SHEET_BELOW = 768;
 
 /** Grid and admin routes use the tighter page padding (OD-1); the home and the record page keep v5's. */
+/** From this viewport width the side menu starts expanded when the viewer never chose (shell v7, design §22.24). */
+const SIDE_MENU_OPEN_FROM = 1440;
+
 const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/");
 
 function readBooleanPref(storage: Storage | null, key: string, companyId: string): Saved<boolean> | null {
@@ -135,7 +141,7 @@ function routeTitle(href: string, items: readonly NavItem[], t: ReturnType<typeo
 }
 
 /**
- * The application shell (design §19a, prototype v5): navy top bar with the module items, the tinted tabs row,
+ * The application shell (design §19a, shell v7 §22.24): navy top bar, the side menu of module names, the items bar of the active module's sections, the tinted tabs row,
  * the page, the assistant drawer (400 px) and the ⌘K palette. Tabs follow the URL: opening a page opens or
  * activates its tab; activating or closing a tab navigates. Tabs and theme are per user and company: switching
  * company mounts a fresh shell that starts from the new company's saved preferences.
@@ -261,6 +267,8 @@ function ShellFrame(props: AppShellProps) {
   const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? recordModule ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
+  const activeModule = visibleModules.find((m) => m.id === activeModuleId);
+
   /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
   const selectModule = (moduleId: string) => {
     setSelectedModule(moduleId);
@@ -268,6 +276,20 @@ function ShellFrame(props: AppShellProps) {
     const openTab = store.getState().tabs.find((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
     if (openTab) store.getState().activate(openTab.id);
     else if (items[0]) navigate(items[0].href);
+  };
+
+  // Shell v7 side menu (design §22.24): the viewer's saved choice of the 60 px rail, else collapsed below 1440 px. The server render and
+  // hydration use the CSS-first `auto` state (null), so the first paint is right; the effect then resolves it before the first paint.
+  const [sideCollapsed, setSideCollapsed] = useState<boolean | null>(null);
+  useLayoutEffect(() => {
+    const saved = readBooleanPref(storage, sideMenuStorageKey(user.id), company.id);
+    setSideCollapsed(saved ? saved.value : window.innerWidth < SIDE_MENU_OPEN_FROM);
+    // Once per mounted shell, like the drawer.
+  }, []);
+  const toggleSide = () => {
+    const next = !(sideCollapsed ?? window.innerWidth < SIDE_MENU_OPEN_FROM);
+    setSideCollapsed(next);
+    writeCachedPref(storage, sideMenuStorageKey(user.id), company.id, { value: next, savedAt: Date.now() });
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -401,11 +423,8 @@ function ShellFrame(props: AppShellProps) {
             companies={companies}
             user={user}
             modules={visibleModules}
-            itemsByModule={itemsByModule}
             activeModuleId={activeModuleId}
             onSelectModule={selectModule}
-            activeHref={currentHref}
-            onNavigate={(target) => navigate(target.href)}
             theme={theme}
             onThemeChange={(mode) => changeTheme(mode)}
             onOpenPalette={() => setPaletteOpen(true)}
@@ -415,26 +434,42 @@ function ShellFrame(props: AppShellProps) {
             signOutAction={props.signOutAction}
             {...(mfaWired ? { mfaEnrolled: props.mfa!.enrolled, onOpenMfa: () => setMfaOpen(true) } : {})}
           />
-          <TabsBar onNew={() => setPaletteOpen(true)} {...(props.confirmLeave ? { confirmLeave: props.confirmLeave } : {})} />
           <div className="flex min-h-0 flex-1">
-            <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
-              <AskAssistantProvider ask={ask}>
-                <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
-              </AskAssistantProvider>
-            </main>
-            <AssistantDrawer
-              open={assistantOpen}
-              auto={assistantAuto}
-              focusInput={focusInput}
-              onClose={closeAssistant}
-              context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
-              screen={screenOf(currentHref)}
-              {...(asked ? { ask: asked } : {})}
-              onNavigate={navigate}
-              onOpenGrid={openGrid}
-              canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
-              {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
-            />
+            <SideMenu modules={visibleModules} activeModuleId={activeModuleId} onSelectModule={selectModule} collapsed={sideCollapsed} onToggle={toggleSide} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {activeModule && (
+                <div className="erp-itemsbar">
+                  <span className="erp-itemsbar-mod">{t(activeModule.label)}</span>
+                  <ModuleBar
+                    items={(itemsByModule[activeModule.id] ?? []).filter((item) => item.menu !== false)}
+                    showHome={activeModule.id === visibleModules[0]?.id}
+                    activeHref={currentHref}
+                    onNavigate={(target) => navigate(target.href)}
+                  />
+                </div>
+              )}
+              <TabsBar onNew={() => setPaletteOpen(true)} {...(props.confirmLeave ? { confirmLeave: props.confirmLeave } : {})} />
+              <div className="flex min-h-0 flex-1">
+                <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
+                  <AskAssistantProvider ask={ask}>
+                    <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
+                  </AskAssistantProvider>
+                </main>
+                <AssistantDrawer
+                  open={assistantOpen}
+                  auto={assistantAuto}
+                  focusInput={focusInput}
+                  onClose={closeAssistant}
+                  context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
+                  screen={screenOf(currentHref)}
+                  {...(asked ? { ask: asked } : {})}
+                  onNavigate={navigate}
+                  onOpenGrid={openGrid}
+                  canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
+                  {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
+                />
+              </div>
+            </div>
           </div>
           <CommandPalette
             items={paletteItems}
@@ -442,6 +477,7 @@ function ShellFrame(props: AppShellProps) {
             onOpenChange={setPaletteOpen}
             onAsk={ask}
             onSelect={(item) => navigate(item.href)}
+            {...(props.findRecords ? { findRecords: props.findRecords } : {})}
           />
           {mfaWired && (
             <MfaDialog

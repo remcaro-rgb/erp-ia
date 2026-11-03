@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { IMPORT_PROCESSES, importColumns, kernelModule, loadModules, registry, runProcess, setFileStore, type Caller, type RunProcessDeps } from "@erp/kernel";
+import { IMPORT_PROCESSES, importColumns, kernelModule, loadModules, registry, runProcess, setFileStore, syncRegistry, withClaims, type Caller, type RunProcessDeps } from "@erp/kernel";
 import ExcelJS from "exceljs";
 import { abandonImport, beginImport, buildTemplate, createBatch, MAX_XLSX_UNCOMPRESSED_BYTES, previewImport, runImport, submitImport, validateBatch } from "@erp/kernel/import";
 import { deflatedZeros, forgedZip, MemoryFileStore } from "@erp/kernel/testing";
@@ -72,7 +72,7 @@ describe("mass import into core", () => {
     const described = await runProcess(deps, h.admin, "kernel.import.template", { entity: "core.party" });
     expect(described.columns.map((c: { key: string }) => c.key)).toEqual(PARTY_COLUMNS);
     // Categories are created through core.category.create (their declared create process).
-    expect(importColumns(registry, "core.product_category").map((c) => c.key)).toEqual(["name", "ivaRate", "incRate", "otherTaxes", "defaultUom", "incomeAccount", "status"]);
+    expect(importColumns(registry, "core.product_category").map((c) => c.key)).toEqual(["name", "ivaRate", "incRate", "otherTaxes", "defaultUom", "incomeAccount", "isActive"]);
   });
 
   it("a 4-row CSV with one bad NIT imports 3 rows, writes errores.csv with 1 line naming the NIT error, and audit shows \"3 creadas · 1 rechazada\"", async () => {
@@ -156,7 +156,7 @@ describe("mass import into core", () => {
   });
 
   it("a reference column takes the target's name: products import into the category the caller sees", async () => {
-    await runProcess(deps, h.admin, "core.category.create", { name: "Café", ivaRate: "5", otherTaxes: [], defaultUom: "KGM", status: "active" });
+    await runProcess(deps, h.admin, "core.category.create", { name: "Café", ivaRate: "5", otherTaxes: [], defaultUom: "KGM", isActive: true });
     const file = csv("sku;description;kind;categoryId;listPrice;trackStock", "IMP-1;Café molido;good;café;31.000;sí", "IMP-2;Té verde;good;Té;9000;no");
     const ids = await submitImport(deps, await adminCaller(), { entity: "core.product", fileName: "productos.csv", bytes: file });
     const summary = await runImport({ ...ids, claims: h.admin.claims });
@@ -174,10 +174,13 @@ describe("mass import into core", () => {
     // The clerk may create parties one by one, not import them.
     await h.grantAll(h.companyId, h.seed.companies[0]!.memberRoleId, ["core.party.create", "kernel.attachment.add", "kernel.import.template", "kernel.import.preview"]);
     const chainId = randomUUID();
+    // Other tests of this file import as the clerk too: count the clerk's imports before, not from zero (test order is not fixed).
+    const clerkImports = async () => (await h.sql`select 1 from kernel.imports where company_id = ${h.companyId} and started_by = ${clerkId}`).length;
+    const before = await clerkImports();
     await expect(
       submitImport(deps, { ...clerk, chainId }, { entity: "core.party", fileName: "terceros.csv", bytes: csv(HEADER, partyLine("902000001")) }),
     ).rejects.toMatchObject({ code: "forbidden" });
-    expect((await h.sql`select 1 from kernel.imports where company_id = ${h.companyId} and started_by = ${clerkId}`).length).toBe(0);
+    expect(await clerkImports()).toBe(before);
     const [denied] = await h.sql`select action, process_id from kernel.audit_log where chain_id = ${chainId}`;
     expect(denied).toMatchObject({ action: "denied", process_id: "kernel.import.run" });
     expect(await partiesWith("902000001")).toBe(0);
@@ -199,6 +202,34 @@ describe("mass import into core", () => {
       await h.sql`insert into kernel.step_up_verifications(user_id, company_id, token) values (${userId}, ${h.companyId}, ${token})`;
       return token;
     };
+
+    it("menu access: hiding «Importar datos» hides that page only; an import into an entity whose item is hidden is refused (m3)", async () => {
+      const importer = await userWithRole("importador_menu", IMPORTER);
+      const roleId = importer.role_ids[0]!;
+      await syncRegistry(h.sql, registry);
+      const setRules = async (navKey: string, allowed: boolean | null) =>
+        runProcess(deps, await adminCaller(), "kernel.menu_access.set", { navKey, rules: allowed === null ? [] : [{ roleId, allowed }] });
+      const preview = () =>
+        runProcess(deps, { claims: importer, origin: "ui" }, "kernel.import.preview", { entity: "core.party", fileName: "terceros.csv", sizeBytes: 10 }).then(
+          () => "ok",
+          (error: { code: string }) => error.code,
+        );
+      try {
+        const mayImport = async () =>
+          (await withClaims(h.sql, importer, (tx) => tx<{ ok: boolean }[]>`select kernel.can_run_process('kernel.import.run') as ok`))[0]!.ok;
+        // «Importar datos» hidden: the kernel's import is shared, so the grid import of Terceros still runs.
+        await setRules("core.import", false);
+        expect(await mayImport()).toBe(true);
+        expect(await preview()).toBe("ok");
+        // Terceros hidden: its create process is refused, so is importing into it.
+        await setRules("core.import", null);
+        await setRules("core.parties", false);
+        expect(await preview()).toBe("forbidden");
+      } finally {
+        await setRules("core.import", null);
+        await setRules("core.parties", null);
+      }
+    });
 
     it("an import and its files are visible only to the user who started it and to company admins", async () => {
       // The clerk imports under an "importador" role (made for the test, so the grant does not reach other members).

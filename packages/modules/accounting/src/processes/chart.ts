@@ -44,6 +44,7 @@ export const chartSeed = defineProcess({
   id: "accounting.chart.seed",
   module: "accounting",
   kind: "create",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Configura la contabilidad de la empresa: plan de cuentas, mapeo de roles, fuentes, conceptos de exógena, año fiscal y reglas contables por defecto; solo agrega lo que falta",

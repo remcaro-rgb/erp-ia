@@ -33,12 +33,13 @@ export interface EntryFormData {
 const DEFAULT_SETTINGS: EntrySettings = { requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false };
 
 const PROCESS_OF: Record<EntryAction, string> = {
+  post: "accounting.entry.save",
   submit: "accounting.entry.submit",
-  approve: "accounting.entry.post",
-  post: "accounting.entry.post",
-  return: "accounting.entry.return_to_draft",
+  approve: "accounting.entry.approve",
+  return: "accounting.entry.reject",
   reverse: "accounting.entry.reverse",
   void: "accounting.entry.void",
+  delete: "accounting.entry.delete",
 };
 
 /** True when a refusal only says the caller may not read this (the page then shows less, not an error). */

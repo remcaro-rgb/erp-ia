@@ -17,7 +17,7 @@ import { runProcess } from "../run";
 // whichever channel calls; nothing is created. A source on a process that creates nothing stays `invalid_input`.
 
 const PROBE = defineEntity({
-  id: "kernel.clone_probe",
+  entityType: "maestro", id: "kernel.clone_probe",
   module: "kernel",
   schema: "kernel",
   table: "clone_probe",

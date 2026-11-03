@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="es-419">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP-IA · Prototipo v7 (marco)</title>
+<!--
+  Prototype v7 of the ERP-IA shell (2026-10-31), from the owner's reference "modern_erp_dashboard (1).html".
+  Scope: the frame only (top bar, left module rail, module items bar, tabs row, docked assistant). Pages are
+  stand-ins; grids, records and the drawer's content keep prototype v5/v6. Plan:
+  docs/superpowers/plans/2026-10-31-shell-v7-sidebar.md. Sub-decisions shown here are the plan's
+  recommendations OD-1..OD-6 (navy palette kept, tabs row kept, assistant docked, rail 232/60 px with
+  auto-collapse under 1440 px, phone sheet under 768 px, no nested menus / page actions / rail footer).
+  Tokens are copied from packages/ui/src/styles/tokens.css.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bar: #F0F2F5; --bar-ctl: #E6E9EF; --bar-line: #D0D4DB; --bar-text: #1A1A1A; --bar-dim: #5B6270;
+  --primary: #4F46E5; --primary-h: #4338CA; --accent: #E0E7FF; --accent-line: #C7D2FE; --focus: #A5B4FC;
+  --focus-ring: #4F46E5; --line-input: #8A94A3; --link: #4F46E5;
+  --bg: #EAEAEA; --surface: #F0F2F5; --head: #E8EBF0; --hover: #E4E8EF;
+  --tabrow: #F0F2F5; --tabrow-line: #D0D4DB; --tabrow-text: #444A54; --tabrow-hover: #E4E8EF;
+  --text: #1A1A1A; --text-muted: #444A54; --line: #D0D4DB; --line-2: #DCDFE5;
+  --ok-bg: #DDF1EB; --ok: #0A5446; --warn-bg: #FBEBD2; --warn: #7A3E05; --danger-bg: #FBE3E0; --danger: #8C1D17; --info-bg: #E3ECF8; --info: #1D4F91; --alert: #E9A23B;
+  --shadow: rgba(0,0,0,.15); --overlay: rgba(15,23,42,.45);
+  /* v7 additions (plan Task 3) */
+  --rail: var(--surface); --rail-text: var(--text-muted); --rail-active: var(--accent); --rail-active-text: var(--link);
+  --rail-w: 232px; --rail-w-collapsed: 60px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bar: #0F1629; --bar-ctl: #161F38; --bar-line: #223055; --bar-text: #E2E8F0; --bar-dim: #94A3B8;
+  --primary: #6366F1; --primary-h: #4F46E5; --accent: #1E1F5C; --accent-line: #3B3FA8; --focus: #818CF8;
+  --focus-ring: #818CF8; --line-input: #6B7686; --link: #818CF8;
+  --bg: #080C1C; --surface: #0F1629; --head: #131C35; --hover: #172042;
+  --tabrow: #0F1629; --tabrow-line: #1E2A4A; --tabrow-text: #94A3B8; --tabrow-hover: #172042;
+  --text: #F1F5F9; --text-muted: #94A3B8; --line: #1E2A4A; --line-2: #18223F;
+  --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+  --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6); --rail-active-text: #A5B4FC;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bar: #0F1629; --bar-ctl: #161F38; --bar-line: #223055; --bar-text: #E2E8F0; --bar-dim: #94A3B8;
+  --primary: #6366F1; --primary-h: #4F46E5; --accent: #1E1F5C; --accent-line: #3B3FA8; --focus: #818CF8;
+  --focus-ring: #818CF8; --line-input: #6B7686; --link: #818CF8;
+  --bg: #080C1C; --surface: #0F1629; --head: #131C35; --hover: #172042;
+  --tabrow: #0F1629; --tabrow-line: #1E2A4A; --tabrow-text: #94A3B8; --tabrow-hover: #172042;
+  --text: #F1F5F9; --text-muted: #94A3B8; --line: #1E2A4A; --line-2: #18223F;
+  --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+  --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6); --rail-active-text: #A5B4FC;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: "Source Sans 3", system-ui, sans-serif; font-size: 14px; color: var(--text); background: var(--bg); overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg.i.sm { width: 15px; height: 15px; }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.bar :focus-visible { outline-color: var(--focus); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Frame ---------- */
+.app { display: flex; flex-direction: column; height: 100dvh; }
+.body { display: flex; flex: 1; min-height: 0; }
+.col { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+
+/* ---------- Top bar (48 px, navy) ---------- */
+.bar { border-bottom: 1px solid var(--line); height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--bar); color: var(--bar-text); position: relative; z-index: 20; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: #fff; white-space: nowrap; margin-right: 6px; }
+.brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--primary); display: inline-block; }
+.bar-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--bar-line); background: transparent; color: var(--bar-text); border-radius: 6px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.bar-btn:hover { background: var(--bar-ctl); color: var(--primary); }
+.bar-btn.solid { background: var(--accent); border-color: var(--accent-line); color: var(--primary); font-weight: 600; }
+.bar-btn.white { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.bar-btn.white[aria-expanded="true"] { box-shadow: inset 0 -3px 0 var(--focus); }
+.icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--bar-line); background: transparent; color: var(--bar-text); border-radius: 6px; position: relative; flex: none; }
+.icon-btn:hover { background: var(--bar-ctl); color: var(--primary); }
+.dot { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+.cmd { flex: 0 1 300px; min-width: 120px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--bar-line); background: var(--bar-ctl); color: var(--bar-text); border-radius: 6px; padding: 6px 10px; font-size: 13px; text-align: left; }
+.cmd span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd kbd { font-family: "JetBrains Mono", monospace; font-size: 11px; border: 1px solid var(--bar-line); border-radius: 4px; padding: 0 5px; color: var(--bar-dim); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; border: 0; flex: none; }
+.grow { flex: 1; }
+.phone-menu { display: none; }
+
+/* Dropdown menus (company, theme, user, bell) */
+.menu { position: fixed; z-index: 60; min-width: 240px; padding: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); display: flex; flex-direction: column; }
+.menu[hidden] { display: none; }
+.menu .mh { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.menu button, .menu .mi { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-size: 13px; white-space: nowrap; }
+.menu button:hover, .menu button:focus-visible { background: var(--head); }
+.menu button[aria-current="page"], .menu button[aria-checked="true"] { background: var(--accent); font-weight: 600; }
+.menu .sub { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.menu hr { border: 0; border-top: 1px solid var(--line-2); margin: 4px 0; }
+.menu .mi { color: var(--text-muted); }
+
+/* ---------- Left module rail ---------- */
+.rail { width: var(--rail-w); flex: none; display: flex; flex-direction: column; background: var(--rail); border-right: 1px solid var(--line); transition: width .15s ease; overflow: hidden; }
+.rail[data-collapsed="true"] { width: var(--rail-w-collapsed); }
+@media (max-width: 1439px) { .rail[data-rail="auto"] { width: var(--rail-w-collapsed); } .rail[data-rail="auto"] .rail-label, .rail[data-rail="auto"] .rail-title { display: none; } }
+.rail-head { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line-2); }
+.rail[data-collapsed="true"] .rail-head { justify-content: center; padding: 0; }
+.rail-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }
+.rail-toggle { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); }
+.rail-toggle:hover { background: var(--head); color: var(--text); }
+.rail nav { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; overflow-y: auto; }
+.rail-sep { height: 1px; background: var(--line-2); margin: 6px 8px; }
+.rail-item { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--rail-text); font-size: 14px; font-weight: 600; text-align: left; white-space: nowrap; }
+.rail-item:hover { background: var(--hover); color: var(--text); }
+.rail-item[aria-current="page"] { background: var(--rail-active); color: var(--rail-active-text); }
+.rail-item[aria-current="page"] svg { color: var(--rail-active-text); }
+.rail-item .count { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.rail[data-collapsed="true"] .rail-item { justify-content: center; padding: 0; }
+.rail[data-collapsed="true"] .rail-label, .rail[data-collapsed="true"] .rail-title, .rail[data-collapsed="true"] .count { display: none; }
+@media (max-width: 1439px) { .rail[data-rail="auto"] .rail-item { justify-content: center; padding: 0; } .rail[data-rail="auto"] .rail-head { justify-content: center; padding: 0; } .rail[data-rail="auto"] .count { display: none; } }
+@media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+
+/* Tooltip for the collapsed rail */
+.tip { position: fixed; z-index: 70; padding: 4px 8px; border-radius: 4px; background: var(--text); color: var(--surface); font-size: 12px; font-weight: 600; pointer-events: none; white-space: nowrap; }
+
+/* ---------- Items bar (44 px) ---------- */
+.itemsbar { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.itemsbar::-webkit-scrollbar { display: none; }
+.itemsbar .heading { font-size: 14px; font-weight: 700; color: var(--text); padding: 0 4px; }
+.itemsbar .modname { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--line-2); white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 11px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.pill:hover { background: var(--hover); color: var(--text); }
+.pill[aria-current="page"] { background: var(--head); border-color: var(--line); color: var(--link); font-weight: 600; }
+.badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+
+/* ---------- Tabs row ---------- */
+.tabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--tabrow); border-bottom: 1px solid var(--tabrow-line); overflow-x: auto; scrollbar-width: none; }
+.tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--tabrow-text); font-size: 13px; white-space: nowrap; }
+.tab:hover { background: var(--tabrow-hover); }
+.tab[aria-current="page"] { background: var(--accent); border-color: transparent; color: var(--primary); font-weight: 600; }
+.tab .x { width: 20px; height: 20px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; padding: 0; }
+.tab .x:hover { background: var(--tabrow-hover); }
+.tab.pinned { padding-right: 12px; }
+.tab-new { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--tabrow-text); position: sticky; right: 0; }
+
+/* ---------- Page ---------- */
+main { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+main.home { padding: 20px 24px; gap: 16px; }
+.greet h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.greet p { margin: 2px 0 0; color: var(--text-muted); }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.kpi .k { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.kpi .k span.ic { width: 30px; height: 30px; border-radius: 6px; display: grid; place-items: center; }
+.kpi .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .d { font-size: 12px; color: var(--text-muted); }
+.kpi .d b { color: var(--ok); }
+.row2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
+.card-h { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px 0; }
+.card-h h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.card-h p { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+.chart { padding: 8px 16px 12px; }
+.chart svg { width: 100%; height: 240px; display: block; }
+.legend { display: flex; gap: 16px; justify-content: center; font-size: 12px; color: var(--text-muted); }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.feed { list-style: none; margin: 0; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.feed li { display: flex; gap: 10px; font-size: 13px; }
+.feed .ic { width: 30px; height: 30px; flex: none; border-radius: 6px; display: grid; place-items: center; }
+.feed a { color: var(--link); text-decoration: none; font-weight: 600; }
+.feed small { display: block; color: var(--text-muted); font-size: 12px; }
+select.sel { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); }
+
+/* Grid stand-in */
+.grid-card { display: flex; flex-direction: column; min-height: 0; }
+.grid-h { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.grid-h h2 { margin: 0 8px 0 0; font-size: 15px; font-weight: 700; }
+.grid-h .q { flex: 0 1 240px; padding: 6px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.btn.ex { padding: 0 8px; font-weight: 700; font-size: 11px; }
+.ex.pdf { color: #C2261C; } .ex.xls { color: #107C41; } .ex.csv { color: var(--text-muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line-2); text-align: left; white-space: nowrap; }
+th { background: var(--head); font-weight: 600; color: var(--text-muted); position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:hover td { background: var(--hover); }
+td a { color: var(--link); text-decoration: none; }
+.st { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.st.ok { background: var(--ok-bg); color: var(--ok); } .st.warn { background: var(--warn-bg); color: var(--warn); } .st.info { background: var(--info-bg); color: var(--info); }
+.grid-f { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--line); background: var(--head); border-radius: 0 0 8px 8px; }
+.empty { padding: 48px 24px; text-align: center; color: var(--text-muted); }
+.empty h2 { color: var(--text); margin: 0 0 6px; font-size: 18px; }
+
+/* Items-bar group menu: fixed, positioned from the trigger (plan Task 4) */
+.gmenu { position: fixed; z-index: 60; min-width: 220px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); display: flex; flex-direction: column; }
+.gmenu[hidden], .tip[hidden] { display: none; }
+.gmenu button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; white-space: nowrap; }
+.gmenu button:hover, .gmenu button:focus-visible { background: var(--head); }
+.gmenu button[aria-current="page"] { background: var(--accent); font-weight: 600; }
+
+/* ---------- Assistant drawer (400 px, docked) ---------- */
+.drawer { width: 400px; flex: none; display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line); }
+.drawer[hidden] { display: none; }
+@media (max-width: 1279px) { .drawer[data-assistant="auto"] { display: none; } }
+.dr-h { height: 52px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); background: var(--accent); }
+.dr-h .ic { width: 30px; height: 30px; border-radius: 6px; background: var(--primary); color: #fff; display: grid; place-items: center; }
+.dr-h b { display: block; font-size: 14px; }
+.dr-h small { display: block; font-size: 12px; color: var(--text-muted); }
+.dr-h .close { margin-left: auto; width: 30px; height: 30px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 6px; color: var(--text-muted); }
+.dr-h .close:hover { background: var(--surface); }
+.sugg { padding: 10px 12px; border-bottom: 1px solid var(--line-2); background: var(--head); }
+.sugg .mh { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 12px; }
+.chip:hover { border-color: var(--accent-line); background: var(--hover); }
+.log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.45; }
+.msg { max-width: 88%; padding: 10px 12px; }
+.msg.a { background: var(--head); border-radius: 10px 10px 10px 2px; align-self: flex-start; }
+.msg.u { background: var(--primary); color: #fff; border-radius: 10px 10px 2px 10px; align-self: flex-end; }
+.confirm { border: 1px solid var(--accent-line); border-radius: 8px; overflow: hidden; align-self: stretch; }
+.confirm .ch { background: var(--accent); padding: 8px 12px; font-weight: 700; font-size: 13px; }
+.confirm ul { margin: 0; padding: 8px 12px 8px 28px; font-size: 12px; color: var(--text-muted); }
+.confirm .ca { display: flex; gap: 8px; padding: 0 12px 10px; }
+.composer { flex: none; display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.composer input { flex: 1; padding: 8px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.composer button { width: 36px; display: grid; place-items: center; border: 0; border-radius: 6px; background: var(--primary); color: #fff; }
+
+/* ---------- Phones (< 768 px): rail becomes a sheet (OD-5) ---------- */
+.backdrop { position: fixed; inset: 0; background: var(--overlay); z-index: 40; }
+.backdrop[hidden] { display: none; }
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 767px) {
+  .phone-menu { display: grid; }
+  .brand span, .company-name, .cmd span, .cmd kbd, .theme-btn, .bell-btn { display: none; }
+  .cmd { flex: 0 0 34px; min-width: 34px; justify-content: center; padding: 0; height: 34px; }
+  .rail { position: fixed; top: 0; bottom: 0; left: 0; z-index: 50; width: 280px !important; transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 10px 30px var(--shadow); }
+  .rail.sheet-open { transform: none; }
+  .rail .rail-label, .rail .rail-title, .rail .count { display: inline !important; }
+  .rail .rail-item { justify-content: flex-start !important; padding: 0 12px !important; height: 44px; }
+  .rail .rail-head { justify-content: space-between !important; padding: 0 10px 0 16px !important; }
+  .rail-toggle.collapse { display: none; } .rail-toggle.sheet-close { display: grid !important; }
+  .drawer { position: fixed; inset: 48px 0 0 0; width: auto; z-index: 45; }
+  .kpis { grid-template-columns: minmax(0, 1fr); }
+  main.home { padding: 16px; }
+  .pill { height: 36px; }
+}
+.rail-toggle.sheet-close { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <button class="icon-btn phone-menu" id="phoneMenu" aria-label="Abrir menú" aria-controls="erp-rail" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
+    <div class="brand"><i aria-hidden="true"></i><span>ERP-IA</span></div>
+    <button class="bar-btn solid" id="companyBtn" aria-haspopup="menu" aria-expanded="false"><span class="company-name">Café del Norte S.A.S.</span> ▾</button>
+    <div class="grow"></div>
+    <button class="cmd" id="cmdBtn" aria-label="Buscar o ir a… (⌘K)"><svg class="i sm"><use href="#i-search"/></svg><span>Buscar o ir a…</span><kbd>⌘K</kbd></button>
+    <button class="icon-btn theme-btn" id="themeBtn" aria-label="Cambiar tema: automático"><svg class="i"><use href="#i-monitor"/></svg></button>
+    <button class="icon-btn bell-btn" id="bellBtn" aria-label="Notificaciones" aria-haspopup="menu" aria-expanded="false"><svg class="i"><use href="#i-bell"/></svg><span class="dot" aria-hidden="true">2</span></button>
+    <button class="bar-btn white" id="asstBtn" aria-controls="erp-assistant" aria-expanded="true" title="Mostrar u ocultar el asistente (Ctrl+/)"><svg class="i sm"><use href="#i-sparkles"/></svg>Asistente</button>
+    <button class="avatar" id="userBtn" aria-label="Menú de usuario" aria-haspopup="menu" aria-expanded="false">LM</button>
+  </header>
+
+  <div class="body">
+    <aside class="rail" id="erp-rail" data-rail="auto" aria-label="Menú de módulos">
+      <div class="rail-head">
+        <span class="rail-title">Módulos</span>
+        <button class="rail-toggle collapse" id="railToggle" aria-controls="erp-rail" aria-expanded="true" aria-label="Contraer menú"><svg class="i"><use href="#i-panel-close"/></svg></button>
+        <button class="rail-toggle sheet-close" id="sheetClose" aria-label="Cerrar menú"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+      <nav aria-label="Módulos" id="railNav"></nav>
+    </aside>
+
+    <div class="col">
+      <nav class="itemsbar" id="itemsbar" aria-label="Menú del módulo"></nav>
+      <nav class="tabs" id="tabs" aria-label="Pestañas abiertas"></nav>
+      <main id="erp-main" tabindex="-1"></main>
+    </div>
+
+    <aside class="drawer" id="erp-assistant" aria-label="Asistente" data-assistant="auto">
+      <div class="dr-h">
+        <span class="ic"><svg class="i sm"><use href="#i-sparkles"/></svg></span>
+        <div><b>Asistente</b><small id="asstCtx">Viendo: Inicio</small></div>
+        <button class="close" id="asstClose" aria-label="Cerrar asistente"><svg class="i sm"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="sugg">
+        <div class="mh">Sugerencias</div>
+        <div class="chips">
+          <button class="chip" data-ask="¿Qué comprobantes están pendientes de aprobar?">Comprobantes pendientes</button>
+          <button class="chip" data-ask="¿Qué terceros no están listos para facturar?">Terceros sin datos DIAN</button>
+          <button class="chip" data-ask="¿Cómo cierro un período?">Cerrar un período</button>
+        </div>
+      </div>
+      <div class="log" id="log" aria-live="polite">
+        <div class="msg a">Hola, Laura. Puedo consultar datos, llevarte a una pantalla, explicarte cómo hacer algo o crear y editar registros con tu confirmación.</div>
+        <div class="msg u">Crea el tercero Tostadora Andina S.A.S., NIT 901234567.</div>
+        <div class="confirm">
+          <div class="ch">Confirmar · Crear tercero</div>
+          <ul><li>Tercero: Tostadora Andina S.A.S. · NIT 901234567-0</li><li>Quedará “incompleto para DIAN” hasta registrar la dirección y el correo de facturación</li><li>No requiere código de verificación</li></ul>
+          <div class="ca"><button class="btn primary">Confirmar</button><button class="btn">Cancelar</button></div>
+        </div>
+      </div>
+      <form class="composer" id="composer">
+        <label for="askInput" class="sr-only">Pregúntale al asistente</label>
+        <input id="askInput" placeholder="Pregunta o pide algo…" autocomplete="off">
+        <button type="submit" aria-label="Enviar"><svg class="i sm"><use href="#i-send"/></svg></button>
+      </form>
+    </aside>
+  </div>
+</div>
+<div class="backdrop" id="backdrop" hidden></div>
+
+<div class="menu" id="companyMenu" role="menu" hidden>
+  <div class="mh">Empresa activa</div>
+  <button role="menuitemradio" aria-checked="true">✓ Café del Norte S.A.S.<span class="sub">NIT 900373115-3</span></button>
+  <hr><div class="mi">Agregar empresa<span class="sub">Próximamente</span></div>
+</div>
+<div class="menu" id="bellMenu" role="menu" hidden>
+  <div class="mh">Notificaciones</div>
+  <div class="mi">CE-0142 espera tu aprobación</div>
+  <div class="mi">Importación de productos terminada (3 filas con errores)</div>
+</div>
+<div class="menu" id="userMenu" role="menu" hidden>
+  <div class="mh">Laura Martínez</div>
+  <div class="mi">laura@cafedelnorte.co · Contadora</div>
+  <button role="menuitem">Verificación en dos pasos<span class="sub">activa</span></button>
+  <button role="menuitem" id="themeMenuItem">Tema: automático<span class="sub">Cambiar</span></button>
+  <hr><button role="menuitem">Salir</button>
+</div>
+<div class="gmenu" id="gmenu" role="menu" hidden></div>
+<div class="tip" id="tip" hidden></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></symbol>
+  <symbol id="i-calculator" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8M16 14v4M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol>
+  <symbol id="i-lifebuoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-panel-close" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M16 15l-3-3 3-3"/></symbol>
+  <symbol id="i-panel-open" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M14 9l3 3-3 3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+</svg>
+
+<script>
+(() => {
+  // ---------- Data: modules and items as the manifests declare them today ----------
+  const MODULES = [
+    { id: "core", label: "Núcleo", icon: "building", items: [
+      { id: "parties", label: "Terceros", href: "/parties" },
+      { id: "products", label: "Productos", href: "/products" },
+      { id: "categories", label: "Categorías", href: "/categories" },
+      { id: "import", label: "Importar datos", href: "/import" },
+    ]},
+    { id: "accounting", label: "Contabilidad", icon: "calculator", items: [
+      { id: "entries", label: "Comprobantes", href: "/accounting/entries" },
+      { id: "movements", label: "Movimientos", href: "/accounting/movements" },
+      { id: "masters", label: "Maestros", children: [
+        { id: "accounts", label: "Plan de cuentas", href: "/accounting/accounts" },
+        { id: "cost_centers", label: "Centros de costo", href: "/accounting/cost-centers" },
+        { id: "open_aux", label: "Auxiliares abiertos", href: "/accounting/open-auxiliaries" },
+        { id: "acc_items", label: "Ítems", href: "/accounting/items" },
+        { id: "bu", label: "Unidades de negocio", href: "/accounting/business-units" },
+        { id: "journals", label: "Fuentes", href: "/accounting/journals" },
+      ]},
+      { id: "periods", label: "Períodos", href: "/accounting/periods" },
+      { id: "reports", label: "Informes", href: "/accounting/reports" },
+      { id: "posting", label: "Reglas contables", href: "/accounting/posting", badge: 3 },
+    ]},
+    { id: "support", label: "Soporte", icon: "lifebuoy", items: [
+      { id: "tickets", label: "Soporte", href: "/support" },
+    ]},
+    { id: "kernel", label: "Sistema", icon: "settings", items: [
+      { id: "admin", label: "Administración", href: "/admin" },
+      { id: "audit", label: "Auditoría", href: "/admin/audit" },
+      { id: "ai_usage", label: "Uso de IA", href: "/admin/ai-usage" },
+    ]},
+  ];
+  const leaves = (items) => items.flatMap((i) => i.children ?? [i]);
+  const isActive = (href, current) => current === href || current.startsWith(href + "/");
+  const moduleOfHref = (href) => MODULES.find((m) => leaves(m.items).some((i) => isActive(i.href, href)));
+  const labelOf = (href) => href === "/" ? "Inicio" : (MODULES.flatMap((m) => leaves(m.items)).find((i) => i.href === href)?.label ?? href);
+
+  // ---------- Per-viewer storage (prototype stand-in for kernel.user_prefs) ----------
+  const store = {
+    get(k) { try { const v = localStorage.getItem("erp-v7:" + k); return v === null ? null : JSON.parse(v); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem("erp-v7:" + k, JSON.stringify(v)); } catch {} },
+  };
+
+  // ---------- State ----------
+  const state = {
+    href: "/",
+    selectedModule: null,
+    tabs: store.get("tabs") ?? [{ href: "/", title: "Inicio", pinned: true }],
+    railCollapsed: store.get("rail_collapsed"),       // null = no saved choice → CSS decides, then resolved once
+    assistantOpen: store.get("assistant_open"),
+    theme: store.get("theme") ?? "auto",
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const icon = (name, cls = "i") => `<svg class="${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const phone = () => matchMedia("(max-width: 767px)").matches;
+
+  // ---------- Rail ----------
+  const rail = $("erp-rail");
+  function applyRail() {
+    if (state.railCollapsed === null) { rail.dataset.rail = "auto"; rail.removeAttribute("data-collapsed"); }
+    else { rail.removeAttribute("data-rail"); rail.dataset.collapsed = String(state.railCollapsed); }
+    const collapsed = state.railCollapsed === true;
+    const t = $("railToggle");
+    t.setAttribute("aria-expanded", String(!collapsed));
+    t.setAttribute("aria-label", collapsed ? "Expandir menú" : "Contraer menú");
+    t.innerHTML = icon(collapsed ? "panel-open" : "panel-close");
+    renderRail();
+  }
+  function renderRail() {
+    const collapsed = rail.dataset.collapsed === "true" || (rail.dataset.rail === "auto" && !matchMedia("(min-width: 1440px)").matches);
+    const home = state.href === "/";
+    const active = home ? null : (state.selectedModule ?? moduleOfHref(state.href)?.id);
+    const entry = (id, label, ic, current, count) =>
+      `<button class="rail-item" data-id="${id}" ${current ? 'aria-current="page"' : ""} ${collapsed && !phone() ? `aria-label="${label}" data-tip="${label}"` : ""}>${icon(ic)}<span class="rail-label">${label}</span>${count ? `<span class="count">${count}</span>` : ""}</button>`;
+    $("railNav").innerHTML =
+      entry("home", "Inicio", "home", home) + '<div class="rail-sep" role="separator"></div>' +
+      MODULES.map((m) => entry(m.id, m.label, m.icon, m.id === active, leaves(m.items).length)).join("");
+  }
+  $("railNav").addEventListener("click", (e) => {
+    const b = e.target.closest(".rail-item"); if (!b) return;
+    if (b.dataset.id === "home") go("/");
+    else selectModule(b.dataset.id);
+    if (phone()) closeSheet();
+  });
+  $("railToggle").addEventListener("click", () => {
+    const now = rail.dataset.collapsed === "true" || (rail.dataset.rail === "auto" && !matchMedia("(min-width: 1440px)").matches);
+    state.railCollapsed = !now; store.set("rail_collapsed", state.railCollapsed); applyRail();
+  });
+  // Tooltips for the collapsed rail (pointer and keyboard focus)
+  const tip = $("tip");
+  const showTip = (el) => { const r = el.getBoundingClientRect(); tip.textContent = el.dataset.tip; tip.hidden = false; tip.style.left = r.right + 8 + "px"; tip.style.top = r.top + r.height / 2 - tip.offsetHeight / 2 + "px"; };
+  ["mouseover", "focusin"].forEach((ev) => $("railNav").addEventListener(ev, (e) => { const b = e.target.closest("[data-tip]"); b ? showTip(b) : (tip.hidden = true); }));
+  ["mouseout", "focusout"].forEach((ev) => $("railNav").addEventListener(ev, () => (tip.hidden = true)));
+
+  // Phone sheet
+  function openSheet() { rail.classList.add("sheet-open"); $("backdrop").hidden = false; $("phoneMenu").setAttribute("aria-expanded", "true"); rail.querySelector(".rail-item")?.focus(); }
+  function closeSheet() { rail.classList.remove("sheet-open"); $("backdrop").hidden = true; $("phoneMenu").setAttribute("aria-expanded", "false"); }
+  $("phoneMenu").addEventListener("click", openSheet);
+  $("sheetClose").addEventListener("click", closeSheet);
+  $("backdrop").addEventListener("click", closeSheet);
+
+  // ---------- Items bar ----------
+  let openGroup = null;
+  function renderItems() {
+    const bar = $("itemsbar");
+    closeGroup();
+    if (state.href === "/" && !state.selectedModule) { bar.innerHTML = `<span class="heading">Inicio</span>`; return; }
+    const mod = MODULES.find((m) => m.id === (state.selectedModule ?? moduleOfHref(state.href)?.id));
+    if (!mod) { bar.innerHTML = ""; return; }
+    bar.innerHTML = `<span class="modname">${mod.label}</span>` + mod.items.map((it) => {
+      if (it.children) {
+        const on = it.children.some((c) => isActive(c.href, state.href));
+        return `<button class="pill" data-group="${it.id}" aria-haspopup="menu" aria-expanded="false" ${on ? 'aria-current="page"' : ""}>${it.label}${icon("chevron", "i sm")}</button>`;
+      }
+      return `<button class="pill" data-href="${it.href}" ${isActive(it.href, state.href) ? 'aria-current="page"' : ""}>${it.label}${it.badge ? `<span class="badge" aria-label="${it.badge} pendientes">${it.badge}</span>` : ""}</button>`;
+    }).join("");
+  }
+  $("itemsbar").addEventListener("click", (e) => {
+    const b = e.target.closest(".pill"); if (!b) return;
+    if (b.dataset.href) return go(b.dataset.href);
+    if (openGroup === b) return closeGroup(true);
+    openGroupMenu(b);
+  });
+  $("itemsbar").addEventListener("scroll", () => closeGroup());
+  function openGroupMenu(trigger) {
+    const mod = MODULES.find((m) => m.items.some((i) => i.id === trigger.dataset.group));
+    const group = mod.items.find((i) => i.id === trigger.dataset.group);
+    const m = $("gmenu");
+    m.setAttribute("aria-label", group.label);
+    m.innerHTML = group.children.map((c) => `<button role="menuitem" data-href="${c.href}" ${isActive(c.href, state.href) ? 'aria-current="page"' : ""}>${c.label}</button>`).join("");
+    m.hidden = false;
+    // Fixed position from the trigger, kept inside the viewport (plan Task 4).
+    const r = trigger.getBoundingClientRect();
+    m.style.top = r.bottom + 4 + "px";
+    m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + "px";
+    trigger.setAttribute("aria-expanded", "true");
+    openGroup = trigger;
+    m.querySelector("button")?.focus();
+  }
+  function closeGroup(refocus) {
+    if (!openGroup) return;
+    $("gmenu").hidden = true; openGroup.setAttribute("aria-expanded", "false");
+    if (refocus) openGroup.focus();
+    openGroup = null;
+  }
+  $("gmenu").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { closeGroup(); go(b.dataset.href); } });
+  $("gmenu").addEventListener("keydown", (e) => {
+    const items = [...$("gmenu").querySelectorAll("button")]; const at = items.indexOf(document.activeElement);
+    if (e.key === "Escape") closeGroup(true);
+    else if (e.key === "ArrowDown") items[(at + 1) % items.length].focus();
+    else if (e.key === "ArrowUp") items[(at - 1 + items.length) % items.length].focus();
+    else if (e.key === "Tab") closeGroup();
+    else return;
+    if (e.key !== "Tab") e.preventDefault();
+  });
+
+  // ---------- Tabs ----------
+  function renderTabs() {
+    $("tabs").innerHTML = state.tabs.map((t, i) =>
+      `<span class="tab ${t.pinned ? "pinned" : ""}" ${t.href === state.href ? 'aria-current="page"' : ""}><button style="all:unset;cursor:pointer" data-tab="${i}">${esc(t.title)}</button>${t.pinned ? "" : `<button class="x" data-close="${i}" aria-label="Cerrar ${esc(t.title)}">${icon("x", "i sm")}</button>`}</span>`
+    ).join("") + `<button class="tab-new" id="tabNew" aria-label="Abrir pantalla (⌘K)">${icon("plus", "i sm")}</button>`;
+    $("tabs").querySelector('[aria-current="page"]')?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }
+  $("tabs").addEventListener("click", (e) => {
+    const close = e.target.closest("[data-close]");
+    if (close) {
+      const i = +close.dataset.close; const wasActive = state.tabs[i].href === state.href;
+      state.tabs.splice(i, 1); store.set("tabs", state.tabs);
+      if (wasActive) go(state.tabs[Math.max(0, i - 1)].href); else renderTabs();
+      return;
+    }
+    const t = e.target.closest("[data-tab]"); if (t) return go(state.tabs[+t.dataset.tab].href);
+    if (e.target.closest("#tabNew")) openPalette();
+  });
+
+  // ---------- Navigation ----------
+  function selectModule(id) {
+    state.selectedModule = id;
+    const items = leaves(MODULES.find((m) => m.id === id).items);
+    const open = state.tabs.find((t) => items.some((i) => isActive(i.href, t.href)));
+    go(open ? open.href : items[0].href, true);
+  }
+  function go(href, keepSelection) {
+    state.href = href;
+    if (!keepSelection) state.selectedModule = null;
+    else if (moduleOfHref(href)?.id === state.selectedModule) state.selectedModule = null;
+    if (!state.tabs.some((t) => t.href === href)) { state.tabs.push({ href, title: labelOf(href) }); store.set("tabs", state.tabs); }
+    renderRail(); renderItems(); renderTabs(); renderPage();
+    $("asstCtx").textContent = "Viendo: " + labelOf(href);
+  }
+
+  // ---------- Pages (stand-ins) ----------
+  const cop = (n) => "$ " + n.toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const GRIDS = {
+    "/parties": { title: "Terceros", cols: ["N.º", "Identificación", "Razón social / nombre", "Tipo", "Ciudad", "Estado DIAN"], rows: [
+      ["1001", "NIT 900373115-3", "Café del Norte S.A.S.", "Empresa", "Medellín", '<span class="st ok">Listo</span>'],
+      ["1002", "NIT 860002964-4", "Almacenes Éxito S.A.", "Cliente", "Envigado", '<span class="st ok">Listo</span>'],
+      ["1003", "NIT 901458221-7", "Tostadora Andina S.A.S.", "Proveedor", "Pereira", '<span class="st warn">Incompleto</span>'],
+      ["1004", "CC 43876511", "María Fernanda Ríos", "Cliente", "Bogotá D.C.", '<span class="st ok">Listo</span>'],
+      ["1005", "NIT 800197268-4", "Empaques del Valle Ltda.", "Proveedor", "Cali", '<span class="st ok">Listo</span>'],
+      ["1006", "NIT 830114921-1", "Transportes Rápido Caribe", "Proveedor", "Barranquilla", '<span class="st warn">Incompleto</span>'],
+    ]},
+    "/accounting/entries": { title: "Comprobantes", cols: ["N.º", "Fuente", "Fecha", "Tercero", "Descripción", "Débitos", "Estado"], num: [5], rows: [
+      ["CE-0142", "Egresos", "2026/10/30", '<a href="#">Tostadora Andina S.A.S.</a>', "Compra café verde lote 44", cop(18450000), '<span class="st warn">Por aprobar</span>'],
+      ["NC-0087", "Notas contables", "2026/10/29", '<a href="#">Café del Norte S.A.S.</a>', "Provisión de vacaciones octubre", cop(6210400), '<span class="st warn">Por aprobar</span>'],
+      ["RC-0311", "Recibos de caja", "2026/10/28", '<a href="#">Almacenes Éxito S.A.</a>', "Abono factura FE-1001", cop(42800000), '<span class="st ok">Contabilizado</span>'],
+      ["CE-0141", "Egresos", "2026/10/27", '<a href="#">Empaques del Valle Ltda.</a>', "Bolsas válvula 500 g", cop(3925000), '<span class="st ok">Contabilizado</span>'],
+      ["NC-0086", "Notas contables", "2026/10/25", '<a href="#">Café del Norte S.A.S.</a>', "Depreciación octubre", cop(2140833.33), '<span class="st info">Borrador</span>'],
+    ]},
+  };
+  function renderPage() {
+    const main = $("erp-main");
+    main.className = state.href === "/" ? "home" : "";
+    if (state.href === "/") return renderHome(main);
+    const g = GRIDS[state.href];
+    if (g) {
+      main.innerHTML = `<section class="card grid-card">
+        <div class="grid-h"><h2>${g.title}</h2><input class="q" placeholder="Buscar en ${g.title.toLowerCase()}…" aria-label="Buscar">
+          <div class="grow"></div><button class="btn primary">${icon("plus", "i sm")}Nuevo</button>
+          <button class="btn ex pdf" aria-label="Exportar a PDF">PDF</button><button class="btn ex xls" aria-label="Exportar a Excel">XLS</button><button class="btn ex csv" aria-label="Exportar a CSV">CSV</button></div>
+        <div style="overflow:auto"><table><thead><tr>${g.cols.map((c, i) => `<th class="${g.num?.includes(i) ? "num" : ""}">${c}</th>`).join("")}</tr></thead>
+        <tbody>${g.rows.map((r) => `<tr>${r.map((c, i) => `<td class="${i === 0 ? "mono" : ""} ${g.num?.includes(i) ? "num" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+        <div class="grid-f"><span>${g.rows.length} registros</span><span>Página 1 de 1</span></div></section>`;
+      return;
+    }
+    main.innerHTML = `<section class="card empty"><h2>${esc(labelOf(state.href))}</h2><p>La pantalla queda igual que hoy. Este prototipo solo cambia el marco: menú de módulos a la izquierda, opciones del módulo debajo de la barra superior y asistente a la derecha.</p></section>`;
+  }
+  function renderHome(main) {
+    const months = ["may", "jun", "jul", "ago", "sep", "oct"], inc = [212, 236, 228, 251, 266, 284], exp = [171, 180, 184, 192, 197, 205];
+    const W = 640, H = 220, x0 = 44, y0 = 12, x1 = W - 12, y1 = H - 28, lo = 150, hi = 300;
+    const X = (i) => x0 + (i * (x1 - x0)) / 5, Y = (v) => y1 - ((v - lo) / (hi - lo)) * (y1 - y0);
+    const path = (d) => d.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+    const grid = [150, 200, 250, 300].map((v) => `<line x1="${x0}" x2="${x1}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line-2)"/><text x="${x0 - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${v}</text>`).join("");
+    main.innerHTML = `
+      <div class="greet"><h1>Buenos días, Laura</h1><p>Viernes 2026/10/31 · día hábil 22 de 22 de octubre</p></div>
+      <div class="kpis">
+        ${kpi("Disponible en caja y bancos", cop(286410900), '<b>+6,2 %</b> frente a septiembre', "trend", "var(--ok-bg)", "var(--ok)")}
+        ${kpi("Utilidad del año", cop(92734150), '<b>+12,4 %</b> frente a 2025', "calculator", "var(--info-bg)", "var(--info)")}
+        ${kpi("Comprobantes por aprobar", "3", "El más antiguo: 2026/10/27", "file", "var(--warn-bg)", "var(--warn)")}
+        ${kpi("Terceros listos para DIAN", "412 de 438", "26 con datos incompletos", "users", "var(--accent)", "var(--link)")}
+      </div>
+      <div class="row2">
+        <section class="card">
+          <div class="card-h"><div><h2>Ingresos y gastos</h2><p>Millones de pesos, según el libro mayor</p></div>
+            <label class="sr-only" for="rng">Rango</label><select class="sel" id="rng"><option>Últimos 6 meses</option><option>Año 2026</option></select></div>
+          <div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ingresos y gastos de mayo a octubre de 2026">
+            ${grid}
+            <path d="${path(inc)} L${X(5)},${y1} L${X(0)},${y1} Z" fill="var(--primary)" opacity=".08"/>
+            <path d="${path(inc)}" fill="none" stroke="var(--primary)" stroke-width="2.5"/>
+            <path d="${path(exp)}" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-dasharray="5 4"/>
+            ${inc.map((v, i) => `<circle cx="${X(i)}" cy="${Y(v)}" r="3.5" fill="var(--primary)"/>`).join("")}
+            ${months.map((m, i) => `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${m}</text>`).join("")}
+          </svg>
+          <div class="legend"><span><i style="background:var(--primary)"></i>Ingresos</span><span><i style="background:var(--text-muted)"></i>Gastos</span></div></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><div><h2>Auditoría reciente</h2><p>Últimos cambios en la empresa</p></div></div>
+          <ul class="feed">
+            ${feed("file", "var(--info-bg)", "var(--info)", '<a href="#">CE-0142</a> enviado a aprobación', "Andrés Gómez · hace 12 min")}
+            ${feed("users", "var(--ok-bg)", "var(--ok)", '<a href="#">Tostadora Andina S.A.S.</a> creado', "Asistente, confirmado por Laura · hace 40 min")}
+            ${feed("check", "var(--ok-bg)", "var(--ok)", 'Período <a href="#">septiembre 2026</a> cerrado', "Laura Martínez · ayer")}
+            ${feed("lock", "var(--danger-bg)", "var(--danger)", 'Cuenta <a href="#">5105</a> restringida a Nómina', "Administrador · hace 3 días")}
+          </ul>
+        </section>
+      </div>`;
+  }
+  const kpi = (k, v, d, ic, bg, fg) => `<section class="card kpi"><div class="k">${k}<span class="ic" style="background:${bg};color:${fg}">${icon(ic, "i sm")}</span></div><div class="v">${v}</div><div class="d">${d}</div></section>`;
+  const feed = (ic, bg, fg, t, s) => `<li><span class="ic" style="background:${bg};color:${fg}">${icon(ic, "i sm")}</span><div>${t}<small>${s}</small></div></li>`;
+
+  // ---------- Assistant (docked, 400 px; starts closed under 1280 px when nothing is saved) ----------
+  const drawer = $("erp-assistant");
+  function applyAssistant() {
+    // No saved choice: CSS decides by the viewport (hidden under 1280 px), like the rail.
+    if (state.assistantOpen === null) { drawer.dataset.assistant = "auto"; drawer.hidden = false; $("asstBtn").setAttribute("aria-expanded", String(matchMedia("(min-width: 1280px)").matches)); return; }
+    const open = state.assistantOpen;
+    drawer.removeAttribute("data-assistant");
+    drawer.hidden = !open;
+    $("asstBtn").setAttribute("aria-expanded", String(open));
+  }
+  const chooseAssistant = (open) => { state.assistantOpen = open; store.set("assistant_open", open); applyAssistant(); if (open) $("askInput").focus(); };
+  const drawerShown = () => !drawer.hidden && getComputedStyle(drawer).display !== "none";
+  $("asstBtn").addEventListener("click", () => chooseAssistant(!drawerShown()));
+  $("asstClose").addEventListener("click", () => chooseAssistant(false));
+  document.querySelectorAll("[data-ask]").forEach((b) => b.addEventListener("click", () => { $("askInput").value = b.dataset.ask; $("askInput").focus(); }));
+  $("composer").addEventListener("submit", (e) => {
+    e.preventDefault(); const q = $("askInput").value.trim(); if (!q) return;
+    const log = $("log");
+    log.insertAdjacentHTML("beforeend", `<div class="msg u">${esc(q)}</div>`);
+    $("askInput").value = "";
+    setTimeout(() => { log.insertAdjacentHTML("beforeend", `<div class="msg a">En la aplicación real respondo con los datos de ${esc(labelOf(state.href))}. Este prototipo solo muestra dónde vive el asistente.</div>`); log.scrollTop = log.scrollHeight; }, 500);
+    log.scrollTop = log.scrollHeight;
+  });
+
+  // ---------- Theme ----------
+  const THEMES = ["auto", "light", "dark"], NAMES = { auto: "automático", light: "claro", dark: "oscuro" }, TICON = { auto: "monitor", light: "sun", dark: "moon" };
+  function applyTheme() {
+    if (state.theme === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = state.theme;
+    $("themeBtn").innerHTML = icon(TICON[state.theme]);
+    $("themeBtn").setAttribute("aria-label", "Cambiar tema: " + NAMES[state.theme]);
+    $("themeMenuItem").innerHTML = `Tema: ${NAMES[state.theme]}<span class="sub">Cambiar</span>`;
+  }
+  const nextTheme = () => { state.theme = THEMES[(THEMES.indexOf(state.theme) + 1) % 3]; store.set("theme", state.theme); applyTheme(); };
+  $("themeBtn").addEventListener("click", nextTheme);
+  $("themeMenuItem").addEventListener("click", nextTheme);
+
+  // ---------- Top-bar menus ----------
+  const menus = [["companyBtn", "companyMenu", "left"], ["bellBtn", "bellMenu", "right"], ["userBtn", "userMenu", "right"]];
+  menus.forEach(([b, m, side]) => $(b).addEventListener("click", (e) => {
+    e.stopPropagation(); const menu = $(m), was = !menu.hidden;
+    menus.forEach(([bb, mm]) => { $(mm).hidden = true; $(bb).setAttribute("aria-expanded", "false"); });
+    if (was) return;
+    menu.hidden = false; $(b).setAttribute("aria-expanded", "true");
+    const r = $(b).getBoundingClientRect();
+    menu.style.top = r.bottom + 6 + "px";
+    menu.style.left = (side === "left" ? Math.max(8, r.left) : Math.max(8, r.right - menu.offsetWidth)) + "px";
+  }));
+  document.addEventListener("mousedown", (e) => {
+    if (!e.target.closest(".menu, #companyBtn, #bellBtn, #userBtn")) menus.forEach(([b, m]) => { $(m).hidden = true; $(b).setAttribute("aria-expanded", "false"); });
+    if (openGroup && !e.target.closest("#gmenu, [data-group]")) closeGroup();
+  });
+
+  // ---------- ⌘K (stand-in: asks the assistant) and keyboard ----------
+  function openPalette() {
+    const q = prompt("⌘K · Escribe una pantalla (p. ej. «terceros», «comprobantes») o una pregunta para el asistente:");
+    if (!q) return;
+    const hit = MODULES.flatMap((m) => leaves(m.items)).find((i) => i.label.toLowerCase().includes(q.toLowerCase()));
+    if (hit) go(hit.href); else { chooseAssistant(true); $("askInput").value = q; $("composer").requestSubmit(); }
+  }
+  $("cmdBtn").addEventListener("click", openPalette);
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "/") { e.preventDefault(); chooseAssistant(!drawerShown()); }
+    if (e.key === "Escape" && rail.classList.contains("sheet-open")) { closeSheet(); $("phoneMenu").focus(); }
+  });
+  addEventListener("resize", () => { closeGroup(); renderRail(); });
+
+  // ---------- Start: the saved choices or the viewport decide, once ----------
+  applyTheme();
+  applyRail(); // with no saved choice the rail stays in the CSS auto state until the user toggles it
+  applyAssistant();
+  go("/");
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { buildConsumerContext, ProcessError, runProcess, withClaims, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
+import { assertRecordRight, buildConsumerContext, ProcessError, recordGuardOf, runProcess, withClaims, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
 import { refusal, type ToolRefusal } from "../tools/descriptor";
 import { appendMessage } from "./conversation";
 import { buildPreview, postingEffects, type ConfirmationPreview } from "./preview";
@@ -71,6 +71,18 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
   if (!caller.conversationId) return refusal("invalid_input", { message: "a write needs a conversation to confirm in" });
   const parsed = def.input.safeParse(input);
   if (!parsed.success) return refusal("invalid_input", { details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
+  // Record-level access (spec 2026-11-02 §9.1, Phase 2A.5 Task 17): a card never proposes a change to a maestro or documento the caller
+  // cannot change. The same guard and refusal `runProcess` applies on the accept (it checks again then): `record_forbidden` for one they
+  // read without the right, `not_found` without details for one they cannot read. As the caller.
+  const guard = recordGuardOf(deps.registry, def, parsed.data);
+  if (guard) {
+    try {
+      await withClaims(deps.sql, claims, (tx) => assertRecordRight({ tx }, guard.entity, guard.recordId, guard.right));
+    } catch (error) {
+      if (!(error instanceof ProcessError)) throw error;
+      return error.code === "not_found" ? refusal("not_found") : refusal(error.code, { message: error.message, ...(error.details !== undefined ? { details: error.details } : {}) });
+    }
+  }
 
   const preview = buildPreview(deps.registry, def, parsed.data, {
     locale: claims.locale,

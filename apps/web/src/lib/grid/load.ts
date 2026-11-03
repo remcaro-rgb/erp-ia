@@ -27,6 +27,10 @@ export interface GridPageData {
   canCreate: boolean;
   /** The caller may import into the entity (kernel.import.run and its create process). */
   canImport: boolean;
+  /** Imprimir: a maestro or documento whose list the caller may print (kernel.doc_template.print, Task 16). */
+  canPrint: boolean;
+  /** A documento imports from Excel only (two sheets: header and lines); its import dialog offers no CSV template. */
+  xlsxOnly: boolean;
   /** "Crear <entity>": the title of the new record's tab. */
   newTitle: string;
   /** Column that names a record in its tab. */
@@ -70,6 +74,7 @@ const ENTITY_DEFAULT_STATES: Record<string, DefaultStates> = {
 
 /** The process a mass import runs (Task 13b). */
 const IMPORT_PROCESS = "kernel.import.run";
+const PRINT_PROCESS = "kernel.doc_template.print";
 
 export type GridPageResult = { ok: true; data: GridPageData } | { ok: false; denial: GridDenial };
 
@@ -102,7 +107,7 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
   const [access, views, runnable, t, locale, categories, linkable, initialState] = await Promise.all([
     gridPageAccess(deps.sql, caller.claims, entity),
     savedViews(caller, entity.id),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, record ? [record.create, IMPORT_PROCESS] : []),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [...(record ? [record.create, IMPORT_PROCESS] : []), PRINT_PROCESS]),
     getTranslations(),
     getLocale(),
     entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([]),
@@ -120,6 +125,8 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
       views,
       canCreate: record ? runnable.has(record.create) : false,
       canImport: record ? runnable.has(record.create) && runnable.has(IMPORT_PROCESS) : false,
+      canPrint: (entity.entityType === "maestro" || entity.entityType === "documento") && runnable.has(PRINT_PROCESS),
+      xlsxOnly: entity.entityType === "documento",
       newTitle: record ? t("grid.record_title.new", { entity: t(record.nounKey) }) : "",
       titleField: record?.titleField ?? entity.displayField,
       ...(initialState ? { initialState } : {}),

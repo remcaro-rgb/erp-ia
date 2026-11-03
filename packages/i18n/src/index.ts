@@ -25,6 +25,19 @@ export const isLocale = (value: unknown): value is Locale => typeof value === "s
 export const messages = (locale: Locale): Messages => catalogues[locale];
 
 /**
+ * The message at the dotted `key` in `locale` (the default locale for one the app does not offer), or undefined when it is not a
+ * message. The servers register it as the kernel's catalogue (`registerCatalogue`), for what the kernel prints outside a screen.
+ */
+export function translate(locale: string, key: string): string | undefined {
+  let node: string | Messages | undefined = catalogues[isLocale(locale) ? locale : defaultLocale];
+  for (const part of key.split(".")) {
+    if (typeof node !== "object") return undefined;
+    node = node[part];
+  }
+  return typeof node === "string" ? node : undefined;
+}
+
+/**
  * Every i18n key the loaded modules declare: entity labels, field labels, menu items (module-level and the
  * ones features unlock) and feature labels. Sorted, no duplicates. The catalogue test asserts each one exists.
  */
@@ -35,7 +48,8 @@ export function collectRegistryKeys(registry: Registry): string[] {
     for (const field of entity.fields) keys.add(field.label);
   }
   for (const module of registry.modules()) {
-    for (const item of module.navigation) keys.add(item.label);
+    // Group children too: the menu sections hold most items (entity types spec §2.4).
+    for (const item of module.navigation) for (const one of [item, ...(item.children ?? [])]) keys.add(one.label);
     for (const feature of module.features) {
       keys.add(feature.label);
       for (const item of feature.nav ?? []) keys.add(item.label);

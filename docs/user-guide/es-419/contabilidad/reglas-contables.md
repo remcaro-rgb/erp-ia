@@ -18,7 +18,7 @@ processes:
 
 # Reglas contables
 
-Una **regla contable** dice cómo se contabiliza cada hecho de la empresa: «cuando se emite una factura de venta, débito a clientes, crédito a ventas e impuestos». Así los comprobantes automáticos nacen solos. Entra por **Contabilidad › Reglas contables**; sus secciones son **Reglas**, **Mapeo de cuentas**, **Conceptos exógena**, **Pendientes de contabilizar** y **Configuración**.
+Una **regla contable** dice cómo se contabiliza cada hecho de la empresa: «cuando se emite una factura de venta, débito a clientes, crédito a ventas e impuestos». Así los comprobantes automáticos nacen solos. Entra por **Contabilidad › Parámetros › Reglas contables**; sus secciones son **Reglas**, **Mapeo de cuentas**, **Conceptos exógena**, **Pendientes de contabilizar** y **Configuración**.
 
 ## Primera vez: Configurar contabilidad
 

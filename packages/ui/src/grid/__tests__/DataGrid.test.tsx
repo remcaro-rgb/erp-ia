@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { renderEs } from "../../shell/__tests__/intl";
 import { DataGrid } from "../DataGrid";
 import { GridFetchError } from "../fetch-grid";
-import type { GridColumn, GridFetcher, GridRow } from "../types";
+import type { GridColumn, GridFetcher, GridRow, GridStateInput } from "../types";
 
 afterEach(cleanup);
 
@@ -362,5 +362,26 @@ describe("DataGrid, empty states (T13)", () => {
     setup({ fetcher: vi.fn<GridFetcher>(none), emptyAction: <button type="button">Crear tercero</button>, initialState: { columnFilters: { legal_name: "zzz" } } });
     expect(await screen.findByText("Sin resultados con estos filtros")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Crear tercero" })).toBeNull();
+  });
+});
+
+// Imprimir on a grid (Task 16): only for an entity that prints (the page passes onPrint), with the export's state; a refusal shows its text.
+describe("DataGrid Imprimir", () => {
+  it("has no Imprimir button without onPrint", async () => {
+    const { fetcher } = setup();
+    await waitFor(() => expect(fetcher).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Imprimir" })).toBeNull();
+  });
+
+  it("prints what the grid shows (filters, sort, visible columns, page 1) and shows a refusal next to the button", async () => {
+    const onPrint = vi.fn<(state: GridStateInput) => Promise<string | null>>(async () => "La lista supera las 2.000 filas");
+    const { fetcher } = setup({ onPrint, initialState: { columnFilters: { legal_name: "caf" } } });
+    await waitFor(() => expect(fetcher).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Imprimir" }));
+    await waitFor(() => expect(onPrint).toHaveBeenCalledTimes(1));
+    const state = onPrint.mock.calls[0]![0]!;
+    expect(state).toMatchObject({ page: 1, sort: [], filters: [{ field: "legal_name", op: "contains", value: "caf" }] });
+    expect(state.columns).toEqual(["seq", "legal_name", "kind", "credit_limit", "balance", "notes", "dian_status"]);
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "La lista supera las 2.000 filas");
   });
 });

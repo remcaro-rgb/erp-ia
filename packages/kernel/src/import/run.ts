@@ -6,7 +6,7 @@ import type { Caller } from "../process/context";
 import { runProcess } from "../process/run";
 import { registry } from "../registry";
 import { errorsCsv } from "./errors-csv";
-import { ERRORS_FILE_NAME, ERRORS_TAG, failImport, forgetJob, importSummaryText, loadJob, recordImport, sourceOf, type ImportSummary } from "./job";
+import { ERRORS_FILE_NAME, ERRORS_TAG, failImport, forgetJob, importSummaryText, loadJob, recordImport, sourceOf, type ImportJob, type ImportSummary } from "./job";
 import { inFileDuplicates, type ImportLabels } from "./map";
 import { ImportFileError } from "./parse";
 import { resolveReferences, runRecords } from "./validate";
@@ -70,6 +70,8 @@ export async function runImport(args: RunImportArgs): Promise<ImportSummary> {
   }
 }
 
+/** The entity the job imports into and its lines layout, for the typed rules of `runRecords`. */
+const targetOf = (job: ImportJob) => ({ entity: registry.entity(job.entity), lines: job.lines });
 const callerOf = (args: RunImportArgs): Caller => ({ claims: args.claims, origin: "api", chainId: args.chainId });
 const deps = () => ({ sql: getServiceDb(), registry });
 
@@ -83,7 +85,7 @@ export async function beginImport(args: RunImportArgs): Promise<{ ok: true; tota
   if (registry.modules().length === 0) throw new Error("import: no modules loaded in worker");
   const sql = getServiceDb();
   try {
-    const job = await loadJob(sql, args.importId, args.labels);
+    const job = await loadJob(sql, args.importId, args.labels, args.claims.locale);
     const source = await sourceOf(sql, args.importId);
     await recordImport(sql, args, { status: "running", rows_total: job.sheet.records.length, file_attachment_id: source?.attachment_id ?? null });
     return { ok: true, total: job.sheet.records.length };
@@ -100,10 +102,10 @@ export async function beginImport(args: RunImportArgs): Promise<{ ok: true; tota
 export async function validateBatch(args: RunImportArgs, from: number, failedBefore: number): Promise<{ valid: number[]; failed: Failure[]; stoppedBy?: string }> {
   "use step";
   const sql = getServiceDb();
-  const job = await loadJob(sql, args.importId, args.labels);
+  const job = await loadJob(sql, args.importId, args.labels, args.claims.locale);
   const slice = job.sheet.records.slice(from, from + IMPORT_BATCH).map((record, i) => ({ index: from + i, record }));
-  await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels);
-  const run = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: true, labels: args.labels });
+  await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels, job.lines);
+  const run = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, { dryRun: true, labels: args.labels, target: targetOf(job) });
   const failed = run.outcomes.filter((o) => !o.ok).map((o) => ({ index: o.index, errors: o.errors }));
   await recordImport(sql, args, { rows_failed: failedBefore + failed.length });
   return { valid: run.outcomes.filter((o) => o.ok).map((o) => o.index), failed, ...(run.stoppedBy ? { stoppedBy: run.stoppedBy } : {}) };
@@ -116,7 +118,7 @@ export async function validateBatch(args: RunImportArgs, from: number, failedBef
 export async function screenDuplicates(args: RunImportArgs, valid: number[], failedBefore: number): Promise<{ valid: number[]; failed: Failure[] }> {
   "use step";
   const sql = getServiceDb();
-  const job = await loadJob(sql, args.importId, args.labels);
+  const job = await loadJob(sql, args.importId, args.labels, args.claims.locale);
   const duplicates = inFileDuplicates(job.columns, valid.map((index) => ({ index, record: job.sheet.records[index]! })), job.importKey, args.labels);
   if (duplicates.size === 0) return { valid, failed: [] };
   const failed = [...duplicates].map(([index, error]) => ({ index, errors: [error] }));
@@ -136,12 +138,13 @@ export async function createBatch(
 ): Promise<{ created: number; failed: Failure[]; stoppedBy?: string }> {
   "use step";
   const sql = getServiceDb();
-  const job = await loadJob(sql, args.importId, args.labels);
+  const job = await loadJob(sql, args.importId, args.labels, args.claims.locale);
   const slice = indexes.map((index) => ({ index, record: job.sheet.records[index]! }));
-  await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels);
+  await resolveReferences(deps(), callerOf(args), job.columns, slice.map((s) => s.record), args.labels, job.lines);
   const run = await runRecords(deps(), callerOf(args), job.createProcess, job.columns, slice, {
     dryRun: false,
     labels: args.labels,
+    target: targetOf(job),
     keyOf: (index) => importRowKey(args.importId, index),
   });
   const created = run.outcomes.filter((o) => o.ok).length;
@@ -157,13 +160,20 @@ export async function createBatch(
 export async function finishImport(args: RunImportArgs, result: { total: number; created: number; failed: Failure[] }): Promise<ImportSummary> {
   "use step";
   const sql = getServiceDb();
-  const job = await loadJob(sql, args.importId, args.labels);
+  const job = await loadJob(sql, args.importId, args.labels, args.claims.locale);
   const failed = [...result.failed].sort((a, b) => a.index - b.index);
   let errorsAttachmentId: string | null = null;
   let attachError: string | null = null;
-  if (failed.length > 0) {
+  // A documento's lines refused on their own (their ref names no header row) are line errors: in errores.csv, not in the counts.
+  const lineFailures = job.sheet.lineFailures ?? [];
+  if (failed.length > 0 || lineFailures.length > 0) {
     try {
-      errorsAttachmentId = await attachErrors(args, errorsCsv(job.sheet.headers, failed.map((f) => ({ rowNo: job.sheet.records[f.index]!.rowNo, errors: f.errors, raw: job.sheet.records[f.index]!.raw }))));
+      const documents = job.sheets ? { sheet: job.sheets.header, lineSheet: job.sheets.lines, lineHeaders: job.sheet.lineHeaders ?? [], lineFailures } : undefined;
+      const rows = failed.map((f) => {
+        const record = job.sheet.records[f.index]!;
+        return { rowNo: record.rowNo, errors: f.errors, raw: record.raw, ...(record.lines ? { lines: record.lines } : {}) };
+      });
+      errorsAttachmentId = await attachErrors(args, errorsCsv(job.sheet.headers, rows, documents));
     } catch (error) {
       attachError = `No se pudo guardar ${ERRORS_FILE_NAME}: ${error instanceof Error ? error.message : String(error)}`;
     }

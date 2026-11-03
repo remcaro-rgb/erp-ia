@@ -9,7 +9,7 @@ import { GridCell } from "../../grid/GridCell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
 import { RecordForm } from "../../forms/form-parts";
-import { assistantOpenStorageKey, dianHintsStorageKey, readCachedPref, writeCachedPref } from "../prefs-cache";
+import { assistantOpenStorageKey, dianHintsStorageKey, readCachedPref, sideMenuStorageKey, writeCachedPref } from "../prefs-cache";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
@@ -79,6 +79,42 @@ describe("AppShell", () => {
     const options = screen.getAllByRole("option").map((o) => o.textContent ?? "");
     expect(options.some((o) => o.includes("Categorías"))).toBe(true);
     expect(options.some((o) => o.includes("Productos"))).toBe(false);
+  });
+
+  // Entity types spec 2026-11-02 §2.4, §9.2 (Task 10): every module's level-1 items are Maestros, Documentos, Reportes and Parámetros.
+  describe("menu sections", () => {
+    const section = (name: string, children: NavItem[]): NavItem => ({ id: `core.${name}`, label: `nav.section.${name}`, href: "#", icon: "list", section: name as NavItem["section"], children });
+    const sectioned: NavItem[] = [
+      section("maestros", [{ id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users" }]),
+      section("documentos", []),
+      section("reportes", []),
+      section("parametros", [{ id: "core.posting", label: "nav.accounting.posting", href: "/posting", icon: "list", badge: 2 }]),
+    ];
+
+    it("shows the four sections as the module's items, in order", () => {
+      shell("/parties", vi.fn(), { nav: sectioned });
+      const bar = screen.getByRole("navigation", { name: "Menú del módulo" });
+      expect(within(bar).getAllByRole("button", { expanded: false }).map((b) => b.textContent)).toEqual(["Maestros", "Documentos", "Reportes", "Parámetros 2"]);
+      expect(within(bar).getByRole("button", { name: /^Maestros/ }).getAttribute("aria-current")).toBe("page");
+    });
+
+    it("an empty section opens on its empty state instead of disappearing", () => {
+      shell("/parties", vi.fn(), { nav: sectioned });
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: /^Documentos/ }));
+      const menu = screen.getByRole("menu", { name: "Documentos" });
+      expect(within(menu).queryAllByRole("menuitem")).toEqual([]);
+      expect(within(menu).getByText("Aún no hay elementos en esta sección")).toBeTruthy();
+    });
+
+    it("a section entry carries its badge, and the section shows how many are waiting", () => {
+      const navigate = vi.fn();
+      shell("/parties", navigate, { nav: sectioned });
+      const trigger = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: /^Parámetros/ });
+      expect(within(trigger).getByLabelText("2 pendientes")).toBeTruthy();
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Reglas contables 2 pendientes" }));
+      expect(navigate).toHaveBeenCalledWith("/posting");
+    });
   });
 
   it("the page being shown opens its tab, and a module item navigates", () => {
@@ -212,40 +248,103 @@ describe("AppShell", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
-  it("the Módulos menu lists modules only, never their items", () => {
-    shell("/parties");
-    const trigger = screen.getByRole("button", { name: /^Núcleo/ });
-    fireEvent.keyDown(trigger, { key: "Enter" });
-    const menu = screen.getByRole("menu");
-    const entries = within(menu).getAllByRole("menuitem").map((item) => item.textContent ?? "");
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toContain("Núcleo");
-    expect(entries[0]).toContain("3 opciones");
-    for (const item of ["Terceros", "Productos", "Categorías"]) expect(menu.textContent).not.toContain(item);
-  });
-
-  it("choosing another module in the Módulos menu shows its bar and brings its open tab to the front", async () => {
-    const navigate = vi.fn();
-    const twoModules = { id: "kernel", label: "nav.modules.kernel" };
+  // Shell v7 (owner 2026-11-02, design §22.24, rule 19): the left side menu lists module names only; the active module's sections sit in the bar.
+  describe("shell v7 side menu", () => {
+    const twoModules = [{ id: "core", label: "nav.modules.core" }, { id: "kernel", label: "nav.modules.kernel" }];
     const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
-    const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
-    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, twoModules], nav: adminNav, initialTabs });
-    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
-    // The bar switches to the chosen module even though the page shown belongs to Núcleo.
-    expect(screen.getByRole("button", { name: /^Sistema/ })).toBeTruthy();
-    expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Usuarios" })).toBeTruthy();
-    // Its open tab comes to the front (the shell then navigates to it) instead of nothing happening.
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
-  });
+    const side = () => screen.getByRole("navigation", { name: "Módulos" });
 
-  it("choosing a module with no open tab opens its first option", () => {
-    const navigate = vi.fn();
-    const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
-    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, { id: "kernel", label: "nav.modules.kernel" }], nav: adminNav });
-    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
-    expect(navigate).toHaveBeenCalledWith("/admin/users");
+    it("lists the module names only, never their items, the active one marked", () => {
+      shell("/parties", vi.fn(), { modules: twoModules, nav: adminNav });
+      expect(screen.getByRole("complementary", { name: "Menú de módulos" })).toBeTruthy();
+      const entries = within(side()).getAllByRole("button");
+      expect(entries.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Núcleo", "Sistema"]);
+      expect(within(side()).queryAllByRole("link")).toEqual([]);
+      for (const item of ["Terceros", "Productos", "Usuarios"]) expect(side().textContent).not.toContain(item);
+      expect(entries[0]!.getAttribute("aria-current")).toBe("true");
+      expect(screen.getByRole("button", { name: "Contraer menú" }).getAttribute("aria-controls")).toBe(side().id);
+    });
+
+    it("the server render states no expanded state before the viewport is known", () => {
+      const html = renderToString(
+        <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
+          {shellElement("/parties")}
+        </NextIntlClientProvider>,
+      );
+      const toggle = /<button[^>]*aria-controls="erp-side-nav"[^>]*>/.exec(html)?.[0] ?? "";
+      expect(toggle).not.toBe("");
+      expect(toggle).not.toContain("aria-expanded");
+      expect(toggle).toContain('aria-label="Contraer o expandir menú"');
+    });
+
+    it("a module the caller has no item in (menu access, permissions) is not listed", () => {
+      shell("/parties", vi.fn(), { modules: twoModules, nav });
+      expect(within(side()).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Núcleo"]);
+    });
+
+    it("picking a module shows its sections in the bar and brings its open tab to the front", async () => {
+      const navigate = vi.fn();
+      const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
+      shell("/parties", navigate, { modules: twoModules, nav: adminNav, initialTabs });
+      fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
+      expect(within(side()).getByRole("button", { name: "Sistema" }).getAttribute("aria-current")).toBe("true");
+      expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Usuarios" })).toBeTruthy();
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
+    });
+
+    it("picking a module with no open tab opens its first option", () => {
+      const navigate = vi.fn();
+      shell("/parties", navigate, { modules: twoModules, nav: adminNav });
+      fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
+      expect(navigate).toHaveBeenCalledWith("/admin/users");
+    });
+
+    it("the module's sections render in the bar with the empty state", () => {
+      const sectioned: NavItem[] = [
+        { id: "core.maestros", label: "nav.section.maestros", href: "#", icon: "list", section: "maestros", children: [nav[0]!] },
+        { id: "core.documentos", label: "nav.section.documentos", href: "#", icon: "list", section: "documentos", children: [] },
+      ];
+      shell("/parties", vi.fn(), { nav: sectioned });
+      const bar = screen.getByRole("navigation", { name: "Menú del módulo" });
+      expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["Maestros", "Documentos"]);
+      expect(side().textContent).not.toContain("Maestros");
+    });
+
+    it("collapses to the icon rail and back, remembered per viewer", () => {
+      const storage = memoryStorage();
+      shell("/parties", vi.fn(), { storage });
+      const rail = screen.getByRole("complementary", { name: "Menú de módulos" });
+      const toggle = screen.getByRole("button", { name: "Contraer menú" });
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      fireEvent.click(toggle);
+      expect(screen.getByRole("button", { name: "Expandir menú" }).getAttribute("aria-expanded")).toBe("false");
+      expect(rail.getAttribute("data-collapsed")).toBe("true");
+      expect(readCachedPref(storage, sideMenuStorageKey("u1"), "c1")?.value).toBe(true);
+      cleanup();
+      shell("/parties", vi.fn(), { storage });
+      expect(screen.getByRole("button", { name: "Expandir menú" }).getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(screen.getByRole("button", { name: "Expandir menú" }));
+      expect(screen.getByRole("button", { name: "Contraer menú" }).getAttribute("aria-expanded")).toBe("true");
+      expect(readCachedPref(storage, sideMenuStorageKey("u1"), "c1")?.value).toBe(false);
+    });
+
+    it("starts collapsed below 1440 px when nothing is saved; a saved choice wins", () => {
+      setWidth(1280);
+      const storage = memoryStorage();
+      shell("/parties", vi.fn(), { storage });
+      expect(screen.getByRole("button", { name: "Expandir menú" }).getAttribute("aria-expanded")).toBe("false");
+      cleanup();
+      writeCachedPref(storage, sideMenuStorageKey("u1"), "c1", { value: false, savedAt: 1 });
+      shell("/parties", vi.fn(), { storage });
+      expect(screen.getByRole("button", { name: "Contraer menú" }).getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("a refused storage never breaks the menu", () => {
+      const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } } as unknown as Storage;
+      shell("/parties", vi.fn(), { storage: broken });
+      fireEvent.click(screen.getByRole("button", { name: "Contraer menú" }));
+      expect(screen.getByRole("button", { name: "Expandir menú" })).toBeTruthy();
+    });
   });
 
   // UI density audit quick win 13 (M13) and 16 (L1)

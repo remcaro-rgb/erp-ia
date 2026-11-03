@@ -19,6 +19,8 @@ export function browserStorage(): Storage | null {
 
 export const themeStorageKey = (userId: string): string => `erp.theme.${userId}`;
 export const assistantOpenStorageKey = (userId: string): string => `erp.assistant.open.${userId}`;
+/** Whether the viewer collapsed the side menu to its icon rail (shell v7, design §22.24): kept in this browser only. */
+export const sideMenuStorageKey = (userId: string): string => `erp.shell.side_menu.collapsed.${userId}`;
 export const dianHintsStorageKey = (userId: string): string => `erp.forms.dian_hints.${userId}`;
 
 /** The cached value under `key` for `companyId`, or null (missing, another company's, unreadable). */

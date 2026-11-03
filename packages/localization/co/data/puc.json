@@ -1,5 +1,5 @@
 {
-"_comment": "Plan Único de Cuentas para comerciantes (Decreto 2650 de 1993, modificado por el Decreto 2894 de 1994): clases 1 a 9, grupos y cuentas completos y subcuentas de las cuentas de uso común. Transcrito a mano del PUC publicado; el pack nunca lista 238095 ni 530595, que añade extraAccounts(). Un contador completa las subcuentas faltantes con el proceso de cuentas.",
+"_comment": "Plan Único de Cuentas para comerciantes (Decreto 2650 de 1993, modificado por el Decreto 2894 de 1994): clases 1 a 9, grupos y cuentas completos y subcuentas de las cuentas de uso común. Transcrito a mano del PUC publicado; el pack nunca lista 238095 ni 530595, que añade extraAccounts(). Las cuentas sin subcuentas oficiales que una empresa comercial usa a diario (2505 a 2525, 6205, 6225) traen su subcuenta 05 de uso común. Un contador completa las subcuentas faltantes con el proceso de cuentas.",
 "accounts": [
 [
 "1",
@@ -1122,6 +1122,14 @@
 "De renta y complementarios"
 ],
 [
+"240405",
+"Vigencia fiscal corriente"
+],
+[
+"240410",
+"Vigencias fiscales anteriores"
+],
+[
 "2408",
 "Impuesto sobre las ventas por pagar"
 ],
@@ -1140,6 +1148,14 @@
 [
 "2412",
 "De industria y comercio"
+],
+[
+"241205",
+"Vigencia fiscal corriente"
+],
+[
+"241210",
+"Vigencias fiscales anteriores"
 ],
 [
 "2416",
@@ -1190,11 +1206,27 @@
 "Salarios por pagar"
 ],
 [
+"250505",
+"Salarios por pagar"
+],
+[
 "2510",
 "Cesantías consolidadas"
 ],
 [
+"251005",
+"Ley laboral anterior"
+],
+[
+"251010",
+"Ley 50 de 1990 y normas posteriores"
+],
+[
 "2515",
+"Intereses sobre cesantías"
+],
+[
+"251505",
 "Intereses sobre cesantías"
 ],
 [
@@ -1202,7 +1234,15 @@
 "Prima de servicios"
 ],
 [
+"252005",
+"Prima de servicios"
+],
+[
 "2525",
+"Vacaciones consolidadas"
+],
+[
+"252505",
 "Vacaciones consolidadas"
 ],
 [
@@ -1228,6 +1268,22 @@
 [
 "2610",
 "Para obligaciones laborales"
+],
+[
+"261005",
+"Cesantías"
+],
+[
+"261010",
+"Intereses sobre cesantías"
+],
+[
+"261015",
+"Vacaciones"
+],
+[
+"261020",
+"Prima de servicios"
 ],
 [
 "2615",
@@ -1950,6 +2006,30 @@
 "Mantenimiento y reparaciones"
 ],
 [
+"514505",
+"Terrenos"
+],
+[
+"514510",
+"Construcciones y edificaciones"
+],
+[
+"514515",
+"Maquinaria y equipo"
+],
+[
+"514520",
+"Equipo de oficina"
+],
+[
+"514525",
+"Equipo de computación y comunicación"
+],
+[
+"514540",
+"Flota y equipo de transporte"
+],
+[
 "5150",
 "Adecuación e instalación"
 ],
@@ -2210,6 +2290,10 @@
 "De mercancías"
 ],
 [
+"620505",
+"De mercancías"
+],
+[
 "6210",
 "De materias primas"
 ],
@@ -2219,6 +2303,10 @@
 ],
 [
 "6225",
+"Devoluciones en compras (CR)"
+],
+[
+"622505",
 "Devoluciones en compras (CR)"
 ],
 [

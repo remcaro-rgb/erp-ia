@@ -56,7 +56,7 @@ describe("auditEntityOf", () => {
   const registry = new Registry();
   registry.registerEntity(
     defineEntity({
-      id: "core.product_category",
+      entityType: "maestro", id: "core.product_category",
       module: "core",
       schema: "core",
       table: "product_categories",

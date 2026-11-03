@@ -55,6 +55,21 @@ describe("opening balances", () => {
     await expect(h.runStepUp(h.admin, "accounting.opening.post", { id: ok.id })).rejects.toMatchObject({ code: "invalid_input", message: expect.stringContaining("unbalanced") });
   });
 
+  it("opening.post refuses a line naming a Pendiente maestro (D10, usability at Contabilizar) and leaves the draft unnumbered", async () => {
+    const pending = (await h.sql<{ id: string }[]>`
+      insert into accounting.cost_centers (company_id, code, name, kind, status, requires_approval) values (${h.companyId}, 'PEN', 'Pendiente', 'leaf', 'pending', true) returning id`)[0]!.id;
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.opening.create", {
+      lines: [{ accountCode: "510506", costCenterCode: "PEN", debit: 7, credit: 0 }, { accountCode: "310505", debit: 0, credit: 7 }],
+    });
+    await expect(h.runStepUp(h.admin, "accounting.opening.post", { id })).rejects.toMatchObject({
+      code: "maestro_not_usable", details: { field: "cost_center_id", entity: "accounting.cost_center", recordId: pending },
+    });
+    expect((await h.sql`select status, number from accounting.entries where id = ${id}`)[0]).toMatchObject({ status: "draft", number: null });
+    // Approved, it posts.
+    await h.sql`update accounting.cost_centers set status = 'approved' where id = ${pending}`;
+    expect(await h.runStepUp(h.admin, "accounting.opening.post", { id })).toMatchObject({ number: expect.any(String) });
+  });
+
   it("an opening entry dated in a closed period is a closed_period refusal", async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.opening.create", { lines: [{ accountCode: "111005", debit: 5, credit: 0 }, { accountCode: "310505", debit: 0, credit: 5 }] });
     await h.sql`update accounting.periods set status = 'closed' where company_id = ${h.companyId} and ${(await h.sql<{ d: string }[]>`select date::text as d from accounting.entries where id = ${id}`)[0]!.d}::date between starts_on and ends_on`;

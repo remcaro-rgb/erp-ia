@@ -105,8 +105,9 @@ openai_api_key = "env(OPENAI_API_KEY)"
 enabled = true
 # Port to use for the email testing server web interface.
 port = 55324
-# Uncomment to expose additional ports for testing user applications that send emails.
-# smtp_port = 54325
+# The SMTP side, published for the kernel's state e-mails and Notificar (Phase 2A.5 Task 12): the integration test sends to it as the
+# Docker Mailer does and reads the messages back through the web interface's API above.
+smtp_port = 54325
 # pop3_port = 54326
 # admin_email = "admin@email.com"
 # sender_name = "Admin"

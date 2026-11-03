@@ -217,7 +217,7 @@ describe("writePdf", () => {
 
 describe("exportColumns", () => {
   const entity = defineEntity({
-    id: "core.party",
+    entityType: "maestro", id: "core.party",
     module: "core",
     schema: "core",
     table: "parties",
@@ -283,11 +283,33 @@ describe("exportColumns", () => {
   it("refuses a column the entity does not have", () => {
     expect(() => exportColumns(entity, access, state(["nope"]), {})).toThrow(/nope/);
   });
+
+  // Phase 2A.5 Task 13: the lifecycle state of a maestro or documento prints its es-419 label (Grabado, Pendiente de Aprobación…) from the
+  // catalogue key its field declares (`valuesKey`), whoever asks for the file; the screen's own labels win when it sends them.
+  it("labels a field's values from its declared catalogue key when the presentation brings none (the lifecycle status)", () => {
+    const typed = defineEntity({
+      entityType: "maestro", id: "core.thing", module: "core", schema: "core", table: "things", label: "entity.core.thing",
+      displayField: "name", defaultSort: { field: "name", dir: "asc" },
+      fields: [
+        { name: "name", type: "text", label: "field.name" },
+        { name: "status", type: "enum", label: "field.status", enumValues: ["draft", "saved", "pending"], valuesKey: "grid.values.record_status" },
+      ],
+    });
+    const catalogue: Record<string, string> = { "grid.values.record_status.draft": "Borrador", "grid.values.record_status.saved": "Grabado", "grid.values.record_status.pending": "Pendiente de Aprobación" };
+    const t = (key: string) => catalogue[key];
+    const open = { modes: { name: "visible", status: "visible" }, extras: [], timeZone: "America/Bogota" } as GridAccess;
+    const [, status] = exportColumns(typed, open, state(["name", "status"]), {}, t);
+    expect(status).toMatchObject({ field: "status", type: "enum", options: { draft: "Borrador", saved: "Grabado", pending: "Pendiente de Aprobación" } });
+    const screen = exportColumns(typed, open, state(["status"]), { values: { status: { saved: "Guardado" } } }, t);
+    expect(screen[0]!.options).toEqual({ saved: "Guardado" });
+    // Without a catalogue the codes print as they are.
+    expect(exportColumns(typed, open, state(["status"]), {})[0]!.options).toBeUndefined();
+  });
 });
 
 describe("buildQuery window", () => {
   const entity = defineEntity({
-    id: "core.thing",
+    entityType: "maestro", id: "core.thing",
     module: "core",
     schema: "core",
     table: "things",

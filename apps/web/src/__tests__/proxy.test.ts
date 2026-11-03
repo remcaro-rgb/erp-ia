@@ -10,6 +10,7 @@ const fake = vi.hoisted(() => ({
   claims: {} as Record<string, unknown>,
   signOut: vi.fn(async () => ({ error: null })),
   hasVerifiedFactor: vi.fn(async () => true),
+  menuHides: vi.fn<(claims: unknown, path: string) => Promise<boolean>>(async () => false),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -21,6 +22,8 @@ vi.mock("@erp/kernel", async (original) => ({
   getServiceDb: () => ({}) as never,
   hasVerifiedFactor: fake.hasVerifiedFactor,
 }));
+
+vi.mock("@/lib/shell/menu-guard", () => ({ menuHides: fake.menuHides }));
 
 import { proxy } from "@/proxy";
 
@@ -82,5 +85,65 @@ describe("proxy: a session that claims a factor the user no longer has", () => {
     fake.claims = claimsOf({ aal: "aal1", mfa_enrolled: true });
     await proxy(request("/mfa/verify"));
     expect(fake.hasVerifiedFactor).not.toHaveBeenCalled();
+  });
+});
+
+// Menu access (entity types spec 2026-11-02 §9.2, Task 10): a hidden item's routes are refused server-side as well. A page under an item
+// the company's rules hide for the caller is answered with the forbidden screen (a rewrite to /forbidden, status 403), whatever way the
+// address was reached; an API path is never matched (its processes are refused by runProcess).
+describe("proxy: a screen whose menu item is hidden for the caller", () => {
+  beforeEach(() => {
+    fake.menuHides.mockReset();
+    fake.menuHides.mockResolvedValue(false);
+    fake.claims = claimsOf({ aal: "aal1", mfa_enrolled: false });
+  });
+
+  it("answers the forbidden screen at the same address", async () => {
+    fake.menuHides.mockResolvedValue(true);
+    const response = await proxy(request("/accounting/cost-centers"));
+    expect(fake.menuHides).toHaveBeenCalledWith(expect.objectContaining({ sub: USER, active_company_id: COMPANY }), "/accounting/cost-centers");
+    expect(response.status).toBe(403);
+    expect(new URL(response.headers.get("x-middleware-rewrite")!).pathname).toBe("/forbidden");
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("goes on when the item is not hidden", async () => {
+    const response = await proxy(request("/accounting/cost-centers"));
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
+  it("never asks for an API path or the sign-in surface", async () => {
+    await proxy(request("/api/grid/core.party"));
+    await proxy(request("/login"));
+    expect(fake.menuHides).not.toHaveBeenCalled();
+  });
+
+  it("matches the decoded path, so a percent-encoded address cannot slip past the guard (m1)", async () => {
+    fake.menuHides.mockImplementation(async (_claims, path) => path.startsWith("/r/accounting.account/"));
+    const response = await proxy(request("/r/accounting%2Eaccount/0190a0a0-0000-7000-8000-000000000099"));
+    expect(fake.menuHides).toHaveBeenCalledWith(expect.anything(), "/r/accounting.account/0190a0a0-0000-7000-8000-000000000099");
+    expect(response.status).toBe(403);
+  });
+
+  it("answers the forbidden screen for a path that does not decode, without a lookup (m1)", async () => {
+    const response = await proxy(request("/accounting/%E0%A4%A"));
+    expect(fake.menuHides).not.toHaveBeenCalled();
+    expect(response.status).toBe(403);
+    expect(new URL(response.headers.get("x-middleware-rewrite")!).pathname).toBe("/forbidden");
+  });
+
+  it("asks once per request and refuses a hidden page whatever headers the client sends (prefetch, RSC: forgeable, never a skip)", async () => {
+    const withHeader = (name: string, value: string) => new NextRequest(new URL("/accounting/periods", "http://127.0.0.1:3100"), { headers: { [name]: value } });
+    await proxy(request("/accounting/periods"));
+    expect(fake.menuHides).toHaveBeenCalledTimes(1);
+    fake.menuHides.mockClear();
+    fake.menuHides.mockResolvedValue(true);
+    for (const [name, value] of [["next-router-prefetch", "1"], ["rsc", "1"], ["sec-purpose", "prefetch"]] as const) {
+      const response = await proxy(withHeader(name, value));
+      expect(response.status).toBe(403);
+      expect(new URL(response.headers.get("x-middleware-rewrite")!).pathname).toBe("/forbidden");
+    }
+    expect(fake.menuHides).toHaveBeenCalledTimes(3);
   });
 });

@@ -33,6 +33,7 @@ export const openingCreate = defineProcess({
   id: "accounting.opening.create",
   module: "accounting",
   kind: "create",
+  recordAccess: "none",
   feature: "accounting.ledger",
   description: "Crea el borrador de saldos iniciales en la fuente de apertura a partir de códigos de cuenta, documentos de terceros y códigos analíticos",
   input: z.object({ date: z.iso.date().optional(), description: z.string().trim().min(1).max(500).optional(), lines: z.array(openingLine).min(1).max(5000) }).strict(),
@@ -77,7 +78,8 @@ export const openingCreate = defineProcess({
         debit: l.debit, credit: l.credit, description: l.description, reference: l.reference, dueDate: l.dueDate,
       })),
     });
-    return { id: await createDraft(ctx, parsed, "import", { is_opening: true }) };
+    // Saldos iniciales post only through opening.post (step-up): never through approval.
+    return { id: await createDraft(ctx, parsed, "import", { is_opening: true, requires_approval: false }) };
   },
 });
 
@@ -85,6 +87,7 @@ export const openingPost = defineProcess({
   id: "accounting.opening.post",
   module: "accounting",
   kind: "update",
+  recordAccess: { entity: "accounting.entry", idField: "id", right: "modify" },
   feature: "accounting.ledger",
   sensitivity: "step-up",
   description: "Contabiliza el comprobante de saldos iniciales; es el paso humano que exige la regla, con verificación TOTP",
@@ -94,8 +97,8 @@ export const openingPost = defineProcess({
   handler: async (ctx, { id: entryId }) => {
     const [entry] = await ctx.tx<{ is_opening: boolean }[]>`select is_opening from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId}`;
     if (!entry) throw new ProcessError("not_found", `entry ${entryId} not found`);
-    if (!entry.is_opening) throw invalid(`entry ${entryId} is not an opening entry`, "Este comprobante no es de saldos iniciales: contabilízalo con entry.post");
-    const posted = await postEntry(ctx, entryId, { origin: "human", skipFourEyes: true });
+    if (!entry.is_opening) throw invalid(`entry ${entryId} is not an opening entry`, "Este comprobante no es de saldos iniciales: contabilízalo con Grabar (entry.save)");
+    const posted = await postEntry(ctx, entryId);
     return { id: posted.id, number: posted.number };
   },
 });

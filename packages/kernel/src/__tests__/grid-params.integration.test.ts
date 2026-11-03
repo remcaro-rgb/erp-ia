@@ -10,7 +10,7 @@ import { GridState } from "../query/grid-state";
 // their values and the query sets them as `erp.param.<name>` settings local to the query's transaction.
 
 const PROBE = defineEntity({
-  id: "kernel.param_probe",
+  entityType: "maestro", id: "kernel.param_probe",
   module: "kernel",
   schema: "kernel",
   table: "param_probe",

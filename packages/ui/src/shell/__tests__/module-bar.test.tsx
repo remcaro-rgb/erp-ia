@@ -27,11 +27,11 @@ const items: NavItem[] = [
   { id: "acc.masters", label: "tst.masters", href: "#", icon: "list", children: LEAVES.map(leaf) },
 ];
 
-function setup(activeHref: string) {
+function setup(activeHref: string, bar: NavItem[] = items) {
   const onNavigate = vi.fn();
   render(
     <NextIntlClientProvider locale="es-419" messages={{ ...messages("es-419"), ...copy }} timeZone="America/Bogota">
-      <ModuleBar items={items} showHome={false} activeHref={activeHref} onNavigate={onNavigate} />
+      <ModuleBar items={bar} showHome={false} activeHref={activeHref} onNavigate={onNavigate} />
     </NextIntlClientProvider>,
   );
   return { onNavigate };
@@ -110,6 +110,31 @@ describe("module-bar links and overflow (UX-OD-1, T5)", () => {
       fireEvent.click(more);
       const entries = within(screen.getByRole("menu")).getAllByRole("menuitem").map((b) => b.textContent);
       expect(entries).toEqual(["Plan de cuentas", "Centros de costo", "Auxiliares abiertos", "Ítems", "Unidades de negocio", "Fuentes"]);
+    } finally {
+      offset.mockRestore();
+      client.mockRestore();
+    }
+  });
+
+  it("an empty menu section moved into Más shows its name and the empty state instead of vanishing (spec §9.2, m6)", () => {
+    const widths: Record<string, number> = { Comprobantes: 120, Maestros: 100, Documentos: 100, Más: 60 };
+    const offset = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return widths[this.textContent?.trim() ?? ""] ?? 0;
+    });
+    const client = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (this: HTMLElement) {
+      return this.tagName === "NAV" ? 200 : 0;
+    });
+    try {
+      const documentos: NavItem = { id: "acc.documentos", label: "nav.section.documentos", href: "#", icon: "file", section: "documentos", children: [] };
+      setup("/accounting/vouchers", [...items, documentos]);
+      fireEvent.click(screen.getByRole("button", { name: /Más/ }));
+      const menu = screen.getByRole("menu");
+      expect(within(menu).getAllByRole("menuitem")).toHaveLength(LEAVES.length);
+      const section = within(menu).getByRole("group", { name: "Documentos" });
+      expect(within(section).getByText("Documentos")).toBeTruthy();
+      expect(within(section).getByText("Aún no hay elementos en esta sección")).toBeTruthy();
+      // In the bar's order: Maestros' entries, then Documentos.
+      expect(menu.lastElementChild).toBe(section);
     } finally {
       offset.mockRestore();
       client.mockRestore();

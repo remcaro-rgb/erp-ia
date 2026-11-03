@@ -42,4 +42,4 @@ Sus pestañas: **Datos**, **Resultados** (ingresos, gastos y resultado por perí
 
 ## Desactivar
 
-En **Datos**, quita **Activo**. Deja de ofrecerse en las líneas nuevas, pero conserva su historia.
+En **Datos**, quita **Activo**. Deja de ofrecerse en las líneas nuevas, pero conserva su historia. Un centro que ya se usó en un comprobante o una plantilla, o que tiene hijos, no se elimina: se desactiva. Si en **Parámetros** se exige aprobación para los centros de costo, uno nuevo queda **Pendiente de Aprobación** y no se puede usar en comprobantes hasta que lo aprueben.

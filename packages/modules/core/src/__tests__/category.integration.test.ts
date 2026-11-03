@@ -32,8 +32,9 @@ describe("core product categories", () => {
   });
 
   it("creates, consults and updates a category; the name is unique per company", async () => {
-    const [row] = await sql`select seq, name, iva_rate, default_uom, income_account, status from core.product_categories where id = ${cafeId}`;
-    expect(row).toMatchObject({ name: "Café", iva_rate: "5", default_uom: "KGM", income_account: "413524", status: "active" });
+    const [row] = await sql`select seq, name, iva_rate, default_uom, income_account, status, is_active from core.product_categories where id = ${cafeId}`;
+    // Activo is is_active; status is the lifecycle state (a new category is Grabado, entity types spec §10.2).
+    expect(row).toMatchObject({ name: "Café", iva_rate: "5", default_uom: "KGM", income_account: "413524", status: "saved", is_active: true });
     expect(Number(row!.seq)).toBeGreaterThan(0);
     await expect(runProcess(deps, admin, "core.category.create", { name: "Café", ivaRate: "19" })).rejects.toMatchObject({ code: "invalid_input" });
     // Names are unique without regard to case, on create and on rename.
@@ -76,8 +77,8 @@ describe("core product categories", () => {
     await runProcess(deps, admin, "core.category.update", { id: cafeId, ivaRate: "19" });
     const [row] = await sql`select iva_rate from core.products where id = ${out.id}`;
     expect(row!.iva_rate).toBe("5");
-    await runProcess(deps, admin, "core.category.update", { id: cafeId, ivaRate: "5", status: "inactive" });
+    await runProcess(deps, admin, "core.category.update", { id: cafeId, ivaRate: "5", isActive: false });
     await expect(runProcess(deps, admin, "core.product.create", product("CAT-6", { categoryId: cafeId }))).rejects.toMatchObject({ code: "invalid_input" });
-    await runProcess(deps, admin, "core.category.update", { id: cafeId, status: "active" });
+    await runProcess(deps, admin, "core.category.update", { id: cafeId, isActive: true });
   });
 });

@@ -71,14 +71,14 @@ describe("invoice readiness per account (rule 10)", () => {
       { accountCode: "111005", debit: 0, credit: 100 },
     ];
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft(lines));
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
     const [row] = await h.sql<{ status: string }[]>`select status from accounting.entries where id = ${id}`;
     expect(row!.status).toBe("posted");
   });
 
   it("a party that is invoice-ready drafts and posts on a flagged account", async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft(receivable(ready)));
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
     const [row] = await h.sql<{ status: string }[]>`select status from accounting.entries where id = ${id}`;
     expect(row!.status).toBe("posted");
   });

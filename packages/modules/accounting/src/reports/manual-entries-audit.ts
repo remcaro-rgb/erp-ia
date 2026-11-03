@@ -54,7 +54,7 @@ export const manualEntriesAuditConsult = defineProcess({
       left join kernel.v_users cu on cu.id = e.created_by
       left join kernel.v_users su on su.id = e.submitted_by
       left join kernel.v_users pu on pu.id = e.posted_by
-      where e.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.origin <> 'auto' and e.date between ${p.from}::date and ${p.to}::date
+      where e.company_id = ${ctx.companyId} and e.status = 'posted' and e.origin <> 'auto' and e.date between ${p.from}::date and ${p.to}::date
       order by e.date, e.number`;
     const flagged = rows.filter((r) => r.round_amount || r.posted_after_close).length;
     return windowOf(rows, state, { totals: ["amount"], extra: { flagged, roundThreshold: p.roundThreshold } });

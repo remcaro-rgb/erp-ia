@@ -3,8 +3,8 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
-// The application shell in a real browser (design §19a, rule 19, prototype v5): navy top bar with the module and
-// its items, the tinted tabs band, ⌘K, the theme saved per user and the tabs kept across reloads. The user is a
+// The application shell in a real browser (design §19a, §22.24, rule 19, shell v7): navy top bar, the side menu of module names, the
+// items bar of the module's sections, the tinted tabs band, ⌘K, the theme saved per user and the tabs kept across reloads. The user is a
 // real Auth user whose company is entitled to the core module and whose role may read parties and products.
 
 const SCREENSHOTS = "e2e/__screenshots__";
@@ -48,10 +48,23 @@ test.describe("application shell", () => {
     await expect(bar).toBeVisible();
     await expect(bar).toHaveCSS("background-color", "rgb(30, 58, 138)");
     await expect(bar.getByRole("button", { name: /Auth company 0/ })).toBeVisible();
-    await expect(bar.getByRole("button", { name: /^Núcleo/ })).toHaveAttribute("title", "Módulos");
-    const items = bar.getByRole("navigation", { name: "Menú del módulo" }).getByRole("link");
-    await expect(items).toHaveText(["Inicio", "Terceros", "Productos", "Categorías"]);
+    // Shell v7 (design §22.24, rule 19): the left side menu lists the module names only; the module's sections sit in the items bar.
+    const side = page.getByRole("complementary", { name: "Menú de módulos" }).getByRole("navigation", { name: "Módulos" });
+    await expect(side.getByRole("button")).toHaveAccessibleName("Núcleo");
+    await expect(side.getByRole("link")).toHaveCount(0);
+    // Entity types spec §2.4: the module's level-1 items are Maestros, Documentos, Reportes and Parámetros; Terceros, Productos and
+    // Categorías sit under Maestros, and an empty section says so.
+    const moduleBar = page.getByRole("navigation", { name: "Menú del módulo" });
+    const items = moduleBar.getByRole("link");
+    await expect(items).toHaveText(["Inicio"]);
     await expect(items.first()).toHaveAttribute("aria-current", "page");
+    await expect(moduleBar.getByRole("button")).toHaveText(["Maestros", "Documentos", "Reportes", "Parámetros"]);
+    await moduleBar.getByRole("button", { name: "Maestros", exact: true }).click();
+    await expect(page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem")).toHaveText(["Terceros", "Productos", "Categorías"]);
+    await page.keyboard.press("Escape");
+    await moduleBar.getByRole("button", { name: "Documentos", exact: true }).click();
+    await expect(page.getByRole("menu", { name: "Documentos" })).toHaveText("Aún no hay elementos en esta sección");
+    await page.keyboard.press("Escape");
 
     // Tabs band under the bar, tinted; Inicio active and not closable.
     const tabs = page.getByRole("navigation", { name: "Pestañas abiertas" });
@@ -116,5 +129,37 @@ test.describe("application shell", () => {
 
     // No hydration mismatch or React warning on the way (the record page's own 404 is expected).
     expect(problems.filter((text) => !/404 \(Not Found\)/.test(text))).toEqual([]);
+  });
+
+  test("shell v7: the side menu and a section navigate; the rail collapses, is remembered, and starts collapsed under 1440 px", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, fixture);
+    const rail = page.getByRole("complementary", { name: "Menú de módulos" });
+    await expect(rail).toBeVisible();
+    expect((await rail.boundingBox())!.width).toBeCloseTo(232, 0);
+    await rail.getByRole("button", { name: "Núcleo" }).click();
+    await expect(page).toHaveURL(/\/parties$/);
+    await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Maestros", exact: true }).click();
+    await page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem", { name: "Productos" }).click();
+    await expect(page).toHaveURL(/\/products$/);
+
+    const collapse = rail.getByRole("button", { name: "Contraer menú" });
+    await expect(collapse).toHaveAttribute("aria-expanded", "true");
+    await collapse.click();
+    await expect(rail.getByRole("button", { name: "Expandir menú" })).toHaveAttribute("aria-expanded", "false");
+    await expect.poll(async () => (await rail.boundingBox())!.width).toBeCloseTo(60, 0);
+    await page.reload();
+    await expect(rail.getByRole("button", { name: "Expandir menú" })).toHaveAttribute("aria-expanded", "false");
+    await rail.getByRole("button", { name: "Expandir menú" }).click();
+    await expect(rail.getByRole("button", { name: "Contraer menú" })).toBeVisible();
+
+    // Nothing saved: collapsed under 1440 px.
+    await page.evaluate(() => {
+      for (const key of Object.keys(localStorage)) if (key.startsWith("erp.shell.side_menu.")) localStorage.removeItem(key);
+    });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.reload();
+    await expect(rail.getByRole("button", { name: "Expandir menú" })).toHaveAttribute("aria-expanded", "false");
+    expect((await rail.boundingBox())!.width).toBeCloseTo(60, 0);
   });
 });

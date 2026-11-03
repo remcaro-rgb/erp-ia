@@ -1,4 +1,4 @@
-import { Box, Building2, Check, Circle, Eye, File, History, LayoutGrid, LifeBuoy, List, Lock, Package, Shield, Sparkles, Tags, Upload, Users, type LucideIcon } from "lucide-react";
+import { Box, Building2, Check, Circle, Eye, File, History, LayoutGrid, LifeBuoy, List, Lock, Mail, Package, Shield, Sparkles, Tags, Upload, Users, type LucideIcon } from "lucide-react";
 
 /** The icon names a manifest's `NavItem.icon` may use, by their lucide component; any other name shows a plain dot. */
 const NAV_ICONS: Record<string, LucideIcon> = {
@@ -12,6 +12,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "life-buoy": LifeBuoy,
   list: List,
   lock: Lock,
+  mail: Mail,
   package: Package,
   shield: Shield,
   sparkles: Sparkles,

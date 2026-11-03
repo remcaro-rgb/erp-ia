@@ -120,3 +120,11 @@ export async function deflatedZeros(size: number): Promise<Uint8Array> {
   await done;
   return new Uint8Array(Buffer.concat(parts));
 }
+
+/** An XLSX workbook with `sheets` in order, each a list of rows (the first is the header): import files for the integration suites. */
+export async function xlsxBook(sheets: { name: string; rows: unknown[][] }[]): Promise<Uint8Array> {
+  const { default: ExcelJS } = await import("exceljs");
+  const book = new ExcelJS.Workbook();
+  for (const sheet of sheets) book.addWorksheet(sheet.name).addRows(sheet.rows);
+  return new Uint8Array(await book.xlsx.writeBuffer());
+}

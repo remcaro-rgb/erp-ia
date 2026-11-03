@@ -6,10 +6,10 @@ import { loadModules } from "../module/loader";
 import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
 import { defineEntity, Registry } from "../registry";
-import { importColumns, importTarget } from "../import/columns";
+import { importColumns, importLines, importTarget } from "../import/columns";
 import { describeFailure, errorsCsv } from "../import/errors-csv";
-import { inFileDuplicates, mapSheet } from "../import/map";
-import { decodeText, ImportFileError, MAX_IMPORT_ROWS, parseCsv, parseImportFile } from "../import/parse";
+import { inFileDuplicates, mapDocuments, mapSheet } from "../import/map";
+import { decodeText, ImportFileError, MAX_IMPORT_ROWS, parseCsv, parseImportBook, parseImportFile } from "../import/parse";
 import { MAX_XLSX_UNCOMPRESSED_BYTES, readZipParts } from "../import/zip";
 import { buildTemplate } from "../import/template";
 import { buildZip, deflatedZeros, forgedZip, partOf } from "../import/zip-fixtures";
@@ -18,7 +18,7 @@ import { buildZip, deflatedZeros, forgedZip, partOf } from "../import/zip-fixtur
 // the CSV / XLSX reader, the header mapping with typed coercion and errores.csv.
 
 const gadget = defineEntity({
-  id: "gadgets.gadget",
+  entityType: "maestro", id: "gadgets.gadget",
   module: "gadgets",
   schema: "gadgets",
   table: "gadgets",
@@ -35,7 +35,7 @@ const gadget = defineEntity({
   ],
 });
 const maker = defineEntity({
-  id: "gadgets.maker",
+  entityType: "maestro", id: "gadgets.maker",
   module: "gadgets",
   schema: "gadgets",
   table: "makers",
@@ -371,5 +371,173 @@ describe("import failures", () => {
   it("errores.csv keeps cells that start like a formula as text", () => {
     const csv = text(errorsCsv(["Nombre", "Nota"], [{ rowNo: 2, errors: ["x"], raw: { Nombre: "=HYPERLINK(\"http://x\")", Nota: "@SUM(A1)" } }, { rowNo: 3, errors: ["-1"], raw: { Nombre: "+57", Nota: "ok" } }]));
     expect(csv.slice(1).split("\r\n").slice(1, 3)).toEqual(['2;x;"\'=HYPERLINK(""http://x"")";\'@SUM(A1)', "3;'-1;'+57;ok"]);
+  });
+});
+
+// Documentos (entity types spec 2026-11-02 §2.5, D14; Phase 2A.5 Task 13): a header sheet and a lines sheet joined by the file's
+// `ref` column. The header columns are the create process's input without its lines array, after `ref`; the lines sheet's columns
+// are the keys of one element of that array, after `ref`. Each document is one record whose input carries its lines.
+
+const order = defineEntity({
+  entityType: "documento", id: "gadgets.order", module: "gadgets", schema: "gadgets", table: "orders", label: "entity.gadgets.order",
+  typed: { numbering: "none", lines: { entity: "gadgets.order_line", parentField: "order_id" } },
+  displayField: "name", defaultSort: { field: "name", dir: "asc" },
+  fields: [
+    { name: "name", type: "text", label: "field.gadgets.order.name" },
+    { name: "maker_id", type: "ref", label: "field.gadgets.order.maker_id", ref: { entity: "gadgets.maker", display: "name" } },
+  ],
+});
+const orderLine = defineEntity({
+  entityType: "lines", id: "gadgets.order_line", module: "gadgets", schema: "gadgets", table: "order_lines", label: "entity.gadgets.order_line",
+  displayField: "description", defaultSort: { field: "description", dir: "asc" },
+  fields: [
+    { name: "order_id", type: "uuid", label: "field.gadgets.order_line.order_id" },
+    { name: "description", type: "text", label: "field.gadgets.order_line.description" },
+    { name: "qty", type: "number", label: "field.gadgets.order_line.qty" },
+    { name: "maker_id", type: "ref", label: "field.gadgets.order_line.maker_id", ref: { entity: "gadgets.maker", display: "name" } },
+  ],
+});
+const orderCreate = defineProcess({
+  id: "gadgets.order.create", module: "gadgets", kind: "create", description: "crea",
+  input: z.object({
+    name: z.string().trim().min(1),
+    makerId: z.uuid().nullable().optional(),
+    // An array of objects that is not the lines (Datos adicionales libres, every entity process takes it): never the lines (C1).
+    extraFree: z.array(z.object({ name: z.string(), value: z.string() })).optional(),
+    lines: z.array(z.object({ description: z.string().min(1), qty: z.number().positive(), makerId: z.uuid().nullable().optional() }).strict()).min(1),
+    // Another array of objects whose keys are not fields of the lines entity.
+    approvers: z.array(z.object({ person: z.string() })).optional(),
+    extra: z.record(z.string(), z.unknown()).optional(),
+  }),
+  output: z.object({ id: z.string() }),
+  handler: async () => ({ id: "x" }),
+});
+
+function orderRegistry(): Registry {
+  const registry = new Registry();
+  loadModules(registry, [
+    defineModule({
+      id: "gadgets", version: "1", dependsOn: [], entities: [gadget, maker, order, orderLine], processes: [gadgetCreate, makerAdd, orderCreate],
+      features: [], events: { emits: [], consumes: {} }, navigation: [],
+    }),
+  ]);
+  return registry;
+}
+
+const ORDER_LABELS = { ref: "ref", name: "Nombre", makerId: "Fabricante", approvers: "Aprobadores", "lines.description": "Descripción", "lines.qty": "Cantidad", "lines.makerId": "Fabricante de la línea" };
+
+describe("documento import: header + lines joined by ref (Task 13)", () => {
+  it("the header columns lead with ref and leave out the lines array; the line columns are one line's keys after ref", () => {
+    const registry = orderRegistry();
+    expect(importColumns(registry, "gadgets.order").map((c) => c.key)).toEqual(["ref", "name", "makerId", "approvers"]);
+    // Another array of objects that names no line field stays a header column; the Datos adicionales arrays never count.
+    expect(importColumns(registry, "gadgets.order")[0]).toMatchObject({ key: "ref", field: "ref", type: "text", required: true, label: "field.kernel.import.ref" });
+    const lines = importLines(registry, "gadgets.order")!;
+    expect(lines).toMatchObject({ key: "lines", entity: "gadgets.order_line" });
+    expect(lines.columns.map((c) => c.key)).toEqual(["ref", "description", "qty", "makerId"]);
+    expect(lines.columns.find((c) => c.key === "qty")).toMatchObject({ type: "number", required: true, label: "field.gadgets.order_line.qty" });
+    expect(lines.columns.find((c) => c.key === "makerId")).toMatchObject({ type: "ref", ref: { entity: "gadgets.maker", display: "name" } });
+    // A maestro has no lines layout and no ref column.
+    expect(importLines(registry, "gadgets.gadget")).toBeNull();
+    expect(importColumns(registry, "gadgets.gadget").map((c) => c.key)).not.toContain("ref");
+  });
+
+  it("the XLSX template has the header sheet and the Líneas sheet, both with ref; a CSV template is refused (one sheet cannot hold both)", async () => {
+    const template = await buildTemplate(orderRegistry(), "gadgets.order", "xlsx", { labels: ORDER_LABELS });
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(template.bytes as unknown as ArrayBuffer);
+    const visible = book.worksheets.filter((s) => s.state === "visible");
+    expect(visible.map((s) => s.name)).toEqual(["Datos", "Líneas"]);
+    expect((visible[0]!.getRow(1).values as unknown[]).slice(1)).toEqual(["ref", "Nombre", "Fabricante", "Aprobadores"]);
+    expect((visible[1]!.getRow(1).values as unknown[]).slice(1)).toEqual(["ref", "Descripción", "Cantidad", "Fabricante de la línea"]);
+    const read = await parseImportBook(template.bytes, template.fileName);
+    expect(read.header.headers).toEqual(["ref", "Nombre", "Fabricante", "Aprobadores"]);
+    expect(read.lines?.headers).toEqual(["ref", "Descripción", "Cantidad", "Fabricante de la línea"]);
+    await expect(buildTemplate(orderRegistry(), "gadgets.order", "csv", { labels: ORDER_LABELS })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("joins each header row to its lines by ref: one record per document, line cell errors named by their Líneas row", () => {
+    const registry = orderRegistry();
+    const sheet = (headers: string[], ...rows: (string | number | null)[][]) => ({ headers, rows: rows.map((cells, i) => ({ rowNo: i + 2, cells })) });
+    const mapped = mapDocuments(
+      importColumns(registry, "gadgets.order"),
+      importLines(registry, "gadgets.order")!,
+      {
+        header: sheet(["ref", "Nombre"], ["A", "Pedido A"], ["B", "Pedido B"], ["", "Sin ref"], ["D", "Repetido 1"], ["d", "Repetido 2"], ["E", "Sin líneas"]),
+        lines: sheet(["ref", "Descripción", "Cantidad"], ["A", "Uno", 1], ["B", "Dos", "abc"], [" A ", "Tres", 3], ["Z", "Huérfana", 1], ["D", "De cuál", 1]),
+      },
+      ORDER_LABELS,
+    );
+    const [a, b, none, d1, d2, empty] = mapped.records;
+    expect(mapped.records).toHaveLength(6);
+    expect(a).toMatchObject({ rowNo: 2, errors: [], input: { name: "Pedido A", lines: [{ description: "Uno", qty: 1 }, { description: "Tres", qty: 3 }] }, lineRows: [2, 4] });
+    expect(a!.input).not.toHaveProperty("ref");
+    // The line cells travel with their document for errores.csv.
+    expect(a!.lines?.map((l) => l.raw.Descripción)).toEqual(["Uno", "Tres"]);
+    expect(b!.errors).toEqual(["Líneas, fila 3: Cantidad: «abc» no es un número"]);
+    expect(none!.errors).toEqual(["ref: obligatorio"]);
+    // I1: header rows sharing a ref are all refused, the first included: the file does not say which lines are whose.
+    expect(d1!.errors).toEqual(["ref: repetido en el archivo (filas 5, 6)"]);
+    expect(d2!.errors).toEqual(["ref: repetido en el archivo (filas 5, 6)"]);
+    expect(d1!.input.lines).toEqual([]);
+    // m3: a document without lines is refused.
+    expect(empty!.errors).toEqual(["El documento no tiene líneas"]);
+    // m2: a line whose ref names no header row is a line error of its own, not a refused document.
+    expect(mapped.lineFailures).toEqual([{ rowNo: 5, errors: ["ref «Z» no corresponde a ningún encabezado"], raw: { ref: "Z", Descripción: "Huérfana", Cantidad: "1" } }]);
+    expect(mapped.lineHeaders).toEqual(["ref", "Descripción", "Cantidad"]);
+    expect(mapped.missingColumns).toEqual([]);
+  });
+
+  it("a document without lines takes its refusal from the catalogue when one is given", () => {
+    const registry = orderRegistry();
+    const sheet = (headers: string[], ...rows: string[][]) => ({ headers, rows: rows.map((cells, i) => ({ rowNo: i + 2, cells })) });
+    const mapped = mapDocuments(importColumns(registry, "gadgets.order"), importLines(registry, "gadgets.order")!, { header: sheet(["ref", "Nombre"], ["A", "X"]), lines: sheet(["ref", "Descripción"]) }, ORDER_LABELS, (key) =>
+      key === "grid.import.document_without_lines" ? "The document has no lines" : undefined,
+    );
+    expect(mapped.records[0]!.errors).toEqual(["The document has no lines"]);
+  });
+
+  it("errores.csv of a documento: rows named with their sheet, the header's cells and then each line's cells; orphan lines too (m1)", () => {
+    const csv = text(
+      errorsCsv(["ref", "Nombre"], [
+        { rowNo: 3, errors: ["Líneas, fila 4: Cantidad: debe ser mayor que 0"], raw: { ref: "B", Nombre: "Pedido B" }, lines: [{ rowNo: 4, raw: { ref: "B", Cantidad: "0" } }] },
+      ], { sheet: "Datos", lineSheet: "Líneas", lineHeaders: ["ref", "Cantidad"], lineFailures: [{ rowNo: 7, errors: ["ref «Z» no corresponde a ningún encabezado"], raw: { ref: "Z", Cantidad: "1" } }] }),
+    );
+    expect(csv.slice(1).split("\r\n")).toEqual([
+      "fila;error;ref;Nombre;ref;Cantidad",
+      "Datos 3;Líneas, fila 4: Cantidad: debe ser mayor que 0;B;Pedido B;;",
+      "Líneas 4;;;;B;0",
+      "Líneas 7;ref «Z» no corresponde a ningún encabezado;;;Z;1",
+      "",
+    ]);
+  });
+
+  it("an issue on the lines array itself is named Líneas, not by its input key (m6)", () => {
+    const registry = orderRegistry();
+    const issues = orderCreate.input.safeParse({ name: "X", lines: [] }).error!.issues;
+    const error = new ProcessError("invalid_input", "x", { details: issues });
+    expect(describeFailure(error, importColumns(registry, "gadgets.order"), ORDER_LABELS, { lines: [] }, { layout: importLines(registry, "gadgets.order")!, rowNos: [] })).toEqual(["Líneas: al menos 1 valor(es)"]);
+  });
+
+  it("names a refused line by its Líneas row and its column label", () => {
+    const registry = orderRegistry();
+    const issues = orderCreate.input.safeParse({ name: "X", lines: [{ description: "ok", qty: 1 }, { description: "", qty: 0 }] }).error!.issues;
+    const error = new ProcessError("invalid_input", "x", { details: issues });
+    const lines = { layout: importLines(registry, "gadgets.order")!, rowNos: [7, 9] };
+    expect(describeFailure(error, importColumns(registry, "gadgets.order"), ORDER_LABELS, {}, lines)).toEqual([
+      "Líneas, fila 9: Descripción: obligatorio",
+      "Líneas, fila 9: Cantidad: debe ser mayor que 0",
+    ]);
+  });
+});
+
+describe("import sheets (m5)", () => {
+  it("a maestro's file is read from its first visible sheet, as a documento's header is", async () => {
+    const book = new ExcelJS.Workbook();
+    book.addWorksheet("Oculta", { state: "hidden" }).addRows([["x"], ["no"]]);
+    book.addWorksheet("Datos").addRows([["Nombre"], ["Uno"]]);
+    const bytes = new Uint8Array(await book.xlsx.writeBuffer());
+    expect((await parseImportFile(bytes, "a.xlsx")).rows.map((r) => r.cells)).toEqual([["Uno"]]);
+    expect((await parseImportBook(bytes, "a.xlsx")).header.rows.map((r) => r.cells)).toEqual([["Uno"]]);
   });
 });

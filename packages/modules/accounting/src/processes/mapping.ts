@@ -30,6 +30,7 @@ export const accountRoleMappingUpdate = defineProcess({
   id: "accounting.account_role_mapping.update",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Cambia a qué cuenta va cada rol contable (opcionalmente por dimensión, como tax:IVA19 o category:<id>); una cuenta nula quita el mapeo",

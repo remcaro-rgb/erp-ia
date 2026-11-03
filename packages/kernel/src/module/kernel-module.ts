@@ -18,6 +18,12 @@ import { HOME_FEATURE, HOME_PROCESSES, KERNEL_KPI_PROVIDERS } from "../home";
 import { AUDIT_FEATURE, AUDIT_PROCESSES, auditEntity } from "../audit/viewer";
 import { USER_PROCESSES, USERS_FEATURE, userEntity } from "../users/entity";
 import { USER_MFA_PROCESSES } from "../users/mfa";
+import { TYPED_SETTINGS_PROCESSES } from "../typed/settings.processes";
+import { RECORD_ACCESS_PROCESSES } from "../typed/access.processes";
+import { MENU_ACCESS_PROCESSES } from "../typed/menu-access.processes";
+import { DOC_TEMPLATE_ADMIN_PROCESSES, DOC_TEMPLATE_FEATURE, DOC_TEMPLATE_PROCESSES, docTemplatePrint } from "../templates/processes";
+import { docTemplateEntity } from "../templates/schema";
+import { NOTIFY_FEATURE, NOTIFY_PROCESSES } from "../typed/notify";
 
 /**
  * The kernel as a module, so its processes are registered, audited and permissioned like any other.
@@ -27,8 +33,8 @@ export const kernelModule: ModuleDef = defineModule({
   id: "kernel",
   version: "0.1.0",
   dependsOn: [],
-  entities: [importEntity, exportJobEntity, auditEntity, userEntity],
-  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES],
+  entities: [importEntity, exportJobEntity, auditEntity, userEntity, docTemplateEntity],
+  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_PROCESSES, ...NOTIFY_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES],
   features: [
     {
       id: "kernel.attachments",
@@ -99,7 +105,21 @@ export const kernelModule: ModuleDef = defineModule({
     {
       id: ADMIN_FEATURE,
       label: "feature.kernel.admin",
-      processes: ADMIN_PROCESSES.map((p) => p.id),
+      processes: [...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_ADMIN_PROCESSES].map((p) => p.id),
+      entities: [],
+    },
+    {
+      // Printing with the PDF templates: every maestro and documento prints (the templates are configured under kernel.admin).
+      id: DOC_TEMPLATE_FEATURE,
+      label: "feature.kernel.doc_templates",
+      processes: [docTemplatePrint.id],
+      entities: [docTemplateEntity.id],
+    },
+    {
+      // Notificar: e-mails a record's PDF from its record frame (every maestro and documento); the state lists are kernel.admin settings.
+      id: NOTIFY_FEATURE,
+      label: "feature.kernel.notifications",
+      processes: NOTIFY_PROCESSES.map((p) => p.id),
       entities: [],
     },
     {
@@ -117,5 +137,10 @@ export const kernelModule: ModuleDef = defineModule({
   ],
   events: { emits: [], consumes: {} },
   navigation: ADMIN_NAVIGATION,
+  // Menu access (spec §9.2): printing is shared by every entity (each maestro and documento prints; a print of an entity whose menu item
+  // is hidden is refused by that entity's consult, kernel.can_run_process). Saving templates and choosing the default are company-admin
+  // settings, which menu rules never narrow (D12); their screen is in KERNEL_PARAMETER_PAGES (Task 16). Notificar is shared the same
+  // way: it prints the record as the caller (renderPrint), so a record of an entity whose menu item is hidden is refused by its consult.
+  menuShared: ["kernel.doc_template.", "kernel.record.notify"],
   homeKpis: KERNEL_KPI_PROVIDERS,
 });

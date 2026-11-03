@@ -7,6 +7,11 @@ processes:
   - core.product.update
   - core.product.deactivate
   - core.product.consult
+  - core.product.save
+  - core.product.submit
+  - core.product.approve
+  - core.product.reject
+  - core.product.delete
   - kernel.attachment.reorder
   - kernel.ai.image_suggest
 ---
@@ -15,11 +20,11 @@ processes:
 
 **Productos** es el catálogo de lo que vendes y compras, bienes y servicios. Cada producto lleva los datos que la factura electrónica de la DIAN pide por línea (código estándar, unidad de medida, impuestos), además de precio, costo e inventario.
 
-Entra desde **Núcleo › Productos**, o con **⌘K** escribiendo «producto».
+Entra desde **Núcleo › Maestros › Productos**, o con **⌘K** escribiendo «producto».
 
 ## El listado
 
-Al comienzo muestra N.º, SKU, Descripción, Tipo de producto, Categoría, Código estándar, Unidad, Tarifa de IVA, Precio de lista, Costo estándar, Estado DIAN, Listo para facturar y Activo. Ordenar, filtrar, elegir columnas, guardar vistas y exportar funcionan como en todos los listados (guía **Listados**). **Importar** carga muchos productos desde Excel o CSV (guía **Importar datos**). Haz clic en una fila para abrir el producto en su propia pestaña.
+Al comienzo muestra ID, SKU, Descripción, Tipo de producto, Categoría, Código estándar, Unidad, Tarifa de IVA, Precio de lista, Costo estándar, Estado DIAN, Listo para facturar y Activo. Ordenar, filtrar, elegir columnas, guardar vistas y exportar funcionan como en todos los listados (guía **Listados**). **Importar** carga muchos productos desde Excel o CSV (guía **Importar datos**). Haz clic en una fila para abrir el producto en su propia pestaña.
 
 ## Crear un producto
 
@@ -65,6 +70,16 @@ La pestaña **Fotos** de un producto guardado es un carrusel con miniaturas. La 
 Pulsa **✨ Sugerir foto con IA** (permiso **Sugerir foto con IA**, `kernel.ai.image_suggest`, y poder actualizar el producto). El sistema genera una imagen a partir de la descripción, la unidad y la categoría del producto y la agrega al final, con la etiqueta «Foto · IA» y la insignia «sugerida por IA». En esta primera versión la imagen es una ilustración sencilla con las iniciales del producto; la generación con un modelo de imágenes llegará en una fase posterior con el mismo botón. Cada vez que lo pulsas se agrega una sugerencia nueva. Al subir, quitar, ordenar o sugerir una foto, el registro se actualiza solo: el pie, la lista de archivos obligatorios y la pestaña **Archivos** reflejan el cambio. Quitar fotos requiere el permiso de quitar archivos; sin él no ves el botón **Quitar**.
 
 Una foto sugerida **no cuenta como aprobada** hasta que la hagas principal: al pulsar **Hacer principal** en ella, la insignia pasa a «principal · subida» y deja de ser una sugerencia. Si no te sirve, quítala con **Quitar**. Cada sugerencia queda en la auditoría con el proceso `kernel.ai.image_suggest` y el usuario que la pidió.
+
+## Estados, aprobación, impresión y acceso
+
+Los productos son un **maestro** (guía [Maestros y documentos](maestros-y-documentos.md)):
+
+- Cada un producto tiene un **ID** consecutivo que nunca se repite; búscalo en la columna **ID** del listado o escribiéndolo en **⌘K**.
+- La barra de acciones del registro tiene **Nuevo**, **Duplicar**, **Imprimir** (el PDF del registro, guía [Plantillas PDF e Imprimir](plantillas-pdf.md)) y **Guardar**. Si el administrador activó **Requiere aprobación** en **Parámetros › Configuración de tipos**, aparece también **Guardar y enviar a aprobación**, y quien tiene el permiso ve **Aprobar** y **No aprobar**.
+- Un maestro se puede usar en documentos cuando está **Activo** y aprobado (o grabado, si no requiere aprobación). Para dejar de usarlo, cambia **Activo** a «No»; **Eliminar** solo funciona si nada lo usa.
+- El pie dice **Creado en … por …** y **Modificado en … por …**. Los maestros no tienen **Notificar** ni **Versiones**: sus cambios quedan en la auditoría.
+- Un administrador puede restringir un producto concreto a ciertos roles o usuarios en la pestaña **Acceso** (guía [Acceso por registro](acceso-por-registro.md)).
 
 ## Estado DIAN y «Listo para facturar»
 

@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { defineEntity, maskedViewSql } from "@erp/kernel";
-import { LEDGER_ENTITIES, MASTER_ENTITIES, ledgerLineEntity } from "../entities";
+import { defineEntity, isTypedEntity, maskedViewSql } from "@erp/kernel";
+import { ACCOUNTING_ENTITIES, LEDGER_ENTITIES, MASTER_ENTITIES, ledgerLineEntity } from "../entities";
 
 const read = (name: string) => readFileSync(new URL(`../../../../../supabase/migrations/${name}`, import.meta.url), "utf8");
 const masters = read("0031_accounting_masters.sql");
 const ledger = read("0032_accounting_ledger.sql");
 const views = read("0033_accounting_views.sql");
-const figures = read("0036_accounting_period_figures.sql");
 const accountView = read("0039_accounting_account_view_invoice_ready.sql");
+const typedViews = read("0043_accounting_entries_typed.sql");
 
 // The masked views are pasted into the migrations from maskedViewSql (rule 14). This guards against drift between the entity
 // definitions and the SQL: the generated column list must appear verbatim. Views that add a filter (the account security of
@@ -25,12 +25,12 @@ function check(migration: string, entities: typeof MASTER_ENTITIES) {
   }
 }
 
-// The account view is created again by migration 0039 (the column order changed), so its generated text lives there.
-const NOT_ACCOUNT = MASTER_ENTITIES.filter((e) => e.id !== "accounting.account");
+// The maestros and the comprobante get their views again in 0043 (the lifecycle columns appended), so their generated text lives there.
+const NOT_TYPED = MASTER_ENTITIES.filter((e) => !isTypedEntity(e));
 
-describe("accounting masked views, migration 0031 (masters)", () => check(masters, NOT_ACCOUNT));
+describe("accounting masked views, migration 0031 (masters)", () => check(masters, NOT_TYPED));
 
-describe("accounting masked views, migration 0032 (ledger)", () => check(ledger, LEDGER_ENTITIES));
+describe("accounting masked views, migration 0032 (ledger)", () => check(ledger, LEDGER_ENTITIES.filter((e) => !isTypedEntity(e))));
 
 describe("the accounts view", () => {
   it("adds the account security filter of design §5.13", () => {
@@ -53,27 +53,29 @@ describe("accounting views, migration 0033 (published views)", () => {
   });
 });
 
-describe("accounting masked views, migration 0036 (period figures)", () => {
-  for (const entity of NOT_ACCOUNT.filter((e) => e.fields.some((f) => f.viewExpr))) {
-    it(`accounting.v_${entity.table} gains the period_figure column of ${entity.id}`, () => {
+describe("accounting masked views, migration 0039 (account view)", () => {
+  it("v_accounts carried invoice readiness and the account security filter of design §5.13", () => {
+    expect(accountView).toContain(`'requires_invoice_ready')) then "requires_invoice_ready"`);
+    expect(accountView).toMatch(/from accounting\.accounts\s+where accounting\.can_view_account\(id\);/);
+  });
+});
+
+describe("accounting masked views, migration 0043 (typed maestros and comprobante)", () => {
+  const typed = ACCOUNTING_ENTITIES.filter(isTypedEntity);
+  it("covers the seven maestros and the comprobante", () => expect(typed).toHaveLength(8));
+  for (const entity of typed) {
+    it(`accounting.v_${entity.table} is the generated masked view of ${entity.id}, with the lifecycle columns`, () => {
       const generated = maskedViewSql(defineEntity(entity));
-      expect(figures).toContain(generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`)));
-      expect(figures).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
+      expect(typedViews).toContain(generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`)));
+      expect(typedViews).toContain(`case when (select kernel.field_visible('${entity.id}', 'status')) then "status" else null end as "status"`);
+      expect(typedViews).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
     });
   }
 
-});
-
-describe("accounting masked views, migration 0039 (account view)", () => {
-  it("accounting.v_accounts is the generated masked view of accounting.account, with invoice readiness and the period figure", () => {
-    const entity = MASTER_ENTITIES.find((e) => e.id === "accounting.account")!;
-    const generated = maskedViewSql(defineEntity(entity));
-    expect(accountView).toContain(generated.slice(0, generated.indexOf("from accounting.accounts")));
-    expect(accountView).toContain(`'requires_invoice_ready')) then "requires_invoice_ready"`);
-    expect(accountView).toContain("grant select on accounting.v_accounts to authenticated;");
-  });
-
-  it("keeps the account security filter of design §5.13 on v_accounts", () => {
-    expect(accountView).toMatch(/from accounting\.accounts\s+where accounting\.can_view_account\(id\);/);
+  it("a soft-deleted maestro leaves its view; v_accounts keeps the account security filter of design §5.13", () => {
+    expect(typedViews).toMatch(/from accounting\.accounts\s+where deleted_at is null and accounting\.can_view_account\(id\);/);
+    for (const table of ["journals", "cost_centers", "open_auxiliaries", "items", "business_units", "entry_templates"]) {
+      expect(typedViews).toMatch(new RegExp(`from accounting\\.${table}\\s+where deleted_at is null;`));
+    }
   });
 });

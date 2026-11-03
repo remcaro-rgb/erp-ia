@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { accountingHarness, type AccountingHarness } from "../../../modules/accounting/src/__tests__/helpers";
 import { buildTools } from "../tools/build";
 
-// Devolver a borrador is a write: the assistant gets the tool, answers with a confirmation card and runs nothing before the accept (rule 17).
+// No Aprobar (`accounting.entry.reject`, which replaced Devolver a borrador in Phase 2A.5 Task 8b) is a write: the assistant gets the
+// tool, answers with a confirmation card and runs nothing before the accept (rule 17).
 
 let h: AccountingHarness;
 beforeAll(async () => {
@@ -14,16 +15,17 @@ afterAll(async () => {
   await h.cleanup();
 });
 
-describe("accounting.entry.return_to_draft", () => {
-  it("return_to_draft is a write the assistant confirms (tool present, confirmation card, no run before accept)", async () => {
+describe("accounting.entry.reject", () => {
+  it("No Aprobar is a write the assistant confirms (tool present, confirmation card, no run before accept); Devolver a borrador is gone", async () => {
     const [journal] = await h.sql<{ id: string }[]>`insert into accounting.journals (company_id, code, name, kind) values (${h.companyId}, 'NC', 'Nota', 'general') returning id`;
     const [entry] = await h.sql<{ id: string }[]>`
-      insert into accounting.entries (company_id, journal_id, date, description, origin, status, created_by, submitted_by, submitted_at)
-      values (${h.companyId}, ${journal!.id}, current_date, 'Pendiente', 'manual', 'pending', ${h.auxiliar.userId}, ${h.auxiliar.userId}, now()) returning id`;
+      insert into accounting.entries (company_id, journal_id, date, description, origin, status, requires_approval, created_by, submitted_by, submitted_at)
+      values (${h.companyId}, ${journal!.id}, current_date, 'Pendiente', 'manual', 'pending', true, ${h.auxiliar.userId}, ${h.auxiliar.userId}, now()) returning id`;
     const caller = { ...h.contador, conversationId: (await h.sql<{ id: string }[]>`
       insert into kernel.agent_conversations (company_id, user_id, title) values (${h.companyId}, ${h.contador.userId}, 'Prueba') returning id`)[0]!.id };
     const tools = await buildTools(h.deps, caller, { registry: h.deps.registry });
-    const tool = tools.accounting__entry__return_to_draft;
+    expect(tools.accounting__entry__return_to_draft).toBeUndefined();
+    const tool = tools.accounting__entry__reject;
     expect(tool).toBeDefined();
     const out = (await tool!.execute!({ id: entry!.id, reason: "Falta soporte" }, { toolCallId: "c", messages: [] } as never)) as { confirmationRequired: boolean; token: string };
     expect(out.confirmationRequired).toBe(true);

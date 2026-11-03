@@ -3,7 +3,8 @@ import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { co } from "@erp/loc-co";
 import { agentModelFactory, PolicyEmbedder, setAgentModelFactory } from "@erp/agent";
-import { FakeEmbedder, getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCountryPack, registry, setHelpEmbedder, syncRegistry, type RunProcessDeps } from "@erp/kernel";
+import { translate } from "@erp/i18n";
+import { FakeEmbedder, getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCatalogue, registerCountryPack, registry, setHelpEmbedder, syncRegistry, type RunProcessDeps } from "@erp/kernel";
 import { SupabaseFileStore, type FileStore } from "@erp/infra";
 
 // Server-side wiring for route handlers: the process registry with the modules this app ships, the
@@ -15,6 +16,8 @@ export function processDeps(): RunProcessDeps {
   // The core processes validate parties and products with the company's pack (rule 5). Registered on every call:
   // the registry lives on globalThis, the pack table in its module, which a bundle may load more than once.
   registerCountryPack(co);
+  // What the kernel prints outside a screen (PDF templates: labels, page numbers) reads the app's catalogue (rule 24).
+  registerCatalogue(translate);
   installAgentModel();
   // The help search embeds questions with the model the policy table names for `embeddings` (rule 26), unless
   // something (a test) installed its own embedder. With the mock model (same opt-in, same production guard) there is no

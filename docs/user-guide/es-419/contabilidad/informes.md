@@ -16,7 +16,7 @@ processes:
 
 # Informes contables
 
-Entra por **Contabilidad › Informes**: una tarjeta por informe. Solo ves los que tu rol puede consultar.
+Entra por **Contabilidad › Reportes › Informes**: una tarjeta por informe. Solo ves los que tu rol puede consultar.
 
 ![tarjetas de Informes](img/informes-tarjetas.png)
 

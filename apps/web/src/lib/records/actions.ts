@@ -25,8 +25,8 @@ export async function saveRecordAction(entityId: string, input: Record<string, u
   const sourceRowId = creating && typeof options?.sourceRowId === "string" ? options.sourceRowId : undefined;
   try {
     if (sourceRowId) await runProcess(processDeps(), caller, entity.consult, { id: sourceRowId });
-    const { id } = (await runProcess(processDeps(), caller, process, input, sourceRowId ? { sourceRowId } : {})) as { id: string };
-    return { ok: true, id };
+    const { id, updatedAt } = (await runProcess(processDeps(), caller, process, input, sourceRowId ? { sourceRowId } : {})) as { id: string; updatedAt?: string };
+    return { ok: true, id, ...(typeof updatedAt === "string" ? { updatedAt } : {}) };
   } catch (error) {
     await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code, details: issuesOf(error.details) };

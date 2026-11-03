@@ -76,3 +76,16 @@ describe("co pack", () => {
     expect(co.locale).toBe("es-CO");
   });
 });
+
+describe("the company's tax id on a letterhead (PDF templates)", () => {
+  it("prints the NIT with its check digit, and leaves anything that is not a bare number as it is", () => {
+    expect(co.taxIdText?.("900373115")).toBe("900373115-3");
+    expect(co.taxIdText?.("800197268")).toBe("800197268-4");
+    expect(co.taxIdText?.("ABC-1")).toBe("ABC-1");
+  });
+
+  it("labels the tax id NIT, the name a Colombian document prints", () => {
+    expect(co.taxIdLabel?.("es-419")).toBe("NIT");
+    expect(co.taxIdLabel?.("en")).toBe("NIT");
+  });
+});

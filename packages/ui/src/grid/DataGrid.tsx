@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Search } from "lucide-react";
+import { Printer, Search } from "lucide-react";
 import { cn } from "@erp/ui/lib/utils";
 import { formatMoney } from "../money/format";
 import { AdvancedFilter } from "./AdvancedFilter";
@@ -91,6 +91,11 @@ export interface DataGridProps {
    * every page of what the caller is allowed to see.
    */
   onExport?: (format: ExportFormat, state: GridStateInput) => void;
+  /**
+   * Imprimir (maestros and documentos, Task 16): prints what the grid shows (the export's state: filters, sort, visible columns, every
+   * page) with the entity's list template. The button shows only when given; it answers the refusal's text, or null when it printed.
+   */
+  onPrint?: (state: GridStateInput) => Promise<string | null>;
   /** The user's saved views of the entity; "Guardar vista" shows when given. */
   savedViews?: {
     views: readonly SavedViewItem[];
@@ -112,7 +117,7 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, emptyAction, params, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, emptyAction, params, onExport, onPrint, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, params, debounceMs });
@@ -128,6 +133,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const groupFields = view.groupBy;
   const groupColumns = useMemo(() => groupableColumns(columns), [columns]);
   const [groupsOpen, setGroupsOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const heads = useMemo(() => (groupFields.length > 0 ? groupHeads(rows, groupFields, data.page?.groups) : new Map<number, GroupRow[]>()), [rows, groupFields, data.page?.groups]);
   const ancestorIds = (row: GridRow) => groupFields.map((_, i) => groupId({ level: i + 1, keys: Object.fromEntries(groupFields.slice(0, i + 1).map((f) => [f, row[f]])) }));
@@ -414,6 +421,30 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           <Search aria-hidden="true" className="erp-icon" />
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
         </button>
+        {onPrint && (
+          <button
+            type="button"
+            className="erp-btn"
+            disabled={printing}
+            onClick={async () => {
+              setPrinting(true);
+              setPrintError(null);
+              try {
+                setPrintError(await onPrint(exportState()));
+              } finally {
+                setPrinting(false);
+              }
+            }}
+          >
+            <Printer aria-hidden="true" className="erp-icon" />
+            {t("grid.print")}
+          </button>
+        )}
+        {printError && (
+          <span role="alert" className="erp-small erp-grid__print-error">
+            {printError}
+          </span>
+        )}
         <ExportButtons onExport={(format) => (onExport ? onExport(format, exportState()) : void exporter.run(format, exportState()))} busy={exporter.busy} />
         <GridStatusText status={exporter.status} refreshing={data.loading && data.page !== null} notice={notice} />
         {/* Always laid out; hidden (not removed) while there is nothing to clear, so nothing to its left moves. */}

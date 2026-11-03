@@ -5,6 +5,7 @@ import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, UnsavedProvider, type TabsSnapshot, type ThemeMode, type UnsavedState } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
+import { findRecordsById } from "@/lib/records/find-by-id";
 import { disableOwnMfaAction } from "@/lib/auth/mfa-actions";
 import { clearCloneHandoff } from "@/lib/records/clone-handoff";
 import { gridHref } from "@/lib/grid/hrefs";
@@ -98,6 +99,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
   return (
     <UnsavedProvider value={unsaved.value}>
     <AppShell
+      findRecords={findRecordsById}
       company={data.company}
       companies={data.companies}
       user={data.user}

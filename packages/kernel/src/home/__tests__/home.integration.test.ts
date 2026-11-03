@@ -31,7 +31,7 @@ const createThing = createOf("probe.thing.create", "probe");
 const createOther = createOf("other.thing.create", "other");
 
 const thing = defineEntity({
-  id: "probe.thing",
+  entityType: "maestro", id: "probe.thing",
   module: "probe",
   schema: "probe",
   table: "things",

@@ -1,4 +1,5 @@
 import { ProcessError } from "../process/errors";
+import { assertRecordRight } from "../process/run";
 import type { ProcessContext } from "../process/context";
 import type { ResolvedEntityDef } from "../registry/entities";
 import type { RequiredKind } from "./required";
@@ -22,6 +23,15 @@ export async function requireVisibleRecord(scope: Pick<Scope, "tx">, entity: Res
   const view = scope.tx(`${entity.schema}.v_${entity.table}`);
   const rows = await scope.tx`select 1 from ${view} where id = ${recordId}`;
   if (rows.length === 0) throw new ProcessError("not_found", `${entity.id} ${recordId} not found`);
+}
+
+/**
+ * The record is visible (`not_found` otherwise) and the caller has the modify right on it (kernel.record_access, review I4:
+ * `record_forbidden` otherwise): changing a record's files changes the record.
+ */
+export async function requireWritableRecord(scope: ProcessContext, entity: ResolvedEntityDef, recordId: string): Promise<void> {
+  await requireVisibleRecord(scope, entity, recordId);
+  await assertRecordRight(scope, entity.id, recordId, "modify");
 }
 
 /** `forbidden` unless a role of the caller may run `processId`. */

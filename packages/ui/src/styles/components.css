@@ -361,6 +361,39 @@
   .erp-record__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
   .erp-record__actions:empty { display: none; }
 
+  /* the standard record action bar (entity types prototype, D15–D17): tools on the left, state buttons on the right; 44 px touch
+     targets; Duplicar and Revertir under «Más ▾» below 768 px. */
+  .erp-record__footer:has(.erp-actbar) { flex-direction: column; align-items: stretch; }
+  .erp-record__meta { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+  .erp-actbar { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+  .erp-actbar__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+  .erp-actbar__tools, .erp-actbar__main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .erp-actbar__main { justify-content: flex-end; margin-left: auto; }
+  .erp-touch { min-height: 44px; }
+  .erp-btn--ok { color: var(--ok); border-color: var(--ok); font-weight: 600; }
+  .erp-btn--ok:hover:not(:disabled) { background: var(--ok-bg); }
+  .erp-actbar__more { position: relative; display: none; }
+  .erp-actbar__menu { position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgb(0 0 0 / .15); }
+  .erp-actbar__ask { flex-wrap: wrap; gap: 8px; align-items: center; }
+  .erp-actbar__alert { margin: 0; }
+  @media (max-width: 767px) {
+    .erp-actbar__wide { display: none; }
+    .erp-actbar__more { display: inline-flex; }
+  }
+  .erp-copy { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; padding: 0 4px; margin-left: 2px; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); }
+  .erp-copy:hover { background: var(--head); color: var(--text); }
+  .erp-record__ids { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+  .erp-versions__cmp { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr 2fr; border: 1px solid var(--line); border-radius: 8px; overflow: auto; font-size: 13px; }
+  .erp-versions__cmp > div { padding: 6px 10px; border-bottom: 1px solid var(--line-2); min-width: 0; overflow-wrap: anywhere; }
+  .erp-versions__cmp .erp-versions__h { font-weight: 700; background: var(--head); }
+  .erp-versions__cmp .erp-versions__grp { grid-column: 1 / -1; font-weight: 700; background: var(--head); }
+  .erp-versions__cmp .erp-versions__chg { background: var(--warn-bg); color: var(--warn); }
+  .erp-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+  .erp-chips input { flex: 1 1 180px; border: 0; outline: 0; background: transparent; min-height: 32px; }
+  .erp-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: 12px; background: var(--info-bg); color: var(--info); font-size: 12px; }
+  .erp-chip--bad { background: var(--danger-bg); color: var(--danger); }
+  .erp-chip button { border: 0; background: transparent; color: inherit; min-width: 24px; min-height: 24px; }
+
   /* the record tabs (design §5.16, prototype v5 record frame): Contactos, Fotos, Datos adicionales, Archivos.
      Sections like the Datos form's `.sec`, buttons like `.btn`, 36 px rows, dashed drop zones; tokens only, so dark
      follows. Their plain <button>s take the button look here (`:where` keeps it weak, so the specific rules win). */
@@ -711,12 +744,50 @@
   .erp-reportcard { display: block; padding: 14px; color: inherit; text-decoration: none; }
   .erp-reportcard:hover, .erp-reportcard:focus-visible { border-color: var(--primary); }
   .erp-modbar-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
-  .erp-modbar-dd { position: relative; display: flex; align-items: stretch; }
+  .erp-modbar-dd { position: relative; display: flex; align-items: center; }
   .erp-modbar-menu { position: absolute; top: 100%; left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 200px; padding: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 30px var(--shadow); }
   .erp-modbar-menu button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font-size: 13px; text-align: left; white-space: nowrap; }
   .erp-modbar-menu button:hover, .erp-modbar-menu button:focus-visible { background: var(--head); }
   .erp-modbar-menu button[aria-current="page"] { background: var(--accent); font-weight: 600; }
-  @media (max-width: 760px) { .erp-modbar-menu { position: fixed; left: 8px; right: 8px; top: 48px; min-width: 0; } }
+  /* An empty menu section (entity types spec §9.2): a muted line where its items would be. */
+  .erp-modbar-menu:focus { outline: none; }
+  .erp-modbar-empty { margin: 0; padding: 8px 10px; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+  /* An empty menu section moved into "Más": its name over its empty state (entity types spec §9.2). */
+  .erp-modbar-section + .erp-modbar-section, .erp-modbar-section + button, button + .erp-modbar-section { border-top: 1px solid var(--line); }
+  .erp-modbar-heading { margin: 0; padding: 8px 10px 0; color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  @media (max-width: 760px) { .erp-modbar-menu { position: fixed; left: 8px; right: 8px; top: calc(var(--erp-bar-h) + var(--erp-itemsbar-h) + 8px); min-width: 0; } }
+
+  /* Shell v7 (owner 2026-11-02, design §22.24, rule 19; prototype `.rail`, `.itemsbar`): the side menu of module names, 232 px or a
+     60 px rail, and the items bar of the active module's sections. With no saved choice (`data-side="auto"`) the rail is collapsed below
+     1440 px; below 1024 px the side menu gives way to the «Menú» sheet. */
+  /* The heights of the navy bar and the items bar: the phone menu of a section opens under both. */
+  :root { --erp-bar-h: 48px; --erp-itemsbar-h: 44px; }
+  @media (pointer: coarse) { .erp-side-toggle, .erp-side-item { min-height: 44px; min-width: 44px; } }
+  .erp-side { display: none; width: 232px; flex: none; flex-direction: column; background: var(--surface); border-right: 1px solid var(--line); overflow: hidden; transition: width .15s ease; }
+  @media (min-width: 1024px) { .erp-side { display: flex; } }
+  .erp-side-head { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line-2); }
+  .erp-side-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }
+  .erp-side-toggle { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); }
+  .erp-side-toggle:hover { background: var(--hover); color: var(--text); }
+  .erp-side-nav { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; overflow-y: auto; }
+  .erp-side-item { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text-muted); font-size: 14px; font-weight: 600; text-align: left; white-space: nowrap; }
+  .erp-side-item:hover { background: var(--hover); color: var(--text); }
+  .erp-side-item[aria-current="page"] { background: var(--accent); color: var(--link); }
+  .erp-side-mark { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 6px; border: 1px solid currentColor; font-size: 12px; font-weight: 700; }
+  .erp-side[data-collapsed="true"] { width: 60px; }
+  .erp-side[data-collapsed="true"] .erp-side-title, .erp-side[data-collapsed="true"] .erp-side-label { display: none; }
+  .erp-side[data-collapsed="true"] .erp-side-head { justify-content: center; padding: 0; }
+  .erp-side[data-collapsed="true"] .erp-side-item { justify-content: center; padding: 0; }
+  @media (max-width: 1439px) {
+    .erp-side[data-side="auto"] { width: 60px; }
+    .erp-side[data-side="auto"] .erp-side-title, .erp-side[data-side="auto"] .erp-side-label { display: none; }
+    .erp-side[data-side="auto"] .erp-side-head { justify-content: center; padding: 0; }
+    .erp-side[data-side="auto"] .erp-side-item { justify-content: center; padding: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .erp-side { transition: none; } }
+  .erp-itemsbar { height: var(--erp-itemsbar-h); flex: none; display: flex; align-items: center; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+  .erp-itemsbar-mod { flex: none; padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--line-2); color: var(--text-muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+  @media (max-width: 767px) { .erp-itemsbar { padding: 0 10px; } .erp-itemsbar-mod { display: none; } }
 
   /* The lines of a comprobante (accounting design §4.7, §8): 36 px rows, the lookup list under the focused cell, totals in the footer. */
   .erp-lines { display: flex; flex-direction: column; gap: 8px; }
@@ -768,6 +839,42 @@
   /* A form or tab with unsaved changes (UX-OD-4): a dot and the words, never colour alone. */
   .erp-form__unsaved-note:empty { display: none; }
   .erp-unsaved-dot { display: inline-block; width: 8px; height: 8px; margin-right: 2px; border-radius: 50%; background: var(--warn); vertical-align: baseline; }
+
+  /* Parámetros of the entity types (Task 16, prototype «tipos», «destinatarios», «plantillas», «menuacceso») */
+  .erp-param h1 { margin: 0; font-size: 18px; }
+  .erp-param__scroll { overflow-x: auto; }
+  .erp-param__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .erp-param__table th { text-align: left; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .erp-param__table td { padding: 8px 10px; border-bottom: 1px solid var(--line-2); vertical-align: middle; }
+  .erp-param__table .is-center { text-align: center; }
+  .erp-param__table .is-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .erp-param__table tr[aria-selected="true"] td { background: var(--accent); }
+  .erp-param__emails { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-height: 34px; }
+  .erp-param__emails input { flex: 1 1 160px; min-width: 120px; border: 0; background: transparent; padding: 4px; }
+  .erp-param__tree { padding: 8px; max-height: 560px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+  .erp-param__node { display: flex; width: 100%; gap: 6px; align-items: center; text-align: left; border: 0; border-radius: 6px; padding: 7px 8px; background: transparent; font-size: 13px; min-height: 32px; color: var(--text); }
+  .erp-param__node.is-module { font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; color: var(--text-muted); }
+  .erp-param__node.is-on { background: var(--accent); }
+  .erp-tpl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 12px; align-items: start; }
+  .erp-tpl--menu { grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); }
+  .erp-tpl h3 { margin: 0; font-size: 13px; }
+  .erp-tpl__blocks { display: flex; flex-direction: column; gap: 4px; max-height: 520px; overflow: auto; }
+  .erp-tpl__item { border: 1px solid var(--line-2); border-radius: 6px; padding: 4px 6px; }
+  .erp-tpl__item.is-on { border-color: var(--primary); }
+  .erp-tpl__head { border: 0; background: transparent; text-align: left; font-size: 12px; padding: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .erp-tpl__editor { padding: 8px 4px 4px; }
+  .erp-tpl__vars { display: flex; flex-wrap: wrap; gap: 4px; }
+  .erp-tpl__preview { position: relative; width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: var(--line-2); }
+  .erp-tpl__page { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #fff; color: #111; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .erp-tpl__page.has-bg { background: linear-gradient(#fff 0 0) padding-box, repeating-linear-gradient(45deg, #f6f1e8 0 12px, #fff 12px 24px); }
+  .erp-tpl__blk { position: absolute; overflow: hidden; line-height: 1.2; cursor: pointer; outline: 1px dashed transparent; }
+  .erp-tpl__blk:hover { outline-color: #9aa4b2; }
+  .erp-tpl__blk.is-on { outline: 2px solid var(--primary); }
+  .erp-tpl__blk table { width: 100%; border-collapse: collapse; font-size: inherit; }
+  .erp-tpl__blk th, .erp-tpl__blk td { border-bottom: 1px solid #ddd; padding: 2px 4px; text-align: left; }
+  .erp-tpl__logo { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 24px; border: 1px dashed #bbb; color: #777; font-size: 9px; }
+  .erp-grid__print-error { color: var(--danger); }
+  @media (max-width: 1023px) { .erp-tpl, .erp-tpl--menu { grid-template-columns: minmax(0, 1fr); } }
 
   /* Rule 24: 44 px touch targets on coarse pointers and under 768 px; desktop keeps its compact density. */
   @media (pointer: coarse), (max-width: 767px) { .erp-btn, .erp-btn--sm { min-height: 44px; } }

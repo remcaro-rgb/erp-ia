@@ -2,7 +2,7 @@
 
 import { getTranslations } from "next-intl/server";
 import { ProcessError, runnableProcesses, runProcess, withClaims } from "@erp/kernel";
-import type { ActionOutcome, Chosen, EntryAction, LookupKind } from "@erp/ui";
+import type { Chosen, EntryAction, LookupKind, RecordActionOutcome as ActionOutcome } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { issuesOf } from "@/lib/records/issues";
@@ -33,46 +33,52 @@ export async function lookupLineAction(kind: LookupKind, search: string): Promis
     let rows: Found;
     switch (kind) {
       case "account":
-        // Only accounts the viewer may post to (§5.13): the lookup never offers one the posting would refuse.
+        // Only accounts the viewer may post to (§5.13), and every maestro only when usable (spec §5.2, D10: not Pendiente or No
+        // Aprobado): the lookup never offers one the posting would refuse.
         rows = await tx<Found>`
           select id, code, name from accounting.v_accounts
-          where is_active and allows_movement and accounting.can_post_account(id) and (${all} or code like ${prefix} or name ilike ${inside})
+          where is_active and allows_movement and accounting.can_post_account(id) and kernel.record_usable('accounting.account', id) and (${all} or code like ${prefix} or name ilike ${inside})
           order by code limit 10`;
         break;
       case "party":
         rows = await tx<Found>`
           select id, document_number as code, coalesce(legal_name, trade_name) as name from core.v_parties
-          where coalesce(is_active, true) and (${all} or document_number like ${prefix} or legal_name ilike ${inside} or trade_name ilike ${inside})
+          where coalesce(is_active, true) and kernel.record_usable('core.party', id) and (${all} or document_number like ${prefix} or legal_name ilike ${inside} or trade_name ilike ${inside})
           order by legal_name nulls last limit 10`;
         break;
       case "costCenter":
-        rows = await tx<Found>`select id, code, name from accounting.v_cost_centers where is_active and kind = 'leaf' and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
+        rows = await tx<Found>`select id, code, name from accounting.v_cost_centers where is_active and kind = 'leaf' and kernel.record_usable('accounting.cost_center', id) and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
         break;
       case "openAuxiliary":
-        rows = await tx<Found>`select id, code, name from accounting.v_open_auxiliaries where is_active and kind = 'leaf' and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
+        rows = await tx<Found>`select id, code, name from accounting.v_open_auxiliaries where is_active and kind = 'leaf' and kernel.record_usable('accounting.open_auxiliary', id) and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
         break;
       case "item":
-        rows = await tx<Found>`select id, code, name from accounting.v_items where is_active and kind = 'leaf' and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
+        rows = await tx<Found>`select id, code, name from accounting.v_items where is_active and kind = 'leaf' and kernel.record_usable('accounting.item', id) and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
         break;
       case "businessUnit":
-        rows = await tx<Found>`select id, code, name from accounting.v_business_units where is_active and kind = 'leaf' and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
+        rows = await tx<Found>`select id, code, name from accounting.v_business_units where is_active and kind = 'leaf' and kernel.record_usable('accounting.business_unit', id) and (${all} or code like ${prefix} or name ilike ${inside}) order by code limit 10`;
         break;
     }
     return rows.map((r) => ({ id: r.id, label: [r.code, r.name].filter(Boolean).join(" · ") }));
   });
 }
 
+// The status buttons on the comprobante's lifecycle (entity types spec §5, Phase 2A.5 Task 8b): Grabar posts it when it needs no
+// approval; with approval Enviar a aprobación is Grabar then Enviar (one click, two processes: a refusal of the second leaves it
+// Grabado), Aprobar posts it, No Aprobar hands it back with the reason.
 const PROCESS: Record<EntryAction, string> = {
+  post: "accounting.entry.save",
   submit: "accounting.entry.submit",
-  approve: "accounting.entry.post",
-  post: "accounting.entry.post",
-  return: "accounting.entry.return_to_draft",
+  approve: "accounting.entry.approve",
+  return: "accounting.entry.reject",
   void: "accounting.entry.void",
+  delete: "accounting.entry.delete",
   reverse: "accounting.entry.reverse",
 };
+const NEEDS_REASON = new Set<EntryAction>(["void", "reverse", "return"]);
 
 /** Runs a status button of the comprobante. A step-up token answers a `step_up_required`. */
-export async function runEntryAction(action: EntryAction, id: string, input: { reason?: string }, stepUpToken?: string): Promise<ActionOutcome> {
+export async function runEntryAction(action: EntryAction, id: string, input: { reason?: string }, stepUpToken?: string, idempotencyKey?: string): Promise<ActionOutcome> {
   if (!(action in PROCESS)) return { ok: false, code: "invalid_input", messages: [] };
   if (typeof id !== "string") return { ok: false, code: "invalid_input", messages: [] };
   const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
@@ -80,8 +86,15 @@ export async function runEntryAction(action: EntryAction, id: string, input: { r
   const t = await getTranslations("accounting.entry");
   try {
     const reason = input.reason?.trim();
-    const processInput = action === "void" || action === "reverse" ? { id, reason: reason ?? "" } : action === "return" ? { id, ...(reason ? { reason } : {}) } : { id };
-    const result = (await runProcess(deps, caller, PROCESS[action], processInput)) as { number?: string };
+    const processInput = NEEDS_REASON.has(action) ? { id, reason: reason ?? "" } : { id };
+    // A Borrador or No Aprobado comprobante is Grabado before it is sent.
+    if (action === "submit") {
+      const { status } = (await runProcess(deps, caller, "accounting.entry.consult", { id })) as { status?: string };
+      if (status === "draft" || status === "rejected") await runProcess(deps, caller, "accounting.entry.save", { id });
+    }
+    // The click's key (the action bar's, minor 2): a double click runs the action once.
+    const keyed = typeof idempotencyKey === "string" && /^bar:[a-z][a-z0-9_.]*:[0-9a-f-]{36}$/.test(idempotencyKey) ? { idempotencyKey } : {};
+    const result = (await runProcess(deps, caller, PROCESS[action], processInput, keyed)) as { number?: string };
     return { ok: true, message: t(`done.${action}`, { number: result.number ?? "" }) };
   } catch (error) {
     await signOutIfDisabled(error);

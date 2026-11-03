@@ -1,20 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { defineEntity, loadModules, Registry } from "@erp/kernel";
+import { defineEntity, loadModules, menuItemsOf, Registry, uncoveredMenuProcesses } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { accounting, ACCOUNTING_ENTITIES, DIMENSIONS } from "../index";
 
 describe("accounting manifest", () => {
-  it("defineModule accepts the manifest: six bar items, the Maestros group with six children, three features, 20 entities", () => {
+  it("defineModule accepts the manifest: the four menu sections (Maestros with the six masters), three features, 20 entities", () => {
     expect(accounting.id).toBe("accounting");
     expect(accounting.dependsOn).toEqual(["core"]);
-    expect(accounting.navigation.map((n) => n.id)).toEqual([
-      "accounting.entries", "accounting.movements", "accounting.masters", "accounting.periods", "accounting.reports", "accounting.posting",
-    ]);
-    const masters = accounting.navigation.find((n) => n.id === "accounting.masters")!;
-    expect(masters.href).toBe("#");
-    expect(masters.children?.map((n) => n.href)).toEqual([
-      "/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items",
-      "/accounting/business-units", "/accounting/journals",
+    // Entity types spec §2.4, design §22.23: the level-1 items are Maestros, Documentos, Reportes and Parámetros.
+    expect(accounting.navigation.map((n) => [n.id, n.href, n.section, n.children?.map((c) => c.href)])).toEqual([
+      ["accounting.maestros", "#", "maestros", ["/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items", "/accounting/business-units", "/accounting/journals"]],
+      ["accounting.documentos", "#", "documentos", ["/accounting/entries"]],
+      ["accounting.reportes", "#", "reportes", ["/accounting/movements", "/accounting/reports"]],
+      ["accounting.parametros", "#", "parametros", ["/accounting/periods", "/accounting/posting"]],
     ]);
     expect(accounting.features.map((f) => f.id)).toEqual(["accounting.ledger", "accounting.periods", "accounting.posting"]);
     expect(accounting.entities).toHaveLength(20);
@@ -100,5 +98,19 @@ describe("period names (T3)", () => {
     const period = ACCOUNTING_ENTITIES.find((e) => e.id === "accounting.period")!;
     expect(period.displayField).toBe("starts_on");
     expect(period.fields.find((f) => f.name === "starts_on")?.displayFormat).toBe("month");
+  });
+
+  it("every process sits under a menu item or is declared shared: hiding an item refuses what its screen runs (spec §9.2)", () => {
+    const registry = new Registry();
+    loadModules(registry, [core, accounting]);
+    const module = registry.module("accounting");
+    expect(uncoveredMenuProcesses(module)).toEqual([]);
+    const under = (navKey: string) => menuItemsOf(module).find((r) => r.navKey === navKey)!.processIds;
+    expect(under("accounting.periods")).toEqual(expect.arrayContaining(["accounting.year.close", "accounting.year.reopen", "accounting.period.close", "accounting.fiscal_year.open"]));
+    expect(under("accounting.posting")).toEqual(expect.arrayContaining(["accounting.posting.retry", "accounting.settings.update", "accounting.chart.seed"]));
+    expect(under("accounting.entries")).toEqual(expect.arrayContaining(["accounting.entry_template.create", "accounting.entry_template.consult", "accounting.opening.create", "accounting.opening.post"]));
+    expect(under("accounting.accounts")).toEqual(expect.arrayContaining(["accounting.account_permission.update", "accounting.account_permission.consult"]));
+    // Shared: read by many screens, never hidden with one of them.
+    expect(module.menuShared).toEqual(["accounting.settings.consult"]);
   });
 });

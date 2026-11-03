@@ -30,7 +30,7 @@ test.describe("responsive shell", () => {
     await fixture.cleanup();
   });
 
-  for (const [width, height] of [[390, 844], [768, 1024], [1280, 800], [1440, 900]] as const) {
+  for (const [width, height] of [[375, 812], [390, 844], [768, 1024], [1024, 768], [1280, 800], [1440, 900]] as const) {
     test(`at ${width} px every global action is reachable and the page never scrolls sideways`, async ({ page }) => {
       await page.setViewportSize({ width, height });
       await signIn(page, fixture);
@@ -39,8 +39,18 @@ test.describe("responsive shell", () => {
       await expect(bar.getByRole("button", { name: "Asistente" })).toBeVisible();
       await expect(bar.getByRole("button", { name: "Menú de usuario" })).toBeVisible();
       await expect(bar.locator("#erp-cmd")).toBeVisible();
-      if (width < 1024) await expect(bar.getByRole("button", { name: "Menú de navegación" })).toBeVisible();
-      else await expect(bar.getByRole("navigation", { name: "Menú del módulo" })).toBeVisible();
+      // Shell v7: the side menu from 1024 px, the «Menú» sheet below; the module's sections in the items bar at every width.
+      const rail = page.getByRole("complementary", { name: "Menú de módulos" });
+      if (width < 1024) {
+        await expect(bar.getByRole("button", { name: "Menú de navegación" })).toBeVisible();
+        await expect(rail).toBeHidden();
+      } else {
+        await expect(bar.getByRole("button", { name: "Menú de navegación" })).toBeHidden();
+        await expect(rail).toBeVisible();
+      }
+      const sections = page.getByRole("navigation", { name: "Menú del módulo" });
+      await expect(sections).toBeVisible();
+      await expect(sections.getByRole("button").first()).toBeVisible();
       // Under 640 px the theme and the notifications live in the user menu, labelled.
       if (width < 640) {
         await bar.getByRole("button", { name: "Menú de usuario" }).click();
@@ -51,14 +61,24 @@ test.describe("responsive shell", () => {
     });
   }
 
-  test("390 px: Menú opens a sheet with the modules and the items; the assistant is a full-screen sheet with Cerrar", async ({ page }) => {
+  test("390 px: Menú opens a sheet with the module names only; a section reaches the items; the assistant is a full-screen sheet with Cerrar", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page, fixture);
     await page.goto("/parties");
     await page.getByRole("button", { name: "Menú de navegación" }).click();
     const sheet = page.getByRole("dialog");
-    await expect(sheet.getByRole("link", { name: "Productos" })).toBeVisible();
-    await sheet.getByRole("link", { name: "Productos" }).click();
+    await expect(sheet.getByRole("navigation", { name: "Módulos" }).getByRole("button")).toHaveText(["Núcleo"]);
+    await expect(sheet.getByRole("link")).toHaveCount(0);
+    const entry = await sheet.getByRole("button", { name: "Núcleo" }).boundingBox();
+    expect(entry!.height).toBeGreaterThanOrEqual(44);
+    await sheet.getByRole("button", { name: "Núcleo" }).click();
+    await expect(sheet).toBeHidden();
+    // Sections that do not fit go under «Más ▾».
+    const sections = page.getByRole("navigation", { name: "Menú del módulo" });
+    const maestros = sections.getByRole("button", { name: "Maestros", exact: true });
+    if (await maestros.isVisible()) await maestros.click();
+    else await sections.getByRole("button", { name: /^Más/ }).click();
+    await page.getByRole("menuitem", { name: "Productos" }).click();
     await expect(page).toHaveURL(/\/products/);
 
     const toggle = page.getByRole("button", { name: "Asistente", exact: true });
@@ -94,14 +114,18 @@ test.describe("responsive shell", () => {
     await page.goto("/parties?new=1");
     await expect(page).toHaveURL(/\/r\/core\.party\//);
     await expect(page.getByRole("textbox", { name: /^Razón social/ })).toBeVisible();
-    // Clean: leaving is free.
-    await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("link", { name: "Productos" }).click();
+    // Clean: leaving is free. Productos sits in Maestros (entity types spec §2.4).
+    const productos = async () => {
+      await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Maestros", exact: true }).click();
+      await page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem", { name: "Productos" }).click();
+    };
+    await productos();
     await expect(page).toHaveURL(/\/products/);
     await page.goto("/parties?new=1");
     await expect(page).toHaveURL(/\/r\/core\.party\//);
     await page.getByRole("textbox", { name: /^Razón social/ }).fill("Cambio sin guardar");
     await expect(page.getByText("Sin guardar").first()).toBeVisible();
-    await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("link", { name: "Productos" }).click();
+    await productos();
     const ask = page.getByRole("alertdialog");
     await expect(ask).toBeVisible();
     await expect(ask.getByRole("button", { name: "Guardar", exact: true })).toBeVisible();

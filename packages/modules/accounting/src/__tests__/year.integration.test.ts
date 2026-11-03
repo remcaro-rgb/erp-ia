@@ -21,14 +21,14 @@ const post = async (date: string, lines: { code: string; debit?: number; credit?
     date, description: "Movimiento del año",
     lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.cc ? { costCenterId: ccId } : {}) })),
   });
-  await h.run(h.contador, "accounting.entry.post", { id });
+  await h.run(h.contador, "accounting.entry.save", { id });
   return id;
 };
 const closeAllPeriods = (y: number) => yearId(y).then((id) => h.sql`update accounting.periods set status = 'closed' where fiscal_year_id = ${id}`);
 const balance = async (code: string, opts: { closing?: boolean } = {}) =>
   Number((await h.sql<{ b: string | null }[]>`
     select sum(l.debit - l.credit) as b from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
-    where l.company_id = ${h.companyId} and a.code = ${code} and e.status in ('posted', 'reversed') and (${opts.closing ?? true} or not e.is_closing)`)[0]!.b ?? 0);
+    where l.company_id = ${h.companyId} and a.code = ${code} and e.status = 'posted' and (${opts.closing ?? true} or not e.is_closing)`)[0]!.b ?? 0);
 
 describe("year close", () => {
   it("year close lands on 3605 or 3610 by sign: profit → two CI entries, 5905 zero, 360505 credit = result; loss → 361005 debit; reopen reverses both and reopens December", async () => {
@@ -80,7 +80,8 @@ describe("year close", () => {
     const december = await h.sql`select status from accounting.periods where fiscal_year_id = ${fy} and number = 12`;
     expect(december[0]).toMatchObject({ status: "open" });
     expect((await h.sql`select count(*)::int as n from accounting.periods where fiscal_year_id = ${fy} and status = 'open'`)[0]!.n).toBe(1);
-    expect((await h.sql`select status from accounting.entries where id = any(${out.closingEntryIds}::uuid[])`).every((e) => e.status === "reversed")).toBe(true);
+    // D2: a reversed closing entry stays Contabilizado, with the reversal mark.
+    expect((await h.sql`select status, extra from accounting.entries where id = any(${out.closingEntryIds}::uuid[])`).every((e) => e.status === "posted" && e.extra?.reversed === true)).toBe(true);
     // The reversals cancel the closings: the accounts hold their year balances again, 3605 is empty.
     expect(await balance("413595")).toBe(-1000);
     expect(await balance("360505")).toBe(0);

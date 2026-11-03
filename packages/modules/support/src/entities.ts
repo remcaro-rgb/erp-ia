@@ -31,6 +31,7 @@ export const ticket: EntityDef = {
   schema: "support",
   table: "tickets",
   label: "entity.support.ticket",
+  entityType: "sistema",
   displayField: "title",
   defaultSort: { field: "seq", dir: "desc" },
   fields: [
@@ -60,6 +61,7 @@ export const ticketMessage: EntityDef = {
   schema: "support",
   table: "ticket_messages",
   label: "entity.support.ticket_message",
+  entityType: "sistema",
   displayField: "seq",
   defaultSort: { field: "seq", dir: "asc" },
   fields: [

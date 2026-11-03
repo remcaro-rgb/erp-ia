@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { messages, type Messages } from "../index";
@@ -14,9 +14,10 @@ function leaves(tree: Messages, prefix: string): string[] {
   return Object.entries(tree).flatMap(([key, value]) => (typeof value === "string" ? [`${prefix}${key}`] : leaves(value, `${prefix}${key}.`)));
 }
 
-const sourceFiles = execFileSync("git", ["ls-files", ...SOURCE_DIRS.map((d) => `${d}/*.ts`), ...SOURCE_DIRS.map((d) => `${d}/*.tsx`)], { cwd: ROOT, encoding: "utf8" })
+// Tracked and new (untracked, not ignored) files of the working tree; a tracked file deleted in the tree is left out.
+const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", ...SOURCE_DIRS.map((d) => `${d}/*.ts`), ...SOURCE_DIRS.map((d) => `${d}/*.tsx`)], { cwd: ROOT, encoding: "utf8" })
   .split("\n")
-  .filter((f) => f && !f.includes(".test."));
+  .filter((f) => f && !f.includes(".test.") && existsSync(join(ROOT, f)));
 const source = sourceFiles.map((f) => readFileSync(join(ROOT, f), "utf8")).join("\n");
 
 const es = messages("es-419");

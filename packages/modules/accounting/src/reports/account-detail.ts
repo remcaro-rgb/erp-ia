@@ -39,21 +39,21 @@ export const accountDetailConsult = defineProcess({
     };
     const [opening] = await ctx.tx<{ net: string | null }[]>`
       select sum(net) as net from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and account_code like ${like} and date < ${p.from}::date
+      where status = 'posted' and account_code like ${like} and date < ${p.from}::date
         and (${filter.cc}::uuid is null or cost_center_id = ${filter.cc}) and (${filter.oa}::uuid is null or open_auxiliary_id = ${filter.oa})
         and (${filter.item}::uuid is null or item_id = ${filter.item}) and (${filter.bu}::uuid is null or business_unit_id = ${filter.bu})
         and (${filter.party}::uuid is null or party_id = ${filter.party})`;
     const lines = await ctx.tx<{ entry_id: string; date: string; number: string; account_code: string; party_name: string | null; description: string | null; debit: string; credit: string }[]>`
       select entry_id, date::text as date, number, account_code, party_name, coalesce(description, entry_description) as description, debit, credit
       from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and account_code like ${like} and date between ${p.from}::date and ${p.to}::date
+      where status = 'posted' and account_code like ${like} and date between ${p.from}::date and ${p.to}::date
         and (${filter.cc}::uuid is null or cost_center_id = ${filter.cc}) and (${filter.oa}::uuid is null or open_auxiliary_id = ${filter.oa})
         and (${filter.item}::uuid is null or item_id = ${filter.item}) and (${filter.bu}::uuid is null or business_unit_id = ${filter.bu})
         and (${filter.party}::uuid is null or party_id = ${filter.party})
       order by date, number, line_no`;
     const [raw] = await ctx.tx<{ n: number }[]>`
       select count(*)::int as n from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
-      where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and a.code like ${like} and e.date between ${p.from}::date and ${p.to}::date
+      where l.company_id = ${ctx.companyId} and e.status = 'posted' and a.code like ${like} and e.date between ${p.from}::date and ${p.to}::date
         and (${filter.cc}::uuid is null or l.cost_center_id = ${filter.cc}) and (${filter.oa}::uuid is null or l.open_auxiliary_id = ${filter.oa})
         and (${filter.item}::uuid is null or l.item_id = ${filter.item}) and (${filter.bu}::uuid is null or l.business_unit_id = ${filter.bu})
         and (${filter.party}::uuid is null or l.party_id = ${filter.party})`;

@@ -65,5 +65,8 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
 /** The id of a record not created yet: `/r/<entity>/new` opens the empty form. */
 export const NEW_RECORD_ID = "new";
 
+/** Every entity with a full record page. */
+export const recordEntities = (): readonly RecordEntity[] => RECORD_ENTITIES;
+
 /** The entity config, or null for an entity that has no full page (also for inherited object keys). */
 export const recordEntity = (id: string): RecordEntity | null => RECORD_ENTITIES.find((e) => e.id === id) ?? null;

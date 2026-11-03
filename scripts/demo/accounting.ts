@@ -11,7 +11,7 @@
  *     the revenue accounts of the categories bebidas and comida.
  *  3. The analytic masters: 3 centros de costo (Tiendas is a group of Chapinero and Usaquén), 2 auxiliares abiertos, 2 ítems,
  *     4 unidades de negocio; `settings.update` turns the three optional dimensions on.
- *  4. Grants: the accounting processes of the contador and the cajero, `entry.post` raised to step-up, and the security by
+ *  4. Grants: the accounting processes of the contador and the cajero, `entry.approve` raised to step-up, and the security by
  *     account (5105, class 3, Davivienda).
  *  5. The 2026 opening balances (`opening.create` + `opening.post`), 40 posted entries January to October from the posting
  *     fixtures of design §5.4 (synthetic outbox rows delivered to the accounting consumer, as the dispatch workflow does),
@@ -174,6 +174,90 @@ export const ADJUSTMENTS = [
   { number: "AJ-12", date: "2026-10-29", value: -35_000, costCenter: "TOS" },
 ];
 
+/** A manual comprobante line with its party and cost center named by document number and code. */
+export interface SampleLine {
+  accountCode: string;
+  partyDocument?: string;
+  costCenter?: string;
+  debit?: number;
+  credit?: number;
+  description: string;
+}
+
+/** The maintenance supplier: services, retefuente 4 %, a payable on 2335 (not gated by invoice readiness). */
+export const BARISTA_PRO = "900864213";
+
+/**
+ * October's sample comprobantes of the purchase side (owner order 2026-11-02): a purchase of green coffee with IVA 5 %, retefuente
+ * 2,5 %, ReteIVA 15 % and ReteICA 4,14 ‰, a return to the supplier, the payment of the opening payable, a maintenance service, the
+ * social benefits provision and the bank's interest. Every line follows the chart's demands: parties on groups 13 and 22 to 25,
+ * cost centers on classes 4 to 7.
+ */
+export const SAMPLE_COMPROBANTES: { description: string; date: string; lines: SampleLine[] }[] = [
+  {
+    description: "Compra de café verde a Trilladora La Montaña",
+    date: "2026-10-06",
+    lines: [
+      { accountCode: "143505", debit: 10_000_000, description: "Café verde excelso, 800 kg" },
+      { accountCode: "240810", partyDocument: TRILLADORA, debit: 500_000, description: "IVA descontable 5 %" },
+      { accountCode: "236540", partyDocument: TRILLADORA, credit: 250_000, description: "Retención en la fuente por compras 2,5 %" },
+      { accountCode: "236701", partyDocument: TRILLADORA, credit: 75_000, description: "ReteIVA 15 % del IVA" },
+      { accountCode: "236801", partyDocument: TRILLADORA, credit: 41_400, description: "ReteICA 4,14 por mil" },
+      { accountCode: "220505", partyDocument: TRILLADORA, credit: 10_133_600, description: "Factura de compra FC-8812" },
+    ],
+  },
+  {
+    description: "Devolución de café verde a Trilladora La Montaña",
+    date: "2026-10-09",
+    lines: [
+      { accountCode: "220505", partyDocument: TRILLADORA, debit: 1_050_000, description: "Nota crédito del proveedor NC-221" },
+      { accountCode: "143505", credit: 1_000_000, description: "Café verde devuelto, 80 kg" },
+      { accountCode: "240810", partyDocument: TRILLADORA, credit: 50_000, description: "IVA descontable de la devolución" },
+    ],
+  },
+  {
+    description: "Pago a Trilladora La Montaña",
+    date: "2026-10-15",
+    lines: [
+      { accountCode: "220505", partyDocument: TRILLADORA, debit: 18_000_000, description: "Saldo inicial de proveedores" },
+      { accountCode: "530505", costCenter: "ADM", debit: 15_000, description: "Comisión por transferencia" },
+      { accountCode: "11100502", credit: 18_015_000, description: "Transferencia Bancolombia" },
+    ],
+  },
+  {
+    description: "Mantenimiento de la tostadora",
+    date: "2026-10-22",
+    lines: [
+      { accountCode: "514515", costCenter: "TOS", debit: 1_200_000, description: "Mantenimiento preventivo de la tostadora" },
+      { accountCode: "240810", partyDocument: BARISTA_PRO, debit: 228_000, description: "IVA descontable 19 %" },
+      { accountCode: "236525", partyDocument: BARISTA_PRO, credit: 48_000, description: "Retención en la fuente por servicios 4 %" },
+      { accountCode: "233535", partyDocument: BARISTA_PRO, credit: 1_380_000, description: "Servicio de mantenimiento por pagar" },
+    ],
+  },
+  {
+    description: "Provisión de prestaciones sociales de octubre",
+    date: "2026-10-31",
+    lines: [
+      { accountCode: "510530", costCenter: "ADM", debit: 1_457_750, description: "Cesantías 8,33 %" },
+      { accountCode: "510533", costCenter: "ADM", debit: 175_000, description: "Intereses sobre cesantías 1 %" },
+      { accountCode: "510536", costCenter: "ADM", debit: 1_457_750, description: "Prima de servicios 8,33 %" },
+      { accountCode: "510539", costCenter: "ADM", debit: 729_750, description: "Vacaciones 4,17 %" },
+      { accountCode: "261005", credit: 1_457_750, description: "Provisión de cesantías" },
+      { accountCode: "261010", credit: 175_000, description: "Provisión de intereses sobre cesantías" },
+      { accountCode: "261020", credit: 1_457_750, description: "Provisión de prima de servicios" },
+      { accountCode: "261015", credit: 729_750, description: "Provisión de vacaciones" },
+    ],
+  },
+  {
+    description: "Rendimientos financieros de octubre",
+    date: "2026-10-31",
+    lines: [
+      { accountCode: "11100502", debit: 320_000, description: "Intereses de la cuenta de ahorros" },
+      { accountCode: "421005", costCenter: "ADM", credit: 320_000, description: "Intereses financieros" },
+    ],
+  },
+];
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Stages
 
@@ -238,7 +322,7 @@ async function grantAccounting(run: Run, laura: DemoSession): Promise<void> {
   const consults = ids.filter((p) => p.kind === "consult").map((p) => p.id);
   const entries = ids.filter((p) => /^accounting\.(entry|entry_template|entry_line)\./.test(p.id)).map((p) => p.id);
   const contador = [...new Set([...consults, ...entries, "accounting.opening.create"])];
-  const cajero = [...new Set([...consults, ...entries.filter((id) => /^accounting\.entry\.(create|update|void|submit|from_template)$/.test(id))])];
+  const cajero = [...new Set([...consults, ...entries.filter((id) => /^accounting\.entry\.(create|update|void|delete|submit|from_template)$/.test(id))])];
   const attachments = ATTACHMENT_PROCESSES.map((p) => p.id);
   const changes = [
     ...[...contador, ...attachments].map((processId) => ({ roleId: DEMO_ROLE_IDS.contador, processId, allowed: true })),
@@ -247,10 +331,10 @@ async function grantAccounting(run: Run, laura: DemoSession): Promise<void> {
   await run(laura, "kernel.admin.permission.set_many", { changes }, { stepUp: true });
 }
 
-/** Approving a comprobante asks for the TOTP code (design §6: the admin may raise `entry.post` to step-up). */
+/** Approving a comprobante asks for the TOTP code (design §6: the admin may raise `entry.approve` to step-up). */
 async function raiseEntryPost(sql: Sql, run: Run, laura: DemoSession): Promise<void> {
-  const [raised] = await sql`select 1 from kernel.sensitive_processes where company_id = ${DEMO_COMPANY_ID} and process_id = 'accounting.entry.post'`;
-  if (!raised) await run(laura, "kernel.admin.sensitive_process.set", { processId: "accounting.entry.post", sensitive: true }, { stepUp: true });
+  const [raised] = await sql`select 1 from kernel.sensitive_processes where company_id = ${DEMO_COMPANY_ID} and process_id = 'accounting.entry.approve'`;
+  if (!raised) await run(laura, "kernel.admin.sensitive_process.set", { processId: "accounting.entry.approve", sensitive: true }, { stepUp: true });
 }
 
 /** Security by account (design §5.13): 5105 and class 3 are restricted, the Davivienda account is Laura's to post. */
@@ -271,7 +355,7 @@ async function setUpAccountSecurity(sql: Sql, run: Run, laura: DemoSession, laur
 
 /** The 2026 opening balances: a draft in Apertura, posted by the human step. */
 async function setUpOpening(sql: Sql, run: Run, laura: DemoSession): Promise<void> {
-  const [done] = await sql`select 1 from accounting.entries where company_id = ${DEMO_COMPANY_ID} and is_opening and status in ('posted', 'reversed')`;
+  const [done] = await sql`select 1 from accounting.entries where company_id = ${DEMO_COMPANY_ID} and is_opening and status = 'posted'`;
   if (done) return;
   const draft = await one(sql<{ id: string }[]>`select id from accounting.entries where company_id = ${DEMO_COMPANY_ID} and is_opening and status = 'draft'`);
   const id = draft?.id ?? (await run(laura, "accounting.opening.create", { date: LEDGER_STARTS_ON, description: `Saldos iniciales ${DEMO_YEAR}`, lines: OPENING_LINES })).id;
@@ -431,11 +515,23 @@ async function manualNotes(sql: Sql, run: Run, laura: DemoSession): Promise<void
       ],
     },
   ];
+  for (const sample of SAMPLE_COMPROBANTES) {
+    notes.push({
+      description: sample.description,
+      date: sample.date,
+      lines: sample.lines.map(({ partyDocument, costCenter, ...line }) => ({
+        ...line,
+        ...(partyDocument ? { partyId: party(partyDocument) } : {}),
+        ...(costCenter ? { costCenterId: cc(costCenter) } : {}),
+      })),
+    });
+  }
   for (const note of notes) {
     const [exists] = await sql`select 1 from accounting.entries where company_id = ${DEMO_COMPANY_ID} and description = ${note.description}`;
     if (exists) continue;
     const { id } = await run(laura, "accounting.entry.create", { date: note.date, description: note.description, ...(note.reverseOn ? { reverseOn: note.reverseOn } : {}), lines: note.lines });
-    await run(laura, "accounting.entry.post", { id }, { stepUp: true });
+    // Grabar posts it (no approval yet: four-eyes is switched on later, for Andrés' provision).
+    await run(laura, "accounting.entry.save", { id });
   }
 }
 
@@ -467,6 +563,8 @@ async function pendingProvision(sql: Sql, run: Run, laura: DemoSession, andres: 
       { accountCode: "233540", partyId: parties.get(BOSQUE)!.id, credit: 2_500_000, description: "Arriendo por pagar" },
     ],
   });
+  // With approval Grabar leaves it Grabado; Enviar a aprobación makes it wait for somebody else.
+  await run(andres, "accounting.entry.save", { id });
   await run(andres, "accounting.entry.submit", { id });
 }
 

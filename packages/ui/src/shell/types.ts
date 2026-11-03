@@ -57,7 +57,8 @@ export interface CommandItem {
   id: string;
   /** Already translated. */
   label: string;
-  kind: "go" | "create";
+  /** `record`: a record found by its ID (D16). */
+  kind: "go" | "create" | "record";
   href: string;
   /** Extra words that find the item ("clientes" finds Terceros). */
   keywords?: string[];

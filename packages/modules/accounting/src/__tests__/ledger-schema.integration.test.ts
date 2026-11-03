@@ -55,10 +55,19 @@ describe("ledger-schema", () => {
     await expect(newLine(entry, 1, 0, 0)).rejects.toThrow();
     await newLine(entry, 1, 100, 0);
     await newLine(entry, 2, 0, 100);
+    // D3 (0043): Grabado and No Aprobado still take line changes; Pendiente, Aprobado and Contabilizado do not.
+    for (const open of ["saved", "rejected"]) {
+      await h.sql`update accounting.entries set status = ${open} where id = ${entry}`;
+      await h.sql`update accounting.entry_lines set description = ${open} where entry_id = ${entry} and line_no = 1`;
+    }
+    for (const frozen of ["pending", "approved"]) {
+      await h.sql`update accounting.entries set status = ${frozen} where id = ${entry}`;
+      await expect(h.sql`update accounting.entry_lines set debit = 7 where entry_id = ${entry} and line_no = 1`, frozen).rejects.toThrow(/Borrador, Grabado o No Aprobado/);
+    }
     await h.sql`update accounting.entries set status = 'posted', number = 'NC-100' where id = ${entry}`;
-    await expect(newLine(entry, 3, 5, 0)).rejects.toThrow(/borrador/);
-    await expect(h.sql`update accounting.entry_lines set debit = 7 where entry_id = ${entry} and line_no = 1`).rejects.toThrow(/borrador/);
-    await expect(h.sql`delete from accounting.entry_lines where entry_id = ${entry}`).rejects.toThrow(/borrador/);
+    await expect(newLine(entry, 3, 5, 0)).rejects.toThrow(/Borrador, Grabado o No Aprobado/);
+    await expect(h.sql`update accounting.entry_lines set debit = 7 where entry_id = ${entry} and line_no = 1`).rejects.toThrow(/Borrador, Grabado o No Aprobado/);
+    await expect(h.sql`delete from accounting.entry_lines where entry_id = ${entry}`).rejects.toThrow(/Borrador, Grabado o No Aprobado/);
   });
 
   it("an entry that left draft must be balanced", async () => {

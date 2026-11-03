@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kernelModule, loadModules, Registry } from "@erp/kernel";
+import { kernelModule, loadModules, Registry, uncoveredMenuProcesses } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { support } from "../index";
 
@@ -14,7 +14,13 @@ describe("support manifest", () => {
     expect(support.dependsOn).toEqual(["core"]);
     expect(support.features.map((f) => f.id)).toEqual(["support.tickets"]);
     expect(support.events.emits).toEqual(["support.ticket.created"]);
-    expect(support.navigation).toEqual([{ id: "support.tickets", label: "nav.support.tickets", href: "/support", icon: "life-buoy", feature: "support.tickets" }]);
+    // The four menu sections (entity types spec §2.4) are empty: tickets are sistema records and Soporte stays a level-1 item.
+    expect(support.navigation.map((n) => [n.id, n.children?.length])).toEqual([
+      ["support.maestros", 0], ["support.documentos", 0], ["support.reportes", 0], ["support.parametros", 0], ["support.tickets", undefined],
+    ]);
+    expect(support.navigation.at(-1)).toEqual({
+      id: "support.tickets", label: "nav.support.tickets", href: "/support", icon: "life-buoy", feature: "support.tickets", entity: "support.ticket", runs: ["support.ticket_message."],
+    });
   });
 
   it("every entity has its own consult process, every process belongs to the feature, labels are i18n keys", () => {
@@ -36,5 +42,11 @@ describe("support manifest", () => {
   it("the reporter is a reference to the user who filed the ticket (rule 21: it links to their page)", () => {
     const ticket = support.entities.find((e) => e.id === "support.ticket")!;
     expect(ticket.fields.find((f) => f.name === "reporter_user_id")).toMatchObject({ type: "ref", ref: { entity: "kernel.user", display: "full_name" } });
+  });
+
+  it("every process sits under a menu item: hiding Tickets refuses what its screen runs (spec §9.2)", () => {
+    const registry = new Registry();
+    loadModules(registry, [kernelModule, core, support]);
+    expect(uncoveredMenuProcesses(registry.module("support"))).toEqual([]);
   });
 });

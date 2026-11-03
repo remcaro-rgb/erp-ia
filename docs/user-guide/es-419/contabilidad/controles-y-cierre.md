@@ -6,7 +6,8 @@ processes:
   - accounting.report.control_reconciliation
   - accounting.report.manual_entries_audit
   - accounting.entry.submit
-  - accounting.entry.post
+  - accounting.entry.approve
+  - accounting.entry.reject
   - accounting.settings.update
 ---
 
@@ -16,13 +17,13 @@ La contabilidad trae cinco controles pequeños, pensados para que un error o un 
 
 ## 1. Aprobación por otra persona
 
-En **Reglas contables › Configuración › Comprobantes manuales**, activa **Exigir aprobación de otra persona**. Desde entonces un comprobante manual (o el que prepara el asistente) pasa por **Enviar a aprobación** y lo contabiliza otra persona con **Aprobar y contabilizar**. Quien lo creó no puede aprobarlo. **Devolver a borrador** (con un motivo opcional) lo regresa al autor sin cambiar sus líneas; lo puede hacer quien tenga el permiso de contabilizar, aun si el comprobante incluye cuentas restringidas que no ve. Los comprobantes automáticos no pasan por aquí: su control es la regla contable, que solo se cambia con código de verificación.
+En **Reglas contables › Configuración › Comprobantes manuales**, activa **Exigir aprobación de otra persona**. Desde entonces un comprobante manual (o el que prepara el asistente) pasa por **Guardar y enviar a aprobación** y lo contabiliza otra persona con **Aprobar**. Quien lo creó no puede aprobarlo. Este control es opcional y viene apagado. **No aprobar** (con un motivo obligatorio) lo regresa al autor como **No Aprobado**, sin cambiar sus líneas; lo puede hacer quien tenga el permiso, aun si el comprobante incluye cuentas restringidas que no ve. Los comprobantes automáticos no pasan por aquí: su control es la regla contable, que solo se cambia con código de verificación.
 
 También puedes exigir **Un archivo adjunto** en cada comprobante manual.
 
 ## 2. Reversión automática de causaciones
 
-En el comprobante, el campo **Reversar el** crea, al contabilizarlo, un comprobante espejo en **Borrador** con esa fecha (por ejemplo el 1.º del mes siguiente). Aparece en **Borradores** del siguiente período y bloquea su cierre hasta que lo contabilices, así no se olvida. Al contabilizarlo, el original queda **Revertido**.
+En el comprobante, el campo **Reversar el** crea, al contabilizarlo, un comprobante espejo en **Borrador** con esa fecha (por ejemplo el 1.º del mes siguiente). Aparece en **Borradores** del siguiente período y bloquea su cierre hasta que lo contabilices, así no se olvida. Al contabilizarlo, el original sigue **Contabilizado** y se ve **Contabilizado · Revertido**.
 
 ## 3. Conciliación de control
 

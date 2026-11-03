@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Check, Copy } from "lucide-react";
 import { DEFAULT_RECORD_LABELS, shortId, type RecordLabels, type RecordTab, type RecordTabId } from "./record-model";
 
 export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
@@ -11,6 +12,13 @@ export interface RecordFrameProps {
   seq?: number | null | "masked";
   /** The record's UUID; absent while the record is new. */
   uuid?: string | null;
+  /** A documento's number and reference, shown next to the ID with a copy button each (D16). */
+  number?: string | null;
+  reference?: string | null;
+  /** The state chip next to the title. */
+  chip?: ReactNode;
+  /** Above the footer's status: «Creado en … por …» / «Modificado en … por …». */
+  meta?: ReactNode;
   /** `/r/<entity>/<id>`: the button that opens the same form as a full page in a new browser tab. Absent while the record is new. */
   deepLinkHref?: string;
   /** Only the tabs passed are rendered, in this order. */
@@ -29,6 +37,8 @@ export interface RecordFrameProps {
   onDuplicate?: () => void;
   /** A duplicate is under way: the action waits. */
   duplicating?: boolean;
+  /** The header's Duplicar button; off when the action bar carries it (Ctrl+D still works). Default true. */
+  duplicateButton?: boolean;
   /** A new record started from a copy: the banner "Copia de <nombre>" names the source, linked when `href` is given. */
   copyOf?: { title: string; href?: string } | null;
   /** Appended to the root's `erp-record` class. Parts are `erp-record__*`. */
@@ -40,7 +50,7 @@ export interface RecordFrameProps {
  * link, the tabs the entity needs, and the status footer. Panels stay mounted when hidden, so a form that is
  * half filled or an upload that is staged survives a change of tab.
  */
-export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, copyOf }: RecordFrameProps) {
+export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, duplicateButton = true, copyOf }: RecordFrameProps) {
   const labels: RecordLabels = { ...DEFAULT_RECORD_LABELS, ...overrides, tabs: { ...DEFAULT_RECORD_LABELS.tabs, ...overrides?.tabs } };
   const base = useId();
   const first = tabs[0]?.id;
@@ -88,13 +98,41 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
       <div className="erp-record__top">
         <header className="erp-record__header">
           <h2>{title}</h2>
-          <span className="erp-record__ids">{seq != null && uuid ? `${labels.number} ${seq === "masked" ? "••••" : seq} · ${labels.uuid} ${shortId(uuid)}…` : labels.assignedOnCreate}</span>
+          {chip}
+          <span className="erp-record__ids">
+            {seq != null && uuid ? (
+              <>
+                <span>
+                  {labels.number} {seq === "masked" ? "••••" : seq}
+                  {seq !== "masked" && <CopyButton value={String(seq)} label={labels.copy.replace("{what}", labels.number)} />}
+                </span>
+                {number ? (
+                  <span>
+                    {labels.docNumber} {number}
+                    <CopyButton value={number} label={labels.copy.replace("{what}", labels.docNumber)} />
+                  </span>
+                ) : null}
+                {reference ? (
+                  <span>
+                    {labels.reference} {reference}
+                    <CopyButton value={reference} label={labels.copy.replace("{what}", labels.reference)} />
+                  </span>
+                ) : null}
+                <span title={uuid}>
+                  {labels.uuid} {shortId(uuid)}…
+                  <CopyButton value={uuid} label={labels.copy.replace("{what}", labels.uuid)} />
+                </span>
+              </>
+            ) : (
+              labels.assignedOnCreate
+            )}
+          </span>
           {deepLinkHref && (
             <a className="erp-record__open" href={deepLinkHref} target="_blank" rel="noopener noreferrer">
               {labels.openInNewTab} ↗
             </a>
           )}
-          {onDuplicate && (
+          {onDuplicate && duplicateButton && (
             <button type="button" className="erp-btn erp-btn--sm" onClick={onDuplicate} disabled={duplicating} aria-keyshortcuts="Control+D Meta+D">
               {labels.duplicate}
             </button>
@@ -142,6 +180,7 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
         </div>
       ))}
       <footer className="erp-record__footer">
+        {meta && <div className="erp-record__meta">{meta}</div>}
         <div className="erp-record__status">{status}</div>
         <div className="erp-record__actions">{footer}</div>
       </footer>
@@ -160,4 +199,25 @@ function isEditable(target: EventTarget | null): boolean {
 /** An open dialog that does not contain the frame (a frame shown in a sheet still answers its shortcut). */
 function dialogOver(frame: HTMLElement | null): boolean {
   return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')].some((dialog) => !frame || !dialog.contains(frame));
+}
+
+/** Copies an identifier (ID, Número, Referencia, UUID) to the clipboard; says so for a moment. */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      className="erp-copy"
+      aria-label={label}
+      title={label}
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(() => {
+          setDone(true);
+          setTimeout(() => setDone(false), 1500);
+        });
+      }}
+    >
+      {done ? <Check aria-hidden size={14} /> : <Copy aria-hidden size={14} />}
+    </button>
+  );
 }

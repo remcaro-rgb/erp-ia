@@ -44,6 +44,7 @@ export const fiscalYearOpen = defineProcess({
   id: "accounting.fiscal_year.open",
   module: "accounting",
   kind: "create",
+  recordAccess: "none",
   feature: "accounting.periods",
   description: "Abre un año fiscal con sus doce períodos mensuales",
   input: z.object({ year: z.number().int().min(2000).max(2100) }),

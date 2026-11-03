@@ -32,16 +32,16 @@ export const partyDetailConsult = defineProcess({
     const accounts = p.accountIds ?? null;
     const [opening] = await ctx.tx<{ net: string | null }[]>`
       select sum(net) as net from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and party_id = ${p.partyId} and date < ${p.from}::date and (${accounts}::uuid[] is null or account_id = any(${accounts}::uuid[]))`;
+      where status = 'posted' and party_id = ${p.partyId} and date < ${p.from}::date and (${accounts}::uuid[] is null or account_id = any(${accounts}::uuid[]))`;
     const lines = await ctx.tx<{ entry_id: string; date: string; number: string; account_code: string; account_name: string; description: string | null; debit: string; credit: string }[]>`
       select entry_id, date::text as date, number, account_code, account_name, coalesce(description, entry_description) as description, debit, credit
       from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and party_id = ${p.partyId} and date between ${p.from}::date and ${p.to}::date
+      where status = 'posted' and party_id = ${p.partyId} and date between ${p.from}::date and ${p.to}::date
         and (${accounts}::uuid[] is null or account_id = any(${accounts}::uuid[]))
       order by date, number, line_no`;
     const [raw] = await ctx.tx<{ n: number }[]>`
       select count(*)::int as n from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id
-      where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and l.party_id = ${p.partyId} and e.date between ${p.from}::date and ${p.to}::date
+      where l.company_id = ${ctx.companyId} and e.status = 'posted' and l.party_id = ${p.partyId} and e.date between ${p.from}::date and ${p.to}::date
         and (${accounts}::uuid[] is null or l.account_id = any(${accounts}::uuid[]))`;
     let balance = Number(opening!.net ?? 0);
     const rows: Record<string, unknown>[] = [

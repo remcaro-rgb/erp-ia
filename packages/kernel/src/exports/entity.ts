@@ -11,6 +11,7 @@ export const exportJobEntity = defineEntity({
   schema: "kernel",
   table: "export_jobs",
   label: "entity.kernel.export_job",
+  entityType: "sistema",
   displayField: "file_name",
   defaultSort: { field: "created_at", dir: "desc" },
   fields: [

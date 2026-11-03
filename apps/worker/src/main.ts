@@ -1,6 +1,7 @@
 import { hostname } from "node:os";
 import { infra, runEvery } from "@erp/infra";
-import { getServiceDb, kernelModule, loadModules, registry, syncRegistry } from "@erp/kernel";
+import { translate } from "@erp/i18n";
+import { getServiceDb, kernelModule, loadModules, registerCatalogue, registry, syncRegistry } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { logDeliveries } from "./delivery-log";
@@ -35,6 +36,9 @@ const log = (message: string, extra?: unknown) => console.log(`[worker] ${messag
 /** Registers the manifests, retrying while the database is still coming up. */
 async function syncManifests(): Promise<void> {
   loadModules(registry, [kernelModule, core, support]);
+  // What the kernel prints or mails outside a screen (PDF labels and page numbers, the state e-mails' subject and body) reads the app's
+  // catalogue (rule 24), as the web runtime registers it: any kernel code this process runs speaks Spanish, not catalogue keys.
+  registerCatalogue(translate);
   for (let attempt = 1; ; attempt++) {
     try {
       await syncRegistry(getServiceDb(), registry);

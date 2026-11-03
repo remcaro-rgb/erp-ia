@@ -108,4 +108,4 @@ Cada empresa contrata los módulos que necesita y cada rol tiene sus permisos. S
 
 ## Las tarjetas son enlaces
 
-Cada indicador que tiene un lugar donde trabajar es un **enlace**: **Borradores** abre los comprobantes en estado borrador, **Períodos abiertos** los períodos abiertos, **Terceros activos** el listado de terceros, y así los demás. Un clic normal se abre en tu pestaña; **⌘/Ctrl+clic** en otra del navegador. El monto de una tarjeta nunca se parte en dos líneas: si es muy largo, la letra se reduce.
+Cada indicador que tiene un lugar donde trabajar es un **enlace**: **Borradores** abre los comprobantes sin terminar (en **Borrador**, **Grabado** o **No Aprobado**, los mismos que impiden cerrar el período), **Períodos abiertos** los períodos abiertos, **Terceros activos** el listado de terceros, y así los demás. Un clic normal se abre en tu pestaña; **⌘/Ctrl+clic** en otra del navegador. El monto de una tarjeta nunca se parte en dos líneas: si es muy largo, la letra se reduce.

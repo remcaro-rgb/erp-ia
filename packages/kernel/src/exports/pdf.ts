@@ -15,8 +15,9 @@ const TEXT = {
   en: { page: (n: number, total: number) => `Page ${n} of ${total}`, total: "Total", rows: (n: number) => `${n} ${n === 1 ? "record" : "records"}` },
 };
 
-const WEIGHT: Record<ExportColumn["type"], number> = { text: 2, enum: 1.3, json: 2, money: 1.3, number: 0.8, date: 1, datetime: 1.4, boolean: 0.7 };
-const NUMERIC = new Set<ExportColumn["type"]>(["money", "number"]);
+/** The relative width of a column of each type (the template tables use it too). */
+export const WEIGHT: Record<ExportColumn["type"], number> = { text: 2, enum: 1.3, json: 2, money: 1.3, number: 0.8, date: 1, datetime: 1.4, boolean: 0.7 };
+export const NUMERIC = new Set<ExportColumn["type"]>(["money", "number"]);
 /** Rows laid out on one page of A4 landscape at this size. */
 const ROWS_PER_PAGE = 28;
 const INK = "#1f2937";

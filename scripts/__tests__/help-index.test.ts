@@ -93,3 +93,26 @@ describe("policyEmbeddingModel", () => {
     await expect(policyEmbeddingModel(async () => { throw new Error("db down"); }, () => {})).rejects.toThrow("db down");
   });
 });
+
+describe("the entity types guides (phase 2A.5, rule 35)", () => {
+  const registry = loadAppRegistry();
+  const guides = loadGuides(GUIDES_DIR);
+  const NEW = ["maestros-y-documentos.md", "plantillas-pdf.md", "notificaciones.md", "acceso-por-registro.md"];
+
+  it("has the four new guides of Task 17, each naming registered processes and real screens", () => {
+    expect(guides.map((g) => g.file)).toEqual(expect.arrayContaining(NEW));
+    for (const file of NEW) expect(guides.find((g) => g.file === file)!.processes.length, file).toBeGreaterThan(0);
+    expect(guideProblems(guides, registry)).toEqual([]);
+  });
+
+  it("explains the lifecycle, Notificar, Imprimir and the record access rules where the screens are", () => {
+    const body = (file: string) => guides.find((g) => g.file === file)!.body;
+    expect(body("maestros-y-documentos.md")).toMatch(/Guardar y enviar a aprobación/);
+    expect(body("maestros-y-documentos.md")).toMatch(/Versiones/);
+    expect(body("notificaciones.md")).toMatch(/copia oculta/);
+    expect(body("acceso-por-registro.md")).toMatch(/solo restringen/i);
+    expect(body("plantillas-pdf.md")).toMatch(/Imprimir/);
+    expect(body("navegacion.md")).toMatch(/Contraer menú/);
+    for (const file of ["terceros.md", "productos.md", "categorias.md", "contabilidad/comprobantes.md"]) expect(body(file), file).toMatch(/maestros-y-documentos\.md/);
+  });
+});

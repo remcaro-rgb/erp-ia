@@ -7,17 +7,22 @@ processes:
   - core.party.update
   - core.party.deactivate
   - core.party.consult
+  - core.party.save
+  - core.party.submit
+  - core.party.approve
+  - core.party.reject
+  - core.party.delete
 ---
 
 # Terceros: clientes, proveedores y empleados
 
 **Terceros** es el maestro de las personas y empresas con las que trabajas. Cada tercero lleva los datos que pide la DIAN para la facturación electrónica y la información exógena, de modo que se pueda usar en una factura sin sorpresas.
 
-Entra desde el módulo **Núcleo › Terceros**, o con **⌘K** escribiendo «terc».
+Entra desde el módulo **Núcleo › Maestros › Terceros**, o con **⌘K** escribiendo «terc».
 
 ## El listado
 
-El listado de Terceros trae, al comienzo, las columnas N.º, Tipo de documento, Número de documento, Razón social, Nombre comercial, Tipo de tercero, Municipio, Correo de facturación, Teléfono, Cupo de crédito, Saldo, Estado DIAN, Listo para facturar y Activo. En **Columnas** puedes mostrar otras (departamento, responsabilidades fiscales, CIIU…).
+El listado de Terceros trae, al comienzo, las columnas ID, Tipo de documento, Número de documento, Razón social, Nombre comercial, Tipo de tercero, Municipio, Correo de facturación, Teléfono, Cupo de crédito, Saldo, Estado DIAN, Listo para facturar y Activo. En **Columnas** puedes mostrar otras (departamento, responsabilidades fiscales, CIIU…).
 
 Como en todos los listados, puedes ordenar, filtrar, paginar, guardar vistas, exportar e importar: la guía **Listados** explica cómo. Lo propio de Terceros:
 
@@ -41,7 +46,7 @@ Haz clic en una fila para abrir el tercero en su propia pestaña.
 
 El interruptor **Ver códigos DIAN**, arriba a la derecha, muestra los nombres técnicos de la DIAN junto a cada etiqueta (por ejemplo «DANE» o «schemeName») y los códigos delante de los nombres de las listas; empieza apagado. **Departamento** y **Municipio** son cajas de búsqueda: escribe «medellin» y pulsa **Enter**. El **DV** y el **Nombre para documentos** no se editan, pero se pueden seleccionar y copiar con el botón de copiar que tienen al lado; el **Resumen RUT** también copia la identificación completa («NIT 900373115-3»). Todo esto se explica en la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
 
-Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **N.º** consecutivo y su identificador (UUID).
+Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **ID** consecutivo y su identificador (UUID).
 
 ## Correos y teléfono
 
@@ -76,6 +81,16 @@ Abre la fila, modifica lo que necesites y pulsa **Guardar**. **Descartar cambios
 
 Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar tercero», con su propio permiso; en esta versión el formulario no tiene un botón para hacerlo): un tercero inactivo deja de estar disponible para documentos nuevos, pero se conserva todo su historial.
 
+## Estados, aprobación, impresión y acceso
+
+Los terceros son un **maestro** (guía [Maestros y documentos](maestros-y-documentos.md)):
+
+- Cada un tercero tiene un **ID** consecutivo que nunca se repite; búscalo en la columna **ID** del listado o escribiéndolo en **⌘K**.
+- La barra de acciones del registro tiene **Nuevo**, **Duplicar**, **Imprimir** (el PDF del registro, guía [Plantillas PDF e Imprimir](plantillas-pdf.md)) y **Guardar**. Si el administrador activó **Requiere aprobación** en **Parámetros › Configuración de tipos**, aparece también **Guardar y enviar a aprobación**, y quien tiene el permiso ve **Aprobar** y **No aprobar**. En un tercero aprobado, cambiar el documento, el nombre o los datos tributarios lo devuelve a **Pendiente de Aprobación** al guardar.
+- Un maestro se puede usar en documentos cuando está **Activo** y aprobado (o grabado, si no requiere aprobación). Para dejar de usarlo, cambia **Activo** a «No»; **Eliminar** solo funciona si nada lo usa.
+- El pie dice **Creado en … por …** y **Modificado en … por …**. Los maestros no tienen **Notificar** ni **Versiones**: sus cambios quedan en la auditoría.
+- Un administrador puede restringir un tercero concreto a ciertos roles o usuarios en la pestaña **Acceso** (guía [Acceso por registro](acceso-por-registro.md)).
+
 ## Quién puede ver y cambiar qué
 
 - Crear, actualizar, desactivar y consultar terceros son permisos distintos que el administrador asigna a cada rol. Sin el permiso de actualizar, el formulario se abre en solo lectura («Solo lectura: tu rol no puede modificar este registro»).
@@ -84,7 +99,7 @@ Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar t
 
 ## Más
 
-- Pestañas del registro: **Datos · Contactos · Datos adicionales · Archivos**.
+- Pestañas del registro: **Datos · Contactos · Datos adicionales · Archivos** y, para los administradores, **Acceso**.
 - **Duplicar** (o **Ctrl+D**) crea un tercero nuevo a partir de este, sin número de documento ni DV, contactos ni archivos (guía **Moverse por el sistema**, «Duplicar un registro»).
 - Cada acción (crear, actualizar, desactivar) queda en la auditoría con quién la hizo y desde dónde.
 - Para cargar muchos terceros de una vez, usa **Importar** (guía **Importar datos**).

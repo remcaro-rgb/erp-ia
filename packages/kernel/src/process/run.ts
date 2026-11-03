@@ -84,7 +84,7 @@ function sqlRefusal(cause: unknown): ProcessError | undefined {
 }
 
 /** Refusals recorded in the audit log with action `denied` (design §5.4 step 2). */
-const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up_required"]);
+const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up_required", "record_forbidden"]);
 
 /**
  * Runs a registered process for `caller` (design §5.4). In order: resolve (`not_found`),
@@ -97,6 +97,11 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
  * with the `SQL_INVALID_INPUT` prefix, which becomes `invalid_input`. A denial is audited (action `denied`)
  * in its own committed transaction, on the attempt's chain. With `options.dryRun` the transaction is always
  * rolled back after the handler (see `RunProcessOptions`).
+ *
+ * After the commit, the `ctx.afterCommit` steps run in order, each in its own transaction as the caller; one that throws is
+ * audited on the chain (`input.code: "post_commit_failed"`) and the committed result is still returned. A replay answers the
+ * stored result through `def.replay` when the process declares it. The result of `<entity>.update` on a maestro or documento
+ * whose entity declares `updated_at` carries `updatedAt`: the ISO version that run wrote, read in its transaction (design §5.4).
  */
 export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
   deps: RunProcessDeps,
@@ -185,12 +190,13 @@ async function execute<O extends z.ZodTypeAny>(
 
   const key = options.idempotencyKey ?? def.idempotencyKey?.(parsed.data);
   if (key !== undefined) {
-    const stored = await storedResult(deps.sql, claims, def.id, key);
+    const stored = await storedResult(deps.sql, claims, def, key);
     if (stored) return stored.result as z.infer<O>;
   }
 
+  const after: Array<Parameters<NonNullable<ProcessContext["afterCommit"]>>[0]> = [];
   try {
-    return await withClaims(deps.sql, claims, async (tx) => {
+    const result = await withClaims(deps.sql, claims, async (tx) => {
       await setAuditContext(tx, {
         origin: caller.origin,
         processId: def.id,
@@ -207,9 +213,16 @@ async function execute<O extends z.ZodTypeAny>(
       // revoked after the token was issued no longer counts for the handler's own checks (custom-field roles).
       const [live] = await tx<{ role_ids: string[] }[]>`select kernel.current_role_ids() as role_ids`;
       const ctx = buildContext(tx, deps.registry, def, caller, chainId, dryRun, live!.role_ids);
+      ctx.afterCommit = (fn) => {
+        after.push(fn);
+      };
       let output: unknown;
       try {
+        // Record-level access (spec 2026-11-02 §9.1): a process that changes one maestro or documento needs the caller's right on it.
+        const guard = recordGuardOf(deps.registry, def, parsed.data);
+        if (guard) await assertRecordRight(ctx, guard.entity, guard.recordId, guard.right);
         output = await def.handler(ctx, parsed.data);
+        if (guard && def.id === `${guard.entity}.update`) output = await withVersion(tx, deps.registry, guard.entity, guard.recordId, output);
       } catch (cause) {
         // A handler refuses with a typed error (e.g. invalid_input from a country-pack validator): keep it. So does a
         // SQL refusal raised with the SQL_INVALID_INPUT prefix.
@@ -237,14 +250,124 @@ async function execute<O extends z.ZodTypeAny>(
       }
       return output as z.infer<O>;
     });
+    // Committed: the effects the handler deferred (outside the database), each in its own transaction as the caller.
+    const asCaller = <T>(work: (tx: Tx) => Promise<T>): Promise<T> =>
+      withClaims(deps.sql, claims, async (tx) => {
+        await setAuditContext(tx, { origin: caller.origin, processId: def.id, chainId, actorUserId: claims.sub, conversationId: caller.conversationId });
+        return work(tx);
+      });
+    // The run is committed: a post-commit step that throws never turns it into an error for the caller. It is audited on the run's
+    // chain in a transaction of its own (rule 16: `post_commit_failed`, the process, origin and actor), and the later steps still run.
+    for (const fn of after) {
+      try {
+        await fn(asCaller);
+      } catch (error) {
+        console.error(`${def.id}: a post-commit step failed after the run committed (chain ${chainId})`, error);
+        const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
+        await asCaller((tx) => writeAudit(tx, { ...auditDefaults(def, caller, chainId), rowId: rowIdOf(result), input: { code: "post_commit_failed", message } })).catch((auditError: unknown) =>
+          console.error(`${def.id}: auditing the post-commit failure failed (chain ${chainId})`, auditError),
+        );
+      }
+    }
+    return result;
   } catch (error) {
     if (error instanceof DryRunRollback) return error.output as z.infer<O>;
     if (key !== undefined && error instanceof ProcessError && error.code === "idempotent_replay") {
-      const stored = await storedResult(deps.sql, claims, def.id, key);
+      const stored = await storedResult(deps.sql, claims, def, key);
       if (stored) return stored.result as z.infer<O>;
     }
     throw error;
   }
+}
+
+/**
+ * Minor 9 (Phase 2A.5): the form save of a maestro or documento (`<entity>.update`) answers the version it wrote (`updatedAt`, read in
+ * the run's transaction), so a lifecycle step chained to it («Guardar y enviar a aprobación») sends it as `expectedUpdatedAt`.
+ */
+async function withVersion(tx: Tx, registry: Registry, entityId: string, recordId: string, output: unknown): Promise<unknown> {
+  if (typeof output !== "object" || output === null || (output as { id?: unknown }).id !== recordId || "updatedAt" in output) return output;
+  const entity = registry.entities().find((e) => e.id === entityId);
+  if (!entity || !entity.fields.some((f) => f.name === "updated_at") || !IDENTIFIER.test(entity.schema) || !IDENTIFIER.test(entity.table)) return output;
+  const [row] = await tx.unsafe<{ updated_at: Date | null }[]>(`select updated_at from ${entity.schema}.${entity.table} where id = $1`, [recordId]);
+  return row?.updated_at ? { ...output, updatedAt: new Date(row.updated_at).toISOString() } : output;
+}
+
+/** A record-level right (kernel.record_access, spec 2026-11-02 §9.1): maestro read/use/modify/delete, documento read/modify/void. */
+export type RecordRight = "read" | "use" | "modify" | "delete" | "void";
+
+/**
+ * Refuses the step unless the caller holds `right` on record `recordId` of the maestro or documento `entity`
+ * (`kernel.can_access_record`: always for a company admin, always for a record without rules, else only by a rule of their user or
+ * one of their roles). A record the caller cannot read is refused exactly as one that does not exist (`not_found`, the lifecycle's own
+ * message and no details), so the refusal never tells that it exists; one they read without the right is `record_forbidden` with
+ * `details: { entity, recordId, right }`. The rule only narrows: runProcess has already checked the role's permission for the process.
+ * Runs in the process transaction, as the caller.
+ */
+export async function assertRecordRight(ctx: Pick<ProcessContext, "tx">, entity: string, recordId: string, right: RecordRight): Promise<void> {
+  if (!UUID.test(recordId)) return;
+  const [row] = await ctx.tx<{ readable: boolean; allowed: boolean }[]>`
+    select kernel.can_access_record(${entity}, ${recordId}::uuid, 'read') as readable,
+           kernel.can_access_record(${entity}, ${recordId}::uuid, ${right}) as allowed`;
+  if (row?.readable !== true) throw new ProcessError("not_found", `${entity} ${recordId} not found`);
+  if (row.allowed !== true) {
+    throw new ProcessError("record_forbidden", `the caller has no ${right} right on ${entity} ${recordId}`, { details: { entity, recordId, right } });
+  }
+}
+
+/**
+ * The record right a process run needs, if any: a process of kind update or delete named `<entity>.<verb>` whose entity is a
+ * maestro or documento and whose input names the record (`id`). `void` (Anular) needs void; `delete` (Eliminar) needs delete on a
+ * maestro and modify on a documento (a Borrador only, D1; a documento has no delete right); every other verb (Grabar, Enviar,
+ * Aprobar, No Aprobar, the module's own updates) needs modify. Reads are RLS's (the record read policy, 0044).
+ */
+export function recordGuardOf(registry: Registry, def: ProcessDef, input: unknown): { entity: string; recordId: string; right: RecordRight } | null {
+  const declared = def.recordAccess;
+  if (declared === "handler" || declared === "none") return null;
+  if (declared) {
+    const recordId = typeof input === "object" && input !== null ? (input as Record<string, unknown>)[declared.idField] : undefined;
+    return typeof recordId === "string" && UUID.test(recordId) ? { entity: declared.entity, recordId, right: declared.right } : null;
+  }
+  const convention = conventionTarget(registry, def);
+  if (!convention) return null;
+  const recordId = typeof input === "object" && input !== null ? (input as { id?: unknown }).id : undefined;
+  if (typeof recordId !== "string" || !UUID.test(recordId)) return null;
+  return { entity: convention.entity, recordId, right: convention.right };
+}
+
+/** The name convention's target: an update or delete process `<entity>.<verb>` of a maestro or documento. */
+function conventionTarget(registry: Registry, def: ProcessDef): { entity: string; right: RecordRight } | null {
+  if (def.kind !== "update" && def.kind !== "delete") return null;
+  const cut = def.id.lastIndexOf(".");
+  if (cut <= 0) return null;
+  const entityId = def.id.slice(0, cut);
+  const verb = def.id.slice(cut + 1);
+  const entity = registry.entities().find((e) => e.id === entityId);
+  if (!entity || entity.kind === "query" || (entity.entityType !== "maestro" && entity.entityType !== "documento")) return null;
+  // Only an actual delete needs the delete right; deactivate / activate are state changes (modify), ruling of 2026-11-02.
+  const right: RecordRight = verb === "void" ? "void" : verb === "delete" && entity.entityType === "maestro" ? "delete" : "modify";
+  return { entity: entity.id, right };
+}
+
+/**
+ * The processes that may change a maestro or documento without a record guard (review I4): create / update / delete processes that
+ * neither follow the name convention nor create their entity, and declare no `recordAccess`, among the processes of a module that
+ * owns a maestro or documento and the processes whose input names a record by `entity` + `recordId`. A registry test keeps it empty.
+ */
+export function uncoveredRecordWrites(registry: Registry): string[] {
+  const typedModules = new Set(
+    registry.entities().filter((e) => e.kind !== "query" && (e.entityType === "maestro" || e.entityType === "documento")).map((e) => e.module),
+  );
+  const namesRecord = (def: ProcessDef) => {
+    const shape = (def.input as { shape?: Record<string, unknown> }).shape;
+    return !!shape && "entity" in shape && "recordId" in shape;
+  };
+  return registry
+    .processes()
+    .filter((def) => def.kind !== "consult" && def.recordAccess === undefined)
+    .filter((def) => typedModules.has(def.module) || namesRecord(def))
+    .filter((def) => !conventionTarget(registry, def) && !createdEntity(registry, def))
+    .map((def) => def.id)
+    .sort();
 }
 
 /** The registered entity a create process creates: the one whose create process it is (`processIds.create`, else `<entity>.create`). */
@@ -280,15 +403,14 @@ function resolve(registry: Registry, processId: string): ProcessDef {
   }
 }
 
-async function storedResult(sql: Sql, claims: JwtClaims, processId: string, key: string) {
-  const [row] = await withClaims(
-    sql,
-    claims,
-    (tx) => tx<{ result: unknown }[]>`
+async function storedResult(sql: Sql, claims: JwtClaims, def: ProcessDef, key: string) {
+  return withClaims(sql, claims, async (tx) => {
+    const [row] = await tx<{ result: unknown }[]>`
       select result from kernel.process_idempotency
-      where company_id = ${claims.active_company_id} and process_id = ${processId} and key = ${key}`,
-  );
-  return row;
+      where company_id = ${claims.active_company_id} and process_id = ${def.id} and key = ${key}`;
+    if (row && def.replay) row.result = await def.replay(tx, row.result as never);
+    return row;
+  });
 }
 
 /** Marks the caller's verification consumed; a concurrent run that consumed it first wins. */

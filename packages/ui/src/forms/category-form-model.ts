@@ -3,7 +3,8 @@
 
 export interface CategoryDraft {
   name: string;
-  status: "active" | "inactive";
+  /** Activo (`is_active`); the record's `status` is its lifecycle state (entity types, migration 0042). */
+  isActive: boolean;
   ivaRate: string;
   incRate: string;
   otherTaxes: string[];
@@ -16,7 +17,7 @@ const str = (v: unknown): string => (v === null || v === undefined ? "" : String
 export function categoryDraft(record: Record<string, unknown> | null, defaultIva: string): CategoryDraft {
   return {
     name: str(record?.name),
-    status: record?.status === "inactive" ? "inactive" : "active",
+    isActive: record?.is_active !== false,
     ivaRate: str(record?.iva_rate) || defaultIva,
     incRate: str(record?.inc_rate),
     otherTaxes: Array.isArray(record?.other_taxes) ? (record.other_taxes as unknown[]).map(String) : [],
@@ -35,7 +36,7 @@ export const nameMissing = (draft: Pick<CategoryDraft, "name">): boolean => draf
 export function categoryInput(draft: CategoryDraft): Record<string, unknown> {
   return {
     name: draft.name.trim(),
-    status: draft.status,
+    isActive: draft.isActive,
     ivaRate: draft.ivaRate,
     incRate: draft.incRate || null,
     otherTaxes: draft.otherTaxes,

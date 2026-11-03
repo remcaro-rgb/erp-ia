@@ -131,10 +131,24 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       await sql`delete from kernel.outbox where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.outbox_dead_letter where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.export_jobs where company_id = any(${companyIds}::uuid[])`;
+      // Append-only tables (snapshots, mail log) refuse deletes: replica role skips their guard triggers for the cleanup only.
+      await sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`delete from kernel.record_snapshots where company_id = any(${companyIds}::uuid[])`;
+        await tx`delete from kernel.mail_claims where company_id = any(${companyIds}::uuid[])`;
+        await tx`delete from kernel.mail_log where company_id = any(${companyIds}::uuid[])`;
+      });
+      await sql`delete from kernel.record_access where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.menu_access where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.state_recipients where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.entity_type_settings where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.recommendations where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from core.entity_sequences where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.imports where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.process_idempotency where company_id = any(${companyIds}::uuid[])`;
+      // Templates and the company's logo point at attachments (0048).
+      await sql`delete from kernel.doc_templates where company_id = any(${companyIds}::uuid[])`;
+      await sql`update kernel.companies set logo_attachment_id = null where id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.attachments where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.required_attachments where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.step_up_verifications where company_id = any(${companyIds}::uuid[])`;
@@ -159,7 +173,7 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
 
 /** Test-only entity: a tiny company table with one secret column, read through its masked view. */
 export const ROLE_PROBE = defineEntity({
-  id: "kernel.role_probe",
+  entityType: "maestro", id: "kernel.role_probe",
   module: "kernel",
   schema: "kernel",
   table: "role_probe",

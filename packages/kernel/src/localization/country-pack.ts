@@ -164,6 +164,13 @@ export interface CountryPack {
    * "Colombia". A fiscal code keeps the code in front of its name; places read by name. Undefined for an unknown code.
    */
   codeLabel(table: CodeTable, code: string, locale: string): string | undefined;
+  /**
+   * How the company's own tax id (stored without check digit) prints on a document's letterhead: Colombia's NIT with its check digit,
+   * `900373115-3` (PDF templates, entity types spec §6). Without it the bare id prints.
+   */
+  taxIdText?(taxId: string): string;
+  /** The name of the tax id a letterhead prints before it (Colombia: `NIT`). Without it the catalogue's neutral label prints. */
+  taxIdLabel?(locale: string): string;
   /** Chart, role mappings, journals, statement layouts, tax codes and exógena of the country (design §5.9). */
   accounting: AccountingPack;
   // phase 2 adds taxes, sequences, eInvoicing, payroll hooks

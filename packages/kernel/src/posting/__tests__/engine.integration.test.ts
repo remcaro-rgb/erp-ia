@@ -55,6 +55,15 @@ describe("posting engine", () => {
     expect(unset.calls.skipped).toEqual(["evt-1"]);
   });
 
+  it("an event the provider ignores reaches no rule: nothing posted, skipped or recorded as a failure (Task 8b, no double posting)", async () => {
+    const { provider, calls } = fakeProvider({ starts: new Date("2027-01-01") });
+    await postingConsumer({ ...provider, ignores: (event) => event === invoiceEvent.event })(ctx(), invoiceEvent.payload);
+    expect(calls).toEqual({ posted: [], failures: [], skipped: [], reversed: [] });
+    // Another event still goes through the provider.
+    await postingConsumer({ ...provider, ignores: (event) => event === "x.ready_to_post" })(ctx(), invoiceEvent.payload);
+    expect(calls.skipped).toEqual(["evt-1"]);
+  });
+
   it("posts one entry per matching rule in priority order and records a failure for a rule with a missing mapping without stopping the others", async () => {
     const { provider, calls } = fakeProvider({ rules: [rule("late", 5), rule("first", 1), rule("broken", 3, { template: { ...invoiceTemplate, lines: [{ role: "suspense", side: "debit", amount: "$.totals.total" }, { role: "revenue", side: "credit", amount: "$.totals.total" }] } })], unmapped: ["suspense"] });
     await deliver(provider);

@@ -32,7 +32,8 @@ const dian: FieldPresentation = { display: "dian" };
 
 const PRESENTATIONS: Record<string, GridPresentation> = {
   "core.party": {
-    shown: ["seq", "document_type", "document_number", "legal_name", "trade_name", "kind", "municipality_code", "invoice_email", "phone", "credit_limit", "balance", "dian_status", "invoice_ready", "is_active"],
+    // The state chip sits next to Listo para facturar (rule 10, Task 15): a Pendiente de Aprobación party reads as not usable.
+    shown: ["seq", "document_type", "document_number", "legal_name", "trade_name", "kind", "municipality_code", "invoice_email", "phone", "credit_limit", "balance", "dian_status", "status", "invoice_ready", "is_active"],
     exclude: ["extra", "extra_free"],
     fields: {
       document_type: { table: "documentTypes" },
@@ -47,6 +48,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       phone: { display: "mono" },
       ciiu: { display: "mono" },
       dian_status: dian,
+      status: { valuesKey: "grid.values.record_status", pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok" } },
       invoice_ready: ready,
       is_active: active,
     },
@@ -75,7 +77,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     shown: ["number", "date", "journal_code", "account_code", "account_name", "party_name", "cost_center_name", "description", "debit", "credit", "net", "status"],
     exclude: [],
     fields: {
-      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
+      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" } },
       origin: { valuesKey: "accounting.values.entry_origin" },
       account_level: { valuesKey: "accounting.values.account_level" },
       account_code: { display: "mono" },
@@ -89,7 +91,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     exclude: ["extra", "extra_free"],
     fields: {
       number: { display: "mono" },
-      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" } },
+      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" } },
       origin: { valuesKey: "accounting.values.entry_origin" },
     },
   },
@@ -124,14 +126,15 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     fields: { code: { display: "mono" }, kind: { valuesKey: "accounting.values.journal_kind" }, manual_entries: ready, is_active: active },
   },
   "core.product_category": {
-    shown: ["seq", "name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "income_account", "status"],
+    shown: ["seq", "name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "income_account", "is_active"],
     exclude: ["extra", "extra_free"],
     fields: {
       iva_rate: { table: "ivaRates" },
       inc_rate: { table: "incRates" },
       default_uom: { display: "mono" },
       income_account: { display: "mono" },
-      status: { valuesKey: "grid.values.category_status", pills: { active: "ok", inactive: "gray" } },
+      // Activa (0042: the old active / inactive status became is_active; status is the lifecycle state). «Categoría» is feminine.
+      is_active: { ...active, valuesKey: "grid.values.active_feminine" },
     },
   },
   // Auditoría (prototype v5 renderAudit): date, origin as a pill, process, entity, record, action, actor and chain.

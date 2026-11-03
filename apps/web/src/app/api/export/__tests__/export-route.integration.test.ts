@@ -102,7 +102,7 @@ describe("export-route", () => {
     const lines = new TextDecoder().decode(bytes).split("\r\n");
     expect(lines.pop()).toBe("");
     // The headers are the catalogue's labels; the cashier's hidden credit_limit is not a column at all.
-    expect(lines[0]).toBe('"N.º";"Razón social";"Número de documento";"Tipo de tercero"');
+    expect(lines[0]).toBe('"ID";"Razón social";"Número de documento";"Tipo de tercero"');
     expect(lines).toHaveLength(21);
     expect(lines[1]).toBe('1;"Tercero 01 Ñandú";"••••••";"Cliente"');
     expect(lines.slice(1).every((line) => line.split(";")[2] === '"••••••"')).toBe(true);
@@ -185,12 +185,13 @@ describe("export-route", () => {
 
   it("10,001 rows switch to a job: 202 { mode: job }, it ends done, the file is in the bucket and the signed URL lasts 10 minutes", async () => {
     const companyId = fixture.companyIds[0]!;
-    // Bulk fixture rows bypass the triggers (audit, seq) to keep the suite's audit log small: seq is given.
+    // Bulk fixture rows bypass the triggers (audit, seq) to keep the suite's audit log small: seq is given, and so is
+    // requires_approval, which the typed_copy_flags trigger fills otherwise (0040, 0042).
     await fixture.sql.begin(async (tx) => {
       await tx`set local session_replication_role = replica`;
       await tx`
-        insert into core.parties (company_id, seq, kind, person_type, document_type, document_number, legal_name, credit_limit, dian_status)
-        select ${companyId}, 1000 + n, array['customer'], '1', '31', 'B' || n, 'Masivo ' || lpad(n::text, 5, '0'), 0, 'complete'
+        insert into core.parties (company_id, seq, kind, person_type, document_type, document_number, legal_name, credit_limit, dian_status, requires_approval)
+        select ${companyId}, 1000 + n, array['customer'], '1', '31', 'B' || n, 'Masivo ' || lpad(n::text, 5, '0'), 0, 'complete', false
         from generate_series(1, 9981) as n`;
     });
     const response = await post(exportBody("csv", {}, { sort: [{ field: "seq", dir: "asc" }] }));

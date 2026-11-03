@@ -149,6 +149,7 @@ export function ImportPage({ data }: { data: ImportPageData }) {
           onOpenChange={(next) => !next && setOpen(null)}
           entity={screen.entity}
           entityLabel={screen.title}
+          xlsxOnly={screen.xlsxOnly}
           requestStepUp={requestStepUp}
           onStarted={() => void refresh()}
         />

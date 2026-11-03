@@ -1,14 +1,17 @@
-import { defineProcess, ProcessError, visibleExtra, type ProcessContext } from "@erp/kernel";
+import { defineProcess, ProcessError, visibleExtra, writeSnapshot, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { invalid, settingsOf } from "./common";
 import { accountOf, assertValid, loadAccounts, validateLines, type EntryOrigin, type LineInput } from "./entry-validate";
 import { extraForCreate, extraForUpdate } from "./extra";
 import { extra, extraFree, extraPatch, id, idOutput, rowOutput } from "./schemas";
 
-// Comprobantes in draft (accounting design §4.6, §4.7, §5.5, §6): create, update, void and consult. A draft is a person's
-// work in progress; `entry.submit` and `entry.post` (Task 19) take it from there.
+// Comprobantes before posting (accounting design §4.6, §4.7, §5.5, §6): create, update and consult. A comprobante is a documento
+// that posts itself (entity types spec 2026-11-02 §5, D8; Phase 2A.5 Task 8b): the create processes make a Borrador, Grabar
+// (`accounting.entry.save`, entry-lifecycle.ts) posts it, or sends it through approval when it requires approval.
 
 const round4 = (value: number) => Math.round(value * 10_000) / 10_000;
+/** The states whose header and lines entry.update replaces (D3). */
+const EDITABLE = new Set(["draft", "saved", "rejected"]);
 const amount = z.number().min(0).max(9_999_999_999_999);
 const optionalId = z.uuid().nullish();
 
@@ -102,6 +105,19 @@ export async function insertLines(ctx: ProcessContext, entryId: string, rate: nu
   await ctx.tx`insert into accounting.entry_lines ${ctx.tx(rows)}`;
 }
 
+/**
+ * Requiere aprobación of a new comprobante, written by the create process (not left to the column trigger): a person's comprobante
+ * (any origin but `auto`) requires approval when the accounting setting require_approval_on_manual is on (§5.12) or the company
+ * requires approval of comprobantes in Parámetros (kernel.entity_type_settings); an automatic one never does (its control is the rule).
+ */
+export async function entryRequiresApproval(ctx: ProcessContext, origin: EntryOrigin): Promise<boolean> {
+  if (origin === "auto") return false;
+  if ((await settingsOf(ctx))?.requireApprovalOnManual) return true;
+  const [row] = await ctx.tx<{ requires_approval: boolean }[]>`
+    select requires_approval from kernel.entity_type_settings where company_id = ${ctx.companyId} and entity = 'accounting.entry'`;
+  return row?.requires_approval === true;
+}
+
 /** Validates in draft mode and inserts a draft with its lines; the shared path of `entry.create`, `entry.from_template` and the opening balances. */
 export async function createDraft(ctx: ProcessContext, input: EntryInput, origin: EntryOrigin, extraColumns: Record<string, unknown> = {}): Promise<string> {
   assertReverseOn(input.date, input.reverseOn);
@@ -112,7 +128,7 @@ export async function createDraft(ctx: ProcessContext, input: EntryInput, origin
     insert into accounting.entries ${ctx.tx({
       company_id: ctx.companyId, journal_id: journalId, date: input.date, description: input.description, currency: input.currency,
       exchange_rate: input.exchangeRate, business_unit_id: input.businessUnitId ?? null, reverse_on: input.reverseOn ?? null,
-      origin, status: "draft", ...extraColumns,
+      origin, status: "draft", posts: true, requires_approval: await entryRequiresApproval(ctx, origin), ...extraColumns,
     })}
     returning id`;
   await insertLines(ctx, entry!.id, input.exchangeRate, lines);
@@ -139,21 +155,26 @@ export const entryUpdate = defineProcess({
   module: "accounting",
   kind: "update",
   feature: "accounting.ledger",
-  description: "Reemplaza el encabezado y las líneas de un borrador; uno pendiente de aprobación se devuelve a borrador antes de modificarlo",
+  description:
+    "Reemplaza el encabezado y las líneas de un comprobante en Borrador, Grabado o No Aprobado; no cambia su estado (Grabar lo contabiliza o lo deja listo para aprobación)",
   input: z.object({ id, ...entryHeaderShape, extraPatch }).strict(),
   output: idOutput,
   handler: async (ctx, { id: entryId, extraPatch: patch, ...input }) => {
     const [current] = await ctx.tx<{ status: string; origin: EntryOrigin; journal_id: string; extra: Record<string, unknown> }[]>`
       select status, origin, journal_id, extra from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
     if (!current) throw new ProcessError("not_found", `entry ${entryId} not found`);
-    if (current.status === "pending") throw invalid(`entry ${entryId} is pending`, "Devuelve el comprobante a borrador antes de modificarlo");
-    if (current.status !== "draft") {
-      throw invalid(`entry ${entryId} is ${current.status}`, "Solo se puede modificar un borrador; uno contabilizado se corrige con una reversión");
+    // D3: Borrador, Grabado and No Aprobado take changes; Pendiente, Aprobado, Contabilizado and Anulado do not.
+    if (!EDITABLE.has(current.status)) {
+      throw new ProcessError("invalid_state", `entry ${entryId}: update is not allowed in status ${current.status}`, {
+        details: { from: current.status, action: "save" },
+      });
     }
     assertReverseOn(input.date, input.reverseOn);
     const journalId = input.journalId ?? current.journal_id;
     const lines = await inheritParty(ctx, input.partyId, input.lines);
-    assertValid(await validateLines(ctx, { journalId, date: input.date, businessUnitId: input.businessUnitId, origin: current.origin }, lines, "draft"));
+    // A Grabado comprobante is complete (it waits for approval): its edit is checked as for posting.
+    const mode = current.status === "saved" ? "post" : "draft";
+    assertValid(await validateLines(ctx, { journalId, date: input.date, businessUnitId: input.businessUnitId, origin: current.origin }, lines, mode));
     const custom = await extraForUpdate(ctx, "accounting.entry", "accounting.entry.update", current.extra, { ...input, extraPatch: patch });
     await ctx.tx`
       update accounting.entries set ${ctx.tx({
@@ -163,28 +184,8 @@ export const entryUpdate = defineProcess({
       })} where id = ${entryId}`;
     await ctx.tx`delete from accounting.entry_lines where entry_id = ${entryId}`;
     await insertLines(ctx, entryId, input.exchangeRate, lines);
-    return { id: entryId };
-  },
-});
-
-export const entryVoid = defineProcess({
-  id: "accounting.entry.void",
-  module: "accounting",
-  kind: "update",
-  feature: "accounting.ledger",
-  description: "Anula un borrador o un comprobante pendiente de aprobación; la fila queda con estado anulado y el motivo",
-  input: z.object({ id, reason: z.string().trim().min(1).max(500) }).strict(),
-  output: idOutput,
-  handler: async (ctx, { id: entryId, reason }) => {
-    const [current] = await ctx.tx<{ status: string }[]>`select status from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
-    if (!current) throw new ProcessError("not_found", `entry ${entryId} not found`);
-    if (current.status !== "draft" && current.status !== "pending") {
-      throw invalid(`entry ${entryId} is ${current.status}`, "Solo se anula un borrador o un comprobante pendiente; uno contabilizado se corrige con una reversión");
-    }
-    await ctx.tx`
-      update accounting.entries
-         set status = 'voided', extra = extra || ${ctx.tx.json({ void_reason: reason })}
-       where id = ${entryId}`;
+    // §8: every data change of a documento past Borrador is snapshotted (one per edit), in its unchanged state.
+    if (current.status !== "draft") await writeSnapshot(ctx, ctx.registry.entity("accounting.entry"), entryId, current.status as "saved" | "rejected", null);
     return { id: entryId };
   },
 });
@@ -238,4 +239,4 @@ export const entryLineConsult = defineProcess({
   },
 });
 
-export const ENTRY_PROCESSES = [entryCreate, entryUpdate, entryVoid, entryConsult, entryLineConsult];
+export const ENTRY_PROCESSES = [entryCreate, entryUpdate, entryConsult, entryLineConsult];

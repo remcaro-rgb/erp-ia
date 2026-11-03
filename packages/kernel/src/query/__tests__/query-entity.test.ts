@@ -22,7 +22,7 @@ describe("query entities", () => {
   });
 
   it("a table entity still resolves <entity>.consult", () => {
-    const entity = { id: "probe.row", module: "probe", schema: "probe", table: "rows", label: "entity.probe.row", displayField: "name", defaultSort: { field: "name", dir: "asc" as const }, fields: [{ name: "name", type: "text" as const, label: "field.probe.row.name" }] };
+    const entity = { id: "probe.row", module: "probe", schema: "probe", table: "rows", label: "entity.probe.row", entityType: "maestro" as const, displayField: "name", defaultSort: { field: "name", dir: "asc" as const }, fields: [{ name: "name", type: "text" as const, label: "field.probe.row.name" }] };
     const registry = new Registry();
     loadModules(registry, [defineModule({ id: "probe", version: "0", dependsOn: [], entities: [entity], processes: [consult("probe.row.consult"), consult("probe.row.list")], features: [], events: { emits: [], consumes: {} }, navigation: [] })]);
     expect(consultProcessesOf(registry, registry.entity("probe.row"))).toEqual(["probe.row.consult"]);

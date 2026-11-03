@@ -6,6 +6,7 @@ import { z } from "zod";
 import { withClaims } from "../../db/client";
 import { seedTenant, testDb } from "../../db/test-db";
 import { defineModule } from "../../module/define";
+import { menuSections } from "../../module/menu";
 import { kernelModule } from "../../module/kernel-module";
 import { loadModules } from "../../module/loader";
 import type { Caller } from "../../process/context";
@@ -94,7 +95,7 @@ function fakeCore() {
     processes: [partyCreate],
     features: [{ id: "core.parties", label: "feature.core.parties", processes: [partyCreate.id], entities: [], nav: [nav] }],
     events: { emits: [], consumes: {} },
-    navigation: [nav],
+    navigation: [...menuSections("core"), nav],
   });
 }
 

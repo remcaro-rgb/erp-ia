@@ -144,6 +144,8 @@ jobs:
           export TEST_DATABASE_URL="$DATABASE_URL" WORKFLOW_POSTGRES_URL="$DATABASE_URL" WORKFLOW_TARGET_WORLD="@workflow/world-postgres"
           export NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:${KONG_HOST_PORT}" SUPABASE_URL="http://127.0.0.1:${KONG_HOST_PORT}"
           export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY"
+          # The state e-mail test sends to the compose's Mailpit and reads it back (docker-compose.test.yml publishes both sides).
+          export TEST_SMTP_PORT="${MAIL_SMTP_HOST_PORT:-56325}" TEST_MAILPIT_URL="http://127.0.0.1:${MAIL_HOST_PORT:-56324}"
           pnpm test:integration
       - name: Compose logs
         if: failure()

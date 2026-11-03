@@ -21,14 +21,14 @@ const GATES: readonly { id: string; uses: keyof OptionalMasters }[] = [
 /** True when the menu holds one of the optional masters (so the settings are worth reading). */
 export const hasOptionalMasters = (nav: readonly NavItem[]): boolean => nav.some((item) => GATES.some((g) => g.id === item.id) || (item.children ? hasOptionalMasters(item.children) : false));
 
-/** The menu without the optional masters whose setting is off; a group left with no item is dropped. */
+/** The menu without the optional masters whose setting is off; a group left with no item is dropped, except a menu section (its empty state shows). */
 export function hideOptionalMasters(nav: readonly NavItem[], uses: OptionalMasters): NavItem[] {
   const hidden = new Set(GATES.filter((g) => !uses[g.uses]).map((g) => g.id));
   return nav.flatMap((item): NavItem[] => {
     if (hidden.has(item.id)) return [];
     if (!item.children) return [item];
     const children = hideOptionalMasters(item.children, uses);
-    return children.length > 0 ? [{ ...item, children }] : [];
+    return children.length > 0 || item.section ? [{ ...item, children }] : [];
   });
 }
 

@@ -16,7 +16,7 @@ import { SAVED_VIEW_PROCESS_IDS } from "../index";
 // kernel.saved_view.list; nobody sees anyone else's views, and a company's views stay in that company.
 
 const probe = defineEntity({
-  id: "kernel.view_probe",
+  entityType: "maestro", id: "kernel.view_probe",
   module: "kernel",
   schema: "kernel",
   table: "view_probe",

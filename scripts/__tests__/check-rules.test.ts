@@ -221,3 +221,86 @@ describe("check-rules: PUC codes outside the country pack (rule 5)", () => {
     expect(checkRules(root)).toEqual([]);
   });
 });
+
+describe("check-rules: entity types (rule 7, design 22.23, D13-D14)", () => {
+  const ENTITIES = "packages/modules/core/src/entities.ts";
+  const TRAILER = `const trailer = (f) => [f("extra", "json"), f("extra_free", "json")];\n`;
+  const lit = (id: string, role: string, rest = "") =>
+    `export const e_${id.split(".")[1]} = { id: "${id}", module: "core", schema: "core", table: "${id.split(".")[1]}s", entityType: "${role}", ${rest} fields: [f("name", "text"), ...trailer(f)] };\n`;
+  const messages = () => checkRules(root).map((v) => v.message);
+
+  it("flags a table entity without entityType", () => {
+    put(ENTITIES, 'export const x = { id: "core.x", module: "core", schema: "core", table: "xs", fields: [] };\n');
+    expect(checkRules(root).map((v) => [v.rule, v.file, v.message])).toEqual([["entity-type", ENTITIES, "rule 7/§22.23: core.x has no entityType"]]);
+  });
+
+  it("reads the role of helper-built entities from the second argument or the extra object", () => {
+    put(ENTITIES, TRAILER + 'function entity(id, type, table, d, fields, extra = {}) { return { id, entityType: type, ...extra, fields: [...fields(), ...trailer(f)] }; }\nexport const a = entity("core.a", "parametro", "as", "name", () => []);\nexport const b = entity("core.b", "maestro", "bs", "name", () => [], { importKey: ["name"] });\nexport const c = entity("core.c", "maestro", "cs", "name", () => []);\n');
+    expect(messages()).toEqual(["rule 7/§22.23: core.c is maestro and has no importKey (import and export are required, spec 2.5)"]);
+  });
+
+  it("flags a typed entity without extra and extra_free fields", () => {
+    put(ENTITIES, 'export const x = { id: "core.x", module: "core", schema: "core", table: "xs", entityType: "maestro", importKey: ["name"], fields: [{ name: "name" }] };\n');
+    expect(messages()).toEqual(["rule 7/§22.23: core.x is maestro and has no extra / extra_free fields (Datos adicionales)"]);
+  });
+
+  it("requires an importKey of a maestro and typed.lines of a documento, but no importKey of a documento", () => {
+    put(ENTITIES, TRAILER + lit("core.m", "maestro") + lit("core.d", "documento"));
+    expect(messages()).toEqual([
+      "rule 7/§22.23: core.m is maestro and has no importKey (import and export are required, spec 2.5)",
+      "rule 7/§22.23: core.d is documento and has no typed.lines (header + lines import, D14)",
+    ]);
+  });
+
+  it("asks nothing of parametro and sistema, and a lines entity must be named by a parent's typed.lines", () => {
+    put(ENTITIES, TRAILER + 'export const p = { id: "core.p", entityType: "parametro", table: "ps", fields: [] };\nexport const s = { id: "core.s", entityType: "sistema", table: "ss", fields: [] };\nexport const l = { id: "core.l", entityType: "lines", table: "ls", fields: [] };\n');
+    expect(messages()).toEqual(["rule 7/§22.23: core.l is lines and no entity names it in typed.lines"]);
+  });
+
+  it("checks typed.lines points to a lines entity", () => {
+    put(
+      ENTITIES,
+      TRAILER + lit("core.m", "maestro", 'importKey: ["name"], typed: { lines: { entity: "core.l", parentField: "m_id" } },') +
+        'export const l = { id: "core.l", entityType: "lines", table: "ls", fields: [] };\n' +
+        lit("core.n", "maestro", 'importKey: ["name"], typed: { lines: { entity: "core.p", parentField: "n_id" } },') +
+        'export const p = { id: "core.p", entityType: "parametro", table: "ps", fields: [] };\n',
+    );
+    expect(messages()).toEqual(["rule 7/§22.23: core.n typed.lines names core.p, which is not a lines entity"]);
+  });
+
+  it("accepts a complete set, query entities and test files", () => {
+    put(
+      ENTITIES,
+      TRAILER + lit("core.d", "documento", 'typed: { lines: { entity: "core.l", parentField: "d_id" } },') +
+        'export const l = { id: "core.l", entityType: "lines", table: "ls", fields: [] };\nexport const q = { id: "core.q", module: "core", schema: "core", table: "qs", kind: "query", fields: [] };\n',
+    );
+    put("packages/modules/core/src/__tests__/e.test.ts", 'const t = { id: "core.t", module: "core", schema: "core", table: "ts", fields: [] };\n');
+    expect(checkRules(root)).toEqual([]);
+  });
+});
+
+describe("check-rules: menu sections (spec 2026-11-02 §9.2)", () => {
+  const INDEX = "packages/modules/sales/src/index.ts";
+  const MENU = 'const ORDERS = { id: "sales.orders", label: "nav.sales.orders", href: "/sales/orders", icon: "list" };\n';
+  const found = () => checkRules(root).map((v) => [v.rule, v.file, v.message]);
+
+  it("flags a module with menu items that does not declare the four sections", () => {
+    put(INDEX, `${MENU}export const sales = defineModule({ id: "sales", navigation: [ORDERS] });\n`);
+    expect(found()).toEqual([
+      ["menu-sections", INDEX, 'rule 7/§9.2: module sales has a menu but not the sections Maestros, Documentos, Reportes and Parámetros (menuSections("sales"))'],
+    ]);
+  });
+
+  it("flags sections built for another module id", () => {
+    put(INDEX, `${MENU}export const sales = defineModule({ id: "sales", navigation: [...menuSections("ventas"), ORDERS] });\n`);
+    expect(found().map((v) => v[0])).toEqual(["menu-sections"]);
+  });
+
+  it("accepts menuSections of the module, the four groups written out, a module without a menu, and tests", () => {
+    put(INDEX, `${MENU}export const sales = defineModule({ id: "sales", navigation: [...menuSections("sales"), ORDERS] });\n`);
+    put("packages/modules/billing/src/index.ts", 'const NAV = ["billing.maestros", "billing.documentos", "billing.reportes", "billing.parametros"].map((id) => ({ id, label: "l", href: "#", icon: "list", children: [] }));\nexport const billing = defineModule({ id: "billing", navigation: NAV });\n');
+    put("packages/modules/engine/src/index.ts", 'export const engine = defineModule({ id: "engine", navigation: [] });\n');
+    put("packages/modules/engine/src/__tests__/x.test.ts", MENU);
+    expect(checkRules(root)).toEqual([]);
+  });
+});

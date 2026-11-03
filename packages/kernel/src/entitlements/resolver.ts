@@ -1,6 +1,7 @@
 import type { Sql } from "postgres";
 import type { Registry } from "../registry";
 import type { ModuleDef } from "../registry/types";
+import { menuItemsOf } from "../module/menu";
 
 /** Whether the company may use `key` (`module:x`, `feature:x.y`, `process:x.y.z`, `limit:x`). */
 export type EntitledFn = (sql: Sql, companyId: string, key: string) => Promise<boolean>;
@@ -30,6 +31,8 @@ export async function entitlementLimit(sql: Sql, companyId: string, key: string)
  *  - `kernel.module_features`: the feature -> process / entity map, so SQL resolves `process:x.y.z` through its feature;
  *  - `kernel.registered_processes`: every process with its feature, kind and step-up, for the role seeds and the
  *    sensitive defaults;
+ *  - `kernel.entity_tables`: the schema and table of every maestro and documento (the usability gate and the reference check read it);
+ *  - `kernel.menu_items`: every menu item with its group, address, entity and the processes it lists (kernel.menu_access, 0047);
  *  - `kernel.entity_fields`: every field with its sensitivity. A `confidential` field the module registers for the
  *    first time (its first sync included) starts `masked` for every existing non-admin role of every company (rule 14;
  *    an existing row, an admin's own choice, is kept); roles created afterwards are masked by `kernel.seed_role_defaults`.
@@ -57,6 +60,30 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
         values (${process.id}, ${module.id}, ${feature}, ${process.kind}, ${process.sensitivity === "step-up"})
         on conflict (process_id) do update set
           module_id = excluded.module_id, feature_id = excluded.feature_id, kind = excluded.kind, step_up = excluded.step_up, updated_at = now()`;
+    }
+
+    // kernel.entity_tables: where each maestro / documento lives, for kernel.record_usable and kernel.record_referenced (0041), and the lines entity for kernel.record_versions (0051).
+    const typedEntities = module.entities.filter((e) => e.entityType === "maestro" || e.entityType === "documento");
+    await tx`delete from kernel.entity_tables where module_id = ${module.id} and not (entity = any(${typedEntities.map((e) => e.id)}::text[]))`;
+    for (const entity of typedEntities) {
+      await tx`
+        insert into kernel.entity_tables (entity, module_id, entity_type, table_schema, table_name, lines_entity)
+        values (${entity.id}, ${module.id}, ${entity.entityType as string}, ${entity.schema}, ${entity.table}, ${entity.typed?.lines?.entity ?? null})
+        on conflict (entity) do update set
+          module_id = excluded.module_id, entity_type = excluded.entity_type, table_schema = excluded.table_schema, table_name = excluded.table_name,
+          lines_entity = excluded.lines_entity, updated_at = now()`;
+    }
+
+    // kernel.menu_items: the module's menu items and the processes each lists, for kernel.menu_access (0047).
+    const items = menuItemsOf(module);
+    await tx`delete from kernel.menu_items where module_id = ${module.id} and not (nav_key = any(${items.map((i) => i.navKey)}::text[]))`;
+    for (const item of items) {
+      await tx`
+        insert into kernel.menu_items (nav_key, module_id, parent_key, href, entity, process_ids)
+        values (${item.navKey}, ${item.moduleId}, ${item.parentKey}, ${item.href}, ${item.entity}, ${item.processIds}::text[])
+        on conflict (nav_key) do update set
+          module_id = excluded.module_id, parent_key = excluded.parent_key, href = excluded.href, entity = excluded.entity,
+          process_ids = excluded.process_ids, updated_at = now()`;
     }
 
     const known = await tx<{ entity: string; field: string; sensitivity: string }[]>`

@@ -3,6 +3,8 @@ title: "El asistente: preguntar, pedir acciones y confirmar"
 routes:
   - /
 processes:
+  - kernel.record.notify
+  - kernel.doc_template.print
   - kernel.data.query
   - kernel.help.search
 ---
@@ -49,7 +51,16 @@ El asistente **nunca cambia nada por su cuenta**. Si le pides crear, modificar o
 
 Una tarjeta decidida queda en la conversación con su resultado («Listo · la acción se ejecutó» o «Cancelada · nada cambió»). Una tarjeta **vence a los 15 minutos**; entonces dice que venció y debes pedir la acción otra vez. Si la acción no se puede hacer (por ejemplo, falta un permiso o un dato), la tarjeta muestra el motivo y sigue pendiente para que lo corrijas o la canceles.
 
-### Acciones sensibles: el código de verificación
+#### Maestros y documentos
+
+Con el asistente también puedes cambiar el estado de un maestro o un documento, con las mismas reglas de la pantalla (guía [Maestros y documentos](maestros-y-documentos.md)):
+
+- «aprueba el comprobante NC-2026-0042», «no apruebes el comprobante NC-2026-0042: falta el soporte», «anula el comprobante NC-2026-0042, quedó duplicado»: **Guardar**, **Enviar a aprobación**, **Aprobar**, **No aprobar**, **Anular** y **Eliminar** siempre llegan como tarjeta de confirmación; nada cambia antes de **Confirmar**.
+- «envía por correo el comprobante NC-2026-0042 a tesoreria@empresa.co»: **Notificar** sale del sistema, así que también pide confirmación (guía [Notificaciones por correo](notificaciones.md)).
+- «imprime en PDF el comprobante NC-2026-0042»: **Imprimir** es una consulta y no pide confirmación (guía [Plantillas PDF e Imprimir](plantillas-pdf.md)).
+- Si una regla de **Acceso** no te deja modificar ese registro, el asistente no te muestra tarjeta: te dice que no tienes permiso sobre él. Si no puedes verlo, responde como si no existiera (guía [Acceso por registro](acceso-por-registro.md)).
+
+## Acciones sensibles: el código de verificación
 
 Algunas acciones (las que el administrador marcó como sensibles, como cambiar un cupo de crédito) piden **verificación en dos pasos**. Su tarjeta lleva una zona «Verificación requerida» y **Confirmar** está desactivado hasta que:
 

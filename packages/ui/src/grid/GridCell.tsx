@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { refLabelKey } from "@erp/kernel/query";
+import { refLabelKey, ROW_MASKED } from "@erp/kernel/query";
 import { cn } from "@erp/ui/lib/utils";
 import { RecordLink } from "../record/RecordLink";
 import { shortId } from "../record/record-model";
@@ -44,6 +44,14 @@ export function GridCell({ column, row, className, render }: { column: GridColum
     return (
       <td className={cn(base, "erp-masked")}>
         <span title={t("grid.masked_value")}>••••••</span>
+      </td>
+    );
+  }
+  // D20: a placeholder row (a line the viewer may not see, from the masked view) shows «••••» wherever the view left its value out.
+  if (row[ROW_MASKED] === true && [null, undefined, ""].includes(cellValue(row, column.field) as never)) {
+    return (
+      <td className={cn(base, "erp-masked")}>
+        <span title={t("grid.masked_row")}>••••</span>
       </td>
     );
   }

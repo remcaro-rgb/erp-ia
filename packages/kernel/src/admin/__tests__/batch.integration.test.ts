@@ -18,7 +18,7 @@ import { syncRegistry } from "../sync";
 // the row triggers still record the before/after of each grant (rule 16). Admin only, sensitive by default (rule 15).
 
 const thing = defineEntity({
-  id: "batchprobe.thing",
+  entityType: "maestro", id: "batchprobe.thing",
   module: "batchprobe",
   schema: "batchprobe",
   table: "thing",
@@ -27,8 +27,9 @@ const thing = defineEntity({
   defaultSort: { field: "name", dir: "asc" },
   fields: ["name", "secret", "price"].map((name) => ({ name, type: "text" as const, label: `field.batchprobe.${name}`, ...(name === "secret" ? { sensitivity: "confidential" as const } : {}) })),
 });
-// The probe's processes: a consult and a few actions, so a plain role has well over 30 processes it may be given.
-const probeProcesses = ["consult", "create", "update", "approve", "close", "reopen"].map((verb) =>
+// The probe's processes: a consult and a few actions, so a plain role has well over 30 processes it may be given. No `update`: a
+// maestro with an update process of its own needs a validate hook (loader guard, Task 8a), which this probe does not need.
+const probeProcesses = ["consult", "create", "edit", "approve", "close", "reopen"].map((verb) =>
   defineProcess({
     id: `batchprobe.thing.${verb}`,
     module: "batchprobe",

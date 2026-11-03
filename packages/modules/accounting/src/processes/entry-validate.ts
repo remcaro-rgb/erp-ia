@@ -2,8 +2,8 @@ import { ProcessError, type PostingFailureCode, type ProcessContext } from "@erp
 import { DIMENSIONS, DIMENSION_DEFS, type Dimension } from "../dimensions";
 import { requireLeafDimension, settingsOf, type AccountRow } from "./common";
 
-// The line rules of design §5.5 and the account security of §5.13, shared by the draft processes (Task 18), `entry.post`
-// (Task 19), the posting provider (Task 20) and the opening balances. `draft` checks what can be checked while a person
+// The line rules of design §5.5 and the account security of §5.13, shared by the draft processes (Task 18), the comprobante's
+// lifecycle hooks (Grabar, Enviar a aprobación and Contabiliza, Phase 2A.5 Task 8b), the posting provider (Task 20) and the opening balances. `draft` checks what can be checked while a person
 // is still typing; `post` adds everything a ledger entry must satisfy.
 
 export type RefusalCode = PostingFailureCode | "account_forbidden" | "same_user_approval" | "manual_journal_only";
@@ -71,7 +71,7 @@ export async function loadAccounts(ctx: ProcessContext, lines: readonly LineInpu
   >`select id, code, name, level, nature, allows_movement, requires_party, requires_invoice_ready, requires_cost_center, requires_open_auxiliary, requires_item,
            requires_business_unit, statement_section, is_active, accounting.can_post_account(id) as can_post
     from accounting.accounts
-    where company_id = ${ctx.companyId} and (id = any(${ids}::uuid[]) or code = any(${codes}::text[]))`;
+    where company_id = ${ctx.companyId} and deleted_at is null and (id = any(${ids}::uuid[]) or code = any(${codes}::text[]))`;
   for (const row of rows) {
     const account: LoadedAccount = {
       id: row.id, code: row.code, name: row.name, level: row.level, nature: row.nature, allowsMovement: row.allows_movement,
@@ -142,7 +142,7 @@ export async function validateLines(
   const add = (code: RefusalCode, detail: string, lineNo?: number) => refusals.push(lineNo === undefined ? { code, detail } : { code, detail, lineNo });
 
   const [journal] = await ctx.tx<{ code: string; name: string; is_active: boolean; manual_entries: boolean }[]>`
-    select code, name, is_active, manual_entries from accounting.journals where id = ${header.journalId} and company_id = ${ctx.companyId}`;
+    select code, name, is_active, manual_entries from accounting.journals where id = ${header.journalId} and company_id = ${ctx.companyId} and deleted_at is null`;
   if (!journal) add("no_journal", "La fuente indicada no existe");
   else {
     if (!journal.is_active) add("no_journal", `La fuente ${journal.code} · ${journal.name} está inactiva`);

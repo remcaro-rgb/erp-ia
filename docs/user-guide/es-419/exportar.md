@@ -34,6 +34,13 @@ Necesitas el permiso **Exportar grids y reportes** (`kernel.export.run`) y poder
 - Una columna **oculta** para tu rol no está en el archivo.
 - Una columna **enmascarada** sale como `••••••` en todas las filas, igual que en la pantalla.
 - Las columnas de **Datos adicionales** salen solo si tu rol puede verlas.
+- Un registro con **acceso restringido** que tú no puedes ver no sale en el archivo, igual que no sale en el listado.
+
+La columna **Estado** de un maestro o documento sale con su nombre (Borrador, Grabado, Pendiente de Aprobación, No Aprobado, Aprobado, Contabilizado, Anulado), no con su código. La columna **ID** sale con el número consecutivo de cada registro (guía [Maestros y documentos](maestros-y-documentos.md)).
+
+## Exportar o Imprimir
+
+Los listados de maestros y documentos tienen además **Imprimir**, que genera un PDF con la **plantilla de listado** de la empresa (membrete, logo, totales), hasta 2.000 filas. **Exportar › PDF** es el PDF de datos, sin plantilla, hasta 10.000 filas. Para imprimir un solo registro, ábrelo y pulsa **Imprimir** en su barra de acciones (guía [Plantillas PDF e Imprimir](plantillas-pdf.md)).
 
 ## Listados grandes
 

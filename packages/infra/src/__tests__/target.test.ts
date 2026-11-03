@@ -72,8 +72,9 @@ describe("infra implementations by target", () => {
     expect(() => infra.modelProvider({ ERP_TARGET: "docker" }).gateway()).toThrow(/AI_GATEWAY_BASE_URL/);
   });
 
-  it("Mailer: the cloud placeholder until Resend is wired, SMTP (Mailpit) in Docker", () => {
-    expect(infra.mailer({}).transport).toBe("cloud");
+  it("Mailer: Resend in the cloud (its key from the environment), SMTP (Mailpit) in Docker", () => {
+    expect(infra.mailer({ RESEND_API_KEY: "k", MAIL_FROM: "erp@cafedelnorte.co" }).transport).toBe("cloud");
+    expect(() => infra.mailer({})).toThrow(/RESEND_API_KEY/);
     expect(infra.mailer(docker).transport).toBe("smtp");
     expect(() => infra.mailer({ ERP_TARGET: "docker" })).toThrow(/SMTP_HOST/);
   });

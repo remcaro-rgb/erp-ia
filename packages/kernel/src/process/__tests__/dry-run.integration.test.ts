@@ -35,6 +35,27 @@ const insertProbe = (name: string) =>
     },
   });
 
+/** Minor 2 (final review): a deferred effect that throws after the commit. */
+const afterThrows = defineProcess({
+  id: "dryrun.probe.after_throws",
+  module: "dryrun",
+  kind: "create",
+  description: "efecto posterior que falla",
+  input: z.object({ name: z.string() }),
+  output: z.object({ id: z.string() }),
+  handler: async (ctx, input) => {
+    const [row] = await ctx.tx<{ id: string }[]>`insert into kernel.role_probe(company_id, secret) values (${ctx.companyId}, ${input.name}) returning id`;
+    ctx.afterCommit?.(async () => {
+      throw new Error("post-commit boom");
+    });
+    ctx.afterCommit?.(async () => {
+      afterRan.push(input.name);
+    });
+    return { id: row!.id };
+  },
+});
+const afterRan: string[] = [];
+
 const refuse = defineProcess({
   id: ids.refuse,
   module: "dryrun",
@@ -69,7 +90,7 @@ describe("runProcess dry run", () => {
     companyId = seed.companies[0]!.id;
     admin = seed.claimsFor(seed.users.both, companyId);
     member = seed.claimsFor(seed.users.member!, companyId);
-    for (const p of [insertProbe(ids.create), insertProbe(ids.keyed), insertProbe(ids.sensitive), refuse]) {
+    for (const p of [insertProbe(ids.create), insertProbe(ids.keyed), insertProbe(ids.sensitive), refuse, afterThrows]) {
       registry.registerProcess(p);
       await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${seed.companies[0]!.adminRoleId}, ${p.id})`;
     }
@@ -149,5 +170,24 @@ describe("runProcess dry run", () => {
     const [verification] = await sql`select consumed_at from kernel.step_up_verifications where token = ${token}`;
     expect(verification!.consumed_at).toBeNull();
     expect(await probes("dry-s")).toBe(0);
+  });
+
+  it("minor 2: a post-commit step that throws is logged; the caller gets the committed result and the later steps still run", async () => {
+    const { vi } = await import("vitest");
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const chainId = randomUUID();
+      const out = await runProcess(deps(), as(admin, { chainId }), "dryrun.probe.after_throws", { name: "after-1" });
+      expect(out).toMatchObject({ id: expect.any(String) });
+      expect(await probes("after-1")).toBe(1);
+      expect(afterRan).toContain("after-1");
+      expect(errors.mock.calls.some((call) => String(call[0]).includes("dryrun.probe.after_throws"))).toBe(true);
+      // Rule 16: the failure is audited on the run's chain, in a transaction of its own (the run's own entry stays).
+      const failed = await sql<{ process_id: string; actor_user_id: string; origin: string; input: { code: string; message: string } }[]>`
+        select process_id, actor_user_id, origin, input from kernel.audit_log where chain_id = ${chainId} and input ->> 'code' = 'post_commit_failed'`;
+      expect(failed).toEqual([{ process_id: "dryrun.probe.after_throws", actor_user_id: seed.users.both, origin: "ui", input: { code: "post_commit_failed", message: "post-commit boom" } }]);
+    } finally {
+      errors.mockRestore();
+    }
   });
 });

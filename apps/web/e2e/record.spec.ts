@@ -376,12 +376,12 @@ test.describe("Duplicar on the demo company", () => {
     await expect(number).toHaveValue("");
 
     // Without a NIT the party's own create process refuses it, as for a hand-typed one.
-    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await page.getByRole("group", { name: "Acciones del registro" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(number).toHaveAttribute("aria-invalid", "true");
     await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
 
     await number.fill(NIT);
-    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await page.getByRole("group", { name: "Acciones del registro" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(page).toHaveURL(/\/r\/core\.party\/[0-9a-f-]{36}$/);
     const [clone] = await sql<{ id: string; legal_name: string; check_digit: string }[]>`
       select id, legal_name, check_digit from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NIT}`;

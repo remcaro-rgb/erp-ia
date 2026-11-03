@@ -6,7 +6,7 @@ import { DIMENSION_PROCESSES } from "./dimension";
 import { ENTRY_PROCESSES } from "./entry";
 import { EXOGENA_XML_PROCESSES } from "./exogena-xml";
 import { ENTRY_POST_PROCESSES } from "./entry-post";
-import { ENTRY_RETURN_PROCESSES } from "./entry-return";
+import { ENTRY_LIFECYCLE_PROCESSES } from "./entry-lifecycle";
 import { CONCEPT_MAPPING_PROCESSES } from "./concept-mapping";
 import { FISCAL_YEAR_PROCESSES } from "./fiscal-year";
 import { JOURNAL_PROCESSES } from "./journal";
@@ -36,7 +36,7 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...ENTRY_PROCESSES,
   ...TEMPLATE_PROCESSES,
   ...ENTRY_POST_PROCESSES,
-  ...ENTRY_RETURN_PROCESSES,
+  ...ENTRY_LIFECYCLE_PROCESSES,
   ...OPENING_PROCESSES,
   ...POST_FROM_EVENT_PROCESSES,
   ...POSTING_RULE_PROCESSES,

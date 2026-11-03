@@ -11,7 +11,10 @@ function timeZones(current: string): string[] {
   return known.includes(current) ? known : [current, ...known];
 }
 
-/** Empresa: the legal and trade names and the time zone (kernel.admin.company.update); the tax data is shown, not edited. */
+/**
+ * Empresa: the legal and trade names, the time zone and the letterhead the PDF templates print (address, city, phone; the logo is chosen in
+ * Plantillas PDF) through kernel.admin.company.update; the tax data is shown, not edited.
+ */
 export function CompanyScreen({ data }: { data: CompanyData }) {
   const t = useTranslations();
   const base = useId();
@@ -19,7 +22,12 @@ export function CompanyScreen({ data }: { data: CompanyData }) {
   const [legalName, setLegalName] = useState(data.legalName);
   const [tradeName, setTradeName] = useState(data.tradeName ?? "");
   const [timezone, setTimezone] = useState(data.timezone);
-  const changed = legalName !== data.legalName || tradeName !== (data.tradeName ?? "") || timezone !== data.timezone;
+  const [addressLine, setAddressLine] = useState(data.addressLine ?? "");
+  const [city, setCity] = useState(data.city ?? "");
+  const [phoneCc, setPhoneCc] = useState(data.phoneCc ?? "57");
+  const [phone, setPhone] = useState(data.phone ?? "");
+  const letterheadChanged = addressLine !== (data.addressLine ?? "") || city !== (data.city ?? "") || phoneCc !== (data.phoneCc ?? "57") || phone !== (data.phone ?? "");
+  const changed = legalName !== data.legalName || tradeName !== (data.tradeName ?? "") || timezone !== data.timezone || letterheadChanged;
   return (
     <section className="erp-card erp-stack" style={{ padding: 16 }}>
       <div className="erp-row">
@@ -52,6 +60,23 @@ export function CompanyScreen({ data }: { data: CompanyData }) {
           </select>
         </div>
         <div className="erp-field">
+          <label htmlFor={`${base}-address`}>
+            {t("common.admin.companies.address")} <span className="erp-field__hint">{t("common.admin.companies.letterhead_hint")}</span>
+          </label>
+          <input id={`${base}-address`} value={addressLine} maxLength={200} onChange={(e) => setAddressLine(e.target.value)} />
+        </div>
+        <div className="erp-field">
+          <label htmlFor={`${base}-city`}>{t("common.admin.companies.city")}</label>
+          <input id={`${base}-city`} value={city} maxLength={100} onChange={(e) => setCity(e.target.value)} />
+        </div>
+        <div className="erp-field">
+          <label htmlFor={`${base}-phone`}>{t("common.admin.companies.phone")}</label>
+          <div className="erp-row">
+            <input aria-label={t("common.admin.companies.phone_cc")} value={phoneCc} maxLength={4} style={{ width: 64 }} onChange={(e) => setPhoneCc(e.target.value.replace(/[^0-9]/g, ""))} />
+            <input id={`${base}-phone`} className="erp-grow" value={phone} maxLength={20} inputMode="tel" onChange={(e) => setPhone(e.target.value)} />
+          </div>
+        </div>
+        <div className="erp-field">
           <label htmlFor={`${base}-country`}>{t("common.admin.companies.country")}</label>
           <input id={`${base}-country`} value={data.countryCode} disabled />
         </div>
@@ -66,7 +91,14 @@ export function CompanyScreen({ data }: { data: CompanyData }) {
           type="button"
           className="erp-btn erp-btn--primary"
           disabled={busy || !changed || legalName.trim() === ""}
-          onClick={() => void perform("kernel.admin.company.update", { legalName, tradeName: tradeName.trim() === "" ? null : tradeName, timezone })}
+          onClick={() =>
+            void perform("kernel.admin.company.update", {
+              legalName,
+              tradeName: tradeName.trim() === "" ? null : tradeName,
+              timezone,
+              ...(letterheadChanged ? { addressLine: addressLine.trim() || null, city: city.trim() || null, phoneCc, phone: phone.trim() || null } : {}),
+            })
+          }
         >
           {t("common.admin.companies.save")}
         </button>

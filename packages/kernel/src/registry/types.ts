@@ -1,10 +1,12 @@
 import type { ReportDef } from "../reports/types";
 import type { z } from "zod";
 import type { Sql } from "postgres";
+import type { Tx } from "../db/client";
 import type { ProcessContext } from "../process/context";
 import type { Origin } from "../audit/audit";
 import type { EntityDef } from "./entities";
 import type { DefaultPostingRule, PostingProvider } from "../posting/provider";
+import type { TypedHooks } from "../typed/runner";
 
 export type ProcessKind = "create" | "update" | "delete" | "consult";
 
@@ -39,12 +41,30 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
    * engine's writes run only from an event consumer).
    */
   origins?: Origin[];
+  /**
+   * The record-level guard (kernel.record_access, spec 2026-11-02 §9.1). runProcess derives it from the name for an update or delete
+   * process `<entity>.<verb>` of a maestro or documento with an `id` input (void → void; delete → delete on a maestro, modify on
+   * a documento; any other, deactivate and activate included → modify). Every other create / update / delete process of a module that owns a maestro or documento, and
+   * every kernel process that writes to a record named by `entity` + `recordId`, declares it (review I4; registry test
+   * `uncoveredRecordWrites`):
+   *   - `{ entity, idField, right }`: runProcess checks `right` on `input[idField]` of `entity` before the handler;
+   *   - `"handler"`: the target is found by the handler (a contact's party, an attachment's record), which enforces the right itself
+   *     (assertRecordRight, or reading the record under RLS for read);
+   *   - `"none"`: the process changes no record of a maestro or documento (settings, parametros, admin configuration, a new record).
+   */
+  recordAccess?: { entity: string; idField: string; right: "read" | "use" | "modify" | "delete" | "void" } | "handler" | "none";
   /** Events the process writes to the outbox; the confirmation card asks each posting provider what they will do (design §5.1). */
   emits?: string[];
   /** What the audit entry of a run records as its input, when less than the whole input (default: the whole input). */
   auditInput?(input: z.infer<I>): unknown;
   /** Runs with the same key in the same company return the first run's stored result. */
   idempotencyKey?(input: z.infer<I>): string;
+  /**
+   * A replay (same idempotency key) returns the first run's stored result, written in the run's transaction, before its post-commit
+   * steps ran. When set, the stored result is refreshed through this hook, as the caller under RLS (Notificar reads its log row's
+   * outcome, so a replay answers sent / failed, not the «queued» stored before the send).
+   */
+  replay?(tx: Tx, stored: z.infer<O>): Promise<z.infer<O>>;
   /** Runs in the process transaction, as the caller, under RLS. */
   handler(ctx: ProcessContext, input: z.infer<I>): Promise<z.infer<O>>;
 }
@@ -70,7 +90,26 @@ export interface NavItem {
   children?: NavItem[];
   /** A count the shell shows beside the label (the pending postings of the accounting bar); set by the shell at load time, never declared by a manifest. */
   badge?: number;
+  /**
+   * Menu sections (entity types spec 2026-11-02 §2.4, §9.2). On a group: the group is that level-1 section of its module and must be
+   * named `<module>.<section>` (`menuSections` builds the four). On a top-level leaf: the loader moves the item into that section.
+   */
+  section?: MenuSection;
+  /**
+   * The entity whose list page this item is (`core.party` for Terceros). A maestro, documento or parametro places the item in its
+   * section (Maestros, Documentos, Parámetros); while the item is hidden for a caller (kernel.menu_access) the entity's processes, its
+   * lines' and its record pages (`/r/<entity>/…`) are refused to them as well.
+   */
+  entity?: string;
+  /**
+   * Further processes the screen runs, as ids or id prefixes ending in "." (`accounting.report.`): refused, like the entity's, while the
+   * item is hidden for the caller. Only processes of the item's own module.
+   */
+  runs?: string[];
 }
+
+/** The four level-1 items every module menu has (entity types spec §2.4), in their order. */
+export type MenuSection = "maestros" | "documentos" | "reportes" | "parametros";
 
 /** A named group of processes and entities a tenant can be entitled to (design §5.12). */
 export interface FeatureDef {
@@ -191,11 +230,24 @@ export interface ModuleDef {
   recordTabs?: RecordTabContribution[];
   /** Reports the module ships (design §9): a parameter bar over a consult process. */
   reports?: ReportDef[];
+  /**
+   * Processes no single menu item guards (entity types spec §9.2), as ids or id prefixes ending in ".": lookups, numbering and settings
+   * many screens read, or processes whose screen does not exist yet. Every other process of a module with a menu sits under a menu item
+   * (its entity, its `recordAccess.entity` or its `runs`), so hiding the item refuses it; `uncoveredMenuProcesses` (module/menu.ts) lists
+   * the ones that do neither and each module's test asserts there are none.
+   */
+  menuShared?: string[];
   /** Receives the posting engine's composed entries (design §5.1); at most one module provides it. */
   postingProvider?: PostingProvider;
   /** Posting rules the module ships for its events (design §5.4). */
   postingRules?: DefaultPostingRule[];
   /** Account roles the module adds to the kernel catalogue; the country pack must map them. */
   accountRoles?: string[];
+  /**
+   * The module's hooks into the lifecycle of its own maestros and documentos (entity types spec §5, D9), keyed by entity id:
+   * validation at Grabar / Aprobar / Contabilizar, the document number, the posting. The kernel's generic processes call them;
+   * the kernel never names the module (rule 4).
+   */
+  typedHooks?: Record<string, TypedHooks>;
   migrationsDir?: string;
 }

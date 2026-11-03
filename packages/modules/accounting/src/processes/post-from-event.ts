@@ -71,13 +71,13 @@ export async function postFromEvent(ctx: ProcessContext, input: { entry: Compose
   const [inserted] = await ctx.tx<{ id: string }[]>`
     insert into accounting.entries ${ctx.tx({
       company_id: ctx.companyId, journal_id: rule.journal_id, date: entry.date, description: entry.description, currency: entry.currency,
-      exchange_rate: entry.exchangeRate, business_unit_id: entry.businessUnitId ?? null, origin: "auto", status: "draft",
+      exchange_rate: entry.exchangeRate, business_unit_id: entry.businessUnitId ?? null, origin: "auto", status: "draft", requires_approval: false, posts: true,
       source_event_id: input.eventId, posting_rule_id: input.ruleId, source_entity: entry.source?.entity ?? null,
       source_record_id: entry.source && UUID.test(entry.source.id) ? entry.source.id : null, chain_id: ctx.chainId,
     })}
     returning id`;
   await insertLines(ctx, inserted!.id, entry.exchangeRate, lines);
-  const posted = await postEntry(ctx, inserted!.id, { origin: "event", engine: true });
+  const posted = await postEntry(ctx, inserted!.id, { engine: true });
   return { id: posted.id, number: posted.number };
 }
 
@@ -100,6 +100,7 @@ export const postingFailureRecord = defineProcess({
   id: "accounting.posting_failure.record",
   module: "accounting",
   kind: "create",
+  recordAccess: "none",
   feature: "accounting.posting",
   origins: ["event"],
   description: "Registra una regla contable que no pudo contabilizar un evento, para el buzón de pendientes; solo lo ejecuta el motor de contabilización",

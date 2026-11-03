@@ -60,7 +60,7 @@ export const accountingProvider: PostingProvider = {
     if (!UUID.test(ref.sourceId)) return null;
     const [entry] = await ctx.sql<{ id: string }[]>`
       select e.id from accounting.entries e join accounting.posting_rules r on r.id = e.posting_rule_id
-      where e.company_id = ${ctx.companyId} and e.source_record_id = ${ref.sourceId} and r.event = ${ref.event} and e.status = 'posted' and e.reversal_of_id is null
+      where e.company_id = ${ctx.companyId} and e.source_record_id = ${ref.sourceId} and r.event = ${ref.event} and e.status = 'posted' and e.reversal_of_id is null and not coalesce((e.extra->>'reversed')::boolean, false)
       order by e.posted_at limit 1`;
     if (!entry) return null;
     const date = await eventDate(ctx);
@@ -91,4 +91,6 @@ export const accountingProvider: PostingProvider = {
       where r.company_id = ${ctx.companyId} and r.event = ${event} and r.is_active order by r.priority, r.seq`;
     return rows.map((r) => `Contabilidad: asiento en ${r.name}`);
   },
+  /** A comprobante's own Contabiliza event: the typed lifecycle is posting it in that same run (Task 8b), so no rule may post it again. */
+  ignores: (event) => event === "accounting.entry.ready_to_post",
 };

@@ -3,9 +3,10 @@ import { setAuditContext, writeAudit } from "../audit/audit";
 import type { JwtClaims } from "../db/client";
 import { fileStore } from "../files/store";
 import { registry } from "../registry";
-import { importColumns, importTarget, type ImportColumn } from "./columns";
-import { mapSheet, type ImportLabels, type MappedSheet } from "./map";
-import { ImportFileError, parseImportFile } from "./parse";
+import { importTarget, type ImportColumn, type ImportLines } from "./columns";
+import type { ImportLabels, MappedSheet } from "./map";
+import { ImportFileError } from "./parse";
+import { readImport } from "./read";
 
 // The server-side state of one import, shared by the submit helper and the workflow steps: the record's source
 // file read back and mapped, the final status and the summary audit entry. Status and counts are written with the
@@ -27,6 +28,10 @@ export interface ImportJob {
   fileName: string;
   createProcess: string;
   columns: ImportColumn[];
+  /** A documento's lines layout (D14), when it imports header and lines. */
+  lines: ImportLines | null;
+  /** A documento's sheet names, for errores.csv. */
+  sheets: { header: string; lines: string } | null;
   sheet: MappedSheet;
 }
 
@@ -64,7 +69,7 @@ export async function sourceOf(sql: Sql, importId: string) {
 }
 
 /** Reads the import's source file and maps it to the target's columns (cached per import in this process). Throws `ImportFileError`. */
-export function loadJob(sql: Sql, importId: string, labels: ImportLabels = {}): Promise<ImportJob> {
+export function loadJob(sql: Sql, importId: string, labels: ImportLabels = {}, locale = "es-419"): Promise<ImportJob> {
   let job = cache.get(importId);
   if (!job) {
     job = (async () => {
@@ -72,10 +77,9 @@ export function loadJob(sql: Sql, importId: string, labels: ImportLabels = {}): 
       if (!source) throw new Error(`import ${importId} not found`);
       if (!source.storage_path || !source.file_name) throw new ImportFileError("La importación no tiene el archivo original");
       const bytes = await (await fileStore()).get(source.storage_path);
-      const parsed = await parseImportFile(bytes, source.file_name);
       const { entity, createProcess } = importTarget(registry, source.entity);
-      const columns = importColumns(registry, source.entity);
-      return { importId, entity: source.entity, importKey: entity.importKey, fileName: source.file_name, createProcess: createProcess.id, columns, sheet: mapSheet(columns, parsed, labels) };
+      const { columns, lines, sheets, sheet } = await readImport(registry, source.entity, bytes, source.file_name, labels, locale);
+      return { importId, entity: source.entity, importKey: entity.importKey, fileName: source.file_name, createProcess: createProcess.id, columns, lines, sheets, sheet };
     })();
     cache.set(importId, job);
     // A failed read is not kept: a retried step reads again.

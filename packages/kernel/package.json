@@ -12,7 +12,9 @@
     "./query": "./src/query/index.ts",
     "./import": "./src/import/index.ts",
     "./exports": "./src/exports/index.ts",
-    "./href": "./src/registry/href.ts"
+    "./href": "./src/registry/href.ts",
+    "./typed": "./src/typed/index.ts",
+    "./lifecycle": "./src/typed/lifecycle.ts"
   },
   "scripts": {
     "test": "vitest run --passWithNoTests",
@@ -25,6 +27,7 @@
     "@workflow/world-postgres": "^5.0.5",
     "ai": "^7.0.155",
     "exceljs": "^4.4.0",
+    "pdf-lib": "1.17.1",
     "postgres": "^3.4.9",
     "react": "19.3.0",
     "workflow": "^5.2.3",

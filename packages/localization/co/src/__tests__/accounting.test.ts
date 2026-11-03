@@ -22,6 +22,22 @@ describe("Colombia accounting pack", () => {
     for (const a of c) expect(acc.validateAccountCode(a.code, parentOf(a.code))).toMatchObject({ ok: true });
   });
 
+  it("has the movement subcuentas a company that buys and sells goods needs: taxes, payroll, purchases and returns (demo seed, 2026-11-02)", () => {
+    const codes = new Set(acc.chartOfAccounts().map((a) => a.code));
+    const basic = [
+      "110505", "110510", "111005", "130505", "133005", "135515", "135517", "135518", "143505", "152405", "159205",
+      "220505", "233540", "233550", "236540", "236525", "236701", "236801", "240405", "240801", "240802", "240810", "241205",
+      "250505", "251010", "251505", "252005", "252505", "261005", "261010", "261015", "261020",
+      "310505", "330505", "360505", "370505", "413505", "413595", "417505", "421005",
+      "510506", "510530", "510536", "510539", "512010", "513530", "514520", "530505", "530520", "613505", "613595", "620505", "622505",
+    ];
+    for (const code of basic) expect(codes.has(code), code).toBe(true);
+    const c = acc.chartOfAccounts();
+    expect(c.find((a) => a.code === "622505")?.nature).toBe("credit");
+    expect(c.find((a) => a.code === "620505")).toMatchObject({ nature: "debit", statementSection: "cost_of_sales" });
+    expect(c.find((a) => a.code === "250505")).toMatchObject({ nature: "credit", requiresParty: true, requiresInvoiceReady: false });
+  });
+
   it("every account role of the kernel catalogue has a default mapping and every mapped code exists in the chart or in extraAccounts", () => {
     const mappings = acc.defaultRoleMappings();
     const known = new Set([...acc.chartOfAccounts(), ...acc.extraAccounts()].map((a) => a.code));

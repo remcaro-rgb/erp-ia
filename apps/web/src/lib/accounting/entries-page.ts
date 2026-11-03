@@ -11,7 +11,7 @@ export interface EntryQuickFilter {
   id: string;
   group: string;
   label: string;
-  filters: { field: string; op: "eq" | "between"; value: string; value2?: string }[];
+  filters: { field: string; op: "eq" | "in" | "between"; value: string | string[]; value2?: string }[];
 }
 
 /** Today in the zone, as `YYYY-MM-DD`. */
@@ -30,7 +30,8 @@ export async function entryQuickFilters(caller: Caller): Promise<{ filters: Entr
   const filters: EntryQuickFilter[] = [
     { id: "today", group: "date", label: t("today"), filters: [{ field: "date", op: "eq", value: todayIn(zone) }] },
     ...(period ? [{ id: "period", group: "date", label: t("period"), filters: [{ field: "date", op: "between" as const, value: period.startsOn, value2: period.endsOn }] }] : []),
-    { id: "drafts", group: "status", label: t("drafts"), filters: [{ field: "status", op: "eq", value: "draft" }] },
+    // Borradores: the states the period close counts as unfinished (Borrador, Grabado, No Aprobado), as the home card does.
+    { id: "drafts", group: "status", label: t("drafts"), filters: [{ field: "status", op: "in", value: ["draft", "saved", "rejected"] }] },
     { id: "pending", group: "status", label: t("pending"), filters: [{ field: "status", op: "eq", value: "pending" }] },
     { id: "auto", group: "origin", label: t("auto"), filters: [{ field: "origin", op: "eq", value: "auto" }] },
     { id: "manual", group: "origin", label: t("manual"), filters: [{ field: "origin", op: "eq", value: "manual" }] },

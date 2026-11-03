@@ -26,4 +26,10 @@ export interface PostingProvider {
   reverse(ctx: ConsumerContext, ref: { event: string; sourceId: string }): Promise<{ entryId: string } | null>;
   recordFailure(ctx: ConsumerContext, failure: PostingFailure): Promise<void>;
   effectsFor(ctx: ConsumerContext, event: string): Promise<string[]>;
+  /**
+   * Events the engine must not compose at all, whatever rules exist (Phase 2A.5 Task 8b): the provider's own lifecycle events,
+   * such as the `<entity>.ready_to_post` the typed lifecycle emits while it already posts that document in the same run. An ignored
+   * event is neither posted, nor counted as skipped, nor recorded as a failure.
+   */
+  ignores?(event: string): boolean;
 }

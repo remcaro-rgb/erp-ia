@@ -158,7 +158,7 @@ describe("confirmation preview", () => {
     const local = new Registry();
     local.registerEntity(
       defineEntity({
-        id: "test.visit",
+        entityType: "maestro", id: "test.visit",
         module: "test",
         schema: "test",
         table: "visits",

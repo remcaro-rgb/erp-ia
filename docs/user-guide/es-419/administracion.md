@@ -10,6 +10,7 @@ routes:
   - /admin/sensitive
   - /admin/verifiers
   - /admin/modules
+  - /admin/menu-access
   - /admin/companies
   - /admin/ai-usage
   - /admin/audit
@@ -37,6 +38,7 @@ processes:
   - kernel.custom_field.remove
   - kernel.audit.consult
   - kernel.audit.entry
+  - kernel.menu_access.set
 ---
 
 # Administración de la empresa
@@ -210,6 +212,26 @@ Para cada tipo de dato (correo, teléfono, número de identificación) eliges el
 ## Empresa
 
 Cambia la **razón social**, el **nombre comercial** y la **zona horaria** de la empresa activa. La zona horaria rige los reportes, la programación y el mes del uso de IA. El NIT, el país y la moneda definen el paquete fiscal y no se cambian aquí.
+
+La **Dirección**, la **Ciudad** y el **Teléfono** (indicativo del país y número) son el membrete que imprimen las plantillas PDF (variables `empresa.direccion`, `empresa.ciudad` y `empresa.telefono`). El **logo** se sube en **Parámetros › Plantillas PDF** de cualquier módulo (guía **Parámetros de maestros y documentos**).
+
+## Acceso al menú
+
+En **Acceso al menú** decides qué roles o usuarios ven cada opción del menú de los módulos que usa la empresa. A la izquierda está el menú como árbol: cada módulo, sus secciones (**Maestros**, **Documentos**, **Reportes**, **Parámetros**) y sus pantallas, por su nombre. Una opción con reglas muestra cuántas tiene.
+
+1. Elige la opción en el árbol (por ejemplo **Productos**).
+2. En **Nueva regla** elige un rol o un usuario y pulsa **Agregar regla**.
+3. Marca o desmarca **Permitido** en cada regla. Para quitar una, pulsa **Quitar**.
+4. Pulsa **Guardar** y escribe tu código. Las reglas de la opción se reemplazan juntas.
+
+Las reglas **solo restringen**:
+
+- Una regla **Permitido** nunca muestra una opción que el rol no puede abrir por sus permisos.
+- Las reglas **no aplican al administrador**: siempre ve todo el menú.
+- Una opción sin reglas la ve quien tiene permiso por su rol.
+- Una regla en una sección aplica a todo lo que está debajo.
+
+Ocultar no es solo esconder: una opción oculta tampoco se abre escribiendo su dirección, y sus procesos (crear, guardar, aprobar…) se rechazan en el servidor, también desde el asistente.
 
 ## Uso de IA
 

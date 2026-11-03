@@ -15,6 +15,8 @@ services:
   mail:
     ports:
       - "127.0.0.1:${MAIL_HOST_PORT:-56324}:8025"
+      # SMTP, for the kernel's state e-mail test (Phase 2A.5 Task 12), which sends to the sink and reads it back through the API above.
+      - "127.0.0.1:${MAIL_SMTP_HOST_PORT:-56325}:1025"
   db-init:
     volumes:
       - ./supabase/seed.sql:/supabase/seed.sql:ro

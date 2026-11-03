@@ -1,5 +1,6 @@
 "use client";
 
+import { useRecordBridge, useRegisterRecordForm } from "../record/record-bridge";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { FieldLabels } from "../fields/field-model";
@@ -64,6 +65,10 @@ export function RecordForm({ canSave, onSave, dirty = false, save, failure, dian
   const t = useTranslations("common.forms");
   // The shell's "Guardar" saves only what the form itself would let the user save (blocked or read-only forms do not).
   useUnsavedChanges(dirty, async () => (canSave && save ? save() : false));
+  // Inside a record frame with the action bar (Task 15) the bar's Guardar saves this form, and ⌘S runs that Guardar.
+  const bridge = useRegisterRecordForm(dirty, canSave, save);
+  const bridged = useRef(bridge);
+  bridged.current = bridge;
   const ref = useRef<HTMLFormElement>(null);
   const [dianHints, setDianHints] = useDianHintsState();
   const switchId = useId();
@@ -85,7 +90,8 @@ export function RecordForm({ canSave, onSave, dirty = false, save, failure, dian
   const [saveAsked, setSaveAsked] = useState(0);
   useEffect(() => {
     if (saveAsked === 0) return;
-    if (latest.current.canSave) latest.current.onSave();
+    if (bridged.current?.registered) bridged.current.shortcut();
+    else if (latest.current.canSave) latest.current.onSave();
     else focusFirstProblem();
   }, [saveAsked]);
   useEffect(() => {
@@ -428,6 +434,7 @@ export interface FormActionsProps {
 export function FormActions({ flow, isNew, dirty, blocked, pendingCount, onSave, onDiscard, process }: FormActionsProps) {
   const t = useTranslations("common.forms");
   const common = useTranslations("common");
+  const bridge = useRecordBridge();
   const status = blocked || flow.failure ? t("fix_errors") : pendingCount === null ? t("dian_on_save") : pendingCount > 0 ? t("will_save_missing", { count: pendingCount }) : t("dian_complete_status");
   return (
     <div className="erp-form__actions">
@@ -441,10 +448,13 @@ export function FormActions({ flow, isNew, dirty, blocked, pendingCount, onSave,
             {t("discard")}
           </button>
         )}
-        {/* type="button": a submit button would make Enter in any text box save (implicit submission). */}
-        <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={onSave} disabled={blocked || flow.saving || (!dirty && !isNew)}>
-          {isNew ? t("create") : common("save")}
-        </button>
+        {/* type="button": a submit button would make Enter in any text box save (implicit submission). In a frame with the action bar
+            its Guardar saves the form instead (Task 15). */}
+        {!bridge?.registered && (
+          <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={onSave} disabled={blocked || flow.saving || (!dirty && !isNew)}>
+            {isNew ? t("create") : common("save")}
+          </button>
+        )}
       </div>
     </div>
   );

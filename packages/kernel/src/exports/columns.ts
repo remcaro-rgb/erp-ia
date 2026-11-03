@@ -1,5 +1,6 @@
 import type { CustomFieldType } from "../custom-fields/types";
 import type { EntityDef } from "../registry/entities";
+import type { Translate } from "../registry/labels";
 import type { FieldType } from "../registry/fields";
 import { QueryError } from "../query/errors";
 import { EXTRA_PREFIX } from "../query/grid-state";
@@ -41,6 +42,20 @@ const CUSTOM_TYPE: Record<CustomFieldType, ExportType> = {
   list: "enum",
 };
 
+/**
+ * The value labels an enum field declares through its catalogue key (`valuesKey`), read from the application's catalogue: what a
+ * file prints when the screen sent none, e.g. a maestro's or documento's lifecycle state (Grabado, Pendiente de Aprobación…, entity
+ * types spec §5.1, Task 13). Values the catalogue does not have print as they are.
+ */
+function catalogueOptions(field: EntityDef["fields"][number], t: Translate | undefined): Record<string, string> | undefined {
+  if (!t || field.type !== "enum" || !field.valuesKey || !field.enumValues?.length) return undefined;
+  const entries = field.enumValues.flatMap((value) => {
+    const label = t(`${field.valuesKey}.${value}`);
+    return label === undefined ? [] : [[value, label] as const];
+  });
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 /** Raw JSON documents (`extra`, `extra_free`) are not columns: their values come as `extra.<key>`. */
 const RAW_JSON = new Set(["extra", "extra_free"]);
 
@@ -49,7 +64,7 @@ const RAW_JSON = new Set(["extra", "extra_free"]);
  * and admin-defined value when the state names none). The technical `id` is never a column. Throws `QueryError`
  * (`unknown_field`) for a field the entity does not have.
  */
-export function exportColumns(entity: EntityDef, access: GridAccess, state: { columns?: string[] }, presentation: ExportPresentation = {}): ExportColumn[] {
+export function exportColumns(entity: EntityDef, access: GridAccess, state: { columns?: string[] }, presentation: ExportPresentation = {}, t?: Translate): ExportColumn[] {
   const fields = new Map(entity.fields.map((f) => [f.name, f]));
   const extraShown = (access.modes.extra ?? "visible") === "visible";
   const extras = access.extras.filter((e) => e.viewable);
@@ -59,7 +74,7 @@ export function exportColumns(entity: EntityDef, access: GridAccess, state: { co
     const field = fields.get(name)!;
     const mode = access.modes[name] ?? "visible";
     if (mode === "hidden" || field.exportable === false) return null;
-    const options = presentation.values?.[name];
+    const options = presentation.values?.[name] ?? catalogueOptions(field, t);
     return {
       field: name,
       label: label(name, name),

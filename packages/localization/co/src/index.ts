@@ -2,7 +2,7 @@ import type { CountryPack } from "@erp/kernel";
 import { accounting } from "./accounting";
 import { codeLabel } from "./code-label";
 import { DOCUMENT_TYPE_CODES } from "./document-types";
-import { validateTaxId } from "./nit";
+import { nitCheckDigit, validateTaxId } from "./nit";
 import { validateParty } from "./validate-party";
 import { validateProduct } from "./validate-product";
 
@@ -15,6 +15,9 @@ export const co: CountryPack = {
   validateParty,
   validateProduct,
   codeLabel,
+  // The DIAN's name of the tax id, the same in every language a Colombian document prints in.
+  taxIdLabel: () => "NIT",
+  taxIdText: (taxId) => (/^\d{5,15}$/.test(taxId) ? `${taxId}-${nitCheckDigit(taxId)}` : taxId),
   accounting,
 };
 

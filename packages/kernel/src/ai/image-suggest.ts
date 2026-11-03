@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { registeredEntity, requireOwnerUpdate, requireVisibleRecord } from "../attachments/guards";
+import { registeredEntity, requireOwnerUpdate, requireWritableRecord } from "../attachments/guards";
 import { insertAttachment, summary } from "../attachments/rows";
 import { attachment } from "../attachments/schemas";
 import { fileStore } from "../files/store";
@@ -30,6 +30,7 @@ export const imageSuggest = defineProcess({
   module: "kernel",
   kind: "create",
   feature: "kernel.ai",
+  recordAccess: "handler",
   description: "Sugiere una foto para un registro a partir de su descripción, unidad y categoría; queda como «Foto · IA» sugerida hasta que se haga la principal",
   input,
   output: attachment,
@@ -37,7 +38,7 @@ export const imageSuggest = defineProcess({
     const entity = registeredEntity(ctx, entityId);
     // Adding a picture to the record needs the same right as uploading one.
     await requireOwnerUpdate(ctx, entity.id);
-    await requireVisibleRecord(ctx, entity, recordId);
+    await requireWritableRecord(ctx, entity, recordId);
 
     const image = placeholderImage({ description, uom, category });
     // The first free `sugerencia-ia-<n>.svg` of the record: asking again adds another, never overwrites.

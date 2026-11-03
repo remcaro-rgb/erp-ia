@@ -9,6 +9,11 @@ export interface ShellAccess {
   entitled: ReadonlySet<string>;
   /** Process ids one of the caller's roles may run in the active company. */
   runnable: ReadonlySet<string>;
+  /**
+   * Menu items the company's rules hide for the caller (kernel.menu_hidden_keys, entity types spec §9.2): dropped, a hidden section
+   * with everything under it. Only narrows: an item still needs its entitlement and a runnable process. Empty for a company admin.
+   */
+  hidden?: ReadonlySet<string>;
 }
 
 /** A create process the ⌘K palette offers: its label key (`nav.create.<entity>`) and the screen it opens on. */
@@ -65,32 +70,38 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
 }
 
 /**
- * The modules (entitled, with at least one item for the caller; the platform's Sistema last and always entitled), their menu items (feature entitled and one of
- * the feature's processes runnable by the caller; an item naming a `process` also needs that one runnable) and the create commands (`<module>.<noun>.create` runnable,
- * on the item of its feature whose id starts with the noun's stem: `core.party.create` → `core.parties`).
+ * The modules (entitled, with at least one screen the caller may open; the platform's Sistema last and always entitled), their menu items
+ * (feature entitled and one of the feature's processes runnable by the caller; an item naming a `process` also needs that one runnable; an
+ * item the company's menu rules hide for the caller never shows) and the create commands (`<module>.<noun>.create` runnable, on the item of
+ * its feature whose id starts with the noun's stem: `core.party.create` → `core.parties`). A module's menu sections (Maestros, Documentos,
+ * Reportes, Parámetros) stay even when empty, so the shell can say so (entity types spec §9.2); another group the caller has nothing in is
+ * dropped.
  */
 export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav {
   const modules: ShellModule[] = [];
   const nav: NavItem[] = [];
   const creates: ShellCreate[] = [];
+  const hidden = access.hidden ?? new Set<string>();
   for (const mod of shellModules(registry)) {
     if (mod.id !== PLATFORM && !access.entitled.has(`module:${mod.id}`)) continue;
     const opens = (item: NavItem) => {
+      if (hidden.has(item.id)) return false;
       if (item.process && !access.runnable.has(item.process)) return false;
       if (!item.feature) return true;
       const feature = mod.features.find((f) => f.id === item.feature);
       return access.entitled.has(`feature:${item.feature}`) && (feature?.processes.some((p) => access.runnable.has(p)) ?? false);
     };
-    // A group keeps the children the caller may open and is dropped when none is left.
+    // A group keeps the children the caller may open; a section stays when it has none left, any other group is dropped.
     const visibleItems = moduleItems(mod).flatMap((item): NavItem[] => {
       if (!item.children) return opens(item) ? [item] : [];
+      if (hidden.has(item.id)) return [];
       const children = opens(item) ? item.children.filter(opens) : [];
-      return children.length > 0 ? [{ ...item, children }] : [];
+      return children.length > 0 || item.section ? [{ ...item, children }] : [];
     });
-    if (visibleItems.length === 0) continue;
+    const visible = flattenNav(visibleItems);
+    if (visible.length === 0) continue;
     modules.push({ id: mod.id, label: `nav.modules.${mod.id}` });
     nav.push(...visibleItems);
-    const visible = flattenNav(visibleItems);
     for (const item of visible) {
       const feature = mod.features.find((f) => f.id === item.feature);
       for (const processId of feature?.processes ?? []) {

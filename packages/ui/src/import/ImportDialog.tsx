@@ -10,6 +10,8 @@ import { ExportIcon, ImportIcon } from "../grid/ExportButtons";
 import { canRunImport, fileProblem, PREVIEW_COLUMNS, previewCounts, refusalOf, templateHref, type ImportPreviewData } from "./import-model";
 
 export interface ImportDialogProps {
+  /** A documento: Excel only (header and lines sheets), no «Plantilla CSV» and no .csv in the file chooser. */
+  xlsxOnly?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Registered entity id (`core.party`). */
@@ -51,7 +53,7 @@ export function ImportDialog(props: ImportDialogProps) {
   );
 }
 
-function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, historyHref = "/import", endpoint = "/api/import", fetcher }: ImportDialogProps) {
+function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepUp, onStarted, historyHref = "/import", endpoint = "/api/import", fetcher }: ImportDialogProps) {
   const t = useTranslations();
   const fileInput = useRef<HTMLInputElement>(null);
   const fetchRef = useRef(fetcher ?? ((...args: Parameters<typeof fetch>) => fetch(...args)));
@@ -173,10 +175,12 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
               <ExportIcon format="xlsx" />
               {t("grid.import.template_xlsx")}
             </a>
-            <a className="erp-btn" href={templateHref(endpoint, entity, "csv")} download>
-              <ExportIcon format="csv" />
-              {t("grid.import.template_csv")}
-            </a>
+            {!xlsxOnly && (
+              <a className="erp-btn" href={templateHref(endpoint, entity, "csv")} download>
+                <ExportIcon format="csv" />
+                {t("grid.import.template_csv")}
+              </a>
+            )}
             <span className="erp-small erp-muted">{t("grid.import.template_hint")}</span>
           </div>
         </section>
@@ -203,7 +207,7 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
               <input
                 ref={fileInput}
                 type="file"
-                accept=".xlsx,.csv,text/csv"
+                accept={xlsxOnly ? ".xlsx" : ".xlsx,.csv,text/csv"}
                 hidden
                 tabIndex={-1}
                 onChange={(event) => {
@@ -230,6 +234,16 @@ function ImportDialogBody({ entity, onOpenChange, requestStepUp, onStarted, hist
               </div>
             )}
             {preview.unknownHeaders.length > 0 && <div className="erp-small erp-muted">{t("grid.import.unknown_headers", { headers: preview.unknownHeaders.join(", ") })}</div>}
+            {(preview.lineErrors?.length ?? 0) > 0 && (
+              <div role="alert" className="erp-dian erp-dian--bad">
+                {t("grid.import.line_errors", { count: preview.lineErrors!.length })}
+                <ul>
+                  {preview.lineErrors!.map((line) => (
+                    <li key={line.rowNo}>{t("grid.import.line_error", { row: line.rowNo, error: line.errors.join(" · ") })}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <label className="erp-check">
               <input type="checkbox" checked={onlyErrors} disabled={counts.invalid === 0} onChange={(event) => setOnlyErrors(event.target.checked)} />
               {t("grid.import.only_errors", { count: counts.invalid })}

@@ -10,6 +10,10 @@ export const PROCESS_STATUS: Record<ProcessError["code"], number> = {
   invalid_input: 400,
   not_found: 404,
   idempotent_replay: 409,
+  invalid_state: 409,
+  stale_record: 409,
+  maestro_not_usable: 409,
+  record_forbidden: 403,
   handler_failed: 500,
 };
 

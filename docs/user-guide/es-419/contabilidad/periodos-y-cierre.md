@@ -14,7 +14,7 @@ processes:
 
 # Períodos y cierre
 
-Cada mes del año fiscal es un **período**. Mientras está **Abierto** se contabiliza en él; al cerrarlo, ya no. Cerrar el mes protege las cifras que ya reportaste. Entra por **Contabilidad › Períodos**.
+Cada mes del año fiscal es un **período**. Mientras está **Abierto** se contabiliza en él; al cerrarlo, ya no. Cerrar el mes protege las cifras que ya reportaste. Entra por **Contabilidad › Parámetros › Períodos**.
 
 ![Períodos del año con el botón Cerrar](img/periodos-cerrar.png)
 
@@ -24,7 +24,7 @@ Una tarjeta por **Año fiscal** («3 de 12 períodos cerrados»). Al abrirla, la
 
 ## Cómo cierro el mes
 
-1. Entra a **Contabilidad › Períodos** y busca el mes abierto.
+1. Entra a **Contabilidad › Parámetros › Períodos** y busca el mes abierto.
 2. Antes de cerrar, revisa que no queden comprobantes **Por contabilizar**: contabilízalos, apruébalos o anúlalos (guía **Comprobantes**) y atiende **Pendientes de contabilizar** (guía **Pendientes de contabilizar**).
 3. Pulsa **Cerrar**. Se abre «Cerrar [mes]» y pide tu código de verificación de 6 dígitos.
 4. Pulsa **Cerrar período**. El sistema corre las **Verificaciones de cierre**; si todas pasan, el período queda **Cerrado**.
@@ -34,8 +34,8 @@ Una tarjeta por **Año fiscal** («3 de 12 períodos cerrados»). Al abrirla, la
 
 Cada intento queda registrado con quién lo corrió, cuándo y qué cifras comparó (pestaña **Cierre** del período):
 
-- **Sin borradores**.
-- **Sin comprobantes por aprobar**.
+- **Sin borradores**: ningún comprobante en **Borrador**, **Grabado** o **No Aprobado** con fecha en el período.
+- **Sin comprobantes por aprobar**: ninguno **Pendiente de Aprobación**.
 - **Sin pendientes de contabilizar**.
 - **Sin eventos por despachar**: ningún documento de otro módulo espera contabilizarse.
 - **Control de cartera**, **Control de proveedores** y **Control de inventario**: el saldo de la cuenta de control cuadra con sus auxiliares (informe **Conciliación de control**, guía **Controles y cierre**).
@@ -66,7 +66,7 @@ Si falta cerrar algún período, el diálogo dice «Falta cerrar 1 período del 
 
 ## Reabrir el año
 
-En la tarjeta de un año cerrado pulsa **Reabrir año**. El diálogo lista los **Comprobantes de cierre por revertir** con su número. Al confirmar con tu código de verificación, esos comprobantes quedan **Revertidos**, el año vuelve a **Abierto** y su último período (diciembre) también. Los años se reabren del más reciente al más antiguo.
+En la tarjeta de un año cerrado pulsa **Reabrir año**. El diálogo lista los **Comprobantes de cierre por revertir** con su número. Al confirmar con tu código de verificación, esos comprobantes quedan marcados como **Revertidos** (siguen contabilizados, con su reversión enlazada), el año vuelve a **Abierto** y su último período (diciembre) también. Los años se reabren del más reciente al más antiguo.
 
 ## Si algo no funciona
 

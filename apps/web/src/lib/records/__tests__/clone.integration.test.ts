@@ -130,7 +130,7 @@ describe("Duplicar", () => {
     expect(unknown).toMatchObject({ ok: false, code: "not_found" });
     // An update is an update: the option is ignored.
     const updated = await saveRecordAction("core.party", { id: sourceId, tradeName: "Éxito" }, undefined, { sourceRowId: sourceId });
-    expect(updated).toEqual({ ok: true, id: sourceId });
+    expect(updated).toEqual({ ok: true, id: sourceId, updatedAt: expect.any(String) });
   });
 
   it("is refused to a caller who may not create, and for a record they cannot see", async () => {

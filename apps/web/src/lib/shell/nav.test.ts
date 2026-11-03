@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineModule, defineProcess, kernelModule, loadModules, Registry, type NavItem } from "@erp/kernel";
+import { defineModule, defineProcess, flattenNav, kernelModule, loadModules, menuSections, Registry, type NavItem } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { accounting } from "@erp/module-accounting";
 import { buildShellNav, shellAccessKeys } from "./nav";
@@ -12,6 +12,10 @@ const registry = new Registry();
 loadModules(registry, [kernelModule, core]);
 const keys = shellAccessKeys(registry);
 const all = { entitled: new Set(keys.entitlements), runnable: new Set(keys.processes) };
+/** The screens of the non-platform items, sections opened (the order the bar and its menus show them). */
+const hrefs = (nav: NavItem[]) => flattenNav(nav.filter((i) => !i.id.startsWith("kernel."))).map((i) => i.href);
+/** The ids of the non-platform level-1 items with, for a group, its children's ids. */
+const tree = (nav: NavItem[]) => nav.filter((i) => !i.id.startsWith("kernel.")).map((i) => (i.children ? [i.id, i.children.map((c) => c.id)] : i.id));
 
 describe("buildShellNav", () => {
   it("asks for the module and feature entitlements and every process behind a menu item", () => {
@@ -19,14 +23,23 @@ describe("buildShellNav", () => {
     expect(keys.processes).toEqual(expect.arrayContaining(["core.party.consult", "core.party.create", "core.category.create"]));
   });
 
-  it("with everything granted: the core module, its four items and its three create commands, then Sistema", () => {
+  it("with everything granted: the core module, its four sections and Importar, its three create commands, then Sistema", () => {
     const shell = buildShellNav(registry, all);
     // The kernel is the platform: always entitled, listed after the modules (the first carries Inicio).
     expect(shell.modules).toEqual([
       { id: "core", label: "nav.modules.core" },
       { id: "kernel", label: "nav.modules.kernel" },
     ]);
-    expect(shell.nav.filter((i) => !i.id.startsWith("kernel.")).map((i) => i.href)).toEqual(["/parties", "/products", "/categories", "/import"]);
+    // Entity types spec §2.4, §9.2: the level-1 items are the four sections; the maestros place themselves under Maestros.
+    expect(tree(shell.nav)).toEqual([
+      ["core.maestros", ["core.parties", "core.products", "core.categories"]],
+      ["core.documentos", []],
+      ["core.reportes", []],
+      // The kernel's Parámetros screens of the module's maestros (Task 16), for whoever may run their admin processes.
+      ["core.parametros", ["core.entity_types", "core.state_recipients", "core.doc_templates"]],
+      "core.import",
+    ]);
+    expect(hrefs(shell.nav)).toEqual(["/parties", "/products", "/categories", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
     const byId = (a: { processId: string }, b: { processId: string }) => a.processId.localeCompare(b.processId);
     expect([...shell.creates].sort(byId)).toEqual([
       { processId: "core.category.create", labelKey: "nav.create.core.category", href: "/categories?new=1" },
@@ -57,6 +70,7 @@ describe("buildShellNav", () => {
       "/admin/sensitive",
       "/admin/verifiers",
       "/admin/modules",
+      "/admin/menu-access",
       "/admin/companies",
     ]);
     const onlyUsage = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.admin.ai_usage.consult"]) });
@@ -68,21 +82,56 @@ describe("buildShellNav", () => {
   it("an item whose feature is not entitled is hidden", () => {
     const entitled = new Set([...all.entitled].filter((k) => k !== "feature:core.products"));
     const shell = buildShellNav(registry, { ...all, entitled });
-    expect(shell.nav.filter((i) => !i.id.startsWith("kernel.")).map((i) => i.href)).toEqual(["/parties", "/import"]);
+    expect(hrefs(shell.nav)).toEqual(["/parties", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
     expect(shell.creates.map((c) => c.processId)).toEqual(["core.party.create"]);
   });
 
   it("an item naming a process shows only to callers who may run it (Importar datos: kernel.import.run)", () => {
     expect(keys.processes).toContain("kernel.import.run");
     const runnable = new Set([...all.runnable].filter((p) => p !== "kernel.import.run" && !p.startsWith("kernel.")));
-    expect(buildShellNav(registry, { ...all, runnable }).nav.map((i) => i.href)).toEqual(["/parties", "/products", "/categories"]);
+    expect(hrefs(buildShellNav(registry, { ...all, runnable }).nav)).toEqual(["/parties", "/products", "/categories"]);
   });
 
   it("an item is hidden when no role of the caller may run any process of its feature; creates need their own grant", () => {
     const runnable = new Set(["core.party.consult"]);
     const shell = buildShellNav(registry, { ...all, runnable });
-    expect(shell.nav.map((i) => i.href)).toEqual(["/parties"]);
+    expect(hrefs(shell.nav)).toEqual(["/parties"]);
+    // An empty section stays: the shell shows its empty state.
+    expect(tree(shell.nav)).toEqual([["core.maestros", ["core.parties"]], ["core.documentos", []], ["core.reportes", []], ["core.parametros", []]]);
     expect(shell.creates).toEqual([]);
+  });
+
+  it("a module none of whose screens the caller may open disappears, its empty sections with it", () => {
+    const shell = buildShellNav(registry, { ...all, runnable: new Set(["kernel.audit.consult"]) });
+    expect(shell.modules.map((m) => m.id)).toEqual(["kernel"]);
+    expect(tree(shell.nav)).toEqual([]);
+  });
+});
+
+// Menu access (entity types spec §9.2, Task 10): an item the company's rules hide for the caller (kernel.menu_hidden_keys) is dropped
+// with its create commands; a hidden section takes its items with it. Rules only narrow: a hidden key never adds an item.
+describe("menu access in the shell", () => {
+  it("drops a hidden item and its create command, for this caller only", () => {
+    const shell = buildShellNav(registry, { ...all, hidden: new Set(["core.products"]) });
+    expect(hrefs(shell.nav)).toEqual(["/parties", "/categories", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
+    expect(shell.creates.map((c) => c.processId).sort()).toEqual(["core.category.create", "core.party.create"]);
+    // An admin's hidden set is always empty (kernel.menu_hidden_keys): everything shows.
+    expect(hrefs(buildShellNav(registry, { ...all, hidden: new Set() }).nav)).toEqual(["/parties", "/products", "/categories", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
+  });
+
+  it("a hidden section disappears with every item under it; a hidden level-1 item too", () => {
+    const shell = buildShellNav(registry, { ...all, hidden: new Set(["core.maestros"]) });
+    expect(tree(shell.nav)).toEqual([["core.documentos", []], ["core.reportes", []], ["core.parametros", ["core.entity_types", "core.state_recipients", "core.doc_templates"]], "core.import"]);
+    expect(shell.creates).toEqual([]);
+    // Nothing left to open: the module goes, its empty sections with it.
+    const none = buildShellNav(registry, { ...all, hidden: new Set(["core.maestros", "core.parametros", "core.import"]) });
+    expect(tree(none.nav)).toEqual([]);
+    expect(none.modules.map((m) => m.id)).toEqual(["kernel"]);
+  });
+
+  it("a hidden key never shows what the role may not open", () => {
+    const shell = buildShellNav(registry, { ...all, runnable: new Set(["core.party.consult"]), hidden: new Set(["core.categories"]) });
+    expect(hrefs(shell.nav)).toEqual(["/parties"]);
   });
 });
 
@@ -101,7 +150,7 @@ loadModules(grouped, [
     processes: [consult("alpha"), consult("beta")],
     features: ["alpha", "beta"].map((name) => ({ id: `grp.${name}`, label: `feature.grp.${name}`, processes: [`grp.${name}.consult`], entities: [] })),
     events: { emits: [], consumes: {} },
-    navigation: [{ id: "grp.masters", label: "nav.grp.masters", href: "#", icon: "list", children: [child("alpha"), child("beta")] }],
+    navigation: menuSections("grp", { maestros: [child("alpha"), child("beta")] }),
   }),
 ]);
 const groupedKeys = shellAccessKeys(grouped);
@@ -113,12 +162,12 @@ describe("shell nav groups", () => {
     expect(groupedKeys.processes).toEqual(expect.arrayContaining(["grp.alpha.consult", "grp.beta.consult"]));
   });
 
-  it("drops children the caller may not open and the group when none is left", () => {
+  it("drops children the caller may not open, keeps an empty section, and drops the module when nothing is left", () => {
     const grp = (shell: ReturnType<typeof buildShellNav>) => shell.nav.filter((i) => i.id.startsWith("grp."));
-    expect(grp(buildShellNav(grouped, groupedAll)).map((g) => g.children?.map((c) => c.href))).toEqual([["/alpha", "/beta"]]);
+    expect(grp(buildShellNav(grouped, groupedAll)).map((g) => g.children?.map((c) => c.href))).toEqual([["/alpha", "/beta"], [], [], []]);
 
     const noBeta = { ...groupedAll, entitled: new Set([...groupedAll.entitled].filter((k) => k !== "feature:grp.beta")) };
-    expect(grp(buildShellNav(grouped, noBeta)).map((g) => g.children?.map((c) => c.href))).toEqual([["/alpha"]]);
+    expect(grp(buildShellNav(grouped, noBeta)).map((g) => g.children?.map((c) => c.href))).toEqual([["/alpha"], [], [], []]);
 
     const none = { ...groupedAll, runnable: new Set([...groupedAll.runnable].filter((p) => !p.startsWith("grp."))) };
     const shell = buildShellNav(grouped, none);
@@ -134,10 +183,12 @@ describe("a feature's menu items already listed as group children (UX-OD-1, T1)"
   const shell = buildShellNav(reg, { entitled: new Set(k.entitlements), runnable: new Set(k.processes) });
   const accountingNav = shell.nav.filter((i) => i.id.startsWith("accounting."));
 
-  it("accounting lists the six bar items with the six masters only under Maestros", () => {
-    expect(accountingNav.map((i) => i.id)).toEqual(["accounting.entries", "accounting.movements", "accounting.masters", "accounting.periods", "accounting.reports", "accounting.posting"]);
-    expect(accountingNav.find((i) => i.id === "accounting.masters")?.children?.map((c) => c.id)).toEqual([
-      "accounting.accounts", "accounting.cost_centers", "accounting.open_auxiliaries", "accounting.items", "accounting.business_units", "accounting.journals",
+  it("accounting lists the four sections: the six masters under Maestros, Comprobantes, Movimientos and Informes, Períodos and Reglas contables", () => {
+    expect(tree(accountingNav)).toEqual([
+      ["accounting.maestros", ["accounting.accounts", "accounting.cost_centers", "accounting.open_auxiliaries", "accounting.items", "accounting.business_units", "accounting.journals"]],
+      ["accounting.documentos", ["accounting.entries"]],
+      ["accounting.reportes", ["accounting.movements", "accounting.reports"]],
+      ["accounting.parametros", ["accounting.periods", "accounting.posting", "accounting.entity_types", "accounting.state_recipients", "accounting.doc_templates"]],
     ]);
   });
 

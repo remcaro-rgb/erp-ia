@@ -4,14 +4,13 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Pill } from "../grid/GridCell";
 import { ExportButtons } from "../grid/ExportButtons";
-import { GridStatusText } from "../grid/DataGrid";
+import { DataGrid, GridStatusText, type DataGridProps } from "../grid/DataGrid";
 import { useGridExport } from "../grid/use-grid-export";
 import { Field, FormActions, RecordForm, Section, SelectField, TextField, failureMessages, useErrorText } from "../forms/form-parts";
 import type { CodeOption, RequestStepUp, SaveRecord } from "../forms/save-model";
 import { useSaveFlow } from "../forms/use-save";
 import { LinesEditor, LookupCell, type LineLookup } from "./LinesEditor";
-import { EntryStatusBar, type ActionOutcome } from "./EntryStatusBar";
-import { allowedActions, blankLine, entryDraftOf, entryInput, entryProblems, type EntryProblem, lineExportFields, lineTotals, visibleColumns, type Chosen, type EditorLine, type LineColumn, type EntryAction, type EntryHeader, type EntrySettings } from "./entry-model";
+import { isEditableStatus, blankLine, entryDraftOf, entryInput, entryProblems, type EntryProblem, lineExportFields, lineTotals, visibleColumns, type Chosen, type EditorLine, type LineColumn, type EntryHeader, type EntrySettings } from "./entry-model";
 
 // The Datos tab of a comprobante (accounting design §4.6, §4.7, §8): the header (Fuente, fecha, descripción, unidad de negocio
 // and the automatic reversal date), the keyboard-first lines editor and the status buttons. Only a draft is edited; a pending,
@@ -31,24 +30,19 @@ export interface EntryFormProps {
   /** The Fuentes that accept manual entries: code is the id. */
   journals: readonly CodeOption[];
   defaultJournalId: string | null;
-  /** The viewer: the approval of an entry they created is theirs to leave to another person. */
-  userId: string;
   lookup: LineLookup;
   /** The viewer may run the create (new) or update (stored) process. */
   canSave: boolean;
-  /** The processes behind each button the viewer may run. */
-  can: Readonly<Record<EntryAction, boolean>>;
   save: SaveRecord;
   requestStepUp?: RequestStepUp;
-  /** Runs a status button's process for the comprobante (a server action). */
-  runAction: (action: EntryAction, id: string, input: { reason?: string }, stepUp?: string) => Promise<ActionOutcome>;
   onSaved?: (id: string, created: boolean) => void;
-  /** An action ran: the page reloads the record. */
-  onActed?: () => void;
+  /** The stored comprobante's lines as a universal grid (rule 20: sort, per-column filter, advanced filter, pages, exports), shown
+   *  when the lines are not being edited. */
+  linesGrid?: { entity: string; title: string; columns: DataGridProps["columns"]; filters: NonNullable<DataGridProps["baseFilters"]> } | null;
 }
 
 export function EntryForm(props: EntryFormProps) {
-  const { record, initial: copy, labels, settings, journals, defaultJournalId, userId, lookup, canSave, can, save, requestStepUp, runAction, onSaved, onActed } = props;
+  const { record, initial: copy, labels, settings, journals, defaultJournalId, lookup, canSave, save, requestStepUp, onSaved, linesGrid } = props;
   const t = useTranslations("accounting.entry");
   const tf = useTranslations("common.forms");
   const tv = useTranslations("accounting.values.entry_status");
@@ -87,7 +81,7 @@ export function EntryForm(props: EntryFormProps) {
 
   const status = typeof record?.status === "string" ? record.status : "draft";
   const restricted = lines.some((l) => l.restricted);
-  const editable = canSave && status === "draft" && !restricted;
+  const editable = canSave && isEditableStatus(status) && !restricted;
   const dis = !editable;
   const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, isNew));
   const set =
@@ -101,21 +95,21 @@ export function EntryForm(props: EntryFormProps) {
   const missing = header.description.trim() === "" || header.date === "";
   const problems = editable ? entryProblems(header, lines) : [];
 
-  const send = () =>
-    flow.submit({
+  const send = async () => {
+    const sent = { header, lines };
+    const result = await flow.submit({
       ...(record ? { id: record.id } : {}),
       ...entryInput({ journalId: header.journalId, date: header.date, description: header.description, businessUnitId: header.businessUnit?.id ?? null, reverseOn: header.reverseOn }, lines),
     });
+    // What was saved is the stored version from now on: the state buttons (disabled while the form is dirty) come back at once,
+    // without waiting for the page to read the record again. A new comprobante leaves this form for its own record instead.
+    if (result?.ok && record) setInitial(sent);
+    return result;
+  };
   const submit = () => void send();
 
-  const facts = record
-    ? { status, origin: String(record.origin ?? "manual"), createdBy: typeof record.created_by === "string" ? record.created_by : null, isClosing: record.is_closing === true, reversalOfId: typeof record.reversal_of_id === "string" ? record.reversal_of_id : null }
-    : null;
-  const buttons = facts ? allowedActions(facts, settings, userId, { canReturn: can.return }) : [];
-  const run = (action: EntryAction, input: { reason?: string }, stepUp?: string) => runAction(action, record!.id, input, stepUp).then((outcome) => {
-    if (outcome.ok) onActed?.();
-    return outcome;
-  });
+  // D2: a reversed comprobante stays Contabilizado; the pill reads Revertido from its mark. The state buttons are the frame's action bar.
+  const reversed = (record?.extra as Record<string, unknown> | null | undefined)?.reversed === true;
 
   const journalOptions = journals.some((j) => j.code === header.journalId) || !header.journalId ? journals : [...journals, { code: header.journalId, name: String(record?.journal_id ?? header.journalId) }];
 
@@ -123,15 +117,12 @@ export function EntryForm(props: EntryFormProps) {
     <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
       {record && (
         <div className="erp-row">
-          <Pill tone={STATUS_TONE[status] ?? "gray"}>{tv(status)}</Pill>
+          <Pill tone={STATUS_TONE[reversed ? "reversed" : status] ?? "gray"}>{tv(reversed ? "reversed" : status)}</Pill>
           <span className="erp-mono">{typeof record.number === "string" && record.number ? record.number : t("none_yet")}</span>
         </div>
       )}
-      {record && facts && (
-        <EntryStatusBar actions={buttons} can={can} onRun={run} {...(requestStepUp ? { requestStepUp } : {})} />
-      )}
       {!canSave && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
-      {canSave && !isNew && status !== "draft" && <div className="erp-dian erp-dian--info">{t("read_only")}</div>}
+      {canSave && !isNew && !isEditableStatus(status) && <div className="erp-dian erp-dian--info">{t("read_only")}</div>}
       {restricted && <div className="erp-dian erp-dian--warn">{t("restricted_note")}</div>}
       {isNew && copy && <div className="erp-dian erp-dian--info">{t("clone_note")}</div>}
       <Section title={t("header")}>
@@ -167,6 +158,11 @@ export function EntryForm(props: EntryFormProps) {
         </div>
       </Section>
       <Section title={t("lines")}>
+        {/* A stored comprobante's lines read in the universal grid (rule 20); a line the viewer may not see is a «••••» placeholder row
+            of the masked view and the grid's totals are the comprobante's (D20). */}
+        {dis && record && linesGrid ? (
+          <DataGrid entity={linesGrid.entity} title={linesGrid.title} columns={linesGrid.columns} baseFilters={linesGrid.filters} initialState={{ sort: [{ field: "line_no", dir: "asc" }] }} />
+        ) : (
         <LinesEditor
           lines={lines}
           onChange={setLines}
@@ -185,6 +181,7 @@ export function EntryForm(props: EntryFormProps) {
           }
           knownTotals={restricted && record ? { debit: Number(record.total_debit ?? 0), credit: Number(record.total_credit ?? 0) } : null}
         />
+        )}
       </Section>
       {problems.length > 0 && (
         <div role="status" className="erp-dian erp-dian--info" data-testid="entry-problems">
@@ -237,7 +234,9 @@ function focusProblem(problem: EntryProblem, t: (key: string) => string): void {
 /** A row without its browser identity: what makes two states of the editor the same. */
 const contentOf = (l: EditorLine) => [l.account, l.party, l.costCenter, l.openAuxiliary, l.item, l.businessUnit, l.description, l.debit, l.credit, l.restricted];
 
-const STATUS_TONE: Record<string, "ok" | "warn" | "danger" | "info" | "gray"> = { draft: "gray", pending: "warn", posted: "ok", reversed: "info", voided: "danger" };
+const STATUS_TONE: Record<string, "ok" | "warn" | "danger" | "info" | "gray"> = {
+  draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", reversed: "info", voided: "danger",
+};
 
 /** Today in the browser's calendar, as the date input holds it. */
 function today(): string {

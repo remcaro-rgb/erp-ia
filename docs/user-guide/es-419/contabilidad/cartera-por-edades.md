@@ -12,7 +12,7 @@ Este informe responde «¿quién me debe, desde cuándo?» (cartera) y «¿a qui
 
 ## Abrirlo
 
-1. **Contabilidad › Informes › Cartera y cuentas por pagar por edades**.
+1. **Contabilidad › Reportes › Informes › Cartera y cuentas por pagar por edades**.
 2. En **Tipo** elige **Cartera (clientes)** o **Por pagar (proveedores)**.
 3. En **A la fecha** pon el día de corte. Por defecto los rangos son los del sistema; en **Rangos de días** puedes cambiarlos.
 

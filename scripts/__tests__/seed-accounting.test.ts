@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { PARTIES } from "../demo/data";
+import { INVOICE_READY_PARTIES, PARTIES } from "../demo/data";
 import { ANDRES, DEMO_ROLE_IDS, LAURA, MARCELA } from "../demo/accounts";
 import {
-  ADJUSTMENTS, BUSINESS_UNITS, COGS, COST_CENTERS, CREDIT_NOTES, ITEMS, INVOICES, OPEN_AUXILIARIES, OPENING_LINES, TOSTADORA, TRILLADORA, ELECTRIC,
+  ADJUSTMENTS, BUSINESS_UNITS, COGS, SAMPLE_COMPROBANTES, COST_CENTERS, CREDIT_NOTES, ITEMS, INVOICES, OPEN_AUXILIARIES, OPENING_LINES, TOSTADORA, TRILLADORA, ELECTRIC,
   type Node,
 } from "../demo/accounting";
 
@@ -71,5 +71,40 @@ describe("the demo ledger data", () => {
   it("leaves some documents open for the aging report: one invoice never collected and one half collected", () => {
     expect(INVOICES.filter((i) => !i.receipt).map((i) => i.number)).toEqual(["FE-1008", "FE-1014", "FE-1015"]);
     expect(INVOICES.find((i) => i.number === "FE-1012")?.receipt?.share).toBe(0.5);
+  });
+});
+
+// Rule 10, design §22.22 (2026-11-02): receivables (1305) and payables (2205) only take invoice-ready parties, so every party
+// the demo ledger puts on them must get its RUT (and Cámara de Comercio) from the seed. Before this test the suppliers on the
+// opening payables had no files and `DEMO_SEED=1 pnpm db:seed` stopped in setUpOpening.
+describe("the demo ledger's parties on receivables and payables", () => {
+  const gated = (code: string) => /^(1305|2205)/.test(code);
+  const ready = new Set(INVOICE_READY_PARTIES);
+
+  it("are all invoice-ready parties of the demo data", () => {
+    const used = new Set<string>();
+    for (const line of OPENING_LINES) if ("partyDocument" in line && gated(line.accountCode)) used.add(line.partyDocument!);
+    for (const invoice of INVOICES) used.add(invoice.customer);
+    for (const note of CREDIT_NOTES) used.add(note.customer);
+    for (const c of SAMPLE_COMPROBANTES) for (const line of c.lines) if (line.partyDocument && gated(line.accountCode)) used.add(line.partyDocument);
+    for (const document of used) expect(ready.has(document), document).toBe(true);
+    // Some parties stay without files so the first recommendation has something to point out.
+    expect(PARTIES.length - ready.size).toBeGreaterThan(5);
+  });
+
+  it("the sample comprobantes are balanced, carry parties on groups 13 and 22 to 25 and cost centers on classes 4 to 7", () => {
+    const centers = new Set(COST_CENTERS.map((n) => n.code));
+    expect(SAMPLE_COMPROBANTES.length).toBeGreaterThanOrEqual(4);
+    for (const c of SAMPLE_COMPROBANTES) {
+      const debit = c.lines.reduce((s, l) => s + (l.debit ?? 0), 0);
+      const credit = c.lines.reduce((s, l) => s + (l.credit ?? 0), 0);
+      expect(debit, c.description).toBe(credit);
+      expect(c.date >= "2026-10-01" && c.date <= "2026-10-31", c.date).toBe(true);
+      for (const line of c.lines) {
+        expect(Number.isInteger(line.debit ?? line.credit), `${c.description} ${line.accountCode}`).toBe(true);
+        if (/^(13|2[2-5])/.test(line.accountCode)) expect(partyKinds.has(line.partyDocument ?? ""), `${c.description} ${line.accountCode}`).toBe(true);
+        if (/^[4-7]/.test(line.accountCode)) expect(centers.has(line.costCenter ?? ""), `${c.description} ${line.accountCode}`).toBe(true);
+      }
+    }
   });
 });

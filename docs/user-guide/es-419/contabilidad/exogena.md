@@ -16,7 +16,7 @@ La información exógena es lo que reportas a la DIAN cada año sobre tus pagos,
 
 ## 1. Asociar las cuentas a conceptos
 
-1. Entra a **Contabilidad › Reglas contables › Conceptos exógena**.
+1. Entra a **Contabilidad › Parámetros › Reglas contables › Conceptos exógena**.
 2. Elige el **Formato** y el **Año gravable**.
 3. Mira **Cuentas con movimiento sin concepto** (en rojo): son las cuentas que se movieron en el año y ningún concepto cubre. Para cada una, en **Elegir concepto…** escoge el **Concepto** que le corresponde.
 4. En **Conceptos del formato** puedes ver las cuentas de cada concepto, **Agregar cuenta** a uno o quitar una que no corresponde.
@@ -28,7 +28,7 @@ Cuando el aviso diga «Todas las cuentas con movimiento en el año están cubier
 
 ## 2. Ver el informe
 
-1. Entra a **Contabilidad › Informes › Información exógena**.
+1. Entra a **Contabilidad › Reportes › Informes › Información exógena**.
 2. Elige **Formato** (1001, 1005, 1006, 1007, 1008, 1009…), **Año gravable** y, si quieres cambiarla, la **Cuantía mínima**.
 3. El informe lista por tercero y concepto: **Tipo de documento**, **Documento del tercero**, **Concepto**, **Descripción del concepto** y **Valor 1**, **Valor 2**, **Valor 3**. Los terceros por debajo de la cuantía se agrupan bajo el NIT de cuantías menores.
 4. Un panel de **errores** avisa lo que impide enviar el formato: cuentas con movimiento sin concepto, líneas sin tercero, terceros sin tipo de documento o sin código DANE. Arréglalos (en el tercero, el comprobante o el mapeo) y vuelve a consultar.

@@ -5,7 +5,7 @@ import { defineEntity } from "../registry";
 // The grid's server-side query builder (design §9, rules 14 and 20). A party-like entity of the test's own:
 // the kernel never knows a module by name.
 const partyEntity = defineEntity({
-  id: "core.party",
+  entityType: "maestro", id: "core.party",
   module: "core",
   schema: "core",
   table: "parties",
@@ -266,7 +266,7 @@ describe("buildQuery", () => {
 
 // Grouped aggregates (accounting plan, Task 6): up to three group levels, a rollup aggregate query next to the page.
 const lineEntity = defineEntity({
-  id: "test.line",
+  entityType: "maestro", id: "test.line",
   module: "core",
   schema: "core",
   table: "lines",
@@ -318,7 +318,7 @@ describe("buildQuery grouped aggregates", () => {
 // have no ancestor in the result; a generic sum would add a group and its children twice.
 describe("roll-up columns", () => {
   const tree = defineEntity({
-    id: "probe.node",
+    entityType: "maestro", id: "probe.node",
     module: "probe",
     schema: "probe",
     table: "nodes",

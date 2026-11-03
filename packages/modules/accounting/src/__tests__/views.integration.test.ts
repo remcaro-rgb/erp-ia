@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withClaims } from "@erp/kernel/testing";
+import { runGridQuery } from "@erp/kernel";
 import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
@@ -99,6 +100,35 @@ describe("published views", () => {
     const open = await as(h.contador.claims, (tx) => tx<{ is_restricted: boolean; debit: string | null }[]>`select is_restricted, debit from accounting.v_entry_lines where entry_id = ${id} and line_no = 1`);
     expect(open[0]).toEqual({ is_restricted: false, debit: "70.0000" });
     await restrict("5105", [], "open");
+  });
+
+  it("D20: the lines grid keeps a restricted line as a «••••» placeholder row; the totals are the comprobante's, never a partial sum", async () => {
+    const id = await entry(dateIn(6, 20), [{ code: "510506", debit: 90, costCenter: true }, { code: "111005", credit: 50 }, { code: "111005", credit: 40 }]);
+    await restrict("5105", [{ subjectKind: "role", subjectId: h.contador.roleId, canView: true, canPost: false }]);
+    try {
+      const lines = h.deps.registry.entity("accounting.entry_line");
+      const grid = (filters: object[], extra: object = {}) =>
+        runGridQuery(h.sql, h.auxiliar.claims, lines, { filters, sort: [{ field: "line_no", dir: "asc" }], page: 1, pageSize: 50, aggregates: [{ field: "debit", fn: "sum" }, { field: "credit", fn: "sum" }], ...extra } as never);
+      const parent = { field: "entry_id", op: "eq", value: id };
+      const page = await grid([parent]);
+      expect(page.total).toBe(3);
+      expect(page.rows.map((r) => [r.line_no, r.__row_masked === true, r.debit])).toEqual([[1, true, null], [2, false, "0.0000"], [3, false, "0.0000"]]);
+      expect(page.rows[0]).toMatchObject({ account_id: null, cost_center_id: null, description: null });
+      expect(Number(page.aggregates!["sum:debit"])).toBe(90);
+      expect(Number(page.aggregates!["sum:credit"])).toBe(90);
+      // Any other filter: a total over a placeholder row is unknown; a filter on a masked value never matches the placeholder.
+      const narrowed = await grid([parent, { field: "line_no", op: "gte", value: 1 }]);
+      expect(narrowed.aggregates!["sum:debit"]).toBeNull();
+      expect((await grid([parent, { field: "debit", op: "is_null" }])).total).toBe(0);
+      expect((await grid([parent, { field: "account_id", op: "is_null" }])).total).toBe(0);
+      // Sorting by a masked value puts the placeholder last.
+      expect((await grid([parent], { sort: [{ field: "debit", dir: "asc" }] })).rows.at(-1)!.__row_masked).toBe(true);
+      // Who may view the account gets the real line and no marker.
+      const open = await runGridQuery(h.sql, h.contador.claims, lines, { filters: [parent], sort: [], page: 1, pageSize: 50 } as never);
+      expect(open.rows.some((r) => "__row_masked" in r)).toBe(false);
+    } finally {
+      await restrict("5105", [], "open");
+    }
   });
 
   it("v_account_balances aggregates posted lines only, per period and dimension", async () => {

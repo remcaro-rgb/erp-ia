@@ -1,4 +1,5 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import { loadLifecycle, type LoadedLifecycle } from "./lifecycle-load";
 import {
   addRefLabels,
   GridState,
@@ -26,7 +27,7 @@ import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
 import { loadEntryForm, type EntryFormData } from "@/lib/accounting/entry-load";
-import { loadAccountingTabs, loadMasterOptions, type AccountingTabs, type MasterOptions, type TemplateLineView } from "@/lib/accounting/record-tabs";
+import { gridTab, loadAccountingTabs, loadMasterOptions, type AccountingTabs, type GridTab, type MasterOptions, type TemplateLineView } from "@/lib/accounting/record-tabs";
 import { loadContributedTabs, type LoadedContribution } from "./contributed-load";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
 import { partyTables, productTables } from "./tables";
@@ -45,7 +46,7 @@ export type FormData =
       supplier: { fields: GridColumn[]; label: string | null; entityLabel: string; linkable: boolean };
     }
   | { kind: "category"; tables: ProductTables; productCount: number }
-  | ({ kind: "entry" } & EntryFormData)
+  | ({ kind: "entry"; linesGrid: GridTab | null } & EntryFormData)
   // The accounting masters (Task 28): Cuenta, the four analytic nodes, Fuente, Plantilla, Período and Regla contable share one form.
   | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean } | null };
 
@@ -110,6 +111,8 @@ export interface LoadedRecord {
   /** The tabs of an accounting master besides Datos (Saldos, Seguridad, Cierre, Líneas…); null for any other record. */
   accounting: AccountingTabs | null;
   form: FormData;
+  /** A maestro or documento: the action bar's facts, Versiones and Acceso (Task 15); null for any other record. */
+  lifecycle: LoadedLifecycle | null;
 }
 
 /** The accounting masters and the form kind each opens (Task 28). */
@@ -220,7 +223,11 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   }
   const locale = await getLocale();
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
-  if (entity.id === "accounting.entry") return { kind: "entry", ...(await loadEntryForm(caller, record)) };
+  if (entity.id === "accounting.entry") {
+    // Rule 20: a stored comprobante's lines read in the universal grid too (sort, per-column filter, advanced filter, pages, exports).
+    const [entry, linesGrid] = await Promise.all([loadEntryForm(caller, record), record ? gridTab(caller, "accounting.entry_line", [{ field: "entry_id", op: "eq", value: record.id }]) : null]);
+    return { kind: "entry", ...entry, linesGrid };
+  }
   if (entity.id === "core.product_category") {
     const products = record
       ? await gridRows(caller, "core.product", { filters: [{ field: "category_id", op: "eq", value: record.id }], sort: [], page: 1, pageSize: 1, columns: ["seq"] })
@@ -233,7 +240,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   const product = gridEntity(deps.registry, "core.product")!;
   const supplierId = typeof record?.supplier_id === "string" ? record.supplier_id : null;
   const [categories, partyAccess, labels, linkable] = await Promise.all([
-    gridRows(caller, "core.product_category", { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "status"] }),
+    gridRows(caller, "core.product_category", { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "is_active"] }),
     gridPageAccess(deps.sql, caller.claims, party),
     supplierId ? refLabelsOf(caller, product, { supplier_id: supplierId }) : ({} as Record<string, string>),
     linkableEntities(deps, caller.claims, [party.id]),
@@ -248,7 +255,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
       incRate: c.inc_rate === null || c.inc_rate === undefined ? null : String(c.inc_rate),
       otherTaxes: Array.isArray(c.other_taxes) ? c.other_taxes.map(String) : [],
       defaultUom: c.default_uom === null || c.default_uom === undefined ? null : String(c.default_uom),
-      active: c.status !== "inactive",
+      active: c.is_active !== false,
     })),
     supplier: {
       fields: buildColumns(party, partyAccess, presentationOf(party.id), (key) => t(key)),
@@ -314,7 +321,11 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   const accounting = record && MASTER_KINDS[entity.id] ? await loadAccountingTabs(caller, entity.id, record) : null;
   const titleValue = record?.[entity.titleField];
   const title = titleValue === null || titleValue === undefined || titleValue === "" ? null : labelText(titleValue, registered.fields.find((f) => f.name === entity.titleField));
-  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting) };
+  const t = await getTranslations();
+  const translate = (key: string) => (typeof t.has !== "function" || t.has(key) ? t(key) : key);
+  const lifecycle = await loadLifecycle(caller, registered, record, access.modes, translate, canSave);
+  if (lifecycle) lifecycle.tools.new = entity.create !== "" && runnable.has(entity.create);
+  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting), lifecycle };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

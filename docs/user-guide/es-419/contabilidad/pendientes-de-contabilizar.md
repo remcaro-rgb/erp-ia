@@ -12,7 +12,7 @@ processes:
 
 Cuando una factura, un recibo u otro documento llega a contabilidad y ninguna regla logra convertirlo en un comprobante, no se pierde: queda como **evento pendiente**. Hay una insignia con el número de pendientes en **Reglas contables** y una tarjeta **Pendientes de contabilizar** en Inicio («3 eventos sin contabilizar»).
 
-Entra por **Contabilidad › Reglas contables › Pendientes de contabilizar**.
+Entra por **Contabilidad › Parámetros › Reglas contables › Pendientes de contabilizar**.
 
 ![lista de Pendientes de contabilizar](img/pendientes-de-contabilizar.png)
 

@@ -122,7 +122,7 @@ export function nextFocus({ columns, rows, row, col, key, shift, rowFilled }: Fo
   return key === "Enter" || rowFilled ? { row: rows, col: 0, addLine: true } : null;
 }
 
-export type EntryAction = "submit" | "approve" | "return" | "post" | "reverse" | "void";
+export type EntryAction = "submit" | "approve" | "return" | "post" | "reverse" | "void" | "delete";
 
 export interface EntryFacts {
   status: string;
@@ -130,6 +130,10 @@ export interface EntryFacts {
   createdBy: string | null;
   isClosing?: boolean;
   reversalOfId?: string | null;
+  /** The comprobante's Requiere aprobación (the row's flag, entity types spec §5.1); unknown falls back to the company setting. */
+  requiresApproval?: boolean;
+  /** Already reversed: it stays Contabilizado with the mark (D2). */
+  reversed?: boolean;
 }
 export interface ActionState {
   action: EntryAction;
@@ -138,24 +142,29 @@ export interface ActionState {
   hint?: string;
 }
 
+/** The states whose header and lines the form edits (D3): Borrador, Grabado and No Aprobado. */
+export const isEditableStatus = (status: string): boolean => status === "draft" || status === "saved" || status === "rejected";
+
 /**
- * The buttons the status bar offers (accounting design §4.6, §5.5): by status and by the approval flow. With the flow on, a
- * manual draft goes to approval and another person approves it (the creator's button is disabled with the reason); an automatic
- * entry is controlled by its rule and is never sent. A posted entry is reversed unless it is a reversal or a year-closing one.
+ * The buttons the status bar offers (accounting design §4.6, §5.5; entity types spec §5, D2, D8): by status and by Requiere
+ * aprobación. Without approval a Borrador is posted by Grabar (`post`); with approval it is sent (`submit`: Grabar, then Enviar a
+ * aprobación), another person approves it when the four-eyes control is on (the creator's button is disabled with the reason), and
+ * No Aprobar (`return`) hands it back as No Aprobado, which is sent again. A Borrador is deleted; a Grabado, Pendiente or No Aprobado
+ * one is voided. A posted entry is reversed unless it is a reversal, a year-closing one or already reversed.
  */
 export function allowedActions(entry: EntryFacts, settings: PickOf<EntrySettings, "requireApprovalOnManual">, userId: string, may: { canReturn?: boolean } = {}): ActionState[] {
-  if (entry.status === "draft") {
-    return settings.requireApprovalOnManual && entry.origin !== "auto" ? [{ action: "submit" }, { action: "void" }] : [{ action: "post" }, { action: "void" }];
-  }
+  const approval = entry.origin !== "auto" && (entry.requiresApproval ?? settings.requireApprovalOnManual);
+  if (entry.status === "draft") return [{ action: approval ? "submit" : "post" }, { action: "delete" }];
+  if (entry.status === "saved" || entry.status === "rejected") return [{ action: approval ? "submit" : "post" }, { action: "void" }];
   if (entry.status === "pending") {
-    const own = entry.createdBy !== null && entry.createdBy === userId;
+    const own = settings.requireApprovalOnManual && entry.origin !== "auto" && entry.createdBy !== null && entry.createdBy === userId;
     return [
       { action: "approve", ...(own ? { disabled: true, hint: "accounting.entry.same_user" } : {}) },
       ...(may.canReturn === false ? [] : [{ action: "return" } as const]),
       { action: "void" },
     ];
   }
-  if (entry.status === "posted" && !entry.reversalOfId && !entry.isClosing) return [{ action: "reverse" }];
+  if (entry.status === "posted" && !entry.reversalOfId && !entry.isClosing && !entry.reversed) return [{ action: "reverse" }];
   return [];
 }
 

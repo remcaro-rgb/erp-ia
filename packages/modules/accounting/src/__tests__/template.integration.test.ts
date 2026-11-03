@@ -64,8 +64,31 @@ describe("entry templates", () => {
   });
 
   it("from_template refuses a line with no amount, a template that is not the company's and an inactive account", async () => {
-    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", await rent());
+    // The name is unique per company (0043, D14 import key).
+    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name: "Arriendo de la bodega" });
     await expect(h.run(h.contador, "accounting.entry.from_template", { templateId, date: "2026-10-31" })).rejects.toMatchObject({ code: "invalid_input", details: [expect.stringContaining("2")] });
     await expect(h.run(h.contador, "accounting.entry.from_template", { templateId: newId(), date: "2026-10-31" })).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  // Record-level access (entity types spec §9.1; Task 9 M4 → Task 13): a comprobante from a plantilla needs the `use` right on it. A
+  // plantilla the caller cannot read is refused exactly as one that does not exist; one they read without `use` is record_forbidden.
+  it("from_template needs the use right on the template: hidden is not_found (as a random id), read-only is record_forbidden", async () => {
+    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name: "Arriendo reservado" });
+    await h.sql`insert into kernel.record_access (company_id, entity, record_id, grantee_role_id, can_read, can_use)
+                values (${h.companyId}, 'accounting.entry_template', ${templateId}, ${h.contador.roleId}, true, false)`;
+    try {
+      const entries = async () => (await h.sql<{ n: number }[]>`select count(*)::int as n from accounting.entries where company_id = ${h.companyId}`)[0]!.n;
+      const before = await entries();
+      const refusal = (caller: typeof h.contador, id: string) =>
+        h.run(caller, "accounting.entry.from_template", { templateId: id, date: "2026-10-31", amounts: { 2: 3_000_000 } }).then(() => null, (e: unknown) => e as { code: string; message: string; details?: unknown });
+      const hidden = await refusal(h.auxiliar, templateId);
+      const ghost = await refusal(h.auxiliar, newId());
+      expect(hidden?.code).toBe("not_found");
+      expect(hidden?.details).toEqual(ghost?.details);
+      expect(await refusal(h.contador, templateId)).toMatchObject({ code: "record_forbidden", details: { entity: "accounting.entry_template", recordId: templateId, right: "use" } });
+      expect(await entries()).toBe(before);
+    } finally {
+      await h.sql`delete from kernel.record_access where company_id = ${h.companyId} and record_id = ${templateId}`;
+    }
   });
 });

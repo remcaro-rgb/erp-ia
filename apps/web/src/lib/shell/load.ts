@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { getTranslations } from "next-intl/server";
-import { callerProfile, entitled, readUserPrefs, runnableProcesses, withClaims, type Caller, type RunProcessDeps } from "@erp/kernel";
+import { callerProfile, entitled, menuHiddenKeys, readUserPrefs, runnableProcesses, withClaims, type Caller, type RunProcessDeps } from "@erp/kernel";
 import { isThemeMode, type CommandItem, type MfaState, type ResultColumn, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
 import { assertComplete, getSessionState, Unauthenticated, type SessionState } from "@/lib/auth/claims";
 import { savedFrom } from "@/lib/prefs/validate";
@@ -54,10 +54,12 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
   await registrySynced();
   const { claims } = caller;
   const keys = shellAccessKeys(deps.registry);
-  const [profile, entitledKeys, runnable, prefs, t, mfa] = await Promise.all([
+  const [profile, entitledKeys, runnable, hidden, prefs, t, mfa] = await Promise.all([
     callerProfile(deps.sql, claims),
     Promise.all(keys.entitlements.map(async (key) => ((await entitled(deps.sql, claims.active_company_id, key)) ? key : null))),
     runnableProcesses(deps.sql, deps.registry, claims, keys.processes),
+    // The menu items the company's rules hide for the caller (entity types spec §9.2); none for an admin.
+    menuHiddenKeys(deps.sql, claims),
     // A plain read under RLS, not a process: no audit row on every page load.
     readUserPrefs(deps.sql, claims, ["theme", "tabs", "assistant.open", "forms.dian_hints"]),
     getTranslations(),
@@ -68,7 +70,7 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
   const theme = savedFrom(prefs.theme);
   const assistantOpen = savedFrom(prefs["assistant.open"]);
   const dianHints = savedFrom(prefs["forms.dian_hints"]);
-  const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable });
+  const shell = buildShellNav(deps.registry, { entitled: new Set(entitledKeys.filter((k): k is string => k !== null)), runnable, hidden });
   // The optional analytic masters of the accounting module follow the company's settings (accounting design §8).
   const shown = hasOptionalMasters(shell.nav) ? hideOptionalMasters(shell.nav, await readOptionalMasters(deps.sql, claims)) : shell.nav;
   // Reglas contables shows how many events are waiting to be posted.

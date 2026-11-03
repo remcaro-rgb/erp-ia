@@ -17,6 +17,7 @@ export const verifyRequest = defineProcess({
   id: "kernel.verify.request",
   module: "kernel",
   kind: "update",
+  recordAccess: "handler",
   feature: FEATURE,
   description: "Pide verificar un correo, teléfono o identificación con el proveedor externo; sin proveedor la solicitud queda en cola",
   input: target,

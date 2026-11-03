@@ -1,9 +1,15 @@
 import { defineModule, POSTING_CONSUMER, type ModuleDef, type RecordTabContribution } from "@erp/kernel";
+import { DIMENSION_DEFS } from "./dimensions";
 import { ACCOUNTING_ENTITIES } from "./entities";
-import { FEATURES, NAVIGATION } from "./features";
+import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { HOME_KPIS } from "./home";
 import { accountingProvider } from "./posting/provider";
 import { ACCOUNTING_PROCESSES } from "./processes";
+import { accountHooks } from "./processes/account";
+import { dimensionHooks } from "./processes/dimension";
+import { entryHooks } from "./processes/entry-lifecycle";
+import { journalHooks } from "./processes/journal";
+import { templateHooks } from "./processes/template";
 import { ACCOUNTING_REPORTS } from "./reports";
 import { ACCOUNTING_DEFAULT_RULES } from "./rules/defaults";
 
@@ -53,10 +59,20 @@ export const accounting: ModuleDef = defineModule({
     consumes: { "*": POSTING_CONSUMER },
   },
   navigation: NAVIGATION,
+  menuShared: MENU_SHARED,
   reports: ACCOUNTING_REPORTS,
   homeKpis: HOME_KPIS,
   recordTabs: ACCOUNTING_RECORD_TABS,
   postingProvider: accountingProvider,
+  // The lifecycle of the maestros and the comprobante (entity types spec §5, Phase 2A.5 Task 8b): each Grabar runs the checks of the
+  // record's update process; the comprobante adds its four-eyes approval, its consecutivo and its posting step.
+  typedHooks: {
+    "accounting.account": accountHooks,
+    "accounting.journal": journalHooks,
+    ...Object.fromEntries(Object.values(DIMENSION_DEFS).map((def) => [def.entity, dimensionHooks(def)])),
+    "accounting.entry": entryHooks,
+    "accounting.entry_template": templateHooks,
+  },
   postingRules: ACCOUNTING_DEFAULT_RULES,
 });
 

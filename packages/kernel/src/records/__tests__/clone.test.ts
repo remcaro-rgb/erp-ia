@@ -8,6 +8,7 @@ import { cloneDraft, draftValues } from "../clone";
 // server-managed columns, the secret ones and the entity's own `cloneReset` fields.
 
 const party: EntityDef = {
+  entityType: "maestro",
   id: "test.party",
   module: "test",
   schema: "test",

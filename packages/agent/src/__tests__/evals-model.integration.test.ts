@@ -35,7 +35,7 @@ beforeAll(async () => {
       description,
       lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.cc ? { costCenterId: l.cc } : {}) })),
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
   };
   // The ledger the data.query cases read: a sale named by its invoice number and an expense of the month the case asks for.
   await entry(1, "Factura de venta FE-1001", [{ code: "111005", debit: 1_000 }, { code: "413595", credit: 1_000, cc }]);

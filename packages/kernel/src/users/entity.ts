@@ -19,6 +19,7 @@ export const userEntity = defineEntity({
   schema: "kernel",
   table: "users",
   label: "entity.kernel.user",
+  entityType: "sistema",
   displayField: "full_name",
   defaultSort: { field: "full_name", dir: "asc" },
   // A user's page is under Administración › Usuarios (`recordHref`).

@@ -85,7 +85,7 @@ describe("core cloning", () => {
   });
 
   it("clones a product with the sku empty and a category with the name empty", async () => {
-    const { id: categoryId } = await runProcess(deps, admin, "core.category.create", { name: "Café", ivaRate: "5", otherTaxes: [], defaultUom: "94", status: "active" });
+    const { id: categoryId } = await runProcess(deps, admin, "core.category.create", { name: "Café", ivaRate: "5", otherTaxes: [], defaultUom: "94", isActive: true });
     const { id: productId } = await runProcess(deps, admin, "core.product.create", {
       sku: "CAF-500",
       description: "Café tostado molido 500 g",
@@ -114,7 +114,7 @@ describe("core cloning", () => {
 
     const category = cloneDraft(deps.registry, "core.product_category", await consult(admin, "core.category.consult", categoryId));
     expect(category).not.toHaveProperty("name");
-    expect(category).toMatchObject({ ivaRate: "5", status: "active" });
+    expect(category).toMatchObject({ ivaRate: "5", isActive: true });
     const { id: copy } = await runProcess(deps, admin, "core.category.create", { ...category, name: "Café especial" }, { sourceRowId: categoryId });
     const [stored] = await sql`select name, iva_rate, default_uom from core.product_categories where id = ${copy}`;
     expect(stored).toMatchObject({ name: "Café especial", iva_rate: "5", default_uom: "94" });

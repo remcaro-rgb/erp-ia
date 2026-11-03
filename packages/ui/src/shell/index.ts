@@ -4,6 +4,8 @@ export { TopBar, initialsOf } from "./TopBar";
 export type { TopBarProps } from "./TopBar";
 export { ModuleBar, isActiveHref } from "./ModuleBar";
 export type { ModuleBarProps } from "./ModuleBar";
+export { SideMenu } from "./SideMenu";
+export type { SideMenuProps } from "./SideMenu";
 export { TabsBar } from "./TabsBar";
 export type { TabsBarProps } from "./TabsBar";
 export { MfaDialog } from "./MfaDialog";

@@ -20,6 +20,8 @@ export interface ImportPreviewData {
   missingColumns: string[];
   total: number;
   rows: ImportPreviewRow[];
+  /** A documento's lines refused on their own (their ref names no document), by their Líneas row: line errors, not refused rows. */
+  lineErrors?: { rowNo: number; errors: string[] }[];
 }
 
 /** One import of the history (kernel `ImportItem`). */

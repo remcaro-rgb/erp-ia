@@ -4,7 +4,9 @@ import { connection } from "next/server";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
-import { formatLabel, NoAccess, OriginTab } from "@erp/ui";
+import { formatLabel, NoAccess, OriginTab, Pill, VersionsTab } from "@erp/ui";
+import { MASKED } from "@/lib/records/lifecycle-load";
+import { AccessPanel } from "./access-panel";
 import { accountingContent } from "./accounting-content";
 import { loadRecord } from "@/lib/records/load";
 import { ContactsPanel } from "./contacts-panel";
@@ -15,6 +17,7 @@ import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
 import { AppRecordFrame } from "./record-frame";
 import { RecordStatus } from "./record-status";
+import { untitledRecordTitle } from "@/lib/records/record-title";
 import { TicketView } from "../../../support/ticket-view";
 
 // Full-page record (design §5.16): /r/<entity>/<id> renders the record frame with the entity's Datos form (party,
@@ -58,7 +61,7 @@ async function RecordView({ params }: { params: Params }) {
     if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} />;
     notFound();
   }
-  const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
+  const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form, lifecycle: lc } = loaded;
   const t = await getTranslations();
   const locale = await getLocale();
 
@@ -66,11 +69,30 @@ async function RecordView({ params }: { params: Params }) {
   const wrapperClass = form.kind === "entry" ? "w-full" : "mx-auto w-full max-w-6xl";
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
   const newTitle = t("grid.record_title.new", { entity: t(entity.nounKey) });
+  // The action bar of a maestro or documento (Task 15): its buttons, tools and footer facts.
+  const frameLifecycle = lc
+    ? {
+        entityType: lc.entityType,
+        status: lc.status,
+        // A new comprobante takes Requiere aprobación from the accounting settings (manual entries), as its create process writes it.
+        flags: form.kind === "entry" && !record ? { ...lc.flags, requiresApproval: form.settings.requireApprovalOnManual } : lc.flags,
+        rights: lc.rights,
+        tools: lc.tools,
+        updatedAt: lc.updatedAt,
+        createdAt: lc.createdAt,
+        createdBy: lc.createdBy,
+        updatedBy: lc.updatedBy,
+        recipients: lc.recipients,
+        noun: t(entity.nounKey),
+        listHref: lc.listHref,
+        reverse: form.kind === "entry" && record?.status === "posted" && (record.extra as Record<string, unknown> | null)?.reversed !== true && form.can.reverse === true,
+      }
+    : null;
   if (!record) {
     // A record that does not exist yet has only its data; files, contacts and extra data need its id.
     return (
       <div className={wrapperClass}>
-        <AppRecordFrame entity={entity.id} recordId={null} newTitle={newTitle} title={newTitle} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} />
+        <AppRecordFrame entity={entity.id} recordId={null} newTitle={newTitle} title={newTitle} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} lifecycle={frameLifecycle} />
       </div>
     );
   }
@@ -104,6 +126,10 @@ async function RecordView({ params }: { params: Params }) {
   // The Saldos, Movimientos, Seguridad, Resumen, Cierre, Líneas… of an accounting master (accounting design §8).
   if (loaded.accounting) Object.assign(content, await accountingContent(entity.id, record, loaded.accounting, canSave));
 
+  // Versiones of a documento (D18: masked for the viewer by the server) and Acceso for an admin (Task 15).
+  if (lc?.snapshots) content.versiones = { count: lc.snapshots.length, content: <VersionsTab snapshots={lc.snapshots} labels={lc.versionLabels} masked={MASKED} /> };
+  if (lc?.access) content.acceso = { content: <AccessPanel entity={entity.id} recordId={record.id} entityType={lc.entityType} grants={lc.access.grants} options={lc.access.options} /> };
+
   // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
   for (const tab of contributed) {
     content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
@@ -116,9 +142,13 @@ async function RecordView({ params }: { params: Params }) {
         recordId={record.id}
         canDuplicate={can.duplicate}
         newTitle={newTitle}
-        title={title ? formatLabel(title, locale) : form.kind === "entry" ? t("accounting.entry.draft_title") : record.id}
+        title={title ? formatLabel(title, locale) : untitledRecordTitle({ status: lc?.status, seq: record.seq, isEntry: form.kind === "entry", draftTitle: t("accounting.entry.draft_title"), idLabel: t("common.record.ids.id"), fallback: record.id })}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
+        number={typeof record.number === "string" && record.number ? record.number : null}
+        reference={typeof record.reference === "string" && record.reference ? record.reference : null}
+        {...(lc ? { chip: <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill> } : {})}
+        lifecycle={frameLifecycle}
         deepLinkHref={recordHref(entity.id, record.id)}
         tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id))
           .filter((tabId) => content[tabId] !== undefined)
@@ -179,8 +209,13 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
       lineas: t("common.record.tabs.lineas"),
       probar: t("common.record.tabs.probar"),
       historial: t("common.record.tabs.historial"),
+      versiones: t("common.record.tabs.versiones"),
+      acceso: t("common.record.tabs.acceso"),
     },
     number: t("common.record.number"),
+    docNumber: t("common.record.ids.number"),
+    reference: t("common.record.ids.reference"),
+    copy: t.raw("common.record.ids.copy") as string,
     uuid: t("common.record.uuid"),
     assignedOnCreate: t("common.record.assigned_on_create"),
     openInNewTab: t("common.record.open_in_new_tab"),
@@ -191,6 +226,9 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
     copyNote: t("common.record.copy_note"),
   };
 }
+
+/** The state chip's tone by status (prototype `chip`). */
+const STATUS_TONE: Record<string, "ok" | "warn" | "danger" | "gray" | "info"> = { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" };
 
 export default function RecordPage({ params }: { params: Params }) {
   // The session cookie and the route params are request data: read them inside Suspense (cache components).

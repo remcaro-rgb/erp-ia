@@ -35,6 +35,11 @@ const dateOf = (payload: unknown, createdAt: Date): string => {
  */
 export function postingConsumer(provider: PostingProvider): EventConsumer {
   return async (ctx, payload) => {
+    // The provider's own lifecycle events (a document the lifecycle is posting itself) never reach a rule: no double posting.
+    if (provider.ignores?.(ctx.event.name)) return;
+    // A record entering a status (`<entity>.status_changed`, the typed lifecycle's notice for the state e-mails, Task 12) is not a
+    // business event: what posts is the action itself (Contabiliza, `<entity>.ready_to_post`). It is neither posted nor counted as skipped.
+    if (ctx.event.name.endsWith(".status_changed")) return;
     const event: EventRef = { id: ctx.event.id, event: ctx.event.name, payload, createdAt: ctx.event.createdAt, chainId: ctx.chainId };
     const eventDate = dateOf(payload, event.createdAt);
     const starts = await provider.ledgerStartsOn(ctx);

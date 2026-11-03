@@ -2,7 +2,11 @@ import { defineEntity } from "../registry/entities";
 import { POSTING_CONSUMER, postingConsumer } from "../posting/engine";
 import { consumers } from "../events/consumers";
 import type { Registry } from "../registry";
-import type { ModuleDef } from "../registry/types";
+import type { ModuleDef, ProcessDef } from "../registry/types";
+import { genericProcesses, isTypedEntity } from "../typed/processes";
+import { stateMailConsumer } from "../typed/notify";
+import { statusChangedEvent } from "../typed/runner";
+import { withMenuSections } from "./menu";
 
 /**
  * Registers `modules` (their entities, processes and manifests) in dependency order: a module is
@@ -10,8 +14,21 @@ import type { ModuleDef } from "../registry/types";
  * registry. Throws `module dependency cycle: a -> b -> a`, `missing dependency: <id>` or
  * `duplicate module <id>` or `entity <id>: unknown <create|attach> process <id>` before registering anything. Each entry of a module's `events.consumes` is
  * registered as that module's consumer of the event (design §5.5).
+ *
+ * Every maestro and documento of a module also gets the kernel's generic lifecycle processes (`<entity>.save`, `.submit`,
+ * `.approve`, `.reject`, `.void`, `.delete`, entity types spec §5): added to the module's processes and to each feature that
+ * lists the entity, so they are entitled and permissioned like the module's own. An id the module declares itself is kept.
+ * `typedHooks` may only name the module's maestros and documentos, and a documento that numbers `on_save` needs a `number` hook.
+ *
+ * Every maestro and documento also gets the kernel's consumer of its `<entity>.status_changed` event: the state e-mails of spec §7
+ * (typed/notify.ts), registered as the kernel's.
+ *
+ * Every module with a menu has the four level-1 sections Maestros, Documentos, Reportes and Parámetros (entity types spec §2.4, §9.2):
+ * `module x: missing menu section <s>` otherwise; the list pages of its maestros, documentos and parametros are placed in their
+ * section (`withMenuSections`, module/menu.ts).
  */
-export function loadModules(registry: Registry, modules: ModuleDef[]): void {
+export function loadModules(registry: Registry, declared: ModuleDef[]): void {
+  const modules = declared.map(withLifecycleProcesses).map((module) => withMenuSections(module));
   const byId = new Map<string, ModuleDef>();
   for (const module of modules) {
     if (byId.has(module.id)) throw new Error(`duplicate module ${module.id}`);
@@ -50,9 +67,9 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
   }
 
   // A KPI provider's `consult` gate must be a consult process some module declares: a typo would silently hide the card.
-  const declared = [...registry.processes(), ...modules.flatMap((m) => m.processes)];
-  const kinds = new Map(declared.map((p) => [p.id, p.kind]));
-  const features = new Map(declared.map((p) => [p.id, p.feature]));
+  const known = [...registry.processes(), ...modules.flatMap((m) => m.processes)];
+  const kinds = new Map(known.map((p) => [p.id, p.kind]));
+  const features = new Map(known.map((p) => [p.id, p.feature]));
   for (const module of modules) {
     for (const provider of module.homeKpis ?? []) {
       if (provider.consult === undefined) continue;
@@ -93,5 +110,64 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
       const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider) : fn;
       consumers.register(module.id, event, wrapped);
     }
+    for (const entity of module.entities.filter(isTypedEntity)) consumers.register("kernel", statusChangedEvent(entity.id), stateMailConsumer(registry));
   }
+}
+
+/**
+ * Fail closed (Task 5 review): the generic Grabar (`<entity>.save`) writes the record's columns itself, so a typed entity whose module
+ * validates its own updates (an update process `<entity>.update`, or the `update` sibling of its declared create process, e.g.
+ * `core.category.update`) must register a `validate` hook that runs that validation, or the generic save would bypass it.
+ */
+function assertValidateHooks(module: ModuleDef, typed: ModuleDef["entities"]): void {
+  const own = new Set(module.processes.map((p) => p.id));
+  for (const entity of typed) {
+    const updates = [`${entity.id}.update`];
+    const create = entity.processIds?.create;
+    if (create?.endsWith(".create")) updates.push(`${create.slice(0, -".create".length)}.update`);
+    if (!updates.some((id) => own.has(id)) || module.typedHooks?.[entity.id]?.validate) continue;
+    throw new Error(`module ${module.id}: typed entity ${entity.id} needs a validate hook`);
+  }
+}
+
+/**
+ * The module with the generic lifecycle processes of its maestros and documentos added (see loadModules). Refuses hooks for an
+ * entity that is not one of the module's typed entities and an `on_save` documento without a number hook, and a typed entity
+ * with an update process of its own but no validate hook.
+ */
+function withLifecycleProcesses(module: ModuleDef): ModuleDef {
+  const typed = module.entities.filter(isTypedEntity);
+  const typedIds = new Set(typed.map((e) => e.id));
+  for (const entityId of Object.keys(module.typedHooks ?? {})) {
+    if (!typedIds.has(entityId)) throw new Error(`module ${module.id}: typedHooks names ${entityId}, which is not a maestro or documento of the module`);
+  }
+  for (const entity of typed) {
+    if (entity.typed?.numbering === "on_save" && !module.typedHooks?.[entity.id]?.number) {
+      throw new Error(`entity ${entity.id} numbers on_save: module ${module.id} must register a typedHooks number hook`);
+    }
+  }
+  assertValidateHooks(module, typed);
+  if (typed.length === 0) return module;
+
+  const own = new Set(module.processes.map((p) => p.id));
+  const added: ProcessDef[] = [];
+  const byEntity = new Map<string, string[]>();
+  for (const entity of typed) {
+    const feature = module.features.find((f) => f.entities.includes(entity.id))?.id;
+    const ids: string[] = [];
+    for (const process of genericProcesses({ ...entity, module: module.id })) {
+      if (own.has(process.id)) continue;
+      added.push(feature ? { ...process, feature } : process);
+      ids.push(process.id);
+    }
+    byEntity.set(entity.id, ids);
+  }
+  return {
+    ...module,
+    processes: [...module.processes, ...added],
+    features: module.features.map((f) => {
+      const ids = f.entities.flatMap((e) => byEntity.get(e) ?? []).filter((id) => !f.processes.includes(id));
+      return ids.length === 0 ? f : { ...f, processes: [...f.processes, ...ids] };
+    }),
+  };
 }

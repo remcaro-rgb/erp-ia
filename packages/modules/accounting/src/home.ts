@@ -1,4 +1,5 @@
 import { kpiGridHref, ReportState, type HomeKpiProvider, type Kpi } from "@erp/kernel";
+import { AWAITING_APPROVAL_STATES, UNFINISHED_ENTRY_STATES } from "./processes/common";
 import { incomeStatementConsult } from "./reports/income-statement";
 
 // The accounting module's cards on the home screen (accounting design §8, main design §19a). All of them read the published masked
@@ -65,16 +66,21 @@ export const openPeriodsKpi: HomeKpiProvider = {
   },
 };
 
-/** Comprobantes en borrador: entries written and not yet submitted or posted. */
+/**
+ * Comprobantes en borrador: entries written and not yet sent or posted. The same states the period close counts as unfinished
+ * (Borrador, Grabado, No Aprobado: UNFINISHED_ENTRY_STATES), so home and Cerrar período never disagree; the detail counts those
+ * waiting on an approver (AWAITING_APPROVAL_STATES).
+ */
 export const draftsKpi: HomeKpiProvider = {
   id: "accounting.draft_entries",
   feature: "accounting.ledger",
   consult: "accounting.entry.consult",
   compute: async (ctx) => {
     const [row] = await ctx.tx<{ drafts: number; pending: number }[]>`
-      select count(*) filter (where status = 'draft')::int as drafts, count(*) filter (where status = 'pending')::int as pending
+      select count(*) filter (where status = any(${[...UNFINISHED_ENTRY_STATES]}::text[]))::int as drafts,
+             count(*) filter (where status = any(${[...AWAITING_APPROVAL_STATES]}::text[]))::int as pending
       from accounting.v_entries where company_id = ${ctx.companyId}`;
-    return [{ id: "accounting.draft_entries", href: kpiGridHref("/accounting/entries", [{ field: "status", op: "eq", value: "draft" }]), label: "home.kpi.accounting_drafts.label", value: row!.drafts, unit: "count", detail: { key: "home.kpi.accounting_drafts.detail", params: { pending: row!.pending } } }];
+    return [{ id: "accounting.draft_entries", href: kpiGridHref("/accounting/entries", [{ field: "status", op: "in", value: [...UNFINISHED_ENTRY_STATES] }]), label: "home.kpi.accounting_drafts.label", value: row!.drafts, unit: "count", detail: { key: "home.kpi.accounting_drafts.detail", params: { pending: row!.pending } } }];
   },
 };
 

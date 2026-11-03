@@ -57,3 +57,23 @@ export function countryPackOf(country: string | null | undefined): CountryPack |
     return undefined;
   }
 }
+
+/** The application's catalogue (packages/i18n): the message at `key` in `locale`, or undefined. */
+export type Catalogue = (locale: string, key: string) => string | undefined;
+
+// What the kernel prints outside a screen (the PDF templates' page number and field labels) reads through the app's catalogue, which the
+// app registers at boot (the kernel never imports packages/i18n, which depends on it). On globalThis, like the registry: a bundle may
+// load this module more than once.
+const CATALOGUE_KEY = Symbol.for("erp.kernel.catalogue");
+const catalogueGlobals = globalThis as { [CATALOGUE_KEY]?: Catalogue };
+
+/** Registers the application's catalogue (undefined removes it). */
+export function registerCatalogue(catalogue: Catalogue | undefined): void {
+  catalogueGlobals[CATALOGUE_KEY] = catalogue;
+}
+
+/** The registered catalogue in `locale` (a lookup that finds nothing when none is registered). */
+export function translatorFor(locale: string): Translate {
+  const catalogue = catalogueGlobals[CATALOGUE_KEY];
+  return (key) => catalogue?.(locale, key);
+}

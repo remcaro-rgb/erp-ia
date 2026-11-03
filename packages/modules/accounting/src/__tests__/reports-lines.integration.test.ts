@@ -27,7 +27,7 @@ beforeAll(async () => {
       date: dateIn(month, day), description: `Movimiento ${month}/${day}`,
       lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.cc ? { costCenterId: l.cc } : {}), ...(l.party ? { partyId } : {}) })),
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
   };
   await entry(1, 10, [{ code: "111005", debit: 10_000 }, { code: "310505", credit: 10_000 }]);
   await entry(2, 5, [{ code: "130505", debit: 1_190, party: true }, { code: "413595", credit: 1_000, cc: adm }, { code: "240801", credit: 190, party: true }]);

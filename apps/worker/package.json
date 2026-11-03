@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@erp/i18n": "workspace:*",
     "@erp/infra": "workspace:*",
     "@erp/kernel": "workspace:*",
     "@erp/module-core": "workspace:*",

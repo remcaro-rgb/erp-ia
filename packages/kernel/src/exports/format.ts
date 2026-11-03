@@ -6,6 +6,9 @@ import type { ExportColumn, WriterOptions } from "./types";
 /** What a masked field prints in every channel (rule 14). */
 export const MASK = "••••••";
 
+/** A masked cell of a «••••» placeholder row (D20): the line exists, its value is not the caller's to see. */
+export const PLACEHOLDER_CELL = "••••";
+
 export type Cell =
   | { type: "empty" }
   | { type: "mask" }
@@ -63,6 +66,7 @@ function labelled(column: ExportColumn, value: unknown): string {
 /** The typed cell of one value of `column`. Empty values and values of an unexpected shape never throw. */
 export function cellOf(column: ExportColumn, value: unknown, options: WriterOptions = {}): Cell {
   if (column.masked) return { type: "mask" };
+  if (value === PLACEHOLDER_CELL) return { type: "text", value: PLACEHOLDER_CELL };
   if (value === null || value === undefined || value === "") return { type: "empty" };
   switch (column.type) {
     case "money":

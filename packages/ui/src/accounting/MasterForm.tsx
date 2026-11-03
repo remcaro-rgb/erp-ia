@@ -8,6 +8,7 @@ import { StepUpPrompt } from "../forms/StepUpPrompt";
 import { useSaveFlow } from "../forms/use-save";
 import { activeSpecs, masterDraft, masterInput, masterMissing, type MasterKind } from "./master-form-model";
 import { ProcessId } from "../forms/ProcessId";
+import { useRecordBridge } from "../record/record-bridge";
 
 // The Datos tab of the masters (accounting design §8): Cuenta, the four analytic dimensions, Fuente, Plantilla de comprobante and
 // Período, one form driven by the field specs of `master-form-model`. It saves through the entity's create / update process and asks
@@ -33,6 +34,7 @@ export interface MasterFormProps {
 export function MasterForm({ kind, processes, record, initial: copy, readOnly = false, options, footer, save, requestStepUp, onSaved }: MasterFormProps) {
   const t = useTranslations("accounting.record.form");
   const tf = useTranslations("common.forms");
+  const bridge = useRecordBridge();
   const tc = useTranslations("common");
   const tv = useTranslations("accounting.values");
   const errorText = useErrorText();
@@ -147,9 +149,11 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
                 {tf("discard")}
               </button>
             )}
-            <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={submit} disabled={missing || flow.saving || flow.stepUp || (!dirty && !isNew)}>
-              {isNew ? tf("create") : tc("save")}
-            </button>
+            {!bridge?.registered && (
+              <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={submit} disabled={missing || flow.saving || flow.stepUp || (!dirty && !isNew)}>
+                {isNew ? tf("create") : tc("save")}
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -1,0 +1,1305 @@
+<!doctype html>
+<html lang="es-419">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP-IA · Prototipo tipos de entidad</title>
+<!-- Phase 2A.5 Task 14 · visual contract for the record action bar, Versiones, Acceso, Notificar, the PDF template editor and the module menu
+     (entity types spec 2026-11-02, D15–D19). Rebuilt on shell v7 (2026-10-31-erp-ia-prototype-v7-shell.html; design §22.24, rule 19):
+     left side menu with module names only, the module's four sections in the top bar. Static: no backend, everything is simulated. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ---------- tokens: shell v7 (packages/ui/src/styles/tokens.css) + prototype-only extras ---------- */
+  :root {
+    --bar: #F0F2F5; --bar-ctl: #E6E9EF; --bar-line: #D0D4DB; --bar-text: #1A1A1A; --bar-dim: #5B6270;
+    --primary: #4F46E5; --primary-h: #4338CA; --accent: #E0E7FF; --accent-line: #C7D2FE; --focus: #A5B4FC;
+    --focus-ring: #4F46E5; --line-input: #8A94A3; --link: #4F46E5;
+    --bg: #EAEAEA; --surface: #F0F2F5; --head: #E8EBF0; --hover: #E4E8EF;
+    --tabrow: #F0F2F5; --tabrow-line: #D0D4DB; --tabrow-text: #444A54; --tabrow-hover: #E4E8EF;
+    --text: #1A1A1A; --text-muted: #444A54; --line: #D0D4DB; --line-2: #DCDFE5;
+    --ok-bg: #DDF1EB; --ok: #0A5446; --warn-bg: #FBEBD2; --warn: #7A3E05; --danger-bg: #FBE3E0; --danger: #8C1D17; --info-bg: #E3ECF8; --info: #1D4F91; --alert: #E9A23B;
+    --shadow: rgba(0,0,0,.15); --overlay: rgba(15,23,42,.45);
+    --rail: var(--surface); --rail-text: var(--text-muted); --rail-active: var(--accent); --rail-active-text: var(--link);
+    --rail-w: 232px; --rail-w-collapsed: 60px;
+    --muted: var(--text-muted); --toast-bg: #111827; --toast-text: #fff;
+    --proto-bg: #FFF7E0; --proto-line: #E8C76A; --proto-text: #5C4300; --paper: #FFFFFF; --paper-text: #1A1D21;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bar: #0F1629; --bar-ctl: #161F38; --bar-line: #223055; --bar-text: #E2E8F0; --bar-dim: #94A3B8;
+    --primary: #6366F1; --primary-h: #4F46E5; --accent: #1E1F5C; --accent-line: #3B3FA8; --focus: #818CF8;
+    --focus-ring: #818CF8; --line-input: #6B7686; --link: #818CF8;
+    --bg: #080C1C; --surface: #0F1629; --head: #131C35; --hover: #172042;
+    --tabrow: #0F1629; --tabrow-line: #1E2A4A; --tabrow-text: #94A3B8; --tabrow-hover: #172042;
+    --text: #F1F5F9; --text-muted: #94A3B8; --line: #1E2A4A; --line-2: #18223F;
+    --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+    --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6); --rail-active-text: #A5B4FC;
+    --toast-bg: #E6E9EF; --toast-text: #12151A; --proto-bg: #2E2610; --proto-line: #6B5A22; --proto-text: #F0D98A;
+    color-scheme: dark;
+  } }
+  :root[data-theme="dark"] {
+    --bar: #0F1629; --bar-ctl: #161F38; --bar-line: #223055; --bar-text: #E2E8F0; --bar-dim: #94A3B8;
+    --primary: #6366F1; --primary-h: #4F46E5; --accent: #1E1F5C; --accent-line: #3B3FA8; --focus: #818CF8;
+    --focus-ring: #818CF8; --line-input: #6B7686; --link: #818CF8;
+    --bg: #080C1C; --surface: #0F1629; --head: #131C35; --hover: #172042;
+    --tabrow: #0F1629; --tabrow-line: #1E2A4A; --tabrow-text: #94A3B8; --tabrow-hover: #172042;
+    --text: #F1F5F9; --text-muted: #94A3B8; --line: #1E2A4A; --line-2: #18223F;
+    --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+    --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6); --rail-active-text: #A5B4FC;
+    --toast-bg: #E6E9EF; --toast-text: #12151A; --proto-bg: #2E2610; --proto-line: #6B5A22; --proto-text: #F0D98A;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: "Source Sans 3", system-ui, sans-serif; font-size: 14px; color: var(--text); background: var(--bg); overflow: hidden; }
+  button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: var(--link); text-decoration: none; }
+  h1 { margin: 0; font-size: 22px; font-weight: 700; } h2 { margin: 0; font-size: 15px; font-weight: 700; } h3 { margin: 0; font-size: 13px; font-weight: 700; }
+  p { margin: 0; line-height: 1.5; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  svg.i { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -2px; }
+  svg.i.lg { width: 18px; height: 18px; }
+  svg.ic-pdf { color: #C2261C; }
+
+  .btn { padding: 0 12px; height: 32px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .btn:hover { background: var(--head); }
+  .btn.dark { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; } .btn.dark:hover { background: var(--primary-h); }
+  .btn.okb { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-bg); font-weight: 600; }
+  .btn.ghost { border: 0; background: transparent; color: var(--muted); }
+  .btn.sm { height: 28px; padding: 0 9px; font-size: 12px; }
+  .btn.danger { color: var(--danger); border-color: var(--danger-bg); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .pill { font-size: 12px; padding: 1px 8px; border-radius: 4px; white-space: nowrap; display: inline-block; font-weight: 600; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); } .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.danger { background: var(--danger-bg); color: var(--danger); } .pill.info { background: var(--info-bg); color: var(--info); }
+  .pill.gray { background: var(--line-2); color: var(--muted); } .pill.blue { background: var(--accent); color: var(--link); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label, .lbl { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .field input, .field select, .field textarea, .inp { padding: 7px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--text); min-width: 0; width: 100%; }
+  .field input:disabled, .field select:disabled, .inp:disabled { background: var(--head); color: var(--muted); border-color: var(--line); }
+  .field .err { font-size: 11px; color: var(--danger); font-weight: 600; }
+  .masked { color: var(--muted); letter-spacing: 1px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .grow { flex-grow: 1; }
+  .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+  .toggle { position: relative; width: 38px; height: 22px; border-radius: 11px; background: var(--line-input); border: 0; flex: 0 0 auto; padding: 0; }
+  .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .toggle.on { background: var(--primary); } .toggle.on::after { left: 19px; }
+  .toggle:disabled { opacity: .5; cursor: not-allowed; }
+  .sw { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+  .note { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; }
+  .note.info { background: var(--info-bg); color: var(--info); } .note.warn { background: var(--warn-bg); color: var(--warn); }
+  .note.bad { background: var(--danger-bg); color: var(--danger); }
+
+  /* ---------- prototype index and controls (not part of the product) ---------- */
+  .proto { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--proto-bg); color: var(--proto-text); border-bottom: 1px dashed var(--proto-line); font-size: 12px; flex: none; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+  .proto a { color: var(--proto-text); padding: 3px 7px; border-radius: 4px; border: 1px solid transparent; }
+  .proto a:hover, .proto a.on { border-color: var(--proto-line); background: var(--surface); color: var(--text); }
+  .proto select { display: none; padding: 4px 6px; border: 1px solid var(--proto-line); border-radius: 4px; background: var(--surface); font-size: 12px; min-width: 150px; flex: 1 1 auto; }
+  .proto .dec { margin-left: auto; padding: 3px 9px; border-radius: 4px; border: 1px solid var(--proto-line); background: var(--surface); color: var(--text); font-weight: 600; font-size: 12px; }
+  .proto .dec i { font-style: normal; background: var(--alert); color: #1A1D21; border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+  .ctl { border: 1px dashed var(--proto-line); background: var(--proto-bg); color: var(--proto-text); border-radius: 8px; padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 12px; }
+  .ctl b.t { font-weight: 700; width: 100%; }
+  .ctl label { display: inline-flex; gap: 6px; align-items: center; }
+  .ctl select { padding: 4px 6px; border: 1px solid var(--proto-line); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; }
+  .ctl .toggle { width: 32px; height: 18px; } .ctl .toggle::after { width: 12px; height: 12px; } .ctl .toggle.on::after { left: 17px; }
+  .ctl .btn { border-color: var(--proto-line); }
+
+  /* ---------- shell v7 ---------- */
+  .app { display: flex; flex-direction: column; height: 100dvh; }
+  .bar { height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--bar); color: var(--bar-text); border-bottom: 1px solid var(--line); position: relative; z-index: 20; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; margin-right: 6px; }
+  .brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--primary); display: inline-block; }
+  .bar-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--bar-line); background: transparent; color: var(--bar-text); border-radius: 6px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+  .bar-btn:hover { background: var(--bar-ctl); }
+  .bar-btn.solid { background: var(--accent); border-color: var(--accent-line); color: var(--link); font-weight: 600; max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+  .bar-btn.white { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+  .icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--bar-line); background: transparent; color: var(--bar-text); border-radius: 6px; position: relative; flex: none; }
+  .icon-btn:hover { background: var(--bar-ctl); }
+  .dot { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+  .cmd { flex: 0 1 300px; min-width: 120px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--bar-line); background: var(--bar-ctl); color: var(--bar-text); border-radius: 6px; padding: 6px 10px; font-size: 13px; text-align: left; }
+  .cmd span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmd kbd { font-family: "JetBrains Mono", monospace; font-size: 11px; border: 1px solid var(--bar-line); border-radius: 4px; padding: 0 5px; color: var(--bar-dim); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; border: 0; flex: none; }
+  #menuBtn { display: none; }
+  .body { display: flex; flex: 1; min-height: 0; position: relative; }
+  .col { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  /* left side menu: module names only */
+  .rail { width: var(--rail-w); flex: none; display: flex; flex-direction: column; background: var(--rail); border-right: 1px solid var(--line); overflow: hidden; }
+  .rail-head { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line-2); }
+  .rail-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .rail nav { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; overflow-y: auto; }
+  .rail-item { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--rail-text); font-size: 14px; font-weight: 600; text-align: left; white-space: nowrap; }
+  .rail-item:hover { background: var(--hover); color: var(--text); }
+  .rail-item[aria-current="page"] { background: var(--rail-active); color: var(--rail-active-text); }
+  .rail-close { display: none; }
+  .rail-toggle { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--muted); flex: none; }
+  .rail-toggle:hover { background: var(--hover); color: var(--text); }
+  .rail-toggle svg { transition: transform .15s; }
+  .rail { transition: width .15s ease; }
+  @media (min-width: 1024px) { .app.rail-c .rail { width: var(--rail-w-collapsed); } .app.rail-c .rail .rail-label, .app.rail-c .rail .rail-title { display: none; } .app.rail-c .rail .rail-item { justify-content: center; padding: 0; } .app.rail-c .rail-head { justify-content: center; padding: 0; } .app.rail-c .rail-toggle svg { transform: rotate(180deg); } }
+  @media (max-width: 1023px) { .rail-toggle { display: none; } }
+  /* items bar: the active module's four sections */
+  .itemsbar { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); overflow: hidden; }
+  .itemsbar .modname { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--line-2); white-space: nowrap; }
+  .secbtn { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 11px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 13px; white-space: nowrap; flex: none; }
+  .secbtn:hover { background: var(--hover); color: var(--text); }
+  .secbtn.on { background: var(--head); border-color: var(--line); color: var(--link); font-weight: 600; }
+  .gmenu { position: fixed; z-index: 60; min-width: 230px; max-width: calc(100vw - 16px); padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); display: flex; flex-direction: column; }
+  .gmenu .mh { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .gmenu button { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; white-space: nowrap; }
+  .gmenu button:hover { background: var(--head); } .gmenu button.on { background: var(--accent); font-weight: 600; }
+  .gmenu .empty { margin: 4px; padding: 12px 10px; font-size: 13px; color: var(--muted); text-align: center; border: 1px dashed var(--line); border-radius: 6px; }
+  .gmenu hr { border: 0; border-top: 1px solid var(--line-2); margin: 4px 0; width: 100%; }
+  /* tabs row */
+  .tabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--tabrow); border-bottom: 1px solid var(--tabrow-line); overflow-x: auto; scrollbar-width: none; }
+  .tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--tabrow-text); font-size: 13px; white-space: nowrap; }
+  .tab:hover { background: var(--tabrow-hover); }
+  .tab.on { background: var(--accent); color: var(--link); font-weight: 600; }
+  .tab .x { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 4px; opacity: .7; }
+  .tab .x:hover { background: var(--tabrow-hover); opacity: 1; }
+  .tab .uns { width: 7px; height: 7px; border-radius: 50%; background: var(--alert); display: inline-block; }
+  main { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  main > * { flex-shrink: 0; }
+  aside.side { flex: 0 0 400px; background: var(--surface); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+  .side .sh { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line-2); font-weight: 700; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .side .sb { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+  .backdrop { position: fixed; inset: 0; background: var(--overlay); z-index: 40; }
+
+  /* ---------- tables ---------- */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line-2); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: 0 12px; height: 36px; text-align: left; border-bottom: 1px solid var(--line-2); font-size: 13px; white-space: nowrap; }
+  th { font-size: 12px; font-weight: 600; color: var(--muted); background: var(--head); }
+  td.r, th.r { text-align: right; } td.c, th.c { text-align: center; }
+  tbody tr:hover td { background: var(--hover); }
+  tr.sel td { background: var(--accent) !important; }
+  tr.click { cursor: pointer; }
+  tfoot td { background: var(--head); font-weight: 700; }
+  td .inp { padding: 5px 8px; }
+  input[type=checkbox] { accent-color: var(--primary); width: 16px; height: 16px; }
+  .exp { font-weight: 700; font-size: 11px; } .exp.pdf { color: #C2261C; } .exp.xls { color: #107C41; } .exp.csv { color: var(--muted); }
+
+  /* ---------- record frame ---------- */
+  .rec { display: flex; flex-direction: column; }
+  .rec .mh { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); flex-wrap: wrap; }
+  .rec .mh .tt { font-weight: 700; font-size: 16px; }
+  .ids { font-size: 11px; color: var(--muted); font-family: "JetBrains Mono", monospace; display: flex; gap: 10px; flex-wrap: wrap; }
+  .ftabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; overflow-x: auto; scrollbar-width: thin; }
+  .ftabs button { padding: 10px 12px; border: 0; background: transparent; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+  .ftabs button.on { color: var(--link); border-bottom-color: var(--link); font-weight: 600; }
+  .ftabs .cnt { font-size: 11px; background: var(--line-2); color: var(--muted); padding: 0 6px; border-radius: 8px; }
+  .ftabs .adm { font-size: 10px; background: var(--warn-bg); color: var(--warn); padding: 0 5px; border-radius: 4px; }
+  .note.refusal { margin: 12px 18px 0; }
+  .rec .mb { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .rec .mf { display: flex; gap: 8px; align-items: center; padding: 10px 18px; border-top: 1px solid var(--line-2); background: var(--head); flex-wrap: wrap; position: sticky; bottom: 0; border-radius: 0 0 14px 14px; }
+  .actbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .actbar.main { margin-left: auto; }
+  .more-wrap { position: relative; display: none; }
+  .more-menu { position: absolute; bottom: calc(100% + 4px); right: 0; min-width: 180px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); z-index: 30; }
+  .more-menu button { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; }
+  .foot-status { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); min-width: 180px; }
+  .foot-status .uns { color: var(--warn); font-weight: 600; }
+  .sec { display: flex; flex-direction: column; gap: 10px; }
+  .sec h3.cap { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .form2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .form3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .form4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .flow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+  .flow .st { padding: 3px 9px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); white-space: nowrap; }
+  .flow .st.cur { border-color: var(--link); background: var(--accent); color: var(--text); font-weight: 700; }
+  .flow .st.done { color: var(--text); } .flow .ar { color: var(--muted); }
+  .audit { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .lockmsg { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .ref small { color: var(--muted); margin-left: 4px; font-size: 11px; }
+
+  /* ---------- versiones ---------- */
+  .cmp { display: grid; grid-template-columns: 180px 1fr 1fr; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; font-size: 13px; }
+  .cmp > div { padding: 7px 10px; border-bottom: 1px solid var(--line-2); min-width: 0; overflow-wrap: anywhere; }
+  .cmp .h { background: var(--head); font-weight: 700; font-size: 12px; color: var(--muted); }
+  .cmp .k { color: var(--muted); font-weight: 600; font-size: 12px; }
+  .cmp .chg { background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+  .cmp .grp { grid-column: 1 / -1; background: var(--head); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+
+  /* ---------- dialogs, palette ---------- */
+  .ov { position: fixed; inset: 0; background: var(--overlay); display: grid; place-items: center; z-index: 70; padding: 16px; }
+  .dlg { width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: 14px; box-shadow: 0 30px 80px var(--shadow); display: flex; flex-direction: column; }
+  .dlg .dh { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); font-weight: 700; font-size: 15px; }
+  .dlg .db { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .dlg .df { display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line-2); background: var(--head); flex-wrap: wrap; }
+  .pal { position: fixed; inset: 0; background: var(--overlay); z-index: 70; display: flex; justify-content: center; align-items: flex-start; padding: 80px 16px 16px; }
+  .pal .box { width: min(640px, 100%); background: var(--surface); border-radius: 14px; box-shadow: 0 30px 80px var(--shadow); overflow: hidden; }
+  .pal input { width: 100%; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--line-2); font-size: 16px; outline: 0; background: var(--surface); }
+  .pal ul { list-style: none; margin: 0; padding: 6px; max-height: 360px; overflow: auto; }
+  .pal li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .pal li.on, .pal li:hover { background: var(--accent); }
+  .pal li .k { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .pal .ft { padding: 8px 16px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line-2); background: var(--head); }
+  .rcp { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); min-height: 40px; align-items: center; }
+  .rcp .em { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border-radius: 4px; background: var(--accent); border: 1px solid var(--accent-line); font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
+  .rcp .em.bad { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+  .rcp .em button { border: 0; background: transparent; color: inherit; padding: 0 4px; font-size: 12px; }
+  .rcp input { border: 0; outline: 0; flex: 1 1 140px; min-width: 100px; padding: 4px; background: transparent; font-size: 13px; }
+  .attach { display: flex; gap: 12px; align-items: center; padding: 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--head); }
+  .attach .thumb { width: 92px; height: 119px; flex: none; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; background: var(--paper); position: relative; }
+
+  /* ---------- menu screen, matrix ---------- */
+  .secgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .secgrid .card { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .secgrid .card button { text-align: left; border: 0; background: transparent; padding: 6px 4px; border-radius: 4px; color: var(--link); font-size: 13px; }
+  .secgrid .card button:hover { background: var(--hover); }
+  .emptystate { padding: 18px 10px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 6px; font-size: 13px; }
+  .mx td { white-space: normal; vertical-align: top; padding-top: 6px; padding-bottom: 6px; height: auto; }
+  .mx .bt { display: inline-block; font-size: 11px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 4px; margin: 1px 2px 1px 0; background: var(--surface); white-space: nowrap; }
+  .mx .bt.auto { border-style: dashed; color: var(--muted); } .mx .bt.st { background: var(--accent); border-color: var(--accent-line); }
+
+  /* ---------- template editor ---------- */
+  .ted { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 14px; align-items: start; }
+  .ted.macc { grid-template-columns: minmax(240px, 340px) 1fr; }
+  .blist { display: flex; flex-direction: column; gap: 6px; }
+  .bitem { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .bitem.on { border-color: var(--link); box-shadow: 0 0 0 1px var(--link); }
+  .bitem .bh { display: flex; align-items: center; gap: 8px; padding: 7px 8px; cursor: pointer; font-size: 13px; }
+  .bitem .bh .k { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--muted); width: 70px; flex: none; }
+  .bitem .bh .v { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bitem .bh .ops { display: flex; gap: 2px; } .bitem .bh .ops button { border: 0; background: transparent; color: var(--muted); padding: 2px 5px; border-radius: 4px; font-size: 12px; }
+  .bitem .be { padding: 8px; border-top: 1px solid var(--line-2); display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: var(--head); border-radius: 0 0 8px 8px; }
+  .bitem .be .field.w2 { grid-column: span 2; } .bitem .be .field.w4 { grid-column: span 4; }
+  .bitem .be .field input, .bitem .be .field select { padding: 5px 7px; font-size: 12px; }
+  .vars { display: flex; flex-wrap: wrap; gap: 4px; }
+  .vars button { font-family: "JetBrains Mono", monospace; font-size: 11px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+  .vars button:hover { background: var(--accent); }
+  .pv-wrap { background: var(--head); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .pv-scale { position: relative; width: 100%; max-width: 612px; }
+  .page { position: absolute; top: 0; left: 0; width: 612px; height: 792px; background: var(--paper); color: var(--paper-text); box-shadow: 0 4px 20px rgba(0,0,0,.18); transform-origin: top left; font-family: Helvetica, Arial, sans-serif; overflow: hidden; }
+  .page .blk { position: absolute; font-size: 10px; line-height: 1.25; overflow: hidden; cursor: pointer; outline: 1px dashed transparent; color: #1A1D21; }
+  .page .blk:hover { outline-color: #A5B4FC; } .page .blk.on { outline: 1.5px solid #4F46E5; background: rgba(79,70,229,.05); }
+  .page .blk table th, .page .blk table td { height: 16px; font-size: 8.5px; padding: 0 4px; border-bottom: 1px solid #D7DBE0; background: transparent; color: #1A1D21; }
+  .page .blk table th { font-weight: 700; border-bottom: 1px solid #1A1D21; }
+  .page .blk table tfoot td { font-weight: 700; border-top: 1px solid #1A1D21; }
+  .page .bg { position: absolute; inset: 0; pointer-events: none; }
+  .page .logo { width: 100%; height: 100%; border-radius: 4px; background: linear-gradient(135deg, #5B3A1E, #9C6B3C); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 11px; }
+  .drop { border: 2px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; color: var(--muted); font-size: 13px; background: var(--head); }
+  .drop.over { border-color: var(--link); background: var(--accent); }
+
+  /* ---------- grids (rule 20) ---------- */
+  .grid { border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .grid .gscroll { overflow-x: auto; }
+  .gtools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--line-2); }
+  .sortb { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font: inherit; color: inherit; border-radius: 3px; }
+  .sortb:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .si { font-size: 10px; opacity: .5; } th[aria-sort="ascending"] .si, th[aria-sort="descending"] .si { opacity: 1; color: var(--link); }
+  .frow th { background: var(--surface); padding: 4px 6px; } .frow .inp { padding: 4px 6px; font-size: 12px; font-weight: 400; min-width: 70px; }
+  .pager { display: flex; align-items: center; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 6px 10px; font-size: 12px; color: var(--muted); background: var(--head); border-top: 1px solid var(--line-2); }
+  .pager select { padding: 2px 4px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); font-size: 12px; }
+  .btn.on { background: var(--accent); border-color: var(--accent-line); color: var(--link); }
+  .btn .cnt { font-size: 11px; background: var(--primary); color: #fff; border-radius: 8px; padding: 0 6px; }
+  .exp-btn { gap: 4px; } svg.ic-xls { color: #107C41; } svg.ic-csv { color: var(--muted); }
+  td.wrap { white-space: normal; min-width: 200px; padding-top: 6px; padding-bottom: 6px; }
+  .cp { border: 0; background: transparent; color: var(--muted); padding: 2px; margin-left: 2px; border-radius: 4px; display: inline-grid; place-items: center; vertical-align: middle; cursor: pointer; }
+  .cp:hover { background: var(--hover); color: var(--link); } .cp svg.i { width: 13px; height: 13px; }
+  .adv-rule { display: grid; grid-template-columns: 64px 1fr 120px 1fr 34px; gap: 6px; align-items: center; }
+  @media (max-width: 767px) { .adv-rule { grid-template-columns: 1fr 1fr; } .gtools .btn { height: 36px; } }
+  #toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 80; width: max-content; max-width: calc(100vw - 32px); }
+  .toast { background: var(--toast-bg); color: var(--toast-text); padding: 10px 16px; border-radius: 8px; font-size: 13px; box-shadow: 0 10px 30px var(--shadow); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toast .mono { color: var(--focus); font-size: 12px; }
+
+  /* ---------- responsive (rule 19) ---------- */
+  @media (max-width: 1279px) { aside.side { position: absolute; right: 0; top: 0; bottom: 0; box-shadow: -10px 0 30px var(--shadow); z-index: 8; } }
+  @media (max-width: 1100px) { .secgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ted, .ted.macc { grid-template-columns: 1fr; } }
+  @media (max-width: 1023px) {
+    #menuBtn { display: grid; }
+    .rail { position: fixed; top: 0; bottom: 0; left: 0; z-index: 50; width: 280px; transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 10px 30px var(--shadow); }
+    .rail.open { transform: none; }
+    .rail .rail-label, .rail .rail-title { display: inline; } .rail .rail-item { justify-content: flex-start; padding: 0 12px; height: 44px; } .rail-head { justify-content: space-between; padding: 0 10px 0 16px; }
+    .rail-close { display: grid; width: 32px; height: 32px; place-items: center; border: 0; background: transparent; border-radius: 6px; color: var(--muted); }
+  }
+  @media (max-width: 767px) {
+    .proto a { display: none; } .proto select { display: block; } .proto .dec { margin-left: 0; }
+    .bar { padding: 0 10px; gap: 6px; } .brand span, .cmd span, .cmd kbd, #asstBtn { display: none; } .brand { margin-right: 0; }
+    .cmd { flex: 0 0 34px; min-width: 34px; justify-content: center; padding: 0; height: 34px; }
+    .bar-btn.solid { max-width: 140px; }
+    .itemsbar { padding: 0 10px; } .itemsbar .modname { display: none; } .secbtn { height: 36px; padding: 0 9px; }
+    main { padding: 12px; }
+    aside.side { position: fixed; inset: 0; flex-basis: auto; width: 100%; z-index: 55; }
+    .form2, .form3, .form4, .secgrid { grid-template-columns: 1fr; }
+    .cmp { grid-template-columns: 110px 1fr 1fr; font-size: 12px; }
+    .rec .mh, .rec .mb { padding-left: 12px; padding-right: 12px; } .ftabs { padding: 0 8px; } .note.refusal { margin: 10px 12px 0; }
+    .rec .mf { padding: 10px 12px; position: static; }
+    .actbar { width: 100%; flex-wrap: nowrap; } .actbar.main { margin-left: 0; flex-wrap: wrap; }
+    .actbar .btn { height: 44px; flex: 1 1 auto; justify-content: center; padding: 0 8px; }
+    .actbar .dup-wide { display: none; } .more-wrap { display: inline-flex; flex: 1 1 auto; } .more-wrap .btn { width: 100%; }
+    .foot-status { width: 100%; }
+    .bitem .be { grid-template-columns: 1fr 1fr; } .bitem .be .field.w4 { grid-column: span 2; }
+    .dlg { width: calc(100vw - 16px); max-height: calc(100vh - 16px); } .ov { padding: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <nav class="proto" aria-label="Índice del prototipo">
+    <b>Prototipo · Tipos de entidad</b>
+    <span id="proto-links" style="display:contents"></span>
+    <select id="proto-sel" aria-label="Ir a la pantalla" onchange="go(this.value)"></select>
+    <button class="dec" onclick="toggleDecisions()">Decisiones pendientes<i id="dec-n">2</i></button>
+  </nav>
+  <header class="bar">
+    <button class="icon-btn" id="menuBtn" aria-label="Menú" aria-controls="rail" aria-expanded="false" onclick="openRail()"><svg class="i lg"><use href="#i-menu"/></svg></button>
+    <div class="brand"><i aria-hidden="true"></i><span>ERP-IA</span></div>
+    <button class="bar-btn solid" title="Café del Norte S.A.S. · NIT 900373115-3" onclick="toast('Selector de empresa (fase 3)')">Café del Norte S.A.S. ▾</button>
+    <div class="grow"></div>
+    <button class="cmd" id="cmdBtn" aria-label="Buscar o ir a… (⌘K)" onclick="openPalette()"><svg class="i"><use href="#i-search"/></svg><span>Buscar o ir a…</span><kbd>⌘K</kbd></button>
+    <button class="icon-btn" id="themeBtn" aria-label="Cambiar tema" onclick="cycleTheme()"></button>
+    <button class="icon-btn" aria-label="Notificaciones" onclick="toast('Notificaciones')"><svg class="i lg"><use href="#i-bell"/></svg><span class="dot" aria-hidden="true">2</span></button>
+    <button class="bar-btn white" id="asstBtn" onclick="toast('El asistente no cambia en este prototipo')"><svg class="i"><use href="#i-sparkles"/></svg>Asistente</button>
+    <button class="avatar" title="Laura Mendoza" onclick="toast('Laura Mendoza · Administrador, Gerente')">LM</button>
+  </header>
+  <div class="body">
+    <aside class="rail" id="rail" aria-label="Menú de módulos">
+      <div class="rail-head"><span class="rail-title">Módulos</span><button class="rail-toggle" id="railToggle" aria-controls="rail" onclick="toggleRail()"><svg class="i lg"><use href="#i-collapse"/></svg></button><button class="rail-close" aria-label="Cerrar menú" onclick="closeRail()"><svg class="i lg"><use href="#i-x"/></svg></button></div>
+      <nav aria-label="Módulos" id="railNav"></nav>
+    </aside>
+    <div class="col">
+      <nav class="itemsbar" id="itemsbar" aria-label="Menú del módulo"></nav>
+      <nav class="tabs" id="tabs" aria-label="Pestañas abiertas"></nav>
+      <main id="main" tabindex="-1"></main>
+    </div>
+    <aside class="side" id="decisions" hidden></aside>
+  </div>
+</div>
+<div class="backdrop" id="backdrop" hidden onclick="closeRail()"></div>
+<div class="gmenu" id="gmenu" role="menu" hidden></div>
+<div id="dialog" class="ov" hidden onclick="if(event.target===this)closeDialog()"><div class="dlg" id="dialog-box" role="dialog" aria-modal="true"></div></div>
+<div id="palette" class="pal" hidden onclick="if(event.target===this)closePalette()"><div class="box"><input id="pal-in" placeholder="Buscar registros por ID, número o nombre; ir a una pantalla…" oninput="renderPalette()" onkeydown="palKey(event)"><ul id="pal-list"></ul><div class="ft">↑↓ navegar · Enter abrir · Esc cerrar · busca por ID (p. ej. 1284)</div></div></div>
+<div id="toasts"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-collapse" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M16 15l-3-3 3-3"/></symbol>
+  <symbol id="i-filetype" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 6h18M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-funnel" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-xcircle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></symbol>
+  <symbol id="i-calculator" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8M16 14v4M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol>
+  <symbol id="i-lifebuoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14L21 3"/></symbol>
+  <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1.5a1.5 1.5 0 0 0 0-3H9v6"/></symbol>
+</svg>
+
+<script>
+/* =====================================================================================================================
+   Helpers
+   ===================================================================================================================== */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => { const [i, d] = Math.abs(n).toFixed(2).split('.'); return (n < 0 ? '-' : '') + '$ ' + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d; };
+const int = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const ic = (id, cls = '') => `<svg class="i ${cls}"><use href="#i-${id}"/></svg>`;
+function toast(msg, mono) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = esc(msg) + (mono ? `<span class="mono">${esc(mono)}</span>` : ''); document.getElementById('toasts').appendChild(t); setTimeout(() => t.remove(), 4200); }
+
+let theme = 'auto'; try { theme = localStorage.getItem('erp.proto.theme') || 'auto'; } catch (e) { }
+function applyTheme() { const h = document.documentElement; if (theme === 'auto') h.removeAttribute('data-theme'); else h.setAttribute('data-theme', theme); const b = document.getElementById('themeBtn'); b.innerHTML = ic(theme === 'auto' ? 'monitor' : theme === 'dark' ? 'moon' : 'sun', 'lg'); b.setAttribute('aria-label', `Cambiar tema: ${theme === 'auto' ? 'automático' : theme === 'dark' ? 'oscuro' : 'claro'}`); b.title = b.getAttribute('aria-label'); }
+function cycleTheme() { theme = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto'; try { localStorage.setItem('erp.proto.theme', theme); } catch (e) { } applyTheme(); toast(`Tema ${theme === 'auto' ? 'automático' : theme === 'dark' ? 'oscuro' : 'claro'}`, 'kernel.user_prefs.theme'); }
+
+/* =====================================================================================================================
+   Grid engine (rule 20): sort by every column, filter per column, advanced filter (Y/O, AND first), pagination, PDF/XLSX/CSV
+   ===================================================================================================================== */
+const S_GS = {}; const GRID_DEF = {};
+const gst = id => S_GS[id] || (S_GS[id] = { sort: null, dir: 1, page: 0, size: 10, cf: {}, adv: [], showF: false });
+function ruleOk(r, cols, row) {
+  const c = cols.find(c => c.k === r.f); if (!c || r.val === '') return true; const v = c.v(row);
+  if (typeof v === 'number') { const q = parseFloat(String(r.val).replace(/\$|\s/g, '').replace(/\./g, '').replace(',', '.')); if (isNaN(q)) return true; return r.op === '=' ? v === q : r.op === '≠' ? v !== q : r.op === '>' ? v > q : v < q; }
+  const a = String(v).toLowerCase(), q = String(r.val).toLowerCase();
+  return r.op === 'contiene' ? a.includes(q) : r.op === 'empieza' ? a.startsWith(q) : r.op === '=' ? a === q : a !== q;
+}
+function advMatch(rules, cols, row) { const groups = [[]]; rules.forEach((r, i) => { if (i && r.join === 'O') groups.push([]); groups[groups.length - 1].push(r); }); return groups.some(g => g.every(r => ruleOk(r, cols, row))); }
+function gridRows(id, cols, rows) {
+  const g = gst(id);
+  let r = rows.filter(row => cols.every(c => { const f = g.cf[c.k]; return !f || String(c.v(row)).toLowerCase().includes(f.toLowerCase()); }));
+  if (g.adv.length) r = r.filter(row => advMatch(g.adv, cols, row));
+  if (g.sort) { const c = cols.find(c => c.k === g.sort); if (c) r = r.slice().sort((a, b) => { const x = c.v(a), y = c.v(b); return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'es', { numeric: true })) * g.dir; }); }
+  return r;
+}
+function exportBtns(name) { return [['PDF', 'pdf', 'ic-pdf'], ['XLSX', 'xls', 'ic-xls'], ['CSV', 'csv', 'ic-csv']].map(([l, k, c]) => `<button class="btn sm exp-btn" aria-label="Exportar a ${l}" title="Exportar a ${l}" onclick="toast('Exportar «${esc(name)}» a ${l}: columnas visibles en su orden, todas las páginas','kernel.grid.export')">${ic('filetype', c)}<span class="exp ${k}">${l}</span></button>`).join(''); }
+function gridHtml(id, cols, rows, o = {}) {
+  GRID_DEF[id] = { cols, rows }; const g = gst(id); const all = gridRows(id, cols, rows);
+  const pages = Math.max(1, Math.ceil(all.length / g.size)); if (g.page >= pages) g.page = pages - 1;
+  const vis = all.slice(g.page * g.size, (g.page + 1) * g.size); const nf = Object.values(g.cf).filter(Boolean).length + g.adv.length;
+  const tools = `<div class="gtools">${o.left || ''}<span class="grow"></span><button class="btn sm ${g.showF ? 'on' : ''}" aria-pressed="${g.showF}" onclick="gst('${id}').showF=!gst('${id}').showF;render()">${ic('filter')}Filtros por columna</button><button class="btn sm ${g.adv.length ? 'on' : ''}" aria-haspopup="dialog" onclick="openAdv('${id}')">${ic('funnel')}Filtro avanzado${g.adv.length ? `<span class="cnt">${g.adv.length}</span>` : ''}</button>${nf ? `<button class="btn sm ghost" onclick="clearF('${id}')">Quitar filtros</button>` : ''}${exportBtns(o.name || id)}</div>`;
+  const cls = c => c.r ? 'r' : c.c ? 'c' : '';
+  const head = `<tr>${cols.map(c => c.nosort ? `<th class="${cls(c)}">${c.l}</th>` : `<th class="${cls(c)}" aria-sort="${g.sort === c.k ? (g.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button class="sortb" title="Ordenar por ${esc(c.l)}" onclick="sortBy('${id}','${c.k}')">${c.l}<span class="si" aria-hidden="true">${g.sort === c.k ? (g.dir > 0 ? '▲' : '▼') : '↕'}</span></button></th>`).join('')}</tr>`;
+  const frow = g.showF ? `<tr class="frow">${cols.map(c => `<th>${c.nofilter ? '' : `<input class="inp" data-gf="${id}:${c.k}" aria-label="Filtrar ${esc(c.l)}" placeholder="Filtrar…" value="${esc(g.cf[c.k] || '')}" oninput="colF('${id}','${c.k}',this.value)">`}</th>`).join('')}</tr>` : '';
+  const body = vis.length ? vis.map(x => `<tr class="${o.click ? 'click' : ''} ${o.sel && o.sel(x) ? 'sel' : ''}" ${o.click ? `onclick="${o.click(x)}"` : ''}>${cols.map(c => `<td class="${c.r ? 'r num' : c.c ? 'c' : ''} ${c.wrap ? 'wrap' : ''}">${c.h ? c.h(x) : esc(c.v(x))}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${cols.length}" class="muted">${rows.length ? 'Sin resultados con estos filtros' : (o.empty || 'Sin registros')}</td></tr>`;
+  const from = all.length ? g.page * g.size + 1 : 0, to = Math.min(all.length, (g.page + 1) * g.size);
+  const pager = `<div class="pager"><span>${from}–${to} de ${all.length}${all.length !== rows.length ? ` (filtrado de ${rows.length})` : ''}</span><label>Filas <select aria-label="Filas por página" onchange="gst('${id}').size=+this.value;gst('${id}').page=0;render()">${[10, 25, 50].map(n => `<option ${n === g.size ? 'selected' : ''}>${n}</option>`).join('')}</select></label><button class="btn sm" aria-label="Página anterior" ${g.page ? '' : 'disabled'} onclick="gst('${id}').page--;render()">‹</button><span>Página ${g.page + 1} de ${pages}</span><button class="btn sm" aria-label="Página siguiente" ${g.page < pages - 1 ? '' : 'disabled'} onclick="gst('${id}').page++;render()">›</button></div>`;
+  return `<div class="grid">${tools}<div class="gscroll"><table><thead>${head}${frow}</thead><tbody>${body}</tbody>${o.foot ? `<tfoot>${o.foot}</tfoot>` : ''}</table></div>${pager}</div>`;
+}
+function sortBy(id, k) { const g = gst(id); if (g.sort !== k) { g.sort = k; g.dir = 1; } else if (g.dir === 1) g.dir = -1; else { g.sort = null; g.dir = 1; } render(); }
+function colF(id, k, v) { const g = gst(id); g.cf[k] = v; g.page = 0; render(); const el = document.querySelector(`[data-gf="${id}:${k}"]`); if (el) { el.focus(); el.setSelectionRange(v.length, v.length); } }
+function clearF(id) { const g = gst(id); g.cf = {}; g.adv = []; g.page = 0; render(); }
+function isNum(id, k) { const { cols, rows } = GRID_DEF[id]; const c = cols.find(c => c.k === k); return !!(c && rows.length && typeof c.v(rows[0]) === 'number'); }
+const advCols = id => GRID_DEF[id].cols.filter(c => !c.nofilter && c.l);
+function defRule(id) { const f = advCols(id)[0].k; return { join: 'Y', f, op: isNum(id, f) ? '=' : 'contiene', val: '' }; }
+function openAdv(id) { const g = gst(id); S.adv = { id, rules: g.adv.length ? JSON.parse(JSON.stringify(g.adv)) : [defRule(id)] }; renderAdv(); }
+function renderAdv() {
+  const { id, rules } = S.adv; const cols = advCols(id);
+  openDialog(`<div class="dh">${ic('funnel')}Filtro avanzado<span class="grow"></span><button class="btn ghost" aria-label="Cerrar" onclick="closeDialog()">${ic('x')}</button></div>
+  <div class="db"><p class="hint">Cada campo con reglas según su tipo. Combina con Y / O; «Y» se evalúa antes que «O»: A Y B O C = (A Y B) O C.</p>
+  ${rules.map((r, i) => { const num = isNum(id, r.f); const ops = num ? ['=', '≠', '>', '<'] : ['contiene', 'empieza', '=', '≠']; return `<div class="adv-rule">${i ? `<select class="inp" aria-label="Unión de la regla ${i + 1}" onchange="S.adv.rules[${i}].join=this.value;advLive()"><option ${r.join === 'Y' ? 'selected' : ''}>Y</option><option ${r.join === 'O' ? 'selected' : ''}>O</option></select>` : '<span class="lbl">Donde</span>'}
+    <select class="inp" aria-label="Campo de la regla ${i + 1}" onchange="S.adv.rules[${i}].f=this.value;S.adv.rules[${i}].op=isNum('${id}',this.value)?'=':'contiene';renderAdv()">${cols.map(c => `<option value="${c.k}" ${c.k === r.f ? 'selected' : ''}>${c.l}</option>`).join('')}</select>
+    <select class="inp" aria-label="Operador de la regla ${i + 1}" onchange="S.adv.rules[${i}].op=this.value;advLive()">${ops.map(x => `<option ${x === r.op ? 'selected' : ''}>${x}</option>`).join('')}</select>
+    <input class="inp" aria-label="Valor de la regla ${i + 1}" value="${esc(r.val)}" placeholder="${num ? 'Número' : 'Texto'}" oninput="S.adv.rules[${i}].val=this.value;advLive()">
+    <button class="btn sm ghost" aria-label="Quitar la regla ${i + 1}" onclick="S.adv.rules.splice(${i},1);if(!S.adv.rules.length)S.adv.rules.push(defRule('${id}'));renderAdv()">${ic('x')}</button></div>`; }).join('')}
+  <div class="row"><button class="btn sm" onclick="S.adv.rules.push(defRule('${id}'));renderAdv()">${ic('plus')}Agregar regla</button><span class="grow"></span><b id="adv-count" aria-live="polite"></b></div></div>
+  <div class="df"><button class="btn" onclick="S.adv.rules=[];applyAdv()">Limpiar</button><button class="btn" onclick="closeDialog()">Cancelar</button><button class="btn dark" onclick="applyAdv()">Aplicar</button></div>`);
+  advLive();
+}
+function advLive() { const { id, rules } = S.adv; const { cols, rows } = GRID_DEF[id]; const n = rows.filter(r => advMatch(rules.filter(x => x.val !== ''), cols, r)).length; const el = document.getElementById('adv-count'); if (el) el.textContent = `${n} resultado${n === 1 ? '' : 's'}`; }
+function applyAdv() { const g = gst(S.adv.id); g.adv = S.adv.rules.filter(r => r.val !== ''); g.page = 0; closeDialog(); render(); }
+const cpBtn = (v, label) => `<button class="cp" aria-label="Copiar ${label}" title="Copiar ${label}" data-v="${esc(v)}" onclick="event.stopPropagation();copyVal(this.dataset.v,'${label}')">${ic('copy')}</button>`;
+function copyVal(v, label) { try { if (navigator.clipboard) navigator.clipboard.writeText(v).catch(() => { }); } catch (e) { } toast('Copiado', `${label}: ${v}`); }
+const DOC_UUID = '019a3f2c-7b1e-7c4d-9a2f-3e5b8c1d4f60';
+
+/* =====================================================================================================================
+   Lifecycle: a faithful port of packages/kernel/src/typed/lifecycle.ts
+   ===================================================================================================================== */
+const ACTIONS = ['save', 'submit', 'approve', 'reject', 'post', 'void', 'delete'];
+const approval = f => f.requiresApproval, postsNoApproval = f => f.posts && !f.requiresApproval, postsAfterApproval = f => f.posts && f.requiresApproval;
+const T_DOC = {
+  draft: { save: { to: 'saved' }, delete: { to: 'deleted' } },
+  saved: { save: { to: 'saved' }, submit: { to: 'pending', when: approval }, post: { to: 'posted', when: postsNoApproval }, void: { to: 'voided' } },
+  pending: { approve: { to: 'approved' }, reject: { to: 'rejected' }, void: { to: 'voided' } },
+  rejected: { save: { to: 'saved' }, void: { to: 'voided' } },
+  approved: { post: { to: 'posted', when: postsAfterApproval }, void: { to: 'voided' } },
+  posted: {}, voided: {},
+};
+const T_MAE = {
+  draft: { save: { to: 'saved' }, delete: { to: 'deleted' } },
+  saved: { save: { to: 'saved' }, submit: { to: 'pending', when: approval }, delete: { to: 'deleted' } },
+  pending: { save: { to: 'pending' }, approve: { to: 'approved' }, reject: { to: 'rejected' }, delete: { to: 'deleted' } },
+  rejected: { save: { to: 'saved' }, delete: { to: 'deleted' } },
+  approved: { save: { to: 'approved' }, submit: { to: 'pending', when: approval }, delete: { to: 'deleted' } },
+  posted: {}, voided: {},
+};
+function nextStatus(type, from, action, flags) { const r = (type === 'maestro' ? T_MAE : T_DOC)[from]?.[action]; if (!r) return null; if (r.when && !r.when(flags)) return null; return r.to; }
+const allowedActions = (type, status, flags) => ACTIONS.filter(a => nextStatus(type, status, a, flags) !== null);
+const canEditData = (type, status) => type === 'maestro' || ['draft', 'saved', 'rejected'].includes(status);
+const isUsable = (status, active, flags) => active && (flags.requiresApproval ? status === 'approved' : status === 'saved');
+
+const ST = { draft: 'Borrador', saved: 'Grabado', pending: 'Pendiente de Aprobación', rejected: 'No Aprobado', approved: 'Aprobado', posted: 'Contabilizado', voided: 'Anulado' };
+const ST_PILL = { draft: 'gray', saved: 'info', pending: 'warn', rejected: 'danger', approved: 'ok', posted: 'ok', voided: 'gray' };
+const chip = (s, extra) => `<span class="pill ${ST_PILL[s]}">${ST[s]}${extra ? ' · ' + esc(extra) : ''}</span>`;
+
+/* states each flag set can show (the pass-through ones are left out: Grabado when Guardar posts, Aprobado when Aprobar posts) */
+function docStates(f) {
+  const s = ['draft'];
+  if (!(f.posts && !f.requiresApproval)) s.push('saved');
+  if (f.requiresApproval) s.push('pending', 'rejected');
+  if (f.requiresApproval && !f.posts) s.push('approved');
+  if (f.posts) s.push('posted');
+  if (!(f.posts && !f.requiresApproval)) s.push('voided');
+  return s;
+}
+function maeStates(f) { const s = ['draft', 'saved']; if (f.requiresApproval) s.push('pending', 'rejected', 'approved'); return s; }
+
+/* D15: the state buttons of the bar, derived from allowedActions. `post` is never a button (D8, automatic). With approval required the bar
+   shows «Guardar» and «Guardar y enviar a aprobación» while the data is editable before approval; «Enviar a aprobación» alone only in Grabado.
+   An Aprobado maestro offers only «Guardar»: an approval-relevant change sends it back to Pendiente automatically (D10). */
+function barSpec(type, status, f) {
+  const acts = allowedActions(type, status, f); const out = [];
+  const preApproval = ['draft', 'saved', 'rejected'].includes(status);
+  if (acts.includes('save') && canEditData(type, status)) {
+    if (f.requiresApproval && preApproval) { out.push({ a: 'save', l: 'Guardar' }); out.push({ a: 'save_submit', l: 'Guardar y enviar a aprobación', primary: true }); }
+    else out.push({ a: 'save', l: 'Guardar', primary: true });
+  }
+  if (acts.includes('submit') && status === 'saved') out.push({ a: 'submit', l: 'Enviar a aprobación', state: true });
+  if (acts.includes('approve')) out.push({ a: 'approve', l: 'Aprobar', state: true, ok: true });
+  if (acts.includes('reject')) out.push({ a: 'reject', l: 'No Aprobar', state: true, danger: true });
+  if (acts.includes('void')) out.push({ a: 'void', l: 'Anular', state: true, danger: true });
+  if (acts.includes('delete')) out.push({ a: 'delete', l: 'Eliminar', danger: true });
+  if (acts.includes('post')) out.push({ a: 'post', l: 'contabiliza automático', auto: true });
+  if (type === 'maestro' && status === 'approved' && acts.includes('submit')) out.push({ a: 'auto', l: 'vuelve a Pendiente si cambia un dato de aprobación (D10)', auto: true });
+  return out;
+}
+
+/* =====================================================================================================================
+   Demo data · Café del Norte S.A.S.
+   ===================================================================================================================== */
+const COMPANY = { nombre: 'Café del Norte S.A.S.', nit: '900373115-3', direccion: 'Cra. 7 # 12-34', ciudad: 'Pereira, Risaralda', telefono: '+57 606 335 1200' };
+const PARTIES = {
+  tostadores: { name: 'Tostadores del Huila S.A.S.', nit: '901245678-3', seq: 41, status: 'approved', active: true },
+  bancolombia: { name: 'Bancolombia S.A.', nit: '890903938-8', seq: 7, status: 'approved', active: true },
+  insumos: { name: 'Insumos Andinos S.A.S.', nit: '900876543-1', seq: 58, status: 'pending', active: true },
+};
+const ACCOUNTS = { '220505': 'Proveedores nacionales', '530515': 'Comisiones bancarias', '111005': 'Bancos nacionales' };
+const CCS = { adm: 'Administración', ven: 'Ventas', '': '—' };
+const baseLines = () => [
+  { cuenta: '220505', party: 'tostadores', cc: '', desc: 'Pago FV-8841', d: 4760000, c: 0 },
+  { cuenta: '530515', party: 'bancolombia', cc: 'adm', desc: 'Comisión transferencia', d: 12900, c: 0 },
+  { cuenta: '111005', party: 'bancolombia', cc: '', desc: 'Bancolombia cta. cte. 3104', d: 0, c: 4772900 },
+];
+const partyRef = k => `<a href="#" class="ref" onclick="go('mae');return false">${esc(PARTIES[k].name)}</a>`;
+
+/* =====================================================================================================================
+   App state
+   ===================================================================================================================== */
+const S = { route: 'doc', module: 'acc', admin: true, decisionsOpen: false, tabs: ['grid', 'doc'], onlyChg: false };
+function newDoc(status = 'pending') {
+  return {
+    flags: { requiresApproval: true, posts: true }, status, seq: 1284, number: status === 'posted' ? 'CE-000123' : '', tab: 'datos',
+    fecha: '2026-10-28', desc: 'Pago factura FV-8841 Tostadores del Huila', ref: 'FV-8841', lines: baseLines(), cuentaDestino: '0312-4410-77',
+    dirty: false, refusal: null, closedPeriod: false, reversed: false, voidReason: '', rejectReason: '', deleted: false,
+    sel: [3, 4], createdBy: 'Laura Mendoza', createdAt: '2026-10-28 09:12', updatedBy: 'Laura Mendoza', updatedAt: '2026-10-28 11:31', version: 5,
+  };
+}
+function newMae() {
+  return { flags: { requiresApproval: true }, status: 'approved', tab: 'datos', active: true, referenced: true, dirty: false, changedRelevant: false, refusal: null, deleted: false,
+    name: 'Tostadores del Huila S.A.S.', nit: '901245678', dv: '3', email: 'facturacion@tostadoreshuila.co', phone: '3157782210', city: 'Neiva, Huila', seq: 41,
+    createdBy: 'Laura Mendoza', createdAt: '2026-10-02 08:30', updatedBy: 'Andrés Gómez', updatedAt: '2026-10-21 16:05' };
+}
+S.doc = newDoc(); S.mae = newMae();
+/* D16: «ID» (the gap-free seq) is the record's friendly id; the legal number (D9) appears at posting for comprobantes */
+const docName = d => d.number ? `Comprobante ${d.number}` : `Comprobante ID ${int(d.seq)}`;
+
+const v1Lines = () => { const l = baseLines(); l[1].cc = 'ven'; l[1].d = 12500; l[2].c = 4772500; return l; };
+const snapPayload = d => ({ fecha: d.fecha, desc: d.desc, ref: d.ref, cuentaDestino: d.cuentaDestino, lines: JSON.parse(JSON.stringify(d.lines)) });
+S.snaps = [
+  { v: 1, status: 'saved', user: 'Laura Mendoza', at: '2026-10-28 09:14', reason: '', what: 'Guardar', payload: { fecha: '2026-10-28', desc: 'Pago factura FV-8841', ref: 'FV-8841', cuentaDestino: '0312-4410-77', lines: v1Lines() } },
+  { v: 2, status: 'pending', user: 'Laura Mendoza', at: '2026-10-28 09:20', reason: '', what: 'Enviar a aprobación', payload: { fecha: '2026-10-28', desc: 'Pago factura FV-8841', ref: 'FV-8841', cuentaDestino: '0312-4410-77', lines: v1Lines() } },
+  { v: 3, status: 'rejected', user: 'Andrés Gómez', at: '2026-10-28 11:02', reason: 'La comisión bancaria va al centro de costo Administración, no a Ventas, y el banco cobró $ 12.900,00.', what: 'No Aprobar', payload: { fecha: '2026-10-28', desc: 'Pago factura FV-8841', ref: 'FV-8841', cuentaDestino: '0312-4410-77', lines: v1Lines() } },
+  { v: 4, status: 'saved', user: 'Laura Mendoza', at: '2026-10-28 11:30', reason: '', what: 'Guardar', payload: { fecha: '2026-10-28', desc: 'Pago factura FV-8841 Tostadores del Huila', ref: 'FV-8841', cuentaDestino: '0312-4410-99', lines: baseLines() } },
+  { v: 5, status: 'pending', user: 'Laura Mendoza', at: '2026-10-28 11:31', reason: '', what: 'Enviar a aprobación', payload: { fecha: '2026-10-28', desc: 'Pago factura FV-8841 Tostadores del Huila', ref: 'FV-8841', cuentaDestino: '0312-4410-99', lines: baseLines() } },
+];
+let clock = 0;
+const nowStr = () => { clock++; const m = 31 + clock; return `2026-10-28 ${String(11 + Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+function pushSnap(status, what, reason = '') { const d = S.doc; const v = S.snaps.length + 1; S.snaps.push({ v, status, user: 'Laura Mendoza', at: nowStr(), reason, what, payload: snapPayload(d) }); d.version = v; d.sel = [Math.max(1, v - 1), v]; }
+
+/* =====================================================================================================================
+   Navigation: side menu = module names only; the active module's four sections in the items bar
+   ===================================================================================================================== */
+const ROUTES = { menu: 'Menú del módulo', grid: 'Comprobantes', doc: 'Comprobante', mae: 'Tercero', matrix: 'Botones por estado', tipos: 'Configuración de tipos', destinatarios: 'Destinatarios por estado', plantillas: 'Plantillas PDF', menuacceso: 'Acceso al menú' };
+const INDEX = [['menu', 'Menú del módulo'], ['grid', 'Grid (ID)'], ['doc', 'Documento'], ['mae', 'Maestro'], ['matrix', 'Botones por estado'], ['doc:versiones', 'Versiones'], ['doc:acceso', 'Acceso'], ['notify', 'Notificar'], ['palette', '⌘K'], ['plantillas', 'Editor de plantillas'], ['tipos', 'Configuración de tipos'], ['destinatarios', 'Destinatarios'], ['menuacceso', 'Acceso al menú']];
+const MODULES = {
+  acc: { name: 'Contabilidad', icon: 'calculator', sections: {
+    maestros: [['acc.cuentas', 'Plan de cuentas'], ['acc.fuentes', 'Fuentes'], ['acc.cc', 'Centros de costo'], ['acc.plantillas_comp', 'Plantillas de comprobante']],
+    documentos: [['grid', 'Comprobantes']],
+    reportes: [['acc.balance', 'Balance de prueba'], ['acc.auxiliar', 'Libro auxiliar'], ['acc.lista_comp', 'Listado de comprobantes (PDF)']],
+    parametros: [['tipos', 'Configuración de tipos'], ['destinatarios', 'Destinatarios por estado'], ['plantillas', 'Plantillas PDF'], ['acc.ajustes', 'Ajustes contables'], ['acc.periodos', 'Años y períodos']],
+  } },
+  core: { name: 'Núcleo', icon: 'building', sections: {
+    maestros: [['mae', 'Terceros'], ['core.productos', 'Productos'], ['core.categorias', 'Categorías']],
+    documentos: [],
+    reportes: [['core.lista_terceros', 'Listado de terceros (PDF)']],
+    parametros: [['tipos', 'Configuración de tipos'], ['destinatarios', 'Destinatarios por estado'], ['plantillas', 'Plantillas PDF']],
+  } },
+  adm: { name: 'Administración', icon: 'settings', sections: {
+    maestros: [['adm.usuarios', 'Usuarios'], ['adm.roles', 'Roles']],
+    documentos: [],
+    reportes: [['adm.auditoria', 'Auditoría']],
+    parametros: [['menuacceso', 'Acceso al menú'], ['adm.campos', 'Visibilidad de campos'], ['adm.sensibles', 'Procesos sensibles']],
+  } },
+  sop: { name: 'Soporte', icon: 'lifebuoy', sections: { maestros: [], documentos: [], reportes: [['sop.tickets', 'Tickets de soporte']], parametros: [] } },
+};
+const SECTIONS = [['maestros', 'Maestros'], ['documentos', 'Documentos'], ['reportes', 'Reportes'], ['parametros', 'Parámetros']];
+const ROUTE_MODULE = { grid: 'acc', doc: 'acc', mae: 'core', menuacceso: 'adm' };
+
+function go(r) {
+  closeGmenu(); closeRail(); closeDialog(); closePalette();
+  let tab = null; if (r.includes(':')) [r, tab] = r.split(':');
+  if (r === 'palette') { openPalette(); return; }
+  if (r === 'notify') { if (!S.tabs.includes('doc')) S.tabs.push('doc'); S.route = 'doc'; S.module = 'acc'; if (S.doc.status === 'draft' || S.doc.deleted) S.doc = newDoc('pending'); S.doc.dirty = false; render(); openNotify(); return; }
+  if (!ROUTES[r]) { toast('Pantalla fuera del alcance de este prototipo', r); return; }
+  if (ROUTE_MODULE[r]) S.module = ROUTE_MODULE[r];
+  S.route = r; if (!S.tabs.includes(r)) S.tabs.push(r);
+  if (tab && r === 'doc') { S.doc.tab = tab; if (tab === 'acceso') S.admin = true; }
+  render(); document.getElementById('main').scrollTop = 0;
+}
+function closeTab(r, ev) { ev.stopPropagation(); S.tabs = S.tabs.filter(t => t !== r); if (!S.tabs.length) S.tabs = ['menu']; if (S.route === r) S.route = S.tabs[S.tabs.length - 1]; render(); }
+const tabLabel = r => r === 'doc' ? (S.doc.deleted ? 'Comprobante eliminado' : docName(S.doc)) : r === 'mae' ? `Tercero ID ${S.mae.seq}` : ROUTES[r];
+const tabDirty = r => (r === 'doc' && S.doc.dirty) || (r === 'mae' && S.mae.dirty);
+const sectionOf = (m, r) => SECTIONS.find(([k]) => m.sections[k].some(([id]) => id === r || (id === 'grid' && r === 'doc')));
+
+function renderShell() {
+  const m = MODULES[S.module];
+  document.getElementById('railNav').innerHTML = Object.entries(MODULES).map(([id, x]) => `<button class="rail-item" ${id === S.module ? 'aria-current="page"' : ''} title="${x.name}" onclick="pickModule('${id}')">${ic(x.icon, 'lg')}<span class="rail-label">${x.name}</span></button>`).join('');
+  const cur = sectionOf(m, S.route);
+  const ib = document.getElementById('itemsbar');
+  ib.innerHTML = `<span class="modname">${m.name}</span>` + SECTIONS.map(([k, l]) => `<button class="secbtn ${cur && cur[0] === k ? 'on' : ''}" data-sec="${k}" aria-haspopup="menu" onclick="openSection('${k}', this)">${l}${ic('chevron')}</button>`).join('') + `<button class="secbtn" id="moreSec" aria-haspopup="menu" hidden onclick="openSection('__more', this)">Más ${ic('chevron')}</button>`;
+  fitItems();
+  document.getElementById('tabs').innerHTML = S.tabs.map(t => `<button class="tab ${t === S.route ? 'on' : ''}" onclick="go('${t}')">${tabDirty(t) ? '<span class="uns" title="Sin guardar"></span>' : ''}${esc(tabLabel(t))}<span class="x" role="button" aria-label="Cerrar pestaña" onclick="closeTab('${t}', event)">${ic('x')}</span></button>`).join('');
+  document.getElementById('proto-links').innerHTML = INDEX.map(([id, l]) => `<a href="#" class="${id === S.route ? 'on' : ''}" onclick="go('${id}');return false">${l}</a>`).join('');
+  document.getElementById('proto-sel').innerHTML = INDEX.map(([id, l]) => `<option value="${id}" ${id === S.route ? 'selected' : ''}>${l}</option>`).join('');
+}
+/* «Más ▾»: sections that do not fit the items bar move into it, measured at runtime */
+function fitItems() {
+  const ib = document.getElementById('itemsbar'); const btns = [...ib.querySelectorAll('.secbtn[data-sec]')]; const more = document.getElementById('moreSec');
+  btns.forEach(b => b.hidden = false); more.hidden = true; S.hiddenSecs = [];
+  if (ib.scrollWidth <= ib.clientWidth) return;
+  more.hidden = false;
+  for (let i = btns.length - 1; i >= 0 && ib.scrollWidth > ib.clientWidth; i--) { btns[i].hidden = true; S.hiddenSecs.unshift(btns[i].dataset.sec); }
+}
+window.addEventListener('resize', () => { fitItems(); closeGmenu(); if (S.route === 'plantillas') fitPreview(); });
+function pickModule(id) { S.module = id; closeRail(); if (MODULE_HOME[id]) { go(MODULE_HOME[id]); return; } S.route = 'menu'; if (!S.tabs.includes('menu')) S.tabs.push('menu'); render(); }
+const MODULE_HOME = { acc: 'grid', core: 'mae', adm: 'menuacceso', sop: null };
+function openSection(k, btn) {
+  const g = document.getElementById('gmenu'); if (!g.hidden && g.dataset.k === k) { closeGmenu(); return; }
+  const m = MODULES[S.module];
+  const list = k === '__more' ? S.hiddenSecs : [k];
+  g.innerHTML = list.map((s, i) => { const items = m.sections[s]; const l = SECTIONS.find(x => x[0] === s)[1]; return `${i ? '<hr>' : ''}<div class="mh">${m.name} › ${l}</div>${items.length ? items.map(([id, t]) => `<button role="menuitem" class="${id === S.route ? 'on' : ''}" onclick="go('${id}')">${esc(t)}</button>`).join('') : '<div class="empty">Aún no hay elementos en esta sección</div>'}`; }).join('');
+  g.hidden = false; g.dataset.k = k;
+  const r = btn.getBoundingClientRect(); g.style.top = (r.bottom + 4) + 'px'; g.style.left = Math.max(8, Math.min(r.left, window.innerWidth - g.offsetWidth - 8)) + 'px';
+}
+function closeGmenu() { const g = document.getElementById('gmenu'); g.hidden = true; delete g.dataset.k; }
+document.addEventListener('click', e => { if (!e.target.closest('#gmenu') && !e.target.closest('.secbtn')) closeGmenu(); if (!e.target.closest('.more-wrap')) document.querySelectorAll('.more-menu').forEach(m => m.hidden = true); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeGmenu(); closeRail(); closePalette(); if (!document.getElementById('dialog').hidden) closeDialog(); } if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(); } });
+/* below 1024 px the side menu is a «Menú» sheet */
+/* collapse toggle (v7 behaviour: collapsed by default below 1440 px); the viewer's choice is remembered */
+let railC = null; try { const v = localStorage.getItem('erp.proto.rail'); if (v === '1' || v === '0') railC = v === '1'; } catch (e) { }
+function applyRail() { const c = railC === null ? innerWidth < 1440 : railC; document.getElementById('app').classList.toggle('rail-c', c); const b = document.getElementById('railToggle'); const l = c ? 'Expandir menú' : 'Contraer menú'; b.setAttribute('aria-label', l); b.title = l; b.setAttribute('aria-expanded', String(!c)); fitItems(); }
+function toggleRail() { railC = !document.getElementById('app').classList.contains('rail-c'); try { localStorage.setItem('erp.proto.rail', railC ? '1' : '0'); } catch (e) { } applyRail(); }
+window.addEventListener('resize', () => { if (railC === null) applyRail(); });
+function openRail() { document.getElementById('rail').classList.add('open'); document.getElementById('backdrop').hidden = false; document.getElementById('menuBtn').setAttribute('aria-expanded', 'true'); }
+function closeRail() { document.getElementById('rail').classList.remove('open'); document.getElementById('backdrop').hidden = true; document.getElementById('menuBtn').setAttribute('aria-expanded', 'false'); }
+
+function render() {
+  renderShell();
+  const views = { menu: viewMenu, grid: viewGrid, doc: viewDoc, mae: viewMae, matrix: viewMatrix, tipos: viewTipos, destinatarios: viewDest, plantillas: viewTpl, menuacceso: viewMenuAccess };
+  document.getElementById('main').innerHTML = views[S.route]();
+  if (S.route === 'plantillas') fitPreview();
+  renderDecisions();
+}
+
+const tg = (on, js, dis) => `<button class="toggle ${on ? 'on' : ''}" ${dis ? 'disabled' : ''} role="switch" aria-checked="${on}" onclick="${js}"></button>`;
+const adminSwitch = () => `<label>Ver como: <select onchange="S.admin=this.value==='1';if(!S.admin&&S.doc.tab==='acceso')S.doc.tab='datos';if(!S.admin&&S.mae.tab==='acceso')S.mae.tab='datos';render()"><option value="1" ${S.admin ? 'selected' : ''}>Laura Mendoza (Administrador)</option><option value="0" ${!S.admin ? 'selected' : ''}>Andrés Gómez (Contador)</option></select></label>`;
+function fixStates() { const d = S.doc; if (!docStates(d.flags).includes(d.status)) setDocStatus(docStates(d.flags).includes('pending') ? 'pending' : 'draft'); const m = S.mae; if (!maeStates(m.flags).includes(m.status)) m.status = 'saved'; }
+
+/* =====================================================================================================================
+   ⌘K palette: records by ID (D16), legal number or name; screens
+   ===================================================================================================================== */
+let palIdx = 0;
+function palItems() {
+  const recs = [
+    { t: docName(S.doc) + (S.doc.number ? ` · ID ${int(S.doc.seq)}` : ''), k: `Comprobante · ${ST[S.doc.status]}`, s: `${S.doc.seq} ${S.doc.number} comprobante ${S.doc.desc}`, go: 'doc' },
+    { t: 'Comprobante CE-000122 · ID 1.283', k: 'Comprobante · Contabilizado', s: '1283 CE-000122 comprobante arriendo', go: 'grid' },
+    { t: 'Comprobante ID 1.285', k: 'Comprobante · Borrador', s: '1285 comprobante nómina', go: 'grid' },
+    ...Object.entries(PARTIES).map(([k, p]) => ({ t: `${p.name} · ID ${p.seq}`, k: `Tercero · NIT ${p.nit}`, s: `${p.seq} ${p.nit} tercero ${p.name}`, go: 'mae' })),
+  ];
+  const screens = Object.entries(ROUTES).filter(([r]) => r !== 'doc' && r !== 'mae').map(([r, l]) => ({ t: l, k: 'Ir a', s: l, go: r }));
+  const q = document.getElementById('pal-in').value.trim().toLowerCase().replace(/\./g, '');
+  const all = [...recs, ...screens];
+  return q ? all.filter(x => (x.s + ' ' + x.t).toLowerCase().replace(/\./g, '').includes(q)) : all;
+}
+function openPalette() { document.getElementById('palette').hidden = false; const i = document.getElementById('pal-in'); i.value = ''; palIdx = 0; renderPalette(); setTimeout(() => i.focus(), 20); }
+function closePalette() { document.getElementById('palette').hidden = true; }
+function renderPalette() { const it = palItems(); if (palIdx >= it.length) palIdx = 0; document.getElementById('pal-list').innerHTML = it.length ? it.map((x, i) => `<li class="${i === palIdx ? 'on' : ''}" onclick="go('${x.go}')">${esc(x.t)}<span class="k">${esc(x.k)}</span></li>`).join('') : '<li>Sin resultados</li>'; }
+function palKey(e) { const it = palItems(); if (e.key === 'ArrowDown') { palIdx = (palIdx + 1) % it.length; renderPalette(); e.preventDefault(); } else if (e.key === 'ArrowUp') { palIdx = (palIdx - 1 + it.length) % it.length; renderPalette(); e.preventDefault(); } else if (e.key === 'Enter' && it[palIdx]) go(it[palIdx].go); }
+
+/* =====================================================================================================================
+   Screen · module menu with the four sections
+   ===================================================================================================================== */
+function viewMenu() {
+  const m = MODULES[S.module];
+  return `<div class="row"><h1>${m.name}</h1><span class="pill blue">Menú del módulo</span></div>
+  <p class="muted">El menú lateral lista solo los módulos. Al elegir uno, sus cuatro secciones <b>Maestros · Documentos · Reportes · Parámetros</b> aparecen en la barra superior y cada una abre sus elementos (diseño §2.4, §9.2, D19). Una sección vacía muestra su estado vacío. Por debajo de 1024 px el menú lateral se abre desde «Menú» y las secciones que no caben pasan a «Más ▾».</p>
+  <div class="secgrid">${SECTIONS.map(([k, l]) => `<section class="card"><h2>${l}</h2>${m.sections[k].length ? m.sections[k].map(([id, t]) => `<button onclick="go('${id}')">${esc(t)}${ROUTES[id] ? '' : ' <span class="hint">(fuera del prototipo)</span>'}</button>`).join('') : `<div class="emptystate">Aún no hay elementos en esta sección</div>`}</section>`).join('')}</div>
+  <div class="note info">Cualquier elemento del menú se puede restringir por rol o por usuario en <a href="#" onclick="go('menuacceso');return false">Administración › Parámetros › Acceso al menú</a>. Un elemento oculto también se rechaza en el servidor; ocultar nunca es la única protección.</div>`;
+}
+
+/* =====================================================================================================================
+   Screen · grid of comprobantes (ID column, D16)
+   ===================================================================================================================== */
+function compRows() {
+  const d = S.doc; const tot = d.lines.reduce((a, l) => a + (+l.d || 0), 0); const out = [];
+  const descs = ['Pago servicios públicos', 'Compra café verde', 'Recaudo cliente Almacenes Éxito', 'Pago transporte', 'Anticipo proveedor', 'Comisión bancaria', 'Pago honorarios', 'Compra empaques'];
+  for (let i = 0; i < 20; i++) out.push({ seq: 1262 + i, number: 'CE-' + String(101 + i).padStart(6, '0'), fecha: `2026-10-${String(1 + i).padStart(2, '0')}`, desc: descs[i % 8], status: i === 5 ? 'voided' : 'posted', total: 250000 + ((i * 733331) % 9000000) });
+  out.push({ seq: 1282, number: 'CE-000121', fecha: '2026-10-25', desc: 'Pago nómina quincena 2', status: 'posted', total: 18450000 }, { seq: 1283, number: 'CE-000122', fecha: '2026-10-27', desc: 'Pago arriendo bodega', status: 'posted', total: 3200000 }, { seq: d.seq, number: d.number, fecha: d.fecha, desc: d.desc, status: d.status, total: tot, demo: true }, { seq: 1285, number: '', fecha: '2026-11-01', desc: 'Provisión nómina noviembre', status: 'draft', total: 9800000 });
+  return out;
+}
+const COMP_COLS = [
+  { k: 'seq', l: 'ID', r: 1, v: x => x.seq, h: x => `<span class="mono">${int(x.seq)}</span>` },
+  { k: 'number', l: 'Número', v: x => x.number || '', h: x => x.number ? `<span class="mono">${x.number}</span>` : '<span class="muted">—</span>' },
+  { k: 'fecha', l: 'Fecha', v: x => x.fecha },
+  { k: 'desc', l: 'Descripción', v: x => x.desc },
+  { k: 'status', l: 'Estado', v: x => ST[x.status], h: x => chip(x.status) },
+  { k: 'total', l: 'Total', r: 1, v: x => x.total, h: x => money(x.total) },
+];
+function viewGrid() {
+  return `<div class="row"><h1>Comprobantes</h1><span class="grow"></span><button class="btn dark" onclick="act('documento','new');go('doc')">${ic('plus')}Nuevo</button></div>
+  ${gridHtml('comp', COMP_COLS, compRows(), { name: 'Comprobantes', click: x => x.demo ? "go('doc')" : `toast('Abriría el comprobante ID ${int(x.seq)}')` })}
+  <p class="hint">El ID es único por empresa y entidad y nunca se reutiliza; el número del comprobante se asigna al contabilizar (D9).</p>`;
+}
+
+/* =====================================================================================================================
+   Action bar
+   ===================================================================================================================== */
+function actionButtons(type, rec) {
+  const dirty = rec.dirty; const hint = 'Guarda los cambios antes de cambiar el estado';
+  const dis = (cond, why) => cond ? `disabled title="${esc(why)}"` : '';
+  const out = { left: [], main: [], notes: [] };
+  const canRev = type === 'documento' && rec.status === 'posted' && !rec.reversed;
+  out.left.push(`<button class="btn" onclick="act('${type}','new')">${ic('plus')}Nuevo</button>`);
+  out.left.push(`<button class="btn" ${dis(dirty, 'Guarda los cambios antes de imprimir')} onclick="act('${type}','print')">${ic('print')}Imprimir</button>`);
+  if (type === 'documento') out.left.push(`<button class="btn" ${dis(dirty, 'Guarda los cambios antes de enviar el documento') || dis(rec.status === 'draft', 'Guarda el documento para poder enviarlo')} onclick="openNotify()">${ic('mail')}Notificar</button>`);
+  out.left.push(`<button class="btn dup-wide" title="Duplicar (regla 37)" onclick="act('${type}','clone')">${ic('copy')}Duplicar</button>`);
+  if (canRev) out.left.push(`<button class="btn dup-wide" title="Acción del módulo Contabilidad: revierte el comprobante (D3)" onclick="act('documento','reverse')">${ic('undo')}Revertir</button>`);
+  out.left.push(`<span class="more-wrap"><button class="btn" aria-haspopup="menu" aria-expanded="false" onclick="toggleMore(this)">Más ▾</button><span class="more-menu" role="menu" hidden><button role="menuitem" onclick="this.parentNode.hidden=true;act('${type}','clone')">${ic('copy')}Duplicar</button>${canRev ? `<button role="menuitem" onclick="this.parentNode.hidden=true;act('documento','reverse')">${ic('undo')}Revertir</button>` : ''}</span></span>`);
+  const BI = { save: 'save', save_submit: 'send', submit: 'send', approve: 'check', reject: 'xcircle', void: 'ban', delete: 'trash' };
+  for (const b of barSpec(type, rec.status, rec.flags)) {
+    if (b.auto) { out.notes.push(b.a === 'post' ? 'Se contabiliza automáticamente en la misma acción (no hay botón «Contabilizar»).' : 'Si cambias un dato que requiere aprobación, al guardar vuelve a Pendiente de Aprobación (D10).'); continue; }
+    const cls = b.primary ? 'dark' : b.ok ? 'okb' : b.danger ? 'danger' : '';
+    const disabled = b.state ? dis(dirty, hint) : '';
+    const click = b.a === 'reject' || b.a === 'void' ? `askReason('${type}','${b.a}')` : b.a === 'delete' ? `askDelete('${type}')` : `act('${type}','${b.a}')`;
+    out.main.push(`<button class="btn ${cls}" ${disabled} onclick="${click}">${ic(BI[b.a])}${b.l}</button>`);
+  }
+  if (dirty && out.main.some(b => b.includes('disabled'))) out.notes.unshift(`<b>${hint}.</b>`);
+  return out;
+}
+function toggleMore(b) { const m = b.nextElementSibling; m.hidden = !m.hidden; b.setAttribute('aria-expanded', String(!m.hidden)); }
+const refusalBanner = r => r.refusal ? `<div class="note bad refusal" role="alert"><b>${esc(r.refusal.title)}</b><br>${r.refusal.detail}</div>` : '';
+
+/* =====================================================================================================================
+   Screen · documento (accounting comprobante)
+   ===================================================================================================================== */
+function setDocStatus(s) {
+  const d = S.doc; d.status = s; d.refusal = null; d.dirty = false; d.deleted = false; d.reversed = false;
+  d.number = s === 'draft' ? '' : !d.flags.posts ? 'CE-000123' : s === 'posted' ? 'CE-000123' : '';
+  if (s === 'voided') d.voidReason = d.voidReason || 'Pago duplicado: la factura se pagó con el CE-000119';
+  if (s === 'rejected') d.rejectReason = S.snaps[2].reason;
+}
+function flowFor(d) {
+  const f = d.flags; const seq = ['draft'];
+  if (f.posts && !f.requiresApproval) seq.push('posted'); else { seq.push('saved'); if (f.requiresApproval) seq.push('pending', f.posts ? 'posted' : 'approved'); }
+  const idx = seq.indexOf(d.status);
+  const side = d.status === 'rejected' ? ` <span class="ar">·</span> ${chip('rejected')} <span class="hint">vuelve a editarse; «Guardar y enviar a aprobación» lo reenvía</span>` : d.status === 'voided' ? ` <span class="ar">·</span> ${chip('voided')}` : '';
+  return `<div class="flow" aria-label="Ciclo de vida">${seq.map((s, i) => `<span class="st ${i === idx ? 'cur' : i < idx ? 'done' : ''}">${ST[s]}</span>`).join('<span class="ar">→</span>')}${side}${f.requiresApproval ? '<span class="hint">· Borrador → Pendiente directo con «Guardar y enviar a aprobación»</span>' : ''}${f.posts ? `<span class="hint">· ${f.requiresApproval ? 'Aprobar' : 'Guardar'} contabiliza en la misma acción</span>` : ''}</div>`;
+}
+function viewDoc() {
+  const d = S.doc; const f = d.flags;
+  const ctl = `<div class="ctl"><b class="t">Controles del prototipo (no forman parte de la pantalla)</b>
+    <label>Requiere aprobación ${tg(f.requiresApproval, "S.doc.flags.requiresApproval=!S.doc.flags.requiresApproval;fixStates();render()")}</label>
+    <label>Contabiliza ${tg(f.posts, "S.doc.flags.posts=!S.doc.flags.posts;fixStates();render()")}</label>
+    <label>Estado: <select onchange="setDocStatus(this.value);render()">${docStates(f).map(s => `<option value="${s}" ${s === d.status ? 'selected' : ''}>${ST[s]}</option>`).join('')}</select></label>
+    ${adminSwitch()}
+    <label>Período 2026-10 cerrado ${tg(d.closedPeriod, "S.doc.closedPeriod=!S.doc.closedPeriod;render()")}</label>
+    <label>Comprobante descuadrado ${tg(d.lines[1].d !== 12900, "S.doc.lines[1].d=S.doc.lines[1].d===12900?13900:12900;render()")}</label>
+    <label>Tostadores del Huila vuelve a Pendiente de Aprobación (cambió su NIT, D10) ${tg(PARTIES.tostadores.status === 'pending', "PARTIES.tostadores.status=PARTIES.tostadores.status==='pending'?'approved':'pending';render()")}</label>
+    <button class="btn sm" ${canEditData('documento', d.status) ? '' : 'disabled'} onclick="useNotUsable()">Poner en la línea 1 un tercero pendiente de aprobación</button>
+    <span style="width:100%">En Contabilidad el comprobante siempre contabiliza (§10.2); apaga «Contabiliza» para ver un documento de 2B/3 (p. ej. una orden de compra).</span></div>`;
+  if (d.deleted) return ctl + `<section class="card" style="padding:24px;display:flex;flex-direction:column;gap:12px;align-items:flex-start"><h2>El comprobante en Borrador se eliminó</h2><p class="muted">Un documento solo se puede eliminar mientras está en Borrador, porque nunca recibió número (regla 9, D1). Su ID ${int(d.seq)} no se reutiliza; queda la entrada de auditoría.</p><button class="btn dark" onclick="act('documento','new')">${ic('plus')}Nuevo</button></section>`;
+  const tabs = [['datos', 'Datos'], ['extra', 'Datos adicionales', 1], ['archivos', 'Archivos', 2], ['versiones', 'Versiones', S.snaps.length]];
+  if (S.admin) tabs.push(['acceso', 'Acceso', null, true]);
+  if (!S.admin && d.tab === 'acceso') d.tab = 'datos';
+  const b = actionButtons('documento', d);
+  const body = d.tab === 'datos' ? docDatos() : d.tab === 'versiones' ? versionsTab() : d.tab === 'acceso' ? accessTab('documento') : d.tab === 'extra' ? docExtra() : filesTab();
+  return ctl + `<section class="card rec">
+    <div class="mh"><span class="tt">${esc(docName(d))}</span>${chip(d.status, d.reversed ? 'Revertido' : '')}<span class="ids"><span>ID ${int(d.seq)}${cpBtn(d.seq, 'ID')}</span><span>Número ${d.number || '—'}${d.number ? cpBtn(d.number, 'Número') : ''}</span><span>Ref. ${esc(d.ref || '—')}${d.ref ? cpBtn(d.ref, 'Referencia') : ''}</span><span title="${DOC_UUID}">UUID 019a3f2c…${cpBtn(DOC_UUID, 'UUID')}</span></span><span class="grow"></span><button class="btn ghost" title="Abrir en una pestaña nueva del navegador" aria-label="Abrir en pestaña nueva" onclick="toast('Se abriría /r/accounting.entries/019a3f2c… en una pestaña nueva')">${ic('ext')}</button></div>
+    ${refusalBanner(d)}<div class="ftabs">${tabs.map(([id, l, n, adm]) => `<button class="${d.tab === id ? 'on' : ''}" onclick="S.doc.tab='${id}';render()">${l}${n ? `<span class="cnt">${n}</span>` : ''}${adm ? '<span class="adm">admin</span>' : ''}</button>`).join('')}</div>
+    <div class="mb">${body}</div>
+    <div class="mf"><div class="foot-status"><span>Estado: <b>${ST[d.status]}</b> · ${d.number || 'sin número'} · ID ${int(d.seq)} · versión ${d.version}</span><span>Creado en ${d.createdAt} por <a href="#">${esc(d.createdBy)}</a> · Modificado en ${d.updatedAt} por <a href="#">${esc(d.updatedBy)}</a></span>${d.dirty ? '<span class="uns">● Sin guardar</span>' : ''}${b.notes.map(n => `<span>${n}</span>`).join('')}</div>
+      <div class="actbar">${b.left.join('')}</div><div class="actbar main">${b.main.join('')}</div></div>
+  </section>`;
+}
+function docDatos() {
+  const d = S.doc; const ed = canEditData('documento', d.status); const dis = ed ? '' : 'disabled';
+  const tot = d.lines.reduce((a, l) => [a[0] + (+l.d || 0), a[1] + (+l.c || 0)], [0, 0]);
+  const why = d.status === 'pending' ? 'Pendiente de Aprobación: los datos no se pueden cambiar. Para corregirlo, No Aprobar y editar.' : d.status === 'approved' ? 'Aprobado: para cambiar el documento, anúlalo.' : d.status === 'posted' ? 'Contabilizado: el comprobante es inmutable; para corregirlo, reviértelo.' : d.status === 'voided' ? `Anulado: ${esc(d.voidReason)}` : '';
+  const rej = d.status === 'rejected' ? `<div class="note warn"><b>No Aprobado por Andrés Gómez · 2026-10-28 11:02.</b> Motivo: ${esc(d.rejectReason)}<br>Corrige los datos y usa «Guardar y enviar a aprobación», o «Guardar» para seguir editando.</div>` : '';
+  return `${rej}${flowFor(d)}${why ? `<div class="lockmsg">${ic('lock')}${why}</div>` : ''}
+  <div class="sec"><div class="form4">
+    <div class="field"><label>Fuente</label><select ${dis} oninput="dirtyDoc()"><option>CE · Comprobante de egreso</option><option>CI · Comprobante de ingreso</option><option>NC · Nota de contabilidad</option></select></div>
+    <div class="field"><label>Número ${d.number ? cpBtn(d.number, 'Número') : ''}</label><input disabled class="mono" value="${d.number || (d.flags.posts ? 'Se asigna al contabilizar' : 'Se asigna al guardar')}"></div>
+    <div class="field"><label>Fecha</label><input type="date" ${dis} value="${d.fecha}" oninput="S.doc.fecha=this.value;dirtyDoc()"></div>
+    <div class="field"><label>Referencia ${d.ref ? cpBtn(d.ref, 'Referencia') : ''}</label><input ${dis} value="${esc(d.ref)}" oninput="S.doc.ref=this.value;dirtyDoc()"></div>
+  </div>
+  <div class="field"><label>Descripción</label><input ${dis} value="${esc(d.desc)}" oninput="S.doc.desc=this.value;dirtyDoc()"></div></div>
+  <div class="sec"><h3 class="cap">Líneas</h3>${linesGrid(d, ed)}</div>
+  <div class="audit"><span>Requiere aprobación: <b>${d.flags.requiresApproval ? 'Sí' : 'No'}</b> · Contabiliza: <b>${d.flags.posts ? 'Sí' : 'No'}</b> <span class="hint">(copiados de Parámetros al crear)</span></span></div>`;
+}
+function linesGrid(d, ed) {
+  const partyOpt = sel => Object.entries(PARTIES).map(([k, p]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(p.name)}${p.status !== 'approved' ? ' · ' + ST[p.status] : ''}</option>`).join('');
+  const rows = d.lines.map((l, i) => ({ ...l, _i: i }));
+  const cols = [
+    { k: 'n', l: '#', v: x => x._i + 1 },
+    { k: 'cuenta', l: 'Cuenta', v: x => `${x.cuenta} ${ACCOUNTS[x.cuenta]}`, h: x => `<span class="mono">${x.cuenta}</span> <a href="#" onclick="toast('Abre la cuenta ${x.cuenta}');return false">${ACCOUNTS[x.cuenta]}</a>` },
+    { k: 'party', l: 'Tercero', v: x => PARTIES[x.party].name, h: x => ed ? `<select class="inp" aria-label="Tercero de la línea ${x._i + 1}" style="min-width:220px" onchange="S.doc.lines[${x._i}].party=this.value;dirtyDoc()">${partyOpt(x.party)}</select>` : partyRef(x.party) },
+    { k: 'cc', l: 'Centro de costo', v: x => CCS[x.cc], h: x => ed ? `<select class="inp" aria-label="Centro de costo de la línea ${x._i + 1}" onchange="S.doc.lines[${x._i}].cc=this.value;dirtyDoc()">${Object.entries(CCS).map(([k, v]) => `<option value="${k}" ${k === x.cc ? 'selected' : ''}>${v}</option>`).join('')}</select>` : CCS[x.cc] },
+    { k: 'desc', l: 'Descripción', v: x => x.desc },
+    { k: 'd', l: 'Débito', r: 1, v: x => +x.d || 0, h: x => x.d ? money(x.d) : '' },
+    { k: 'c', l: 'Crédito', r: 1, v: x => +x.c || 0, h: x => x.c ? money(x.c) : '' },
+  ];
+  const tot = d.lines.reduce((a, l) => [a[0] + (+l.d || 0), a[1] + (+l.c || 0)], [0, 0]);
+  const foot = `<tr><td colspan="5">Totales ${tot[0] === tot[1] ? '<span class="pill ok">Cuadrado</span>' : '<span class="pill danger">Descuadrado</span>'}</td><td class="r num">${money(tot[0])}</td><td class="r num">${money(tot[1])}</td></tr>`;
+  return gridHtml('lines', cols, rows, { name: 'Líneas del comprobante', foot });
+}
+function contactsGrid() { return gridHtml('contacts', [{ k: 'n', l: 'Nombre', v: x => x.n }, { k: 'c', l: 'Cargo', v: x => x.c }, { k: 'e', l: 'Correo', v: x => x.e }], [{ n: 'Diana Perdomo', c: 'Cartera', e: 'cartera@tostadoreshuila.co' }, { n: 'Julián Trujillo', c: 'Comercial', e: 'ventas@tostadoreshuila.co' }], { name: 'Contactos' }); }
+function versionsGrid() {
+  const d = S.doc;
+  const cols = [
+    { k: 'pick', l: 'Comparar', c: 1, nofilter: 1, v: s => d.sel.includes(s.v) ? 'Sí' : 'No', h: s => `<input type="checkbox" aria-label="Comparar versión ${s.v}" ${d.sel.includes(s.v) ? 'checked' : ''} onchange="pickVer(${s.v})">` },
+    { k: 'v', l: 'Versión', v: s => s.v, h: s => `<b>v${s.v}</b>${s.v === S.snaps.length ? ' <span class="pill blue">actual</span>' : ''}` },
+    { k: 'st', l: 'Estado', v: s => ST[s.status], h: s => chip(s.status) },
+    { k: 'what', l: 'Acción', v: s => s.what },
+    { k: 'user', l: 'Usuario', v: s => s.user, h: s => `<a href="#" onclick="return false">${s.user}</a>` },
+    { k: 'at', l: 'Fecha', v: s => s.at, h: s => `<span class="mono small">${s.at}</span>` },
+    { k: 'reason', l: 'Motivo', wrap: 1, v: s => s.reason, h: s => s.reason ? esc(s.reason) : '<span class="muted">—</span>' },
+  ];
+  return gridHtml('versions', cols, S.snaps.slice().reverse(), { name: 'Versiones', sel: s => d.sel.includes(s.v) });
+}
+function accessGrid(type) {
+  const rows = S.grants[type].map((x, i) => ({ ...x, _i: i }));
+  const cols = [
+    { k: 'kind', l: 'Tipo', v: x => x.kind === 'role' ? 'Rol' : 'Usuario', h: x => `<span class="pill ${x.kind === 'role' ? 'blue' : 'gray'}">${x.kind === 'role' ? 'Rol' : 'Usuario'}</span>` },
+    { k: 'who', l: 'Rol o usuario', v: x => x.who, h: x => `<a href="#" onclick="return false">${esc(x.who)}</a>` },
+    ...RIGHTS[type].map(([k, l]) => ({ k: 'r_' + k, l, c: 1, v: x => x.r[k] ? 'Sí' : 'No', h: x => `<input type="checkbox" aria-label="${RIGHT_ARIA[k]} · ${esc(x.who)}" ${x.r[k] ? 'checked' : ''} ${k === 'read' ? 'disabled title="Cada regla incluye leer el registro"' : ''} onchange="S.grants['${type}'][${x._i}].r['${k}']=this.checked;S.grantsSaved=false;render()">` })),
+    { k: 'ops', l: '', nosort: 1, nofilter: 1, v: () => '', h: x => `<button class="btn sm ghost" onclick="S.grants['${type}'].splice(${x._i},1);S.grantsSaved=false;render()">Quitar</button>` },
+  ];
+  return gridHtml('access_' + type, cols, rows, { name: 'Reglas de acceso', empty: 'Sin reglas: aplican los permisos de cada rol.' });
+}
+function docExtra() { return `<div class="form2"><div class="field"><label>Cuenta destino del pago <span class="hint">· enmascarado para tu rol</span></label><input disabled class="masked" value="••••••••"></div><div class="field"><label>Observación de tesorería</label><input value="Transferencia programada" oninput="dirtyDoc()"></div></div><p class="hint">Campos definidos por el administrador y datos libres; el campo enmascarado se muestra igual en Versiones y exportaciones, y en el PDF se imprime vacío.</p>`; }
+function docExtra() { return `<div class="form2"><div class="field"><label>Cuenta destino del pago <span class="hint">· enmascarado para tu rol</span></label><input disabled class="masked" value="••••••••"></div><div class="field"><label>Observación de tesorería</label><input value="Transferencia programada" oninput="dirtyDoc()"></div></div><p class="hint">Campos definidos por el administrador y datos libres; el campo enmascarado se muestra igual en Versiones y exportaciones, y en el PDF se imprime vacío.</p>`; }
+function filesTab() { return `<div class="drop">Arrastra archivos aquí o <a href="#" onclick="return false">elige</a> · 25 MB por archivo</div>` + gridHtml('files', [{ k: 'f', l: 'Archivo', v: x => x.f, h: x => `${ic('pdf', 'ic-pdf')} ${esc(x.f)}` }, { k: 't', l: 'Etiqueta', v: x => x.t, h: x => `<span class="pill gray">${x.t}</span>` }, { k: 'u', l: 'Subido por', v: x => x.u, h: x => `<a href="#" onclick="return false">${x.u}</a>` }, { k: 'at', l: 'Fecha', v: x => x.at }], [{ f: 'FV-8841 Tostadores.pdf', t: 'Factura del proveedor', u: 'Laura Mendoza', at: '2026-10-28' }, { f: 'Soporte transferencia.pdf', t: 'Soporte de pago', u: 'Sofía Rincón', at: '2026-10-28' }], { name: 'Archivos' }); }
+function dirtyDoc() { const d = S.doc; if (!d.dirty) { d.dirty = true; render(); } }
+function useNotUsable() { const d = S.doc; d.lines[0].party = 'insumos'; d.dirty = true; d.tab = 'datos'; render(); toast('Línea 1: tercero cambiado a «Insumos Andinos S.A.S.» (Pendiente de Aprobación). Ahora pulsa Guardar.'); }
+
+function act(type, a) {
+  if (type === 'maestro') return actMae(a);
+  const d = S.doc; const f = d.flags;
+  if (a === 'new') { if (d.dirty && !confirm('Hay cambios sin guardar. ¿Descartarlos y crear uno nuevo?')) return; const keep = { ...d.flags }; S.doc = newDoc('draft'); S.doc.flags = keep; S.doc.seq = 1286; S.doc.desc = ''; S.doc.ref = ''; S.doc.lines = baseLines().map(l => ({ ...l, d: 0, c: 0, desc: '' })); S.doc.version = 0; S.doc.createdAt = S.doc.updatedAt = '2026-11-02 10:00'; render(); toast('Comprobante nuevo en Borrador · ID 1.286 · sin número hasta contabilizar', 'accounting.entries.create'); return; }
+  if (a === 'print') { toast(`Imprimir: ${docName(d)}.pdf con la plantilla predeterminada «Comprobante estándar» v3`, 'kernel.record.print'); return; }
+  if (a === 'clone') { toast('Duplicar: abre un Borrador nuevo con los datos visibles; número, ID y archivos son nuevos', 'accounting.entries.create · source_row_id'); return; }
+  if (a === 'reverse') { d.reversed = true; render(); toast('Comprobante revertido: se creó el comprobante espejo; el original queda «Contabilizado · Revertido» (D2)', 'accounting.entry.reverse'); return; }
+  const verb = a === 'approve' ? 'aprobó' : 'guardó';
+  // the gates of an action, in order: maestro usability (D10: at Guardar and again at Aprobar), then the posting when this action posts (D8)
+  function refuse(stay, posts) {
+    const bad = d.lines.map((l, i) => [l, i]).find(([l]) => !isUsable(PARTIES[l.party].status, PARTIES[l.party].active, { requiresApproval: true }));
+    if (bad) { const [l, i] = bad; const p = PARTIES[l.party]; return { title: `No se ${verb}: un tercero de las líneas no se puede usar.`, detail: `Línea ${i + 1} · <b>Tercero</b>: el tercero «${esc(p.name)}» (ID ${p.seq}) está <b>${ST[p.status]}</b>. Solo se usan terceros activos y Aprobados (o Grabados cuando no requieren aprobación). El comprobante sigue en <b>${ST[stay]}</b>${a === 'approve' ? ' hasta que el tercero se apruebe o se corrija la línea (No Aprobar para editarla)' : ' con tus cambios'}. <span class="mono small">maestro_not_usable</span>`, code: 'maestro_not_usable' }; }
+    if (!posts) return null;
+    const one = a === 'approve' ? 'Aprobar y contabilizar son una sola acción' : 'Guardar y contabilizar son una sola acción';
+    const tail = a === 'approve' ? 'no se aprobó, no se consumió número, no hay versión nueva ni correo. El comprobante sigue <b>Pendiente de Aprobación</b> hasta que se resuelva la causa.' : `no se guardó nada, no se consumió número ni se envió correo. El comprobante sigue en <b>${ST[stay]}</b> y tus cambios siguen en el formulario.`;
+    const tot = d.lines.reduce((x, l) => [x[0] + (+l.d || 0), x[1] + (+l.c || 0)], [0, 0]);
+    if (tot[0] !== tot[1]) return { title: `No se ${verb}: el comprobante no se pudo contabilizar.`, detail: `Está descuadrado: débitos ${money(tot[0])}, créditos ${money(tot[1])} (diferencia ${money(Math.abs(tot[0] - tot[1]))}). ${one}: ${tail} <span class="mono small">unbalanced</span>`, code: 'unbalanced' };
+    if (d.closedPeriod) return { title: `No se ${verb}: el comprobante no se pudo contabilizar.`, detail: `El período <b>2026-10</b> está cerrado; la fecha 2026-10-28 cae en él. ${one}: ${tail} Pide reabrir el período o el día (requiere verificación en dos pasos). <span class="mono small">period_closed</span>`, code: 'period_closed' };
+    return null;
+  }
+  if (a === 'save' || a === 'save_submit') {
+    const posts = a === 'save' && f.posts && !f.requiresApproval;
+    const r = refuse(d.status, posts); if (r) { d.refusal = r; render(); toast(`${a === 'save' ? 'Guardar' : 'Guardar y enviar'} rechazado · sigue en ${ST[d.status]}`, r.code); return; }
+    const from = d.status; d.refusal = null; d.dirty = false; d.updatedAt = '2026-11-02 10:0' + (++clock % 10);
+    if (posts) { d.status = 'posted'; d.number = 'CE-000123'; pushSnap('posted', 'Guardar · contabilizado'); toast('Guardado y contabilizado en la misma acción: CE-000123', 'accounting.entries.save'); }
+    else if (a === 'save_submit') { if (!f.posts) d.number = 'CE-000123'; d.status = 'pending'; pushSnap('pending', 'Guardar y enviar a aprobación'); toast('Guardado y enviado a aprobación en una sola acción', 'accounting.entries.save + submit'); }
+    else { d.status = nextStatus('documento', from, 'save', f); if (!f.posts && !d.number) d.number = 'CE-000123'; pushSnap(d.status, 'Guardar'); toast(from === 'draft' ? `Guardado: queda Grabado${d.number ? ' · ' + d.number : ' (el número se asigna al contabilizar)'}` : 'Cambios guardados · nueva versión', 'accounting.entries.save'); }
+    render(); return;
+  }
+  if (a === 'submit') { d.status = 'pending'; pushSnap('pending', 'Enviar a aprobación'); render(); toast('Enviado a aprobación · se notifica a la lista de «Pendiente de Aprobación»', 'accounting.entries.submit'); return; }
+  if (a === 'approve') {
+    const r = refuse('pending', f.posts); if (r) { d.refusal = r; render(); toast('Aprobar rechazado · sigue Pendiente de Aprobación', r.code); return; }
+    d.refusal = null;
+    if (f.posts) { d.status = 'posted'; d.number = 'CE-000123'; pushSnap('posted', 'Aprobar · contabilizado'); toast('Aprobado y contabilizado en la misma acción: CE-000123', 'accounting.entries.approve'); }
+    else { d.status = 'approved'; pushSnap('approved', 'Aprobar'); toast('Aprobado', 'accounting.entries.approve'); }
+    render();
+  }
+}
+function askReason(type, a) {
+  const t = a === 'reject' ? 'No Aprobar' : 'Anular'; const rec = type === 'maestro' ? S.mae : S.doc;
+  openDialog(`<div class="dh">${t} · ${type === 'maestro' ? esc(rec.name) : esc(docName(rec))}<span class="grow"></span><button class="btn ghost" aria-label="Cerrar" onclick="closeDialog()">${ic('x')}</button></div>
+  <div class="db"><p>${a === 'reject' ? 'El registro pasa a <b>No Aprobado</b> y vuelve a poder editarse. El motivo queda en Versiones y en la auditoría.' : 'El documento pasa a <b>Anulado</b> y no cambia más; conserva su número y su ID. El motivo queda en Versiones y en la auditoría.'}</p>
+  <div class="field"><label for="reason">Motivo <span class="hint">· obligatorio</span></label><textarea id="reason" rows="3" oninput="document.getElementById('reason-ok').disabled=!this.value.trim();document.getElementById('reason-err').hidden=!!this.value.trim()"></textarea><span class="err" id="reason-err">Indica el motivo</span></div></div>
+  <div class="df"><button class="btn" onclick="closeDialog()">Cancelar</button><button class="btn dark" id="reason-ok" disabled onclick="doReason('${type}','${a}')">${t}</button></div>`);
+  setTimeout(() => { const r = document.getElementById('reason'); if (r && !document.getElementById('dialog').hidden) r.focus(); }, 30);
+}
+function doReason(type, a) {
+  const reason = document.getElementById('reason').value.trim(); if (!reason) return; closeDialog();
+  if (type === 'maestro') { S.mae.status = 'rejected'; render(); toast('Tercero No Aprobado', 'core.parties.reject'); return; }
+  const d = S.doc;
+  if (a === 'reject') { d.status = 'rejected'; d.rejectReason = reason; pushSnap('rejected', 'No Aprobar', reason); toast('No Aprobado · vuelve a poder editarse', 'accounting.entries.reject'); }
+  else { d.status = 'voided'; d.voidReason = reason; pushSnap('voided', 'Anular', reason); toast('Documento anulado · conserva su número', 'accounting.entries.void'); }
+  render();
+}
+function askDelete(type) {
+  const rec = type === 'maestro' ? S.mae : S.doc;
+  if (type === 'maestro' && rec.referenced) { rec.refusal = { title: 'No se eliminó el tercero.', detail: 'Este registro se usa en otros registros (12 comprobantes) y no se puede eliminar. Márcalo como <b>Activo = no</b> para que no se use más. <span class="mono small">record_referenced</span>' }; render(); toast('Eliminar rechazado: registro referenciado', 'record_referenced'); return; }
+  openDialog(`<div class="dh">Eliminar<span class="grow"></span><button class="btn ghost" aria-label="Cerrar" onclick="closeDialog()">${ic('x')}</button></div><div class="db"><p>${type === 'maestro' ? `¿Eliminar el tercero «${esc(rec.name)}»? Nada lo usa; se oculta en todas partes y queda en la auditoría.` : '¿Eliminar este comprobante en Borrador? Nunca recibió número; queda la entrada de auditoría.'}</p></div><div class="df"><button class="btn" onclick="closeDialog()">Cancelar</button><button class="btn danger" onclick="closeDialog();${type === 'maestro' ? 'S.mae.deleted=true' : 'S.doc.deleted=true'};render();toast('Eliminado','${type === 'maestro' ? 'core.parties' : 'accounting.entries'}.delete')">Eliminar</button></div>`);
+}
+
+/* =====================================================================================================================
+   Versiones tab (D18: masked fields masked in both versions, never marked changed)
+   ===================================================================================================================== */
+function versionsTab() {
+  const d = S.doc; const [a, b] = d.sel.slice().sort((x, y) => x - y);
+  const A = S.snaps.find(s => s.v === a), B = S.snaps.find(s => s.v === b);
+  const list = versionsGrid();
+  const rows = [];
+  const cell = (k, va, vb, opt = {}) => { const ch = !opt.masked && va !== vb; rows.push(`<div class="k">${k}</div><div class="${ch ? 'chg' : ''}">${opt.masked ? '<span class="masked">••••••••</span>' : esc(va)}</div><div class="${ch ? 'chg' : ''}">${opt.masked ? '<span class="masked">••••••••</span>' : esc(vb)}</div>`); };
+  let html;
+  if (A && B) {
+    cell('Estado', ST[A.status], ST[B.status]); cell('Fecha', A.payload.fecha, B.payload.fecha); cell('Descripción', A.payload.desc, B.payload.desc); cell('Referencia', A.payload.ref, B.payload.ref);
+    cell('Cuenta destino del pago', A.payload.cuentaDestino, B.payload.cuentaDestino, { masked: true });
+    rows.push('<div class="grp">Líneas</div>');
+    const n = Math.max(A.payload.lines.length, B.payload.lines.length);
+    for (let i = 0; i < n; i++) { const la = A.payload.lines[i] || {}, lb = B.payload.lines[i] || {};
+      cell(`Línea ${i + 1} · tercero`, PARTIES[la.party]?.name || '—', PARTIES[lb.party]?.name || '—');
+      cell(`Línea ${i + 1} · centro de costo`, CCS[la.cc] ?? '—', CCS[lb.cc] ?? '—');
+      cell(`Línea ${i + 1} · débito`, la.d ? money(la.d) : '', lb.d ? money(lb.d) : '');
+      cell(`Línea ${i + 1} · crédito`, la.c ? money(la.c) : '', lb.c ? money(lb.c) : ''); }
+    const changed = rows.filter(r => r.includes('class="chg"')).length;
+    html = `<div class="row"><h3>Comparar v${a} con v${b}</h3><span class="pill warn">${changed} campo${changed === 1 ? '' : 's'} cambiado${changed === 1 ? '' : 's'}</span><span class="grow"></span><label class="sw small"><input type="checkbox" ${S.onlyChg ? 'checked' : ''} onchange="S.onlyChg=this.checked;render()">Solo cambios</label></div>
+    <div class="cmp"><div class="h">Campo</div><div class="h">v${a} · ${ST[A.status]} · ${A.at}</div><div class="h">v${b} · ${ST[B.status]} · ${B.at}</div>${(S.onlyChg ? rows.filter(r => r.includes('class="chg"') || r.includes('grp')) : rows).join('')}</div>
+    <div class="note info"><b>Campos enmascarados (D18):</b> un campo enmascarado u oculto para ti se muestra •••••••• en las dos versiones y nunca se marca como cambiado, así no se revela ni su valor ni cuándo cambió. Aquí: «Cuenta destino del pago».</div>`;
+  } else html = `<div class="emptystate">Marca dos versiones para compararlas lado a lado.</div>`;
+  return `<p class="muted">Cada cambio de datos o de estado, desde que el documento sale de Borrador, guarda una versión completa (encabezado, líneas y datos adicionales). Las versiones no se pueden editar ni borrar.</p>${list}${html}`;
+}
+function pickVer(v) { const d = S.doc; if (d.sel.includes(v)) d.sel = d.sel.filter(x => x !== v); else { d.sel.push(v); if (d.sel.length > 2) d.sel.shift(); } render(); }
+
+/* =====================================================================================================================
+   Acceso tab (admin only)
+   ===================================================================================================================== */
+const RIGHTS = { maestro: [['read', 'Ver'], ['use', 'Usar en documentos'], ['modify', 'Modificar'], ['delete', 'Eliminar']], documento: [['read', 'Ver'], ['modify', 'Modificar'], ['void', 'Anular']] };
+const RIGHT_ARIA = { read: 'Leer', use: 'Usar', modify: 'Modificar', delete: 'Eliminar', void: 'Anular' };
+S.grants = {
+  documento: [{ kind: 'role', who: 'Contador', r: { read: true, modify: true, void: true } }, { kind: 'role', who: 'Tesorería', r: { read: true, modify: false, void: false } }, { kind: 'user', who: 'Sofía Rincón', r: { read: true, modify: true, void: false } }],
+  maestro: [{ kind: 'role', who: 'Gerente', r: { read: true, use: true, modify: true, delete: false } }, { kind: 'role', who: 'Vendedor', r: { read: true, use: false, modify: false, delete: false } }],
+};
+S.grantsSaved = true;
+function accessTab(type) {
+  const g = S.grants[type];
+  return `<div class="note info"><b>Las reglas solo restringen; no aplican a administradores.</b> Sin reglas, aplican los permisos del rol. Con reglas, solo las personas y roles listados tienen los permisos marcados, nunca más de lo que su rol permite. Se aplica en la base de datos y en los procesos, no solo ocultando.</div>
+  ${accessGrid(type)}
+  <div class="row"><select class="inp" id="g-new" style="width:auto"><optgroup label="Roles"><option value="role:Gerente">Gerente</option><option value="role:Contador">Contador</option><option value="role:Tesorería">Tesorería</option><option value="role:Vendedor">Vendedor</option></optgroup><optgroup label="Usuarios"><option value="user:Andrés Gómez">Andrés Gómez</option><option value="user:Marcela Ruiz">Marcela Ruiz</option><option value="user:Sofía Rincón">Sofía Rincón</option></optgroup></select>
+  <button class="btn" onclick="addGrant('${type}')">${ic('plus')}Agregar regla</button><span class="grow"></span>
+  <span class="hint">${S.grantsSaved ? 'Reglas guardadas · cada cambio queda en la auditoría' : 'Cambios sin guardar en las reglas'}</span>
+  <button class="btn dark" ${S.grantsSaved ? 'disabled' : ''} onclick="S.grantsSaved=true;render();toast('Reglas de acceso guardadas (proceso auditado)','kernel.record_access.set')">Guardar reglas</button></div>
+  <p class="hint">Leer: el registro, sus líneas y su detalle desaparecen de grids, búsquedas, ⌘K, exportaciones, PDF y asistente para quien no lo tiene; los reportes agregados siguen incluyendo sus montos sin identificarlo (D11).${type === 'maestro' ? ' Usar: el documento que lo nombra en una línea se rechaza al guardar y al aprobar.' : ''}</p>`;
+}
+function addGrant(type) { const [kind, who] = document.getElementById('g-new').value.split(':'); const r = {}; RIGHTS[type].forEach(([k]) => r[k] = k === 'read'); S.grants[type].push({ kind, who, r }); S.grantsSaved = false; render(); }
+
+/* =====================================================================================================================
+   Screen · maestro (Tercero)
+   ===================================================================================================================== */
+function viewMae() {
+  const m = S.mae; const f = m.flags;
+  const ctl = `<div class="ctl"><b class="t">Controles del prototipo (no forman parte de la pantalla)</b>
+    <label>Requiere aprobación ${tg(f.requiresApproval, "S.mae.flags.requiresApproval=!S.mae.flags.requiresApproval;fixStates();render()")}</label>
+    <label>Estado: <select onchange="S.mae.status=this.value;S.mae.refusal=null;S.mae.dirty=false;render()">${maeStates(f).map(s => `<option value="${s}" ${s === m.status ? 'selected' : ''}>${ST[s]}</option>`).join('')}</select></label>
+    <label>Usado en documentos ${tg(m.referenced, "S.mae.referenced=!S.mae.referenced;render()")}</label>
+    ${adminSwitch()}</div>`;
+  if (m.deleted) return ctl + `<section class="card" style="padding:24px;display:flex;flex-direction:column;gap:12px;align-items:flex-start"><h2>Tercero eliminado</h2><p class="muted">Nada lo usaba: se ocultó en todas partes y queda la entrada de auditoría (eliminación suave). Su ID no se reutiliza.</p><button class="btn dark" onclick="S.mae=newMae();render()">${ic('plus')}Nuevo</button></section>`;
+  const tabs = [['datos', 'Datos'], ['contactos', 'Contactos', 2], ['extra', 'Datos adicionales'], ['archivos', 'Archivos', 1]];
+  if (S.admin) tabs.push(['acceso', 'Acceso', null, true]);
+  const b = actionButtons('maestro', m);
+  const usable = isUsable(m.status, m.active, f);
+  const usableTxt = usable ? '<span class="pill ok">Utilizable en documentos</span>' : `<span class="pill warn">No utilizable en documentos · ${!m.active ? 'inactivo' : f.requiresApproval ? 'falta aprobación' : 'en Borrador'}</span>`;
+  const body = m.tab === 'datos' ? maeDatos() : m.tab === 'acceso' ? accessTab('maestro') : m.tab === 'contactos' ? contactsGrid() : m.tab === 'extra' ? `<div class="form2"><div class="field"><label>Cuenta bancaria para pagos <span class="hint">· enmascarado para tu rol</span></label><input disabled class="masked" value="••••••••"></div><div class="field"><label>Plazo de pago (días)</label><input value="30" oninput="dirtyMae()"></div></div>` : filesTab();
+  return ctl + `<section class="card rec">
+    <div class="mh"><span class="tt">Tercero · ${esc(m.name)}</span>${chip(m.status)}${usableTxt}<span class="ids">ID ${int(m.seq)} · uuid 019a2c51…</span><span class="grow"></span><button class="btn ghost" aria-label="Abrir en pestaña nueva" title="Abrir en una pestaña nueva del navegador" onclick="toast('Se abriría /r/core.parties/019a2c51… en una pestaña nueva')">${ic('ext')}</button></div>
+    ${refusalBanner(m)}<div class="ftabs">${tabs.map(([id, l, n, adm]) => `<button class="${m.tab === id ? 'on' : ''}" onclick="S.mae.tab='${id}';render()">${l}${n ? `<span class="cnt">${n}</span>` : ''}${adm ? '<span class="adm">admin</span>' : ''}</button>`).join('')}</div>
+    <div class="mb">${body}</div>
+    <div class="mf"><div class="foot-status"><span>Estado: <b>${ST[m.status]}</b> · ID ${int(m.seq)} · Estado DIAN: completo</span><span>Creado en ${m.createdAt} por <a href="#">${esc(m.createdBy)}</a> · Modificado en ${m.updatedAt} por <a href="#">${esc(m.updatedBy)}</a></span>${m.dirty ? `<span class="uns">● Sin guardar${m.changedRelevant && m.status === 'approved' && f.requiresApproval ? ' · cambiaste un dato que requiere aprobación: al guardar vuelve a Pendiente de Aprobación' : ''}</span>` : ''}${b.notes.map(n => `<span>${n}</span>`).join('')}</div>
+      <div class="actbar">${b.left.join('')}</div><div class="actbar main">${b.main.join('')}</div></div>
+  </section>
+  <p class="hint">Los maestros no tienen Versiones (su historial está en la auditoría) ni Notificar (D17).</p>`;
+}
+function maeDatos() {
+  const m = S.mae; const rel = `S.mae.changedRelevant=true;dirtyMae()`;
+  return `${m.status === 'pending' ? '<div class="note warn"><b>Pendiente de Aprobación.</b> Mientras no se apruebe, ningún documento puede usar este tercero.</div>' : ''}
+  <div class="sec"><h3 class="cap">Identificación</h3><div class="form4">
+    <div class="field"><label>Tipo de persona</label><select oninput="${rel}"><option>Persona jurídica</option><option>Persona natural</option></select></div>
+    <div class="field"><label>Tipo de documento</label><select oninput="${rel}"><option>31 · NIT</option><option>13 · Cédula de ciudadanía</option></select></div>
+    <div class="field"><label>Número <span class="hint">· requiere aprobación</span></label><input class="mono" value="${m.nit}" oninput="${rel}"></div>
+    <div class="field"><label>DV</label><input class="mono" disabled value="${m.dv}"></div></div>
+    <div class="form2"><div class="field"><label>Razón social <span class="hint">· requiere aprobación</span></label><input value="${esc(m.name)}" oninput="S.mae.name=this.value;${rel}"></div>
+    <div class="field"><label>Correo de facturación</label><input value="${m.email}" oninput="dirtyMae()"></div></div>
+    <div class="form3"><div class="field"><label>Celular</label><input value="+57 ${m.phone}" oninput="dirtyMae()"></div><div class="field"><label>Ciudad</label><input value="${m.city}" oninput="dirtyMae()"></div>
+    <div class="field"><label>Activo</label><div class="sw" style="height:34px">${tg(m.active, "S.mae.active=!S.mae.active;S.mae.dirty=true;render()")}<span>${m.active ? 'Sí' : 'No · no se puede usar en documentos'}</span></div></div></div></div>
+  <div class="audit"><span>Requiere aprobación: <b>${m.flags.requiresApproval ? 'Sí' : 'No'}</b> <span class="hint">(copiado de Parámetros al crear)</span></span></div>`;
+}
+function dirtyMae() { if (!S.mae.dirty) { S.mae.dirty = true; render(); } }
+function actMae(a) {
+  const m = S.mae; const f = m.flags;
+  if (a === 'new') { S.mae = newMae(); S.mae.flags = { ...f }; S.mae.status = 'draft'; S.mae.seq = 59; S.mae.name = 'Tercero nuevo'; S.mae.nit = ''; S.mae.dv = ''; S.mae.referenced = false; render(); toast('Tercero nuevo en Borrador · ID 59', 'core.parties.create'); return; }
+  if (a === 'print') { toast(`Imprimir: Tercero ${m.name}.pdf con la plantilla «Ficha de tercero» v1`, 'kernel.record.print'); return; }
+  if (a === 'clone') { toast('Duplicar: NIT, DV, ID y archivos son nuevos', 'core.parties.create · source_row_id'); return; }
+  m.refusal = null;
+  if (a === 'save' || a === 'save_submit') {
+    const from = m.status; m.dirty = false;
+    if (a === 'save_submit') { m.status = 'pending'; toast('Guardado y enviado a aprobación en una sola acción', 'core.parties.save + submit'); }
+    else if (from === 'approved' && m.changedRelevant && f.requiresApproval) { m.status = 'pending'; toast('Guardado · cambió un dato que requiere aprobación (NIT / razón social): vuelve a Pendiente de Aprobación (D10)', 'core.parties.save → submit'); }
+    else { m.status = nextStatus('maestro', from, 'save', f); toast(from === 'draft' ? 'Guardado: queda Grabado' : 'Cambios guardados', 'core.parties.save'); }
+    m.changedRelevant = false; render(); return;
+  }
+  if (a === 'submit') { m.status = 'pending'; render(); toast('Enviado a aprobación', 'core.parties.submit'); return; }
+  if (a === 'approve') { m.status = 'approved'; render(); toast('Tercero aprobado · ya se puede usar en documentos', 'core.parties.approve'); }
+}
+
+/* =====================================================================================================================
+   Screen · buttons by state (barSpec over every state and flag combination)
+   ===================================================================================================================== */
+function viewMatrix() {
+  const combos = type => type === 'maestro' ? [{ requiresApproval: false, posts: false }, { requiresApproval: true, posts: false }] : [{ requiresApproval: false, posts: false }, { requiresApproval: true, posts: false }, { requiresApproval: false, posts: true }, { requiresApproval: true, posts: true }];
+  const lab = f => `${f.requiresApproval ? 'Requiere aprobación' : 'Sin aprobación'}${f.posts ? ' · Contabiliza' : ''}`;
+  const tbl = type => { const sts = type === 'maestro' ? ['draft', 'saved', 'pending', 'rejected', 'approved'] : ['draft', 'saved', 'pending', 'rejected', 'approved', 'posted', 'voided']; const cs = combos(type);
+    return `<div class="tbl-wrap"><table class="mx"><thead><tr><th>Estado</th>${cs.map(f => `<th>${lab(f)}</th>`).join('')}</tr></thead><tbody>${sts.map(s => `<tr><td>${chip(s)}</td>${cs.map(f => {
+      const reach = (type === 'maestro' ? maeStates(f) : docStates(f)).includes(s);
+      if (!reach) return `<td><span class="hint">no se alcanza${type === 'documento' && f.posts && ((s === 'saved' && !f.requiresApproval) || (s === 'approved' && f.requiresApproval)) ? ' (de paso: la misma acción contabiliza)' : ''}</span></td>`;
+      const spec = barSpec(type, s, f);
+      return `<td>${spec.length ? spec.map(b => `<span class="bt ${b.auto ? 'auto' : b.primary ? 'st' : ''}">${b.l}</span>`).join('') : '<span class="hint">sin acciones de estado</span>'}<div class="hint">${canEditData(type, s) ? 'datos editables' : 'datos bloqueados'}</div></td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`; };
+  return `<div class="row"><h1>Botones por estado</h1><span class="pill blue">allowedActions + D15</span></div>
+  <p class="muted">Generado en vivo con una copia exacta de la tabla de transiciones (packages/kernel/src/typed/lifecycle.ts) y la regla D15: con aprobación, «Guardar» y «Guardar y enviar a aprobación»; «Enviar a aprobación» solo en Grabado; sin aprobación, solo «Guardar». Además, siempre: <span class="mx"><span class="bt">Nuevo</span><span class="bt">Imprimir</span><span class="bt">Duplicar</span></span> y, en documentos, <span class="mx"><span class="bt">Notificar</span></span>. Botón principal resaltado.</p>
+  <h2>Documento</h2>${tbl('documento')}
+  <div class="note info">Contabilizado → Anulado solo por la reversa contable (D3): el comprobante muestra la acción del módulo «Revertir» y queda «Contabilizado · Revertido». «Grabado» con contabiliza y sin aprobación, y «Aprobado» con contabiliza y aprobación son estados de paso: la misma acción contabiliza.</div>
+  <h2>Maestro</h2>${tbl('maestro')}
+  <div class="note info">Maestro: Eliminar en cualquier estado si nada lo usa (si no, «Márcalo como Activo = no»). En Aprobado no hay «Enviar a aprobación»: cambiar un dato que requiere aprobación lo devuelve a Pendiente al guardar (D10, D15).</div>`;
+}
+
+/* =====================================================================================================================
+   Decisiones pendientes: only what is still open
+   ===================================================================================================================== */
+function toggleDecisions() { S.decisionsOpen = !S.decisionsOpen; renderDecisions(); }
+function renderDecisions() {
+  const el = document.getElementById('decisions'); el.hidden = !S.decisionsOpen; if (!S.decisionsOpen) return;
+  el.innerHTML = `<div class="sh">Decisiones pendientes<span class="grow"></span><button class="btn ghost" aria-label="Cerrar" onclick="toggleDecisions()">${ic('x')}</button></div>
+  <div class="sb"><p class="muted">Resueltas el 2026-11-02 y ya aplicadas aquí: D15 (Guardar / Guardar y enviar), D16 (ID), D17, D18 (enmascarados en Versiones), D19 (shell v7). Siguen abiertas:</p>
+  <ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:10px;line-height:1.45">
+  <li><b>Textos de los rechazos.</b> El mensaje genérico <span class="mono small">maestro_not_usable</span> no nombra nada; el prototipo propone nombrar la línea, el campo, el registro y su ID («Línea 1 · Tercero: el tercero «Tostadores del Huila S.A.S.» (ID 41) está Pendiente de Aprobación…») y, en contabilización, la causa (descuadre con montos, período cerrado). ¿Se aprueba esa redacción? <a href="#" onclick="go('doc');return false">Ver en el comprobante</a></li>
+  <li><b>Grabado con cambios sin guardar.</b> El prototipo muestra «Guardar», «Guardar y enviar a aprobación» y «Enviar a aprobación»; este último queda deshabilitado mientras hay cambios («Guarda los cambios antes de cambiar el estado»), porque «Guardar y enviar» ya cubre ese caso. ¿Se confirma, o se oculta «Enviar a aprobación» mientras hay cambios?</li>
+  </ol></div>`;
+}
+
+/* =====================================================================================================================
+   Notificar dialog (subject falls back to the ID, D16)
+   ===================================================================================================================== */
+const STATE_LISTS = { pending: ['andres.gomez@cafedelnorte.co', 'contabilidad@cafedelnorte.co'], approved: ['tesoreria@cafedelnorte.co', 'gerencia@cafedelnorte.co'], posted: ['tesoreria@cafedelnorte.co', 'facturacion@tostadoreshuila.co'], rejected: ['laura.mendoza@cafedelnorte.co'], voided: ['contabilidad@cafedelnorte.co', 'gerencia@cafedelnorte.co'], saved: [], draft: [] };
+const validEmail = e => /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(e);
+function openNotify() {
+  const d = S.doc; if (d.status === 'draft' || d.dirty) { toast(d.dirty ? 'Guarda los cambios antes de enviar el documento' : 'Guarda el documento para poder enviarlo'); return; }
+  S.nf = { to: [...(STATE_LISTS[d.status] || [])], subject: `${docName(d)} · ${ST[d.status]}`, msg: `Adjuntamos ${docName(d)}.` };
+  renderNotify();
+}
+function renderNotify() {
+  const d = S.doc, n = S.nf; const bad = n.to.filter(e => !validEmail(e)); const over = n.to.length > 50;
+  openDialog(`<div class="dh">${ic('mail')}Notificar · ${esc(docName(d))}<span class="grow"></span><button class="btn ghost" aria-label="Cerrar" onclick="closeDialog()">${ic('x')}</button></div>
+  <div class="db">
+    <div class="field"><label for="nf-in">Destinatarios <span class="hint">· ${n.to.length} / 50 · precargados de la lista de «${ST[d.status]}»</span></label>
+      <div class="rcp" onclick="document.getElementById('nf-in').focus()">${n.to.map((e, i) => `<span class="em ${validEmail(e) ? '' : 'bad'}" title="${validEmail(e) ? '' : 'Correo no válido'}">${esc(e)}<button aria-label="Quitar ${esc(e)}" onclick="event.stopPropagation();S.nf.to.splice(${i},1);renderNotify()">✕</button></span>`).join('')}<input id="nf-in" placeholder="Escribe un correo y pulsa Enter" onkeydown="nfKey(event)" onblur="nfAdd(this)"></div>
+      ${bad.length ? `<span class="err">${bad.length} correo${bad.length > 1 ? 's' : ''} no válido${bad.length > 1 ? 's' : ''}: corrígelo o quítalo para enviar</span>` : ''}${over ? '<span class="err">Máximo 50 destinatarios</span>' : ''}${!n.to.length ? '<span class="err">Indica al menos un destinatario</span>' : ''}
+      <span class="hint">Se envía con copia oculta (CCO): ningún destinatario ve las direcciones de los demás.</span></div>
+    <div class="field"><label for="nf-sub">Asunto <span class="hint">· {tipo} {número} · {estado}; sin número aún, el ID</span></label><input id="nf-sub" value="${esc(n.subject)}" oninput="S.nf.subject=this.value"></div>
+    <div class="field"><label for="nf-msg">Mensaje</label><textarea id="nf-msg" rows="3" oninput="S.nf.msg=this.value">${esc(n.msg)}</textarea></div>
+    <div class="field"><label>Adjunto</label><div class="attach"><div class="thumb" id="nf-thumb"></div><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><b>${ic('pdf', 'ic-pdf')} ${esc(d.number || 'comprobante-' + d.seq)}.pdf</b><span class="small muted">Plantilla «Comprobante estándar» · v3 (predeterminada) · 1 página · 48 KB</span><span class="small muted">Se genera con tus permisos: un campo que no puedes ver se imprime vacío.</span><button class="btn sm" style="align-self:flex-start" onclick="toast('Vista previa del PDF en una pestaña nueva')">Ver PDF</button></div></div></div>
+  </div>
+  <div class="df"><span class="hint grow">Se registra como proceso y en el registro de correos.</span><button class="btn" onclick="closeDialog()">Cancelar</button><button class="btn dark" ${bad.length || over || !n.to.length ? 'disabled' : ''} onclick="sendNotify()">Enviar</button></div>`);
+  renderPage(document.getElementById('nf-thumb'), defaultBlocks(), { scale: 92 / 612, bg: S.tpl.bg, interactive: false });
+}
+function nfKey(e) { if (e.key === 'Enter' || e.key === ',' || e.key === ';') { e.preventDefault(); nfAdd(e.target, true); } else if (e.key === 'Backspace' && !e.target.value && S.nf.to.length) { S.nf.to.pop(); renderNotify(); document.getElementById('nf-in').focus(); } }
+function nfAdd(inp, refocus) { const v = inp.value.trim().replace(/[,;]$/, ''); if (!v) return; v.split(/[\s,;]+/).filter(Boolean).forEach(x => { if (!S.nf.to.includes(x)) S.nf.to.push(x); }); renderNotify(); if (refocus) document.getElementById('nf-in').focus(); }
+function sendNotify() { const n = S.nf.to.length; closeDialog(); toast(`Enviado a ${n} destinatario${n > 1 ? 's' : ''} en copia oculta · registrado en mail_log`, 'kernel.record.notify'); }
+function openDialog(html) { document.getElementById('dialog-box').innerHTML = html; document.getElementById('dialog').hidden = false; }
+function closeDialog() { document.getElementById('dialog').hidden = true; }
+
+/* =====================================================================================================================
+   Parámetros · Configuración de tipos, Destinatarios por estado
+   ===================================================================================================================== */
+S.types = [
+  { mod: 'Contabilidad', ent: 'Comprobante', type: 'documento', appr: true, posts: true, apprNote: 'Por fuente: «Requiere aprobación en comprobantes manuales»', postsFixed: true },
+  { mod: 'Contabilidad', ent: 'Cuenta', type: 'maestro', appr: false }, { mod: 'Contabilidad', ent: 'Centro de costo', type: 'maestro', appr: false }, { mod: 'Contabilidad', ent: 'Fuente', type: 'maestro', appr: false },
+  { mod: 'Núcleo', ent: 'Tercero', type: 'maestro', appr: true }, { mod: 'Núcleo', ent: 'Producto', type: 'maestro', appr: false }, { mod: 'Núcleo', ent: 'Categoría', type: 'maestro', appr: false },
+];
+function tiposGrid() {
+  const note = t => t.apprNote ? t.apprNote + '; contabiliza siempre (es el propio asiento).' : t.type === 'maestro' ? 'Los maestros no contabilizan.' : '';
+  const cols = [
+    { k: 'mod', l: 'Módulo', v: t => t.mod }, { k: 'ent', l: 'Entidad', v: t => t.ent, h: t => `<b>${t.ent}</b>` },
+    { k: 'type', l: 'Tipo', v: t => t.type === 'documento' ? 'Documento' : 'Maestro', h: t => `<span class="pill ${t.type === 'documento' ? 'info' : 'gray'}">${t.type === 'documento' ? 'Documento' : 'Maestro'}</span>` },
+    { k: 'appr', l: 'Requiere aprobación', c: 1, v: t => t.apprNote ? 'Por fuente' : t.appr ? 'Sí' : 'No', h: t => t.apprNote ? '<span class="hint">por fuente</span>' : tg(t.appr, `S.types[${t._i}].appr=!S.types[${t._i}].appr;S.typesDirty=true;render()`) },
+    { k: 'posts', l: 'Contabiliza', c: 1, v: t => t.type === 'maestro' ? '—' : t.posts ? 'Sí' : 'No', h: t => t.type === 'maestro' ? '<span class="muted">—</span>' : tg(t.posts, '', t.postsFixed) },
+    { k: 'note', l: 'Nota', wrap: 1, v: note, h: t => `<span class="small muted">${esc(note(t))}</span>` },
+  ];
+  return gridHtml('tipos', cols, S.types.map((t, i) => ({ ...t, _i: i })), { name: 'Configuración de tipos' });
+}
+function destGrid() {
+  const cols = [
+    { k: 's', l: 'Estado', v: x => ST[x.s], h: x => chip(x.s) },
+    { k: 'e', l: 'Correos', wrap: 1, v: x => STATE_LISTS[x.s].join(' '), h: x => `<div class="rcp" style="min-height:34px">${STATE_LISTS[x.s].map(e => `<span class="em">${e}<button aria-label="Quitar ${e}" onclick="STATE_LISTS['${x.s}']=STATE_LISTS['${x.s}'].filter(y=>y!=='${e}');render()">✕</button></span>`).join('')}<input aria-label="Agregar correo a ${ST[x.s]}" placeholder="Agregar correo…" onkeydown="if(event.key==='Enter'){const v=this.value.trim();if(!validEmail(v)){toast('Correo no válido: '+v);return;}STATE_LISTS['${x.s}'].push(v);render();}"></div>` },
+    { k: 'n', l: 'Cantidad', r: 1, v: x => STATE_LISTS[x.s].length, h: x => `${STATE_LISTS[x.s].length} / 50` },
+  ];
+  return gridHtml('dest', cols, ['saved', 'pending', 'rejected', 'approved', 'posted', 'voided'].map(s => ({ s })), { name: 'Destinatarios por estado' });
+}
+function tplGrid() {
+  const t = S.tpl; const rows = S.tplList.map(x => ({ ...x, version: x.name === t.name ? t.version : x.version, def: x.name === t.name ? t.isDefault : x.def }));
+  const cols = [{ k: 'name', l: 'Nombre', v: x => x.name }, { k: 'entity', l: 'Entidad', v: x => x.entity }, { k: 'scope', l: 'Alcance', v: x => x.scope }, { k: 'version', l: 'Versión', r: 1, v: x => x.version, h: x => `v${x.version}` }, { k: 'def', l: 'Predeterminada', v: x => x.def ? 'Sí' : 'No', h: x => x.def ? '<span class="pill ok">Sí</span>' : '<span class="muted">—</span>' }];
+  return gridHtml('tpls', cols, rows, { name: 'Plantillas PDF', sel: x => x.name === t.name });
+}
+function menuRulesGrid() {
+  const rows = (S.menuRules[S.menuSel] || []).map((r, i) => ({ ...r, _i: i }));
+  const cols = [
+    { k: 'kind', l: 'Tipo', v: r => r.kind === 'role' ? 'Rol' : 'Usuario', h: r => `<span class="pill ${r.kind === 'role' ? 'blue' : 'gray'}">${r.kind === 'role' ? 'Rol' : 'Usuario'}</span>` },
+    { k: 'who', l: 'Rol o usuario', v: r => r.who, h: r => `<a href="#" onclick="return false">${esc(r.who)}</a>` },
+    { k: 'allowed', l: 'Permitido', c: 1, v: r => r.allowed ? 'Sí' : 'No', h: r => tg(r.allowed, `S.menuRules['${S.menuSel}'][${r._i}].allowed=!S.menuRules['${S.menuSel}'][${r._i}].allowed;render()`) },
+    { k: 'ops', l: '', nosort: 1, nofilter: 1, v: () => '', h: r => `<button class="btn sm ghost" onclick="S.menuRules['${S.menuSel}'].splice(${r._i},1);render()">Quitar</button>` },
+  ];
+  return gridHtml('menurules', cols, rows, { name: 'Reglas del menú', empty: 'Sin reglas: lo ve quien tiene permiso por su rol.' });
+}
+function viewTipos() {
+  return `<div class="row"><h1>Configuración de tipos</h1><span class="pill blue">Parámetros</span></div>
+  <div class="note info"><b>Los valores se copian en cada registro al crearlo:</b> cambiarlos aquí no altera los registros que ya existen.</div>
+  ${tiposGrid()}
+  <p class="hint">Años fiscales y períodos son parámetros (D17), no maestros: su estado abierto / cerrado es propio.</p>
+  <div class="row"><span class="grow"></span><span class="hint">${S.typesDirty ? 'Cambios sin guardar' : 'Sin cambios'}</span><button class="btn dark" ${S.typesDirty ? '' : 'disabled'} onclick="S.typesDirty=false;render();toast('Configuración guardada','kernel.entity_type_settings.update')">Guardar</button></div>`;
+}
+function viewDest() {
+  const sts = ['saved', 'pending', 'rejected', 'approved', 'posted', 'voided'];
+  return `<div class="row"><h1>Destinatarios por estado</h1><span class="pill blue">Parámetros</span></div>
+  <p class="muted">Cuando un registro entra en un estado, se envía su PDF (plantilla predeterminada) a la lista de ese estado, en copia oculta. Sin lista, no se envía nada. Máximo 50 correos por estado.</p>
+  <div class="row"><label class="lbl" for="d-ent">Entidad</label><select id="d-ent" class="inp" style="width:auto"><option>Comprobante (documento)</option><option>Tercero (maestro)</option></select></div>
+  ${destGrid()}
+  <div class="row"><span class="grow"></span><button class="btn dark" onclick="toast('Listas guardadas (proceso auditado)','kernel.state_recipients.update')">Guardar</button></div>`;
+}
+
+/* =====================================================================================================================
+   Parámetros · Plantillas PDF
+   ===================================================================================================================== */
+const SYS_VARS = ['empresa.nombre', 'empresa.nit', 'empresa.direccion', 'empresa.ciudad', 'empresa.telefono', 'empresa.logo', 'usuario.nombre', 'fecha_impresion'];
+const REC_FIELDS = { seq: 'ID', numero: 'Número', fecha: 'Fecha', fuente: 'Fuente', descripcion: 'Descripción', referencia: 'Referencia', estado: 'Estado', total_debito: 'Total débito', 'extra.cuenta_destino': 'Cuenta destino del pago (enmascarado)' };
+const LINE_COLS = { cuenta: 'Cuenta', tercero: 'Tercero', centro_costo: 'Centro de costo', descripcion: 'Descripción', debito: 'Débito', credito: 'Crédito' };
+const KIND_L = { text: 'Texto fijo', variable: 'Variable', field: 'Campo', lines: 'Tabla de líneas', image: 'Imagen', page_number: 'N.º de página' };
+function defaultBlocks() {
+  return [
+    { kind: 'image', value: 'empresa.logo', x: 40, y: 36, w: 70, h: 44 },
+    { kind: 'variable', value: 'empresa.nombre', x: 122, y: 38, w: 240, font: { size: 13, bold: true } },
+    { kind: 'variable', value: 'empresa.nit', x: 122, y: 58, w: 240, font: { size: 9 } },
+    { kind: 'variable', value: 'empresa.direccion', x: 122, y: 70, w: 240, font: { size: 9 } },
+    { kind: 'text', value: 'COMPROBANTE DE EGRESO', x: 372, y: 38, w: 200, font: { size: 12, bold: true }, align: 'right' },
+    { kind: 'field', value: 'numero', x: 372, y: 56, w: 200, font: { size: 11, bold: true }, align: 'right' },
+    { kind: 'field', value: 'fecha', x: 372, y: 72, w: 200, font: { size: 9 }, align: 'right' },
+    { kind: 'field', value: 'descripcion', x: 40, y: 112, w: 532, font: { size: 10 } },
+    { kind: 'lines', x: 40, y: 140, w: 532, columns: ['cuenta', 'tercero', 'centro_costo', 'debito', 'credito'] },
+    { kind: 'text', value: 'Elaboró ____________________    Aprobó ____________________', x: 40, y: 640, w: 532, font: { size: 9 } },
+    { kind: 'variable', value: 'usuario.nombre', x: 40, y: 742, w: 250, font: { size: 8 } },
+    { kind: 'variable', value: 'fecha_impresion', x: 230, y: 742, w: 150, font: { size: 8 }, align: 'center' },
+    { kind: 'page_number', value: 'Página {n} de {total}', x: 422, y: 742, w: 150, font: { size: 8 }, align: 'right' },
+  ];
+}
+S.tpl = { name: 'Comprobante estándar', scope: 'record', version: 3, isDefault: true, bg: null, blocks: defaultBlocks(), sel: 1, dirty: false };
+S.tplList = [{ name: 'Comprobante estándar', entity: 'Comprobante', scope: 'Un registro', version: 3, def: true }, { name: 'Comprobante con membrete', entity: 'Comprobante', scope: 'Un registro', version: 1, def: false }, { name: 'Listado de comprobantes', entity: 'Comprobante', scope: 'Listado', version: 2, def: true }, { name: 'Ficha de tercero', entity: 'Tercero', scope: 'Un registro', version: 1, def: true }];
+function varValue(v) { return { 'empresa.nombre': COMPANY.nombre, 'empresa.nit': 'NIT ' + COMPANY.nit, 'empresa.direccion': COMPANY.direccion + ' · ' + COMPANY.ciudad, 'empresa.ciudad': COMPANY.ciudad, 'empresa.telefono': COMPANY.telefono, 'usuario.nombre': 'Impreso por Laura Mendoza', fecha_impresion: '2026/11/02 10:15' }[v] ?? ''; }
+function fieldValue(f) { const d = S.doc; return { seq: 'ID ' + int(d.seq), numero: d.number || 'ID ' + int(d.seq), fecha: '2026/10/28', fuente: 'CE · Comprobante de egreso', descripcion: d.desc, referencia: d.ref, estado: ST[d.status], total_debito: money(d.lines.reduce((a, l) => a + (+l.d || 0), 0)), 'extra.cuenta_destino': '' }[f] ?? ''; }
+function blockHtml(b) {
+  const st = `font-size:${(b.font && b.font.size) || 10}px;${b.font && b.font.bold ? 'font-weight:700;' : ''}text-align:${b.align || 'left'};`;
+  if (b.kind === 'text') return `<div style="${st}">${esc(b.value)}</div>`;
+  if (b.kind === 'variable') return `<div style="${st}">${esc(varValue(b.value))}</div>`;
+  if (b.kind === 'field') return `<div style="${st}">${esc(fieldValue(b.value))}</div>`;
+  if (b.kind === 'image') return `<div class="logo">CdN</div>`;
+  if (b.kind === 'page_number') return `<div style="${st}">${esc((b.value || 'Página {n} de {total}').replace('{n}', '1').replace('{total}', '1'))}</div>`;
+  if (b.kind === 'lines') {
+    const cols = b.columns && b.columns.length ? b.columns : Object.keys(LINE_COLS);
+    if (S.tpl.scope === 'list') { const rows = [['1.282', 'CE-000121', '2026/10/25', 'Pago nómina quincena 2', 18450000], ['1.283', 'CE-000122', '2026/10/27', 'Pago arriendo bodega', 3200000], ['1.284', '—', '2026/10/28', 'Pago FV-8841 Tostadores del Huila', 4772900]]; return `<table><thead><tr><th>ID</th><th>Número</th><th>Fecha</th><th>Descripción</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td style="text-align:right">${money(r[4])}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="4">3 registros</td><td style="text-align:right">${money(26422900)}</td></tr></tfoot></table>`; }
+    const val = (l, c) => c === 'cuenta' ? `${l.cuenta} ${ACCOUNTS[l.cuenta]}` : c === 'tercero' ? PARTIES[l.party].name : c === 'centro_costo' ? (CCS[l.cc] || '') : c === 'descripcion' ? l.desc : c === 'debito' ? (l.d ? money(l.d) : '') : c === 'credito' ? (l.c ? money(l.c) : '') : '';
+    const right = c => c === 'debito' || c === 'credito';
+    const tot = S.doc.lines.reduce((a, l) => [a[0] + (+l.d || 0), a[1] + (+l.c || 0)], [0, 0]);
+    return `<table><thead><tr>${cols.map(c => `<th style="${right(c) ? 'text-align:right' : ''}">${LINE_COLS[c]}</th>`).join('')}</tr></thead><tbody>${S.doc.lines.map(l => `<tr>${cols.map(c => `<td style="${right(c) ? 'text-align:right' : ''}">${esc(val(l, c))}</td>`).join('')}</tr>`).join('')}</tbody><tfoot><tr>${cols.map((c, i) => `<td style="${right(c) ? 'text-align:right' : ''}">${c === 'debito' ? money(tot[0]) : c === 'credito' ? money(tot[1]) : i === 0 ? 'Totales' : ''}</td>`).join('')}</tr></tfoot></table>`;
+  }
+  return '';
+}
+const BG_HTML = `<div class="bg"><div style="position:absolute;left:0;right:0;top:0;height:10px;background:#5B3A1E"></div><div style="position:absolute;right:24px;top:96px;width:548px;border-top:1.5px solid #9C6B3C"></div><div style="position:absolute;left:0;right:0;bottom:0;height:34px;background:#F3EBDD;color:#5B3A1E;font-size:8px;display:flex;align-items:center;justify-content:center">Café del Norte S.A.S. · ${COMPANY.direccion}, ${COMPANY.ciudad} · ${COMPANY.telefono} · cafedelnorte.co</div><div style="position:absolute;left:150px;top:330px;font-size:70px;color:rgba(156,107,60,.07);font-weight:700;transform:rotate(-28deg)">Café del Norte</div></div>`;
+function renderPage(host, blocks, opt) { host.innerHTML = `<div class="page" style="transform:scale(${opt.scale})">${opt.bg ? BG_HTML : ''}${blocks.map((b, i) => `<div class="blk ${opt.interactive && i === S.tpl.sel ? 'on' : ''}" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;${b.h ? `height:${b.h}px;` : ''}" ${opt.interactive ? `onclick="S.tpl.sel=${i};render()" title="${KIND_L[b.kind]}"` : ''}>${blockHtml(b)}</div>`).join('')}</div>`; }
+function fitPreview() { const wrap = document.getElementById('pv-scale'); if (!wrap) return; const k = Math.min(1, wrap.clientWidth / 612); wrap.style.height = (792 * k) + 'px'; renderPage(wrap, S.tpl.blocks, { scale: k, bg: S.tpl.bg, interactive: true }); }
+function viewTpl() {
+  const t = S.tpl;
+  const blist = t.blocks.map((b, i) => `<div class="bitem ${i === t.sel ? 'on' : ''}"><div class="bh" onclick="S.tpl.sel=${i === t.sel ? -1 : i};render()"><span class="k">${KIND_L[b.kind]}</span><span class="v">${b.kind === 'lines' ? (b.columns || []).map(c => LINE_COLS[c]).join(', ') : esc(b.value || '')}</span><span class="ops"><button aria-label="Subir" onclick="event.stopPropagation();mvBlock(${i},-1)">▲</button><button aria-label="Bajar" onclick="event.stopPropagation();mvBlock(${i},1)">▼</button><button aria-label="Quitar bloque" onclick="event.stopPropagation();S.tpl.blocks.splice(${i},1);S.tpl.sel=-1;tplDirty()">✕</button></span></div>${i === t.sel ? blockEditor(b, i) : ''}</div>`).join('');
+  return `<div class="row"><h1>Plantillas PDF</h1><span class="pill blue">Parámetros</span></div>
+  ${tplGrid()}
+  <section class="card" style="padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+    <div class="form4">
+      <div class="field"><label>Nombre</label><input value="${esc(t.name)}" oninput="S.tpl.name=this.value;tplSoft()"></div>
+      <div class="field"><label>Entidad</label><select oninput="tplDirty()"><option>Comprobante (documento)</option><option>Tercero (maestro)</option></select></div>
+      <div class="field"><label>Alcance</label><select onchange="S.tpl.scope=this.value;tplDirty()"><option value="record" ${t.scope === 'record' ? 'selected' : ''}>Un registro</option><option value="list" ${t.scope === 'list' ? 'selected' : ''}>Listado (reporte)</option></select></div>
+      <div class="field"><label>Versión</label><div class="row" style="min-height:34px"><span class="pill gray mono">v${t.version}</span><span class="hint" id="tpl-ver">${t.dirty ? `al guardar será v${t.version + 1}` : 'cada vez que se guarda se crea una versión'}</span></div></div>
+    </div>
+    <div class="row"><span class="sw">${tg(t.isDefault, "S.tpl.isDefault=!S.tpl.isDefault;render();toast(S.tpl.isDefault?'Establecida como predeterminada':'Ya no es la predeterminada; se usa la plantilla del sistema','kernel.doc_template.set_default')")}Predeterminada para Comprobante · ${t.scope === 'list' ? 'listado' : 'un registro'}</span><span class="grow"></span><button class="btn" onclick="toast('Vista previa en PDF con ${esc(docName(S.doc))}')">${ic('pdf', 'ic-pdf')}Ver PDF</button><button class="btn dark" id="tpl-save" ${t.dirty ? '' : 'disabled'} onclick="S.tpl.version++;S.tpl.dirty=false;render();toast('Plantilla guardada · versión '+S.tpl.version,'kernel.doc_template.save')">Guardar</button></div>
+  </section>
+  <div class="ted">
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <section class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px"><h3>Fondo (membrete)</h3>
+        ${t.bg ? `<div class="attach">${ic('pdf', 'ic-pdf')}<div class="grow" style="min-width:0"><b>${esc(t.bg)}</b><div class="small muted">Página 1 debajo de la primera hoja · página 2 (si existe) debajo de las siguientes</div></div><button class="btn sm danger" onclick="S.tpl.bg=null;tplDirty()">Quitar</button></div>` : `<div class="drop" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="event.preventDefault();setBg(event.dataTransfer.files[0])">Arrastra un PDF de membrete o <label style="color:var(--link);cursor:pointer"><input type="file" accept="application/pdf" hidden onchange="setBg(this.files[0])">elige un archivo</label><br><span class="small">Primera página como fondo; segunda página opcional para continuación · 25 MB</span><br><button class="btn sm" style="margin-top:6px" onclick="setBg({name:'membrete-cafe-del-norte.pdf'})">Usar membrete de ejemplo</button></div>`}
+      </section>
+      <section class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px"><div class="row"><h3>Bloques</h3><span class="hint">${t.blocks.length} / 200</span><span class="grow"></span><select class="inp" id="add-kind" style="width:auto">${Object.entries(KIND_L).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select><button class="btn sm" onclick="addBlock(document.getElementById('add-kind').value)">${ic('plus')}Agregar</button></div>
+        <div class="blist">${blist}</div></section>
+      <section class="card" style="padding:12px;display:flex;flex-direction:column;gap:8px"><h3>Variables</h3><p class="hint">Clic para agregar un bloque con la variable.</p>
+        <span class="lbl">Sistema</span><div class="vars">${SYS_VARS.map(v => `<button onclick="addBlock('${v === 'empresa.logo' ? 'image' : 'variable'}','${v}')">${v}</button>`).join('')}</div>
+        <span class="lbl">Campos del registro</span><div class="vars">${Object.entries(REC_FIELDS).map(([k, l]) => `<button title="${l}" onclick="addBlock('field','${k}')">${k}</button>`).join('')}</div>
+        <span class="lbl">Columnas de líneas</span><div class="vars">${Object.keys(LINE_COLS).map(k => `<button onclick="addBlock('lines')">${k}</button>`).join('')}</div>
+        <p class="hint">empresa.nombre = Café del Norte S.A.S. · empresa.nit = 900373115-3. Un campo que quien imprime no puede ver se imprime vacío. Dinero como $ 1.234.567,00.</p></section>
+    </div>
+    <div class="pv-wrap"><div class="row" style="width:100%"><b class="small">Vista previa · carta 612 × 792 pt</b><span class="grow"></span><span class="hint">con ${esc(docName(S.doc))}</span></div><div class="pv-scale" id="pv-scale"></div><span class="hint">Clic en un bloque para editarlo. Posición y tamaño se editan en el formulario (sin diseñador visual, §3).</span></div>
+  </div>`;
+}
+function blockEditor(b, i) {
+  const num = (k, l) => `<div class="field"><label>${l}</label><input type="number" min="0" max="1700" value="${b[k] ?? ''}" oninput="S.tpl.blocks[${i}].${k}=+this.value||undefined;tplSoft()"></div>`;
+  let val = '';
+  if (b.kind === 'text') val = `<div class="field w4"><label>Texto</label><input value="${esc(b.value)}" oninput="S.tpl.blocks[${i}].value=this.value;tplSoft()"></div>`;
+  if (b.kind === 'variable') val = `<div class="field w4"><label>Variable</label><select onchange="S.tpl.blocks[${i}].value=this.value;tplDirty()">${SYS_VARS.filter(v => v !== 'empresa.logo').map(v => `<option ${v === b.value ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`;
+  if (b.kind === 'field') val = `<div class="field w4"><label>Campo</label><select onchange="S.tpl.blocks[${i}].value=this.value;tplDirty()">${Object.entries(REC_FIELDS).map(([k, l]) => `<option value="${k}" ${k === b.value ? 'selected' : ''}>${l} · ${k}</option>`).join('')}</select></div>`;
+  if (b.kind === 'image') val = `<div class="field w4"><label>Imagen</label><select><option>empresa.logo</option></select></div>`;
+  if (b.kind === 'page_number') val = `<div class="field w4"><label>Formato</label><input value="${esc(b.value || 'Página {n} de {total}')}" oninput="S.tpl.blocks[${i}].value=this.value;tplSoft()"></div>`;
+  if (b.kind === 'lines') val = `<div class="field w4"><label>Columnas</label><div class="row">${Object.entries(LINE_COLS).map(([k, l]) => `<label class="sw small"><input type="checkbox" ${(b.columns || []).includes(k) ? 'checked' : ''} onchange="toggleCol(${i},'${k}',this.checked)">${l}</label>`).join('')}</div></div>`;
+  const font = b.kind === 'lines' || b.kind === 'image' ? '' : `<div class="field"><label>Tamaño</label><input type="number" min="4" max="72" value="${(b.font && b.font.size) || 10}" oninput="S.tpl.blocks[${i}].font={...(S.tpl.blocks[${i}].font||{}),size:+this.value||10};tplSoft()"></div>
+    <div class="field"><label>Negrita</label><select onchange="S.tpl.blocks[${i}].font={...(S.tpl.blocks[${i}].font||{size:10}),bold:this.value==='1'};tplDirty()"><option value="0">No</option><option value="1" ${b.font && b.font.bold ? 'selected' : ''}>Sí</option></select></div>
+    <div class="field w2"><label>Alineación</label><select onchange="S.tpl.blocks[${i}].align=this.value;tplDirty()">${[['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']].map(([k, l]) => `<option value="${k}" ${(b.align || 'left') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`;
+  return `<div class="be">${val}${num('x', 'X (pt)')}${num('y', 'Y (pt)')}${num('w', 'Ancho')}${num('h', 'Alto')}${font}</div>`;
+}
+function tplDirty() { S.tpl.dirty = true; render(); }
+function tplSoft() { S.tpl.dirty = true; fitPreview(); const v = document.getElementById('tpl-ver'); if (v) v.textContent = `al guardar será v${S.tpl.version + 1}`; const g = document.getElementById('tpl-save'); if (g) g.disabled = false; }
+function mvBlock(i, d) { const a = S.tpl.blocks; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; S.tpl.sel = j; tplDirty(); }
+function toggleCol(i, k, on) { const b = S.tpl.blocks[i]; b.columns = Object.keys(LINE_COLS).filter(c => c === k ? on : (b.columns || []).includes(c)); tplDirty(); }
+function addBlock(kind, value) { const b = { kind, x: 40, y: 600, w: kind === 'lines' ? 532 : 200, font: { size: 10 } }; if (value) b.value = value; if (kind === 'text') b.value = 'Texto nuevo'; if (kind === 'variable' && !value) b.value = 'empresa.nombre'; if (kind === 'field' && !value) b.value = 'referencia'; if (kind === 'image') { b.value = 'empresa.logo'; b.w = 70; b.h = 44; delete b.font; } if (kind === 'page_number') b.value = 'Página {n} de {total}'; if (kind === 'lines') { b.columns = ['cuenta', 'debito', 'credito']; delete b.font; b.y = 470; } S.tpl.blocks.push(b); S.tpl.sel = S.tpl.blocks.length - 1; tplDirty(); toast(`Bloque agregado: ${KIND_L[kind]}${value ? ' · ' + value : ''}`); }
+function setBg(file) { if (!file) return; if (file.name && !/\.pdf$/i.test(file.name)) { toast('El fondo debe ser un PDF'); return; } S.tpl.bg = file.name; tplDirty(); toast('Fondo cargado (en el prototipo se simula el membrete)'); }
+
+/* =====================================================================================================================
+   Administración · Acceso al menú
+   ===================================================================================================================== */
+S.menuSel = 'acc.parametros.plantillas';
+S.menuRules = { 'acc.parametros.plantillas': [{ kind: 'role', who: 'Contador', allowed: true }, { kind: 'role', who: 'Tesorería', allowed: false }], 'acc.reportes': [{ kind: 'user', who: 'Marcela Ruiz', allowed: false }] };
+function viewMenuAccess() {
+  const tree = [];
+  Object.entries(MODULES).forEach(([mid, m]) => { tree.push([mid, m.name, 0]); SECTIONS.forEach(([k, l]) => { tree.push([`${mid}.${k}`, l, 1]); m.sections[k].forEach(([id, t]) => tree.push([`${mid}.${k}.${id}`, t, 2])); }); });
+  const label = (tree.find(x => x[0] === S.menuSel) || [, S.menuSel])[1];
+  const rules = S.menuRules[S.menuSel] || [];
+  return `<div class="row"><h1>Acceso al menú</h1><span class="pill blue">Administración › Parámetros</span></div>
+  <div class="note info"><b>Las reglas solo restringen; no aplican a administradores.</b> Una regla «Permitido» nunca muestra un elemento que el rol no puede abrir. Un elemento oculto también se rechaza en el servidor (sus pantallas y procesos).</div>
+  <div class="ted macc">
+    <section class="card" style="padding:8px;max-height:560px;overflow:auto">${tree.map(([id, l, lv]) => `<button style="display:flex;width:100%;gap:6px;align-items:center;text-align:left;border:0;border-radius:6px;padding:7px 8px 7px ${8 + lv * 18}px;background:${id === S.menuSel ? 'var(--accent)' : 'transparent'};font-weight:${lv < 2 ? 700 : 400};font-size:13px;min-height:32px" onclick="S.menuSel='${id}';render()">${l}${S.menuRules[id] && S.menuRules[id].length ? `<span class="pill warn" style="margin-left:auto">${S.menuRules[id].length} regla${S.menuRules[id].length > 1 ? 's' : ''}</span>` : ''}</button>`).join('')}</section>
+    <section class="card" style="padding:14px;display:flex;flex-direction:column;gap:10px"><h2>${esc(label)}</h2>
+      ${menuRulesGrid()}
+      <div class="row"><select class="inp" id="m-new" style="width:auto"><option value="role:Contador">Rol · Contador</option><option value="role:Tesorería">Rol · Tesorería</option><option value="role:Vendedor">Rol · Vendedor</option><option value="user:Marcela Ruiz">Usuario · Marcela Ruiz</option><option value="user:Sofía Rincón">Usuario · Sofía Rincón</option></select><button class="btn" onclick="const [k,w]=document.getElementById('m-new').value.split(':');(S.menuRules[S.menuSel]=S.menuRules[S.menuSel]||[]).push({kind:k,who:w,allowed:true});render()">${ic('plus')}Agregar regla</button><span class="grow"></span><button class="btn dark" onclick="toast('Reglas del menú guardadas (proceso auditado)','kernel.menu_access.set')">Guardar</button></div>
+      <p class="hint">Una regla en un módulo o en una sección aplica a todo lo que está debajo.</p></section>
+  </div>`;
+}
+
+applyTheme(); render(); applyRail();
+</script>
+</body>
+</html>

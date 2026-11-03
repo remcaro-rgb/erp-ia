@@ -13,10 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@erp/ui/components/ui/dropdown-menu";
 import { MobileMenu } from "./MobileMenu";
-import { ModuleBar } from "./ModuleBar";
 import { ThemeToggle } from "./ThemeToggle";
 import { nextTheme } from "./theme";
-import type { NavItem, ShellCompany, ShellModule, ShellUser, ThemeMode } from "./types";
+import type { ShellCompany, ShellModule, ShellUser, ThemeMode } from "./types";
 
 export interface TopBarProps {
   company: ShellCompany;
@@ -24,12 +23,9 @@ export interface TopBarProps {
   user: ShellUser;
   /** Modules the company is entitled to that have items for the caller. */
   modules: ShellModule[];
-  /** Items per module id. */
-  itemsByModule: Record<string, NavItem[]>;
   activeModuleId: string | undefined;
+  /** The «Menú» sheet below 1024 px picks a module (shell v7: the side menu's names). */
   onSelectModule: (moduleId: string) => void;
-  activeHref: string;
-  onNavigate: (target: { href: string; title: string; kind: "home" | "grid" }) => void;
   theme: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
   onOpenPalette: () => void;
@@ -62,18 +58,19 @@ export const initialsOf = (name: string): string =>
     .join("");
 
 /**
- * The navy top bar (design §19a, prototype `<header class="bar">`): brand, company switcher, Módulos menu with
- * the active module's items next to it, the ⌘K box, theme, notifications, Asistente and the user menu.
+ * The navy top bar (design §19a, shell v7 §22.24, prototype `<header class="bar">`): brand, company switcher, the «Menú» sheet below
+ * 1024 px, the ⌘K box, theme, notifications, Asistente and the user menu. The modules live in the side menu and the active module's
+ * sections in the items bar under this one.
  */
 export function TopBar(props: TopBarProps) {
-  const { company, companies, user, modules, itemsByModule, activeModuleId, activeHref } = props;
+  const { company, companies, user, modules, activeModuleId } = props;
   const t = useTranslations();
   const s = (key: string, values?: Record<string, string | number>) => t(`nav.shell.${key}`, values);
   const active = modules.find((m) => m.id === activeModuleId) ?? modules[0];
   const themeName = s(`theme_${props.theme}`).toLowerCase();
 
   return (
-    <header data-bar className="relative z-10 flex h-12 shrink-0 items-center gap-1.5 bg-bar px-3 text-bar-text sm:gap-2.5 sm:px-4">
+    <header data-bar className="relative z-10 flex h-(--erp-bar-h) shrink-0 items-center gap-1.5 bg-bar px-3 text-bar-text sm:gap-2.5 sm:px-4">
       <div className="mr-1.5 flex shrink-0 items-center gap-2 text-[15px] font-bold whitespace-nowrap text-white">
         <i aria-hidden="true" className="inline-block size-[22px] rounded-md bg-focus" />
         <span className="hidden sm:inline">{s("brand")}</span>
@@ -106,42 +103,9 @@ export function TopBar(props: TopBarProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger className={cn(barButton, "hidden border border-bar-line bg-transparent text-bar-text lg:block")} title={s("modules")}>
-          {active ? t(active.label) : s("modules")} ▾
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className={menuClass}>
-          <DropdownMenuLabel className={headClass}>{s("modules_title")}</DropdownMenuLabel>
-          {modules.map((m) => (
-            <DropdownMenuItem key={m.id} className={itemClass} onSelect={() => props.onSelectModule(m.id)}>
-              <span className="inline-flex w-4 justify-center">{m.id === active?.id && <Check className="size-4" aria-hidden="true" />}</span>
-              {t(m.label)}
-              <span className="ml-auto text-xs text-text-muted">{s("module_options", { count: (itemsByModule[m.id] ?? []).flatMap((i) => i.children ?? [i]).length })}</span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <MobileMenu modules={modules} activeModuleId={active?.id} onSelectModule={props.onSelectModule} />
 
-      <MobileMenu
-        modules={modules}
-        itemsByModule={itemsByModule}
-        activeModuleId={active?.id}
-        onSelectModule={props.onSelectModule}
-        activeHref={activeHref}
-        onNavigate={props.onNavigate}
-        showHome={active?.id === modules[0]?.id}
-      />
-
-      {active && (
-        <ModuleBar
-          items={(itemsByModule[active.id] ?? []).filter((item) => item.menu !== false)}
-          showHome={active.id === modules[0]?.id}
-          activeHref={activeHref}
-          onNavigate={props.onNavigate}
-        />
-      )}
-
-      <div className="grow lg:hidden" />
+      <div className="grow" />
 
       <label htmlFor="erp-cmd" className="sr-only">
         {s("command_label")}

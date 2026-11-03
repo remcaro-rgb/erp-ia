@@ -28,7 +28,9 @@ Una cuenta restringida para ti aparece como **Cuenta restringida**, con un canda
 
 ## Crear una cuenta auxiliar
 
-Las clases, grupos, cuentas y subcuentas vienen del PUC y no se crean a mano. Lo que sí agregas son **auxiliares**, por ejemplo una cuenta por banco.
+Las clases, grupos, cuentas y subcuentas vienen del PUC y no se crean a mano. Lo que sí agregas son **auxiliares**, por ejemplo una cuenta por banco. Las cuentas del PUC que no traen subcuentas oficiales pero que una empresa comercial usa a diario (salarios por pagar, cesantías, intereses sobre cesantías, prima y vacaciones consolidadas, compras y devoluciones en compras de mercancías) vienen con su subcuenta terminada en 05, por ejemplo **250505 Salarios por pagar** o **620505 De mercancías**; también vienen las subcuentas de impuesto de renta e industria y comercio por pagar (240405, 241205), las obligaciones laborales estimadas (261005 a 261020) y el mantenimiento (514505 a 514540).
+
+La empresa demo Café del Norte S.A.S. trae, además del PUC, dos auxiliares de bancos (**11100501 Davivienda cuenta corriente**, **11100502 Bancolombia cuenta de ahorros**), los saldos iniciales de 2026 y comprobantes de ejemplo de compras y ventas: facturas, recibos con retenciones, notas crédito, costo de ventas, nómina, una compra de café con IVA descontable, retención en la fuente, ReteIVA y ReteICA, su devolución, el pago al proveedor, un mantenimiento, la provisión de prestaciones sociales y los rendimientos financieros.
 
 1. Selecciona una **subcuenta**, o un auxiliar que todavía no tenga movimientos, en el Árbol.
 2. Pulsa **Nueva cuenta auxiliar** (el botón queda desactivado si lo seleccionado no admite hijas, y el texto de ayuda dice por qué).
@@ -52,7 +54,7 @@ Haz clic en una fila para abrir la cuenta. Sus pestañas:
 
 ## Desactivar una cuenta
 
-En **Datos**, quita la marca **Activa**. Una cuenta inactiva conserva su historia pero no recibe comprobantes nuevos: si una regla contable apunta a ella, el evento queda en **Pendientes de contabilizar** con el motivo **Cuenta inactiva**.
+En **Datos**, quita la marca **Activa**. Una cuenta inactiva conserva su historia pero no recibe comprobantes nuevos: si una regla contable apunta a ella, el evento queda en **Pendientes de contabilizar** con el motivo **Cuenta inactiva**. No se puede desactivar mientras tenga líneas en comprobantes sin contabilizar (en **Borrador**, **Grabado**, **Pendiente de Aprobación** o **No Aprobado**). Una cuenta que ya se usó (en comprobantes, plantillas, reglas o como cuenta madre) no se elimina: se desactiva.
 
 ## Si algo no funciona
 

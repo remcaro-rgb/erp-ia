@@ -99,7 +99,8 @@ test.describe("phase 1 smoke on the demo company", () => {
     await expect(page.locator("header").first().getByRole("button", { name: /Café del Norte/ })).toBeVisible();
 
     // Terceros from the module bar opens its tab; the name filter finds Éxito on the server.
-    await page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("link", { name: "Terceros" }).click();
+    await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Maestros", exact: true }).click();
+    await page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem", { name: "Terceros" }).click();
     await expect(page).toHaveURL(/\/parties$/);
     await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).getByRole("button", { name: "Terceros", exact: true })).toHaveAttribute("aria-current", "page");
     const terceros = page.getByRole("region", { name: "Terceros" });
@@ -119,6 +120,8 @@ test.describe("phase 1 smoke on the demo company", () => {
     await ask(page, "busca el cliente Éxito");
     const table = drawer.getByRole("table");
     await expect(table.getByText("Almacenes Éxito S.A.")).toBeVisible();
+    // UX-OD-6: six columns at first; the credit limit sits behind «Ver todas las columnas».
+    await drawer.getByRole("button", { name: /^Ver todas las columnas/ }).click();
     await expect(table.getByRole("columnheader", { name: "Cupo de crédito" })).toBeVisible();
 
     // A write: the assistant prepares the confirmation card, nothing exists until Laura confirms.
@@ -220,6 +223,8 @@ test.describe("phase 1 smoke on the demo company", () => {
     await ask(page, "busca el cliente Éxito");
     const table = drawer.getByRole("table");
     await expect(table.getByText("Almacenes Éxito S.A.")).toBeVisible();
+    // UX-OD-6: six columns at first; the credit limit sits behind «Ver todas las columnas».
+    await drawer.getByRole("button", { name: /^Ver todas las columnas/ }).click();
     await expect(table.getByRole("columnheader", { name: "Cupo de crédito" })).toHaveCount(0);
     await expect
       .poll(async () => (await sql`select 1 from kernel.agent_messages where company_id = ${DEMO_COMPANY_ID} and role = 'assistant' and parts::text like '%Almacenes Éxito%' and created_at > now() - interval '5 minutes'`).length)

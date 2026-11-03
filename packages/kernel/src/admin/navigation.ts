@@ -15,5 +15,6 @@ export const ADMIN_NAVIGATION: NavItem[] = [
   { id: "kernel.admin_sensitive", label: "nav.kernel.sensitive", href: "/admin/sensitive", icon: "lock", process: "kernel.admin.sensitive_process.set", menu: false },
   { id: "kernel.admin_verifiers", label: "nav.kernel.verifiers", href: "/admin/verifiers", icon: "check", process: "kernel.verifier.set", menu: false },
   { id: "kernel.admin_modules", label: "nav.kernel.modules", href: "/admin/modules", icon: "grid", process: "kernel.admin.module.enable", menu: false },
+  { id: "kernel.admin_menu_access", label: "nav.kernel.menu_access", href: "/admin/menu-access", icon: "lock", process: "kernel.menu_access.set", menu: false },
   { id: "kernel.admin_companies", label: "nav.kernel.companies", href: "/admin/companies", icon: "building", process: "kernel.admin.company.update", menu: false },
 ];

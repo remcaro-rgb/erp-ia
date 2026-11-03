@@ -1,5 +1,5 @@
-import type { ImportColumn } from "./columns";
-import type { Cell, ParsedSheet } from "./parse";
+import { LINES_LABEL_PREFIX, REF_KEY, type ImportColumn, type ImportLines } from "./columns";
+import type { Cell, ImportBook, ParsedSheet } from "./parse";
 
 // From a parsed sheet to create-process inputs (design §5.11 "map"): each header is matched to a column by its
 // label, its key or its field name (case, accents and punctuation ignored), and each cell is coerced to its
@@ -16,6 +16,17 @@ export interface ImportRecord {
   input: Record<string, unknown>;
   /** Cells that could not be read as their column's type. */
   errors: string[];
+  /** A documento's record (D14): the Líneas row of each of its lines, in the order of `input[lines.key]`. */
+  lineRows?: number[];
+  /** A documento's record: each of its lines' Líneas row and original cells, for errores.csv. */
+  lines?: { rowNo: number; raw: Record<string, string> }[];
+}
+
+/** A line of a documento's Líneas sheet refused on its own (its `ref` names no header row): a line error, not a refused document. */
+export interface LineFailure {
+  rowNo: number;
+  errors: string[];
+  raw: Record<string, string>;
 }
 
 export interface MappedSheet {
@@ -26,6 +37,9 @@ export interface MappedSheet {
   /** Keys of the required columns no header matches. */
   missingColumns: string[];
   records: ImportRecord[];
+  /** A documento's file (D14): the Líneas sheet's headers, and its lines refused on their own. */
+  lineHeaders?: string[];
+  lineFailures?: LineFailure[];
 }
 
 const normalize = (text: string) =>
@@ -173,4 +187,90 @@ export function inFileDuplicates(
     else duplicates.set(index, `${names}: repetido en el archivo (igual a la fila ${seen})`);
   }
   return duplicates;
+}
+
+/** The labels of the lines sheet's columns: the entries of `labels` under `lines.`, without the prefix (and `ref`). */
+export function lineLabels(labels: ImportLabels = {}): ImportLabels {
+  const out: ImportLabels = labels[REF_KEY] ? { [REF_KEY]: labels[REF_KEY]! } : {};
+  for (const [key, label] of Object.entries(labels)) if (key.startsWith(LINES_LABEL_PREFIX)) out[key.slice(LINES_LABEL_PREFIX.length)] = label;
+  return out;
+}
+
+/** "Líneas, fila 7: " — what a line's refusal starts with: the row the user fixes in the Líneas sheet. */
+export const linePrefix = (rowNo: number) => `Líneas, fila ${rowNo}: `;
+
+const refOf = (record: ImportRecord) => {
+  const ref = record.input[REF_KEY];
+  return ref === undefined || ref === null || String(ref).trim() === "" ? null : String(ref).trim().toLowerCase();
+};
+
+/** What a document without lines is refused with when no catalogue says it (`grid.import.document_without_lines`). */
+const NO_LINES = "El documento no tiene líneas";
+
+/**
+ * A documento's file as records (entity types spec §2.5, D14): one record per header row, whose input carries the lines of the Líneas
+ * sheet with the same `ref` (case and surrounding spaces ignored) under `lines.key`, in sheet order. The `ref` itself is not an input of
+ * the create process. The record's errors:
+ * - a header row without `ref`;
+ * - header rows sharing a `ref`: every one of them is refused, the first included, with none of their lines (the file does not say
+ *   which lines belong to which);
+ * - a header row with no lines ("El documento no tiene líneas", from the catalogue through `t` when given);
+ * - a line cell that cannot be read, named by its Líneas row.
+ * A line whose `ref` names no header row is a line failure of its own (`lineFailures`), never silently dropped and never counted as a
+ * refused document. The headers, mapping and missing columns are the header sheet's (a required line column the Líneas sheet lacks is
+ * missing too, as `lines.<key>`).
+ */
+export function mapDocuments(
+  columns: ImportColumn[],
+  lines: ImportLines,
+  book: ImportBook,
+  labels: ImportLabels = {},
+  t?: (key: string) => string | undefined,
+): MappedSheet {
+  const header = mapSheet(columns, book.header, labels);
+  const lineSheet = mapSheet(lines.columns, book.lines ?? { headers: [], rows: [] }, lineLabels(labels));
+  const refLabel = columnLabel(columns.find((c) => c.key === REF_KEY)!, labels);
+  const byRef = new Map<string, ImportRecord[]>();
+  for (const record of header.records) {
+    const ref = refOf(record);
+    delete record.input[REF_KEY];
+    record.input[lines.key] = [];
+    record.lineRows = [];
+    record.lines = [];
+    if (ref === null) record.errors.push(`${refLabel}: obligatorio`);
+    else byRef.set(ref, [...(byRef.get(ref) ?? []), record]);
+  }
+  for (const group of byRef.values()) {
+    if (group.length < 2) continue;
+    const rows = group.map((r) => r.rowNo).join(", ");
+    for (const record of group) record.errors.push(`${refLabel}: repetido en el archivo (filas ${rows})`);
+  }
+  const lineFailures: LineFailure[] = [];
+  for (const line of lineSheet.records) {
+    const ref = refOf(line);
+    const owners = ref === null ? undefined : byRef.get(ref);
+    if (!owners) {
+      const shown = line.input[REF_KEY] === undefined ? "" : String(line.input[REF_KEY]).trim();
+      lineFailures.push({ rowNo: line.rowNo, raw: line.raw, errors: [shown === "" ? `${refLabel}: obligatorio` : `${refLabel} «${shown}» no corresponde a ningún encabezado`] });
+      continue;
+    }
+    // A repeated ref: its lines belong to no document (each of those rows is already refused).
+    if (owners.length > 1) continue;
+    const owner = owners[0]!;
+    delete line.input[REF_KEY];
+    owner.errors.push(...line.errors.map((error) => `${linePrefix(line.rowNo)}${error}`));
+    (owner.input[lines.key] as Record<string, unknown>[]).push(line.input);
+    owner.lineRows!.push(line.rowNo);
+    owner.lines!.push({ rowNo: line.rowNo, raw: line.raw });
+  }
+  for (const record of header.records) {
+    if (record.errors.length === 0 && (record.input[lines.key] as unknown[]).length === 0) record.errors.push(t?.("grid.import.document_without_lines") ?? NO_LINES);
+  }
+  return {
+    ...header,
+    missingColumns: [...header.missingColumns, ...lineSheet.missingColumns.map((key) => `${LINES_LABEL_PREFIX}${key}`)],
+    records: header.records,
+    lineHeaders: lineSheet.headers,
+    lineFailures,
+  };
 }

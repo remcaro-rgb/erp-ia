@@ -112,14 +112,22 @@ test.describe("administration", () => {
     await fixture.cleanup();
   });
 
-  /** Pedro's module bar, read in a fresh session (his roles are claims of the session's JWT). */
+  /** Pedro's module bar, read in a fresh session (his roles are claims of the session's JWT): its links and the items of each section. */
   async function pedroMenu(browser: Browser): Promise<string[]> {
-    const context = await browser.newContext();
+    // The admin's width: at the default 1280 px the assistant panel pushes Parámetros into "Más".
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await signIn(page, pedro.email, pedro.password);
-    const items = page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("link");
+    const bar = page.getByRole("navigation", { name: "Menú del módulo" });
+    const items = bar.getByRole("link");
     await expect(items.first()).toBeVisible();
     const texts = await items.allTextContents();
+    // The four sections (entity types spec §2.4) open a menu each.
+    for (const section of ["Maestros", "Documentos", "Reportes", "Parámetros"]) {
+      await bar.getByRole("button", { name: section, exact: true }).click();
+      texts.push(...(await page.getByRole("menu", { name: section }).getByRole("menuitem").allTextContents()));
+      await page.keyboard.press("Escape");
+    }
     await context.close();
     return texts.map((t) => t.trim());
   }
@@ -399,7 +407,7 @@ test.describe("administration", () => {
     ];
     for (const [href, heading] of sections) {
       await page.goto(href);
-      await expect(page.getByText(heading, { exact: true }).first()).toBeVisible();
+      await expect(page.locator("#erp-main").getByText(heading, { exact: true }).first()).toBeVisible();
     }
     // Field visibility: the confidential credit limit of parties is marked.
     await page.goto("/admin/fields");

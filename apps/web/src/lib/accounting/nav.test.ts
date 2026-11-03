@@ -18,9 +18,12 @@ describe("optional masters in the menu", () => {
     expect(ids(hideOptionalMasters(accounting.navigation, { openAuxiliaries: true, items: true, businessUnits: true }))).toEqual(ids(accounting.navigation));
   });
 
-  it("the six items of the bar stay in order", () => {
+  it("the four sections of the bar stay in order; a section left with no item stays (its empty state)", () => {
     const bar = hideOptionalMasters(accounting.navigation, { openAuxiliaries: false, items: false, businessUnits: false }).map((i) => i.id);
-    expect(bar).toEqual(["accounting.entries", "accounting.movements", "accounting.masters", "accounting.periods", "accounting.reports", "accounting.posting"]);
+    expect(bar).toEqual(["accounting.maestros", "accounting.documentos", "accounting.reportes", "accounting.parametros"]);
+    const onlyOptional = accounting.navigation.map((i) => (i.id === "accounting.maestros" ? { ...i, children: i.children!.filter((c) => c.id === "accounting.items") } : i));
+    const emptied = hideOptionalMasters(onlyOptional, { openAuxiliaries: false, items: false, businessUnits: false });
+    expect(emptied.find((i) => i.id === "accounting.maestros")?.children).toEqual([]);
   });
 });
 

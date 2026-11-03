@@ -37,4 +37,12 @@ export interface ProcessContext {
   emit(event: string, payload: unknown): Promise<void>;
   /** Writes an extra audit entry in the process transaction; unset fields default to the process's. */
   audit(entry: Partial<AuditEntry>): Promise<void>;
+  /**
+   * Runs `fn` once the run's transaction has committed (never after a refusal, a rollback or a dry run), before runProcess returns,
+   * in registration order. It is for effects outside the database that must only happen once the run is recorded (Notificar sends
+   * its mail after its log row is committed, Task 12). `asCaller` opens a new transaction as the caller, with the run's audit context.
+   * An error it throws is logged and the caller still gets the committed result (the next steps still run). Absent on contexts that
+   * are not a runProcess run.
+   */
+  afterCommit?(fn: (asCaller: <T>(work: (tx: Tx) => Promise<T>) => Promise<T>) => Promise<void>): void;
 }

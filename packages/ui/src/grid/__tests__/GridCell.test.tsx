@@ -22,6 +22,19 @@ const inRow = (cell: React.ReactNode) => (
 );
 
 describe("GridCell", () => {
+  it("D20: a placeholder row shows «••••» in every cell it masks and its own values (the line number) as they are", () => {
+    const row = { id: "1", __row_masked: true, line_no: 3, debit: null, account_id: null };
+    renderEs(
+      <NavigateProvider navigate={vi.fn()}>
+        {inRow(<GridCell column={column({ field: "line_no", type: "number" })} row={row} />)}
+        {inRow(<GridCell column={column({ field: "debit", type: "money" })} row={row} />)}
+        {inRow(<GridCell column={column({ field: "account_id", type: "ref", ref: { entity: "accounting.account", labelField: "name" } as never })} row={row} />)}
+      </NavigateProvider>,
+    );
+    expect(screen.getByText("3")).toBeTruthy();
+    expect(screen.getAllByText("••••")).toHaveLength(2);
+  });
+
   it("shows a date and time in the company's zone given by the shell, and a date alone as the same day", () => {
     renderEs(
       <CellFormatProvider timeZone="Asia/Tokyo">

@@ -70,7 +70,7 @@ interface Admin {
 }
 
 /** Runs `read` as the caller when they are the company admin, else answers null. */
-async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T | null> {
+export async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T | null> {
   const caller = await requireCaller();
   const deps = processDeps();
   await registrySynced();
@@ -80,7 +80,7 @@ async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T
   });
 }
 
-async function roles(tx: Tx): Promise<AdminRole[]> {
+export async function roles(tx: Tx): Promise<AdminRole[]> {
   const rows = await tx<{ id: string; name: string; description: string; party_scope: string; system_admin: boolean }[]>`
     select id, name, description, party_scope, is_system and name = 'admin' as system_admin
     from kernel.v_roles where company_id = kernel.current_company_id() order by is_system desc, created_at, id`;
@@ -101,7 +101,7 @@ type MemberRow = {
   is_active: boolean;
 };
 
-async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
+export async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
   const rows = await tx<MemberRow[]>`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled, mfa_exempt, locale, is_active
     from kernel.v_memberships where company_id = kernel.current_company_id() and (${userId ?? null}::uuid is null or user_id = ${userId ?? null}::uuid)
     order by full_name, email`;
@@ -121,7 +121,7 @@ async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
 }
 
 /** The modules the company uses (the platform included). */
-async function usableModules(tx: Tx, registry: Registry): Promise<Set<string>> {
+export async function usableModules(tx: Tx, registry: Registry): Promise<Set<string>> {
   return new Set((await moduleStates(tx, registry)).filter((m) => m.enabled).map((m) => m.id));
 }
 
@@ -286,12 +286,20 @@ export interface CompanyData {
   countryCode: string;
   currencyCode: string;
   timezone: string;
+  /** The letterhead of the PDF templates. */
+  addressLine: string | null;
+  city: string | null;
+  phoneCc: string | null;
+  phone: string | null;
 }
 
 export const loadCompany = (): Promise<CompanyData | null> =>
   asAdmin(async (tx) => {
     const [row] = await tx<{ legal_name: string; trade_name: string | null; tax_id: string | null; country_code: string; currency_code: string; timezone: string }[]>`
       select legal_name, trade_name, tax_id, country_code, currency_code, timezone from kernel.v_companies`;
+    // What the PDF templates print in the letterhead (0048; kernel.admin.company.update): company RLS applies to the read.
+    const [print] = await tx<{ address_line: string | null; city: string | null; phone_cc: string | null; phone: string | null }[]>`
+      select address_line, city, phone_cc, phone from kernel.companies where id = kernel.current_company_id()`;
     return {
       legalName: row!.legal_name,
       tradeName: row!.trade_name,
@@ -299,6 +307,10 @@ export const loadCompany = (): Promise<CompanyData | null> =>
       countryCode: row!.country_code,
       currencyCode: row!.currency_code,
       timezone: row!.timezone,
+      addressLine: print?.address_line ?? null,
+      city: print?.city ?? null,
+      phoneCc: print?.phone_cc ?? null,
+      phone: print?.phone ?? null,
     };
   });
 

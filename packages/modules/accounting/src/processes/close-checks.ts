@@ -1,5 +1,6 @@
 import type { ProcessContext } from "@erp/kernel";
 import { controlReconciliation } from "../reports/control-reconciliation";
+import { AWAITING_APPROVAL_STATES, UNFINISHED_ENTRY_STATES } from "./common";
 
 // The ten checks of design §4.14 that `period.close` runs and records as the sign-off. Each carries the figures it compared and a
 // Spanish note the screens and the assistant show as the reason of a refusal.
@@ -29,19 +30,21 @@ export const money = (value: number): string => `$ ${new Intl.NumberFormat("es-C
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export async function runCloseChecks(ctx: ProcessContext, period: ClosingPeriod, tolerance: number): Promise<CloseCheck[]> {
-  const count = async (status: string): Promise<number> =>
+  // The comprobantes that are not final yet (entity types spec §5.1): those a person still holds (Borrador, Grabado, No Aprobado)
+  // and those that wait on an approver (Pendiente; Aprobado only for the instant it posts).
+  const count = async (statuses: readonly string[]): Promise<number> =>
     (await ctx.tx<{ n: number }[]>`
       select count(*)::int as n from accounting.entries
-      where company_id = ${ctx.companyId} and status = ${status} and date between ${period.startsOn}::date and ${period.endsOn}::date`)[0]!.n;
+      where company_id = ${ctx.companyId} and status = any(${[...statuses]}::text[]) and date between ${period.startsOn}::date and ${period.endsOn}::date`)[0]!.n;
   const checks: CloseCheck[] = [];
 
-  const drafts = await count("draft");
+  const drafts = await count(UNFINISHED_ENTRY_STATES);
   checks.push({
     check: "drafts", passed: drafts === 0, value: { count: drafts },
-    note: drafts === 0 ? "Sin borradores en el período" : `Hay ${plural(drafts, "borrador", "borradores")} con fecha en el período: contabilízalos o anúlalos`,
+    note: drafts === 0 ? "Sin borradores en el período" : `Hay ${plural(drafts, "borrador", "borradores")} con fecha en el período: grábalos, elimínalos o anúlalos`,
   });
 
-  const pending = await count("pending");
+  const pending = await count(AWAITING_APPROVAL_STATES);
   checks.push({
     check: "pending_approvals", passed: pending === 0, value: { count: pending },
     note: pending === 0 ? "Sin comprobantes pendientes de aprobación" : `Hay ${plural(pending, "comprobante pendiente", "comprobantes pendientes")} de aprobación en el período`,
@@ -99,11 +102,14 @@ export async function runCloseChecks(ctx: ProcessContext, period: ClosingPeriod,
   });
 
   const oversized = control.rounding.oversized;
+  // Lines of comprobantes a record rule hides from the caller are counted, never listed (D11).
+  const oversizedCount = oversized.length + control.rounding.oversizedHidden;
   checks.push({
-    check: "rounding_within_tolerance", passed: oversized.length === 0, value: { net: control.rounding.net, lines: control.rounding.lines, oversized: oversized.slice(0, 20) },
-    note: oversized.length === 0
+    check: "rounding_within_tolerance", passed: oversizedCount === 0,
+    value: { net: control.rounding.net, lines: control.rounding.lines, oversized: oversized.slice(0, 20), oversizedHidden: control.rounding.oversizedHidden },
+    note: oversizedCount === 0
       ? `El ajuste al peso del período (${money(control.rounding.net)}) está dentro de la tolerancia`
-      : `${plural(oversized.length, "línea de ajuste al peso supera", "líneas de ajuste al peso superan")} la tolerancia de ${money(tolerance)}`,
+      : `${plural(oversizedCount, "línea de ajuste al peso supera", "líneas de ajuste al peso superan")} la tolerancia de ${money(tolerance)}`,
   });
 
   const contra = await ctx.tx<{ id: string; code: string; name: string; nature: string; balance: string }[]>`
@@ -111,7 +117,7 @@ export async function runCloseChecks(ctx: ProcessContext, period: ClosingPeriod,
     from accounting.entry_lines l
     join accounting.entries e on e.id = l.entry_id
     join accounting.accounts a on a.id = l.account_id
-    where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date <= ${period.endsOn}::date and accounting.can_view_account(l.account_id)
+    where l.company_id = ${ctx.companyId} and e.status = 'posted' and e.date <= ${period.endsOn}::date and accounting.can_view_account(l.account_id)
     group by a.id, a.code, a.name, a.nature
     having sum(case when a.nature = 'debit' then l.debit - l.credit else l.credit - l.debit end) < ${-tolerance}
     order by a.code`;

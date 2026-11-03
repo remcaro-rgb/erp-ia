@@ -6,7 +6,7 @@ import { MAX_XLSX_UNCOMPRESSED_BYTES, rebuildXlsx } from "./zip";
 export { importFormatOf, type ImportFormat } from "./format";
 
 // Reading an import file (design §5.11): CSV separated by ";" or "," (UTF-8, or the Windows-1252 Excel writes as
-// "CSV" on Windows) or the first sheet of an XLSX workbook. The header is the first row; data rows keep the number
+// "CSV" on Windows) or the first visible sheet of an XLSX workbook. The header is the first row; data rows keep the number
 // the spreadsheet shows (header = 1) so errores.csv points at the same line; blank rows are skipped.
 
 /** A cell as read: text from CSV, typed values from XLSX. */
@@ -123,7 +123,7 @@ function xlsxCell(value: ExcelJS.CellValue): Cell {
 }
 
 /**
- * The first sheet of an XLSX. The upload itself never reaches ExcelJS: `rebuildXlsx` reads it strictly, inflates it
+ * The first visible sheet of an XLSX. The upload itself never reaches ExcelJS: `rebuildXlsx` reads it strictly, inflates it
  * under the 64 MB bound and rebuilds a fresh stored archive, which is what ExcelJS loads. The sheet's extent (rows,
  * columns) is checked before a cell is copied. It is loaded whole rather than streamed:
  * ExcelJS 4.4's streaming WorkbookReader fails on workbooks whose sheets come before `xl/workbook.xml` in the zip
@@ -131,15 +131,12 @@ function xlsxCell(value: ExcelJS.CellValue): Cell {
  * sheets by zip order instead of workbook order.
  */
 async function readXlsx(bytes: Uint8Array): Promise<Cell[][]> {
-  const rebuilt = rebuildXlsx(bytes);
-  const book = new ExcelJS.Workbook();
-  try {
-    await book.xlsx.load(rebuilt as unknown as ArrayBuffer);
-  } catch {
-    throw new ImportFileError("El archivo no es un libro de Excel (.xlsx) válido");
-  }
-  const sheet = book.worksheets[0];
-  if (!sheet) return [];
+  // The first visible sheet, as a documento's header (m5): a hidden sheet is never the data.
+  return (await readXlsxSheets(bytes))[0]?.lines ?? [];
+}
+
+/** The lines of one worksheet, its extent checked before a cell is copied. */
+function sheetLines(sheet: ExcelJS.Worksheet): Cell[][] {
   if (sheet.columnCount > MAX_IMPORT_COLUMNS) throw tooWide();
   if (sheet.rowCount > MAX_IMPORT_ROWS + 1) throw tooLong();
   const lines: Cell[][] = [];
@@ -152,6 +149,19 @@ async function readXlsx(bytes: Uint8Array): Promise<Cell[][]> {
   return lines;
 }
 
+/** Every visible worksheet, in workbook order, with their names (each checked for its extent before a cell is copied). */
+async function readXlsxSheets(bytes: Uint8Array): Promise<{ name: string; lines: Cell[][] }[]> {
+  const rebuilt = rebuildXlsx(bytes);
+  const book = new ExcelJS.Workbook();
+  try {
+    await book.xlsx.load(rebuilt as unknown as ArrayBuffer);
+  } catch {
+    throw new ImportFileError("El archivo no es un libro de Excel (.xlsx) válido");
+  }
+  const sheets = book.worksheets.filter((s) => s.state === undefined || s.state === "visible");
+  return sheets.map((sheet) => ({ name: sheet.name, lines: sheetLines(sheet) }));
+}
+
 /** Reads an import file by its name's extension (`.csv`, `.txt`, `.xlsx`). Throws `ImportFileError`. */
 export async function parseImportFile(bytes: Uint8Array, fileName: string): Promise<ParsedSheet> {
   const format = importFormatOf(fileName);
@@ -159,4 +169,32 @@ export async function parseImportFile(bytes: Uint8Array, fileName: string): Prom
   const lines = format === "csv" ? parseCsv(decodeText(bytes)) : await readXlsx(bytes);
   if (lines.length === 0) throw new ImportFileError("El archivo está vacío");
   return sheetOf(lines);
+}
+
+/** The name of the sheet that holds a documento's lines (entity types spec §2.5, D14), as the template writes it. */
+export const LINES_SHEET = "Líneas";
+const isLinesSheet = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() === "lineas";
+
+/** What a documento's file holds: the header sheet (the first) and the lines sheet (`Líneas`), or null when it has none. */
+export interface ImportBook {
+  header: ParsedSheet;
+  lines: ParsedSheet | null;
+  /** The sheets' names as the file has them (errores.csv names its rows with them). */
+  headerName?: string;
+  linesName?: string;
+}
+
+/**
+ * Reads an import file as a book: the first sheet is the header (as `parseImportFile` reads it) and the visible sheet named `Líneas`,
+ * if any, the lines. A CSV holds one sheet only, so it has no lines. Throws `ImportFileError`.
+ */
+export async function parseImportBook(bytes: Uint8Array, fileName: string): Promise<ImportBook> {
+  const format = importFormatOf(fileName);
+  if (format === null) throw new ImportFileError("El archivo debe ser .xlsx o .csv");
+  if (format === "csv") return { header: await parseImportFile(bytes, fileName), lines: null };
+  const sheets = await readXlsxSheets(bytes);
+  const first = sheets[0];
+  if (!first || first.lines.length === 0) throw new ImportFileError("El archivo está vacío");
+  const lines = sheets.slice(1).find((s) => isLinesSheet(s.name));
+  return { header: sheetOf(first.lines), lines: lines && lines.lines.length > 0 ? sheetOf(lines.lines) : null, headerName: first.name, ...(lines ? { linesName: lines.name } : {}) };
 }

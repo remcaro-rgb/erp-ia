@@ -180,7 +180,7 @@ describe("posting", () => {
     expect(reversal!.date.toISOString().slice(0, 10)).toBe(dateIn(4, 2));
     const [april] = await h.sql<{ id: string }[]>`select id from accounting.periods where company_id = ${h.companyId} and number = 4`;
     expect(reversal!.period_id).toBe(april!.id);
-    expect((await h.sql`select status from accounting.entries where id = ${original!.id}`)[0]).toMatchObject({ status: "reversed" });
+    expect((await h.sql`select status, extra from accounting.entries where id = ${original!.id}`)[0]).toMatchObject({ status: "posted", extra: expect.objectContaining({ reversed: true }) });
     const after = await h.sql`select count(*)::int as n from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id where e.period_id = ${march!.id}`;
     expect(after).toEqual(before);
     expect((await h.sql`select status from accounting.periods where id = ${march!.id}`)[0]).toMatchObject({ status: "closed" });
@@ -219,7 +219,7 @@ describe("posting", () => {
     const listed = matrixProcesses(h.deps.registry).map((p) => p.id);
     expect(listed).not.toContain("accounting.entry.post_from_event");
     expect(listed).not.toContain("accounting.posting_failure.record");
-    expect(listed).toContain("accounting.entry.post");
+    expect(listed).toContain("accounting.entry.save");
   });
 
   it("posting_rule.test previews the entry for a past event without writing; update under step-up marks is_modified; sync_defaults restores nothing modified", async () => {
@@ -261,5 +261,22 @@ describe("posting", () => {
     // The edited rule and the default sync_defaults added back by name are both active: one line per rule.
     expect(await accountingProvider.effectsFor(ctx, "invoicing.invoice.issued")).toEqual(["Contabilidad: asiento en Ventas", "Contabilidad: asiento en Ventas"]);
     expect(await accountingProvider.effectsFor(ctx, "unknown.event")).toEqual([]);
+  });
+
+  it("the engine refuses a line naming a Pendiente account (D10, usability at Contabilizar): no entry, an inactive_account failure", async () => {
+    await h.sql`update accounting.accounts set status = 'pending', requires_approval = true where company_id = ${h.companyId} and code = '413595'`;
+    try {
+      const { id } = await emit("invoicing.invoice.issued", invoice(dateIn(6, 20)));
+      await deliver(id);
+      expect((await entriesOf(id)).filter((e) => e.status === "posted")).toHaveLength(0);
+      const failures = await failuresOf(id);
+      expect(failures.length).toBeGreaterThan(0);
+      for (const failure of failures) {
+        expect(failure).toMatchObject({ error_code: "inactive_account", status: "pending" });
+        expect(String(failure.error_detail)).toContain("maestro_not_usable");
+      }
+    } finally {
+      await h.sql`update accounting.accounts set status = 'saved', requires_approval = false where company_id = ${h.companyId} and code = '413595'`;
+    }
   });
 });

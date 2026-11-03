@@ -4,7 +4,7 @@ import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { z } from "zod";
-import { collectRegistryKeys, defaultLocale, locales, messages, type Messages } from "../index";
+import { collectRegistryKeys, defaultLocale, locales, messages, translate, type Messages } from "../index";
 
 /** Every leaf of a nested catalogue as `a.b.c`, sorted. */
 function leaves(tree: Messages, prefix = ""): string[] {
@@ -121,6 +121,10 @@ describe("process errors", () => {
     not_found: true,
     handler_failed: true,
     idempotent_replay: true,
+    invalid_state: true,
+    stale_record: true,
+    maestro_not_usable: true,
+    record_forbidden: true,
   };
 
   it("every ProcessError code has an errors.<code> message in both locales", () => {
@@ -168,7 +172,7 @@ describe("accounting catalogue", () => {
 
   it("has the five statuses, the four origins, the ten close checks and the refusal codes of the validation", () => {
     const keys = [
-      ...["draft", "pending", "posted", "reversed", "voided"].map((v) => `accounting.values.entry_status.${v}`),
+      ...["draft", "saved", "pending", "rejected", "approved", "posted", "reversed", "voided"].map((v) => `accounting.values.entry_status.${v}`),
       ...["manual", "auto", "import", "template"].map((v) => `accounting.values.entry_origin.${v}`),
       ...["drafts", "pending_approvals", "pending_failures", "undispatched_events", "control_receivable", "control_payable", "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances"].map((v) => `accounting.values.close_check.${v}`),
       ...["unbalanced", "missing_account_mapping", "closed_period", "inactive_account", "missing_party", "missing_cost_center", "missing_open_auxiliary", "missing_item", "missing_business_unit", "inactive_dimension", "invalid_template", "no_journal", "account_forbidden", "same_user_approval", "manual_journal_only"].map((v) => `accounting.values.failure_code.${v}`),
@@ -196,6 +200,16 @@ describe("accounting catalogue", () => {
   it("has the home cards and the entry screen texts", () => {
     const keys = ["accounting_result", "accounting_pending", "accounting_periods", "accounting_drafts"].flatMap((k) => [`home.kpi.${k}.label`, `home.kpi.${k}.detail`]);
     expect(missing(keys)).toEqual([]);
-    expect(missing(["accounting.entry.actions.submit", "accounting.entry.actions.approve", "accounting.entry.balanced", "accounting.entry.unbalanced", "accounting.entry.keyboard_hint"])).toEqual([]);
+    expect(missing(["common.record.actions.submit", "common.record.actions.approve", "accounting.entry.balanced", "accounting.entry.unbalanced", "accounting.entry.keyboard_hint"])).toEqual([]);
+  });
+});
+
+describe("translate (the catalogue the kernel prints with, registerCatalogue)", () => {
+  it("gives the message at a dotted key in the locale, the default locale for an unknown one, nothing for a missing key", () => {
+    expect(translate("es-419", "common.print.page_number")).toBe("Página {n} de {total}");
+    expect(translate("en", "common.print.page_number")).toBe("Page {n} of {total}");
+    expect(translate("fr", "common.yes")).toBe(translate("es-419", "common.yes"));
+    expect(translate("en", "common.print")).toBeUndefined();
+    expect(translate("en", "no.such.key")).toBeUndefined();
   });
 });

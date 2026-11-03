@@ -218,3 +218,11 @@ describe("ImportDialog", () => {
     });
   });
 });
+
+describe("ImportDialog for a documento (Task 15)", () => {
+  it("offers only the Excel template", () => {
+    renderEs(<ImportDialog open onOpenChange={() => {}} entity="accounting.entry" entityLabel="Comprobantes" xlsxOnly fetcher={vi.fn() as unknown as typeof fetch} />);
+    expect(screen.getByText("Plantilla Excel")).toBeTruthy();
+    expect(screen.queryByText("Plantilla CSV")).toBeNull();
+  });
+});
