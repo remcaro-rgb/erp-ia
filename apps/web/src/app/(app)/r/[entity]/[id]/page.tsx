@@ -25,11 +25,16 @@ import { TicketView } from "../../../support/ticket-view";
 // or the copy "Duplicar" opened it with (rule 37).
 
 type Params = Promise<{ entity: string; id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-async function RecordView({ params }: { params: Params }) {
+/** "Abrir en una pestaña nueva": the record alone in its own browser tab (`?view=full`), using all the width. */
+const FULL_VIEW = "?view=full";
+
+async function RecordView({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
   const { entity: entityId, id } = await params;
+  const full = (await searchParams).view === "full";
   // A malformed escape in the URL is a missing record, not a server error.
   let entityName: string;
   try {
@@ -41,7 +46,7 @@ async function RecordView({ params }: { params: Params }) {
   if (entityName === "support.ticket") {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
     return (
-      <div className="mx-auto w-full max-w-6xl">
+      <div className={full ? "w-full" : "mx-auto w-full max-w-6xl"}>
         <TicketView id={id} />
       </div>
     );
@@ -58,7 +63,7 @@ async function RecordView({ params }: { params: Params }) {
   if (!loaded) {
     // A restricted Cuenta the caller may not view is not there for them: its record answers "Sin acceso" on the tabs that would show figures
     // (accounting design §5.13), without a word about the account. The answer is the same for an id that does not exist.
-    if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} />;
+    if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} full={full} />;
     notFound();
   }
   const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form, lifecycle: lc } = loaded;
@@ -66,7 +71,7 @@ async function RecordView({ params }: { params: Params }) {
   const locale = await getLocale();
 
   // A comprobante has wide lines: it takes the whole width of the page; the other records keep a readable column.
-  const wrapperClass = form.kind === "entry" ? "w-full" : "mx-auto w-full max-w-6xl";
+  const wrapperClass = form.kind === "entry" || full ? "w-full" : "mx-auto w-full max-w-6xl";
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
   const newTitle = t("grid.record_title.new", { entity: t(entity.nounKey) });
   // The action bar of a maestro or documento (Task 15): its buttons, tools and footer facts.
@@ -142,14 +147,14 @@ async function RecordView({ params }: { params: Params }) {
         recordId={record.id}
         canDuplicate={can.duplicate}
         newTitle={newTitle}
-        title={title ? formatLabel(title, locale) : untitledRecordTitle({ status: lc?.status, seq: record.seq, isEntry: form.kind === "entry", draftTitle: t("accounting.entry.draft_title"), idLabel: t("common.record.ids.id"), fallback: record.id })}
+        title={entity.id === "accounting.account" && typeof record.code === "string" && typeof record.name === "string" ? t("accounting.record.account_title", { code: record.code, name: record.name }) : title ? formatLabel(title, locale) : untitledRecordTitle({ status: lc?.status, seq: record.seq, isEntry: form.kind === "entry", draftTitle: t("accounting.entry.draft_title"), idLabel: t("common.record.ids.id"), fallback: record.id })}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
         number={typeof record.number === "string" && record.number ? record.number : null}
         reference={typeof record.reference === "string" && record.reference ? record.reference : null}
         {...(lc ? { chip: <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill> } : {})}
         lifecycle={frameLifecycle}
-        deepLinkHref={recordHref(entity.id, record.id)}
+        deepLinkHref={`${recordHref(entity.id, record.id)}${FULL_VIEW}`}
         tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id))
           .filter((tabId) => content[tabId] !== undefined)
           .map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
@@ -160,11 +165,11 @@ async function RecordView({ params }: { params: Params }) {
   );
 }
 
-async function RestrictedAccount({ id }: { id: string }) {
+async function RestrictedAccount({ id, full }: { id: string; full: boolean }) {
   const t = await getTranslations();
   const denied = { content: <NoAccess text={t("accounting.record.no_access")} /> };
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className={full ? "w-full" : "mx-auto w-full max-w-6xl"}>
       <AppRecordFrame
         entity="accounting.account"
         recordId={id}
@@ -172,7 +177,7 @@ async function RestrictedAccount({ id }: { id: string }) {
         title={t("accounting.record.restricted_account")}
         seq="masked"
         uuid={id}
-        deepLinkHref={recordHref("accounting.account", id)}
+        deepLinkHref={`${recordHref("accounting.account", id)}${FULL_VIEW}`}
         status={
           <span data-testid="record-status" className="erp-record__status">
             <span className="erp-pill erp-pill--gray">{t("accounting.record.no_access")}</span>
@@ -230,11 +235,11 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
 /** The state chip's tone by status (prototype `chip`). */
 const STATUS_TONE: Record<string, "ok" | "warn" | "danger" | "gray" | "info"> = { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" };
 
-export default function RecordPage({ params }: { params: Params }) {
-  // The session cookie and the route params are request data: read them inside Suspense (cache components).
+export default function RecordPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+  // The session cookie, the route params and the query are request data: read them inside Suspense (cache components).
   return (
     <Suspense fallback={null}>
-      <RecordView params={params} />
+      <RecordView params={params} searchParams={searchParams} />
     </Suspense>
   );
 }

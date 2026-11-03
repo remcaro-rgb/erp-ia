@@ -124,7 +124,7 @@ test.describe("responsive shell", () => {
     await page.goto("/parties?new=1");
     await expect(page).toHaveURL(/\/r\/core\.party\//);
     await page.getByRole("textbox", { name: /^Razón social/ }).fill("Cambio sin guardar");
-    await expect(page.getByText("Sin guardar").first()).toBeVisible();
+    await expect(page.getByText("Cambios sin guardar").first()).toBeVisible();
     await productos();
     const ask = page.getByRole("alertdialog");
     await expect(ask).toBeVisible();

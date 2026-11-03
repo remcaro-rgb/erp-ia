@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 import { DEFAULT_RECORD_LABELS, shortId, type RecordLabels, type RecordTab, type RecordTabId } from "./record-model";
 
 export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
+
+/** The header's place next to the title for the "Cambios sin guardar" note: the Datos form puts it there (a portal), wherever its tab is. */
+const UnsavedSlotContext = createContext<HTMLElement | null>(null);
+export const useUnsavedSlot = () => useContext(UnsavedSlotContext);
 
 export interface RecordFrameProps {
   title: string;
@@ -53,6 +57,7 @@ export interface RecordFrameProps {
 export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, duplicateButton = true, copyOf }: RecordFrameProps) {
   const labels: RecordLabels = { ...DEFAULT_RECORD_LABELS, ...overrides, tabs: { ...DEFAULT_RECORD_LABELS.tabs, ...overrides?.tabs } };
   const base = useId();
+  const [unsavedSlot, setUnsavedSlot] = useState<HTMLElement | null>(null);
   const first = tabs[0]?.id;
   const [selected, setSelected] = useState<RecordTabId | undefined>(initialTab ?? first);
   const active = tabs.some((t) => t.id === selected) ? selected : first;
@@ -93,11 +98,13 @@ export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, d
   };
 
   return (
+    <UnsavedSlotContext.Provider value={unsavedSlot}>
     <section ref={root} className={["erp-record", className].filter(Boolean).join(" ")}>
       {/* Title and tabs stay in view while a long Datos form scrolls (the shell's <main> is the scroller). */}
       <div className="erp-record__top">
         <header className="erp-record__header">
           <h2>{title}</h2>
+          <span ref={setUnsavedSlot} className="erp-record__unsaved" />
           {chip}
           <span className="erp-record__ids">
             {seq != null && uuid ? (
@@ -185,6 +192,7 @@ export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, d
         <div className="erp-record__actions">{footer}</div>
       </footer>
     </section>
+    </UnsavedSlotContext.Provider>
   );
 }
 
@@ -202,7 +210,7 @@ function dialogOver(frame: HTMLElement | null): boolean {
 }
 
 /** Copies an identifier (ID, Número, Referencia, UUID) to the clipboard; says so for a moment. */
-function CopyButton({ value, label }: { value: string; label: string }) {
+export function CopyButton({ value, label }: { value: string; label: string }) {
   const [done, setDone] = useState(false);
   return (
     <button

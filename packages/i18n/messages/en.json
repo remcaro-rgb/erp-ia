@@ -339,7 +339,7 @@
       "combo_empty": "No matches",
       "combo_more": "{count} more: type to narrow",
       "details": "Details",
-      "unsaved": "Unsaved"
+      "unsaved": "Unsaved changes"
     },
     "party_form": {
       "identification": "Identification",
@@ -2897,6 +2897,7 @@
     "record": {
       "no_access": "No access",
       "restricted_account": "Restricted account",
+      "account_title": "Account {code} - {name}",
       "year": "Fiscal year",
       "period": "Period",
       "debit": "Debit",
@@ -2971,6 +2972,7 @@
         "no_parent": "No parent (root)",
         "missing": "Required data is missing",
         "statement_section_hint": "Empty: inherits the parent account's",
+        "statement_section_inherit": "Inherit from the parent account",
         "requires_invoice_ready_hint": "Accepts only invoice-ready parties: complete DIAN data and required files",
         "template_lines": "Template lines",
         "template_account": "Account",

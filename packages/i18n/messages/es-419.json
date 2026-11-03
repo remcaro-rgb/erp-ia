@@ -339,7 +339,7 @@
       "combo_empty": "Sin coincidencias",
       "combo_more": "{count} más: escribe para acotar",
       "details": "Detalles",
-      "unsaved": "Sin guardar"
+      "unsaved": "Cambios sin guardar"
     },
     "party_form": {
       "identification": "Identificación",
@@ -2897,6 +2897,7 @@
     "record": {
       "no_access": "Sin acceso",
       "restricted_account": "Cuenta restringida",
+      "account_title": "Cuenta {code} - {name}",
       "year": "Año fiscal",
       "period": "Período",
       "debit": "Débito",
@@ -2971,6 +2972,7 @@
         "no_parent": "Sin padre (raíz)",
         "missing": "Faltan datos obligatorios",
         "statement_section_hint": "Vacía: hereda la de la cuenta madre",
+        "statement_section_inherit": "Heredar de la cuenta madre",
         "requires_invoice_ready_hint": "Solo acepta terceros listos para facturar: datos DIAN completos y archivos requeridos",
         "template_lines": "Líneas de la plantilla",
         "template_account": "Cuenta",

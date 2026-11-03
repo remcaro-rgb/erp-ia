@@ -266,6 +266,16 @@
   .erp-lk__chips { padding: 6px 10px; border-top: 1px solid var(--line-2); }
 
   /* party switches */
+  .erp-input-row { display: flex; align-items: center; gap: 4px; }
+  .erp-input-row > input { flex: 1 1 auto; min-width: 0; }
+  .erp-flags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .erp-flag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line-input); border-radius: 999px; background: var(--surface); color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .erp-flag:disabled, .erp-flag[aria-disabled="true"] { cursor: default; }
+  .erp-flag:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+  .erp-flag__dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .4; }
+  .erp-flag__state { font-weight: 500; opacity: .85; }
+  .erp-flag.is-on { background: var(--ok-bg); border-color: transparent; color: var(--ok); }
+  .erp-flag.is-on .erp-flag__dot { opacity: 1; }
   .erp-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
   .erp-toggle { position: relative; width: 38px; height: 22px; border-radius: 11px; background: var(--line); border: 0; transition: background .15s; flex: 0 0 auto; }
   .erp-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
@@ -339,7 +349,9 @@
   /* the record frame (design §5.16) */
   .erp-record { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
   .erp-record__header { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); }
-  .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; flex-grow: 1; }
+  .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .erp-record__unsaved:empty { display: none; }
+  .erp-record__header .erp-record__ids { margin-left: auto; }
   .erp-record__ids { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); }
   .erp-record__open { font-size: 12px; color: var(--link); }
   /* a new record started from a copy (rule 37): "Copia de <nombre>" above the tabs' panels */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
+import { usePathname, useRouter, useSearchParams, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, UnsavedProvider, type TabsSnapshot, type ThemeMode, type UnsavedState } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
@@ -50,6 +50,8 @@ type PendingSave = { key: "tabs"; value: TabsSnapshot; savedAt: number };
 export function WebShell({ data, children }: { data: ShellData; children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  // "Abrir en una pestaña nueva": the record alone, using the whole browser tab (no top bar, side menu or tabs).
+  const bare = useSearchParams().get("view") === "full" && pathname.startsWith("/r/");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<PendingSave | null>(null);
   // "Verificación en dos pasos" of the user menu: kernel.user.mfa.disable through the step-up flow every sensitive run uses.
@@ -112,6 +114,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       dianHints={data.dianHints}
       initialTabs={data.tabs}
       currentHref={pathname}
+      bare={bare}
       // A screen with staged changes (the admin matrices) may ask before the shell leaves it.
       navigate={(href) => guardedNavigate(() => router.push(href))}
       onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}

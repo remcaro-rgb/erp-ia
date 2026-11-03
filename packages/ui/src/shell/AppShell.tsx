@@ -48,6 +48,8 @@ export interface AppShellProps {
   /** What the app tells the assistant drawer about its screens. */
   assistantOptions?: AssistantOptions;
   children: ReactNode;
+  /** A page opened alone in its own browser tab: only the page, without the top bar, side menu, tabs or assistant; nothing of it is saved to the tabs. */
+  bare?: boolean;
   /** Path of the page being shown (no query). */
   currentHref: string;
   /** Client-side navigation (the app's router). */
@@ -165,9 +167,11 @@ function ShellFrame(props: AppShellProps) {
     createTabsStore({
       userId: user.id,
       companyId: company.id,
-      storage,
-      initial: props.initialTabs?.value,
-      onChange: (snapshot, savedAt) => latest.current.onTabsChange?.(snapshot, savedAt),
+      storage: props.bare ? null : storage,
+      initial: props.bare ? undefined : props.initialTabs?.value,
+      onChange: (snapshot, savedAt) => {
+        if (!latest.current.bare) latest.current.onTabsChange?.(snapshot, savedAt);
+      },
     }),
   );
 
@@ -185,6 +189,7 @@ function ShellFrame(props: AppShellProps) {
   // Once mounted (the server render used the server's copies): this browser's cache wins when it is newer, e.g. a
   // change made just before the page closed that never reached the server. The newer copy is then saved.
   useEffect(() => {
+    if (props.bare) return;
     const tabs = newerSaved(props.initialTabs ?? null, loadCachedTabs(storage, user.id, company.id));
     if (tabs && tabs !== props.initialTabs) store.getState().hydrate(tabs.value);
     const cachedTheme = readCachedPref(storage, themeStorageKey(user.id), company.id);
@@ -209,7 +214,7 @@ function ShellFrame(props: AppShellProps) {
   useEffect(
     () =>
       store.subscribe((state, previous) => {
-        if (state.activeId === previous.activeId) return;
+        if (state.activeId === previous.activeId || latest.current.bare) return;
         const tab = state.tabs.find((x) => x.id === state.activeId);
         if (tab && tab.href !== current.current) latest.current.navigate(tab.href);
       }),
@@ -232,6 +237,7 @@ function ShellFrame(props: AppShellProps) {
 
   // The page decides the tab: a menu screen, a record (named after its entity), Inicio, or any other path.
   useEffect(() => {
+    if (props.bare) return;
     const flat = nav.flatMap((i) => i.children ?? [i]);
     const item = flat.find((i) => i.href === currentHref);
     const kind: TabKind = currentHref === "/" ? "home" : currentHref.startsWith("/r/") ? "record" : "grid";
@@ -411,6 +417,13 @@ function ShellFrame(props: AppShellProps) {
       <TabsProvider store={store}>
         {/* Exports outlive the grid that started them: a tab change no longer aborts a background job. */}
         <ExportJobsProvider>
+        {props.bare ? (
+          <main id="erp-main" tabIndex={-1} className="erp-main h-dvh overflow-auto">
+            <AskAssistantProvider ask={ask}>
+              <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
+            </AskAssistantProvider>
+          </main>
+        ) : (
         <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
           <a
             href="#erp-main"
@@ -491,6 +504,7 @@ function ShellFrame(props: AppShellProps) {
           )}
           <Toaster position="bottom-center" />
         </div>
+        )}
         </ExportJobsProvider>
       </TabsProvider>
       </NavigateProvider>

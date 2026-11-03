@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { ChevronRight, Lock, Search } from "lucide-react";
 import { cn } from "@erp/ui/lib/utils";
 import { formatMoney } from "../money/format";
+import { RecordLink } from "../record/RecordLink";
 import { ancestorsOf, buildTree, expandAll, expandToLevel, filterTree, openForMatches, visibleNodes, type TreeNode } from "./tree-model";
 
 /** One node of the pane: a chart account or a node of a dimension, with the figure the page computed for the period. */
@@ -34,6 +35,8 @@ export interface TreePaneProps {
   levels?: number;
   /** Levels open at first (default 2). */
   initialLevel?: number;
+  /** The entity of the nodes: each node's código then links to its record page. */
+  recordEntity?: string;
 }
 
 /**
@@ -41,7 +44,7 @@ export interface TreePaneProps {
  * "Nivel 1 … n" and "Todo" to open by level, the figure of the period beside each node and a lock on the restricted
  * ones. Keyboard: ↑ ↓ move, → opens or goes to the first child, ← closes or goes to the parent, Enter selects, Home and End.
  */
-export function TreePane({ items, selectedId, onSelect, label, figureLabel, levels = 4, initialLevel = 2 }: TreePaneProps) {
+export function TreePane({ items, selectedId, onSelect, label, figureLabel, levels = 4, initialLevel = 2, recordEntity }: TreePaneProps) {
   const t = useTranslations("grid.tree");
   const roots = useMemo(() => buildTree(items, { idField: "id", parentField: "parentId" }), [items]);
   const [query, setQuery] = useState("");
@@ -158,6 +161,7 @@ export function TreePane({ items, selectedId, onSelect, label, figureLabel, leve
               onSelect(node.id);
             }}
             restrictedLabel={t("restricted")}
+            {...(recordEntity ? { recordEntity } : {})}
           />
         ))}
       </div>
@@ -165,7 +169,7 @@ export function TreePane({ items, selectedId, onSelect, label, figureLabel, leve
   );
 }
 
-function TreeRow({ node, open, selected, tabStop, onToggle, onSelect, restrictedLabel }: { node: TreeNode<TreeItem>; open: boolean; selected: boolean; tabStop: boolean; onToggle: () => void; onSelect: () => void; restrictedLabel: string }) {
+function TreeRow({ node, open, selected, tabStop, onToggle, onSelect, restrictedLabel, recordEntity }: { recordEntity?: string; node: TreeNode<TreeItem>; open: boolean; selected: boolean; tabStop: boolean; onToggle: () => void; onSelect: () => void; restrictedLabel: string }) {
   const item = node.row;
   const hasChildren = node.children.length > 0;
   const figure = item.figure === null || item.figure === undefined ? "" : formatMoney(item.figure);
@@ -192,7 +196,7 @@ function TreeRow({ node, open, selected, tabStop, onToggle, onSelect, restricted
       >
         {hasChildren && <ChevronRight size={14} />}
       </span>
-      <span className="erp-mono erp-tree__code">{item.code}</span>
+      <span className="erp-mono erp-tree__code">{recordEntity ? <RecordLink entity={recordEntity} id={item.id} label={item.code} mono inRow /> : item.code}</span>
       <span className="erp-tree__name">{item.name}</span>
       {item.restricted && <Lock size={13} className="erp-tree__lock" role="img" aria-label={restrictedLabel} />}
       {figure !== "" && <span className="erp-num erp-tree__figure">{figure}</span>}

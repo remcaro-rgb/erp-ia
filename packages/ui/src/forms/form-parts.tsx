@@ -1,7 +1,9 @@
 "use client";
 
 import { useRecordBridge, useRegisterRecordForm } from "../record/record-bridge";
+import { useUnsavedSlot } from "../record/RecordFrame";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import type { FieldLabels } from "../fields/field-model";
 import { invoiceBlockers } from "../lookup/lookup-model";
@@ -71,6 +73,13 @@ export function RecordForm({ canSave, onSave, dirty = false, save, failure, dian
   bridged.current = bridge;
   const ref = useRef<HTMLFormElement>(null);
   const [dianHints, setDianHints] = useDianHintsState();
+  // Inside a record frame the note sits beside the title; elsewhere it stays on top of the form.
+  const unsavedSlot = useUnsavedSlot();
+  const unsavedPill = (
+    <span className="erp-pill erp-pill--warn">
+      <i aria-hidden="true" className="erp-unsaved-dot" /> {t("unsaved")}
+    </span>
+  );
   const switchId = useId();
   const focusFirstProblem = (summaryFirst = false) => {
     const form = ref.current;
@@ -120,11 +129,7 @@ export function RecordForm({ canSave, onSave, dirty = false, save, failure, dian
   return (
     <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
       <div role="status" className="erp-form__unsaved-note">
-        {dirty && (
-          <span className="erp-pill erp-pill--warn">
-            <i aria-hidden="true" className="erp-unsaved-dot" /> {t("unsaved")}
-          </span>
-        )}
+        {dirty && (unsavedSlot ? createPortal(unsavedPill, unsavedSlot) : unsavedPill)}
       </div>
       {dianToggle && (
         <div className="erp-form__tools">
@@ -243,12 +248,15 @@ export interface TextFieldProps {
   mono?: boolean;
   error?: string | null;
   className?: string;
+  /** Beside the box, inside the field (a copy button). */
+  trailing?: ReactNode;
 }
 
-export function TextField({ label, hint, hintKind, value, onChange, disabled, maxLength, inputMode, mono, error, className }: TextFieldProps) {
+export function TextField({ label, hint, hintKind, value, onChange, disabled, maxLength, inputMode, mono, error, className, trailing }: TextFieldProps) {
   return (
     <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
       {(id, describedBy) => (
+        <div className={trailing ? "erp-input-row" : undefined}>
         <input
           id={id}
           value={value}
@@ -260,6 +268,8 @@ export function TextField({ label, hint, hintKind, value, onChange, disabled, ma
           className={[mono && "erp-mono", error && "erp-input--bad"].filter(Boolean).join(" ") || undefined}
           onChange={(e) => onChange(e.target.value)}
         />
+        {trailing}
+        </div>
       )}
     </Field>
   );

@@ -231,7 +231,7 @@ test.describe("accounting records", () => {
       const short = id.slice(0, 8);
       await expect(frame.locator(".erp-record__ids")).toHaveText(new RegExp(`^ID ••••\\s*UUID ${short}…$`));
       const link = frame.getByRole("link", { name: /Abrir en una pestaña nueva/ });
-      await expect(link).toHaveAttribute("href", `/r/accounting.account/${id}`);
+      await expect(link).toHaveAttribute("href", `/r/accounting.account/${id}?view=full`);
       await expect(link).toHaveAttribute("target", "_blank");
       await expect(frame.getByTestId("record-status")).toHaveText("Sin acceso");
       const tabs = await frame.getByRole("tab").allTextContents();

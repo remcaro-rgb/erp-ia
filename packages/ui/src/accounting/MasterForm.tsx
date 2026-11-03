@@ -9,6 +9,7 @@ import { useSaveFlow } from "../forms/use-save";
 import { activeSpecs, masterDraft, masterInput, masterMissing, type MasterKind } from "./master-form-model";
 import { ProcessId } from "../forms/ProcessId";
 import { useRecordBridge } from "../record/record-bridge";
+import { CopyButton } from "../record/RecordFrame";
 
 // The Datos tab of the masters (accounting design §8): Cuenta, the four analytic dimensions, Fuente, Plantilla de comprobante and
 // Período, one form driven by the field specs of `master-form-model`. It saves through the entity's create / update process and asks
@@ -37,6 +38,8 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
   const bridge = useRecordBridge();
   const tc = useTranslations("common");
   const tv = useTranslations("accounting.values");
+  const ts = useTranslations("report.statement");
+  const tr = useTranslations("common.record");
   const errorText = useErrorText();
   const isNew = record === null;
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
@@ -66,7 +69,42 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
   };
   const optionsOf = (from: "parents" | "journals" | undefined): CodeOption[] => (from === "parents" ? [...(options?.parents ?? [])] : from === "journals" ? [...(options?.journals ?? [])] : []);
 
-  const fields = specs.map((spec) => {
+  /** A yes/no field as an on/off chip: a switch the user flips, or (a fixed fact) a chip that only shows its state. */
+  const chip = (spec: (typeof specs)[number]) => {
+    const label = t(`field.${kind}.${spec.column}`);
+    const hint = spec.hint ? t(spec.hint) : undefined;
+    const on = spec.control === "check" ? draft[spec.key] === true : draft[spec.key] === "true";
+    const fixed = spec.control === "fixed";
+    const hintId = hint ? `${kind}-${spec.key}-hint` : undefined;
+    return (
+      <button
+        key={spec.key}
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-disabled={fixed || readOnly ? true : undefined}
+        disabled={!fixed && readOnly}
+        title={hint}
+        aria-describedby={hintId}
+        data-fixed={fixed ? spec.key : undefined}
+        className={on ? "erp-flag is-on" : "erp-flag"}
+        onClick={() => !fixed && !readOnly && set(spec.key)(!on)}
+      >
+        <i aria-hidden="true" className="erp-flag__dot" />
+        {label}{" "}
+        <span className="erp-flag__state">{on ? t("yes") : t("no")}</span>
+        {hint && (
+          <span id={hintId} className="sr-only">
+            {hint}
+          </span>
+        )}
+      </button>
+    );
+  };
+  const isChip = (spec: (typeof specs)[number]) => spec.control === "check" || (spec.control === "fixed" && spec.boolean === true);
+  const chips = specs.filter(isChip).map(chip);
+
+  const fields = specs.filter((spec) => !isChip(spec)).map((spec) => {
     const label = t(`field.${kind}.${spec.column}`);
     const hint = spec.hint ? t(spec.hint) : undefined;
     const error = failed.field(spec.key);
@@ -80,22 +118,10 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
         </div>
       );
     }
-    if (spec.control === "check") {
-      const hintId = hint ? `${kind}-${spec.key}-hint` : undefined;
-      return (
-        <label key={spec.key} className="erp-row erp-field">
-          <input type="checkbox" checked={draft[spec.key] === true} disabled={readOnly} aria-describedby={hintId} onChange={(e) => set(spec.key)(e.target.checked)} />
-          <span>{label}</span>
-          {hint && (
-            <span id={hintId} className="erp-field__hint">
-              {hint}
-            </span>
-          )}
-        </label>
-      );
-    }
     if (spec.control === "select") {
-      const choices: CodeOption[] = spec.codes ? spec.codes.map((code) => ({ code, name: tv.has(`${spec.valuesKey}.${code}`) ? tv(`${spec.valuesKey}.${code}`) : code })) : optionsOf(spec.optionsFrom);
+      const current = String(draft[spec.key] ?? "");
+      const named = (code: string) => (spec.statement ? (ts.has(code) ? ts(code) : code) : tv.has(`${spec.valuesKey}.${code}`) ? tv(`${spec.valuesKey}.${code}`) : code);
+      const choices: CodeOption[] = spec.codes ? [...spec.codes, ...(spec.statement && current !== "" && !spec.codes.includes(current) ? [current] : [])].map((code) => ({ code, name: named(code) })) : optionsOf(spec.optionsFrom);
       return (
         <SelectField
           key={spec.key}
@@ -103,7 +129,7 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
           value={String(draft[spec.key] ?? "")}
           options={choices}
           showCode={false}
-          {...(spec.optionsFrom === "parents" ? { empty: t("no_parent") } : spec.optionsFrom === "journals" && String(draft[spec.key] ?? "") === "" ? { empty: "—" } : {})}
+          {...(spec.statement ? { empty: t("statement_section_inherit") } : spec.optionsFrom === "parents" ? { empty: t("no_parent") } : spec.optionsFrom === "journals" && String(draft[spec.key] ?? "") === "" ? { empty: "—" } : {})}
           disabled={readOnly}
           error={error}
           onChange={set(spec.key)}
@@ -121,15 +147,21 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
         disabled={readOnly || (spec.createOnly === true && !isNew)}
         error={error}
         onChange={set(spec.key)}
+        {...(spec.key === "code" && !isNew && String(draft.code ?? "") !== "" ? { trailing: <CopyButton value={String(draft.code)} label={(tr.raw("ids.copy") as string).replace("{what}", label)} /> } : {})}
       />
     );
   });
 
   return (
-    <RecordForm canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
+    <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
       {readOnly && editable && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t(`section.${kind}`)}>
         <div className="erp-form2">{fields}</div>
+        {chips.length > 0 && (
+          <div className="erp-flags" role="group" aria-label={t(`section.${kind}`)}>
+            {chips}
+          </div>
+        )}
       </Section>
       {footer}
       {failed.panel.length > 0 && (
