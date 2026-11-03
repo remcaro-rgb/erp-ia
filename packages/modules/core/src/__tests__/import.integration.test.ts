@@ -160,12 +160,13 @@ describe("mass import into core", () => {
     const file = csv("sku;description;kind;categoryId;listPrice;trackStock", "IMP-1;Café molido;good;café;31.000;sí", "IMP-2;Té verde;good;Té;9000;no");
     const ids = await submitImport(deps, await adminCaller(), { entity: "core.product", fileName: "productos.csv", bytes: file });
     const summary = await runImport({ ...ids, claims: h.admin.claims });
-    expect(summary).toMatchObject({ created: 1, rejected: 1 });
+    // The refused lines go into the failure message, so a CI-only failure names its cause.
+    const lines = await errorsFile((await importRow(ids.importId)).errors_attachment_id);
+    expect(summary, lines.join("\n")).toMatchObject({ created: 1, rejected: 1 });
     const [product] = await h.sql`select p.list_price, c.name as category from core.products p join core.product_categories c on c.id = p.category_id where p.company_id = ${h.companyId} and p.sku = 'IMP-1'`;
     expect(product).toMatchObject({ category: "Café" });
     expect(Number(product!.list_price)).toBe(31000);
-    const [, refused] = await errorsFile((await importRow(ids.importId)).errors_attachment_id);
-    expect(refused).toContain("categoryId: «Té» no existe");
+    expect(lines[1]).toContain("categoryId: «Té» no existe");
   });
 
   it("import by a role without kernel.import.run is forbidden", async () => {
