@@ -158,7 +158,8 @@ test.describe("accounting entry", () => {
     await page.goto("/accounting/entries");
     await expect(page.getByRole("button", { name: "Borradores" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Por aprobar" })).toBeVisible();
-    await page.getByRole("button", { name: "Nuevo", exact: true }).click();
+    // An empty ledger also offers «Nuevo» in the grid's empty state: take the toolbar's.
+    await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
     await expect(page).toHaveURL(/\/r\/accounting\.entry\/new$/);
 
     // Only the Fuentes that accept manual entries are offered.
