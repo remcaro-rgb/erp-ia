@@ -4,7 +4,9 @@ permissions:
   contents: read
 
 on:
+  # A PR runs once (pull_request); main runs again after the merge.
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
