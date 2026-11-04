@@ -34,7 +34,10 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
   const { entity: entityId, id } = await params;
-  const full = (await searchParams).view === "full";
+  const query = await searchParams;
+  const full = query.view === "full";
+  // "Nuevo desde plantilla" opens the new comprobante with the plantilla's data (?template=<id>).
+  const templateId = typeof query.template === "string" ? query.template : null;
   // A malformed escape in the URL is a missing record, not a server error.
   let entityName: string;
   try {
@@ -53,7 +56,7 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   }
   let loaded;
   try {
-    loaded = await loadRecord(entityName, id);
+    loaded = await loadRecord(entityName, id, { templateId });
   } catch (error) {
     // The proxy already sends a visitor without a complete session away; this covers an expired one.
     if (error instanceof Unauthenticated) redirect(redirectPathFor(error.reason));
@@ -91,6 +94,7 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
         noun: t(entity.nounKey),
         listHref: lc.listHref,
         reverse: form.kind === "entry" && record?.status === "posted" && (record.extra as Record<string, unknown> | null)?.reversed !== true && form.can.reverse === true,
+        saveTemplate: form.kind === "entry" && record !== null && form.canTemplate,
       }
     : null;
   if (!record) {
@@ -124,7 +128,7 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   if (form.kind === "entry" && form.origin) {
     const o = form.origin;
     content.origen = {
-      content: <OriginTab origin={o.origin} source={o.source} event={o.event} rule={o.rule} reversalOf={o.reversalOf} reversedBy={o.reversedBy} chainId={o.chainId} timeline={o.timeline} />,
+      content: <OriginTab origin={o.origin} source={o.source} event={o.event} rule={o.rule} reversalOf={o.reversalOf} reversedBy={o.reversedBy} template={o.template} chainId={o.chainId} timeline={o.timeline} />,
     };
   }
 

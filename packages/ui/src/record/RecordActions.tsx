@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Ban, CheckCircle2, Copy, FilePlus2, Mail, Printer, Save, Send, Trash2, Undo2, XCircle } from "lucide-react";
+import { Ban, BookmarkPlus, CheckCircle2, Copy, FilePlus2, Mail, Printer, Save, Send, Trash2, Undo2, XCircle } from "lucide-react";
 import { StepUpPrompt } from "../forms/StepUpPrompt";
 import { barButtons, NEEDS_REASON, postsAutomatically, type BarAction, type EntityKind, type LifecycleFlags, type RecordBarAction, type RecordRights, type RecordStatus } from "./record-actions-model";
 
@@ -26,7 +26,9 @@ export interface RecordActionsProps {
   /** The form's data cannot be saved yet (client errors, missing data): Guardar waits. */
   saveBlocked?: boolean;
   /** The tools on the left the caller may use here; each shows only when true. Notificar shows on documentos only (D17). */
-  tools?: { new?: boolean; print?: boolean; notify?: boolean; duplicate?: boolean; reverse?: boolean };
+  tools?: { new?: boolean; print?: boolean; notify?: boolean; duplicate?: boolean; reverse?: boolean; saveTemplate?: boolean };
+  /** Guardar como plantilla (a comprobante's module action, next to Revertir): opens the module's own dialog. */
+  onSaveTemplate?: () => void;
   /** Runs the action; `stepUp` is the token of a fresh verification when the process asked for one. */
   onAction: (action: RecordBarAction, input: { reason?: string }, stepUp?: string) => Promise<RecordActionOutcome>;
   requestStepUp?: (code: string) => Promise<{ token: string } | { error: string }>;
@@ -42,7 +44,7 @@ export interface RecordActionsProps {
 
 const ICONS: Record<BarAction, typeof Save> = { save: Save, save_submit: Send, submit: Send, approve: CheckCircle2, reject: XCircle, void: Ban, delete: Trash2 };
 
-export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, registerShortcut }: RecordActionsProps) {
+export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, registerShortcut, onSaveTemplate }: RecordActionsProps) {
   const t = useTranslations("common.record.actions");
   const te = useTranslations("errors");
   const id = useId();
@@ -99,8 +101,12 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
     }
   };
 
-  const click = (action: RecordBarAction) => {
+  const click = (action: RecordBarAction | "save_template") => {
     setMoreOpen(false);
+    if (action === "save_template") {
+      onSaveTemplate?.();
+      return;
+    }
     if (NEEDS_REASON.has(action) || action === "delete") {
       setAsking(action);
       setReason("");
@@ -124,7 +130,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
     else await run(stepUp.action, stepUp.reason ? { reason: stepUp.reason } : {}, answer.token);
   };
 
-  const tool = (action: "new" | "print" | "notify" | "duplicate" | "reverse", Icon: typeof Save, extra: { blockedBy?: string | null; className?: string } = {}) => (
+  const tool = (action: "new" | "print" | "notify" | "duplicate" | "reverse" | "save_template", Icon: typeof Save, extra: { blockedBy?: string | null; className?: string } = {}) => (
     <button
       key={action}
       type="button"
@@ -157,7 +163,8 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
           {isDocumento && tools.notify && tool("notify", Mail, { blockedBy: notifyBlock })}
           {tools.duplicate && tool("duplicate", Copy, { className: "erp-actbar__wide" })}
           {tools.reverse && tool("reverse", Undo2, { className: "erp-actbar__wide" })}
-          {(tools.duplicate || tools.reverse) && (
+          {tools.saveTemplate && tool("save_template", BookmarkPlus, { className: "erp-actbar__wide" })}
+          {(tools.duplicate || tools.reverse || tools.saveTemplate) && (
             <span ref={moreRef} className="erp-actbar__more">
               <button type="button" className="erp-btn erp-touch" aria-haspopup="menu" aria-expanded={moreOpen} disabled={off} onClick={() => setMoreOpen((o) => !o)}>
                 {t("more")} ▾
@@ -174,6 +181,12 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
                     <button type="button" role="menuitem" className="erp-btn erp-touch" onClick={() => click("reverse")}>
                       <Undo2 aria-hidden size={16} />
                       {t("reverse")}
+                    </button>
+                  )}
+                  {tools.saveTemplate && (
+                    <button type="button" role="menuitem" className="erp-btn erp-touch" onClick={() => click("save_template")}>
+                      <BookmarkPlus aria-hidden size={16} />
+                      {t("save_template")}
                     </button>
                   )}
                 </span>

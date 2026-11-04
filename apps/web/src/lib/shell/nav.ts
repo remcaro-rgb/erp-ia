@@ -100,7 +100,7 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
     });
     const visible = flattenNav(visibleItems);
     if (visible.length === 0) continue;
-    modules.push({ id: mod.id, label: `nav.modules.${mod.id}` });
+    modules.push({ id: mod.id, label: `nav.modules.${mod.id}`, ...(mod.icon ? { icon: mod.icon } : {}) });
     nav.push(...visibleItems);
     for (const item of visible) {
       const feature = mod.features.find((f) => f.id === item.feature);
@@ -114,5 +114,23 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
       }
     }
   }
-  return { modules, nav, creates };
+  return { modules, nav: adoptItems(registry, nav), creates };
+}
+
+/**
+ * ModuleDef.adopts: an item the caller may open moves from its own module's section into the same section of the adopting module,
+ * first in the list, when that module is in the shell. Otherwise it stays where its module put it.
+ */
+function adoptItems(registry: Registry, nav: NavItem[]): NavItem[] {
+  let out = nav;
+  for (const mod of registry.modules()) {
+    for (const itemId of mod.adopts ?? []) {
+      const from = out.find((g) => g.children?.some((c) => c.id === itemId));
+      const item = from?.children?.find((c) => c.id === itemId);
+      const to = from?.section ? out.find((g) => g.id === `${mod.id}.${from.section}`) : undefined;
+      if (!from || !item || !to || to === from) continue;
+      out = out.map((g) => (g === from ? { ...g, children: g.children!.filter((c) => c.id !== itemId) } : g === to ? { ...g, children: [item, ...g.children!] } : g));
+    }
+  }
+  return out;
 }

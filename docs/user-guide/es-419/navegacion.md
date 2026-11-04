@@ -19,7 +19,7 @@ Todas las pantallas de ERP-IA comparten el mismo marco: una barra azul oscura ar
 
 El menú lateral muestra solo los **nombres de los módulos** que tu empresa tiene y que tu rol puede usar (por ejemplo **Núcleo**, **Contabilidad**, **Soporte**). Al elegir un módulo, la barra de secciones muestra las suyas y se abre su primera pantalla, salvo que ya tengas una de ese módulo abierta en una pestaña. El módulo activo queda marcado.
 
-- El botón de arriba del menú, **Contraer menú**, lo reduce a una franja de 60 px con la inicial de cada módulo (el nombre completo aparece al pasar el mouse); **Expandir menú** lo vuelve a abrir.
+- El botón de arriba del menú, **Contraer menú**, lo reduce a una franja de 60 px con el ícono de cada módulo (el nombre completo aparece al pasar el mouse); **Expandir menú** lo vuelve a abrir.
 - Tu elección se recuerda en este navegador. Si nunca lo cambiaste, el menú empieza contraído en pantallas de menos de 1440 px de ancho y abierto en las más anchas.
 - Por debajo de 1024 px el menú lateral desaparece y los módulos están en el botón **Menú** (ver «Menú en pantallas pequeñas»).
 
@@ -41,7 +41,7 @@ Una opción o un módulo solo aparece si tu empresa lo tiene habilitado y tu rol
 
 Debajo de la barra azul está la **barra de secciones** del módulo activo: en todos los módulos son las cuatro secciones **Maestros ▾ · Documentos ▾ · Reportes ▾ · Parámetros ▾**, más alguna opción propia del módulo; por ejemplo en Núcleo **Inicio · Maestros ▾ · Documentos ▾ · Reportes ▾ · Parámetros ▾ · Importar datos**. La sección de la pantalla en que estás aparece subrayada. **Inicio** está siempre en el primer módulo. Cada módulo ordena sus pantallas en las mismas cuatro secciones, para que encuentres todo en el mismo lugar:
 
-- **Maestros**: los datos base que usan los documentos. En Núcleo, **Terceros**, **Productos** y **Categorías**; en Contabilidad, el **Plan de cuentas**, los **Centros de costo**, las **Fuentes** y los demás maestros.
+- **Maestros**: los datos base que usan los documentos. En Núcleo, **Productos** y **Categorías**; en Contabilidad, **Terceros**, el **Plan de cuentas**, los **Centros de costo**, las **Fuentes**, las **Plantillas de comprobante** y los demás maestros. (Si tu empresa no tiene Contabilidad, **Terceros** queda en Núcleo.)
 - **Documentos**: los documentos del negocio. En Contabilidad, los **Comprobantes**.
 - **Reportes**: las consultas e informes. En Contabilidad, **Movimientos** e **Informes**.
 - **Parámetros**: la configuración del módulo. En Contabilidad, **Períodos** y **Reglas contables**.

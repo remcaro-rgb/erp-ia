@@ -104,6 +104,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
 
     // The assistant answers with a table and a way into Movimientos.
     const drawer = page.getByRole("complementary", { name: "Asistente" });
+    if (!(await drawer.isVisible())) await page.getByRole("button", { name: "Asistente", exact: true }).click();
     await expect(drawer.getByLabel("Escribe")).toBeEnabled();
     const fresh = drawer.getByRole("button", { name: "Nueva conversación" });
     if (await fresh.isVisible()) await fresh.click();

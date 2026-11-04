@@ -9,7 +9,7 @@ describe("accounting manifest", () => {
     expect(accounting.dependsOn).toEqual(["core"]);
     // Entity types spec §2.4, design §22.23: the level-1 items are Maestros, Documentos, Reportes and Parámetros.
     expect(accounting.navigation.map((n) => [n.id, n.href, n.section, n.children?.map((c) => c.href)])).toEqual([
-      ["accounting.maestros", "#", "maestros", ["/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items", "/accounting/business-units", "/accounting/journals"]],
+      ["accounting.maestros", "#", "maestros", ["/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items", "/accounting/business-units", "/accounting/journals", "/accounting/entry-templates"]],
       ["accounting.documentos", "#", "documentos", ["/accounting/entries"]],
       ["accounting.reportes", "#", "reportes", ["/accounting/movements", "/accounting/reports"]],
       ["accounting.parametros", "#", "parametros", ["/accounting/periods", "/accounting/posting"]],

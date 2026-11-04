@@ -73,6 +73,8 @@ export const MASTER_SPECS: Record<MasterKind, readonly FieldSpec[]> = {
     { key: "name", column: "name", control: "text", required: true },
     { key: "journalId", column: "journal_id", control: "select", optionsFrom: "journals", required: true, initial: "" },
     { key: "description", column: "description", control: "text", initial: "" },
+    { key: "note", column: "note", control: "text", initial: "" },
+    { key: "valuesEditable", column: "values_editable", control: "check", initial: true },
   ],
   rule: [
     { key: "event", column: "event", control: "text", required: true, mono: true },
@@ -123,7 +125,7 @@ export function masterInput(kind: MasterKind, draft: MasterDraft, id: string | n
     if (spec.control === "check") input[spec.key] = value === true;
     else if (spec.key === "parentId") input[spec.key] = value === "" ? null : value;
     else if (spec.key === "priority") input[spec.key] = Number(String(value).trim() || "100");
-    else if (spec.key === "description") input[spec.key] = String(value).trim() === "" ? null : String(value).trim();
+    else if (spec.key === "description" || spec.key === "note") input[spec.key] = String(value).trim() === "" ? null : String(value).trim();
     else if (spec.key === "statementSection") {
       // The process takes a section or none at all; the empty text is none (it inherits the parent's).
       if (String(value).trim() !== "") input[spec.key] = String(value).trim();

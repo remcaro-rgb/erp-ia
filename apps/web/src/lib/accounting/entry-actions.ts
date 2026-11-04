@@ -7,6 +7,7 @@ import { requireCaller } from "@/lib/auth/claims";
 import { signOutIfDisabled } from "@/lib/auth/disabled";
 import { issuesOf } from "@/lib/records/issues";
 import { processDeps } from "@/lib/server/runtime";
+import { templateLinesOf } from "./entry-template";
 
 // What the comprobante record asks of the server (accounting design §8): the lookups of the lines editor, the status buttons and the
 // "Nuevo desde plantilla" dialog. Every write is a registered process run as the session's user (rule 1).
@@ -106,48 +107,41 @@ export async function runEntryAction(action: EntryAction, id: string, input: { r
 export interface TemplateOption {
   id: string;
   name: string;
-}
-export interface TemplateLine {
-  lineNo: number;
-  account: string;
-  side: "debit" | "credit";
-  /** The template's fixed amount; null when the line asks for one. */
-  amount: number | null;
+  note: string | null;
 }
 
-/** The plantillas the viewer may use, by name. */
+/** The plantillas the viewer may start a comprobante from: active, readable and with the `use` right, by name. */
 export async function listTemplatesAction(): Promise<TemplateOption[]> {
   const caller = await requireCaller();
   const deps = processDeps();
-  const runnable = await runnableProcesses(deps.sql, deps.registry, caller.claims, ["accounting.entry.from_template"]);
-  if (!runnable.has("accounting.entry.from_template")) return [];
-  return withClaims(deps.sql, caller.claims, (tx) => tx<TemplateOption[]>`select id, name from accounting.v_entry_templates order by name limit 100`);
+  const runnable = await runnableProcesses(deps.sql, deps.registry, caller.claims, ["accounting.entry.create"]);
+  if (!runnable.has("accounting.entry.create")) return [];
+  return withClaims(
+    deps.sql,
+    caller.claims,
+    (tx) => tx<TemplateOption[]>`
+      select id, name, note from accounting.v_entry_templates
+      where is_active is not false and kernel.can_access_record('accounting.entry_template', id, 'use')
+      order by name limit 100`,
+  );
 }
 
-/** The lines of a plantilla, to ask for the values it leaves open. */
-export async function templateLinesAction(templateId: string): Promise<TemplateLine[]> {
+export type SaveTemplateResult = { ok: true; id: string } | { ok: false; code: string; messages: string[] };
+
+/** "Guardar como plantilla": a plantilla de comprobante from a stored comprobante's header and lines (`accounting.entry_template.create`). */
+export async function saveAsTemplateAction(input: { entryId: string; name: string; blankAmounts: boolean }): Promise<SaveTemplateResult> {
   const caller = await requireCaller();
   try {
-    const template = (await runProcess(processDeps(), caller, "accounting.entry_template.consult", { id: templateId })) as { lines?: Record<string, unknown>[] };
-    return (template.lines ?? []).map((l) => ({
-      lineNo: Number(l.line_no),
-      account: [l.account_code, l.account_name].filter(Boolean).join(" · "),
-      side: l.side === "credit" ? "credit" : "debit",
-      amount: l.amount === null || l.amount === undefined ? null : Number(l.amount),
-    }));
-  } catch (error) {
-    if (error instanceof ProcessError) return [];
-    throw error;
-  }
-}
-
-export type FromTemplateResult = { ok: true; id: string } | { ok: false; code: string; messages: string[] };
-
-/** Creates a draft from a plantilla (`accounting.entry.from_template`). */
-export async function fromTemplateAction(input: { templateId: string; date: string; amounts: Record<string, number> }): Promise<FromTemplateResult> {
-  const caller = await requireCaller();
-  try {
-    const { id } = (await runProcess(processDeps(), caller, "accounting.entry.from_template", input)) as { id: string };
+    const entry = (await runProcess(processDeps(), caller, "accounting.entry.consult", { id: input.entryId })) as Record<string, unknown> & { lines?: Record<string, unknown>[] };
+    const mapped = templateLinesOf(entry.lines ?? [], input.blankAmounts);
+    if (!mapped.ok) return { ok: false, code: "template_lines", messages: [] };
+    const { id } = (await runProcess(processDeps(), caller, "accounting.entry_template.create", {
+      name: input.name,
+      journalId: entry.journal_id,
+      ...(typeof entry.description === "string" && entry.description !== "" ? { description: entry.description } : {}),
+      ...(typeof entry.business_unit_id === "string" ? { businessUnitId: entry.business_unit_id } : {}),
+      lines: mapped.lines,
+    })) as { id: string };
     return { ok: true, id };
   } catch (error) {
     await signOutIfDisabled(error);

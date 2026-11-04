@@ -18,7 +18,7 @@ processes:
 
 **Terceros** es el maestro de las personas y empresas con las que trabajas. Cada tercero lleva los datos que pide la DIAN para la facturación electrónica y la información exógena, de modo que se pueda usar en una factura sin sorpresas.
 
-Entra desde el módulo **Núcleo › Maestros › Terceros**, o con **⌘K** escribiendo «terc».
+Entra desde **Contabilidad › Maestros › Terceros** (o **Núcleo › Maestros › Terceros** si tu empresa no tiene Contabilidad), o con **⌘K** escribiendo «terc».
 
 ## El listado
 

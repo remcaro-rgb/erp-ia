@@ -16,8 +16,19 @@ export interface OriginData {
   rule: OriginLink | null;
   reversalOf: OriginLink | null;
   reversedBy: OriginLink | null;
+  template: OriginLink | null;
   chainId: string | null;
   timeline: TimelineItem[] | null;
+}
+
+/** The plantilla de comprobante a comprobante comes from (stored) or is being started from (new). */
+export interface TemplateRef {
+  id: string;
+  name: string;
+  /** The plantilla's note. */
+  note: string | null;
+  /** Zero-based positions of the lines whose account and amount a not-editable plantilla fixes. */
+  locked: number[];
 }
 
 export interface EntryFormData {
@@ -27,10 +38,17 @@ export interface EntryFormData {
   userId: string;
   labels: Record<string, string>;
   can: Record<EntryAction, boolean>;
+  /** The caller may keep this comprobante as a plantilla (`accounting.entry_template.create`). */
+  canTemplate: boolean;
   origin: OriginData | null;
+  fromTemplate: TemplateRef | null;
+  /** A new comprobante started from a plantilla: its header and lines as a consult row, for the form to start from. */
+  prefill: Record<string, unknown> | null;
 }
 
 const DEFAULT_SETTINGS: EntrySettings = { requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false };
+
+const TEMPLATE_CREATE = "accounting.entry_template.create";
 
 const PROCESS_OF: Record<EntryAction, string> = {
   post: "accounting.entry.save",
@@ -115,10 +133,49 @@ async function timelineOf(caller: Caller, entry: EntryRow, timeZone: string | un
   }
 }
 
-/** Everything the comprobante form and its Origen tab read besides the entry. */
-export async function loadEntryForm(caller: Caller, entry: EntryRow | null): Promise<EntryFormData> {
+type TemplateRow = Record<string, unknown> & { lines?: Record<string, unknown>[] };
+
+/** The plantilla as the caller reads it, or null when it is not there for them. */
+async function templateOf(caller: Caller, id: string): Promise<TemplateRow | null> {
+  try {
+    return (await runProcess(processDeps(), caller, "accounting.entry_template.consult", { id })) as TemplateRow;
+  } catch (error) {
+    if (error instanceof ProcessError && ["not_found", "forbidden", "not_entitled", "record_forbidden"].includes(error.code)) return null;
+    throw error;
+  }
+}
+
+/** The lines a not-editable plantilla fixes: those with an amount (a plantilla whose values are editable fixes none). */
+const lockedOf = (template: TemplateRow): number[] =>
+  template.values_editable === false ? (template.lines ?? []).filter((l) => l.amount !== null && l.amount !== undefined).map((l) => Number(l.line_no) - 1) : [];
+
+/** A new comprobante's starting point from a plantilla (the same consult row the stored one has: header and lines). */
+function prefillOf(template: TemplateRow): Record<string, unknown> {
+  return {
+    journal_id: template.journal_id,
+    description: template.description || template.name,
+    business_unit_id: template.business_unit_id,
+    lines: (template.lines ?? []).map((l) => ({
+      ...l,
+      debit: l.side === "debit" ? l.amount : null,
+      credit: l.side === "credit" ? l.amount : null,
+    })),
+  };
+}
+
+/** Everything the comprobante form and its Origen tab read besides the entry; `templateId` starts a new one from that plantilla. */
+export async function loadEntryForm(caller: Caller, entry: EntryRow | null, templateId: string | null = null): Promise<EntryFormData> {
   const deps = processDeps();
   const t = await getTranslations();
+  // The plantilla of a stored comprobante (its marker) or the one a new comprobante starts from; a new one starts only from an active plantilla.
+  const templateKey = entry ? (typeof entry.template_id === "string" ? entry.template_id : null) : templateId;
+  const template = templateKey ? await templateOf(caller, templateKey) : null;
+  const usable = template !== null && (entry !== null || template.is_active !== false);
+  const prefill = !entry && template && usable ? prefillOf(template) : null;
+  const fromTemplate: TemplateRef | null =
+    templateKey && (entry !== null || usable)
+      ? { id: templateKey, name: typeof template?.name === "string" ? template.name : "—", note: typeof template?.note === "string" && template.note !== "" ? template.note : null, locked: template ? lockedOf(template) : [] }
+      : null;
   const [settingsRaw, journalRows, runnable, labels] = await Promise.all([
     runProcess(deps, caller, "accounting.settings.consult", {}).catch((error: unknown) => {
       if (denied(error)) return null;
@@ -127,8 +184,8 @@ export async function loadEntryForm(caller: Caller, entry: EntryRow | null): Pro
     withClaims(deps.sql, caller.claims, (tx) =>
       tx<{ id: string; code: string; name: string }[]>`select id, code, name from accounting.v_journals where manual_entries and is_active order by code`,
     ),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, [...new Set(Object.values(PROCESS_OF))]),
-    labelsOf(caller, entry),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [...new Set(Object.values(PROCESS_OF)), TEMPLATE_CREATE]),
+    labelsOf(caller, entry ?? (prefill as EntryRow | null)),
   ]);
   const raw = settingsRaw as (Partial<EntrySettings> & { manualJournalId?: string | null }) | null;
   const settings: EntrySettings = { ...DEFAULT_SETTINGS, ...(raw ? { requireApprovalOnManual: raw.requireApprovalOnManual === true, useOpenAuxiliaries: raw.useOpenAuxiliaries === true, useItems: raw.useItems === true, useBusinessUnits: raw.useBusinessUnits === true, requireAttachmentOnManual: raw.requireAttachmentOnManual === true } : {}) };
@@ -144,17 +201,18 @@ export async function loadEntryForm(caller: Caller, entry: EntryRow | null): Pro
     }
     const profile = await callerProfile(deps.sql, caller.claims);
     const timeZone = profile.companies.find((c) => c.id === caller.claims.active_company_id)?.timeZone;
-    const [source, ruleLink, reversalOf, reversedBy, timeline] = await Promise.all([
+    const [source, ruleLink, reversalOf, reversedBy, templateLink, timeline] = await Promise.all([
       linkTo(caller, typeof entry.source_entity === "string" ? entry.source_entity : null, typeof entry.source_record_id === "string" ? entry.source_record_id : null, String(entry.source_record_id ?? "").slice(0, 8)),
       linkTo(caller, "accounting.posting_rule", rule, event ?? String(rule ?? "").slice(0, 8)),
       linkTo(caller, "accounting.entry", typeof entry.reversal_of_id === "string" ? entry.reversal_of_id : null, ""),
       linkTo(caller, "accounting.entry", typeof entry.reversed_by_id === "string" ? entry.reversed_by_id : null, ""),
+      linkTo(caller, "accounting.entry_template", typeof entry.template_id === "string" ? entry.template_id : null, ""),
       timelineOf(caller, entry, timeZone, {
         process: (id) => deps.registry.processes().find((p) => p.id === id)?.description ?? id,
         action: (a) => (t.has(`grid.values.audit_action.${a}`) ? t(`grid.values.audit_action.${a}`) : a),
       }),
     ]);
-    origin = { origin: String(entry.origin ?? "manual"), source, event, rule: ruleLink, reversalOf, reversedBy, chainId: typeof entry.chain_id === "string" ? entry.chain_id : null, timeline };
+    origin = { origin: String(entry.origin ?? "manual"), source, event, rule: ruleLink, reversalOf, reversedBy, template: templateLink, chainId: typeof entry.chain_id === "string" ? entry.chain_id : null, timeline };
   }
 
   return {
@@ -164,6 +222,9 @@ export async function loadEntryForm(caller: Caller, entry: EntryRow | null): Pro
     userId: caller.claims.sub,
     labels,
     can,
+    canTemplate: runnable.has(TEMPLATE_CREATE),
     origin,
+    fromTemplate,
+    prefill,
   };
 }

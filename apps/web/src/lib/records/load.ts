@@ -210,7 +210,7 @@ export async function refLabelsOf(caller: Caller, entity: EntityDef, values: Rec
   return labels;
 }
 
-async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"], accounting: AccountingTabs | null): Promise<FormData> {
+async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"], accounting: AccountingTabs | null, templateId: string | null = null): Promise<FormData> {
   const master = MASTER_KINDS[entity.id];
   if (master) {
     return {
@@ -225,7 +225,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
   if (entity.id === "accounting.entry") {
     // Rule 20: a stored comprobante's lines read in the universal grid too (sort, per-column filter, advanced filter, pages, exports).
-    const [entry, linesGrid] = await Promise.all([loadEntryForm(caller, record), record ? gridTab(caller, "accounting.entry_line", [{ field: "entry_id", op: "eq", value: record.id }]) : null]);
+    const [entry, linesGrid] = await Promise.all([loadEntryForm(caller, record, record ? null : templateId), record ? gridTab(caller, "accounting.entry_line", [{ field: "entry_id", op: "eq", value: record.id }]) : null]);
     return { kind: "entry", ...entry, linesGrid };
   }
   if (entity.id === "core.product_category") {
@@ -272,7 +272,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
  * the record does not exist for the caller (a hidden record looks like a missing one), or `new` is asked by a caller
  * who may not create. Throws `Unauthenticated` without a complete session; the page turns that into a redirect.
  */
-export async function loadRecord(entityId: string, id: string): Promise<LoadedRecord | null> {
+export async function loadRecord(entityId: string, id: string, options: { templateId?: string | null } = {}): Promise<LoadedRecord | null> {
   const entity = recordEntity(entityId);
   if (!entity || (id !== NEW_RECORD_ID && !UUID.test(id))) return null;
   const caller = await requireCaller();
@@ -325,7 +325,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   const translate = (key: string) => (typeof t.has !== "function" || t.has(key) ? t(key) : key);
   const lifecycle = await loadLifecycle(caller, registered, record, access.modes, translate, canSave);
   if (lifecycle) lifecycle.tools.new = entity.create !== "" && runnable.has(entity.create);
-  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting), lifecycle };
+  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting, UUID.test(options.templateId ?? "") ? (options.templateId as string) : null), lifecycle };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

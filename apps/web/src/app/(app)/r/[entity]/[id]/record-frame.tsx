@@ -6,6 +6,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { browserDownload, NotifyDialog, RecordActions, RecordBridgeProvider, RecordFrame, recordHref, useTabs, type RecordActionOutcome, type RecordBarAction, type RecordBridge, type RecordFrameProps, type RecordRights } from "@erp/ui";
 import type { LifecycleFlags, RecordStatus } from "@erp/kernel/lifecycle";
 import { runEntryAction } from "@/lib/accounting/entry-actions";
+import { SaveAsTemplateDialog } from "./save-as-template";
 import { openCreatedRecord } from "@/lib/records/open-created";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { cloneRecordAction } from "@/lib/records/clone";
@@ -66,6 +67,8 @@ export interface FrameLifecycle {
   noun: string;
   /** A comprobante may be reversed (posted and not yet reversed) by this caller: Revertir. */
   reverse?: boolean;
+  /** A stored comprobante may be kept as a plantilla de comprobante by this caller: Guardar como plantilla, next to Revertir. */
+  saveTemplate?: boolean;
   /** Where Eliminar leaves to (the entity's grid). */
   listHref: string;
 }
@@ -99,6 +102,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
     [],
   );
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [sent, setSent] = useState<string | null>(null);
   const [flash] = useState(() => {
     const key = `${entity}:${recordId}`;
@@ -302,7 +306,9 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
                   notify: lc.tools.notify && recordId !== null,
                   duplicate: recordId !== null && canDuplicate,
                   reverse: lc.reverse === true && recordId !== null,
+                  saveTemplate: lc.saveTemplate === true && recordId !== null,
                 }}
+                onSaveTemplate={() => setTemplateOpen(true)}
                 initialProblem={flash}
                 initialNotice={flashNotice}
                 onAction={(action, input, token) => act(bridge, lc, action, input, token)}
@@ -329,6 +335,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
                   {...(recordId && canDuplicate ? { onDuplicate: () => void duplicate(), duplicating: busy } : {})}
                   copyOf={clone ? { title: clone.sourceTitle, href: recordHref(entity, clone.sourceRowId) } : null}
                 />
+                {lc && recordId && lc.saveTemplate === true && <SaveAsTemplateDialog entryId={recordId} open={templateOpen} onClose={() => setTemplateOpen(false)} />}
                 {lc && recordId && lc.tools.notify && notifyOpen && (
                   <NotifyDialog
                     open

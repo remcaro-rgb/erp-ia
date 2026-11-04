@@ -44,6 +44,8 @@ async function login(page: Page, account: DemoAccount) {
 /** A new conversation in the drawer, so an earlier run's messages and cards are not on screen. */
 async function freshAssistant(page: Page) {
   const drawer = page.getByRole("complementary", { name: "Asistente" });
+  // Below 1280 px the drawer is an overlay that starts closed (rule 19): open it from the top bar.
+  if (!(await drawer.isVisible())) await page.getByRole("button", { name: "Asistente", exact: true }).click();
   await expect(drawer).toBeVisible();
   await expect(drawer.getByLabel("Escribe")).toBeEnabled();
   // The button shows once the stored conversation has messages.
@@ -98,7 +100,8 @@ test.describe("phase 1 smoke on the demo company", () => {
     await login(page, LAURA);
     await expect(page.locator("header").first().getByRole("button", { name: /Café del Norte/ })).toBeVisible();
 
-    // Terceros from the module bar opens its tab; the name filter finds Éxito on the server.
+    // Terceros sits in Contabilidad › Maestros (ModuleDef.adopts): pick the module in the side menu, then the item in the bar; it opens its tab; the name filter finds Éxito on the server.
+    await page.getByRole("navigation", { name: "Módulos" }).getByRole("button", { name: "Contabilidad" }).click();
     await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Maestros", exact: true }).click();
     await page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem", { name: "Terceros" }).click();
     await expect(page).toHaveURL(/\/parties$/);

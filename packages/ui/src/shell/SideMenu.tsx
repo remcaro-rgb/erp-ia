@@ -2,6 +2,7 @@
 
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { NavIcon } from "./nav-icons";
 import type { ShellModule } from "./types";
 
 export interface SideMenuProps {
@@ -14,7 +15,7 @@ export interface SideMenuProps {
   onToggle: () => void;
 }
 
-/** The module's mark in the 60 px rail: its name's first letter (the manifest gives no icon; the name is the accessible label). */
+/** The module's mark in the 60 px rail when its manifest gives no icon: its name's first letter (the name is the accessible label). */
 const markOf = (label: string): string => label.trim().charAt(0).toUpperCase();
 
 /**
@@ -55,7 +56,7 @@ export function SideMenu({ modules, activeModuleId, onSelectModule, collapsed, o
               onClick={() => onSelectModule(m.id)}
             >
               <span className="erp-side-mark" aria-hidden="true">
-                {markOf(name)}
+                {m.icon ? <NavIcon name={m.icon} /> : markOf(name)}
               </span>
               <span className="erp-side-label" aria-hidden="true">
                 {name}

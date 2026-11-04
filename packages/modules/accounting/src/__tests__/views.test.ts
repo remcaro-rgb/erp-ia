@@ -9,6 +9,9 @@ const ledger = read("0032_accounting_ledger.sql");
 const views = read("0033_accounting_views.sql");
 const accountView = read("0039_accounting_account_view_invoice_ready.sql");
 const typedViews = read("0043_accounting_entries_typed.sql");
+// 0055 re-creates the entry and template views with their later columns (template options): their generated text lives there.
+const templateViews = read("0055_accounting_template_options.sql");
+const RECREATED_IN_0055 = new Set(["accounting.entry", "accounting.entry_template"]);
 
 // The masked views are pasted into the migrations from maskedViewSql (rule 14). This guards against drift between the entity
 // definitions and the SQL: the generated column list must appear verbatim. Views that add a filter (the account security of
@@ -66,7 +69,10 @@ describe("accounting masked views, migration 0043 (typed maestros and comprobant
   for (const entity of typed) {
     it(`accounting.v_${entity.table} is the generated masked view of ${entity.id}, with the lifecycle columns`, () => {
       const generated = maskedViewSql(defineEntity(entity));
-      expect(typedViews).toContain(generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`)));
+      const head = generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`));
+      // A view re-created in 0055 can only append columns, so its columns follow the migration's order: each generated column line must appear.
+      if (RECREATED_IN_0055.has(entity.id)) for (const line of head.split("\n").filter((l) => l.trim().startsWith("case when") || l.trim().startsWith('"'))) expect(templateViews).toContain(line.replace(/,$/, ""));
+      else expect(typedViews).toContain(head);
       expect(typedViews).toContain(`case when (select kernel.field_visible('${entity.id}', 'status')) then "status" else null end as "status"`);
       expect(typedViews).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
     });

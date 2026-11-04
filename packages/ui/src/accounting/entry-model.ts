@@ -33,6 +33,8 @@ export interface EditorLine {
   credit: number | null;
   /** The line is on an account the viewer may not see: its figures and links come masked and it is not editable. */
   restricted: boolean;
+  /** A plantilla whose values are not editable fixes this line's account and amount: they stay as the plantilla has them. */
+  locked?: boolean;
 }
 
 const round4 = (value: number) => Math.round(value * 10_000) / 10_000;

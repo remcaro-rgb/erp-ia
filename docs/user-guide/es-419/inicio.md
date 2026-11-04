@@ -24,7 +24,7 @@ ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite m
 1. Abre ERP-IA en el navegador e ingresa con tu correo y contraseña. Si es tu computador de siempre, marca **Recordarme en este dispositivo por 30 días**.
 2. Si tu rol lo exige, escribe el código de 6 dígitos de tu app de autenticación.
 3. Llegas a **Inicio**, la primera pestaña: tu panel con los indicadores de tu empresa, las recomendaciones para ti, los últimos registros que tocaste y atajos de ayuda. Más abajo, en **La pantalla de Inicio**, se explica cada tarjeta y cómo acomodarlas a tu gusto.
-4. Abre el menú **Módulos** (arriba, junto al nombre de la empresa) y elige **Núcleo** o **Soporte**. Al lado aparecen las opciones del módulo: **Terceros**, **Productos**, **Categorías** e **Importar datos** en Núcleo; **Soporte** en el módulo de soporte.
+4. Abre el menú **Módulos** (arriba, junto al nombre de la empresa) y elige **Núcleo** o **Soporte**. Al lado aparecen las opciones del módulo: **Productos**, **Categorías** e **Importar datos** en Núcleo (**Terceros** está en Contabilidad, sección Maestros); **Soporte** en el módulo de soporte.
 5. Pulsa **Terceros** para ver el listado. Para crear uno, pulsa **Nuevo**.
 
 ## Cómo está organizada la pantalla

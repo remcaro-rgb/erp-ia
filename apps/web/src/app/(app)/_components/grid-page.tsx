@@ -104,7 +104,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
                   <button
                     key={q.id}
                     type="button"
-                    className="erp-btn"
+                    className="erp-chip-toggle"
                     aria-pressed={quick[q.group] === q.id}
                     onClick={() => setQuick((current) => {
                       const { [q.group]: on, ...rest } = current;

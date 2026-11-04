@@ -71,7 +71,8 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
         labels={labels}
         linesGrid={entry.linesGrid}
         record={record}
-        initial={record ? null : (clone?.values ?? null)}
+        initial={record ? null : (clone?.values ?? entry.prefill)}
+        fromTemplate={entry.fromTemplate}
         canSave={!readOnly}
         lookup={lookupLineAction}
         requestStepUp={requestStepUp}

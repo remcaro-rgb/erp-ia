@@ -260,6 +260,7 @@ export const entryEntity: EntityDef = entity(
     f("requires_approval", "boolean"),
     f("posts", "boolean"),
     f("void_reason", "text"),
+    f("template_id", "ref", ref("accounting.entry_template", "name")),
   ],
   {
     typed: {
@@ -343,6 +344,8 @@ export const entryTemplateEntity: EntityDef = entity("accounting.entry_template"
   f("journal_id", "ref", { required: true, ...ref("accounting.journal", "code") }),
   f("description", "text"),
   f("business_unit_id", "ref", ref("accounting.business_unit", "name")),
+  f("values_editable", "boolean"),
+  f("note", "text"),
   ...trailer(f),
   f("is_active", "boolean"),
   ...maestroLifecycle(f),

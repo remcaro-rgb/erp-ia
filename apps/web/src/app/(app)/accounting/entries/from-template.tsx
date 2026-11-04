@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
-import { formatMoney, MoneyInput, useTabs } from "@erp/ui";
+import { useTabs } from "@erp/ui";
 import { Dialog, DialogContent, DialogTitle } from "@erp/ui/components/ui/dialog";
-import { fromTemplateAction, listTemplatesAction, templateLinesAction, type TemplateLine, type TemplateOption } from "@/lib/accounting/entry-actions";
+import { NEW_RECORD_ID } from "@/lib/records/entities";
+import { listTemplatesAction, type TemplateOption } from "@/lib/accounting/entry-actions";
 
-// "Nuevo desde plantilla" (accounting design §4.10, §8): pick a plantilla, the date and the values it leaves open, and a draft
-// opens in its own tab.
-
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+// "Nuevo desde plantilla" (accounting design §4.10, §8): pick a plantilla and the new-comprobante page opens in its own tab, filled
+// with the plantilla's Fuente, description and lines. Nothing is saved until the user saves it there.
 
 export function FromTemplateButton() {
   const t = useTranslations("accounting.entry.grid");
@@ -35,14 +31,9 @@ function Body({ onClose }: { onClose: () => void }) {
   const t = useTranslations("accounting.entry.grid");
   const tc = useTranslations();
   const open = useTabs((s) => s.open);
-  const ids = { template: useId(), date: useId() };
+  const ids = { template: useId() };
   const [templates, setTemplates] = useState<TemplateOption[] | null>(null);
   const [templateId, setTemplateId] = useState("");
-  const [lines, setLines] = useState<TemplateLine[]>([]);
-  const [amounts, setAmounts] = useState<Record<string, number>>({});
-  const [date, setDate] = useState(today());
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
 
   useEffect(() => {
     let live = true;
@@ -52,30 +43,18 @@ function Body({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const pick = (id: string) => {
-    setTemplateId(id);
-    setAmounts({});
-    setLines([]);
-    if (id) void templateLinesAction(id).then(setLines);
+  const chosen = templates?.find((tpl) => tpl.id === templateId) ?? null;
+  const go = () => {
+    if (!chosen) return;
+    open({ title: tc("grid.record_title.new", { entity: tc("nav.create.accounting.entry") }), href: `/r/accounting.entry/${NEW_RECORD_ID}?template=${chosen.id}`, kind: "record" });
+    onClose();
   };
 
-  const create = () =>
-    start(async () => {
-      const result = await fromTemplateAction({ templateId, date, amounts });
-      if (result.ok) {
-        open({ title: tc("accounting.entry.draft_title"), href: `/r/accounting.entry/${result.id}`, kind: "record" });
-        onClose();
-      } else {
-        setError(t("template_failed", { reason: result.messages[0] ?? tc(`errors.${tc.has(`errors.${result.code}`) ? result.code : "unknown"}`) }));
-      }
-    });
-
-  const open_ = lines.filter((l) => l.amount === null);
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        if (templateId) create();
+        go();
       }}
     >
       <div className="erp-dialog__head">
@@ -88,7 +67,7 @@ function Body({ onClose }: { onClose: () => void }) {
           <>
             <div className="erp-field">
               <label htmlFor={ids.template}>{t("template")}</label>
-              <select id={ids.template} value={templateId} onChange={(e) => pick(e.target.value)}>
+              <select id={ids.template} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
                 <option value="">{t("template_pick")}</option>
                 {(templates ?? []).map((tpl) => (
                   <option key={tpl.id} value={tpl.id}>
@@ -97,37 +76,16 @@ function Body({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </div>
-            <div className="erp-field">
-              <label htmlFor={ids.date}>{t("template_date")}</label>
-              <input id={ids.date} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            {open_.length > 0 && (
-              <fieldset className="erp-field">
-                <legend>{t("template_amounts")}</legend>
-                {open_.map((l) => (
-                  <div key={l.lineNo} className="erp-row">
-                    <span className="erp-grow erp-small">
-                      {l.lineNo} · {l.account}
-                    </span>
-                    <MoneyInput aria-label={`${l.account} ${formatMoney(0)}`} value={amounts[String(l.lineNo)] ?? null} onChange={(v) => setAmounts((a) => ({ ...a, [String(l.lineNo)]: v ?? 0 }))} />
-                  </div>
-                ))}
-              </fieldset>
-            )}
+            {chosen?.note && <p className="erp-small erp-muted">{chosen.note}</p>}
           </>
-        )}
-        {error && (
-          <div role="alert" className="erp-dian erp-dian--bad">
-            {error}
-          </div>
         )}
       </div>
       <div className="erp-dialog__foot erp-row">
         <button type="button" className="erp-btn" onClick={onClose}>
           {tc("common.cancel")}
         </button>
-        <button type="submit" className="erp-btn erp-btn--primary" disabled={!templateId || pending}>
-          {t("template_create")}
+        <button type="submit" className="erp-btn erp-btn--primary" disabled={!chosen}>
+          {t("template_open")}
         </button>
       </div>
     </form>

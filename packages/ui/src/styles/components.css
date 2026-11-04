@@ -39,6 +39,10 @@
   .erp-btn:disabled { opacity: .5; cursor: not-allowed; }
   .erp-btn--primary { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
   .erp-btn--primary:hover:not(:disabled) { background: var(--primary-h); }
+  /* On/off chip (grid quick filters, Agrupar por, Ocultar filtros): outlined when off, filled when on. */
+  .erp-chip-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text-muted); font-size: 13px; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+  .erp-chip-toggle:hover { border-color: var(--primary); color: var(--text); }
+  .erp-chip-toggle[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
   .erp-btn--ghost { border-color: transparent; background: transparent; color: var(--text-muted); }
   .erp-btn--sm { padding: 5px 9px; font-size: 12px; }
   /* A change that removes access (Desactivar): the danger text on the surface, never a filled red. */
@@ -786,6 +790,7 @@
   .erp-side-item:hover { background: var(--hover); color: var(--text); }
   .erp-side-item[aria-current="page"] { background: var(--accent); color: var(--link); }
   .erp-side-mark { width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 6px; border: 1px solid currentColor; font-size: 12px; font-weight: 700; }
+  .erp-side-mark svg { width: 15px; height: 15px; }
   .erp-side[data-collapsed="true"] { width: 60px; }
   .erp-side[data-collapsed="true"] .erp-side-title, .erp-side[data-collapsed="true"] .erp-side-label { display: none; }
   .erp-side[data-collapsed="true"] .erp-side-head { justify-content: center; padding: 0; }

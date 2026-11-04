@@ -109,6 +109,7 @@
         "notify": "Notify",
         "duplicate": "Duplicate",
         "reverse": "Reverse",
+        "save_template": "Save as template",
         "more": "More",
         "save": "Save",
         "save_submit": "Save and submit for approval",
@@ -1010,6 +1011,7 @@
       "items": "Items",
       "business_units": "Business units",
       "journals": "Sources",
+      "entry_templates": "Entry templates",
       "periods": "Periods",
       "reports": "Reports",
       "posting": "Posting rules"
@@ -1390,7 +1392,8 @@
         "updated_at": "Updated",
         "requires_approval": "Requires approval",
         "posts": "Posts",
-        "void_reason": "Void reason"
+        "void_reason": "Void reason",
+        "template_id": "Template"
       },
       "posting_rule": {
         "seq": "ID",
@@ -1469,7 +1472,9 @@
         "updated_at": "Updated",
         "status": "Status",
         "requires_approval": "Requires approval",
-        "is_active": "Active"
+        "is_active": "Active",
+        "note": "Note",
+        "values_editable": "The values can be changed"
       },
       "entry_template_line": {
         "account_id": "Account",
@@ -2102,7 +2107,6 @@
     },
     "group": {
       "group_by": "Group by",
-      "aggregates": "Aggregates",
       "controls": "Grouping and aggregates",
       "add_field": "+ field…",
       "add_field_label": "Add a field to group by",
@@ -2842,6 +2846,8 @@
         "delete": "Draft deleted"
       },
       "clone_note": "The header was copied; add the lines.",
+      "from_template_banner": "Generated from the template",
+      "from_template_locked": "The template fixes the value of {count, plural, one {# line} other {# lines}}: it cannot be changed.",
       "origin": {
         "title": "Origin",
         "kind": "Type",
@@ -2851,6 +2857,7 @@
         "chain": "Causal chain",
         "manual": "Manual voucher: a person created it.",
         "template": "Created from a template.",
+        "from_template": "Entry template",
         "auto": "Automatic voucher: the engine posted it from an event.",
         "import": "Imported.",
         "reversal_of": "Reversal of",
@@ -2874,11 +2881,16 @@
         "template": "Template",
         "template_pick": "Choose a template",
         "template_none": "There are no templates",
-        "template_date": "Date",
-        "template_amounts": "Amount per line",
-        "template_create": "Create draft",
-        "template_failed": "The draft could not be created: {reason}"
+        "template_open": "Open entry"
       },
+      "save_template": {
+          "button": "Save as template",
+          "name": "Template name",
+          "blank": "Leave the amounts blank (asked when used)",
+          "save": "Save template",
+          "failed": "The template could not be saved: {reason}",
+          "lines_refused": "The entry has no lines that can be copied (a restricted account or no lines)"
+        },
       "totals_label": "Voucher totals",
       "no_lines": "No lines",
       "problems": {
@@ -3025,7 +3037,9 @@
           "template": {
             "name": "Name",
             "journal_id": "Journal",
-            "description": "Description"
+            "description": "Description",
+            "note": "Note",
+            "values_editable": "The values can be changed"
           },
           "period": {
             "number": "Number",

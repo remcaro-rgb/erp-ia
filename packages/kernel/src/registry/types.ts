@@ -224,6 +224,14 @@ export interface ModuleDef {
   /** `consumes` is keyed by event name; `"*"` consumes every event, after the module-specific consumers of that event. */
   events: { emits: string[]; consumes: Record<string, EventConsumer> };
   navigation: NavItem[];
+  /** The module's mark in the shell's side menu: a `NavItem.icon` name (the shell falls back to the name's first letter). */
+  icon?: string;
+  /**
+   * Menu items of a module this one depends on that the shell shows in this module's menu instead of their own, in the same section
+   * (Terceros of `core` under Contabilidad's Maestros: owner 2026-11-03). Only the placement moves: the item keeps its feature, its
+   * guard and its menu-access key, and it stays in its own module's menu when this module is not entitled.
+   */
+  adopts?: string[];
   /** KPIs the module contributes to the home screen. */
   homeKpis?: HomeKpiProvider[];
   /** Tabs the module adds to the record pages of entities (its own or other modules'). */

@@ -33,6 +33,7 @@ export const kernelModule: ModuleDef = defineModule({
   id: "kernel",
   version: "0.1.0",
   dependsOn: [],
+  icon: "settings",
   entities: [importEntity, exportJobEntity, auditEntity, userEntity, docTemplateEntity],
   processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_PROCESSES, ...NOTIFY_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES],
   features: [

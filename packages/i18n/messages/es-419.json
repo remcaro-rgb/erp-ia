@@ -109,6 +109,7 @@
         "notify": "Notificar",
         "duplicate": "Duplicar",
         "reverse": "Revertir",
+        "save_template": "Guardar como plantilla",
         "more": "Más",
         "save": "Guardar",
         "save_submit": "Guardar y enviar a aprobación",
@@ -1010,6 +1011,7 @@
       "items": "Ítems",
       "business_units": "Unidades de negocio",
       "journals": "Fuentes",
+      "entry_templates": "Plantillas de comprobante",
       "periods": "Períodos",
       "reports": "Informes",
       "posting": "Reglas contables"
@@ -1390,7 +1392,8 @@
         "updated_at": "Actualizado",
         "requires_approval": "Requiere aprobación",
         "posts": "Contabiliza",
-        "void_reason": "Motivo de anulación"
+        "void_reason": "Motivo de anulación",
+        "template_id": "Plantilla"
       },
       "posting_rule": {
         "seq": "ID",
@@ -1469,7 +1472,9 @@
         "updated_at": "Actualizado",
         "status": "Estado",
         "requires_approval": "Requiere aprobación",
-        "is_active": "Activa"
+        "is_active": "Activa",
+        "note": "Nota",
+        "values_editable": "Se pueden cambiar los valores"
       },
       "entry_template_line": {
         "account_id": "Cuenta",
@@ -2102,7 +2107,6 @@
     },
     "group": {
       "group_by": "Agrupar por",
-      "aggregates": "Agregados",
       "controls": "Agrupación y agregados",
       "add_field": "+ campo…",
       "add_field_label": "Agregar campo para agrupar",
@@ -2842,6 +2846,8 @@
         "delete": "Borrador eliminado"
       },
       "clone_note": "Se copió el encabezado; agrega las líneas.",
+      "from_template_banner": "Generado desde la plantilla",
+      "from_template_locked": "La plantilla fija el valor de {count, plural, one {# línea} other {# líneas}}: no se puede cambiar.",
       "origin": {
         "title": "Origen",
         "kind": "Tipo",
@@ -2851,6 +2857,7 @@
         "chain": "Cadena causal",
         "manual": "Comprobante manual: lo creó una persona.",
         "template": "Creado desde una plantilla.",
+        "from_template": "Plantilla de comprobante",
         "auto": "Comprobante automático: lo contabilizó el motor a partir de un evento.",
         "import": "Importado.",
         "reversal_of": "Reversión de",
@@ -2874,11 +2881,16 @@
         "template": "Plantilla",
         "template_pick": "Elige una plantilla",
         "template_none": "No hay plantillas",
-        "template_date": "Fecha",
-        "template_amounts": "Valores por línea",
-        "template_create": "Crear borrador",
-        "template_failed": "No se pudo crear el borrador: {reason}"
+        "template_open": "Abrir comprobante"
       },
+      "save_template": {
+          "button": "Guardar como plantilla",
+          "name": "Nombre de la plantilla",
+          "blank": "Dejar los valores en blanco (se piden al usarla)",
+          "save": "Guardar plantilla",
+          "failed": "No se pudo guardar la plantilla: {reason}",
+          "lines_refused": "El comprobante no tiene líneas que se puedan copiar (una cuenta restringida o ninguna línea)"
+        },
       "totals_label": "Totales del comprobante",
       "no_lines": "Sin líneas",
       "problems": {
@@ -3025,7 +3037,9 @@
           "template": {
             "name": "Nombre",
             "journal_id": "Fuente",
-            "description": "Descripción"
+            "description": "Descripción",
+            "note": "Nota",
+            "values_editable": "Se pueden cambiar los valores"
           },
           "period": {
             "number": "Número",

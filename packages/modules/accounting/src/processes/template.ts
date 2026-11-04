@@ -3,6 +3,7 @@ import { z } from "zod";
 import { entityDef } from "../entities";
 import { defined, invalid, refuseDuplicate } from "./common";
 import { createDraft, entryInput } from "./entry";
+import { assertTemplateValues } from "./template-values";
 import { assertValid, validateLines, type LineInput } from "./entry-validate";
 import { extraForCreate, extraForUpdate } from "./extra";
 import { assertRefsExist, assertWritable, followLifecycle, initialLifecycle, lifecycleProcesses } from "./lifecycle";
@@ -16,7 +17,7 @@ const optionalId = z.uuid().nullish();
 const NAME_KEY = "entry_templates_company_id_name_key";
 const duplicateName = (name: unknown) => `Ya existe una plantilla con el nombre ${String(name ?? "")}`;
 /** The columns entry_template.update writes (its lines are replaced by the update process, not by Grabar). */
-const WRITABLE = new Set(["name", "journal_id", "description", "business_unit_id", "is_active", "extra", "extra_free"]);
+const WRITABLE = new Set(["name", "journal_id", "description", "business_unit_id", "values_editable", "note", "is_active", "extra", "extra_free"]);
 const amount = z.number().min(0).max(9_999_999_999_999);
 
 const templateLine = z
@@ -91,6 +92,9 @@ const headerShape = {
   journalId: z.uuid(),
   description: z.string().trim().max(500).nullish(),
   businessUnitId: optionalId,
+  /** The user of the plantilla may change its fixed amounts. */
+  valuesEditable: z.boolean().default(true),
+  note: z.string().trim().max(2000).nullish(),
   lines: z.array(templateLine).min(1).max(200),
 };
 
@@ -109,7 +113,7 @@ export const templateCreate = defineProcess({
     const [inserted] = await refuseDuplicate("accounting.entry_template.create", NAME_KEY, duplicateName(input.name), () => ctx.tx<{ id: string }[]>`
       insert into accounting.entry_templates ${ctx.tx({
         company_id: ctx.companyId, name: input.name, journal_id: input.journalId, description: input.description ?? null,
-        business_unit_id: input.businessUnitId ?? null, ...defined(custom), ...lifecycle,
+        business_unit_id: input.businessUnitId ?? null, values_editable: input.valuesEditable, note: input.note ?? null, ...defined(custom), ...lifecycle,
       })}
       returning id`);
     await insertTemplateLines(ctx, inserted!.id, input.lines);
@@ -124,7 +128,7 @@ export const templateUpdate = defineProcess({
   feature: "accounting.ledger",
   description: "Actualiza una plantilla de comprobante; si se envían las líneas, reemplazan a las anteriores",
   input: z
-    .object({ id, name: name.optional(), journalId: z.uuid().optional(), description: z.string().trim().max(500).nullish(), businessUnitId: optionalId, lines: headerShape.lines.optional(), isActive: z.boolean().optional(), extra, extraPatch, extraFree: extraFree.optional() })
+    .object({ id, name: name.optional(), journalId: z.uuid().optional(), description: z.string().trim().max(500).nullish(), businessUnitId: optionalId, valuesEditable: z.boolean().optional(), note: z.string().trim().max(2000).nullish(), lines: headerShape.lines.optional(), isActive: z.boolean().optional(), extra, extraPatch, extraFree: extraFree.optional() })
     .strict(),
   output: idOutput,
   handler: async (ctx, { id: templateId, extraPatch: patch, lines, ...input }) => {
@@ -138,7 +142,7 @@ export const templateUpdate = defineProcess({
     }
     const custom = await extraForUpdate(ctx, "accounting.entry_template", "accounting.entry_template.update", current.extra, { ...input, extraPatch: patch });
     const set = defined({
-      name: input.name, journal_id: input.journalId, description: input.description, business_unit_id: input.businessUnitId, is_active: input.isActive, ...custom,
+      name: input.name, journal_id: input.journalId, description: input.description, business_unit_id: input.businessUnitId, values_editable: input.valuesEditable, note: input.note, is_active: input.isActive, ...custom,
     });
     if (Object.keys(set).length > 0) {
       await refuseDuplicate("accounting.entry_template.update", NAME_KEY, duplicateName(input.name), () => ctx.tx`update accounting.entry_templates set ${ctx.tx(set)} where id = ${templateId}`);
@@ -219,7 +223,8 @@ export const entryFromTemplate = defineProcess({
       journalId: row.journal_id, date: input.date, description: input.description ?? (row.description as string | null) ?? (row.name as string),
       businessUnitId: row.business_unit_id, lines: entryLines,
     });
-    return { id: await createDraft(ctx, parsed, "template") };
+    await assertTemplateValues(ctx, input.templateId, parsed.lines);
+    return { id: await createDraft(ctx, parsed, "template", { template_id: input.templateId }) };
   },
 });
 

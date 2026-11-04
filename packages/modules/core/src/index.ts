@@ -15,6 +15,7 @@ export const core: ModuleDef = defineModule({
   id: "core",
   version: "0.1.0",
   dependsOn: [],
+  icon: "database",
   entities: CORE_ENTITIES,
   processes: [
     ...PARTY_PROCESSES,

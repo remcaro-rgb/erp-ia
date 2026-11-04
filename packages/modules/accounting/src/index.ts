@@ -48,6 +48,8 @@ export const accounting: ModuleDef = defineModule({
   id: "accounting",
   version: "0.1.0",
   dependsOn: ["core"],
+  icon: "calculator",
+  adopts: ["core.parties"],
   entities: ACCOUNTING_ENTITIES,
   processes: ACCOUNTING_PROCESSES,
   features: FEATURES,

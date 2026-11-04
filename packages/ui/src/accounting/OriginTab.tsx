@@ -33,6 +33,8 @@ export interface OriginTabProps {
   rule: OriginLink | null;
   reversalOf: OriginLink | null;
   reversedBy: OriginLink | null;
+  /** The plantilla de comprobante it was made from. */
+  template?: OriginLink | null;
   chainId: string | null;
   /** Null when the viewer's role cannot read the audit. */
   timeline: readonly TimelineItem[] | null;
@@ -40,7 +42,7 @@ export interface OriginTabProps {
 
 const KINDS = new Set(["manual", "template", "auto", "import"]);
 
-export function OriginTab({ origin, source, event, rule, reversalOf, reversedBy, chainId, timeline }: OriginTabProps) {
+export function OriginTab({ origin, source, event, rule, reversalOf, reversedBy, template = null, chainId, timeline }: OriginTabProps) {
   const t = useTranslations("accounting.entry.origin");
   const tv = useTranslations("accounting.values.entry_origin");
   const anchor = (l: OriginLink | null) => (l ? (l.record ? <RecordLink entity={l.record.entity} id={l.record.id} label={l.label} /> : <span>{l.label}</span>) : <span className="erp-muted">{t("none")}</span>);
@@ -59,6 +61,12 @@ export function OriginTab({ origin, source, event, rule, reversalOf, reversedBy,
             <dd className="erp-mono">{event ?? t("none")}</dd>
             <dt>{t("rule")}</dt>
             <dd>{anchor(rule)}</dd>
+          </>
+        )}
+        {template && (
+          <>
+            <dt>{t("from_template")}</dt>
+            <dd>{anchor(template)}</dd>
           </>
         )}
         {reversalOf && (

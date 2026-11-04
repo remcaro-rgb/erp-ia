@@ -267,10 +267,16 @@ function ShellFrame(props: AppShellProps) {
   // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
   // choice wins until the page changes (a pick from a page of another module would otherwise never show).
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
-  const hrefModule = nav.flatMap((i) => i.children ?? [i]).find((i) => isActiveHref(i.href, currentHref));
-  // A record page (/r/<module>.<entity>/<id>) belongs to its entity's module.
-  const recordModule = visibleModules.find((m) => m.id === recordEntityOf(currentHref)?.split(".")[0])?.id;
-  const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? recordModule ?? visibleModules[0]?.id;
+  // The module is the one whose bar lists the item (an adopted item sits under another module's section: ModuleDef.adopts).
+  const barModuleOf = (match: (item: NavItem) => boolean) => {
+    const top = nav.find((i) => match(i) || i.children?.some(match));
+    return top ? moduleOf(top) : undefined;
+  };
+  const hrefModule = barModuleOf((i) => i.href !== "#" && isActiveHref(i.href, currentHref));
+  // A record page (/r/<module>.<entity>/<id>) belongs to the module whose bar lists its entity, else to its entity's module.
+  const recordEntity = recordEntityOf(currentHref);
+  const recordModule = (recordEntity ? barModuleOf((i) => i.entity === recordEntity) : undefined) ?? visibleModules.find((m) => m.id === recordEntity?.split(".")[0])?.id;
+  const activeModuleId = selectedModule ?? hrefModule ?? recordModule ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
   const activeModule = visibleModules.find((m) => m.id === activeModuleId);

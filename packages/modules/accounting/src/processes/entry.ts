@@ -2,6 +2,7 @@ import { defineProcess, ProcessError, visibleExtra, writeSnapshot, type ProcessC
 import { z } from "zod";
 import { invalid, settingsOf } from "./common";
 import { accountOf, assertValid, loadAccounts, validateLines, type EntryOrigin, type LineInput } from "./entry-validate";
+import { assertTemplateValues } from "./template-values";
 import { extraForCreate, extraForUpdate } from "./extra";
 import { extra, extraFree, extraPatch, id, idOutput, rowOutput } from "./schemas";
 
@@ -140,13 +141,19 @@ export const entryCreate = defineProcess({
   module: "accounting",
   kind: "create",
   feature: "accounting.ledger",
-  description: "Crea un comprobante manual en borrador con sus líneas; el consecutivo se asigna al contabilizar",
-  input: entryInput,
+  // A comprobante made from a plantilla (the form of "Nuevo desde plantilla") names it: it needs the plantilla's use right (§9.1).
+  recordAccess: { entity: "accounting.entry_template", idField: "templateId", right: "use" },
+  description: "Crea un comprobante manual en borrador con sus líneas; el consecutivo se asigna al contabilizar. Con templateId, parte de una plantilla de comprobante",
+  input: z.object({ ...entryHeaderShape, templateId: z.uuid().optional() }).strict(),
   output: idOutput,
-  handler: async (ctx, input) => {
+  handler: async (ctx, { templateId, ...input }) => {
     const custom = await extraForCreate(ctx, "accounting.entry", "accounting.entry.create", input);
     const columns = Object.fromEntries(Object.entries(custom).filter(([, value]) => value !== undefined));
-    return { id: await createDraft(ctx, input, "manual", columns) };
+    if (!templateId) return { id: await createDraft(ctx, input, "manual", columns) };
+    const [usable] = await ctx.tx<{ ok: boolean }[]>`select kernel.record_usable('accounting.entry_template', ${templateId}::uuid) as ok`;
+    if (!usable?.ok) throw invalid(`template ${templateId} is not usable`, "La plantilla está inactiva o pendiente de aprobación");
+    await assertTemplateValues(ctx, templateId, input.lines);
+    return { id: await createDraft(ctx, input, "template", { ...columns, template_id: templateId }) };
   },
 });
 
@@ -160,8 +167,8 @@ export const entryUpdate = defineProcess({
   input: z.object({ id, ...entryHeaderShape, extraPatch }).strict(),
   output: idOutput,
   handler: async (ctx, { id: entryId, extraPatch: patch, ...input }) => {
-    const [current] = await ctx.tx<{ status: string; origin: EntryOrigin; journal_id: string; extra: Record<string, unknown> }[]>`
-      select status, origin, journal_id, extra from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
+    const [current] = await ctx.tx<{ status: string; origin: EntryOrigin; journal_id: string; template_id: string | null; extra: Record<string, unknown> }[]>`
+      select status, origin, journal_id, template_id, extra from accounting.entries where id = ${entryId} and company_id = ${ctx.companyId} for update`;
     if (!current) throw new ProcessError("not_found", `entry ${entryId} not found`);
     // D3: Borrador, Grabado and No Aprobado take changes; Pendiente, Aprobado, Contabilizado and Anulado do not.
     if (!EDITABLE.has(current.status)) {
@@ -172,6 +179,7 @@ export const entryUpdate = defineProcess({
     assertReverseOn(input.date, input.reverseOn);
     const journalId = input.journalId ?? current.journal_id;
     const lines = await inheritParty(ctx, input.partyId, input.lines);
+    if (current.template_id) await assertTemplateValues(ctx, current.template_id, lines);
     // A Grabado comprobante is complete (it waits for approval): its edit is checked as for posting.
     const mode = current.status === "saved" ? "post" : "draft";
     assertValid(await validateLines(ctx, { journalId, date: input.date, businessUnitId: input.businessUnitId, origin: current.origin }, lines, mode));

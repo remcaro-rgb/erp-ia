@@ -35,7 +35,13 @@ describe("master form model", () => {
     expect(masterInput("dimension", node, "n-1")).toEqual({ id: "n-1", name: "Administración", parentId: null, kind: "leaf", isActive: true });
     expect(masterInput("dimension", { ...node, parentId: "g-1" }, "n-1")).toMatchObject({ parentId: "g-1" });
     const template = masterDraft("template", { name: "Arriendo", journal_id: "j-1", description: null });
-    expect(masterInput("template", template, "t-1")).toEqual({ id: "t-1", name: "Arriendo", journalId: "j-1", description: null });
+    expect(masterInput("template", template, "t-1")).toEqual({ id: "t-1", name: "Arriendo", journalId: "j-1", description: null, note: null, valuesEditable: true });
+  });
+
+  it("a plantilla keeps its note and whether its values can be changed", () => {
+    const stored = masterDraft("template", { name: "Arriendo", journal_id: "j-1", description: "x", note: " Solo contador ", values_editable: false });
+    expect(masterInput("template", stored, "t-1")).toMatchObject({ note: "Solo contador", valuesEditable: false });
+    expect(masterDraft("template", null).valuesEditable).toBe(true);
   });
 
   it("a period is shown, not edited", () => {

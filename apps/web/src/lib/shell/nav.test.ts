@@ -27,8 +27,8 @@ describe("buildShellNav", () => {
     const shell = buildShellNav(registry, all);
     // The kernel is the platform: always entitled, listed after the modules (the first carries Inicio).
     expect(shell.modules).toEqual([
-      { id: "core", label: "nav.modules.core" },
-      { id: "kernel", label: "nav.modules.kernel" },
+      { id: "core", label: "nav.modules.core", icon: "database" },
+      { id: "kernel", label: "nav.modules.kernel", icon: "settings" },
     ]);
     // Entity types spec §2.4, §9.2: the level-1 items are the four sections; the maestros place themselves under Maestros.
     expect(tree(shell.nav)).toEqual([
@@ -59,7 +59,7 @@ describe("buildShellNav", () => {
   it("Administración, Auditoría and Uso de IA show to whoever may run their processes, the other admin screens off the bar", () => {
     expect(keys.processes).toEqual(expect.arrayContaining(["kernel.admin.permission.set", "kernel.audit.consult", "kernel.admin.ai_usage.consult"]));
     const admin = buildShellNav(registry, { entitled: new Set(), runnable: new Set(keys.processes.filter((p) => p.startsWith("kernel.") || p === "kernel.custom_field.set")) });
-    expect(admin.modules).toEqual([{ id: "kernel", label: "nav.modules.kernel" }]);
+    expect(admin.modules).toEqual([{ id: "kernel", label: "nav.modules.kernel", icon: "settings" }]);
     expect(admin.nav.filter((i) => i.menu !== false).map((i) => i.href)).toEqual(["/admin/permissions", "/admin/audit", "/admin/ai-usage"]);
     expect(admin.nav.filter((i) => i.menu === false).map((i) => i.href)).toEqual([
       "/admin/roles",
@@ -185,11 +185,21 @@ describe("a feature's menu items already listed as group children (UX-OD-1, T1)"
 
   it("accounting lists the four sections: the six masters under Maestros, Comprobantes, Movimientos and Informes, Períodos and Reglas contables", () => {
     expect(tree(accountingNav)).toEqual([
-      ["accounting.maestros", ["accounting.accounts", "accounting.cost_centers", "accounting.open_auxiliaries", "accounting.items", "accounting.business_units", "accounting.journals"]],
+      ["accounting.maestros", ["core.parties", "accounting.accounts", "accounting.cost_centers", "accounting.open_auxiliaries", "accounting.items", "accounting.business_units", "accounting.journals", "accounting.entry_templates"]],
       ["accounting.documentos", ["accounting.entries"]],
       ["accounting.reportes", ["accounting.movements", "accounting.reports"]],
       ["accounting.parametros", ["accounting.periods", "accounting.posting", "accounting.entity_types", "accounting.state_recipients", "accounting.doc_templates"]],
     ]);
+  });
+
+  it("Terceros (core.parties) sits first in Contabilidad's Maestros, not in Núcleo's (ModuleDef.adopts)", () => {
+    const maestros = (id: string) => shell.nav.find((i) => i.id === id)?.children?.map((c) => c.id);
+    expect(maestros("core.maestros")).toEqual(["core.products", "core.categories"]);
+    expect(maestros("accounting.maestros")?.[0]).toBe("core.parties");
+  });
+
+  it("every module has a mark for the side menu", () => {
+    expect(shell.modules.map((m) => [m.id, m.icon])).toEqual([["core", "database"], ["accounting", "calculator"], ["kernel", "settings"]]);
   });
 
   it("every item id of the shell appears once, groups and children together", () => {

@@ -88,4 +88,14 @@ describe("LinesEditor, the empty entry (T9)", () => {
     renderEs(<Harness start={[{ ...blankLine(), debit: 50 }, { ...blankLine(), credit: 50 }]} />);
     expect(screen.getByRole("status").textContent).toBe("Cuadrado");
   });
+  it("a line the plantilla fixes keeps its account and amount and cannot be removed; the other lines stay editable", () => {
+    const fixed: EditorLine = { ...blankLine(), account: { id: "a-caja", label: "110505 · Caja general" }, debit: 3_000_000, locked: true };
+    renderEs(<Harness start={[fixed, blankLine()]} />);
+    expect((cell("Cuenta, Línea 1") as HTMLInputElement).disabled).toBe(true);
+    expect((cell("Débito, Línea 1") as HTMLInputElement).disabled).toBe(true);
+    expect((cell("Crédito, Línea 1") as HTMLInputElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /Quitar la línea 1/i })).toBeNull();
+    expect((cell("Débito, Línea 2") as HTMLInputElement).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: /Quitar la línea 2/i })).toBeTruthy();
+  });
 });

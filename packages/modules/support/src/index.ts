@@ -10,6 +10,7 @@ export const support: ModuleDef = defineModule({
   version: "0.1.0",
   // Core is the base module: the record number `seq` (rule 7) comes from its helper (migration 0017).
   dependsOn: ["core"],
+  icon: "life-buoy",
   entities: SUPPORT_ENTITIES,
   processes: TICKET_PROCESSES,
   features: FEATURES,

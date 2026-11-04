@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Pill } from "../grid/GridCell";
+import { RecordLink } from "../record/RecordLink";
 import { ExportButtons } from "../grid/ExportButtons";
 import { DataGrid, GridStatusText, type DataGridProps } from "../grid/DataGrid";
 import { useGridExport } from "../grid/use-grid-export";
@@ -38,11 +39,13 @@ export interface EntryFormProps {
   onSaved?: (id: string, created: boolean) => void;
   /** The stored comprobante's lines as a universal grid (rule 20: sort, per-column filter, advanced filter, pages, exports), shown
    *  when the lines are not being edited. */
+  /** The plantilla de comprobante this comprobante is made from: named in a banner, its fixed lines kept (`locked`: zero-based positions), its id sent on create. */
+  fromTemplate?: { id: string; name: string; note: string | null; locked: readonly number[] } | null;
   linesGrid?: { entity: string; title: string; columns: DataGridProps["columns"]; filters: NonNullable<DataGridProps["baseFilters"]> } | null;
 }
 
 export function EntryForm(props: EntryFormProps) {
-  const { record, initial: copy, labels, settings, journals, defaultJournalId, lookup, canSave, save, requestStepUp, onSaved, linesGrid } = props;
+  const { record, initial: copy, labels, settings, journals, defaultJournalId, lookup, canSave, save, requestStepUp, onSaved, linesGrid, fromTemplate = null } = props;
   const t = useTranslations("accounting.entry");
   const tf = useTranslations("common.forms");
   const tv = useTranslations("accounting.values.entry_status");
@@ -64,7 +67,10 @@ export function EntryForm(props: EntryFormProps) {
     const source = record ?? copy ?? null;
     const draft = entryDraftOf(source, labels);
     const header: EntryHeader = { ...draft.header, journalId: draft.header.journalId || defaultJournalId || journals[0]?.code || "", date: draft.header.date || today() };
-    return { header, lines: record ? draft.lines : [blankLine()] };
+    // A new comprobante keeps the lines of what it starts from (a plantilla); a copy by "Duplicar" brings the header only.
+    const lines = record || (copy && Array.isArray(copy.lines)) ? draft.lines : [blankLine()];
+    const locked = new Set(fromTemplate?.locked ?? []);
+    return { header, lines: locked.size === 0 ? lines : lines.map((l, i) => (locked.has(i) ? { ...l, locked: true } : l)) };
   };
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}:${String(record.status ?? "")}` : "new";
   const [seen, setSeen] = useState(recordKey);
@@ -100,6 +106,7 @@ export function EntryForm(props: EntryFormProps) {
     const result = await flow.submit({
       ...(record ? { id: record.id } : {}),
       ...entryInput({ journalId: header.journalId, date: header.date, description: header.description, businessUnitId: header.businessUnit?.id ?? null, reverseOn: header.reverseOn }, lines),
+      ...(isNew && fromTemplate ? { templateId: fromTemplate.id } : {}),
     });
     // What was saved is the stored version from now on: the state buttons (disabled while the form is dirty) come back at once,
     // without waiting for the page to read the record again. A new comprobante leaves this form for its own record instead.
@@ -124,7 +131,14 @@ export function EntryForm(props: EntryFormProps) {
       {!canSave && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       {canSave && !isNew && !isEditableStatus(status) && <div className="erp-dian erp-dian--info">{t("read_only")}</div>}
       {restricted && <div className="erp-dian erp-dian--warn">{t("restricted_note")}</div>}
-      {isNew && copy && <div className="erp-dian erp-dian--info">{t("clone_note")}</div>}
+      {isNew && copy && !fromTemplate && <div className="erp-dian erp-dian--info">{t("clone_note")}</div>}
+      {fromTemplate && (
+        <div className="erp-dian erp-dian--info" role="status" data-testid="from-template">
+          <b>{t("from_template_banner")}</b> <RecordLink entity="accounting.entry_template" id={fromTemplate.id} label={fromTemplate.name} />
+          {fromTemplate.locked.length > 0 && <div className="erp-small">{t("from_template_locked", { count: fromTemplate.locked.length })}</div>}
+          {fromTemplate.note && <div className="erp-small">{fromTemplate.note}</div>}
+        </div>
+      )}
       <Section title={t("header")}>
         <div className="erp-form3">
           <SelectField label={t("journal")} value={header.journalId} options={journalOptions} showCode={false} disabled={dis} error={fe("journalId")} onChange={set("journalId")} />

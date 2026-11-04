@@ -403,17 +403,12 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           />
         )}
         {groupColumns.length > 0 && (
-          <button type="button" className={groupFields.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} aria-expanded={groupsOpen || groupFields.length > 0} onClick={() => setGroupsOpen((o) => !o)}>
+          <button type="button" className="erp-chip-toggle" aria-pressed={groupsOpen || groupFields.length > 0} onClick={() => setGroupsOpen((o) => !o)}>
             {t("grid.group.group_by")}
             {groupFields.length > 0 ? ` (${groupFields.length})` : ""}
           </button>
         )}
-        {groupColumns.length > 0 && moneyColumns(shown).length > 0 && (
-          <button type="button" className="erp-btn" onClick={() => setGroupsOpen((o) => !o)}>
-            {t("grid.group.aggregates")}
-          </button>
-        )}
-        <button type="button" className={filtersOpen ? "erp-btn" : "erp-btn erp-btn--ghost"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+        <button type="button" className="erp-chip-toggle" aria-pressed={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
           {filtersOpen ? t("grid.filters_hide") : t("grid.filters_show")}
           {!filtersOpen && activeFilters > 0 ? ` (${activeFilters})` : ""}
         </button>

@@ -54,7 +54,24 @@ Para causar un gasto que se anula solo al mes siguiente, llena **Reversar el** c
 
 ## Nuevo desde plantilla
 
-Pulsa **Nuevo desde plantilla**, elige la **Plantilla**, la **Fecha** y los **Valores por línea**, y pulsa **Crear borrador**. Revísalo y pulsa **Guardar**. Solo se usan las plantillas activas; el nombre de cada plantilla es único en la empresa.
+Pulsa **Nuevo desde plantilla** en la barra de Comprobantes, elige la **Plantilla** (si tiene nota, se muestra debajo) y pulsa **Abrir comprobante**. Se abre la misma pantalla de un comprobante nuevo, ya llena con la **Fuente**, la descripción, la unidad de negocio y las líneas de la plantilla. Completa lo que falte (la fecha y los valores que la plantilla deja abiertos) y pulsa **Guardar**: hasta entonces no se crea nada.
+
+- El comprobante queda con origen **Plantilla**, y su pantalla lo dice en un aviso azul al comienzo, con un enlace a la plantilla. La pestaña **Origen** también la nombra.
+- Si la plantilla tiene desmarcado **Se pueden cambiar los valores**, sus líneas con valor fijo aparecen con la cuenta y el valor bloqueados, y no se pueden quitar; solo se llenan las que la plantilla dejó abiertas. El sistema lo vuelve a exigir al guardar.
+- Solo ves las plantillas activas que puedes usar: si el administrador restringió una plantilla a ciertos roles o usuarios (pestaña **Acceso**, guía [Acceso por registro](../acceso-por-registro.md)), solo ellos la ven en la lista.
+
+## Crear una plantilla
+
+Abre un comprobante grabado y pulsa **Guardar como plantilla**, en la barra de abajo, junto a **Revertir**. Escribe el nombre (único en la empresa); se copian la **Fuente**, la descripción y las líneas con su lado, cuenta y demás datos. Marca **Dejar los valores en blanco** si quieres que cada línea pida su valor al usarla. La plantilla queda en **Contabilidad → Maestros → Plantillas de comprobante** y se abre en una pestaña.
+
+En la ficha de la plantilla puedes cambiar:
+
+- el **Nombre**, la **Fuente**, la descripción y si está activa;
+- la **Nota**: un texto que se muestra al elegirla y en el aviso del comprobante;
+- **Se pueden cambiar los valores**: desmárcalo para que quien la use no pueda cambiar los valores fijos de las líneas;
+- **quién la puede usar**: el administrador entra a la pestaña **Acceso**, agrega los roles o usuarios y marca **Usar en documentos**.
+
+Las líneas no se editan en la ficha: se vuelve a guardar la plantilla desde otro comprobante. Un comprobante con una línea de una cuenta restringida para ti no se puede guardar como plantilla.
 
 ## Aprobación por otra persona
 

@@ -15,10 +15,11 @@ export const NAVIGATION: NavItem[] = menuSections("accounting", {
   maestros: [
     { id: "accounting.accounts", label: "nav.accounting.accounts", href: "/accounting/accounts", icon: "list-tree", feature: "accounting.ledger", entity: "accounting.account", runs: ["accounting.account_permission."] },
     { id: "accounting.cost_centers", label: "nav.accounting.cost_centers", href: "/accounting/cost-centers", icon: "network", feature: "accounting.ledger", entity: "accounting.cost_center" },
-    { id: "accounting.open_auxiliaries", label: "nav.accounting.open_auxiliaries", href: "/accounting/open-auxiliaries", icon: "network", feature: "accounting.ledger", entity: "accounting.open_auxiliary" },
-    { id: "accounting.items", label: "nav.accounting.items", href: "/accounting/items", icon: "network", feature: "accounting.ledger", entity: "accounting.item" },
-    { id: "accounting.business_units", label: "nav.accounting.business_units", href: "/accounting/business-units", icon: "network", feature: "accounting.ledger", entity: "accounting.business_unit" },
+    { id: "accounting.open_auxiliaries", label: "nav.accounting.open_auxiliaries", href: "/accounting/open-auxiliaries", icon: "split", feature: "accounting.ledger", entity: "accounting.open_auxiliary" },
+    { id: "accounting.items", label: "nav.accounting.items", href: "/accounting/items", icon: "boxes", feature: "accounting.ledger", entity: "accounting.item" },
+    { id: "accounting.business_units", label: "nav.accounting.business_units", href: "/accounting/business-units", icon: "building", feature: "accounting.ledger", entity: "accounting.business_unit" },
     { id: "accounting.journals", label: "nav.accounting.journals", href: "/accounting/journals", icon: "notebook", feature: "accounting.ledger", entity: "accounting.journal" },
+    { id: "accounting.entry_templates", label: "nav.accounting.entry_templates", href: "/accounting/entry-templates", icon: "bookmark", feature: "accounting.ledger", entity: "accounting.entry_template", runs: ["accounting.entry_template."] },
   ],
   documentos: [
     // Comprobantes also creates entries from templates and the opening balance (saldos iniciales), both comprobantes.
