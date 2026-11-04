@@ -3,6 +3,7 @@ title: "Comprobantes contables y Fuentes"
 routes:
   - /accounting/entries
   - /accounting/journals
+  - /accounting/entry-templates
 processes:
   - kernel.doc_template.print
   - kernel.record.notify
