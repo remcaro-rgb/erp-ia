@@ -8,6 +8,9 @@ export interface ImportPreviewRow {
   errors: string[];
   /** The row's cells in header order. */
   cells: string[];
+  /** A documento's lines (their Líneas row and cells, in `lineHeaders` order). */
+  lines?: { rowNo: number; cells: string[] }[];
+  lineHeaders?: string[];
 }
 
 /** The route's preview of a file (kernel `ImportPreview`). */

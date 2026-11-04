@@ -149,7 +149,8 @@ export const entryCreate = defineProcess({
   handler: async (ctx, { templateId, ...input }) => {
     const custom = await extraForCreate(ctx, "accounting.entry", "accounting.entry.create", input);
     const columns = Object.fromEntries(Object.entries(custom).filter(([, value]) => value !== undefined));
-    if (!templateId) return { id: await createDraft(ctx, input, "manual", columns) };
+    // A comprobante that arrives from outside the app's forms (the Excel import runs as `api`) is "Importado".
+    if (!templateId) return { id: await createDraft(ctx, input, ctx.origin === "api" ? "import" : "manual", columns) };
     const [usable] = await ctx.tx<{ ok: boolean }[]>`select kernel.record_usable('accounting.entry_template', ${templateId}::uuid) as ok`;
     if (!usable?.ok) throw invalid(`template ${templateId} is not usable`, "La plantilla está inactiva o pendiente de aprobación");
     await assertTemplateValues(ctx, templateId, input.lines);

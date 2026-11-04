@@ -47,7 +47,7 @@ export interface ImportPreview {
   /** Data rows in the file. */
   total: number;
   /** The first `PREVIEW_ROWS` rows, validated with the create process in a dry run. */
-  rows: { rowNo: number; ok: boolean; errors: string[]; cells: string[] }[];
+  rows: { rowNo: number; ok: boolean; errors: string[]; cells: string[]; lines?: { rowNo: number; cells: string[] }[]; lineHeaders?: string[] }[];
   /** A documento's lines refused on their own (their ref names no header row), by their Líneas row (D14). */
   lineErrors: { rowNo: number; errors: string[] }[];
 }
@@ -100,7 +100,18 @@ export async function previewImport(deps: RunProcessDeps, caller: Caller, upload
     unknownHeaders: mapped.unknownHeaders,
     missingColumns: mapped.missingColumns.map(labelOf),
     total: mapped.records.length,
-    rows: outcomes.map((o) => ({ rowNo: o.rowNo, ok: o.ok, errors: o.errors, cells: mapped.headers.map((h) => shown[o.index]!.raw[h] ?? "") })),
+    rows: outcomes.map((o) => {
+      const record = shown[o.index]!;
+      // A documento's row carries its lines (their Líneas row and cells, in the sheet's header order) so the preview can show them.
+      const lineHeaders = mapped.lineHeaders ?? [];
+      return {
+        rowNo: o.rowNo,
+        ok: o.ok,
+        errors: o.errors,
+        cells: mapped.headers.map((h) => record.raw[h] ?? ""),
+        ...(record.lines ? { lines: record.lines.map((l) => ({ rowNo: l.rowNo, cells: lineHeaders.map((h) => l.raw[h] ?? "") })), lineHeaders } : {}),
+      };
+    }),
     lineErrors: (mapped.lineFailures ?? []).map((l) => ({ rowNo: l.rowNo, errors: l.errors })),
   };
 }

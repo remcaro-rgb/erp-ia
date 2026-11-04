@@ -225,4 +225,28 @@ describe("ImportDialog for a documento (Task 15)", () => {
     expect(screen.getByText("Plantilla Excel")).toBeTruthy();
     expect(screen.queryByText("Plantilla CSV")).toBeNull();
   });
+
+  it("names only .xlsx in the file hint and the template help (no CSV for a documento)", () => {
+    renderEs(<ImportDialog open onOpenChange={() => {}} entity="accounting.entry" entityLabel="Comprobantes" xlsxOnly fetcher={vi.fn() as unknown as typeof fetch} />);
+    expect(screen.queryByText(/\.csv/)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/CSV separado/);
+    expect(document.body.textContent).toMatch(/hoja Líneas/);
+  });
+
+  it("shows each comprobante's lines in the preview", async () => {
+    const entry: ImportPreviewData = {
+      entity: "accounting.entry",
+      fileName: "c.xlsx",
+      headers: ["ref", "Fecha"],
+      unknownHeaders: [],
+      missingColumns: [],
+      total: 1,
+      rows: [{ rowNo: 2, ok: true, errors: [], cells: ["1", "2026-11-02"], lines: [{ rowNo: 2, cells: ["110505", "10000", "0"] }, { rowNo: 3, cells: ["310505", "0", "10000"] }], lineHeaders: ["Cuenta", "Débito", "Crédito"] }],
+    };
+    const fetcher = vi.fn(async () => json(entry));
+    renderEs(<ImportDialog open onOpenChange={() => {}} entity="accounting.entry" entityLabel="Comprobantes" xlsxOnly fetcher={fetcher as unknown as typeof fetch} />);
+    fireEvent.drop(screen.getByTestId("import-drop"), { dataTransfer: { files: [new File(["x"], "c.xlsx")] } });
+    await waitFor(() => expect(screen.getByText("2 líneas")).toBeTruthy());
+    expect(screen.getByText("310505")).toBeTruthy();
+  });
 });

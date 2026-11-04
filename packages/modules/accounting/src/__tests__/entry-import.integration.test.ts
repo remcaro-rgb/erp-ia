@@ -56,15 +56,15 @@ describe("comprobante import (C1)", () => {
     const summary = await runImport({ ...ids, claims: h.admin.claims });
     expect(summary).toMatchObject({ status: "done", total: 3, created: 2, rejected: 1 });
 
-    const entries = await h.sql<{ description: string; status: string; number: string | null; posted_at: Date | null; lines: string[] }[]>`
-      select e.description, e.status, e.number, e.posted_at,
+    const entries = await h.sql<{ description: string; status: string; origin: string; number: string | null; posted_at: Date | null; lines: string[] }[]>`
+      select e.description, e.status, e.origin, e.number, e.posted_at,
              array(select a.code || ':' || l.debit::int || ':' || l.credit::int from accounting.entry_lines l join accounting.accounts a on a.id = l.account_id
                    where l.entry_id = e.id order by l.line_no) as lines
       from accounting.entries e where e.company_id = ${h.companyId} and (e.description like '%importad%' or e.description = 'Con línea mala')
       order by e.description`;
     expect(entries).toEqual([
-      { description: "Aporte importado", status: "draft", number: null, posted_at: null, lines: ["111005:10000:0", "310505:0:10000"] },
-      { description: "Venta importada", status: "draft", number: null, posted_at: null, lines: ["111005:3000:0", "413595:0:3000"] },
+      { description: "Aporte importado", status: "draft", origin: "import", number: null, posted_at: null, lines: ["111005:10000:0", "310505:0:10000"] },
+      { description: "Venta importada", status: "draft", origin: "import", number: null, posted_at: null, lines: ["111005:3000:0", "413595:0:3000"] },
     ]);
     const [row] = await h.sql<{ errors_attachment_id: string }[]>`select errors_attachment_id from kernel.imports where id = ${ids.importId}`;
     const [file] = await h.sql<{ storage_path: string }[]>`select storage_path from kernel.attachments where id = ${row!.errors_attachment_id}`;

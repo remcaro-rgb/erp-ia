@@ -88,7 +88,7 @@ function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepU
     setOpenRows(new Set());
     setFile(chosen);
     const problem = fileProblem(chosen, MAX_ATTACHMENT_BYTES);
-    if (problem) return setMessage(t(`grid.import.${problem}`));
+    if (problem) return setMessage(t(problem === "wrong_type" && xlsxOnly ? "grid.import.wrong_type_xlsx" : `grid.import.${problem}`));
     setMessage(null);
     setPhase({ kind: "checking" });
     try {
@@ -163,6 +163,8 @@ function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepU
 
   const counts = preview ? previewCounts(preview) : null;
   const shownHeaders = preview?.headers.slice(0, PREVIEW_COLUMNS) ?? [];
+  // A documento's preview: a column with the line count and, under each row, its lines.
+  const withLines = preview?.rows.some((r) => r.lines) ?? false;
   // The original row numbers stay: the file's own rows are what the user goes back to fix.
   const shownRows = preview ? (onlyErrors ? preview.rows.filter((row) => !row.ok) : preview.rows) : [];
   return (
@@ -181,7 +183,7 @@ function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepU
                 {t("grid.import.template_csv")}
               </a>
             )}
-            <span className="erp-small erp-muted">{t("grid.import.template_hint")}</span>
+            <span className="erp-small erp-muted">{t(xlsxOnly ? "grid.import.template_hint_xlsx" : "grid.import.template_hint")}</span>
           </div>
         </section>
 
@@ -199,7 +201,7 @@ function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepU
           >
             <ImportIcon />
             <div>
-              <b>{t("grid.import.drop")}</b> {t("grid.import.drop_or")}{" "}
+              <b>{t("grid.import.drop")}</b> {t(xlsxOnly ? "grid.import.drop_or_xlsx" : "grid.import.drop_or")}{" "}
               {/* A real button: Tab reaches it, Enter or Space opens the system chooser (rule 20). */}
               <button type="button" className="erp-link erp-link--inline" onClick={() => fileInput.current?.click()}>
                 {t("grid.import.choose")}
@@ -257,6 +259,7 @@ function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepU
                     {shownHeaders.map((h) => (
                       <th key={h}>{h}</th>
                     ))}
+                    {withLines && <th>{t("grid.import.col_lines")}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -300,11 +303,36 @@ function ImportDialogBody({ entity, xlsxOnly = false, onOpenChange, requestStepU
                               {row.cells[i]}
                             </td>
                           ))}
+                          {withLines && <td className="erp-small">{t("grid.import.lines_count", { count: row.lines?.length ?? 0 })}</td>}
                         </tr>
+                        {row.lines && row.lines.length > 0 && (
+                          <tr className="erp-import__lines">
+                            <td colSpan={2 + shownHeaders.length + 1}>
+                              <table className="erp-small" aria-label={t("grid.import.col_lines")}>
+                                <thead>
+                                  <tr>
+                                    {(row.lineHeaders ?? []).map((h) => (
+                                      <th key={h}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {row.lines.map((line) => (
+                                    <tr key={line.rowNo}>
+                                      {line.cells.map((cell, i) => (
+                                        <td key={i}>{cell}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
                         {!row.ok && (
                           // Always in the document, so the disclosure's aria-controls names an element; hidden while closed.
                           <tr id={rowPanel} className="erp-import__errors" hidden={!expanded}>
-                            <td colSpan={2 + shownHeaders.length}>
+                            <td colSpan={2 + shownHeaders.length + 1}>
                               {expanded && (
                                 <ul aria-label={t("grid.import.errors_of_row", { row: row.rowNo })}>
                                   {/* Two reasons may read the same: keyed by position, not by text. */}
