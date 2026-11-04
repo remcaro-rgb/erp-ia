@@ -13,7 +13,7 @@ import { cloneRecordAction } from "@/lib/records/clone";
 import { notifyRecordAction, printRecordAction, runRecordAction } from "@/lib/records/lifecycle-actions";
 import { currentClone, finishClone, handOffClone, leaveClone, subscribeClones, takeClone, type CloneHandoff } from "@/lib/records/clone-handoff";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
-import { actionKey, chainedStep, keepNotice, takeNotice } from "@/lib/records/bar-flow";
+import { actionKey, chainedStep, keepNotice, takeNotice, takeNoticeLink, type NoticeLink } from "@/lib/records/bar-flow";
 
 // The record frame of the app (rule 37): on a stored record the caller may copy, "Duplicar" (or Ctrl+D / ⌘+D) reads
 // the copy through the server action and opens `/r/<entity>/new` with it; there the frame shows "Copia de <nombre>"
@@ -112,12 +112,22 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
   });
   // Minor 7: the success notice of the action that led here (kept across its navigation); a reload in place drops the kept copy.
   const [flashNotice] = useState(() => takeNotice(`${entity}:${recordId}`));
+  const [flashNoticeLink] = useState(() => takeNoticeLink(`${entity}:${recordId}`));
   const version = lifecycle?.updatedAt ?? null;
   useEffect(() => {
     takeNotice(`${entity}:${recordId}`);
+    takeNoticeLink(`${entity}:${recordId}`);
   }, [entity, recordId, version]);
   const shortcut = useRef<() => void>(() => {});
   const open = useTabs((s) => s.open);
+  const tabsApi = useTabs((s) => s);
+  // Cerrar: closes this page's tab (the one whose address is the page's) and goes to the entity's list.
+  const closePage = (listHref: string) => {
+    const here = window.location.pathname + window.location.search;
+    const tab = tabsApi.tabs.find((t) => t.href === here) ?? tabsApi.tabs.find((t) => t.id === tabsApi.activeId);
+    if (tab) close(tab.id);
+    router.replace(listHref);
+  };
   const rename = useTabs((s) => s.rename);
   // The tab of a stored record is named by the record itself, as its page learns it (the shell only knew the entity).
   const frameTitle = typeof frame.title === "string" ? frame.title : null;
@@ -164,8 +174,8 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
   const reason = (o: Extract<RecordActionOutcome, { ok: false }>) => (o.messages.length > 0 ? o.messages.join(" · ") : t.has(`errors.${o.code}`) ? t(`errors.${o.code}`) : t("errors.unknown"));
 
   /** After the bar acted: a new record opens as itself (a refusal travels with it), a stored one reloads; a notice outlives either. */
-  const finish = (id: string | null, failure: string | null, notice?: string) => {
-    if (id && notice && !failure) keepNotice(`${entity}:${id}`, notice);
+  const finish = (id: string | null, failure: string | null, notice?: string, link?: NoticeLink) => {
+    if (id && notice && !failure) keepNotice(`${entity}:${id}`, notice, link);
     if (recordId === null && id) {
       if (failure) flashes.set(`${entity}:${id}`, failure);
       finishClone(entity);
@@ -262,7 +272,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
     }
     if (action === "reverse") {
       const reversed = await runEntryAction("reverse", recordId, input, token, actionKey("accounting.entry.reverse"));
-      if (reversed.ok) finish(recordId, null, reversed.message);
+      if (reversed.ok) finish(recordId, null, reversed.message, reversed.link);
       return reversed;
     }
     const outcome = await runRecordAction(entity, action, recordId, { ...input, ...(lc.updatedAt ? { expectedUpdatedAt: lc.updatedAt } : {}) }, token, actionKey(`${entity}.${action}`));
@@ -309,8 +319,10 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
                   saveTemplate: lc.saveTemplate === true && recordId !== null,
                 }}
                 onSaveTemplate={() => setTemplateOpen(true)}
+                onClose={() => closePage(lc.listHref)}
                 initialProblem={flash}
                 initialNotice={flashNotice}
+                initialNoticeLink={flashNoticeLink}
                 onAction={(action, input, token) => act(bridge, lc, action, input, token)}
                 requestStepUp={requestStepUp}
                 disabled={busy}

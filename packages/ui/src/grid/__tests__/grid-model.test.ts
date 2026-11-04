@@ -55,3 +55,14 @@ describe("selectionTotals without the hierarchy (T4 review)", async () => {
     expect(selectionTotals([{ id: "a", figure: "5" }], new Set(["a"]), [col])[0]!.sum).toBeNull();
   });
 });
+
+describe("toGridState with a marked column", () => {
+  it("also asks for the field the mark reads, when the marked column is shown", () => {
+    const status: GridColumn = { ...col("status", "enum", "enum"), marked: { field: "reversed_by_id", whenValue: "posted", label: "Revertido", tone: "danger" } };
+    const all = [col("a", "text"), status, { ...col("reversed_by_id", "ref", "enum"), hiddenByDefault: true }];
+    expect(toGridState(all, initialView(all)).columns).toEqual(expect.arrayContaining(["status", "reversed_by_id"]));
+    const without = [col("a", "text"), { ...status, hiddenByDefault: true }];
+    expect(toGridState(without, initialView(without)).columns).not.toContain("reversed_by_id");
+  });
+});
+

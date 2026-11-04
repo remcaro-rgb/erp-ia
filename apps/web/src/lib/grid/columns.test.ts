@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CORE_ENTITIES } from "@erp/module-core";
+import { ACCOUNTING_ENTITIES } from "@erp/module-accounting";
 import { buildColumns } from "./columns";
 import { presentationOf } from "./presentation";
 
@@ -62,5 +63,13 @@ describe("grid columns", () => {
     );
     expect(columns.find((c) => c.field === "extra.canal")).toMatchObject({ type: "custom:list", kind: "enum", mode: "visible", hiddenByDefault: true, options: [{ value: "Retail", label: "Retail" }, { value: "HORECA", label: "HORECA" }] });
     expect(columns.find((c) => c.field === "extra.secreto")).toMatchObject({ mode: "hidden" });
+  });
+
+  it("a comprobante's state column is marked «Revertido» (red) when the comprobante has a reversal", () => {
+    const entry = ACCOUNTING_ENTITIES.find((e) => e.id === "accounting.entry")!;
+    const columns = buildColumns(entry, { modes: {}, extras: [], timeZone: "America/Bogota" }, presentationOf("accounting.entry"), t, {});
+    expect(columns.find((c) => c.field === "status")).toMatchObject({ marked: { field: "reversed_by_id", whenValue: "posted", label: "«accounting.values.entry_status.reversed»", tone: "danger" } });
+    // The filter keeps the stored states: nothing is stored as "reversed".
+    expect(columns.find((c) => c.field === "status")!.options!.map((o) => o.value)).not.toContain("reversed");
   });
 });

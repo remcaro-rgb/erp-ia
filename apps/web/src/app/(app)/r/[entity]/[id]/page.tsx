@@ -93,7 +93,7 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
         recipients: lc.recipients,
         noun: t(entity.nounKey),
         listHref: lc.listHref,
-        reverse: form.kind === "entry" && record?.status === "posted" && (record.extra as Record<string, unknown> | null)?.reversed !== true && form.can.reverse === true,
+        reverse: form.kind === "entry" && record?.status === "posted" && !record.reversed_by_id && form.can.reverse === true,
         saveTemplate: form.kind === "entry" && record !== null && form.canTemplate,
       }
     : null;
@@ -156,7 +156,17 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
         uuid={record.id}
         number={typeof record.number === "string" && record.number ? record.number : null}
         reference={typeof record.reference === "string" && record.reference ? record.reference : null}
-        {...(lc ? { chip: <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill> } : {})}
+        {...(lc
+          ? {
+              chip:
+                // A posted comprobante that was reversed reads «Revertido», in red (owner 2026-11-03).
+                form.kind === "entry" && lc.status === "posted" && !!record.reversed_by_id ? (
+                  <Pill tone="danger">{t("accounting.values.entry_status.reversed")}</Pill>
+                ) : (
+                  <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill>
+                ),
+            }
+          : {})}
         lifecycle={frameLifecycle}
         deepLinkHref={`${recordHref(entity.id, record.id)}${FULL_VIEW}`}
         tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id))

@@ -58,6 +58,14 @@ export function GridCell({ column, row, className, render }: { column: GridColum
   const custom = render?.(column, row);
   if (custom !== undefined) return <td className={base}>{custom}</td>;
   const value = cellValue(row, column.field);
+  const mark = column.marked;
+  if (mark && String(value) === mark.whenValue && ![null, undefined, ""].includes(cellValue(row, mark.field) as never)) {
+    return (
+      <td className={base}>
+        <Pill tone={mark.tone}>{mark.label}</Pill>
+      </td>
+    );
+  }
   if (column.ref && typeof value === "string" && value !== "") {
     // A reference names its record (the row's `<field>_label`, else the column's option, else the short id) and links
     // to the record's page when the viewer may open it (rule 21).

@@ -10,6 +10,8 @@ export interface FieldPresentation {
   /** Named code table the page passes (`documentTypes`, `municipalities`, `categories`…). */
   table?: string;
   pills?: Record<string, PillTone>;
+  /** See `GridColumn.marked`; the label is the value `value` under `valuesKey`. */
+  marked?: { field: string; whenValue: string; value: string; tone: PillTone };
   display?: "mono" | "dian";
 }
 
@@ -91,7 +93,12 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     exclude: ["extra", "extra_free"],
     fields: {
       number: { display: "mono" },
-      status: { valuesKey: "accounting.values.entry_status", pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" } },
+      status: {
+        valuesKey: "accounting.values.entry_status",
+        pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" },
+        // A posted comprobante with a reversal (reversed_by_id) reads «Revertido», in red (owner 2026-11-03).
+        marked: { field: "reversed_by_id", whenValue: "posted", value: "reversed", tone: "danger" },
+      },
       origin: { valuesKey: "accounting.values.entry_origin" },
     },
   },

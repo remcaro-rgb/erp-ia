@@ -13,8 +13,25 @@ const NOTICE_TTL_MS = 10_000;
 const notices = new Map<string, { message: string; at: number }>();
 
 /** Minor 7: a success notice for the bar of `key` (`<entity>:<id>`) once the navigation that follows the action has shown it. */
-export function keepNotice(key: string, message: string): void {
+export function keepNotice(key: string, message: string, link?: NoticeLink): void {
   notices.set(key, { message, at: Date.now() });
+  if (link) noticeLinks.set(key, link);
+  else noticeLinks.delete(key);
+}
+
+/** A record the notice names (e.g. the comprobante that reversed this one): shown as a link inside the notice's text. */
+export interface NoticeLink {
+  entity: string;
+  id: string;
+  label: string;
+}
+const noticeLinks = new Map<string, NoticeLink>();
+
+/** The link kept with the notice of `key`, once (the bar takes the notice and its link together). */
+export function takeNoticeLink(key: string): NoticeLink | null {
+  const link = noticeLinks.get(key) ?? null;
+  noticeLinks.delete(key);
+  return link;
 }
 
 /** The notice kept for `key`, once (null when none, or when it waited longer than a few seconds). */

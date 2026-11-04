@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { actionKey, chainedStep, clearBarFlow, keepNotice, takeNotice } from "./bar-flow";
+import { actionKey, chainedStep, clearBarFlow, keepNotice, takeNotice, takeNoticeLink } from "./bar-flow";
 
 // The action bar's flow across a navigation (Phase 2A.5 minors 2, 6, 7): an idempotency key per click, the lifecycle step left
 // waiting by a step-up on the form's save, and a success notice that outlives the navigation that follows the action.
@@ -54,5 +54,14 @@ describe("chainedStep (minor 6)", () => {
     chain.disarm();
     expect(chain.resume("id-1", null)).toBe(false);
     expect(step).not.toHaveBeenCalled();
+  });
+});
+
+describe("a notice's link", () => {
+  it("travels with the notice and is taken once", () => {
+    const link = { entity: "accounting.entry", id: "e-19", label: "NC-19" };
+    keepNotice("accounting.entry:1", "Reversado con NC-19", link);
+    expect(takeNoticeLink("accounting.entry:1")).toEqual(link);
+    expect(takeNoticeLink("accounting.entry:1")).toBeNull();
   });
 });

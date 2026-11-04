@@ -161,4 +161,17 @@ describe("GridCell · empty lists", () => {
     expect(screen.getByText("Ninguno").getAttribute("title")).toBe("Otros impuestos: ninguno definido");
     expect(screen.getByText("2 elementos")).toBeTruthy();
   });
+
+  it("a posted comprobante that was reversed shows «Revertido» in red instead of its state", () => {
+    const status = column({ field: "status", type: "enum", kind: "enum", options: [{ value: "posted", label: "Contabilizado" }], pills: { posted: "ok" }, marked: { field: "reversed_by_id", whenValue: "posted", label: "Revertido", tone: "danger" } });
+    renderEs(
+      <>
+        {inRow(<GridCell column={status} row={{ id: "1", status: "posted", reversed_by_id: "e2" }} />)}
+        {inRow(<GridCell column={status} row={{ id: "2", status: "posted", reversed_by_id: null }} />)}
+      </>,
+    );
+    const reversed = screen.getByText("Revertido");
+    expect(reversed.className).toContain("erp-pill--danger");
+    expect(screen.getByText("Contabilizado").className).toContain("erp-pill--ok");
+  });
 });

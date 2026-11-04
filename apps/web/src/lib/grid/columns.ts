@@ -36,6 +36,7 @@ export function buildColumns(entity: EntityDef, access: GridAccess, presentation
       sortable: f.sortable ?? true,
       ...(options ? { options: [...options] } : {}),
       ...(p.pills ? { pills: p.pills } : {}),
+      ...(p.marked && p.valuesKey ? { marked: { field: p.marked.field, whenValue: p.marked.whenValue, label: t(`${p.valuesKey}.${p.marked.value}`), tone: p.marked.tone } } : {}),
       ...(p.display ? { display: p.display } : {}),
       ...(f.rollup ? { rollup: true } : {}),
       ...(shown.length > 0 && !shown.includes(f.name) ? { hiddenByDefault: true } : {}),

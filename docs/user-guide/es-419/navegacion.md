@@ -99,7 +99,7 @@ Si lo que escribes no coincide con nada, o es una frase de tres palabras o más,
 
 ## La barra de acciones de un registro
 
-Todo maestro y todo documento tiene arriba la misma barra: **Nuevo**, **Duplicar**, **Imprimir**, **Notificar** (solo documentos) y los botones de su estado: **Guardar**, **Guardar y enviar a aprobación**, **Aprobar**, **No aprobar**, **Anular**, **Revertir**, **Eliminar**. Solo aparecen los que corresponden al estado del registro y a tu rol. Qué hace cada uno está en [Maestros y documentos](maestros-y-documentos.md).
+Todo maestro y todo documento tiene arriba la misma barra: **Nuevo**, **Duplicar**, **Imprimir**, **Notificar** (solo documentos) y los botones de su estado: **Guardar**, **Guardar y enviar a aprobación**, **Aprobar**, **No aprobar**, **Anular**, **Revertir**, **Eliminar**. Solo aparecen los que corresponden al estado del registro y a tu rol. Al final de la barra, junto a **Guardar** y **Eliminar**, está **Cerrar**: cierra la página y su pestaña y te lleva al listado. Si hay cambios sin guardar, pide confirmar antes de descartarlos. Qué hace cada uno está en [Maestros y documentos](maestros-y-documentos.md).
 
 ## El tema: claro, oscuro o automático
 

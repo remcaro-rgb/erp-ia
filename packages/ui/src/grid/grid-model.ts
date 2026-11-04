@@ -281,7 +281,8 @@ export function toGridState(columns: readonly GridColumn[], view: GridView, opti
   const shown = shownColumns(columns, view);
   const money = moneyColumns(shown);
   // Admin-defined values travel inside `extra`, already reduced to the keys the caller's roles may view.
-  const fields = [...new Set(shown.map((c) => (c.field.startsWith("extra.") ? "extra" : c.field)))];
+  // A column marked by another field (a posted comprobante's reversal) also needs that field, shown or not.
+  const fields = [...new Set([...shown.map((c) => (c.field.startsWith("extra.") ? "extra" : c.field)), ...shown.flatMap((c) => (c.marked ? [c.marked.field] : []))])];
   return {
     filters: stateFilters(columns, view, options.base),
     sort: view.sort.map((s) => ({ field: s.field, dir: s.dir })),

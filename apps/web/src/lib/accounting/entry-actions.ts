@@ -95,8 +95,11 @@ export async function runEntryAction(action: EntryAction, id: string, input: { r
     }
     // The click's key (the action bar's, minor 2): a double click runs the action once.
     const keyed = typeof idempotencyKey === "string" && /^bar:[a-z][a-z0-9_.]*:[0-9a-f-]{36}$/.test(idempotencyKey) ? { idempotencyKey } : {};
-    const result = (await runProcess(deps, caller, PROCESS[action], processInput, keyed)) as { number?: string };
-    return { ok: true, message: t(`done.${action}`, { number: result.number ?? "" }) };
+    const result = (await runProcess(deps, caller, PROCESS[action], processInput, keyed)) as { id?: string; number?: string };
+    const message = t(`done.${action}`, { number: result.number ?? "" });
+    // Revertir answers with the mirror comprobante (its id and number): the notice links to it.
+    if (action === "reverse" && result.id && result.number) return { ok: true, message, link: { entity: "accounting.entry", id: result.id, label: result.number } };
+    return { ok: true, message };
   } catch (error) {
     await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code, messages: issuesOf(error.details).map((i) => i.message) };

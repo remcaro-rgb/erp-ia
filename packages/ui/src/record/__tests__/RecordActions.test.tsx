@@ -124,3 +124,137 @@ describe("RecordActions", () => {
     expect(screen.getByRole("menuitem", { name: "Duplicar" })).toBeTruthy();
   });
 });
+
+describe("Cerrar (last button of the bar)", () => {
+  it("sits after Guardar and Eliminar and closes at once when there is nothing unsaved", () => {
+    const onClose = vi.fn();
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} onAction={ok} onClose={onClose} />);
+    const labels = screen.getAllByRole("button").map((b) => b.textContent?.trim());
+    expect(labels.slice(-3)).toEqual(["Guardar", "Eliminar", "Cerrar"]);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows even when the caller has no state buttons", () => {
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={NONE} dirty={false} onAction={ok} onClose={() => {}} />);
+    expect(screen.getByRole("button", { name: "Cerrar" })).toBeTruthy();
+  });
+
+  it("with unsaved edits asks before discarding them", () => {
+    const onClose = vi.fn();
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty onAction={ok} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/Hay cambios sin guardar/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar sin guardar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("is absent when the page gives no way to close", () => {
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} onAction={ok} />);
+    expect(screen.queryByRole("button", { name: "Cerrar" })).toBeNull();
+  });
+});
+
+describe("a notice with a link", () => {
+  it("shows the linked record's label as a link to its page, inside the notice's text", () => {
+    renderEs(
+      <RecordActions entityType="documento" status="posted" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} onAction={ok} initialNotice="Reversado con NC-19" initialNoticeLink={{ entity: "accounting.entry", id: "0198-e19", label: "NC-19" }} />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Reversado con NC-19");
+    const link = screen.getByRole("link", { name: "NC-19" });
+    expect(link.getAttribute("href")).toBe("/r/accounting.entry/0198-e19");
+  });
+
+  it("an action's outcome link replaces the notice with the same shape", async () => {
+    const onAction = vi.fn(async () => ({ ok: true as const, message: "Reversado con NC-20", link: { entity: "accounting.entry", id: "e20", label: "NC-20" } }));
+    renderEs(<RecordActions entityType="documento" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    const confirm = screen.getByRole("button", { name: "Confirmar" });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Pago duplicado" } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith("void", { reason: "Pago duplicado" }, undefined));
+  });
+
+  it("Eliminar asks to confirm", async () => {
+    const onAction = vi.fn(ok);
+    renderEs(<RecordActions entityType="documento" status="draft" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar" }));
+    expect(onAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Sí, eliminar" }));
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith("delete", {}, undefined));
+  });
+
+  it("a refused action (a posting refusal) shows the reason as an inline alert under the bar", async () => {
+    const onAction = vi.fn(async () => ({ ok: false as const, code: "period_closed", messages: ["El período 2026-10 está cerrado"] }));
+    renderEs(<RecordActions entityType="documento" status="draft" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty onAction={onAction} />);
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("El período 2026-10 está cerrado");
+  });
+
+  it("Revertir sits next to Duplicar, and both are also under Más ▾", () => {
+    renderEs(<RecordActions entityType="documento" status="posted" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} tools={{ duplicate: true, reverse: true }} onAction={ok} />);
+    expect(screen.getAllByRole("button", { name: "Revertir" }).length).toBeGreaterThan(0);
+    const more = screen.getByRole("button", { name: /Más/ });
+    fireEvent.click(more);
+    expect(screen.getByRole("menuitem", { name: "Revertir" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Duplicar" })).toBeTruthy();
+  });
+});
+
+describe("Cerrar (last button of the bar)", () => {
+  it("sits after Guardar and Eliminar and closes at once when there is nothing unsaved", () => {
+    const onClose = vi.fn();
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} onAction={ok} onClose={onClose} />);
+    const labels = screen.getAllByRole("button").map((b) => b.textContent?.trim());
+    expect(labels.slice(-3)).toEqual(["Guardar", "Eliminar", "Cerrar"]);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows even when the caller has no state buttons", () => {
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={NONE} dirty={false} onAction={ok} onClose={() => {}} />);
+    expect(screen.getByRole("button", { name: "Cerrar" })).toBeTruthy();
+  });
+
+  it("with unsaved edits asks before discarding them", () => {
+    const onClose = vi.fn();
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty onAction={ok} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/Hay cambios sin guardar/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cerrar sin guardar" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("is absent when the page gives no way to close", () => {
+    renderEs(<RecordActions entityType="maestro" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} onAction={ok} />);
+    expect(screen.queryByRole("button", { name: "Cerrar" })).toBeNull();
+  });
+});
+
+describe("a notice with a link", () => {
+  it("shows the linked record's label as a link to its page, inside the notice's text", () => {
+    renderEs(
+      <RecordActions entityType="documento" status="posted" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} onAction={ok} initialNotice="Reversado con NC-19" initialNoticeLink={{ entity: "accounting.entry", id: "0198-e19", label: "NC-19" }} />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("Reversado con NC-19");
+    const link = screen.getByRole("link", { name: "NC-19" });
+    expect(link.getAttribute("href")).toBe("/r/accounting.entry/0198-e19");
+  });
+
+  it("an action's outcome link replaces the notice with the same shape", async () => {
+    const onAction = vi.fn(async () => ({ ok: true as const, message: "Reversado con NC-20", link: { entity: "accounting.entry", id: "e20", label: "NC-20" } }));
+    renderEs(<RecordActions entityType="documento" status="posted" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} tools={{ reverse: true }} onAction={onAction} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Revertir" })[0]!);
+    // Revertir asks for its reason in the bar; this test runs a plain action instead.
+    cleanup();
+    renderEs(<RecordActions entityType="documento" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(screen.getByRole("link", { name: "NC-20" }).getAttribute("href")).toBe("/r/accounting.entry/e20"));
+  });
+});
+

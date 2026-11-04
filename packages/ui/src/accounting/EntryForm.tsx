@@ -116,7 +116,8 @@ export function EntryForm(props: EntryFormProps) {
   const submit = () => void send();
 
   // D2: a reversed comprobante stays Contabilizado; the pill reads Revertido from its mark. The state buttons are the frame's action bar.
-  const reversed = (record?.extra as Record<string, unknown> | null | undefined)?.reversed === true;
+  // The reversal's link is the mark (`extra` only carries the admin-defined keys the viewer may see).
+  const reversed = !!record?.reversed_by_id;
 
   const journalOptions = journals.some((j) => j.code === header.journalId) || !header.journalId ? journals : [...journals, { code: header.journalId, name: String(record?.journal_id ?? header.journalId) }];
 
@@ -249,7 +250,7 @@ function focusProblem(problem: EntryProblem, t: (key: string) => string): void {
 const contentOf = (l: EditorLine) => [l.account, l.party, l.costCenter, l.openAuxiliary, l.item, l.businessUnit, l.description, l.debit, l.credit, l.restricted];
 
 const STATUS_TONE: Record<string, "ok" | "warn" | "danger" | "info" | "gray"> = {
-  draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", reversed: "info", voided: "danger",
+  draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", reversed: "danger", voided: "danger",
 };
 
 /** Today in the browser's calendar, as the date input holds it. */

@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Ban, BookmarkPlus, CheckCircle2, Copy, FilePlus2, Mail, Printer, Save, Send, Trash2, Undo2, XCircle } from "lucide-react";
+import { Ban, BookmarkPlus, CheckCircle2, Copy, FilePlus2, Mail, Printer, Save, Send, Trash2, Undo2, X, XCircle } from "lucide-react";
+import { RecordLink } from "./RecordLink";
 import { StepUpPrompt } from "../forms/StepUpPrompt";
 import { barButtons, NEEDS_REASON, postsAutomatically, type BarAction, type EntityKind, type LifecycleFlags, type RecordBarAction, type RecordRights, type RecordStatus } from "./record-actions-model";
 
@@ -13,7 +14,14 @@ import { barButtons, NEEDS_REASON, postsAutomatically, type BarAction, type Enti
 // refusal included) is shown as an inline alert under the bar with its reason, and the form keeps the user's edits.
 
 /** What running an action answers. `step_up_required` makes the bar ask for the code and run it again with the token. */
-export type RecordActionOutcome = { ok: true; message?: string } | { ok: false; code: string; messages: string[] };
+/** A record a success notice names: its label shows as a link to the record's page inside the notice. */
+export interface RecordNoticeLink {
+  entity: string;
+  id: string;
+  label: string;
+}
+
+export type RecordActionOutcome = { ok: true; message?: string; link?: RecordNoticeLink } | { ok: false; code: string; messages: string[] };
 
 export interface RecordActionsProps {
   entityType: EntityKind;
@@ -29,6 +37,8 @@ export interface RecordActionsProps {
   tools?: { new?: boolean; print?: boolean; notify?: boolean; duplicate?: boolean; reverse?: boolean; saveTemplate?: boolean };
   /** Guardar como plantilla (a comprobante's module action, next to Revertir): opens the module's own dialog. */
   onSaveTemplate?: () => void;
+  /** Cerrar, the last button of the bar: closes the page (its tab). With unsaved edits the bar asks first. Absent: no Cerrar. */
+  onClose?: () => void;
   /** Runs the action; `stepUp` is the token of a fresh verification when the process asked for one. */
   onAction: (action: RecordBarAction, input: { reason?: string }, stepUp?: string) => Promise<RecordActionOutcome>;
   requestStepUp?: (code: string) => Promise<{ token: string } | { error: string }>;
@@ -38,21 +48,24 @@ export interface RecordActionsProps {
   initialProblem?: string | null;
   /** A success notice to show from the start: the action's, kept across the navigation that followed it (minor 7). */
   initialNotice?: string | null;
+  /** The record the initial notice names, when it does. */
+  initialNoticeLink?: RecordNoticeLink | null;
   /** Receives what ⌘S / Ctrl+S in the form runs: the bar's Guardar. */
   registerShortcut?: (run: () => void) => void;
 }
 
 const ICONS: Record<BarAction, typeof Save> = { save: Save, save_submit: Send, submit: Send, approve: CheckCircle2, reject: XCircle, void: Ban, delete: Trash2 };
 
-export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, registerShortcut, onSaveTemplate }: RecordActionsProps) {
+export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, initialNoticeLink = null, registerShortcut, onSaveTemplate, onClose }: RecordActionsProps) {
   const t = useTranslations("common.record.actions");
   const te = useTranslations("errors");
   const id = useId();
-  const [asking, setAsking] = useState<RecordBarAction | null>(null);
+  const [asking, setAsking] = useState<RecordBarAction | "close" | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(initialProblem);
   const [notice, setNotice] = useState<string | null>(initialNotice);
+  const [noticeLink, setNoticeLink] = useState<RecordNoticeLink | null>(initialNoticeLink);
   // Minor 2: one run at a time, whatever React has rendered yet (a double click lands before the buttons disable).
   const running = useRef(false);
   const [stepUp, setStepUp] = useState<{ action: RecordBarAction; reason?: string } | null>(null);
@@ -78,6 +91,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
     setBusy(true);
     setProblem(null);
     setNotice(null);
+    setNoticeLink(null);
     try {
       const outcome = await onAction(action, input, token);
       if (outcome.ok) {
@@ -85,6 +99,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
         setAsking(null);
         setReason("");
         setNotice(outcome.message ?? null);
+        setNoticeLink(outcome.link ?? null);
       } else if (outcome.code === "shown") {
         // The form already shows why (its fields, its step-up prompt).
         setStepUp(null);
@@ -114,6 +129,13 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
       return;
     }
     void run(action, {});
+  };
+
+  const close = () => {
+    setMoreOpen(false);
+    if (!dirty) return onClose?.();
+    setAsking("close");
+    setProblem(null);
   };
 
   const confirmStepUp = async (code: string) => {
@@ -214,6 +236,12 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
               </button>
             );
           })}
+          {onClose && (
+            <button type="button" data-action="close" className="erp-btn erp-touch" disabled={busy} onClick={close}>
+              <X aria-hidden size={16} />
+              {t("close")}
+            </button>
+          )}
           {busy && <span className="erp-small erp-muted">{t("acting")}</span>}
         </div>
       </div>
@@ -234,7 +262,18 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
           </button>
         </div>
       )}
-      {asking && NEEDS_REASON.has(asking) && (
+      {asking === "close" && (
+        <div className="erp-row erp-actbar__ask" role="group" aria-label={t("close")}>
+          <span className="erp-small">{t("close_confirm")}</span>
+          <button type="button" className="erp-btn erp-btn--danger erp-touch" onClick={() => onClose?.()}>
+            {t("close_yes")}
+          </button>
+          <button type="button" className="erp-btn erp-touch" onClick={() => setAsking(null)}>
+            {t("cancel")}
+          </button>
+        </div>
+      )}
+      {asking && asking !== "close" && NEEDS_REASON.has(asking) && (
         <div className="erp-row erp-actbar__ask" role="group" aria-label={t(`reason_${asking as "reject" | "void" | "reverse"}`)}>
           <label htmlFor={`${id}-reason`} className="erp-small">
             {t("reason")}
@@ -264,7 +303,15 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
       )}
       {notice && (
         <div role="status" className="erp-dian erp-dian--ok">
-          {notice}
+          {noticeLink && notice.includes(noticeLink.label) ? (
+            <>
+              {notice.slice(0, notice.indexOf(noticeLink.label))}
+              <RecordLink entity={noticeLink.entity} id={noticeLink.id} label={noticeLink.label} mono />
+              {notice.slice(notice.indexOf(noticeLink.label) + noticeLink.label.length)}
+            </>
+          ) : (
+            notice
+          )}
         </div>
       )}
     </div>

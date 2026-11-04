@@ -34,7 +34,7 @@ El comprobante es un **documento**: sus estados, su barra de acciones (**Guardar
 
 Trae ID, Número, Fecha, Fuente, Descripción, Débito, Crédito, Estado y Origen. Los filtros rápidos son **Hoy**, **Este período**, **Borradores**, **Por aprobar**, **Automáticos** y **Manuales**. **Borradores** muestra los comprobantes sin terminar: en **Borrador**, **Grabado** o **No Aprobado**, los mismos que cuenta el cierre del período.
 
-El **Estado** puede ser **Borrador**, **Grabado**, **Pendiente de Aprobación**, **No Aprobado**, **Aprobado**, **Contabilizado** o **Anulado**. Un comprobante reversado sigue **Contabilizado** y su ficha lo marca como **Revertido**. El **Origen** es **Manual** (lo hizo una persona), **Automático** (lo contabilizó el sistema a partir de una factura, un recibo u otro documento), **Plantilla** o **Importado**.
+El **Estado** puede ser **Borrador**, **Grabado**, **Pendiente de Aprobación**, **No Aprobado**, **Aprobado**, **Contabilizado** o **Anulado**. Un comprobante reversado sigue contabilizado, pero tanto el listado como su ficha lo muestran como **Revertido**, en rojo, y ya no ofrece **Revertir** (el filtro **Estado** sigue usando los estados guardados: para encontrarlos, filtra por **Contabilizado** y busca los rojos). El **Origen** es **Manual** (lo hizo una persona), **Automático** (lo contabilizó el sistema a partir de una factura, un recibo u otro documento), **Plantilla** o **Importado**.
 
 Los comprobantes automáticos no se escriben: nacen de las reglas contables (guía **Reglas contables**).
 
@@ -72,6 +72,15 @@ En la ficha de la plantilla puedes cambiar:
 - **quién la puede usar**: el administrador entra a la pestaña **Acceso**, agrega los roles o usuarios y marca **Usar en documentos**.
 
 Las líneas no se editan en la ficha: se vuelve a guardar la plantilla desde otro comprobante. Un comprobante con una línea de una cuenta restringida para ti no se puede guardar como plantilla.
+
+## Importar comprobantes desde Excel
+
+**Importar** (en el listado) carga uno o varios comprobantes con sus líneas desde un archivo `.xlsx`.
+
+1. Descarga la **Plantilla Excel**. Tiene dos hojas: **Datos** (un comprobante por fila: `ref`, fecha, descripción…) y **Líneas** (una línea por fila: `ref`, `accountCode` o cuenta, débito, crédito…).
+2. El `ref` une cada línea con su comprobante: todas las líneas con el mismo `ref` pertenecen al mismo comprobante. Debe ser distinto en cada fila de Datos.
+3. Elige el archivo. La vista previa revisa cada comprobante con las mismas reglas del formulario (cuentas que reciben movimiento, débitos = créditos, período abierto) y muestra, debajo de cada uno, sus líneas. **Ver** abre los motivos de un comprobante con error.
+4. **Importar filas válidas** pide el código de verificación en dos pasos y corre en segundo plano. Cada comprobante nace en **Borrador**, con **Origen: Importado**, sin consecutivo: lo revisas y lo contabilizas. Si un comprobante tiene una línea con error, no se crea, pero los demás sí; el motivo queda en `errores.csv` del historial de importaciones.
 
 ## Aprobación por otra persona
 
