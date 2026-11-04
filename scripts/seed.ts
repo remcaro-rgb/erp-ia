@@ -418,25 +418,31 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
   assertSeedAllowed(env, flags);
   process.env.DATABASE_URL = env.databaseUrl;
   const sql = getServiceDb();
+  const step = (what: string) => console.log(`[seed] ${what}`);
   try {
+    step("seed.sql");
     await sql.file(SEED_SQL);
 
+    step("registry sync");
     const registry = new Registry();
     loadModules(registry, [kernelModule, core, accounting, support]);
     registerCountryPack(co);
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
 
+    step("auth users");
     const admin = createClient(env.supabaseUrl, env.serviceKey, noSession);
     // kernel.admin.user.create looks people up through the AuthAdmin adapter: this stack's.
     setAuthAdmin(new SupabaseAuthAdmin(admin));
     const ids = new Map<string, string>();
     for (const account of DEMO_ACCOUNTS) ids.set(account.email, await ensureAuthUser(sql, admin, account));
     await bootstrapAdmin(sql, ids.get(LAURA.email)!, LAURA);
+    step("totp");
     await ensureTotp(sql, env, admin, LAURA, ids.get(LAURA.email)!);
 
     await sql`select kernel.seed_company_defaults(${DEMO_COMPANY_ID})`;
 
+    step("permissions and master data");
     const deps: RunProcessDeps = { sql, registry };
     const laura = await signIn(sql, env, LAURA);
     const adminRuns = await seedPermissions(sql, deps, laura, ids);
@@ -444,6 +450,7 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     const files = await seedRequiredFiles(sql, deps, laura.caller, new SupabaseFileStore(admin));
     const recommendations = await seedRecommendations(sql, ids.get(LAURA.email)!, ids.get(MARCELA.email)!);
     const andres = await signIn(sql, env, ANDRES);
+    step("accounting");
     const ledger = await seedAccounting(sql, deps, { laura, andres, ids }, ids.get(LAURA.email)!);
 
     console.log(

@@ -43,21 +43,29 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
   await sql.begin(async (tx) => {
     const featureIds = module.features.map((f) => f.id);
     await tx`delete from kernel.module_features where module_id = ${module.id} and not (feature_id = any(${featureIds}::text[]))`;
-    for (const feature of module.features) {
+    // One statement per table, not one per row: a hosted database is a network round trip away (the arrays go as JSON).
+    if (module.features.length > 0) {
       await tx`
         insert into kernel.module_features (module_id, feature_id, process_ids, entity_ids)
-        values (${module.id}, ${feature.id}, ${feature.processes}::text[], ${feature.entities}::text[])
+        select ${module.id}, f->>'id', array(select jsonb_array_elements_text(f->'processes')), array(select jsonb_array_elements_text(f->'entities'))
+        from jsonb_array_elements(${tx.json(module.features.map((f) => ({ id: f.id, processes: f.processes, entities: f.entities })))}::jsonb) f
         on conflict (module_id, feature_id)
         do update set process_ids = excluded.process_ids, entity_ids = excluded.entity_ids, updated_at = now()`;
     }
 
     const processIds = module.processes.map((p) => p.id);
     await tx`delete from kernel.registered_processes where module_id = ${module.id} and not (process_id = any(${processIds}::text[]))`;
-    for (const process of module.processes) {
-      const feature = module.features.find((f) => f.processes.includes(process.id))?.id ?? process.feature ?? null;
+    const processRows = module.processes.map((process) => ({
+      id: process.id,
+      feature: module.features.find((f) => f.processes.includes(process.id))?.id ?? process.feature ?? null,
+      kind: process.kind,
+      step_up: process.sensitivity === "step-up",
+    }));
+    if (processRows.length > 0) {
       await tx`
         insert into kernel.registered_processes (process_id, module_id, feature_id, kind, step_up)
-        values (${process.id}, ${module.id}, ${feature}, ${process.kind}, ${process.sensitivity === "step-up"})
+        select r.id, ${module.id}, r.feature, r.kind, r.step_up
+        from jsonb_to_recordset(${tx.json(processRows)}::jsonb) as r(id text, feature text, kind text, step_up boolean)
         on conflict (process_id) do update set
           module_id = excluded.module_id, feature_id = excluded.feature_id, kind = excluded.kind, step_up = excluded.step_up, updated_at = now()`;
     }
@@ -65,10 +73,12 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
     // kernel.entity_tables: where each maestro / documento lives, for kernel.record_usable and kernel.record_referenced (0041), and the lines entity for kernel.record_versions (0051).
     const typedEntities = module.entities.filter((e) => e.entityType === "maestro" || e.entityType === "documento");
     await tx`delete from kernel.entity_tables where module_id = ${module.id} and not (entity = any(${typedEntities.map((e) => e.id)}::text[]))`;
-    for (const entity of typedEntities) {
+    if (typedEntities.length > 0) {
+      const tableRows = typedEntities.map((e) => ({ id: e.id, type: e.entityType as string, schema: e.schema, table: e.table, lines: e.typed?.lines?.entity ?? null }));
       await tx`
         insert into kernel.entity_tables (entity, module_id, entity_type, table_schema, table_name, lines_entity)
-        values (${entity.id}, ${module.id}, ${entity.entityType as string}, ${entity.schema}, ${entity.table}, ${entity.typed?.lines?.entity ?? null})
+        select r.id, ${module.id}, r.type, r.schema, r."table", r.lines
+        from jsonb_to_recordset(${tx.json(tableRows)}::jsonb) as r(id text, type text, schema text, "table" text, lines text)
         on conflict (entity) do update set
           module_id = excluded.module_id, entity_type = excluded.entity_type, table_schema = excluded.table_schema, table_name = excluded.table_name,
           lines_entity = excluded.lines_entity, updated_at = now()`;
@@ -77,10 +87,12 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
     // kernel.menu_items: the module's menu items and the processes each lists, for kernel.menu_access (0047).
     const items = menuItemsOf(module);
     await tx`delete from kernel.menu_items where module_id = ${module.id} and not (nav_key = any(${items.map((i) => i.navKey)}::text[]))`;
-    for (const item of items) {
+    if (items.length > 0) {
+      const itemRows = items.map((i) => ({ nav_key: i.navKey, module_id: i.moduleId, parent_key: i.parentKey, href: i.href, entity: i.entity, process_ids: i.processIds }));
       await tx`
         insert into kernel.menu_items (nav_key, module_id, parent_key, href, entity, process_ids)
-        values (${item.navKey}, ${item.moduleId}, ${item.parentKey}, ${item.href}, ${item.entity}, ${item.processIds}::text[])
+        select r.nav_key, r.module_id, r.parent_key, r.href, r.entity, array(select jsonb_array_elements_text(r.process_ids))
+        from jsonb_to_recordset(${tx.json(itemRows)}::jsonb) as r(nav_key text, module_id text, parent_key text, href text, entity text, process_ids jsonb)
         on conflict (nav_key) do update set
           module_id = excluded.module_id, parent_key = excluded.parent_key, href = excluded.href, entity = excluded.entity,
           process_ids = excluded.process_ids, updated_at = now()`;
@@ -92,10 +104,12 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
     const fields = module.entities.flatMap((entity) => entity.fields.map((field) => ({ entity: entity.id, field: field.name, sensitivity: field.sensitivity ?? "normal" })));
     const keys = fields.map((f) => `${f.entity}.${f.field}`);
     await tx`delete from kernel.entity_fields where module_id = ${module.id} and not ((entity || '.' || field) = any(${keys}::text[]))`;
-    for (const f of fields) {
+    // Chunked: one JSON parameter per few thousand fields.
+    for (let i = 0; i < fields.length; i += 2000) {
       await tx`
         insert into kernel.entity_fields (entity, field, module_id, sensitivity)
-        values (${f.entity}, ${f.field}, ${module.id}, ${f.sensitivity})
+        select r.entity, r.field, ${module.id}, r.sensitivity
+        from jsonb_to_recordset(${tx.json(fields.slice(i, i + 2000))}::jsonb) as r(entity text, field text, sensitivity text)
         on conflict (entity, field) do update set module_id = excluded.module_id, sensitivity = excluded.sensitivity, updated_at = now()`;
     }
     const newlyConfidential = fields.filter((f) => f.sensitivity === "confidential" && !wasConfidential.has(`${f.entity}.${f.field}`));

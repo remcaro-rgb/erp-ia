@@ -55,6 +55,10 @@ Vercel builds `apps/web` from every push to `main` (project `erpia`); the deploy
 demo passwords are public. The access-token hook must be enabled once in the hosted project's dashboard
 (Authentication › Hooks › `kernel.custom_access_token_hook`).
 
+**Sharing the dev environment (2026-11-04).** `scripts/share/upload-dev.sh` (double-click `~/Desktop/Subir ERP-IA.command`)
+wipes the hosted database, applies the migrations and the demo seed, deploys to the Vercel production alias and smoke-tests
+`/login`. It asks for `SI` first; `--skip-checks` skips lint, typecheck and check:rules; `--yes` skips the prompt.
+
 ### Demo accounts (local use only)
 
 | Account | Password | Roles | Second step |
