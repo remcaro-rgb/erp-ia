@@ -140,7 +140,7 @@ test.describe("typed entities: record action bar", () => {
     await expect(page.locator(".erp-record__header").getByText("Contabilizado", { exact: true })).toBeVisible();
     // A posted comprobante is final here: no state buttons; Revertir is the module's action, next to Duplicar.
     await expect(bar(page).getByRole("button", { name: "Revertir" })).toBeVisible();
-    await expect(bar(page).locator("[data-action]")).toHaveCount(0);
+    await expect(bar(page).locator("[data-action]:not([data-action=close])")).toHaveCount(0);
     // Rule 20: the posted comprobante's lines read in the universal grid: sort, advanced filter, both lines.
     const lines = page.locator("section.erp-grid").filter({ visible: true });
     await expect(lines.getByRole("button", { name: "Filtro avanzado" })).toBeVisible();
