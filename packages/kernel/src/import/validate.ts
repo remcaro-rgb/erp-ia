@@ -138,7 +138,7 @@ export async function runRecords(
     } catch (error) {
       if (error instanceof ProcessError && error.stage === "gate" && STOPS.has(error.code)) return { outcomes, stoppedBy: error.code };
       // The user reads «No se pudo crear el registro»; the cause stays in the server log.
-      if (!(error instanceof ProcessError)) console.error(`import row ${record.rowNo} of ${processId} failed:`, error);
+      if (!(error instanceof ProcessError) || error.code === "handler_failed") console.error(`import row ${record.rowNo} of ${processId} failed:`, error instanceof ProcessError ? error.cause : error);
       const described = describeFailure(error, columns, options.labels, record.input, lines ? { layout: lines, rowNos: record.lineRows ?? [] } : undefined);
       const errors = target && isUniqueViolation(error) ? await duplicateRefusal(deps, caller, target.entity, columns, record, described, error, options.labels) : described;
       outcomes.push({ index, rowNo: record.rowNo, ok: false, errors });
