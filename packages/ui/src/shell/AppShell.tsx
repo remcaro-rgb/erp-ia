@@ -12,6 +12,7 @@ import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { MfaDialog, type MfaDisableResult, type MfaState } from "./MfaDialog";
+import { PasswordDialog, type PasswordChangeResult } from "./PasswordDialog";
 import { isActiveHref, ModuleBar } from "./ModuleBar";
 import { SideMenu } from "./SideMenu";
 import { TabsBar } from "./TabsBar";
@@ -78,6 +79,8 @@ export interface AppShellProps {
   mfa?: MfaState;
   /** Runs kernel.user.mfa.disable through the app's step-up flow; on success the app ends the session. */
   onDisableMfa?: () => Promise<MfaDisableResult>;
+  /** Runs kernel.user.password.change; with it, the user menu offers "Cambiar contraseña". */
+  onChangePassword?: (currentPassword: string, newPassword: string) => Promise<PasswordChangeResult>;
   /** The app's step-up prompt while that run waits for the code (rendered inside the dialog). */
   mfaStepUpPrompt?: ReactNode;
   /** Cancels that waiting step-up (the dialog was closed). */
@@ -306,6 +309,7 @@ function ShellFrame(props: AppShellProps) {
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mfaOpen, setMfaOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const mfaWired = props.mfa !== undefined && props.onDisableMfa !== undefined;
   // The drawer: the user's saved choice when there is one (the server's copy, or this browser's when it is newer), else
   // closed below 1280 px (OD-10). Decided once, on the first mount; the server render and hydration use the saved choice
@@ -452,6 +456,7 @@ function ShellFrame(props: AppShellProps) {
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
             {...(mfaWired ? { mfaEnrolled: props.mfa!.enrolled, onOpenMfa: () => setMfaOpen(true) } : {})}
+            {...(props.onChangePassword ? { onOpenPassword: () => setPasswordOpen(true) } : {})}
           />
           <div className="flex min-h-0 flex-1">
             <SideMenu modules={visibleModules} activeModuleId={activeModuleId} onSelectModule={selectModule} collapsed={sideCollapsed} onToggle={toggleSide} />
@@ -498,6 +503,7 @@ function ShellFrame(props: AppShellProps) {
             onSelect={(item) => navigate(item.href)}
             {...(props.findRecords ? { findRecords: props.findRecords } : {})}
           />
+          {props.onChangePassword && <PasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} onChange={props.onChangePassword} />}
           {mfaWired && (
             <MfaDialog
               open={mfaOpen}

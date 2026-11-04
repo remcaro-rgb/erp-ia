@@ -20,7 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ERP-IA",
+  title: "Goliatt",
 };
 
 // The locale and its messages come from the request (src/i18n/request.ts), which is request data: the provider

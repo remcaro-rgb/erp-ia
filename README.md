@@ -58,6 +58,8 @@ demo passwords are public. The access-token hook must be enabled once in the hos
 **Sharing the dev environment (2026-11-04).** `scripts/share/upload-dev.sh` (double-click `~/Desktop/Subir ERP-IA.command`)
 wipes the hosted database, applies the migrations and the demo seed, deploys to the Vercel production alias and smoke-tests
 `/login`. It asks for `SI` first; `--skip-checks` skips lint, typecheck and check:rules; `--yes` skips the prompt.
+`scripts/share/update-site.sh` (`~/Desktop/Actualizar ERP-IA.command`) updates the site without touching its data: it applies only
+the migrations the hosted database lacks (`supabase db push`, forward-only), deploys to production and smoke-tests `/login`.
 
 ### Demo accounts (local use only)
 

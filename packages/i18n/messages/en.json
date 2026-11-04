@@ -606,7 +606,7 @@
         "col_roles": "Roles",
         "col_mfa": "2FA",
         "mfa_on": "on",
-        "mfa_off": "pending",
+        "mfa_off": "off",
         "name": "Full name",
         "email": "E-mail (sign-in)",
         "mobile": "Mobile",
@@ -653,11 +653,18 @@
           "photo_alt": "Photo of {name}",
           "mfa_reset": "Remove second step",
           "mfa_reset_title": "Remove {name}'s second step?",
-          "mfa_reset_confirm": "{name} will sign in with their password only and their open sessions end. If their role requires two-step verification, they set it up again at their next sign-in.",
-          "mfa_exempt": "Exempt from the second step",
-          "mfa_exempt_hint": "The admin role requires two-step verification; an exempt user signs in with their password only when they have none set up."
+          "mfa_reset_confirm": "{name} will sign in with their password only and their open sessions end. If an administrator requires it of them, they set it up again at their next sign-in.",
+          "mfa_required": "Require two-step verification",
+          "mfa_required_hint": "When required, the user must set up their authenticator app to sign in and cannot turn it off. It applies to administrators too.",
+          "password_reset": "Reset password",
+          "password_reset_title": "Reset the password of {name}?",
+          "password_reset_confirm": "Type a new password for {name}. Their open sessions end and they must sign in with the new one; give it to them over a secure channel.",
+          "password_new": "New password",
+          "password_confirm": "Repeat the new password",
+          "password_mismatch": "The passwords do not match",
+          "password_done": "The password of {name} was reset"
         },
-        "mfa_exempt": "exempt"
+        "mfa_required": "required"
       },
       "fields": {
         "title": "Visibility by field and role",
@@ -1030,7 +1037,7 @@
       "theme_auto": "Automatic",
       "sign_out": "Sign out",
       "home": "Home",
-      "brand": "ERP-IA",
+      "brand": "Goliatt",
       "active_company": "Active company",
       "tax_id": "Tax ID {id}",
       "add_company": "Add company",
@@ -1099,11 +1106,22 @@
         "on_hint": "Every sign-in asks, besides your password, for the 6-digit code of your authenticator app. Sensitive actions ask for it too.",
         "off_hint": "Protect your account: besides your password, every sign-in will ask for the code of your authenticator app. Without it you cannot run sensitive actions.",
         "disable_hint": "If you turn it off you will sign in with your password only and cannot run sensitive actions until you turn it on again. Your open sessions end and you sign in again.",
-        "required_by_role": "Your role requires two-step verification, so you cannot turn it off. If you need to, ask an administrator to exempt you.",
-        "exempt": "An administrator exempted you from the second step your role requires.",
+        "required": "An administrator requires two-step verification for your account, so you cannot turn it off. If you need to, ask them to stop requiring it.",
         "disable": "Turn off",
         "enable": "Turn on",
         "failed": "Could not turn it off: {reason}"
+      },
+      "password": {
+        "menu": "Change password",
+        "title": "Change password",
+        "hint": "At least 8 characters. Your other sessions stay open.",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Repeat the new password",
+        "mismatch": "The new passwords do not match",
+        "submit": "Change password",
+        "done": "Your password was changed.",
+        "failed": "Could not change it: {reason}"
       },
       "badge": "{count} pending",
       "routes": {
@@ -1844,7 +1862,7 @@
         "mobile": "Mobile",
         "created_at": "Created",
         "is_active": "Active",
-        "mfa_exempt": "Exempt from the second step"
+        "mfa_required": "Second step required"
       },
       "doc_template": {
         "entity": "Entity",
@@ -2440,7 +2458,7 @@
       "failed": "Your decision could not be saved. Try again.",
       "agents": {
         "help": "Help agent",
-        "seed": "ERP-IA suggestion",
+        "seed": "Goliatt suggestion",
         "other": "Agent: {name}"
       },
       "refused": "Your role cannot do this action, so we did not open it. Dismiss the recommendation or ask your administrator."
@@ -2558,7 +2576,7 @@
     }
   },
   "auth": {
-    "brand": "ERP-IA",
+    "brand": "Goliatt",
     "login": {
       "email": "E-mail",
       "password": "Password",

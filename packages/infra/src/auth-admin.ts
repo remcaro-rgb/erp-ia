@@ -20,6 +20,10 @@ export interface AuthAdmin {
    * only downgrades the sessions to aal1.
    */
   signOutUser(userId: string): Promise<void>;
+  /** Sets the user's password (no e-mail, no old password asked: the caller of this method has already decided who may). */
+  setPassword(userId: string, password: string): Promise<void>;
+  /** Whether `password` is the current password of the user with this e-mail (a sign-in attempt that keeps no session). */
+  verifyPassword(email: string, password: string): Promise<boolean>;
 }
 
 /**
@@ -74,6 +78,16 @@ export class SupabaseAuthAdmin implements AuthAdmin {
       removed++;
     }
     return removed;
+  }
+
+  async setPassword(userId: string, password: string): Promise<void> {
+    const { error } = await this.client.auth.admin.updateUserById(userId, { password });
+    if (error) throw new Error(`could not set the password of ${userId}: ${error.message}`);
+  }
+
+  async verifyPassword(email: string, password: string): Promise<boolean> {
+    const { data, error } = await this.client.auth.signInWithPassword({ email, password });
+    return !error && Boolean(data.session);
   }
 
   async signOutUser(userId: string): Promise<void> {

@@ -1,5 +1,5 @@
 ---
-title: Primeros pasos en ERP-IA
+title: Primeros pasos en Goliatt
 routes:
   - /
 processes:
@@ -10,9 +10,9 @@ processes:
   - kernel.user_prefs.set
 ---
 
-# Primeros pasos en ERP-IA
+# Primeros pasos en Goliatt
 
-ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite mantener los **terceros** (clientes, proveedores y empleados), los **productos** y sus **categorías** con todos los datos que exige la facturación electrónica de la DIAN, adjuntar **archivos** a cada registro, **importar** y **exportar** listados en Excel o CSV y pedir ayuda al equipo de **soporte**.
+Goliatt es el sistema de gestión de tu empresa en el navegador. Hoy te permite mantener los **terceros** (clientes, proveedores y empleados), los **productos** y sus **categorías** con todos los datos que exige la facturación electrónica de la DIAN, adjuntar **archivos** a cada registro, **importar** y **exportar** listados en Excel o CSV y pedir ayuda al equipo de **soporte**.
 
 ## Lo que necesitas antes de empezar
 
@@ -21,7 +21,7 @@ ERP-IA es el sistema de gestión de tu empresa en el navegador. Hoy te permite m
 
 ## Tu primera sesión
 
-1. Abre ERP-IA en el navegador e ingresa con tu correo y contraseña. Si es tu computador de siempre, marca **Recordarme en este dispositivo por 30 días**.
+1. Abre Goliatt en el navegador e ingresa con tu correo y contraseña. Si es tu computador de siempre, marca **Recordarme en este dispositivo por 30 días**.
 2. Si tu rol lo exige, escribe el código de 6 dígitos de tu app de autenticación.
 3. Llegas a **Inicio**, la primera pestaña: tu panel con los indicadores de tu empresa, las recomendaciones para ti, los últimos registros que tocaste y atajos de ayuda. Más abajo, en **La pantalla de Inicio**, se explica cada tarjeta y cómo acomodarlas a tu gusto.
 4. Abre el menú **Módulos** (arriba, junto al nombre de la empresa) y elige **Núcleo** o **Soporte**. Al lado aparecen las opciones del módulo: **Productos**, **Categorías** e **Importar datos** en Núcleo (**Terceros** está en Contabilidad, sección Maestros); **Soporte** en el módulo de soporte.

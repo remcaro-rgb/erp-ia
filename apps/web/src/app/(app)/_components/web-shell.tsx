@@ -6,7 +6,7 @@ import { AppShell, themeScript, UnsavedProvider, type TabsSnapshot, type ThemeMo
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
 import { findRecordsById } from "@/lib/records/find-by-id";
-import { disableOwnMfaAction } from "@/lib/auth/mfa-actions";
+import { changeOwnPasswordAction, disableOwnMfaAction } from "@/lib/auth/mfa-actions";
 import { clearCloneHandoff } from "@/lib/records/clone-handoff";
 import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
@@ -152,6 +152,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
         }
         return result;
       }}
+      onChangePassword={(currentPassword, newPassword) => changeOwnPasswordAction(currentPassword, newPassword)}
       signOutAction={() =>
         new Promise<void>((resolve) =>
           guardedNavigate(() => {

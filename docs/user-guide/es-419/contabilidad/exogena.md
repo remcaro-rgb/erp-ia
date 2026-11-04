@@ -12,7 +12,7 @@ processes:
 
 # Información exógena
 
-La información exógena es lo que reportas a la DIAN cada año sobre tus pagos, retenciones, ingresos y saldos por tercero. ERP-IA la arma desde el libro: cada cuenta se asocia a un **concepto** del formato y el informe suma el movimiento del año por tercero y concepto.
+La información exógena es lo que reportas a la DIAN cada año sobre tus pagos, retenciones, ingresos y saldos por tercero. Goliatt la arma desde el libro: cada cuenta se asocia a un **concepto** del formato y el informe suma el movimiento del año por tercero y concepto.
 
 ## 1. Asociar las cuentas a conceptos
 

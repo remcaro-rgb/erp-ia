@@ -24,6 +24,8 @@ export const EXCLUDED_PROCESSES: ReadonlyMap<string, string> = new Map([
   ["kernel.import.preview", "validates an uploaded file the chat does not have"],
   ["kernel.attachment.add", "records a file already stored by the attachments route; the chat uploads none"],
   ["kernel.user.mfa.disable", "removing the caller's factor must end their session with the sign-in notice; the user menu handles the sign-out and the notice, the chat cannot"],
+  ["kernel.user.password.change", "a password must never travel through the chat; the user menu's dialog changes it"],
+  ["kernel.admin.user.password.reset", "a password must never travel through the chat; the user page's dialog resets it"],
   ["kernel.admin.user.mfa.set", "removing a factor must be followed by the sign-out and the notice; the user page handles them (the admin's own factor included), the chat cannot"],
 ]);
 

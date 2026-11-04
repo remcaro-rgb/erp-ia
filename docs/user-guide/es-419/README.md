@@ -1,9 +1,9 @@
 
-# Guías de usuario de ERP-IA
+# Guías de usuario de Goliatt
 
-Guías para quien usa ERP-IA todos los días, en español latinoamericano. El asistente de ayuda las lee para responder preguntas y llevarte a la pantalla correcta.
+Guías para quien usa Goliatt todos los días, en español latinoamericano. El asistente de ayuda las lee para responder preguntas y llevarte a la pantalla correcta.
 
-- [Primeros pasos en ERP-IA](inicio.md): qué es el sistema, cómo empezar y la pantalla de Inicio (indicadores, recomendaciones, tarjetas que se mueven y cambian de tamaño).
+- [Primeros pasos en Goliatt](inicio.md): qué es el sistema, cómo empezar y la pantalla de Inicio (indicadores, recomendaciones, tarjetas que se mueven y cambian de tamaño).
 - [Ingresar y verificación en dos pasos](ingreso-y-2fa.md): ingresar, recordar el dispositivo, activar el código de 6 dígitos y confirmar acciones sensibles.
 - [Moverse por el sistema](navegacion.md): empresa, menú de módulos a la izquierda (contraer y expandir), secciones del módulo, pestañas, ⌘K (también por ID), tema claro u oscuro, la barra de acciones de un registro, duplicar un registro y llenar formularios con el teclado.
 - [Maestros y documentos](maestros-y-documentos.md): el ID, los estados, Guardar y enviar a aprobación, Aprobar y No aprobar, Anular, Revertir y Eliminar, el pie y la pestaña Versiones.

@@ -30,7 +30,7 @@ const data: UserPageData = {
     photo: null,
     roleIds: ["r-cajero"],
     mfaEnrolled: false,
-    mfaExempt: false,
+    mfaRequired: false,
     locale: "es-419",
     isActive: true,
   },
@@ -76,12 +76,13 @@ describe("UserScreen", () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*title="No puedes desactivar tu propia cuenta"[^>]*>Desactivar<\/button>|<button[^>]*title="No puedes desactivar tu propia cuenta"[^>]*disabled=""[^>]*>Desactivar<\/button>/);
   });
 
-  // Design §22.19: the admin removes a member's factor ("Quitar segundo paso", only when one is set up) and, for a holder
-  // of the system admin role, exempts them from the role's requirement (a switch). Both run kernel.admin.user.mfa.set.
-  it("no second step: no Quitar segundo paso; a member without the admin role has no exemption switch", () => {
+  // Design §22.19, owner decision 2026-11-04: the admin removes a member's factor ("Quitar segundo paso", only when one is
+  // set up) and requires or stops requiring it of anyone, an admin included (a switch). Both run kernel.admin.user.mfa.set.
+  it("no second step: no Quitar segundo paso; every member, admin or not, has the requirement switch and the password reset", () => {
     const html = render(data);
     expect(text(html)).not.toContain("Quitar segundo paso");
-    expect(html).not.toContain('role="switch"');
+    expect(html).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="false"[^>]*aria-label="Exigir verificación en dos pasos"/);
+    expect(html).toMatch(/<button[^>]*>Restablecer contraseña<\/button>/);
   });
 
   it("a set-up second step offers Quitar segundo paso", () => {
@@ -89,11 +90,12 @@ describe("UserScreen", () => {
     expect(html).toMatch(/<button[^>]*>Quitar segundo paso<\/button>/);
   });
 
-  it("a holder of the admin role gets the Exento del segundo paso switch, checked when exempt", () => {
+  it("an admin gets the same switch, checked when an administrator requires their second step", () => {
     const admin = { ...data.member, roleIds: ["r-admin"], mfaEnrolled: true };
     const off = render({ ...data, member: admin });
-    expect(off).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="false"[^>]*aria-label="Exento del segundo paso"/);
-    const on = render({ ...data, member: { ...admin, mfaExempt: true } });
-    expect(on).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="true"[^>]*aria-label="Exento del segundo paso"/);
+    expect(off).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="false"[^>]*aria-label="Exigir verificación en dos pasos"/);
+    const on = render({ ...data, member: { ...admin, mfaRequired: true } });
+    expect(on).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="true"[^>]*aria-label="Exigir verificación en dos pasos"/);
+    expect(text(on)).toContain("exigida");
   });
 });

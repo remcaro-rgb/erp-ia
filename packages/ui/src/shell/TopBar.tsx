@@ -41,6 +41,8 @@ export interface TopBarProps {
   mfaEnrolled?: boolean;
   /** Opens "Verificación en dos pasos". */
   onOpenMfa?: () => void;
+  /** With it, the user menu offers "Cambiar contraseña" (kernel.user.password.change). */
+  onOpenPassword?: () => void;
 }
 
 const menuClass = "min-w-[240px] rounded-lg border border-line bg-surface p-1.5 text-text shadow-[0_10px_30px_var(--shadow)]";
@@ -72,8 +74,8 @@ export function TopBar(props: TopBarProps) {
   return (
     <header data-bar className="relative z-10 flex h-(--erp-bar-h) shrink-0 items-center gap-1.5 bg-bar px-3 text-bar-text sm:gap-2.5 sm:px-4">
       <div className="mr-1.5 flex shrink-0 items-center gap-2 text-[15px] font-bold whitespace-nowrap text-white">
-        <i aria-hidden="true" className="inline-block size-[22px] rounded-md bg-focus" />
-        <span className="hidden sm:inline">{s("brand")}</span>
+        {/* The Goliatt wordmark (white on the navy bar); the name stays for assistive technology. */}
+        <img src="/goliatt-logo-white.png" alt={s("brand")} className="h-[22px] w-auto" />
       </div>
 
       <DropdownMenu>
@@ -180,6 +182,11 @@ export function TopBar(props: TopBarProps) {
             <DropdownMenuItem className={itemClass} onSelect={props.onOpenMfa}>
               {s("mfa.menu")}
               <span className="ml-auto text-xs text-text-muted">{props.mfaEnrolled ? s("mfa.menu_on") : s("mfa.menu_off")}</span>
+            </DropdownMenuItem>
+          )}
+          {props.onOpenPassword && (
+            <DropdownMenuItem className={itemClass} onSelect={props.onOpenPassword}>
+              {s("password.menu")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem

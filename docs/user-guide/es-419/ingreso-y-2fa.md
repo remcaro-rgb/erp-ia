@@ -10,7 +10,7 @@ processes:
 
 # Ingresar y verificación en dos pasos
 
-Para entrar a ERP-IA escribes tu correo y tu contraseña. Si tu rol lo exige (o ya activaste la verificación), el sistema te pide además un código de 6 dígitos que genera tu app de autenticación. Esa verificación en dos pasos protege tu cuenta aunque alguien conozca tu contraseña.
+Para entrar a Goliatt escribes tu correo y tu contraseña. Si un administrador te la exige (o ya la activaste por tu cuenta), el sistema te pide además un código de 6 dígitos que genera tu app de autenticación. Esa verificación en dos pasos protege tu cuenta aunque alguien conozca tu contraseña.
 
 ## Ingresar
 
@@ -34,7 +34,7 @@ Si tu cuenta tiene verificación en dos pasos, el siguiente paso es el código (
 
 Cuando tu cuenta ya tiene la verificación activada, después de la contraseña ves **Verificación en dos pasos**.
 
-1. Abre tu app de autenticación y busca la entrada **ERP-IA**.
+1. Abre tu app de autenticación y busca la entrada **Goliatt**.
 2. Escribe los **6 dígitos** que muestra. Al completar el sexto el formulario se envía solo; también puedes pulsar **Verificar**.
 3. Entras a **Inicio**.
 
@@ -42,7 +42,7 @@ Si el código no es correcto, ves «El código no es correcto. Revisa tu app e i
 
 ## Activar la verificación (primera vez)
 
-Si el administrador exige la verificación en dos pasos a tu rol y aún no la tienes, después de la contraseña ves **Activa la verificación en dos pasos**.
+Si un administrador te exige la verificación en dos pasos y aún no la tienes, después de la contraseña ves **Activa la verificación en dos pasos**.
 
 1. Instala una app de autenticación en tu celular (Google Authenticator, Authy o 1Password).
 2. En la app, escanea el **código QR** de la pantalla. Si no puedes escanear, escribe la **Clave** que aparece debajo del QR.
@@ -59,18 +59,18 @@ Aunque tu rol no la exija, puedes activar la verificación cuando quieras:
 2. Pulsa **Activar**. Ves la misma pantalla de activación de arriba: escanea el QR (o escribe la **Clave**) y escribe el primer código.
 3. Al verificarlo vuelves a **Inicio**. Desde ese momento cada ingreso te pide el código.
 
-Si cambias de idea antes de escribir el código, pulsa **Omitir por ahora**: vuelves a la aplicación sin activarla. Ese enlace solo aparece cuando tu rol no exige la verificación.
+Si cambias de idea antes de escribir el código, pulsa **Omitir por ahora**: vuelves a la aplicación sin activarla. Ese enlace solo aparece cuando nadie te exige la verificación.
 
 ## Desactivar la verificación en dos pasos
 
-Si tu rol no la exige, puedes desactivarla:
+Si nadie te la exige, puedes desactivarla (la verificación en dos pasos no es obligatoria para nadie por su rol, ni siquiera para los administradores):
 
 1. Abre el menú de tu usuario y elige **Verificación en dos pasos**. El cuadro dice **Estado: Activa**.
 2. Pulsa **Desactivar**. Como es una acción sensible, el cuadro te pide un código **nuevo** de tu app: escríbelo (al sexto dígito se envía solo).
 3. La verificación queda desactivada y tus sesiones abiertas se cierran, también en otros navegadores o equipos. La página de ingreso te dice «Segundo paso desactivado. Vuelve a ingresar con tu contraseña.»
 4. Desde ahora entras solo con tu correo y tu contraseña.
 
-Si tu rol exige la verificación en dos pasos (por ejemplo, el rol admin), el cuadro dice «Tu rol exige la verificación en dos pasos, así que no puedes desactivarla. Si necesitas hacerlo, pídele a un administrador que te exima.» y el botón **Desactivar** aparece apagado. Si un administrador te eximió, el cuadro lo indica y puedes desactivarla como cualquier otra persona.
+Si un administrador te exige la verificación, el cuadro dice «Un administrador exige la verificación en dos pasos para tu cuenta, así que no puedes desactivarla. Si necesitas hacerlo, pídele que deje de exigirla.» y el botón **Desactivar** aparece apagado.
 
 El asistente no la desactiva: se hace solo desde tu menú de usuario.
 
@@ -98,3 +98,16 @@ Detalles que conviene conocer:
 ## Salir
 
 Abre el menú de tu usuario (el círculo con tus iniciales, arriba a la derecha) y elige **Salir**.
+
+
+## Cambiar tu contraseña
+
+Puedes cambiar tu contraseña cuando quieras:
+
+1. Abre el menú de tu usuario y elige **Cambiar contraseña**.
+2. Escribe tu **Contraseña actual**, la **Contraseña nueva** (mínimo 8 caracteres) y repítela en **Repite la contraseña nueva**.
+3. Pulsa **Cambiar contraseña**. El cuadro dice «Tu contraseña se cambió.» y desde ese momento entras con la nueva. Tus otras sesiones siguen abiertas.
+
+Si la actual no es correcta, el cuadro dice «La contraseña actual no es correcta» y nada cambia. La contraseña nueva debe ser distinta de la actual, y las dos copias de la nueva deben coincidir.
+
+Si olvidaste tu contraseña, pídele a un administrador que la restablezca (ver «Restablecer la contraseña de un usuario» en la guía de Administración). El asistente no cambia contraseñas: se hace solo desde tu menú de usuario.

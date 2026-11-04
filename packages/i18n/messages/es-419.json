@@ -606,7 +606,7 @@
         "col_roles": "Roles",
         "col_mfa": "2FA",
         "mfa_on": "activo",
-        "mfa_off": "pendiente",
+        "mfa_off": "no activa",
         "name": "Nombre completo",
         "email": "Correo (inicio de sesión)",
         "mobile": "Celular",
@@ -653,11 +653,18 @@
           "photo_alt": "Foto de {name}",
           "mfa_reset": "Quitar segundo paso",
           "mfa_reset_title": "¿Quitar el segundo paso de {name}?",
-          "mfa_reset_confirm": "{name} entrará solo con su contraseña y sus sesiones abiertas se cierran. Si su rol exige la verificación en dos pasos, la activará de nuevo en su próximo inicio de sesión.",
-          "mfa_exempt": "Exento del segundo paso",
-          "mfa_exempt_hint": "El rol admin exige la verificación en dos pasos; un usuario exento entra solo con su contraseña si no la tiene activa."
+          "mfa_reset_confirm": "{name} entrará solo con su contraseña y sus sesiones abiertas se cierran. Si un administrador se la exige, la activará de nuevo en su próximo inicio de sesión.",
+          "mfa_required": "Exigir verificación en dos pasos",
+          "mfa_required_hint": "Si la exiges, el usuario debe configurar su app de autenticación para ingresar y no puede desactivarla. Aplica también a administradores.",
+          "password_reset": "Restablecer contraseña",
+          "password_reset_title": "¿Restablecer la contraseña de {name}?",
+          "password_reset_confirm": "Escribe una contraseña nueva para {name}. Sus sesiones abiertas se cierran y debe ingresar con la nueva; comunícasela por un canal seguro.",
+          "password_new": "Contraseña nueva",
+          "password_confirm": "Repite la contraseña nueva",
+          "password_mismatch": "Las contraseñas no coinciden",
+          "password_done": "La contraseña de {name} se restableció"
         },
-        "mfa_exempt": "exenta"
+        "mfa_required": "exigida"
       },
       "fields": {
         "title": "Visibilidad por campo y rol",
@@ -1030,7 +1037,7 @@
       "theme_auto": "Automático",
       "sign_out": "Salir",
       "home": "Inicio",
-      "brand": "ERP-IA",
+      "brand": "Goliatt",
       "active_company": "Empresa activa",
       "tax_id": "NIT {id}",
       "add_company": "Agregar empresa",
@@ -1099,11 +1106,22 @@
         "on_hint": "Cada inicio de sesión te pide, además de tu contraseña, el código de 6 dígitos de tu app de autenticación. Las acciones sensibles también lo piden.",
         "off_hint": "Protege tu cuenta: además de tu contraseña, cada inicio de sesión te pedirá el código de tu app de autenticación. Sin ella no puedes ejecutar acciones sensibles.",
         "disable_hint": "Si la desactivas entrarás solo con tu contraseña y no podrás ejecutar acciones sensibles hasta activarla de nuevo. Se cierran tus sesiones abiertas y vuelves a ingresar.",
-        "required_by_role": "Tu rol exige la verificación en dos pasos, así que no puedes desactivarla. Si necesitas hacerlo, pídele a un administrador que te exima.",
-        "exempt": "Un administrador te eximió del segundo paso que exige tu rol.",
+        "required": "Un administrador exige la verificación en dos pasos para tu cuenta, así que no puedes desactivarla. Si necesitas hacerlo, pídele que deje de exigirla.",
         "disable": "Desactivar",
         "enable": "Activar",
         "failed": "No se pudo desactivar: {reason}"
+      },
+      "password": {
+        "menu": "Cambiar contraseña",
+        "title": "Cambiar contraseña",
+        "hint": "Mínimo 8 caracteres. Tus otras sesiones siguen abiertas.",
+        "current": "Contraseña actual",
+        "new": "Contraseña nueva",
+        "confirm": "Repite la contraseña nueva",
+        "mismatch": "Las contraseñas nuevas no coinciden",
+        "submit": "Cambiar contraseña",
+        "done": "Tu contraseña se cambió.",
+        "failed": "No se pudo cambiar: {reason}"
       },
       "badge": "{count} pendientes",
       "routes": {
@@ -1844,7 +1862,7 @@
         "mobile": "Celular",
         "created_at": "Creado",
         "is_active": "Activo",
-        "mfa_exempt": "Exento del segundo paso"
+        "mfa_required": "Segundo paso exigido"
       },
       "doc_template": {
         "entity": "Entidad",
@@ -2440,7 +2458,7 @@
       "failed": "No se pudo guardar tu decisión. Inténtalo de nuevo.",
       "agents": {
         "help": "Agente de ayuda",
-        "seed": "Sugerencia de ERP-IA",
+        "seed": "Sugerencia de Goliatt",
         "other": "Agente: {name}"
       },
       "refused": "Tu rol no puede hacer esta acción, así que no la abrimos. Descarta la recomendación o consulta al administrador."
@@ -2558,7 +2576,7 @@
     }
   },
   "auth": {
-    "brand": "ERP-IA",
+    "brand": "Goliatt",
     "login": {
       "email": "Correo",
       "password": "Contraseña",

@@ -36,7 +36,7 @@ export async function writeXlsx(columns: readonly ExportColumn[], rows: RowSourc
     },
   });
   const book = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: sink, useStyles: true, useSharedStrings: false });
-  book.creator = "ERP-IA";
+  book.creator = "Goliatt";
   book.created = new Date();
   const sheet = book.addWorksheet(sheetName(options.title), { views: [{ state: "frozen", xSplit: 0, ySplit: 1 }], properties: { outlineProperties: { summaryBelow: true, summaryRight: true } } });
   sheet.columns = columns.map((c) => ({ key: c.field, width: widthOf(c) }));

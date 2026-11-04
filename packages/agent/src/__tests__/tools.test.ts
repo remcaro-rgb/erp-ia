@@ -74,11 +74,13 @@ describe("excluded processes", () => {
   it("leaves out what needs a file, a job or a sign-out the chat cannot handle, each with its reason", () => {
     expect([...EXCLUDED_PROCESSES.keys()].sort()).toEqual([
       "kernel.admin.user.mfa.set",
+      "kernel.admin.user.password.reset",
       "kernel.attachment.add",
       "kernel.export.run",
       "kernel.import.preview",
       "kernel.import.run",
       "kernel.user.mfa.disable",
+      "kernel.user.password.change",
     ]);
     for (const reason of EXCLUDED_PROCESSES.values()) expect(reason.length).toBeGreaterThan(10);
   });

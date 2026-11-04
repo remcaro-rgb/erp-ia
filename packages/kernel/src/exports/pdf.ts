@@ -122,7 +122,7 @@ export async function writePdf(columns: readonly ExportColumn[], rows: RowSource
       h(Page, { key: i, size: "A4", orientation: "landscape", style: styles.page }, heading(), tableHead, ...tableRows.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE), last ? totalsRow : null, footer()),
     );
   }
-  const document = h(Document, { title: options.title, author: options.company, creator: "ERP-IA", producer: "ERP-IA" }, ...pages);
+  const document = h(Document, { title: options.title, author: options.company, creator: "Goliatt", producer: "Goliatt" }, ...pages);
   return renderToBuffer(document);
 }
 

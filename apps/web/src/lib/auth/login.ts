@@ -140,7 +140,7 @@ export async function startEnrolment(jar: CookieJar, origin: Origin = {}): Promi
   for (const factor of factors?.all ?? []) {
     if (factor.factor_type === "totp" && factor.status === "unverified") await supabase.auth.mfa.unenroll({ factorId: factor.id });
   }
-  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: "ERP-IA", friendlyName: `ERP-IA ${new Date().toISOString()}` });
+  const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: "Goliatt", friendlyName: `Goliatt ${new Date().toISOString()}` });
   if (error || !data) return failure(error, "unavailable");
   const qr = data.totp.qr_code;
   return { ok: true, factorId: data.id, qrCode: qr.startsWith("data:") ? qr : `data:image/svg+xml;utf-8,${encodeURIComponent(qr)}`, secret: data.totp.secret };

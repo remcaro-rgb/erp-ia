@@ -18,9 +18,9 @@ describe("kernel.user entity", () => {
     expect(user.module).toBe("kernel");
     expect(`${user.schema}.v_${user.table}`).toBe("kernel.v_users");
     expect(user.displayField).toBe("full_name");
-    expect(user.fields.map((f) => f.name)).toEqual(["full_name", "email", "locale", "mobile", "created_at", "is_active", "mfa_exempt"]);
+    expect(user.fields.map((f) => f.name)).toEqual(["full_name", "email", "locale", "mobile", "created_at", "is_active", "mfa_required"]);
     expect(user.fields.find((f) => f.name === "is_active")?.type).toBe("boolean");
-    expect(user.fields.find((f) => f.name === "mfa_exempt")).toMatchObject({ type: "boolean", label: "field.kernel.user.mfa_exempt", sensitivity: "confidential" });
+    expect(user.fields.find((f) => f.name === "mfa_required")).toMatchObject({ type: "boolean", label: "field.kernel.user.mfa_required", sensitivity: "confidential" });
     expect(user.fields.find((f) => f.name === "mobile")?.sensitivity).toBe("confidential");
     expect(user.fields.filter((f) => f.searchable).map((f) => f.name)).toEqual(["full_name", "email"]);
   });
@@ -34,7 +34,7 @@ describe("kernel.user entity", () => {
     expect(entitlementKeyOf(registry, user)).toBeNull();
     const feature = registry.module("kernel").features.find((f) => f.id === "kernel.users");
     expect(feature?.entities).toEqual(["kernel.user"]);
-    expect(feature?.processes).toEqual(["kernel.user.consult", "kernel.user.mfa.disable"]);
+    expect(feature?.processes).toEqual(["kernel.user.consult", "kernel.user.mfa.disable", "kernel.user.password.change"]);
   });
 
   it("names the label column of a reference after its field", () => {

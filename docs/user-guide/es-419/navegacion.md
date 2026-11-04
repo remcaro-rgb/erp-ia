@@ -11,7 +11,7 @@ processes:
 
 # Moverse por el sistema
 
-Todas las pantallas de ERP-IA comparten el mismo marco: una barra azul oscura arriba, debajo la barra con las secciones del módulo, a la izquierda el **menú de módulos**, luego la fila de pestañas y, a la derecha, el panel del asistente.
+Todas las pantallas de Goliatt comparten el mismo marco: una barra azul oscura arriba, debajo la barra con las secciones del módulo, a la izquierda el **menú de módulos**, luego la fila de pestañas y, a la derecha, el panel del asistente.
 
 ![menú de módulos a la izquierda y secciones del módulo arriba](img/menu-lateral-y-secciones.png)
 
@@ -27,7 +27,7 @@ El menú lateral muestra solo los **nombres de los módulos** que tu empresa tie
 
 De izquierda a derecha:
 
-- **ERP-IA**: el nombre del sistema.
+- **Goliatt**: el nombre del sistema.
 - **La empresa activa** (con una flecha ▾): abre la lista de tus empresas. La que está marcada con ✓ es en la que trabajas; cada una muestra su NIT. Elige otra para cambiar. Todo lo que ves (listados, registros, permisos) pertenece a la empresa activa, y cada empresa recuerda sus propias pestañas y su propio tema. **Agregar empresa** aparece desactivada: por ahora no se agregan empresas desde la pantalla.
 - **La caja ⌘K**: abre la paleta de comandos (ver abajo).
 - **El botón de tema**: alterna el aspecto.

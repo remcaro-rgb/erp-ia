@@ -191,14 +191,14 @@ export async function renderTemplatePdf(template: Template, vars: Readonly<Recor
     pages.push(h(Page, { key: p, size: [width, height], style: { fontFamily: "Helvetica", fontSize: 9, color: INK } }, ...children.filter((c): c is ReactElement => c !== null)));
   }
   const printedAt = options.printedAt ?? new Date();
-  const overlay = await renderToBuffer(h(Document, { title: template.name, creator: "ERP-IA", producer: "ERP-IA", creationDate: printedAt, modificationDate: printedAt }, ...pages));
+  const overlay = await renderToBuffer(h(Document, { title: template.name, creator: "Goliatt", producer: "Goliatt", creationDate: printedAt, modificationDate: printedAt }, ...pages));
   if (!base) return overlay;
 
   // The background under the blocks, as vector pages: the first page under the first, the second (or the first again) under the rest.
   const out = await PDFDocument.create({ updateMetadata: false });
   out.setTitle(template.name);
-  out.setCreator("ERP-IA");
-  out.setProducer("ERP-IA");
+  out.setCreator("Goliatt");
+  out.setProducer("Goliatt");
   out.setCreationDate(printedAt);
   out.setModificationDate(printedAt);
   const [first, second] = await out.embedPdf(base, base.getPageCount() > 1 ? [0, 1] : [0]);

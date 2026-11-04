@@ -9,10 +9,8 @@ import { ENROLL_HREF } from "../forms/StepUpPrompt";
 export interface MfaState {
   /** The user has a verified TOTP factor (session claim). */
   enrolled: boolean;
-  /** A role of the user requires the second step and they are not exempt: they cannot turn it off. */
-  requiredByRole: boolean;
-  /** An administrator exempted the user from the admin role's requirement. */
-  exempt: boolean;
+  /** An administrator requires the user's second step (owner decision 2026-11-04): they cannot turn it off. */
+  required: boolean;
 }
 
 /** The answer of the app's disable run: the process's refusal is data (its code and messages). */
@@ -35,9 +33,9 @@ export interface MfaDialogProps extends MfaState {
 /**
  * "Verificación en dos pasos" of the user menu (design §22.19): whether the second step is on; "Desactivar" when it is
  * (a fresh code from that factor first, rule 15), "Activar" (the enrolment page) when it is not. A role that requires it
- * cannot turn it off, and the dialog says who can lift that (an administrator, with an exemption).
+ * cannot turn it off, and the dialog says who can lift that (the administrator who requires it).
  */
-export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt, onDisable, stepUpPrompt, onCancelStepUp }: MfaDialogProps) {
+export function MfaDialog({ open, onOpenChange, enrolled, required, onDisable, stepUpPrompt, onCancelStepUp }: MfaDialogProps) {
   const t = useTranslations();
   const s = (key: string, values?: Record<string, string>) => t(`nav.shell.mfa.${key}`, values);
   const [busy, setBusy] = useState(false);
@@ -93,9 +91,8 @@ export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt
             <span className={`erp-pill erp-pill--${enrolled ? "ok" : "warn"}`}>{enrolled ? s("on") : s("off")}</span>
           </div>
           <DialogDescription className="erp-small">{enrolled ? s("on_hint") : s("off_hint")}</DialogDescription>
-          {enrolled && !requiredByRole && <p className="erp-small erp-muted">{s("disable_hint")}</p>}
-          {requiredByRole && <p className="erp-dian erp-dian--warn">{s("required_by_role")}</p>}
-          {exempt && !requiredByRole && <p className="erp-small erp-muted">{s("exempt")}</p>}
+          {enrolled && !required && <p className="erp-small erp-muted">{s("disable_hint")}</p>}
+          {required && <p className="erp-dian erp-dian--warn">{s("required")}</p>}
           {outcome && (
             <div role={outcome.ok ? "status" : "alert"} className={`erp-dian erp-dian--${outcome.ok ? "ok" : "bad"}`}>
               {outcome.text}
@@ -108,7 +105,7 @@ export function MfaDialog({ open, onOpenChange, enrolled, requiredByRole, exempt
             {t("common.close")}
           </button>
           {enrolled ? (
-            <button type="button" className="erp-btn erp-btn--danger" disabled={busy || requiredByRole || outcome?.ok === true} onClick={() => void disable()}>
+            <button type="button" className="erp-btn erp-btn--danger" disabled={busy || required || outcome?.ok === true} onClick={() => void disable()}>
               {s("disable")}
             </button>
           ) : (

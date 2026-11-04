@@ -31,9 +31,11 @@ export function anonClient(): SupabaseClient {
 }
 
 export interface AuthFixtureOptions {
-  /** `admin` is the system admin role (it requires MFA); `member` is a plain role. */
+  /** `admin` is the system admin role; `member` is a plain role. Neither requires the second step by itself. */
   role: "admin" | "member";
   companies?: number;
+  /** An administrator requires the user's second step (kernel.memberships.mfa_required, owner decision 2026-11-04). */
+  mfaRequired?: boolean;
 }
 
 export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFixture> {
@@ -64,7 +66,7 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
   const userId = data.user.id;
   await sql`insert into kernel.users(id, email, full_name) values (${userId}, ${email}, ${`Auth user ${suffix}`})`;
   for (const [i, companyId] of companyIds.entries()) {
-    const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${userId}, ${companyId}) returning id`;
+    const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id, mfa_required) values (${userId}, ${companyId}, ${options.mfaRequired === true}) returning id`;
     await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${roleIds[i]!})`;
   }
 

@@ -11,7 +11,7 @@ processes:
 
 # Notificaciones por correo y Notificar
 
-ERP-IA envía por correo el PDF de un documento de dos maneras: **automáticamente**, cuando el documento entra en un estado que tiene destinatarios, y **a mano**, con el botón **Notificar** del documento.
+Goliatt envía por correo el PDF de un documento de dos maneras: **automáticamente**, cuando el documento entra en un estado que tiene destinatarios, y **a mano**, con el botón **Notificar** del documento.
 
 ## Notificar un documento
 

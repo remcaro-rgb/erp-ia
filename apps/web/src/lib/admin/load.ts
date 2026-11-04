@@ -48,8 +48,8 @@ export interface AdminMember {
   photo: string | null;
   roleIds: string[];
   mfaEnrolled: boolean;
-  /** The admin exempted them from the admin role's second-step requirement (kernel.admin.user.mfa.set, design §22.19). */
-  mfaExempt: boolean;
+  /** An administrator requires their second step (kernel.admin.user.mfa.set, design §22.19). */
+  mfaRequired: boolean;
   /** The language the person uses the application in (`es-419`, `en`). */
   locale: string;
   /** False once the admin deactivated the membership (kernel.admin.user.update, design §22.16). */
@@ -96,13 +96,13 @@ type MemberRow = {
   photo: string | null;
   role_ids: string[];
   mfa_enrolled: boolean | null;
-  mfa_exempt: boolean;
+  mfa_required: boolean;
   locale: string | null;
   is_active: boolean;
 };
 
 export async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
-  const rows = await tx<MemberRow[]>`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled, mfa_exempt, locale, is_active
+  const rows = await tx<MemberRow[]>`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled, mfa_required, locale, is_active
     from kernel.v_memberships where company_id = kernel.current_company_id() and (${userId ?? null}::uuid is null or user_id = ${userId ?? null}::uuid)
     order by full_name, email`;
   return rows.map((r) => ({
@@ -114,7 +114,7 @@ export async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
     photo: r.photo,
     roleIds: r.role_ids,
     mfaEnrolled: r.mfa_enrolled === true,
-    mfaExempt: r.mfa_exempt === true,
+    mfaRequired: r.mfa_required === true,
     locale: r.locale ?? "es-419",
     isActive: r.is_active,
   }));

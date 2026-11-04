@@ -71,7 +71,7 @@ Para asignar personas a un rol, pulsa **Editar y asignar**, marca los usuarios y
 
 ## Usuarios
 
-En **Usuarios** ves a las personas de la empresa con su correo, celular, roles y si ya activaron la verificación en dos pasos (**2FA activo** o **pendiente**; **exenta** si la eximiste del segundo paso y no lo tiene activo, ver «Quitar o eximir el segundo paso de un usuario»).
+En **Usuarios** ves a las personas de la empresa con su correo, celular, roles y si ya activaron la verificación en dos pasos (**activo**; **exigida** si se la exigiste y aún no la configura; **no activa** en los demás casos, ver «Quitar o exigir el segundo paso de un usuario»).
 
 1. Pulsa **Nuevo usuario**.
 2. Escribe el **Nombre completo**, el **Correo** (con él inicia sesión) y el **Celular** con su indicativo (en Colombia, 10 dígitos que empiezan por 3).
@@ -118,9 +118,9 @@ Para devolverle el acceso, pulsa **Reactivar** en su página, confirma e ingresa
 - **No puedes desactivar tu propia cuenta**: el botón aparece apagado en tu página.
 - La empresa necesita **al menos un administrador activo**: no se puede desactivar al último que tiene el rol admin.
 
-### Quitar o eximir el segundo paso de un usuario
+### Quitar o exigir el segundo paso de un usuario
 
-En la página del usuario, la fila **Verificación en dos pasos** tiene dos acciones. Las dos piden tu código y quedan en la auditoría con tu nombre y el de la persona.
+La verificación en dos pasos **no es obligatoria por rol**: ni siquiera para los administradores. Es obligatoria solo para quien tú marques. En la página del usuario, la fila **Verificación en dos pasos** tiene dos acciones. Las dos piden tu código y quedan en la auditoría con tu nombre y el de la persona.
 
 **Quitar segundo paso** aparece cuando la persona tiene la verificación **Activa**. Úsalo cuando perdió su celular o cambió de app:
 
@@ -128,25 +128,35 @@ En la página del usuario, la fila **Verificación en dos pasos** tiene dos acci
 2. Confirma en «¿Quitar el segundo paso de …?» con **Quitar segundo paso** e ingresa tu código.
 3. La fila pasa a **No configurada**. Las sesiones abiertas de esa persona se cierran; la tuya sigue.
 
-En su próximo ingreso la persona entra con su contraseña. Si su rol exige la verificación (el rol admin, sin exención), el sistema le pide activarla de nuevo antes de dejarla entrar; si no, entra directo y puede activarla cuando quiera desde su menú de usuario. Si quitas tu propio segundo paso, tu sesión también se cierra y vuelves a ingresar.
+En su próximo ingreso la persona entra con su contraseña. Si se la exiges (interruptor **Exigir verificación en dos pasos**), el sistema le pide activarla de nuevo antes de dejarla entrar; si no, entra directo y puede activarla cuando quiera desde su menú de usuario. Si quitas tu propio segundo paso, tu sesión también se cierra y vuelves a ingresar.
 
 El segundo paso es de la **cuenta** de la persona, no de una empresa:
 
 - Si la persona es también administradora de **otra empresa de tu organización**, al quitárselo aquí lo pierde también allá, y el sistema le pide activarlo de nuevo cuando ingresa a esa empresa.
-- Si la persona pertenece también a **otra organización**, el sistema no lo quita y responde «Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí». Sí puedes eximirla del segundo paso en tu empresa.
+- Si la persona pertenece también a **otra organización**, el sistema no lo quita y responde «Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí». Sí puedes exigírsela o dejar de exigírsela en tu empresa.
 
-**Exento del segundo paso** es un interruptor que aparece solo para quienes tienen el rol **admin**, porque ese rol exige la verificación en dos pasos:
+**Exigir verificación en dos pasos** es un interruptor que aparece para cualquier usuario, un administrador incluido:
 
-1. Pulsa el interruptor **Exento del segundo paso** e ingresa tu código.
-2. Junto al estado aparece **exenta**; en la lista de **Usuarios**, una persona exenta sin segundo paso dice **exenta** en vez de **pendiente**.
+1. Pulsa el interruptor **Exigir verificación en dos pasos** e ingresa tu código.
+2. Junto al estado aparece **exigida**; en la lista de **Usuarios**, quien no la ha configurado dice **exigida**. En su próximo ingreso la persona debe configurar su app de autenticación antes de entrar, y no puede desactivarla desde su menú de usuario (el cuadro le dice que un administrador la exige).
 
-Una persona exenta entra solo con su contraseña si no tiene la verificación activa, y puede desactivarla desde su menú de usuario. Si ya la tiene activa, se la sigue pidiendo hasta que la desactive. Para quitar la exención, vuelve a pulsar el interruptor e ingresa tu código: su próximo ingreso le exigirá la verificación otra vez. Puedes eximirte a ti mismo.
+Para dejar de exigírsela, vuelve a pulsar el interruptor e ingresa tu código: puede entrar solo con su contraseña y desactivarla si quiere. Si ya la tiene activa, se la sigue pidiendo hasta que la desactive. Puedes exigírtela a ti mismo.
 
-La exención queda guardada en la persona, dentro de esta empresa, **hasta que un administrador la quite** con el interruptor; cambiarle los roles no la borra. Mientras la tenga, su página muestra **exenta** junto al estado. Si le quitas el rol admin, el interruptor deja de aparecer pero la exención sigue (su página sigue diciendo **exenta**), y vuelve a valer si más adelante le das otra vez el rol admin. Para quitarla, apágala antes de quitarle el rol, o devuélvele el rol admin y apágala entonces.
+La exigencia queda guardada en la persona, dentro de esta empresa, **hasta que un administrador la quite** con el interruptor; cambiarle los roles no la borra.
 
 Estas dos acciones no están en el asistente: se hacen solo desde la página del usuario.
 
-Ojo: quien no tiene la verificación activa no puede confirmar **acciones sensibles** (como las de esta sección de administración). Un administrador exento sin segundo paso tendrá que activarlo para volver a administrar.
+Ojo: quien no tiene la verificación activa no puede confirmar **acciones sensibles** (como las de esta sección de administración). Un administrador sin segundo paso tendrá que activarlo para volver a administrar: el sistema se lo indica al intentar una acción sensible.
+
+### Restablecer la contraseña de un usuario
+
+En la página del usuario, la fila **Verificación en dos pasos** incluye el botón **Restablecer contraseña**. Úsalo cuando alguien olvidó su contraseña:
+
+1. Pulsa **Restablecer contraseña**.
+2. En «¿Restablecer la contraseña de …?» escribe la **Contraseña nueva** (mínimo 8 caracteres) y repítela.
+3. Pulsa **Restablecer contraseña** e ingresa tu código (es una acción sensible). El cuadro dice «La contraseña de … se restableció».
+
+Las sesiones abiertas de esa persona se cierran y debe ingresar con la nueva contraseña: comunícasela por un canal seguro (la contraseña no se guarda ni aparece en la auditoría; solo queda que la restableciste). Si la restableces a ti mismo, tu sesión también se cierra y vuelves a ingresar. Si la persona pertenece también a otra organización, el sistema responde «Ese usuario pertenece también a otra organización; su contraseña no se cambia desde aquí». Esta acción no está en el asistente.
 
 ## Permisos
 
@@ -207,7 +217,7 @@ Por entidad, defines campos propios de la empresa con su tipo, longitud, si son 
 
 ## Verificadores
 
-Para cada tipo de dato (correo, teléfono, número de identificación) eliges el **proveedor** de verificación externa entre los **conectados** a ERP-IA (los demás candidatos aparecen como referencia). Mientras no haya proveedor, el botón **Verificar** de los formularios deja las solicitudes **en cola**.
+Para cada tipo de dato (correo, teléfono, número de identificación) eliges el **proveedor** de verificación externa entre los **conectados** a Goliatt (los demás candidatos aparecen como referencia). Mientras no haya proveedor, el botón **Verificar** de los formularios deja las solicitudes **en cola**.
 
 ## Empresa
 
@@ -241,7 +251,7 @@ Muestra, para el mes elegido (en la zona horaria de la empresa):
 - **Costo estimado** en dólares.
 - El detalle **por usuario** (llamadas, tokens y costo) y **por modelo**.
 
-Cuando la empresa llega al tope, el asistente responde sin usar el modelo hasta el mes siguiente o hasta que se amplíe el tope. Para ampliarlo, pide el cambio de plan a tu proveedor de ERP-IA.
+Cuando la empresa llega al tope, el asistente responde sin usar el modelo hasta el mes siguiente o hasta que se amplíe el tope. Para ampliarlo, pide el cambio de plan a tu proveedor de Goliatt.
 
 ## Auditoría
 

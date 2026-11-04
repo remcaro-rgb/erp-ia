@@ -22,7 +22,7 @@ processes:
 
 # Maestros y documentos: estados, guardar, aprobar y anular
 
-Todo lo que registras en ERP-IA es un **maestro** o un **documento**, y los dos funcionan igual en todos los módulos:
+Todo lo que registras en Goliatt es un **maestro** o un **documento**, y los dos funcionan igual en todos los módulos:
 
 - Un **maestro** es un dato base que usan los documentos: un tercero, un producto, una categoría, una cuenta, un centro de costo.
 - Un **documento** es un hecho del negocio con fecha: un comprobante contable (y, más adelante, facturas, pedidos y recibos).

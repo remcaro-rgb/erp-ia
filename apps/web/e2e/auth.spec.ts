@@ -19,10 +19,11 @@ async function submitPassword(page: Page, fixture: Pick<AuthFixture, "email" | "
   await page.getByRole("button", { name: "Entrar" }).click();
 }
 
-test.describe("admin without a second factor", () => {
+// An admin is required to have the second step only when an administrator set it (owner decision 2026-11-04).
+test.describe("a user whose second step is required and who has no factor", () => {
   let fixture: AuthFixture;
   test.beforeAll(async () => {
-    fixture = await seedAuthUser({ role: "admin" });
+    fixture = await seedAuthUser({ role: "admin", mfaRequired: true });
   });
   test.afterAll(async () => {
     await fixture.cleanup();
@@ -32,7 +33,7 @@ test.describe("admin without a second factor", () => {
     await submitPassword(page, fixture);
     await expect(page).toHaveURL(/\/mfa\/enroll$/);
 
-    // The role requires MFA: nothing else opens until the factor is enrolled.
+    // The second step is required: nothing else opens until the factor is enrolled.
     await page.goto("/");
     await expect(page).toHaveURL(/\/mfa\/enroll$/);
 
@@ -81,6 +82,22 @@ test.describe("admin with a second factor", () => {
     expect(((await right.json()) as { token: string }).token.length).toBeGreaterThan(20);
     const rows = await fixture.sql`select 1 from kernel.step_up_verifications where user_id = ${fixture.userId}`;
     expect(rows).toHaveLength(1);
+  });
+});
+
+test.describe("an admin nobody requires a second step of", () => {
+  let fixture: AuthFixture;
+  test.beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "admin" });
+  });
+  test.afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  test("signs in with the password only and lands on /", async ({ page }) => {
+    await submitPassword(page, fixture);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId("home")).toBeVisible();
   });
 });
 
@@ -146,10 +163,10 @@ test.describe("a member's own second step", () => {
   const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
   const admin = adminClient();
   let marcelaId = "";
-  /** Marcela as the seed leaves her: no factor; nobody of the demo company exempt. */
+  /** Marcela as the seed leaves her: no factor; nobody of the demo company required to have one. */
   const restoreSeed = async () => {
     await removeTotpFactors(admin, marcelaId);
-    await sql`update kernel.memberships set mfa_exempt = false where company_id = ${DEMO_COMPANY_ID}`;
+    await sql`update kernel.memberships set mfa_required = false where company_id = ${DEMO_COMPANY_ID}`;
   };
   test.beforeAll(async () => {
     marcelaId = (await sql<{ id: string }[]>`select id from kernel.users where email = ${MARCELA.email}`)[0]!.id;

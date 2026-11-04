@@ -36,17 +36,14 @@ export interface ShellData {
 
 /**
  * The caller's second step: enrolled from the session's claim (the hook reads the auth schema); whether a role requires
- * it from `kernel.user_requires_mfa`, the very predicate kernel.user.mfa.disable refuses on (any active membership holding
- * the system admin role, not exempt; it answers only about the caller); the exemption in the active company from
- * `kernel.v_users` (a confidential field: a member who may not see it reads null, which is "not exempt").
+ * it from `kernel.user_requires_mfa`, the very predicate kernel.user.mfa.disable refuses on (any active membership an
+ * administrator set to require it, owner decision 2026-11-04; it answers only about the caller).
  */
 async function readMfa(sql: RunProcessDeps["sql"], caller: Caller, enrolled: boolean): Promise<MfaState> {
   const [row] = await withClaims(sql, caller.claims, (tx) =>
-    tx<{ required: boolean; exempt: boolean | null }[]>`
-      select kernel.user_requires_mfa(${caller.claims.sub}) as required,
-             (select u.mfa_exempt from kernel.v_users u where u.id = ${caller.claims.sub}) as exempt`,
+    tx<{ required: boolean }[]>`select kernel.user_requires_mfa(${caller.claims.sub}) as required`,
   );
-  return { enrolled, requiredByRole: row?.required === true, exempt: row?.exempt === true };
+  return { enrolled, required: row?.required === true };
 }
 
 export async function loadShell(caller: Caller, session: Pick<SessionState, "mfaEnrolled">): Promise<ShellData> {

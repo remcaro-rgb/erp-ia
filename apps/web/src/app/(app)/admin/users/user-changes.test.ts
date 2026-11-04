@@ -14,7 +14,7 @@ const marcela: AdminMember = {
   photo: null,
   roleIds: ["r-cajero", "r-bodega"],
   mfaEnrolled: false,
-  mfaExempt: false,
+  mfaRequired: false,
   locale: "es-419",
   isActive: true,
 };
