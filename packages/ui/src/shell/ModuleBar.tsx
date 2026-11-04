@@ -110,6 +110,7 @@ function NavGroup({ group, activeHref, open, onOpenChange, onNavigate }: GroupPr
         }}
         className={cn(BAR_BUTTON, "inline-flex items-center gap-1", on && BAR_BUTTON_ON)}
       >
+        <NavIcon name={group.icon} />
         {t(group.label)}
         {waiting > 0 ? (
           <>
@@ -266,6 +267,7 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
         }}
         className={cn(BAR_BUTTON, "inline-flex items-center", on && BAR_BUTTON_ON)}
       >
+        <NavIcon name={entry.icon} />
         {entry.title}
         {entry.badge ? <Badge count={entry.badge} /> : null}
       </a>
@@ -273,6 +275,7 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
   };
   const groupTrigger = (entry: Entry) => (
     <span key={entry.id} data-entry="" className={cn(BAR_BUTTON, "inline-flex items-center gap-1")}>
+      <NavIcon name={entry.icon} />
       {entry.title}
       {entry.group && groupBadge(entry.group) > 0 ? <Badge count={groupBadge(entry.group)} /> : null}
       <ChevronDown className="size-3.5" aria-hidden="true" />
@@ -302,6 +305,7 @@ export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBar
       <div ref={ghost} aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 flex h-0 overflow-hidden whitespace-nowrap">
         {entries.map((entry) => (entry.group ? groupTrigger(entry) : link(entry, true)))}
         <span data-more="" className={cn(BAR_BUTTON, "inline-flex items-center gap-1")}>
+          <NavIcon name="list" />
           {t("nav.shell.more")}
           <ChevronDown className="size-3.5" aria-hidden="true" />
         </span>

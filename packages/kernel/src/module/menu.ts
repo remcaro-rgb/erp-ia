@@ -13,7 +13,7 @@ export const MENU_SECTIONS: readonly MenuSection[] = ["maestros", "documentos", 
 /** The section the list page of an entity of this type sits in; lines and sistema entities have none. */
 const SECTION_OF: Partial<Record<EntityType, MenuSection>> = { maestro: "maestros", documento: "documentos", parametro: "parametros" };
 
-const SECTION_ICON: Record<MenuSection, string> = { maestros: "list", documentos: "file", reportes: "file", parametros: "list" };
+const SECTION_ICON: Record<MenuSection, string> = { maestros: "database", documentos: "file-text", reportes: "bar-chart", parametros: "sliders" };
 
 /** The platform: its menu (Administración, Auditoría, Uso de IA) is Sistema, not a module menu. */
 const PLATFORM = "kernel";
