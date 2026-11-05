@@ -290,13 +290,15 @@ function ShellFrame(props: AppShellProps) {
 
   const activeModule = visibleModules.find((m) => m.id === activeModuleId);
 
-  /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
+  /**
+   * Picking a module shows its bar. With none of its pages open it opens the module's own Inicio; with one open the current tab stays
+   * where it is (the user goes to the module's tabs from the tab row), so a click on the side menu never moves the user off their work.
+   */
   const selectModule = (moduleId: string) => {
     setSelectedModule(moduleId);
     const items = (itemsByModule[moduleId] ?? []).filter((i) => i.menu !== false).flatMap((i) => i.children ?? [i]);
-    const openTab = store.getState().tabs.find((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
-    if (openTab) store.getState().activate(openTab.id);
-    else if (items[0]) navigate(items[0].href);
+    const hasOpenTab = store.getState().tabs.some((tab) => inicioModuleOf(tab.href) === moduleId || items.some((i) => isActiveHref(i.href, tab.href)));
+    if (!hasOpenTab) navigate(`/inicio/${moduleId}`);
   };
 
   // Shell v7 side menu (design §22.24): the viewer's saved choice of the 60 px rail, else collapsed below 1440 px. The server render and

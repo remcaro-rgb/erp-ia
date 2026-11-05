@@ -138,8 +138,9 @@ test.describe("application shell", () => {
     const rail = page.getByRole("complementary", { name: "Menú de módulos" });
     await expect(rail).toBeVisible();
     expect((await rail.boundingBox())!.width).toBeCloseTo(232, 0);
+    // A module with none of its pages open opens its own Inicio.
     await rail.getByRole("button", { name: "Núcleo" }).click();
-    await expect(page).toHaveURL(/\/parties$/);
+    await expect(page).toHaveURL(/\/inicio\/core$/);
     await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Maestros", exact: true }).click();
     await page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem", { name: "Productos" }).click();
     await expect(page).toHaveURL(/\/products$/);

@@ -282,21 +282,29 @@ describe("AppShell", () => {
       expect(within(side()).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Núcleo"]);
     });
 
-    it("picking a module shows its sections in the bar and brings its open tab to the front", async () => {
+    it("picking a module that has an open tab shows its sections in the bar and stays on the current tab", () => {
       const navigate = vi.fn();
       const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
       shell("/parties", navigate, { modules: twoModules, nav: adminNav, initialTabs });
       fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
       expect(within(side()).getByRole("button", { name: "Sistema" }).getAttribute("aria-current")).toBe("true");
       expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Usuarios" })).toBeTruthy();
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
+      expect(navigate).not.toHaveBeenCalled();
     });
 
-    it("picking a module with no open tab opens its first option", () => {
+    it("picking a module with no open tab opens that module's Inicio", () => {
       const navigate = vi.fn();
       shell("/parties", navigate, { modules: twoModules, nav: adminNav });
       fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
-      expect(navigate).toHaveBeenCalledWith("/admin/users");
+      expect(navigate).toHaveBeenCalledWith("/inicio/kernel");
+    });
+
+    it("a module whose Inicio is already open counts as open: nothing moves", () => {
+      const navigate = vi.fn();
+      const initialTabs = { value: { tabs: [{ id: "/inicio/kernel", title: "Inicio de Sistema", href: "/inicio/kernel", kind: "grid" as const }], activeId: "/inicio/kernel" }, savedAt: 1 };
+      shell("/parties", navigate, { modules: twoModules, nav: adminNav, initialTabs });
+      fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
+      expect(navigate).not.toHaveBeenCalled();
     });
 
     it("the module's sections render in the bar with the empty state", () => {
