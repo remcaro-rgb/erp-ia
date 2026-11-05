@@ -737,6 +737,39 @@
   .erp-rec__title { font-size: 15px; font-weight: 600; }
   .erp-rec__body { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
   .erp-rec__chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  /* Charts of a module's Inicio (ChartCard): plain HTML/SVG marks on the tokens, so they follow the theme. */
+  .erp-chart { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; flex-grow: 1; min-width: 0; }
+  .erp-chart__legend { display: flex; gap: 12px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--text-muted); }
+  .erp-chart__legend li { display: inline-flex; align-items: center; gap: 5px; }
+  .erp-chart__legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .erp-chart__cols { display: flex; gap: 8px; align-items: stretch; flex-grow: 1; min-height: 130px; }
+  .erp-chart__col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .erp-chart__bars { flex-grow: 1; display: flex; align-items: stretch; justify-content: center; gap: 3px; min-height: 100px; }
+  .erp-chart__bar { flex: 1 1 0; max-width: 34px; min-width: 6px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+  .erp-chart__bar em { font-style: normal; font-size: 10px; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .erp-chart__bar i { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; }
+  .erp-chart__collabel { font-size: 11px; color: var(--text-muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .erp-chart__rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .erp-chart__rows li { display: grid; grid-template-columns: minmax(80px, 38%) 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+  .erp-chart__rowlabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .erp-chart__track { height: 10px; background: var(--head); border-radius: 5px; overflow: hidden; }
+  .erp-chart__track i { display: block; height: 100%; border-radius: 5px; }
+  .erp-chart__rowvalue { font-variant-numeric: tabular-nums; color: var(--text-muted); }
+  .erp-chart__line { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; }
+  .erp-chart__line svg { display: block; width: 100%; flex-grow: 1; min-height: 90px; }
+  .erp-chart__axis { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--text-muted); }
+  .erp-chart__axis strong { color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
+  /* "Personalizar página de inicio" */
+  .erp-custom { max-width: 620px; max-height: min(86vh, 760px); display: flex; flex-direction: column; gap: 10px; }
+  .erp-custom__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .erp-custom__list { overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
+  .erp-custom__module { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .erp-custom__kind { margin: 8px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+  .erp-custom ul { list-style: none; margin: 0; padding: 0; }
+  .erp-custom__item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line-2); }
+  .erp-custom__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .erp-custom__name { font-size: 13px; font-weight: 600; }
+  .erp-custom__foot { display: flex; justify-content: flex-end; }
   .erp-home-list { padding: 4px 0; display: flex; flex-direction: column; }
   .erp-home-list table { width: 100%; border-collapse: collapse; }
   .erp-home-list th { position: sticky; top: 0; height: 32px; padding: 0 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--head); border-bottom: 1px solid var(--line); }

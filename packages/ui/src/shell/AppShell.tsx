@@ -98,7 +98,10 @@ const SHEET_BELOW = 768;
 /** From this viewport width the side menu starts expanded when the viewer never chose (shell v7, design §22.24). */
 const SIDE_MENU_OPEN_FROM = 1440;
 
-const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/");
+const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/") && !href.startsWith("/inicio/");
+
+/** The module of an Inicio page `/inicio/<module>`, else undefined. */
+const inicioModuleOf = (href: string): string | undefined => /^\/inicio\/([a-z][a-z0-9_]*)(?:[?#]|$)/.exec(href)?.[1];
 
 function readBooleanPref(storage: Storage | null, key: string, companyId: string): Saved<boolean> | null {
   const cached = readCachedPref(storage, key, companyId);
@@ -132,6 +135,8 @@ function reportTitleOf(href: string, t: ReturnType<typeof useTranslations>): str
 }
 
 function routeTitle(href: string, items: readonly NavItem[], t: ReturnType<typeof useTranslations>): string {
+  const inicio = inicioModuleOf(href);
+  if (inicio && t.has(`nav.modules.${inicio}`)) return t("nav.shell.module_home", { module: t(`nav.modules.${inicio}`) });
   const entity = recordEntityOf(href);
   if (entity) return t.has(`entity.${entity}`) ? t(`entity.${entity}`) : t("nav.shell.record");
   const report = reportTitleOf(href, t);
@@ -275,7 +280,8 @@ function ShellFrame(props: AppShellProps) {
     const top = nav.find((i) => match(i) || i.children?.some(match));
     return top ? moduleOf(top) : undefined;
   };
-  const hrefModule = barModuleOf((i) => i.href !== "#" && isActiveHref(i.href, currentHref));
+  const inicioModule = inicioModuleOf(currentHref);
+  const hrefModule = (inicioModule && visibleModules.some((m) => m.id === inicioModule) ? inicioModule : undefined) ?? barModuleOf((i) => i.href !== "#" && isActiveHref(i.href, currentHref));
   // A record page (/r/<module>.<entity>/<id>) belongs to the module whose bar lists its entity, else to its entity's module.
   const recordEntity = recordEntityOf(currentHref);
   const recordModule = (recordEntity ? barModuleOf((i) => i.entity === recordEntity) : undefined) ?? visibleModules.find((m) => m.id === recordEntity?.split(".")[0])?.id;
@@ -466,7 +472,8 @@ function ShellFrame(props: AppShellProps) {
                   <span className="erp-itemsbar-mod">{t(activeModule.label)}</span>
                   <ModuleBar
                     items={(itemsByModule[activeModule.id] ?? []).filter((item) => item.menu !== false)}
-                    showHome={activeModule.id === visibleModules[0]?.id}
+                    showHome
+                    homeHref={`/inicio/${activeModule.id}`}
                     activeHref={currentHref}
                     onNavigate={(target) => navigate(target.href)}
                   />

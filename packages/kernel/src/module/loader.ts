@@ -79,6 +79,15 @@ export function loadModules(registry: Registry, declared: ModuleDef[]): void {
     }
   }
 
+  for (const module of modules) {
+    for (const provider of module.homeCharts ?? []) {
+      if (provider.consult === undefined) continue;
+      const kind = kinds.get(provider.consult);
+      if (kind === undefined) throw new Error(`chart provider ${provider.id}: unknown consult process ${provider.consult}`);
+      if (kind !== "consult") throw new Error(`chart provider ${provider.id}: ${provider.consult} is not a consult process`);
+    }
+  }
+
   // A report's `consult` must be a consult process some module declares: a typo would show a report that never runs.
   for (const module of modules) {
     for (const report of module.reports ?? []) {
@@ -106,6 +115,7 @@ export function loadModules(registry: Registry, declared: ModuleDef[]): void {
     registry.registerModule(module);
     for (const report of module.reports ?? []) registry.registerReport(report);
     for (const provider of module.homeKpis ?? []) registry.registerKpiProvider(provider);
+    for (const provider of module.homeCharts ?? []) registry.registerChartProvider(provider);
     for (const [event, fn] of Object.entries(module.events.consumes)) {
       const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider) : fn;
       consumers.register(module.id, event, wrapped);

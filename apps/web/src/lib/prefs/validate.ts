@@ -1,11 +1,14 @@
 import type { StoredUserPref } from "@erp/kernel";
-import { isThemeMode, sanitizeHomeLayout, sanitizeTabs, type Saved } from "@erp/ui";
+import { isModuleWidgetId, isThemeMode, sanitizeHiddenItems, sanitizeHomeLayout, sanitizeTabs, type Saved } from "@erp/ui";
 
 // The shell's preferences as the browser may send them (server action and pagehide beacon) and as they are
 // stored: `{ value, savedAt }` under the key, `savedAt` being the browser's time of the change so the shell can
-// compare it with its own cache. Only the theme, the tabs, the home layout and the two on/off choices (assistant drawer, DIAN hints), in their known shapes.
+// compare it with its own cache. Only the theme, the tabs, the home layouts (company-wide and per module), the KPIs and charts switched off and the two on/off choices (assistant drawer, DIAN hints), in their known shapes.
 
-export type ShellPrefKey = "theme" | "tabs" | "home_layout" | "assistant.open" | "forms.dian_hints";
+export type ShellPrefKey = "theme" | "tabs" | "home_layout" | "home_hidden" | `home_layout.${string}` | "assistant.open" | "forms.dian_hints";
+
+/** `home_layout.accounting`: the layout of a module's Inicio page. */
+const MODULE_LAYOUT_KEY = /^home_layout\.[a-z][a-z0-9_]*$/;
 
 export interface ShellPrefInput {
   key: ShellPrefKey;
@@ -27,6 +30,16 @@ export function parseShellPref(input: unknown, now: number = Date.now()): ShellP
     // Stored repaired (clamped spans and heights), never as sent; a layout with an unknown widget is refused.
     const layout = sanitizeHomeLayout(value);
     return layout ? { key, stored: { value: layout, savedAt } } : null;
+  }
+  if (key === "home_hidden") {
+    // The KPIs and charts switched off: a list of ids, stored cleaned.
+    const hidden = sanitizeHiddenItems(value);
+    return hidden ? { key, stored: { value: hidden, savedAt } } : null;
+  }
+  if (typeof key === "string" && MODULE_LAYOUT_KEY.test(key)) {
+    // A module page's layout: its widgets are the indicators strip and the module's charts, known by the shape of their ids.
+    const layout = sanitizeHomeLayout(value, isModuleWidgetId);
+    return layout ? { key: key as ShellPrefKey, stored: { value: layout, savedAt } } : null;
   }
   return null;
 }

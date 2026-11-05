@@ -1,6 +1,6 @@
 import "server-only";
-import { flattenNav, gridEntity, ProcessError, readUserPrefs, runProcess, type Caller, type Kpi } from "@erp/kernel";
-import type { HelpShortcut, RecentRecord, RecommendationItem, Saved } from "@erp/ui";
+import { flattenNav, gridEntity, ProcessError, readUserPrefs, runProcess, type CatalogItem, type Caller, type Chart, type Kpi } from "@erp/kernel";
+import { sanitizeHiddenItems, type HelpShortcut, type RecentRecord, type RecommendationItem, type Saved } from "@erp/ui";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps } from "@/lib/server/runtime";
 import type { ShellData } from "@/lib/shell/load";
@@ -20,6 +20,9 @@ export interface HomeData {
   help: HelpShortcut[];
   /** The saved `home_layout` as stored (the dashboard validates it), or null. */
   layout: Saved<unknown> | null;
+  /** Everything the caller could put on this page (the dialog "Personalizar página de inicio" lists it) and the ids they switched off. */
+  catalog: CatalogItem[];
+  hidden: string[];
   /** When the snapshot was read (ISO): the widgets say "Actualizado hh:mm". */
   asOf: string;
 }
@@ -49,6 +52,17 @@ async function allowed<T>(run: () => Promise<T>): Promise<T | null> {
   }
 }
 
+interface KpisOut {
+  kpis: Kpi[];
+  charts: Chart[];
+  catalog: CatalogItem[];
+}
+
+/** The ids the user switched off, from the stored preference (`{ value, savedAt }`). */
+export function hiddenOf(row: Parameters<typeof savedFrom>[0]): string[] {
+  return sanitizeHiddenItems(savedFrom(row)?.value) ?? [];
+}
+
 interface RecommendationOut {
   recommendations: { id: string; agentProfile: string; title: string; body: string; confidence: number | null; suggestedActions: RecommendationItem["suggestedActions"] }[];
 }
@@ -60,11 +74,11 @@ export async function loadHome(shell: ShellData, caller: Caller, now: Date = new
   const deps = processDeps();
   const run = <T>(id: string, input: unknown = {}) => allowed(() => runProcess(deps, caller, id, input) as Promise<T>);
   const [kpis, recommendations, recent, prefs] = await Promise.all([
-    run<{ kpis: Kpi[] }>("kernel.home.kpis"),
+    run<KpisOut>("kernel.home.kpis"),
     run<RecommendationOut>("kernel.recommendation.list"),
     run<RecentOut>("kernel.home.recent"),
     // A plain read under RLS, not a process: the layout is the user's own and is read on every visit.
-    readUserPrefs(deps.sql, caller.claims, ["home_layout"]),
+    readUserPrefs(deps.sql, caller.claims, ["home_layout", "home_hidden"]),
   ]);
   return {
     greeting: { period: greetingPeriod(now, shell.company.timeZone ?? "America/Bogota"), name: firstNameOf(shell.user.name) },
@@ -73,6 +87,39 @@ export async function loadHome(shell: ShellData, caller: Caller, now: Date = new
     recent: recent?.records.map((r) => ({ ...r, href: recentHref(gridEntity(deps.registry, r.entity), r.id) })) ?? null,
     help: helpShortcuts(flattenNav(shell.nav).map((item) => item.href)),
     layout: savedFrom(prefs.home_layout),
+    catalog: kpis?.catalog ?? [],
+    hidden: hiddenOf(prefs.home_hidden),
+    asOf: now.toISOString(),
+  };
+}
+
+export interface ModuleHomeData {
+  module: string;
+  greeting: HomeData["greeting"];
+  kpis: Kpi[];
+  charts: Chart[];
+  catalog: CatalogItem[];
+  hidden: string[];
+  /** The saved `home_layout.<module>` as stored (the dashboard validates it), or null. */
+  layout: Saved<unknown> | null;
+  asOf: string;
+}
+
+/** A module's Inicio page: the module's indicators and charts the caller may see and has not switched off, and their layout for it. */
+export async function loadModuleHome(shell: ShellData, caller: Caller, module: string, now: Date = new Date()): Promise<ModuleHomeData> {
+  const deps = processDeps();
+  const [out, prefs] = await Promise.all([
+    allowed(() => runProcess(deps, caller, "kernel.home.kpis", { module }) as Promise<KpisOut>),
+    readUserPrefs(deps.sql, caller.claims, [`home_layout.${module}`, "home_hidden"]),
+  ]);
+  return {
+    module,
+    greeting: { period: greetingPeriod(now, shell.company.timeZone ?? "America/Bogota"), name: firstNameOf(shell.user.name) },
+    kpis: out?.kpis ?? [],
+    charts: out?.charts ?? [],
+    catalog: out?.catalog ?? [],
+    hidden: hiddenOf(prefs.home_hidden),
+    layout: savedFrom(prefs[`home_layout.${module}`]),
     asOf: now.toISOString(),
   };
 }

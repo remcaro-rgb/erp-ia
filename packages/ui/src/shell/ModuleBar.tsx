@@ -13,6 +13,8 @@ export interface ModuleBarProps {
   items: NavItem[];
   /** Inicio leads the bar of the base module (the first one loaded). */
   showHome: boolean;
+  /** Where Inicio leads: the active module's own Inicio page (`/inicio/<module>`); the company-wide Inicio (`/`) by default. */
+  homeHref?: string;
   /** Path of the active tab; the matching item is underlined. */
   activeHref: string;
   onNavigate: (target: { href: string; title: string; kind: "home" | "grid" }) => void;
@@ -185,11 +187,11 @@ interface Entry {
  * link (open in a new tab with ⌘/Ctrl or the middle button). The items that do not fit move, in order, into a trailing
  * "Más ▾" menu measured at runtime (owner 2026-10-31, UX-OD-1); a hidden copy of the row gives the widths.
  */
-export function ModuleBar({ items, showHome, activeHref, onNavigate }: ModuleBarProps) {
+export function ModuleBar({ items, showHome, homeHref = "/", activeHref, onNavigate }: ModuleBarProps) {
   const t = useTranslations();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const entries: Entry[] = [
-    ...(showHome ? [{ id: "home", label: "nav.shell.home", icon: "home", href: "/", title: t("nav.shell.home"), kind: "home" as const }] : []),
+    ...(showHome ? [{ id: "home", label: "nav.shell.home", icon: "home", href: homeHref, title: t("nav.shell.home"), kind: "home" as const }] : []),
     ...items.map((item): Entry => ({ id: item.id, label: item.label, icon: item.icon, href: item.href, title: t(item.label), kind: "grid", ...(item.badge ? { badge: item.badge } : {}), ...(item.children ? { group: item } : {}) })),
   ];
   const signature = entries.map((e) => `${e.id}:${e.title}:${e.badge ?? (e.group ? groupBadge(e.group) : "")}`).join("|");

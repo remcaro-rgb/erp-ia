@@ -1145,7 +1145,8 @@
       "collapse_menu": "Collapse menu",
       "expand_menu": "Expand menu",
       "toggle_menu": "Collapse or expand menu",
-      "page": "Page"
+      "page": "Page",
+      "module_home": "{module} home"
     },
     "core": {
       "parties": "Parties",
@@ -2397,7 +2398,18 @@
       "move_hint": "Drag to move. Also: Alt + arrow keys",
       "mode_hint": "Move mode: arrows move the card, Shift + arrows resize it, Esc ends.",
       "size": "{columns}/4 · {height} px",
-      "reset_done": "Cards reset"
+      "reset_done": "Cards reset",
+      "customize": "Customize home page",
+      "customize_intro": "Turn on or off the indicators and charts you want to see. Your choice is saved per user.",
+      "customize_kpis": "Indicators",
+      "customize_charts": "Charts",
+      "customize_empty": "There are no indicators or charts to customize with your permissions.",
+      "customize_toggle": "Show {label}",
+      "customize_all_on": "Turn all on",
+      "customize_all_off": "Turn all off",
+      "customize_done": "Done",
+      "customize_error": "Your choice could not be saved. Try again.",
+      "customize_count": "{on} of {total} on"
     },
     "widgets": {
       "kpis": "Indicators",
@@ -2444,7 +2456,68 @@
         "label": "Draft entries",
         "detail": "{pending, plural, =0 {None awaiting approval} one {# awaiting approval} other {# awaiting approval}}"
       },
-      "open": "Open {label}"
+      "open": "Open {label}",
+      "core_customers": {
+        "label": "Active customers",
+        "detail": "of {total_text} active parties"
+      },
+      "core_suppliers": {
+        "label": "Active suppliers",
+        "detail": "of {total_text} active parties"
+      },
+      "core_catalog_ready": {
+        "label": "Products ready to invoice",
+        "detail": "{ready_text} of {total_text} active products"
+      },
+      "support_urgent": {
+        "label": "Urgent tickets",
+        "detail": "of {open_text} open"
+      },
+      "support_stale": {
+        "label": "Stale tickets",
+        "detail": "open for more than 7 days"
+      },
+      "support_resolved": {
+        "label": "Resolved tickets (30 days)",
+        "detail": "{days_text} days on average to close them",
+        "detail_none": "none closed in the last 30 days"
+      },
+      "accounting_income": {
+        "label": "Income this month",
+        "detail": "Income statement of {month}"
+      },
+      "accounting_expenses": {
+        "label": "Expenses and costs this month",
+        "detail": "Income statement of {month}"
+      },
+      "accounting_margin": {
+        "label": "Margin this month",
+        "detail": "Result over income of {month}"
+      },
+      "accounting_working_capital": {
+        "label": "Working capital",
+        "detail": "Current assets minus current liabilities"
+      },
+      "accounting_current_ratio": {
+        "label": "Current ratio",
+        "detail": "Times current assets cover current liabilities"
+      },
+      "accounting_posted": {
+        "label": "Posted entries",
+        "detail": "of {total_text} entries in the period"
+      },
+      "kernel_users": {
+        "label": "Active users",
+        "detail": "of {total_text} · {mfa_text} with two-step verification required"
+      },
+      "kernel_audit": {
+        "label": "Audited actions (24 h)",
+        "detail": "{ai_text} done by the assistant"
+      },
+      "core_new_parties": {
+        "label": "New parties this month",
+        "detail": "{previous_text} the month before"
+      }
     },
     "recommendations": {
       "subtitle": "Suggestions for your role. Nothing runs without your confirmation.",
@@ -2503,6 +2576,233 @@
         "label": "Turn on two-step verification",
         "question": "How do I turn on two-step verification?"
       }
+    },
+    "chart": {
+      "accounting_income_vs_expenses": {
+        "label": "Income and expenses by month"
+      },
+      "accounting_result_trend": {
+        "label": "Result by month"
+      },
+      "accounting_entries_by_status": {
+        "label": "Entries by status"
+      },
+      "accounting_top_expenses": {
+        "label": "Top expenses of the month"
+      },
+      "core_parties_by_kind": {
+        "label": "Parties by type"
+      },
+      "core_parties_by_person": {
+        "label": "Parties by person type"
+      },
+      "core_parties_growth": {
+        "label": "New parties per day"
+      },
+      "core_products_by_category": {
+        "label": "Products by category"
+      },
+      "support_tickets_by_status": {
+        "label": "Tickets by status"
+      },
+      "support_tickets_by_priority": {
+        "label": "Open tickets by priority"
+      },
+      "support_tickets_inflow": {
+        "label": "Tickets received per week"
+      },
+      "kernel_ai_tokens_daily": {
+        "label": "AI tokens per day"
+      },
+      "kernel_audit_daily": {
+        "label": "Audited actions per day"
+      },
+      "series": {
+        "tokens": "Tokens",
+        "actions": "Actions",
+        "income": "Income",
+        "expenses": "Expenses",
+        "result": "Result",
+        "entries": "Entries",
+        "parties": "Parties",
+        "products": "Products",
+        "tickets": "Tickets"
+      },
+      "point": {
+        "entry_draft": "Draft",
+        "entry_saved": "Saved",
+        "entry_rejected": "Rejected",
+        "entry_pending": "Pending approval",
+        "entry_approved": "Approved",
+        "entry_posted": "Posted",
+        "entry_voided": "Voided",
+        "party_customer": "Customers only",
+        "party_supplier": "Suppliers only",
+        "party_both": "Customers and suppliers",
+        "party_other": "Other",
+        "person_legal": "Legal entity",
+        "person_natural": "Natural person",
+        "person_other": "Other",
+        "ticket_open": "Open",
+        "ticket_answered": "Answered",
+        "ticket_closed": "Closed",
+        "priority_high": "High",
+        "priority_normal": "Normal",
+        "priority_low": "Low"
+      }
+    },
+    "catalog": {
+      "core_parties": {
+        "label": "Active parties",
+        "description": "How many parties (customers, suppliers and others) are active and how many cannot be invoiced yet."
+      },
+      "core_customers": {
+        "label": "Active customers",
+        "description": "Active parties marked as customers, against all active parties."
+      },
+      "core_suppliers": {
+        "label": "Active suppliers",
+        "description": "Active parties marked as suppliers, against all active parties."
+      },
+      "core_new_parties_month": {
+        "label": "New parties this month",
+        "description": "Parties created this month compared with last month, with their 14-day trend."
+      },
+      "core_products": {
+        "label": "Products",
+        "description": "How many products there are and how many are not ready to invoice."
+      },
+      "core_catalog_ready": {
+        "label": "Products ready to invoice",
+        "description": "Share of active products whose DIAN data is complete."
+      },
+      "core_parties_by_kind": {
+        "label": "Parties by type",
+        "description": "Bar chart: customers only, suppliers only and both."
+      },
+      "core_parties_by_person": {
+        "label": "Parties by person type",
+        "description": "Bar chart: legal entities against natural persons."
+      },
+      "core_parties_growth": {
+        "label": "New parties per day",
+        "description": "Line of the parties created each day of the last two weeks."
+      },
+      "core_products_by_category": {
+        "label": "Products by category",
+        "description": "Bar chart of the six categories with the most products."
+      },
+      "support_tickets": {
+        "label": "Support tickets",
+        "description": "Tickets that are not closed yet, with the total and the 14-day trend."
+      },
+      "support_urgent": {
+        "label": "Urgent tickets",
+        "description": "Open high-priority tickets, against all open ones."
+      },
+      "support_stale": {
+        "label": "Stale tickets",
+        "description": "Tickets open for more than 7 days."
+      },
+      "support_resolved_30d": {
+        "label": "Resolved tickets (30 days)",
+        "description": "Tickets closed in the last 30 days and the days they took on average."
+      },
+      "support_tickets_by_status": {
+        "label": "Tickets by status",
+        "description": "Bar chart: open, answered and closed."
+      },
+      "support_tickets_by_priority": {
+        "label": "Open tickets by priority",
+        "description": "Bar chart: high, normal and low priority among open tickets."
+      },
+      "support_tickets_inflow": {
+        "label": "Tickets received per week",
+        "description": "Line of the tickets that arrived in each of the last 8 weeks."
+      },
+      "accounting_result_month": {
+        "label": "Result of the month",
+        "description": "Profit or loss of the current period from the income statement."
+      },
+      "accounting_income_month": {
+        "label": "Income this month",
+        "description": "Operating and non-operating income of the current period."
+      },
+      "accounting_expenses_month": {
+        "label": "Expenses and costs this month",
+        "description": "Costs, expenses and income tax of the current period."
+      },
+      "accounting_margin_month": {
+        "label": "Margin this month",
+        "description": "The period's result over its income, as a percentage."
+      },
+      "accounting_working_capital": {
+        "label": "Working capital",
+        "description": "Current assets minus current liabilities at the period's date."
+      },
+      "accounting_current_ratio": {
+        "label": "Current ratio",
+        "description": "Current assets over current liabilities: below 1 there is a liquidity risk."
+      },
+      "accounting_posted_entries": {
+        "label": "Posted entries",
+        "description": "Entries already posted in the period, against all the period's entries."
+      },
+      "accounting_pending_failures": {
+        "label": "Pending to post",
+        "description": "Business events no accounting rule could post yet."
+      },
+      "accounting_open_periods": {
+        "label": "Open periods",
+        "description": "Open accounting periods, against all periods."
+      },
+      "accounting_draft_entries": {
+        "label": "Draft entries",
+        "description": "Entries written that are not yet sent or posted."
+      },
+      "accounting_income_vs_expenses": {
+        "label": "Income and expenses by month",
+        "description": "Bars of income and expenses for the last 6 months, side by side."
+      },
+      "accounting_result_trend": {
+        "label": "Result by month",
+        "description": "Line of the result (income minus expenses) for the last 6 months."
+      },
+      "accounting_entries_by_status": {
+        "label": "Entries by status",
+        "description": "How many entries are in each status, from draft to posted."
+      },
+      "accounting_top_expenses": {
+        "label": "Top expenses of the month",
+        "description": "The five accounts with the most expense in the current period."
+      },
+      "kernel_ai_tokens": {
+        "label": "AI usage this month",
+        "description": "Assistant tokens used this month against the contracted cap (yours, if you are not an admin)."
+      },
+      "kernel_active_users": {
+        "label": "Active users",
+        "description": "Company users who can sign in and how many have two-step verification required."
+      },
+      "kernel_audit_24h": {
+        "label": "Audited actions (24 h)",
+        "description": "Movements recorded in the audit trail in the last 24 hours."
+      },
+      "kernel_ai_tokens_daily": {
+        "label": "AI tokens per day",
+        "description": "Line of the assistant tokens used each day of the last two weeks."
+      },
+      "kernel_audit_daily": {
+        "label": "Audited actions per day",
+        "description": "Line of the movements audited each day of the last two weeks."
+      }
+    },
+    "module": {
+      "title": "{module} home",
+      "empty": "There are no indicators or charts available for your role in this module.",
+      "all_off": "You turned off every indicator and chart of this page. Use Customize home page to turn them back on.",
+      "chart_empty": "There is no data for this chart yet.",
+      "chart_summary": "{title}: {summary}"
     }
   },
   "agent": {
@@ -2910,13 +3210,13 @@
         "template_open": "Open entry"
       },
       "save_template": {
-          "button": "Save as template",
-          "name": "Template name",
-          "blank": "Leave the amounts blank (asked when used)",
-          "save": "Save template",
-          "failed": "The template could not be saved: {reason}",
-          "lines_refused": "The entry has no lines that can be copied (a restricted account or no lines)"
-        },
+        "button": "Save as template",
+        "name": "Template name",
+        "blank": "Leave the amounts blank (asked when used)",
+        "save": "Save template",
+        "failed": "The template could not be saved: {reason}",
+        "lines_refused": "The entry has no lines that can be copied (a restricted account or no lines)"
+      },
       "totals_label": "Voucher totals",
       "no_lines": "No lines",
       "problems": {

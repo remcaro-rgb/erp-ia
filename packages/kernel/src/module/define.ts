@@ -93,6 +93,14 @@ export function defineModule(def: ModuleDef): ModuleDef {
     if (!featureIds.has(provider.feature)) throw new Error(`KPI provider ${provider.id} names feature ${provider.feature}, which module ${def.id} does not declare`);
   }
 
+  const chartIds = new Set<string>();
+  for (const provider of def.homeCharts ?? []) {
+    if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`chart provider ${provider.id} must be named "${def.id}.<name>"`);
+    if (chartIds.has(provider.id) || providerIds.has(provider.id)) throw new Error(`duplicate home provider ${provider.id} in module ${def.id}`);
+    chartIds.add(provider.id);
+    if (!featureIds.has(provider.feature)) throw new Error(`chart provider ${provider.id} names feature ${provider.feature}, which module ${def.id} does not declare`);
+  }
+
   const roles = new Set<string>([...ACCOUNT_ROLES, ...(def.accountRoles ?? [])]);
   for (const rule of def.postingRules ?? []) {
     const parsed = RuleTemplate.safeParse(rule.template);

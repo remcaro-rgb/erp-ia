@@ -2,8 +2,9 @@ import { homeKpis } from "./kpis";
 import { homeRecent } from "./recent";
 import { recommendationDecide, recommendationList } from "./recommendations";
 
-export { aiTokensKpi, HOME_FEATURE, homeKpis, KERNEL_KPI_PROVIDERS, kpiSchema } from "./kpis";
-export { dailySeries, SERIES_DAYS } from "./series";
+export { activeUsersKpi, aiTokensChart, aiTokensKpi, auditActivityChart, auditActivityKpi, catalogItemSchema, catalogKey, chartSchema, HOME_FEATURE, HOME_HIDDEN_PREF, homeKpis, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS, kpiSchema } from "./kpis";
+export type { CatalogItem } from "./kpis";
+export { dailyPoints, dailySeries, SERIES_DAYS } from "./series";
 export { homeRecent } from "./recent";
 export { kpiGridHref } from "./links";
 export type { KpiFilter } from "./links";

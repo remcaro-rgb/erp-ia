@@ -147,8 +147,8 @@ export interface Kpi {
   /** i18n key of the card's title. */
   label: string;
   value: number;
-  /** `percent` shows `38 %`, `tokens` a compact count (`1,9 M`), `count` a whole number, `money` an amount in the company's currency (`$ 1.234.567,00`, rule 23). */
-  unit: "count" | "percent" | "tokens" | "money";
+  /** `percent` shows `38 %`, `tokens` a compact count (`1,9 M`), `count` a whole number, `money` an amount in the company's currency (`$ 1.234.567,00`, rule 23), `ratio` a quotient with two decimals (`1,85`). */
+  unit: "count" | "percent" | "tokens" | "money" | "ratio";
   /** 0–1: fills the small bar under the number. */
   progress?: number;
   /** `warn` tints the number (something wants attention). */
@@ -170,7 +170,8 @@ export interface Kpi {
 /**
  * What a module registers to put KPIs on the home screen (design §19a, Task 20). `kernel.home.kpis` runs the providers
  * whose `feature` the company is entitled to, as the caller (the process transaction, RLS and masked views apply), and
- * only for a caller whose roles may run `consult` when the provider names one (rule 13).
+ * only for a caller whose roles may run `consult` when the provider names one (rule 13). Its catalogue texts (the name and the one-line
+ * description the "Personalizar página de inicio" dialog shows) are the i18n keys `home.catalog.<id with dots as _>.label` and `.description`.
  */
 export interface HomeKpiProvider {
   /** `<module>.<name>`, in the namespace of the module that ships it. */
@@ -180,6 +181,39 @@ export interface HomeKpiProvider {
   /** Process id a role of the caller must be allowed to run for the KPIs to show (a consult over the same data). */
   consult?: string;
   compute(ctx: ProcessContext): Promise<Kpi[]>;
+}
+
+/**
+ * One chart of a module's Inicio (design §19a). Language-neutral like a KPI: `label` and the series' `label`s are i18n keys,
+ * the point labels are either i18n keys (`i18n: true`, a status or a kind) or the text itself (a month `2026-10`, an account name).
+ * `bar` draws the points as bars (grouped when there are several series), `line` as a trend; the screen picks the formats.
+ */
+export interface Chart {
+  /** `<module>.<name>`; unique among the charts of a response. */
+  id: string;
+  /** i18n key of the chart's title. */
+  label: string;
+  kind: "bar" | "line";
+  /** How the values read: the same units as a KPI. */
+  unit: "count" | "percent" | "tokens" | "money";
+  series: { label: string; points: { label: string; value: number }[] }[];
+  /** The point labels are i18n keys. */
+  i18n?: boolean;
+  /** Where the chart's work is, like `Kpi.href`. */
+  href?: string;
+}
+
+/**
+ * What a module registers to put charts on its Inicio page (design §19a). Same gates as a KPI provider: the `feature` the company
+ * holds and the `consult` process a role of the caller may run; the numbers are read as the caller. Its catalogue texts (the title and the
+ * one-line description the "Personalizar página de inicio" dialog shows) are the i18n keys `home.catalog.<id with dots as _>.label` and `.description`.
+ */
+export interface HomeChartProvider {
+  /** `<module>.<name>`, in the namespace of the module that ships it. */
+  id: string;
+  feature: string;
+  consult?: string;
+  compute(ctx: ProcessContext): Promise<Chart[]>;
 }
 
 /**
@@ -234,6 +268,8 @@ export interface ModuleDef {
   adopts?: string[];
   /** KPIs the module contributes to the home screen. */
   homeKpis?: HomeKpiProvider[];
+  /** Charts the module contributes to its Inicio page. */
+  homeCharts?: HomeChartProvider[];
   /** Tabs the module adds to the record pages of entities (its own or other modules'). */
   recordTabs?: RecordTabContribution[];
   /** Reports the module ships (design §9): a parameter bar over a consult process. */

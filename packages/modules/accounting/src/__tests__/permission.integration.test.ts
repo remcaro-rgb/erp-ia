@@ -52,7 +52,8 @@ describe("account permission", () => {
     }
     // The tree answers the same: a hidden account is no node, whoever asks.
     const nodes = (claims: typeof h.admin.claims) => withClaims(h.sql, claims, (tx) => tx<{ id: string }[]>`select id from accounting.master_tree('account')`).then((r) => r.length);
-    const [{ n: all }] = await h.sql<{ n: number }[]>`select count(*)::int as n from accounting.accounts where company_id = ${h.companyId}`;
+    const [counted] = await h.sql<{ n: number }[]>`select count(*)::int as n from accounting.accounts where company_id = ${h.companyId}`;
+    const all = counted!.n;
     expect(await nodes(h.admin.claims)).toBe(all);
     expect(await nodes(h.auxiliar.claims)).toBeLessThan(all);
     await restrict([], "open", "510506");

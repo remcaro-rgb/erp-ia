@@ -14,7 +14,7 @@ import { HELP_PROCESSES } from "../help/help.process";
 import { DATA_PROCESSES } from "../query/data-query.process";
 import { ADMIN_FEATURE, ADMIN_PROCESSES } from "../admin";
 import { ADMIN_NAVIGATION } from "../admin/navigation";
-import { HOME_FEATURE, HOME_PROCESSES, KERNEL_KPI_PROVIDERS } from "../home";
+import { HOME_FEATURE, HOME_PROCESSES, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS } from "../home";
 import { AUDIT_FEATURE, AUDIT_PROCESSES, auditEntity } from "../audit/viewer";
 import { USER_PROCESSES, USERS_FEATURE, userEntity } from "../users/entity";
 import { USER_MFA_PROCESSES } from "../users/mfa";
@@ -144,4 +144,5 @@ export const kernelModule: ModuleDef = defineModule({
   // way: it prints the record as the caller (renderPrint), so a record of an entity whose menu item is hidden is refused by its consult.
   menuShared: ["kernel.doc_template.", "kernel.record.notify"],
   homeKpis: KERNEL_KPI_PROVIDERS,
+  homeCharts: KERNEL_CHART_PROVIDERS,
 });

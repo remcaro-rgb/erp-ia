@@ -1,7 +1,7 @@
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { CORE_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
-import { HOME_KPIS } from "./home";
+import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { CATEGORY_PROCESSES, categoryHooks } from "./processes/category";
 import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
@@ -33,6 +33,7 @@ export const core: ModuleDef = defineModule({
   navigation: NAVIGATION,
   menuShared: MENU_SHARED,
   homeKpis: HOME_KPIS,
+  homeCharts: HOME_CHARTS,
   // The maestros' validation at Grabar and Aprobar (entity types spec §5, Task 8a): the generic lifecycle processes and the update
   // processes run the same checks (country pack, DIAN status, party scope, custom fields, events).
   typedHooks: {

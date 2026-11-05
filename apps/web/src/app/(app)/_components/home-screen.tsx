@@ -8,6 +8,8 @@ import { decideRecommendationAction } from "@/lib/home/actions";
 import type { HomeData } from "@/lib/home/load";
 import { createLayoutSaver } from "@/lib/home/layout-save";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
+import type { ShellPrefKey } from "@/lib/prefs/validate";
+import { useHomeCustomize } from "./use-customize";
 
 /**
  * The home screen (design §19a, prototype `renderHome`): the greeting and the widget dashboard. The widgets the caller may
@@ -21,6 +23,7 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>(data.recommendations ?? []);
   const [pending, setPending] = useState<string | null>(null);
   const [failed, setFailed] = useState<"failed" | "refused" | null>(null);
+  const { hidden, actions } = useHomeCustomize(data.hidden, data.catalog);
 
   const decide = useCallback(
     async (id: string, decision: "accepted" | "dismissed", action = 0) => {
@@ -55,7 +58,7 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
   // The KPIs and the recommendations are a snapshot of the page load: they say when it was read.
   const asOf = <UpdatedAt at={data.asOf} />;
   const widgets: DashboardWidget[] = [];
-  if (data.kpis) widgets.push({ id: "kpis", title: t("home.widgets.kpis"), meta: asOf, content: <KpisWidget kpis={data.kpis} /> });
+  if (data.kpis) widgets.push({ id: "kpis", title: t("home.widgets.kpis"), meta: asOf, content: <KpisWidget kpis={data.kpis.filter((kpi) => !hidden.includes(kpi.id))} /> });
   if (data.recommendations) {
     widgets.push({
       id: "recommendations",
@@ -80,7 +83,7 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
   const saver = useMemo(
     () =>
       createLayoutSaver({
-        action: saveShellPrefAction,
+        action: (pref) => saveShellPrefAction({ ...pref, key: pref.key as ShellPrefKey }),
         beacon: (pref) => navigator.sendBeacon("/api/prefs", new Blob([JSON.stringify(pref)], { type: "application/json" })),
       }),
     [],
@@ -102,6 +105,7 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
         widgets={widgets}
         initial={data.layout}
         onChange={save}
+        actions={actions}
         heading={<h1>{t(`home.greeting.${data.greeting.period}`, { name: data.greeting.name })}</h1>}
       />
     </div>

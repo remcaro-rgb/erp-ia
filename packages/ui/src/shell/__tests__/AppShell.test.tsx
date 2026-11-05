@@ -606,7 +606,20 @@ describe("AppShell, module context and tab titles (T7)", () => {
 
   it("a record page keeps the module of its entity: /r/accounting.entry/<id> shows Contabilidad", () => {
     shell("/r/accounting.entry/0198-x", vi.fn(), { nav: accountingNav, modules });
-    expect(moduleNames()).toEqual(["Comprobantes", "Informes"]);
+    expect(moduleNames()).toEqual(["Inicio", "Comprobantes", "Informes"]);
+  });
+
+  it("every module carries its own Inicio: the bar's Inicio leads to /inicio/<module>, and that page belongs to the module", () => {
+    shell("/inicio/accounting", vi.fn(), { nav: accountingNav, modules });
+    const home = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Inicio" });
+    expect(home.getAttribute("href")).toBe("/inicio/accounting");
+    expect(home.getAttribute("aria-current")).toBe("page");
+    expect(moduleNames()).toEqual(["Inicio", "Comprobantes", "Informes"]);
+  });
+
+  it("a module's Inicio page opens a tab named after the module", () => {
+    shell("/inicio/accounting", vi.fn(), { nav: accountingNav, modules });
+    expect(within(screen.getByRole("navigation", { name: "Pestañas abiertas" })).getByRole("button", { name: "Inicio de Contabilidad" })).toBeTruthy();
   });
 
   it("a record's tab is named after its entity, not Registro; a path with no menu item is not shown raw", () => {

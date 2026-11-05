@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runProcess, type Caller, type Kpi } from "@erp/kernel";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { runProcess, type Caller, type Chart, type Kpi } from "@erp/kernel";
 import { attachFile, coreHarness, exito, supplier, type CoreHarness } from "./helpers";
 
 // The core module's cards on the home screen (Task 20): parties and products, counted through the published views as the
@@ -153,5 +155,73 @@ describe("core home KPIs", () => {
     } finally {
       await h.sql`delete from kernel.field_permissions where company_id = ${company.id} and field = 'is_active'`;
     }
+  });
+
+  describe("the module's Inicio page (kernel.home.kpis with module: core)", () => {
+    type Page = { kpis: Kpi[]; charts: Chart[]; catalog: { id: string; kind: string }[] };
+    const page = async (caller: Caller) => (await runProcess(h.deps, caller, "kernel.home.kpis", { module: "core" })) as Page;
+    const chart = async (caller: Caller, id: string) => (await page(caller)).charts.find((c) => c.id === id);
+    const points = (c: Chart | undefined) => Object.fromEntries(c!.series[0]!.points.map((p) => [p.label, p.value]));
+
+    it("has the module's indicators and charts, and nothing of another module", async () => {
+      const { kpis, charts, catalog } = await page(admin);
+      expect(kpis.map((k) => k.id)).toEqual(["core.parties", "core.customers", "core.suppliers", "core.new_parties_month", "core.products", "core.catalog_ready"]);
+      expect(charts.map((c) => c.id)).toEqual(["core.parties_by_kind", "core.parties_by_person", "core.parties_growth", "core.products_by_category"]);
+      expect(catalog.map((c) => c.id).sort()).toEqual([...kpis.map((k) => k.id), ...charts.map((c) => c.id)].sort());
+    });
+
+    it("counts customers and suppliers among the active parties", async () => {
+      expect(await kpi(admin, "core.customers")).toMatchObject({ value: 1, progress: 0.5, detail: { params: { total: 2 } } });
+      expect(await kpi(admin, "core.suppliers")).toMatchObject({ value: 1, progress: 0.5, detail: { params: { total: 2 } } });
+    });
+
+    it("counts the parties created this month against last month", async () => {
+      expect(await kpi(admin, "core.new_parties_month")).toMatchObject({ unit: "count", detail: { key: "home.kpi.core_new_parties.detail", params: { previous: 0 } } });
+      expect((await kpi(admin, "core.new_parties_month"))!.value).toBeGreaterThanOrEqual(2);
+      expect((await kpi(admin, "core.new_parties_month"))!.series).toHaveLength(14);
+    });
+
+    it("the share of active products ready to invoice is a percentage of all of them, with the warning while some are not", async () => {
+      expect(await kpi(admin, "core.catalog_ready")).toMatchObject({ value: 50, unit: "percent", progress: 0.5, tone: "warn", detail: { params: { ready: 1, total: 2 } } });
+    });
+
+    it("parties by type: customers only, suppliers only and both", async () => {
+      expect(points(await chart(admin, "core.parties_by_kind"))).toEqual({
+        "home.chart.point.party_customer": 1,
+        "home.chart.point.party_supplier": 1,
+        "home.chart.point.party_both": 0,
+      });
+      expect((await chart(admin, "core.parties_by_kind"))).toMatchObject({ kind: "bar", unit: "count", i18n: true });
+    });
+
+    it("parties by person type, products by category and the new parties of each day", async () => {
+      const byPerson = points(await chart(admin, "core.parties_by_person"));
+      expect(byPerson["home.chart.point.person_legal"]! + byPerson["home.chart.point.person_natural"]!).toBe(2);
+      expect(Object.values(points(await chart(admin, "core.products_by_category"))).reduce((a, b) => a + b, 0)).toBe(2);
+      const growth = (await chart(admin, "core.parties_growth"))!;
+      expect(growth.kind).toBe("line");
+      expect(growth.series[0]!.points).toHaveLength(14);
+      expect(growth.series[0]!.points.at(-1)!.label).toMatch(/^\d\d-\d\d$/);
+    });
+
+    it("is computed as the caller: the customers-only role sees its own parties and has no product indicators or charts", async () => {
+      const { kpis, charts } = await page(vendedor);
+      expect(kpis.map((k) => k.id)).toEqual(["core.parties", "core.customers", "core.suppliers", "core.new_parties_month"]);
+      expect(charts.map((c) => c.id)).toEqual(["core.parties_by_kind", "core.parties_by_person", "core.parties_growth"]);
+      expect(points(await chart(vendedor, "core.parties_by_kind"))).toMatchObject({ "home.chart.point.party_customer": 1, "home.chart.point.party_supplier": 0 });
+    });
+
+    it("every key the module's cards and charts name exists in both catalogues", async () => {
+      const { kpis, charts } = await page(admin);
+      const keys = [
+        ...kpis.flatMap((k) => [k.label, ...(k.detail ? [k.detail.key] : [])]),
+        ...charts.flatMap((c) => [c.label, ...c.series.flatMap((s) => [s.label, ...(c.i18n ? s.points.map((p) => p.label) : [])])]),
+      ];
+      for (const locale of ["es-419", "en"] as const) {
+        const tree = JSON.parse(readFileSync(join(import.meta.dirname, "../../../../i18n/messages", `${locale}.json`), "utf8")) as Record<string, unknown>;
+        const missing = keys.filter((key) => typeof key.split(".").reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], tree) !== "string");
+        expect(missing, locale).toEqual([]);
+      }
+    });
   });
 });

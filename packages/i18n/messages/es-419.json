@@ -1145,7 +1145,8 @@
       "collapse_menu": "Contraer menú",
       "expand_menu": "Expandir menú",
       "toggle_menu": "Contraer o expandir menú",
-      "page": "Página"
+      "page": "Página",
+      "module_home": "Inicio de {module}"
     },
     "core": {
       "parties": "Terceros",
@@ -2397,7 +2398,18 @@
       "move_hint": "Arrastra para mover. También: Alt + flechas",
       "mode_hint": "Modo mover: las flechas mueven la tarjeta, Mayús + flechas cambian su tamaño, Esc termina.",
       "size": "{columns}/4 · {height} px",
-      "reset_done": "Tarjetas restablecidas"
+      "reset_done": "Tarjetas restablecidas",
+      "customize": "Personalizar página de inicio",
+      "customize_intro": "Activa o desactiva los indicadores y gráficos que quieres ver. Tu elección se guarda por usuario.",
+      "customize_kpis": "Indicadores",
+      "customize_charts": "Gráficos",
+      "customize_empty": "No hay indicadores ni gráficos para personalizar con tus permisos.",
+      "customize_toggle": "Mostrar {label}",
+      "customize_all_on": "Activar todo",
+      "customize_all_off": "Desactivar todo",
+      "customize_done": "Listo",
+      "customize_error": "No se pudo guardar tu elección. Vuelve a intentarlo.",
+      "customize_count": "{on} de {total} activos"
     },
     "widgets": {
       "kpis": "Indicadores",
@@ -2444,7 +2456,68 @@
         "label": "Comprobantes en borrador",
         "detail": "{pending, plural, =0 {Ninguno por aprobar} one {# por aprobar} other {# por aprobar}}"
       },
-      "open": "Abrir {label}"
+      "open": "Abrir {label}",
+      "core_customers": {
+        "label": "Clientes activos",
+        "detail": "de {total_text} terceros activos"
+      },
+      "core_suppliers": {
+        "label": "Proveedores activos",
+        "detail": "de {total_text} terceros activos"
+      },
+      "core_catalog_ready": {
+        "label": "Productos listos para facturar",
+        "detail": "{ready_text} de {total_text} productos activos"
+      },
+      "support_urgent": {
+        "label": "Tickets urgentes",
+        "detail": "de {open_text} abiertos"
+      },
+      "support_stale": {
+        "label": "Tickets estancados",
+        "detail": "abiertos hace más de 7 días"
+      },
+      "support_resolved": {
+        "label": "Tickets resueltos (30 días)",
+        "detail": "{days_text} días en promedio para cerrarlos",
+        "detail_none": "ninguno cerrado en los últimos 30 días"
+      },
+      "accounting_income": {
+        "label": "Ingresos del mes",
+        "detail": "Estado de resultados de {month}"
+      },
+      "accounting_expenses": {
+        "label": "Gastos y costos del mes",
+        "detail": "Estado de resultados de {month}"
+      },
+      "accounting_margin": {
+        "label": "Margen del mes",
+        "detail": "Resultado sobre ingresos de {month}"
+      },
+      "accounting_working_capital": {
+        "label": "Capital de trabajo",
+        "detail": "Activos corrientes menos pasivos corrientes"
+      },
+      "accounting_current_ratio": {
+        "label": "Razón corriente",
+        "detail": "Veces que los activos corrientes cubren los pasivos corrientes"
+      },
+      "accounting_posted": {
+        "label": "Comprobantes contabilizados",
+        "detail": "de {total_text} comprobantes del período"
+      },
+      "kernel_users": {
+        "label": "Usuarios activos",
+        "detail": "de {total_text} · {mfa_text} con verificación en dos pasos exigida"
+      },
+      "kernel_audit": {
+        "label": "Acciones auditadas (24 h)",
+        "detail": "{ai_text} hechas por el asistente"
+      },
+      "core_new_parties": {
+        "label": "Terceros nuevos del mes",
+        "detail": "{previous_text} el mes anterior"
+      }
     },
     "recommendations": {
       "subtitle": "Sugerencias para tu rol. Nada se ejecuta sin tu confirmación.",
@@ -2503,6 +2576,233 @@
         "label": "Activar la verificación en dos pasos",
         "question": "¿Cómo activo la verificación en dos pasos?"
       }
+    },
+    "chart": {
+      "accounting_income_vs_expenses": {
+        "label": "Ingresos y gastos por mes"
+      },
+      "accounting_result_trend": {
+        "label": "Resultado por mes"
+      },
+      "accounting_entries_by_status": {
+        "label": "Comprobantes por estado"
+      },
+      "accounting_top_expenses": {
+        "label": "Principales gastos del mes"
+      },
+      "core_parties_by_kind": {
+        "label": "Terceros por tipo"
+      },
+      "core_parties_by_person": {
+        "label": "Terceros por tipo de persona"
+      },
+      "core_parties_growth": {
+        "label": "Terceros nuevos por día"
+      },
+      "core_products_by_category": {
+        "label": "Productos por categoría"
+      },
+      "support_tickets_by_status": {
+        "label": "Tickets por estado"
+      },
+      "support_tickets_by_priority": {
+        "label": "Tickets abiertos por prioridad"
+      },
+      "support_tickets_inflow": {
+        "label": "Tickets recibidos por semana"
+      },
+      "kernel_ai_tokens_daily": {
+        "label": "Tokens de IA por día"
+      },
+      "kernel_audit_daily": {
+        "label": "Acciones auditadas por día"
+      },
+      "series": {
+        "tokens": "Tokens",
+        "actions": "Acciones",
+        "income": "Ingresos",
+        "expenses": "Gastos",
+        "result": "Resultado",
+        "entries": "Comprobantes",
+        "parties": "Terceros",
+        "products": "Productos",
+        "tickets": "Tickets"
+      },
+      "point": {
+        "entry_draft": "Borrador",
+        "entry_saved": "Grabado",
+        "entry_rejected": "No aprobado",
+        "entry_pending": "Por aprobar",
+        "entry_approved": "Aprobado",
+        "entry_posted": "Contabilizado",
+        "entry_voided": "Anulado",
+        "party_customer": "Solo clientes",
+        "party_supplier": "Solo proveedores",
+        "party_both": "Clientes y proveedores",
+        "party_other": "Otros",
+        "person_legal": "Persona jurídica",
+        "person_natural": "Persona natural",
+        "person_other": "Otro",
+        "ticket_open": "Abierto",
+        "ticket_answered": "Respondido",
+        "ticket_closed": "Cerrado",
+        "priority_high": "Alta",
+        "priority_normal": "Normal",
+        "priority_low": "Baja"
+      }
+    },
+    "catalog": {
+      "core_parties": {
+        "label": "Terceros activos",
+        "description": "Cuántos terceros (clientes, proveedores y otros) están activos y cuántos aún no se pueden facturar."
+      },
+      "core_customers": {
+        "label": "Clientes activos",
+        "description": "Terceros activos marcados como clientes, frente al total de terceros activos."
+      },
+      "core_suppliers": {
+        "label": "Proveedores activos",
+        "description": "Terceros activos marcados como proveedores, frente al total de terceros activos."
+      },
+      "core_new_parties_month": {
+        "label": "Terceros nuevos del mes",
+        "description": "Terceros creados en el mes en curso, comparados con el mes anterior, con su tendencia de 14 días."
+      },
+      "core_products": {
+        "label": "Productos",
+        "description": "Cuántos productos hay y cuántos no están listos para facturar."
+      },
+      "core_catalog_ready": {
+        "label": "Productos listos para facturar",
+        "description": "Porcentaje de productos activos con los datos de la DIAN completos."
+      },
+      "core_parties_by_kind": {
+        "label": "Terceros por tipo",
+        "description": "Gráfico de barras: solo clientes, solo proveedores y ambos."
+      },
+      "core_parties_by_person": {
+        "label": "Terceros por tipo de persona",
+        "description": "Gráfico de barras: personas jurídicas frente a personas naturales."
+      },
+      "core_parties_growth": {
+        "label": "Terceros nuevos por día",
+        "description": "Línea con los terceros creados cada día de las últimas dos semanas."
+      },
+      "core_products_by_category": {
+        "label": "Productos por categoría",
+        "description": "Gráfico de barras con las seis categorías que tienen más productos."
+      },
+      "support_tickets": {
+        "label": "Tickets de soporte",
+        "description": "Tickets que aún no están cerrados, con el total y la tendencia de los últimos 14 días."
+      },
+      "support_urgent": {
+        "label": "Tickets urgentes",
+        "description": "Tickets abiertos de prioridad alta, frente a todos los abiertos."
+      },
+      "support_stale": {
+        "label": "Tickets estancados",
+        "description": "Tickets abiertos desde hace más de 7 días sin cerrarse."
+      },
+      "support_resolved_30d": {
+        "label": "Tickets resueltos (30 días)",
+        "description": "Tickets cerrados en los últimos 30 días y los días que tardaron en promedio."
+      },
+      "support_tickets_by_status": {
+        "label": "Tickets por estado",
+        "description": "Gráfico de barras: abiertos, respondidos y cerrados."
+      },
+      "support_tickets_by_priority": {
+        "label": "Tickets abiertos por prioridad",
+        "description": "Gráfico de barras: prioridad alta, normal y baja de los tickets abiertos."
+      },
+      "support_tickets_inflow": {
+        "label": "Tickets recibidos por semana",
+        "description": "Línea con los tickets que llegaron en cada una de las últimas 8 semanas."
+      },
+      "accounting_result_month": {
+        "label": "Resultado del mes",
+        "description": "Utilidad o pérdida del período en curso según el estado de resultados."
+      },
+      "accounting_income_month": {
+        "label": "Ingresos del mes",
+        "description": "Ingresos operacionales y no operacionales del período en curso."
+      },
+      "accounting_expenses_month": {
+        "label": "Gastos y costos del mes",
+        "description": "Costos, gastos e impuesto de renta del período en curso."
+      },
+      "accounting_margin_month": {
+        "label": "Margen del mes",
+        "description": "Resultado del período sobre sus ingresos, en porcentaje."
+      },
+      "accounting_working_capital": {
+        "label": "Capital de trabajo",
+        "description": "Activos corrientes menos pasivos corrientes a la fecha del período."
+      },
+      "accounting_current_ratio": {
+        "label": "Razón corriente",
+        "description": "Activos corrientes entre pasivos corrientes: por debajo de 1 hay riesgo de liquidez."
+      },
+      "accounting_posted_entries": {
+        "label": "Comprobantes contabilizados",
+        "description": "Comprobantes ya contabilizados en el período, frente a todos los del período."
+      },
+      "accounting_pending_failures": {
+        "label": "Pendientes de contabilizar",
+        "description": "Eventos del negocio que ninguna regla contable pudo contabilizar todavía."
+      },
+      "accounting_open_periods": {
+        "label": "Períodos abiertos",
+        "description": "Períodos contables abiertos, frente al total de períodos."
+      },
+      "accounting_draft_entries": {
+        "label": "Comprobantes en borrador",
+        "description": "Comprobantes escritos que aún no se envían ni se contabilizan."
+      },
+      "accounting_income_vs_expenses": {
+        "label": "Ingresos y gastos por mes",
+        "description": "Barras de ingresos y gastos de los últimos 6 meses, lado a lado."
+      },
+      "accounting_result_trend": {
+        "label": "Resultado por mes",
+        "description": "Línea con el resultado (ingresos menos gastos) de los últimos 6 meses."
+      },
+      "accounting_entries_by_status": {
+        "label": "Comprobantes por estado",
+        "description": "Cuántos comprobantes hay en cada estado, de borrador a contabilizado."
+      },
+      "accounting_top_expenses": {
+        "label": "Principales gastos del mes",
+        "description": "Las cinco cuentas con más gasto en el período en curso."
+      },
+      "kernel_ai_tokens": {
+        "label": "Uso de IA del mes",
+        "description": "Tokens del asistente usados en el mes frente al tope contratado (para ti, los tuyos)."
+      },
+      "kernel_active_users": {
+        "label": "Usuarios activos",
+        "description": "Usuarios de la empresa que pueden ingresar y cuántos tienen la verificación en dos pasos exigida."
+      },
+      "kernel_audit_24h": {
+        "label": "Acciones auditadas (24 h)",
+        "description": "Movimientos registrados en la auditoría en las últimas 24 horas."
+      },
+      "kernel_ai_tokens_daily": {
+        "label": "Tokens de IA por día",
+        "description": "Línea con los tokens del asistente usados cada día de las últimas dos semanas."
+      },
+      "kernel_audit_daily": {
+        "label": "Acciones auditadas por día",
+        "description": "Línea con los movimientos auditados cada día de las últimas dos semanas."
+      }
+    },
+    "module": {
+      "title": "Inicio de {module}",
+      "empty": "No hay indicadores ni gráficos disponibles para tu rol en este módulo.",
+      "all_off": "Apagaste todos los indicadores y gráficos de esta página. Usa Personalizar página de inicio para volver a activarlos.",
+      "chart_empty": "Todavía no hay datos para este gráfico.",
+      "chart_summary": "{title}: {summary}"
     }
   },
   "agent": {
@@ -2910,13 +3210,13 @@
         "template_open": "Abrir comprobante"
       },
       "save_template": {
-          "button": "Guardar como plantilla",
-          "name": "Nombre de la plantilla",
-          "blank": "Dejar los valores en blanco (se piden al usarla)",
-          "save": "Guardar plantilla",
-          "failed": "No se pudo guardar la plantilla: {reason}",
-          "lines_refused": "El comprobante no tiene líneas que se puedan copiar (una cuenta restringida o ninguna línea)"
-        },
+        "button": "Guardar como plantilla",
+        "name": "Nombre de la plantilla",
+        "blank": "Dejar los valores en blanco (se piden al usarla)",
+        "save": "Guardar plantilla",
+        "failed": "No se pudo guardar la plantilla: {reason}",
+        "lines_refused": "El comprobante no tiene líneas que se puedan copiar (una cuenta restringida o ninguna línea)"
+      },
       "totals_label": "Totales del comprobante",
       "no_lines": "Sin líneas",
       "problems": {

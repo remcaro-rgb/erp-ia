@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import type { Kpi } from "@erp/kernel";
 import { formatMoney } from "../money";
 import { useNavigate } from "../shell/navigate";
-import { detailParams, formatCompact, formatCount } from "./format";
+import { detailParams, formatCompact, formatCount, formatRatio } from "./format";
 import { Sparkline } from "./Sparkline";
 
 export interface KpiCardProps {
@@ -21,7 +21,7 @@ export interface KpiCardProps {
 export function KpiCard({ kpi }: KpiCardProps) {
   const t = useTranslations();
   const locale = useLocale();
-  const value = kpi.unit === "percent" ? `${formatCount(locale, kpi.value)} %` : kpi.unit === "tokens" ? formatCompact(locale, kpi.value) : kpi.unit === "money" ? formatMoney(kpi.value) : formatCount(locale, kpi.value);
+  const value = kpi.unit === "ratio" ? formatRatio(locale, kpi.value) : kpi.unit === "percent" ? `${formatCount(locale, kpi.value)} %` : kpi.unit === "tokens" ? formatCompact(locale, kpi.value) : kpi.unit === "money" ? formatMoney(kpi.value) : formatCount(locale, kpi.value);
   // The trend of a count is in whole numbers; the percent and token cards trend the tokens of each day (compact, like the value).
   const show = kpi.unit === "count" ? formatCount : formatCompact;
   const series = kpi.series && kpi.series.length >= 2 ? kpi.series : null;

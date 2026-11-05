@@ -73,6 +73,14 @@ const KPI_CARD_KEY: Record<string, string> = {
   "accounting.pending_failures": "accounting_pending",
   "accounting.open_periods": "accounting_periods",
   "accounting.draft_entries": "accounting_drafts",
+  "accounting.income_month": "accounting_income",
+  "accounting.expenses_month": "accounting_expenses",
+  "accounting.margin_month": "accounting_margin",
+  "accounting.posted_entries": "accounting_posted",
+  "core.new_parties_month": "core_new_parties",
+  "support.resolved_30d": "support_resolved",
+  "kernel.active_users": "kernel_users",
+  "kernel.audit_24h": "kernel_audit",
 };
 
 describe("home screen", () => {
@@ -83,6 +91,21 @@ describe("home screen", () => {
       for (const provider of providers) {
         const key = KPI_CARD_KEY[provider.id] ?? provider.id.replace(".", "_");
         expect(valueAt(locale, `home.kpi.${key}.label`), provider.id).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe("home charts and the Inicio catalogue", () => {
+  it("has the title of every chart provider and the name and description of every KPI and chart provider", () => {
+    const providers = [...registry.kpiProviders(), ...registry.chartProviders()];
+    expect(registry.chartProviders().length).toBeGreaterThanOrEqual(10);
+    for (const locale of [es, en]) {
+      for (const chart of registry.chartProviders()) expect(valueAt(locale, `home.chart.${chart.id.replace(".", "_")}.label`), chart.id).toBeTruthy();
+      for (const provider of providers) {
+        const base = `home.catalog.${provider.id.replace(/\./g, "_")}`;
+        expect(valueAt(locale, `${base}.label`), provider.id).toBeTruthy();
+        expect(valueAt(locale, `${base}.description`), provider.id).toBeTruthy();
       }
     }
   });

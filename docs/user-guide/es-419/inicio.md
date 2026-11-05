@@ -79,14 +79,40 @@ Inicio es tuyo: cada cambio se guarda para tu usuario y tu empresa, y nadie lo m
 - **Mover**: arrastra una tarjeta por su encabezado (la barra con los puntos ⋮⋮) y suéltala sobre otra; toma su lugar. Con el teclado, enfoca el encabezado y pulsa **Enter** o **Espacio**: aparece el aviso «Modo mover» y las **flechas** mueven la tarjeta (izquierda y arriba la adelantan, derecha y abajo la atrasan); **Mayús + flechas** cambian su tamaño (izquierda y derecha las columnas, arriba y abajo el alto); **Esc** (o **Enter** otra vez) termina. **Alt + flecha izquierda o derecha** también mueve la tarjeta sin entrar al modo.
 - **Cambiar el tamaño**: arrastra la esquina inferior derecha de la tarjeta. El ancho se ajusta a 1, 2, 3 o 4 columnas y el alto es libre (mínimo 160 px). Mientras cambias el tamaño (o cuando la tarjeta tiene el cursor del teclado), el encabezado muestra el tamaño actual, por ejemplo «2/4 · 300 px». Con el teclado, enfoca la esquina y usa las **flechas**: izquierda y derecha cambian las columnas, arriba y abajo el alto.
 - **Restablecer tarjetas** (arriba a la derecha) devuelve todas las tarjetas a su orden y tamaño originales.
+- **Personalizar página de inicio** (junto a Restablecer tarjetas) decide qué indicadores y gráficos aparecen: se explica en la sección siguiente.
 
 Tu disposición vuelve igual la próxima vez que entres, también desde otro computador.
+
+### Inicio de cada módulo
+
+Cada módulo tiene su propio **Inicio**: es el primer botón de la barra de opciones del módulo (bajo la barra azul) y abre una pestaña llamada «Inicio de Contabilidad», «Inicio de Núcleo», etc. La pestaña **Inicio** fija, la primera, sigue siendo el panel general de la empresa. El Inicio de un módulo reúne los **indicadores** (una tarjeta con los números) y los **gráficos** de ese módulo, con el mismo tablero que el Inicio general: se mueven y cambian de tamaño igual, y cada módulo guarda su propia disposición para tu usuario.
+
+Todo se calcula con tus permisos: un indicador o gráfico que tu rol no puede consultar no aparece, y en los que sí aparecen solo entran los datos que tú puedes ver.
+
+| Módulo | Indicadores | Gráficos |
+|---|---|---|
+| **Contabilidad** | Resultado, ingresos, gastos y costos y margen del mes; capital de trabajo y razón corriente; comprobantes contabilizados; pendientes de contabilizar; períodos abiertos; comprobantes en borrador | Ingresos y gastos por mes; resultado por mes; comprobantes por estado; principales gastos del mes |
+| **Núcleo** | Terceros activos, clientes activos, proveedores activos, terceros nuevos del mes; productos y productos listos para facturar | Terceros por tipo; terceros por tipo de persona; terceros nuevos por día; productos por categoría |
+| **Soporte** | Tickets abiertos, urgentes, estancados (más de 7 días) y resueltos en 30 días | Tickets por estado; tickets abiertos por prioridad; tickets recibidos por semana |
+| **Sistema** | Uso de IA del mes, usuarios activos, acciones auditadas en 24 horas | Tokens de IA por día; acciones auditadas por día |
+
+Cada tarjeta y cada gráfico es un enlace a la pantalla donde está el detalle. Los gráficos de barras muestran el valor sobre cada barra; los de línea, el último valor, y el lector de pantalla los lee completos («Ingresos: 2026-10 $ 1.000,00; …»). Pasa el cursor sobre una barra para ver su valor exacto.
+
+### Personalizar página de inicio
+
+El botón **Personalizar página de inicio**, junto a **Restablecer tarjetas**, abre una ventana con todos los indicadores y gráficos que tu rol puede ver en esa página, cada uno con una **descripción corta** de qué mide y un **interruptor**:
+
+1. Pulsa **Personalizar página de inicio**.
+2. Lee la descripción de cada indicador o gráfico y enciende o apaga su interruptor. El cambio se ve al instante y se guarda para tu usuario y tu empresa. **Activar todo** y **Desactivar todo** cambian la lista completa.
+3. Pulsa **Listo**.
+
+Lo que apagas se apaga en todas tus páginas de Inicio (la general y las de los módulos) y no se calcula, así que la página carga más rápido. Un indicador o gráfico nuevo que se agregue al sistema aparece encendido. Si apagas todo, la página te lo dice y el mismo botón sirve para volver a encenderlos. En el Inicio general la ventana lista los indicadores de todos los módulos (los gráficos viven en el Inicio de cada módulo). **Restablecer tarjetas** solo devuelve el orden y el tamaño; no cambia lo que encendiste o apagaste.
 
 ## ¿Qué quieres hacer?
 
 | Quiero… | Lee la guía |
 | --- | --- |
-| Entender las tarjetas de Inicio, moverlas o cambiarles el tamaño | Primeros pasos (La pantalla de Inicio) |
+| Entender las tarjetas de Inicio, moverlas, cambiarles el tamaño o elegir qué indicadores y gráficos ver | Primeros pasos (La pantalla de Inicio, Inicio de cada módulo, Personalizar página de inicio) |
 | Ingresar, activar la verificación en dos pasos o confirmar una acción sensible | Ingresar y verificación en dos pasos |
 | Cambiar de empresa, abrir pestañas, usar ⌘K o cambiar el tema | Moverse por el sistema |
 | Crear o buscar un cliente o proveedor | Terceros |

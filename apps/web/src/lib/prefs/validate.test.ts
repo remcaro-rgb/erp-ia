@@ -84,3 +84,30 @@ describe("savedFrom", () => {
     expect(savedFrom(undefined)).toBeNull();
   });
 });
+
+describe("parseShellPref, the Inicio pages of the modules", () => {
+  const now = 1_700_000_000_000;
+  const layout = [{ id: "kpis", w: 4, h: 170 }, { id: "chart:accounting.top_expenses", w: 2, h: 300 }];
+
+  it("stores a module page's layout under home_layout.<module>, repaired", () => {
+    expect(parseShellPref({ key: "home_layout.accounting", value: layout, savedAt: now }, now)).toEqual({ key: "home_layout.accounting", stored: { value: layout, savedAt: now } });
+    const parsed = parseShellPref({ key: "home_layout.core", value: [{ id: "kpis", w: 9, h: 5 }], savedAt: now }, now);
+    expect(parsed?.stored.value).toEqual([{ id: "kpis", w: 4, h: 160 }]);
+  });
+
+  it("refuses a module layout with a widget that is not one of that page's, or a malformed module key", () => {
+    expect(parseShellPref({ key: "home_layout.accounting", value: [{ id: "recent", w: 2, h: 300 }], savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout.Accounting", value: layout, savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout.a.b", value: layout, savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout.", value: layout, savedAt: now }, now)).toBeNull();
+  });
+
+  it("stores the switched-off KPIs and charts cleaned, and refuses anything else under home_hidden", () => {
+    expect(parseShellPref({ key: "home_hidden", value: ["core.parties", "accounting.top_expenses", "core.parties"], savedAt: now }, now)).toEqual({
+      key: "home_hidden",
+      stored: { value: ["accounting.top_expenses", "core.parties"], savedAt: now },
+    });
+    expect(parseShellPref({ key: "home_hidden", value: [], savedAt: now }, now)?.stored.value).toEqual([]);
+    for (const bad of ["core.parties", [1], ["kpis"], { a: 1 }, null]) expect(parseShellPref({ key: "home_hidden", value: bad, savedAt: now }, now)).toBeNull();
+  });
+});

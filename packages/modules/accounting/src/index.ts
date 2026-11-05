@@ -2,7 +2,7 @@ import { defineModule, POSTING_CONSUMER, type ModuleDef, type RecordTabContribut
 import { DIMENSION_DEFS } from "./dimensions";
 import { ACCOUNTING_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
-import { HOME_KPIS } from "./home";
+import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { accountingProvider } from "./posting/provider";
 import { ACCOUNTING_PROCESSES } from "./processes";
 import { accountHooks } from "./processes/account";
@@ -64,6 +64,7 @@ export const accounting: ModuleDef = defineModule({
   menuShared: MENU_SHARED,
   reports: ACCOUNTING_REPORTS,
   homeKpis: HOME_KPIS,
+  homeCharts: HOME_CHARTS,
   recordTabs: ACCOUNTING_RECORD_TABS,
   postingProvider: accountingProvider,
   // The lifecycle of the maestros and the comprobante (entity types spec §5, Phase 2A.5 Task 8b): each Grabar runs the checks of the
@@ -85,4 +86,4 @@ export { figureOf, MASTER_ENTITIES, masterTree } from "./masters/tree";
 export type { MasterEntity, MasterFigure, MasterTree, MasterTreeItem } from "./masters/tree";
 export { accountBalances, listPeriods, listYears, nodeFigures, yearPreview } from "./masters/figures";
 export type { AccountBalanceRow, AccountBalances, NodeAccountRow, NodeFigures, PeriodRef, PeriodSummary, YearPreview, YearSummary } from "./masters/figures";
-export { HOME_KPIS } from "./home";
+export { HOME_CHARTS, HOME_KPIS } from "./home";

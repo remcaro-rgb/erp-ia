@@ -57,7 +57,8 @@ test.describe("application shell", () => {
     const moduleBar = page.getByRole("navigation", { name: "Menú del módulo" });
     const items = moduleBar.getByRole("link");
     await expect(items).toHaveText(["Inicio"]);
-    await expect(items.first()).toHaveAttribute("aria-current", "page");
+    // Every module carries its own Inicio; the pinned Inicio tab (the company-wide panel) is the one current here.
+    await expect(items.first()).toHaveAttribute("href", "/inicio/core");
     await expect(moduleBar.getByRole("button")).toHaveText(["Maestros", "Documentos", "Reportes", "Parámetros"]);
     await moduleBar.getByRole("button", { name: "Maestros", exact: true }).click();
     await expect(page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem")).toHaveText(["Terceros", "Productos", "Categorías"]);

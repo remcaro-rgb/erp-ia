@@ -166,3 +166,25 @@ describe("Dashboard", () => {
     expect(layout.map((w) => w.id)).toEqual(["w1", "w2", "w3", "w5", "w4"]);
   });
 });
+
+describe("Dashboard, a module's page", () => {
+  it("shows the actions next to Restablecer tarjetas", () => {
+    mount({ actions: <button type="button">Personalizar página de inicio</button> });
+    const top = screen.getByRole("button", { name: "Restablecer tarjetas" }).parentElement!;
+    expect(within(top).getByRole("button", { name: "Personalizar página de inicio" })).toBeTruthy();
+  });
+
+  it("keeps its browser copy apart from the company-wide Inicio's, and accepts chart cards its default does not list", () => {
+    const storage = memoryStorage();
+    const isChart = (id: string) => id === "w1" || /^chart:/.test(id);
+    const moduleWidgets: DashboardWidget[] = [{ id: "w1", title: "Tarjeta 1", content: <p>a</p> }, { id: "chart:x.y", title: "Gráfico", content: <p>b</p> }];
+    const onChange = vi.fn();
+    renderEs(
+      <Dashboard userId="u1" companyId="c1" scope="accounting" widgets={moduleWidgets} defaultLayout={[{ id: "w1", w: 4, h: 200 }]} knownId={isChart} initial={{ value: [{ id: "chart:x.y", w: 2, h: 300 }, { id: "w1", w: 4, h: 200 }], savedAt: 5 }} storage={storage} onChange={onChange} />,
+    );
+    expect(screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"))).toEqual(["Gráfico", "Tarjeta 1"]);
+    fireEvent.click(screen.getByRole("button", { name: "Restablecer tarjetas" }));
+    expect(storage.getItem(homeStorageKey("u1:accounting"))).toBeTruthy();
+    expect(storage.getItem(homeStorageKey("u1"))).toBeNull();
+  });
+});

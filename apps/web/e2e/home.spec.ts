@@ -82,7 +82,7 @@ test.describe("home dashboard", () => {
       if (["error", "warning"].includes(message.type())) problems.push(message.text());
     });
     await page.emulateMedia({ colorScheme: "light" });
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.setViewportSize({ width: 1440, height: 1500 });
     await signIn(page, fixture);
 
     // The greeting is the page's heading; the cards the role may have are drawn, in the default order.
@@ -90,8 +90,8 @@ test.describe("home dashboard", () => {
     await expect(home.getByRole("heading", { level: 1 })).toHaveText(/^(Buenos días|Buenas tardes|Buenas noches), Auth$/);
     expect(await order(page)).toEqual(DEFAULT_ORDER);
     const kpis = page.getByRole("region", { name: "Indicadores" });
-    await expect(kpis.getByText("Productos")).toBeVisible();
-    await expect(kpis.getByText("Terceros activos")).toBeVisible();
+    await expect(kpis.getByText("Productos", { exact: true })).toBeVisible();
+    await expect(kpis.getByText("Terceros activos", { exact: true })).toBeVisible();
     await expect(kpis.getByText("Uso de IA del mes")).toBeVisible();
     // No support module here: no ticket card.
     await expect(kpis.getByText("Tickets de soporte")).toHaveCount(0);

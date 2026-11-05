@@ -22,7 +22,7 @@ export type { JwtClaims, Tx } from "./db/client";
 export { withClaims } from "./db/client";
 export { getServiceDb } from "./db/service";
 export { defineEntity, hasRecordPage, recordHref, recordPageEntities, Registry, registry, USER_ENTITY } from "./registry";
-export type { ConsumerContext, EntityDef, EntityType, EventConsumer, FeatureDef, FieldDef, FieldType, HomeKpiProvider, Kpi, MenuSection, ModuleDef, NavItem, ProcessDef, ProcessKind, RecordTabContribution, ResolvedEntityDef, ResolvedFieldDef, TypedDef } from "./registry";
+export type { ConsumerContext, EntityDef, EntityType, Chart, EventConsumer, FeatureDef, FieldDef, FieldType, HomeChartProvider, HomeKpiProvider, Kpi, MenuSection, ModuleDef, NavItem, ProcessDef, ProcessKind, RecordTabContribution, ResolvedEntityDef, ResolvedFieldDef, TypedDef } from "./registry";
 export { maskedViewSql } from "./security/masked-views";
 export { defineProcess } from "./process/define";
 export { assertRecordRight, recordGuardOf, runProcess, uncoveredRecordWrites } from "./process/run";
@@ -111,8 +111,8 @@ export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcess
 export type { AiUsage, MatrixProcess, ModuleState, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
 
-export { aiTokensKpi, dailySeries, HOME_FEATURE, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_KPI_PROVIDERS, kpiGridHref, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
-export type { SuggestedAction } from "./home";
+export { aiTokensKpi, catalogItemSchema, catalogKey, chartSchema, dailyPoints, dailySeries, HOME_FEATURE, HOME_HIDDEN_PREF, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS, kpiGridHref, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
+export type { CatalogItem, SuggestedAction } from "./home";
 
 export type { AccountingPack, AccountLevel, AccountSeed, ExogenaCompany, ExogenaFormat, ExogenaRow, JournalKind, LineCode, StatementSection } from "./localization/country-pack";
 export { ACCOUNT_ROLES, composeEntry, postingConsumer, POSTING_CONSUMER, interpolate, PathError, resolvePath, RuleLine, RuleTemplate } from "./posting";

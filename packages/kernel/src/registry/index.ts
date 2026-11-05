@@ -1,12 +1,12 @@
 import type { ReportDef } from "../reports/types";
 import type { ResolvedEntityDef } from "./entities";
-import type { HomeKpiProvider, ModuleDef, ProcessDef, RecordTabContribution } from "./types";
+import type { HomeChartProvider, HomeKpiProvider, ModuleDef, ProcessDef, RecordTabContribution } from "./types";
 
 export { defineEntity } from "./entities";
 export { hasRecordPage, recordHref, recordPageEntities, USER_ENTITY } from "./href";
 export type { EntityDef, EntityType, ResolvedEntityDef, TypedDef } from "./entities";
 export type { FieldDef, FieldType, ResolvedFieldDef } from "./fields";
-export type { ConsumerContext, EventConsumer, FeatureDef, HomeKpiProvider, Kpi, MenuSection, ModuleDef, NavItem, ProcessDef, ProcessKind, RecordTabContribution } from "./types";
+export type { ConsumerContext, EventConsumer, Chart, FeatureDef, HomeChartProvider, HomeKpiProvider, Kpi, MenuSection, ModuleDef, NavItem, ProcessDef, ProcessKind, RecordTabContribution } from "./types";
 
 /** The catalogue every module declares its entities, processes and manifest in (design §5.3). */
 export class Registry {
@@ -15,6 +15,7 @@ export class Registry {
   private readonly moduleMap = new Map<string, ModuleDef>();
   private readonly reportMap = new Map<string, ReportDef>();
   private readonly kpiMap = new Map<string, HomeKpiProvider>();
+  private readonly chartMap = new Map<string, HomeChartProvider>();
 
   registerEntity(entity: ResolvedEntityDef): void {
     if (this.entityMap.has(entity.id)) throw new Error(`entity already registered: ${entity.id}`);
@@ -70,6 +71,16 @@ export class Registry {
   /** The registered providers in registration order (modules load dependencies first). */
   kpiProviders(): HomeKpiProvider[] {
     return [...this.kpiMap.values()];
+  }
+
+  /** Adds a provider of Inicio charts (`kernel.home.kpis` runs the ones the company is entitled to). */
+  registerChartProvider(provider: HomeChartProvider): void {
+    if (this.chartMap.has(provider.id)) throw new Error(`chart provider already registered: ${provider.id}`);
+    this.chartMap.set(provider.id, provider);
+  }
+
+  chartProviders(): HomeChartProvider[] {
+    return [...this.chartMap.values()];
   }
 
   registerModule(module: ModuleDef): void {

@@ -11,7 +11,7 @@ import type { Caller } from "../../process/context";
 import { defineProcess } from "../../process/define";
 import { runProcess } from "../../process/run";
 import { Registry } from "../../registry";
-import type { HomeKpiProvider } from "../../registry/types";
+import type { HomeChartProvider, HomeKpiProvider } from "../../registry/types";
 
 // The home screen's server side (design §19a, §7.5, Task 20), migration 0022_kernel_recommendations:
 //  * kernel.home.kpis returns the KPIs of the registered providers whose feature the company is entitled to, computed
@@ -64,6 +64,29 @@ const broken: HomeKpiProvider = {
     return [];
   },
 };
+/** Charts of the probe module: one open to everyone, one gated on the report consult, one that fails. */
+const bars: HomeChartProvider = {
+  id: "probe.bars",
+  feature: "probe.things",
+  compute: async (ctx) => {
+    const [row] = await ctx.tx<{ n: number }[]>`select count(*)::int as n from kernel.user_prefs`;
+    return [{ id: "probe.bars", label: "home.chart.probe", kind: "bar", unit: "count", series: [{ label: "home.chart.series.probe", points: [{ label: "prefs", value: row!.n }] }] }];
+  },
+};
+const gatedChart: HomeChartProvider = {
+  id: "probe.gated_chart",
+  feature: "probe.things",
+  consult: "probe.report.consult",
+  compute: async () => [{ id: "probe.gated_chart", label: "home.chart.probe", kind: "line", unit: "count", series: [{ label: "home.chart.series.probe", points: [{ label: "a", value: 1 }, { label: "b", value: 2 }] }] }],
+};
+const brokenChart: HomeChartProvider = {
+  id: "probe.broken_chart",
+  feature: "probe.things",
+  compute: async (ctx) => {
+    await ctx.tx`select 1 / 0`;
+    return [];
+  },
+};
 const notEntitled: HomeKpiProvider = {
   id: "other.beta",
   feature: "other.beta",
@@ -80,6 +103,7 @@ const probeModule = defineModule({
   events: { emits: [], consumes: {} },
   navigation: [],
   homeKpis: [prefsCount, gated, broken],
+  homeCharts: [bars, gatedChart, brokenChart],
 });
 const otherModule = defineModule({
   id: "other",
@@ -205,8 +229,11 @@ describe("home screen processes", () => {
       expect(ids).toContain("probe.prefs");
       expect(ids).toContain("kernel.ai_tokens");
       expect(ids).not.toContain("other.beta");
-      // The modules' numbers first, the platform's own (AI usage) last.
-      expect(ids.at(-1)).toBe("kernel.ai_tokens");
+      // The modules' numbers first, the platform's own (AI usage, users, audit) after them.
+      const firstPlatform = ids.findIndex((id) => id.startsWith("kernel."));
+      expect(firstPlatform).toBeGreaterThan(0);
+      expect(ids.slice(firstPlatform).every((id) => id.startsWith("kernel."))).toBe(true);
+      expect(ids[firstPlatform]).toBe("kernel.ai_tokens");
     });
 
     it("computes each KPI as the caller", async () => {
@@ -264,6 +291,80 @@ describe("home screen processes", () => {
 
       it("stays in the other company for its admin", async () => {
         expect((await card(adminInB)).series).toEqual(expected({ 2: 10000 }));
+      });
+    });
+
+    describe("a module's Inicio (input.module), charts, the catalogue and the items the user switched off", () => {
+      type Out = { kpis: { id: string }[]; charts: { id: string; series: { points: { value: number }[] }[] }[]; catalog: { id: string; kind: string; module: string; label: string; description: string }[] };
+      const home = (caller: Caller, module?: string) => run<Out>(caller, "kernel.home.kpis", module ? { module } : {});
+      const hide = (caller: Caller, ids: string[]) => run(caller, "kernel.user_prefs.set", { key: "home_hidden", value: { value: ids, savedAt: 1 } });
+      afterAll(async () => {
+        await sql`delete from kernel.user_prefs where key = 'home_hidden' and company_id = ${companyA}`;
+      });
+
+      it("a module's page gets only that module's KPIs and its charts; the company-wide page gets KPIs from all and no charts", async () => {
+        const probe = await home(admin, "probe");
+        expect(probe.kpis.map((k) => k.id).sort()).toEqual(["probe.gated", "probe.prefs"]);
+        expect(probe.charts.map((c) => c.id).sort()).toEqual(["probe.bars", "probe.gated_chart"]);
+        const kernel = await home(admin, "kernel");
+        expect(kernel.kpis.every((k) => k.id.startsWith("kernel."))).toBe(true);
+        expect(kernel.kpis.map((k) => k.id)).toContain("kernel.ai_tokens");
+        expect(kernel.charts.map((c) => c.id)).toContain("kernel.ai_tokens_daily");
+        const all = await home(admin);
+        expect(all.charts).toEqual([]);
+        expect(all.catalog.every((item) => item.kind === "kpi")).toBe(true);
+        expect(all.kpis.map((k) => k.id)).toEqual(expect.arrayContaining(["probe.prefs", "kernel.ai_tokens"]));
+        expect((await home(admin, "nobody")).catalog).toEqual([]);
+      });
+
+      it("charts are computed as the caller and gated on their consult like the KPIs", async () => {
+        const forCashier = await home(cashier, "probe");
+        expect(forCashier.charts.map((c) => c.id)).toEqual(["probe.bars"]);
+        expect(forCashier.charts[0]!.series[0]!.points[0]!.value).toBe(2);
+        expect((await home(clerk, "probe")).charts[0]!.series[0]!.points[0]!.value).toBe(0);
+      });
+
+      it("a chart that fails does not take the others down", async () => {
+        logged.mockClear();
+        const { charts, kpis } = await home(cashier, "probe");
+        expect(charts.map((c) => c.id)).toEqual(["probe.bars"]);
+        expect(kpis.map((k) => k.id)).toContain("probe.prefs");
+        expect(logged).toHaveBeenCalledWith(expect.stringContaining("probe.broken_chart"), expect.anything());
+      });
+
+      it("the catalogue lists what the caller could see, with the keys of each name and description, whatever they switched off", async () => {
+        const { catalog } = await home(admin, "probe");
+        expect(catalog.map((c) => `${c.kind}:${c.id}`).sort()).toEqual(["chart:probe.bars", "chart:probe.broken_chart", "chart:probe.gated_chart", "kpi:probe.broken", "kpi:probe.gated", "kpi:probe.prefs"]);
+        expect(catalog.find((c) => c.id === "probe.prefs")).toEqual({ id: "probe.prefs", kind: "kpi", module: "probe", label: "home.catalog.probe_prefs.label", description: "home.catalog.probe_prefs.description" });
+        const forCashier = (await home(cashier, "probe")).catalog.map((c) => c.id);
+        expect(forCashier).not.toContain("probe.gated");
+        expect(forCashier).not.toContain("probe.gated_chart");
+      });
+
+      it("an item the user switched off is not computed or returned, stays in the catalogue, and comes back when switched on", async () => {
+        await hide(cashier, ["probe.prefs", "probe.bars"]);
+        const off = await home(cashier, "probe");
+        expect(off.kpis.map((k) => k.id)).not.toContain("probe.prefs");
+        expect(off.charts.map((c) => c.id)).not.toContain("probe.bars");
+        expect(off.catalog.map((c) => c.id)).toEqual(expect.arrayContaining(["probe.prefs", "probe.bars"]));
+        // Per user: the clerk still gets everything.
+        expect((await home(clerk, "probe")).kpis.map((k) => k.id)).toContain("probe.prefs");
+        expect((await home(cashier)).kpis.map((k) => k.id)).not.toContain("probe.prefs");
+        await hide(cashier, []);
+        expect((await home(cashier, "probe")).kpis.map((k) => k.id)).toContain("probe.prefs");
+      });
+
+      it("a malformed stored list switches nothing off", async () => {
+        await run(cashier, "kernel.user_prefs.set", { key: "home_hidden", value: "probe.prefs" });
+        expect((await home(cashier, "probe")).kpis.map((k) => k.id)).toContain("probe.prefs");
+        await run(cashier, "kernel.user_prefs.set", { key: "home_hidden", value: [] });
+      });
+
+      it("every provider a module ships has its catalogue texts and a feature of that module", () => {
+        const providers = [...registry.kpiProviders(), ...registry.chartProviders()];
+        expect(providers.length).toBeGreaterThan(5);
+        for (const provider of providers) expect(provider.id.startsWith(`${provider.id.split(".")[0]}.`)).toBe(true);
+        expect(new Set(providers.map((p) => p.id)).size).toBe(providers.length);
       });
     });
 
