@@ -72,7 +72,7 @@ export function groupRowsOf(raw: readonly Record<string, unknown>[], fields: rea
 export async function gridAccess(tx: Tx, entity: EntityDef): Promise<GridAccess> {
   const names = entity.fields.map((f) => f.name);
   const modes = await tx<{ field: string; mode: FieldMode }[]>`
-    select f as field, kernel.field_mode(${entity.id}, f) as mode from unnest(${names}::text[]) as f`;
+    select field, mode from kernel.field_modes(${entity.id}, ${names}::text[])`;
   const extras = await tx<{ key: string; label: string; type: CustomFieldType; options: string[] | null; viewable: boolean }[]>`
     select key, label, type, options, roles_view && kernel.current_role_ids() as viewable
     from kernel.custom_fields
