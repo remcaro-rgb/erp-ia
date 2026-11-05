@@ -2,8 +2,6 @@ export { exportColumns, selectColumns } from "./columns";
 export type { ExportPresentation } from "./columns";
 export { writeCsv } from "./csv";
 export { exportJobEntity } from "./entity";
-export { exportJobWorkflow, beginExport, failExport, renderExportJob } from "./export.workflow";
-export type { ExportJobOutcome } from "./export.workflow";
 export { EXPORT_PROCESSES, exportRequest, exportRun } from "./export.process";
 export type { ExportInput, ExportOutput } from "./export.process";
 export { cellOf, cellText, MASK } from "./format";

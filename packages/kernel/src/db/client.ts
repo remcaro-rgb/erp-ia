@@ -15,7 +15,14 @@ export type JwtClaims = {
 
 /** `prepare: false` keeps the client compatible with the Supabase transaction pooler. */
 export function createDb(url: string): Sql {
-  return postgres(url, { prepare: false, max: 5 });
+  // DB_TRACE=1 logs every statement with its start time, to see the order and the round trips of a request (a diagnosis, not a feature).
+  const trace = process.env.DB_TRACE === "1";
+  return postgres(url, {
+    prepare: false,
+    // DB_POOL_MAX overrides it (12 was tried on the hosted project and was no faster).
+    max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 5,
+    ...(trace ? { debug: (connection: number, query: string) => console.log(`SQLTRACE ${Date.now()} c${connection} ${query.replace(/\s+/g, " ").slice(0, 90)}`) } : {}),
+  });
 }
 
 /**
@@ -24,9 +31,12 @@ export function createDb(url: string): Sql {
  */
 export async function withClaims<T>(sql: Sql, claims: JwtClaims, fn: (tx: Tx) => Promise<T>): Promise<T> {
   const result = await sql.begin(async (tx) => {
-    await tx`select set_config('request.jwt.claims', ${JSON.stringify({ role: "authenticated", ...claims })}, true)`;
-    await tx`set local role authenticated`;
-    return fn(tx);
+    // One statement sets the claims and the role (`set_config('role', ..., true)` is `set local role`), and it is sent without waiting
+    // for its answer: the first query of `fn` goes right behind it in the same round trip. If it failed the transaction would be
+    // aborted and every query of `fn` would fail with it, so nothing can run outside the role; its error is raised below.
+    const setup = tx`select set_config('request.jwt.claims', ${JSON.stringify({ role: "authenticated", ...claims })}, true), set_config('role', 'authenticated', true)`.execute();
+    const [, value] = await Promise.all([setup, fn(tx)]);
+    return value;
   });
   return result as T;
 }

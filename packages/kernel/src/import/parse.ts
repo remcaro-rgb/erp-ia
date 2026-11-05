@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import { importFormatOf } from "./format";
 import { ImportFileError } from "./file-error";
 import { MAX_XLSX_UNCOMPRESSED_BYTES, rebuildXlsx } from "./zip";
@@ -152,6 +152,7 @@ function sheetLines(sheet: ExcelJS.Worksheet): Cell[][] {
 /** Every visible worksheet, in workbook order, with their names (each checked for its extent before a cell is copied). */
 async function readXlsxSheets(bytes: Uint8Array): Promise<{ name: string; lines: Cell[][] }[]> {
   const rebuilt = rebuildXlsx(bytes);
+  const { default: ExcelJS } = await import("exceljs");
   const book = new ExcelJS.Workbook();
   try {
     await book.xlsx.load(rebuilt as unknown as ArrayBuffer);

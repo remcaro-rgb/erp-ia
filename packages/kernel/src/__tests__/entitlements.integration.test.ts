@@ -3,7 +3,7 @@ import { GENERIC_VERBS } from "../typed/processes";
 import { z } from "zod";
 import { withClaims, type JwtClaims } from "../db/client";
 import { seedTenant, testDb } from "../db/test-db";
-import { enableModule, entitled, entitlementLimit, syncModuleManifest } from "../entitlements/resolver";
+import { enableModule, entitled, entitlementLimit, syncModuleManifest, syncModuleManifestIfChanged } from "../entitlements/resolver";
 import { defineModule, type ModuleDef } from "../module/define";
 import { loadModules } from "../module/loader";
 import { defineProcess } from "../process/define";
@@ -287,6 +287,32 @@ describe("entitlements", () => {
     expect((await stored()).map((r) => r.feature_id)).toEqual(["core.parties"]);
     await syncModuleManifest(sql, core);
     expect((await stored()).map((r) => r.feature_id)).toEqual(["core.parties", "core.reports"]);
+  });
+
+  it("syncModuleManifestIfChanged writes nothing when the manifest is the one already stored, and syncs again when it changes", async () => {
+    const stamp = async () => (await sql<{ t: string }[]>`select max(updated_at)::text as t from kernel.module_features where module_id = 'core'`)[0]!.t;
+    await syncModuleManifest(sql, core);
+    await sql`delete from kernel.manifest_hashes where module_id = 'core'`;
+    expect(await syncModuleManifestIfChanged(sql, core)).toBe(true);
+    const before = await stamp();
+    // A server that boots again with the same manifests costs one read, not a rewrite.
+    expect(await syncModuleManifestIfChanged(sql, core)).toBe(false);
+    expect(await stamp()).toBe(before);
+    // A changed manifest is synced and remembered.
+    const fewer = { ...core, features: core.features.slice(0, 1) };
+    expect(await syncModuleManifestIfChanged(sql, fewer)).toBe(true);
+    expect((await sql`select feature_id from kernel.module_features where module_id = 'core'`).map((r) => r.feature_id)).toEqual(["core.parties"]);
+    expect(await syncModuleManifestIfChanged(sql, fewer)).toBe(false);
+    expect(await syncModuleManifestIfChanged(sql, core)).toBe(true);
+  });
+
+  it("entitled calls made in the same tick are answered together, each for its own key and company", async () => {
+    const keys = ["module:core", "module:support", "module:nope", "process:core.report.run"];
+    const together = await Promise.all([...keys.map((k) => entitled(sql, companyId, k)), entitled(sql, companyB, "module:core")]);
+    const alone = [];
+    for (const k of keys) alone.push((await sql<{ e: boolean }[]>`select kernel.entitled(${companyId}, ${k}) as e`)[0]!.e);
+    alone.push((await sql<{ e: boolean }[]>`select kernel.entitled(${companyB}, ${"module:core"}) as e`)[0]!.e);
+    expect(together).toEqual(alone);
   });
 
   it("runProcess returns not_entitled before forbidden and records the denial", async () => {

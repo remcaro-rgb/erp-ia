@@ -18,9 +18,6 @@ export { cloneDraft, draftValues } from "./records/clone";
 export { enqueueEvent } from "./events/outbox";
 export type { OutboxEvent } from "./events/outbox";
 export { buildConsumerContext, consumers, ConsumerRegistry, SYSTEM_USER_ID } from "./events/consumers";
-export { drainOutbox } from "./events/drain";
-export type { DrainOptions } from "./events/drain";
-export { dispatchOutboxRow } from "./events/dispatch.workflow";
 export type { JwtClaims, Tx } from "./db/client";
 export { withClaims } from "./db/client";
 export { getServiceDb } from "./db/service";
@@ -40,7 +37,7 @@ export { KERNEL_PARAMETER_PAGES, MENU_SECTIONS, menuItemsOf, menuSections, uncov
 export type { MenuItemRow, ParameterPage } from "./module/menu";
 export { menuHiddenKeys, menuPathAllowed } from "./typed";
 export type { MenuAccessRule } from "./typed";
-export { entitled, entitlementLimit, enableModule, syncModuleManifest } from "./entitlements/resolver";
+export { entitled, entitlementLimit, enableModule, syncModuleManifest, syncModuleManifestIfChanged } from "./entitlements/resolver";
 export type { EntitledFn } from "./entitlements/resolver";
 export { CODE_TABLES, registerCountryPack, countryPack } from "./localization/country-pack";
 export { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "./validation";

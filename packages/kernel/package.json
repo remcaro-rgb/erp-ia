@@ -12,6 +12,7 @@
     "./query": "./src/query/index.ts",
     "./import": "./src/import/index.ts",
     "./exports": "./src/exports/index.ts",
+    "./workflows": "./src/workflows.ts",
     "./href": "./src/registry/href.ts",
     "./typed": "./src/typed/index.ts",
     "./lifecycle": "./src/typed/lifecycle.ts"

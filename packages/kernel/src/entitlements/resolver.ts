@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Sql } from "postgres";
 import type { Registry } from "../registry";
 import type { ModuleDef } from "../registry/types";
@@ -11,10 +12,39 @@ export type EntitledFn = (sql: Sql, companyId: string, key: string) => Promise<b
  * entitlement decides, falling back process -> feature -> module; a module the company disabled is
  * never entitled. Uses the service connection: the check is not made under the caller's claims.
  */
-export const entitled: EntitledFn = async (sql, companyId, key) => {
-  const [row] = await sql<{ entitled: boolean }[]>`select kernel.entitled(${companyId}, ${key}) as entitled`;
-  return row!.entitled;
-};
+export const entitled: EntitledFn = (sql, companyId, key) => askEntitled(sql, companyId).ask(key);
+
+type EntitledBatch = { keys: Set<string>; answers: Promise<Map<string, boolean>>; ask: (key: string) => Promise<boolean> };
+const entitledBatches = new WeakMap<Sql, Map<string, EntitledBatch>>();
+
+/**
+ * `entitled` is asked key by key by a dozen loaders of one page at the same time (the shell's menu, each process run). Askers for the
+ * same company in the same event-loop turn share one statement; nothing is kept after the answer.
+ */
+function askEntitled(sql: Sql, companyId: string): EntitledBatch {
+  const bySql = entitledBatches.get(sql) ?? new Map<string, EntitledBatch>();
+  entitledBatches.set(sql, bySql);
+  const existing = bySql.get(companyId);
+  if (existing) return existing;
+  const keys = new Set<string>();
+  const answers = new Promise<Map<string, boolean>>((resolve, reject) => {
+    setImmediate(() => {
+      bySql.delete(companyId);
+      sql<{ key: string; entitled: boolean }[]>`select k as key, kernel.entitled(${companyId}, k) as entitled from unnest(${[...keys]}::text[]) as k`
+        .then((rows) => resolve(new Map(rows.map((r) => [r.key, r.entitled]))), reject);
+    });
+  });
+  const batch: EntitledBatch = {
+    keys,
+    answers,
+    ask: async (key) => {
+      keys.add(key);
+      return (await answers).get(key) === true;
+    },
+  };
+  bySql.set(companyId, batch);
+  return batch;
+}
 
 /**
  * The `limit_value` for a `limit:x` key (`kernel.entitlement_limit`), under the same specificity rule
@@ -123,6 +153,52 @@ export async function syncModuleManifest(sql: Sql, module: ModuleDef): Promise<v
         on conflict (company_id, role_id, entity, field) do nothing`;
     }
   });
+}
+
+/** What `syncModuleManifest` writes for the module, as one string: the same input gives the same hash, any change to it a different one. */
+function manifestSignature(module: ModuleDef): string {
+  const typed = module.entities.filter((e) => e.entityType === "maestro" || e.entityType === "documento");
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        features: module.features.map((f) => [f.id, f.processes, f.entities]),
+        processes: module.processes.map((p) => [p.id, module.features.find((f) => f.processes.includes(p.id))?.id ?? p.feature ?? null, p.kind, p.sensitivity === "step-up"]),
+        tables: typed.map((e) => [e.id, e.entityType, e.schema, e.table, e.typed?.lines?.entity ?? null]),
+        menu: menuItemsOf(module).map((i) => [i.navKey, i.moduleId, i.parentKey, i.href, i.entity, i.processIds]),
+        fields: module.entities.map((e) => [e.id, e.fields.map((f) => [f.name, f.sensitivity ?? "normal"])]),
+      }),
+    )
+    .digest("hex");
+}
+
+/**
+ * `syncModuleManifest` only when the manifest differs from the one stored for the module (`kernel.manifest_hashes`, 0061): a server
+ * that starts with the manifests it already registered pays one read. True when it synced.
+ */
+export async function syncModuleManifestIfChanged(sql: Sql, module: ModuleDef): Promise<boolean> {
+  const hash = manifestSignature(module);
+  // The stored hash and the row counts of the module's registry tables, in one read: a registry whose rows were removed or added
+  // behind the hash's back (a test's cleanup, a restore) is not "unchanged".
+  const [stored] = await sql<{ hash: string | null; features: number; processes: number; menu: number; fields: number; tables: number }[]>`
+    select (select hash from kernel.manifest_hashes where module_id = ${module.id}) as hash,
+           (select count(*)::int from kernel.module_features where module_id = ${module.id}) as features,
+           (select count(*)::int from kernel.registered_processes where module_id = ${module.id}) as processes,
+           (select count(*)::int from kernel.menu_items where module_id = ${module.id}) as menu,
+           (select count(*)::int from kernel.entity_fields where module_id = ${module.id}) as fields,
+           (select count(*)::int from kernel.entity_tables where module_id = ${module.id}) as tables`;
+  const same =
+    stored?.hash === hash &&
+    stored.features === module.features.length &&
+    stored.processes === module.processes.length &&
+    stored.menu === menuItemsOf(module).length &&
+    stored.fields === module.entities.reduce((n, e) => n + e.fields.length, 0) &&
+    stored.tables === module.entities.filter((e) => e.entityType === "maestro" || e.entityType === "documento").length;
+  if (same) return false;
+  await syncModuleManifest(sql, module);
+  await sql`
+    insert into kernel.manifest_hashes (module_id, hash) values (${module.id}, ${hash})
+    on conflict (module_id) do update set hash = excluded.hash, updated_at = now()`;
+  return true;
 }
 
 /**

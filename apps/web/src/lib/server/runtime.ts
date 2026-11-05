@@ -2,7 +2,7 @@ import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
 import { co } from "@erp/loc-co";
-import { agentModelFactory, PolicyEmbedder, setAgentModelFactory } from "@erp/agent";
+import { agentModelFactory, PolicyEmbedder, setAgentModelFactory } from "@erp/agent/boot";
 import { translate } from "@erp/i18n";
 import { FakeEmbedder, getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCatalogue, registerCountryPack, registry, setHelpEmbedder, syncRegistry, type RunProcessDeps } from "@erp/kernel";
 import { SupabaseFileStore, type FileStore } from "@erp/infra";

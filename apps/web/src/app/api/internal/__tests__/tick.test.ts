@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({ drained: 0, calls: [] as unknown[][], fail: false }));
 const sql = vi.hoisted(() => ({ service: true }));
-vi.mock("@erp/kernel", () => ({
+vi.mock("@erp/kernel/workflows", () => ({
   drainOutbox: vi.fn(async (...args: unknown[]) => {
     state.calls.push(args);
     if (state.fail) throw new Error("database down");

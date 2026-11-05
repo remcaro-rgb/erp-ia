@@ -1,4 +1,4 @@
-import { drainOutbox } from "@erp/kernel";
+import { drainOutbox } from "@erp/kernel/workflows";
 import { infra } from "@erp/infra";
 import { secretMatches } from "@/lib/server/internal-auth";
 import { processDeps } from "@/lib/server/runtime";

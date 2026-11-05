@@ -1,4 +1,4 @@
-import ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 import type { Registry } from "../registry";
 import { ProcessError } from "../process/errors";
 import { importColumns, importLines, type ImportColumn } from "./columns";
@@ -59,6 +59,7 @@ function dataSheet(book: ExcelJS.Workbook, name: string, columns: ImportColumn[]
 
 /** The workbook: the `Datos` sheet, for a documento the `Líneas` sheet (D14), then the hidden lists of the dropdowns. */
 async function xlsxTemplate(columns: ImportColumn[], labels: ImportLabels, lineColumns: ImportColumn[] | null): Promise<Uint8Array> {
+  const { default: ExcelJS } = await import("exceljs");
   const book = new ExcelJS.Workbook();
   const parts = [{ columns, sheet: dataSheet(book, "Datos", columns, labels) }];
   if (lineColumns) parts.push({ columns: lineColumns, sheet: dataSheet(book, LINES_SHEET, lineColumns, lineLabels(labels)) });
