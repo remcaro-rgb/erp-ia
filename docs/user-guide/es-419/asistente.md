@@ -60,9 +60,20 @@ Con el asistente también puedes cambiar el estado de un maestro o un documento,
 - «imprime en PDF el comprobante NC-2026-0042»: **Imprimir** es una consulta y no pide confirmación (guía [Plantillas PDF e Imprimir](plantillas-pdf.md)).
 - Si una regla de **Acceso** no te deja modificar ese registro, el asistente no te muestra tarjeta: te dice que no tienes permiso sobre él. Si no puedes verlo, responde como si no existiera (guía [Acceso por registro](acceso-por-registro.md)).
 
+#### Ventas: de la cotización al recibo de caja
+
+El asistente prepara cada paso de la venta como tarjeta (guía [Ventas](ventas.md)):
+
+- «cotiza 10 café a Distribuidora Andina» (cotización), «confirma el pedido PED-0012» (pedido), «despacha la entrega ENT-0003» (entrega), «factura lo entregado» (facturas en Borrador de lo despachado), «emite la factura en borrador de Distribuidora Andina» (Emitir), «registra el pago de la factura SETP990000001» (recibo de caja).
+- La tarjeta dice, además de los datos, **lo que pasa en los otros módulos** cuando confirmas, solo de los módulos que tiene tu empresa. Por ejemplo: «Inventario: reserva el stock de las líneas del pedido en su bodega» al confirmar un pedido; «Inventario» y «Costo de ventas» al despachar una entrega; «Facturación DIAN: numera la factura con la resolución vigente, genera el CUFE y la envía a la DIAN» y «Contabilidad: asiento en Ventas» al emitir; «Contabilidad: asiento en Recibos de caja» y «Retenciones» al registrar un pago; «Nota crédito DIAN» al anular una factura emitida.
+- Antes de mostrar la tarjeta, el asistente prueba la acción sin guardar nada. Si no se puede hacer, **no hay tarjeta**: te explica por qué. El caso más común es un cliente o un producto que **no está listo para facturar** («El cliente no está listo para facturar: faltan archivos: RUT, Cámara de Comercio»; para un producto, «Línea 2: el producto no está listo para facturar: …»); complétalo en su ficha (guía [Terceros](terceros.md)) y vuelve a pedirlo.
+- Las facturas, saldos y montos que el asistente consulta salen de las mismas consultas de las pantallas, con los campos que tu rol puede ver.
+- Cuando una acción no se puede hacer, el asistente recibe solo el **motivo general** («La factura no tiene saldo suficiente para lo que se le aplica», «El período contable de la fecha está cerrado o no existe»), sin números de documento, valores ni nombres de terceros o productos: esos datos los ves en la pantalla del registro, con los campos que tu rol puede ver. Lo que falta para que un cliente o un producto esté listo para facturar sí llega completo (los datos DIAN y los archivos que faltan).
+- Las acciones con verificación en dos pasos no se prueban antes: su tarjeta aparece siempre, y si la acción no se puede hacer te lo dice al confirmarla.
+
 ## Acciones sensibles: el código de verificación
 
-Algunas acciones (las que el administrador marcó como sensibles, como cambiar un cupo de crédito) piden **verificación en dos pasos**. Su tarjeta lleva una zona «Verificación requerida» y **Confirmar** está desactivado hasta que:
+Algunas acciones (las que el administrador marcó como sensibles, como cambiar un cupo de crédito, y siempre **Anular una factura**, **Anular un recibo de caja** y **un ajuste de inventario**) piden **verificación en dos pasos**. Su tarjeta lleva una zona «Verificación requerida» y **Confirmar** está desactivado hasta que:
 
 1. Escribes (o pegas) el **código de 6 dígitos** de tu app de autenticación (el mismo de [Ingresar y verificación en dos pasos](ingreso-y-2fa.md)). La caja del código toma el cursor cuando aparece la tarjeta, salvo que estés escribiendo en otro campo.
 2. Al sexto dígito el código se verifica solo (también puedes pulsar **Verificar**). Aparece «Verificado», Confirmar se activa y el cursor pasa a **Confirmar**.

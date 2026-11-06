@@ -27,7 +27,7 @@ Todo lo que registras en Goliatt es un **maestro** o un **documento**, y los dos
 - Un **maestro** es un dato base que usan los documentos: un tercero, un producto, una categoría, una cuenta, un centro de costo.
 - Un **documento** es un hecho del negocio con fecha: un comprobante contable (y, más adelante, facturas, pedidos y recibos).
 
-Cada registro tiene la misma barra de acciones arriba, el mismo pie con quién lo creó y lo modificó, y las mismas pestañas **Versiones** (documentos) y **Acceso** (solo administradores).
+Cada registro tiene la misma barra de acciones en la fila de sus pestañas (a la derecha; encima de ellas si no caben), el mismo pie con quién lo creó y lo modificó, y las mismas pestañas **Versiones** (documentos) y **Acceso** (solo administradores).
 
 ![comprobante pendiente de aprobación con su ID, su UUID y las pestañas Versiones y Acceso](img/comprobante-pendiente-acciones.png)
 

@@ -44,7 +44,7 @@ Haz clic en una fila para abrir el tercero en su propia pestaña.
 7. En **Correos y teléfono para documentos electrónicos** (ver más abajo) escribe el correo que corresponda y el teléfono.
 8. Mira el cuadro de estado DIAN al pie del formulario y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** no guarda: pasa al campo siguiente (**Mayús+Enter** vuelve al anterior). Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
 
-El interruptor **Ver códigos DIAN**, arriba a la derecha, muestra los nombres técnicos de la DIAN junto a cada etiqueta (por ejemplo «DANE» o «schemeName») y los códigos delante de los nombres de las listas; empieza apagado. **Departamento** y **Municipio** son cajas de búsqueda: escribe «medellin» y pulsa **Enter**. El **DV** y el **Nombre para documentos** no se editan, pero se pueden seleccionar y copiar con el botón de copiar que tienen al lado; el **Resumen RUT** también copia la identificación completa («NIT 900373115-3»). Todo esto se explica en la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
+Las listas de la DIAN muestran el código delante del nombre («31 · NIT», «05 · Antioquia»). **Departamento** y **Municipio** son cajas de búsqueda: escribe «medellin» y pulsa **Enter**. El **DV** y el **Nombre para documentos** no se editan, pero se pueden seleccionar y copiar con el botón de copiar que tienen al lado; el **Resumen RUT** también copia la identificación completa («NIT 900373115-3»). Todo esto se explica en la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
 
 Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **ID** consecutivo y su identificador (UUID).
 
@@ -73,11 +73,15 @@ Un tercero está **Listo para facturar** solo cuando cumple las tres condiciones
 
 Si además tu empresa definió **datos adicionales obligatorios**, uno que falte aparece como «Dato adicional: …» en los datos pendientes.
 
-Mientras no esté listo para facturar, el tercero no se puede elegir en una factura. En la parte baja del formulario, el panel **No se puede usar en facturas** te dice por qué. El pie del registro repite las dos cosas: «✓ Se puede usar en facturas» o «✕ No se puede usar en facturas», y el estado DIAN en palabras («DIAN: completo», «DIAN: faltan 4 datos»).
+Mientras no esté listo para facturar, el tercero no se puede elegir en una factura.
+
+**En la cadena de venta.** La misma condición se exige al cliente de una **cotización**, un **pedido**, una **entrega**, una **factura** y un **recibo de caja**, y se vuelve a revisar en cada paso (al aceptar la cotización, al confirmar el pedido, al despachar, al emitir la factura y al registrar el pago): un cliente que deja de estar listo detiene el paso siguiente, con el motivo en el mensaje (por ejemplo «Faltan datos DIAN: Dirección»). En los cuadros de búsqueda de esos documentos el cliente que no está listo aparece deshabilitado con ese motivo. Si el tercero **requiere aprobación**, además debe estar aprobado. La factura electrónica toma del tercero su tipo y número de documento, su DV, su dirección y municipio, sus responsabilidades fiscales y su **correo de facturación**; lo que corrijas aquí entra en el siguiente envío a la DIAN (guía **Facturación electrónica**).
+
+El campo **Cupo de crédito** del tercero es informativo. El cupo que revisan los pedidos es el de **Ventas › Parámetros › Condiciones comerciales** (guías **Ventas** y **Pedidos de venta**). En la parte baja del formulario, el panel **No se puede usar en facturas** te dice por qué. El pie del registro repite las dos cosas: «✓ Se puede usar en facturas» o «✕ No se puede usar en facturas», y el estado DIAN en palabras («DIAN: completo», «DIAN: faltan 4 datos»).
 
 ## Cambiar un tercero
 
-Abre la fila, modifica lo que necesites y pulsa **Guardar**. **Descartar cambios** devuelve el formulario a lo guardado. El estado DIAN se recalcula en cada guardado. Si cambias el número de documento a uno que ya existe en la empresa, el sistema lo rechaza: no puede haber dos terceros con el mismo documento.
+Abre la fila, modifica lo que necesites y pulsa **Guardar** (en la fila de las pestañas) o **Guardar cambios** (junto al título, donde aparece **Cambios sin guardar**). **Descartar cambios**, al lado, devuelve el formulario a lo guardado. El estado DIAN se recalcula en cada guardado. Si cambias el número de documento a uno que ya existe en la empresa, el sistema lo rechaza: no puede haber dos terceros con el mismo documento.
 
 Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar tercero», con su propio permiso; en esta versión el formulario no tiene un botón para hacerlo): un tercero inactivo deja de estar disponible para documentos nuevos, pero se conserva todo su historial.
 

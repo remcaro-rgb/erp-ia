@@ -33,6 +33,12 @@ The run passes when `corePass` is true and `passRate ≥ 0.9` (owner 2026-10-30)
 
 How a call matches: the tool is the process id with `.` → `__`; the case's `input` must be contained in the model's input (every named field present with the same value; lists contain the listed elements, in any order; extra fields are fine).
 
+## The sales chain (plan 2B Task 25)
+
+`evals/sales-chain.json` holds the quote → receipt prompts («cotiza 10 café a Distribuidora X», «confirma el pedido 12», «factura lo entregado», «registra el pago de la factura FE-1234», the annulment and the step-up writes). The set checks the tool call only; what the call does is checked against the database in `sales-tools.integration.test.ts` (every push): each write's card lists the other modules' effects (`ModuleDef.effects` plus the posting provider's `effectsFor`), a customer that is not `invoice_ready` gets no card (the dry run's refusal and its reasons go back to the model), and a step-up process's card runs only with the code. `tool-exposure.test.ts` derives from the registry which processes are never tools (origins without `agent`, `nestedOnlyFrom`, `EXCLUDED_PROCESSES`).
+
+The nightly run uses Laura's tools: the 2B cases pass only once the demo company has the 2B modules and Laura's role holds their processes (plan 2B Task 26).
+
 ## Add a case
 
 Add an object to a file in `packages/agent/src/__tests__/evals/` (or a new `*.json` there):

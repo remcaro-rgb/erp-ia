@@ -46,6 +46,21 @@ Debajo de la barra azul está la **barra de secciones** del módulo activo: en t
 - **Reportes**: las consultas e informes. En Contabilidad, **Movimientos** e **Informes**.
 - **Parámetros**: la configuración del módulo. En Contabilidad, **Períodos** y **Reglas contables**.
 
+### Los módulos de la venta
+
+Si tu empresa tiene los módulos de la cadena de venta, el menú lateral muestra también **CRM**, **Ventas**, **Facturación**, **Inventario**, **Costos** y **Pagos**. Sus pantallas están en las mismas cuatro secciones:
+
+| Módulo | Maestros | Documentos | Reportes | Parámetros | Guía |
+|---|---|---|---|---|---|
+| **CRM** | Prospectos, Embudos | Oportunidades, Cotizaciones | Actividades | Parámetros de CRM | **CRM**, **Cotizaciones** |
+| **Ventas** | | Pedidos, Entregas, Devoluciones | | Condiciones comerciales, Parámetros de ventas | **Ventas**, **Pedidos de venta**, **Entregas y devoluciones de venta** |
+| **Facturación** | | Facturas, Notas crédito y débito | Por facturar | Parámetros de facturación | **Facturas de venta**, **Facturación electrónica** |
+| **Inventario** | Bodegas, Ubicaciones | Movimientos, Transferencias, Conteos | Existencias | | **Inventario** |
+| **Costos** | | Costos en destino | Capas de costo, Costos pendientes | Costeo | **Costos** |
+| **Pagos** | Medios de pago, Cajas | Recibos de caja | | | **Pagos de clientes** |
+
+Cada uno tiene también su **Inicio** con sus indicadores (guía **Primeros pasos**). La venta completa va así: cotización → pedido → entrega → factura (enviada a la DIAN) → recibo de caja, y cada paso deja su asiento en **Contabilidad** cuando corresponde. Un documento de un paso enlaza al del paso anterior y al siguiente.
+
 Haz clic en una sección para ver sus opciones y elige una. Si una sección todavía no tiene pantallas, al abrirla dice «Aún no hay elementos en esta sección». Cuando una opción tiene algo pendiente (por ejemplo **Reglas contables** con eventos por contabilizar), el número aparece junto a la opción y también junto al nombre de su sección.
 
 ## Opciones restringidas
@@ -99,7 +114,9 @@ Si lo que escribes no coincide con nada, o es una frase de tres palabras o más,
 
 ## La barra de acciones de un registro
 
-Todo maestro y todo documento tiene arriba la misma barra: **Nuevo**, **Duplicar**, **Imprimir**, **Notificar** (solo documentos) y los botones de su estado: **Guardar**, **Guardar y enviar a aprobación**, **Aprobar**, **No aprobar**, **Anular**, **Revertir**, **Eliminar**. Solo aparecen los que corresponden al estado del registro y a tu rol. Al final de la barra, junto a **Guardar** y **Eliminar**, está **Cerrar**: cierra la página y su pestaña y te lleva al listado. Si hay cambios sin guardar, pide confirmar antes de descartarlos. Qué hace cada uno está en [Maestros y documentos](maestros-y-documentos.md).
+Todo maestro y todo documento tiene la misma barra de botones en la **fila de sus pestañas**, a la derecha de Datos, Contactos, Archivos…: **Nuevo**, **Duplicar**, **Imprimir**, **Notificar** (solo documentos), los botones propios del documento (por ejemplo **Emitir** en una factura) y los botones de su estado: **Guardar**, **Guardar y enviar a aprobación**, **Aprobar**, **No aprobar**, **Anular**, **Revertir**, **Eliminar**. Solo aparecen los que corresponden al estado del registro y a tu rol. Al final de la barra, junto a **Guardar** y **Eliminar**, está **Cerrar**: cierra la página y su pestaña y te lleva al listado. Si hay cambios sin guardar, pide confirmar antes de descartarlos. Cuando los botones no caben junto a las pestañas (una pantalla angosta, un documento con muchas pestañas) pasan a una línea propia, encima de las pestañas. El pie del registro solo muestra el estado: quién lo creó y lo modificó, y si se puede usar en facturas. Qué hace cada botón está en [Maestros y documentos](maestros-y-documentos.md).
+
+Mientras el formulario tiene cambios sin guardar, junto al título aparece **● Cambios sin guardar** (en lugar del estado, por ejemplo «Grabado») con dos botones: **Descartar cambios** devuelve el formulario a lo guardado y **Guardar cambios** guarda igual que **Guardar**. Al guardar o descartar, los dos botones desaparecen y vuelve el estado.
 
 ## El tema: claro, oscuro o automático
 
@@ -128,7 +145,7 @@ Los formularios de Terceros, Productos y Categorías se recorren sin soltar el t
 
 - **Enter** pasa al campo siguiente y **Mayús+Enter** vuelve al anterior. Ni en el último campo guarda: el cursor se queda donde está. Los campos calculados (DV, nombre para documentos, margen) se saltan. En una caja de texto de varias líneas, **Enter** escribe un salto de línea.
 - **Ctrl+Enter** (en Mac, **⌘Enter**) o **Ctrl+S** guardan desde cualquier campo. Si una caja de búsqueda tiene la lista abierta con una opción marcada, primero elige esa opción y guarda con ella; un texto a medio escribir que no coincide con nada se descarta.
-- **Ver códigos DIAN**, arriba a la derecha del formulario, muestra u oculta los nombres técnicos de la DIAN junto a las etiquetas («DANE», «schemeName»…) y los códigos delante de los nombres de las listas («05001 · Medellín»). Empieza apagado para que el formulario sea compacto; tu elección se recuerda para tu usuario y tu empresa en todos los formularios. Los textos de ayuda que no son códigos (por ejemplo «máx. 450») se ven siempre.
+- Las listas de la DIAN muestran siempre el **código delante del nombre** («05001 · Medellín», «31 · NIT», «KGM · Kilogramo»). Junto a las etiquetas solo hay textos de ayuda (por ejemplo «solo dígitos · máx. 10» o «RUT casilla 53»), nunca nombres técnicos del XML de la DIAN.
 - **Proveedor principal** de un producto también se recorre con **Enter**; su lista se abre al llegar, pero **Enter** o **Tab** solo eligen una fila después de que escribes o pulsas **↑ ↓**, así que pasar de largo no elige a nadie.
 - **Departamento**, **Municipio**, **Unidad de medida** y **Categoría** son cajas de búsqueda: escribe parte del nombre (o del código) sin preocuparte por las tildes («medellin» encuentra «Medellín»), muévete por la lista con **↑ ↓**, elige con **Enter** o **Tab**, y **Esc** cierra la lista y deja lo que estaba elegido. Si borras el texto y sales de la caja, el valor queda vacío.
 - Los valores que el sistema calcula (el **DV**, el **Nombre para documentos**, el **Margen**, el **Código estándar** cuando es tu código interno) se pueden leer, seleccionar y copiar: el botón de copiar al lado los lleva al portapapeles y avisa «Copiado».

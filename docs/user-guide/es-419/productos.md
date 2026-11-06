@@ -42,9 +42,19 @@ Al comienzo muestra ID, SKU, Descripción, Tipo de producto, Categoría, Código
 5. En **Inventario**: marca **Controla existencias** (**Sí, por bodega**) y, si quieres una alerta, el **Mínimo**. Un servicio no controla existencias.
 6. Revisa el panel de estado DIAN y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** no guarda: pasa al campo siguiente (**Mayús+Enter** vuelve al anterior). Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
 
-**Categoría** y **Unidad de medida** son cajas de búsqueda: escribe parte del nombre («kil» encuentra «Kilogramo»), elige con **↑ ↓** y **Enter**. El interruptor **Ver códigos DIAN** (arriba a la derecha) muestra el código de la unidad («KGM · Kilogramo») y los nombres técnicos de la DIAN; empieza apagado. El **Margen** y el **Código estándar** que coincide con tu código interno se calculan solos: se pueden seleccionar y copiar con el botón de copiar. Ver la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
+**Categoría** y **Unidad de medida** son cajas de búsqueda: escribe parte del nombre («kil» encuentra «Kilogramo»), elige con **↑ ↓** y **Enter**. La unidad muestra su código delante del nombre («KGM · Kilogramo»), igual que las demás listas de la DIAN. El **Margen** y el **Código estándar** que coincide con tu código interno se calculan solos: se pueden seleccionar y copiar con el botón de copiar. Ver la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
 
 Los importes se muestran como `$ 1.234.567,00`; mientras escribes ves los dígitos sin formato.
+
+## Existencias, costo y facturación
+
+Con los módulos de la cadena de venta, estos datos del producto se usan así:
+
+- **Controla existencias**: solo un **Bien** que controla existencias reserva al confirmar un pedido, sale de la bodega al despachar una entrega y tiene capa de costo. Un **Servicio**, o un bien sin **Controla existencias**, se vende y se factura sin mover inventario (guía **Inventario**).
+- **Mínimo** (stock mínimo): el indicador **Stock bajo mínimo** del **Inicio** de Inventario cuenta los productos cuya existencia en todas las bodegas está por debajo de él.
+- **Costo estándar**: el costo real lo lleva **Costos** con el promedio ponderado de cada bodega. El costo estándar solo se usa cuando no hay otro: una entrada sin costo unitario, una salida o un ajuste en una bodega que todavía no tiene costo promedio para el producto (guía **Costos**).
+- **Precio de lista**: el último recurso del precio de una línea, si ni la lista del cliente ni la lista predeterminada dan precio (guía **Ventas**).
+- **Datos DIAN**: la factura electrónica lleva por línea el **Código estándar** y su esquema, la **Unidad de medida**, el IVA, el impuesto al consumo y los otros tributos del producto. Por eso un producto que no está **Listo para facturar** no entra en una cotización, un pedido, una entrega ni una factura.
 
 ## Impuestos heredados de la categoría
 
@@ -87,7 +97,7 @@ Igual que los terceros: los **errores** de formato impiden guardar; los **datos 
 
 ## Cambiar y desactivar
 
-Abre el producto, modifica y pulsa **Guardar** (o **Descartar cambios**). Cambiar la categoría de un producto existente aplica los impuestos de la nueva y recalcula el estado DIAN. Un producto se **desactiva** con su proceso (permiso «Desactivar producto»; en esta versión el formulario no tiene un botón para hacerlo): deja de estar disponible para documentos nuevos, pero conserva su historial.
+Abre el producto, modifica y pulsa **Guardar** o **Guardar cambios** (o **Descartar cambios**, junto al título). Cambiar la categoría de un producto existente aplica los impuestos de la nueva y recalcula el estado DIAN. Un producto se **desactiva** con su proceso (permiso «Desactivar producto»; en esta versión el formulario no tiene un botón para hacerlo): deja de estar disponible para documentos nuevos, pero conserva su historial.
 
 ## Quién puede ver y cambiar qué
 

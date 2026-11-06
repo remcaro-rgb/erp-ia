@@ -95,6 +95,14 @@ Todo se calcula con tus permisos: un indicador o gráfico que tu rol no puede co
 | **Núcleo** | Terceros activos, clientes activos, proveedores activos, terceros nuevos del mes; productos y productos listos para facturar | Terceros por tipo; terceros por tipo de persona; terceros nuevos por día; productos por categoría |
 | **Soporte** | Tickets abiertos, urgentes, estancados (más de 7 días) y resueltos en 30 días | Tickets por estado; tickets abiertos por prioridad; tickets recibidos por semana |
 | **Sistema** | Uso de IA del mes, usuarios activos, acciones auditadas en 24 horas | Tokens de IA por día; acciones auditadas por día |
+| **CRM** | Pipeline: el valor de las oportunidades abiertas | Pipeline por etapa |
+| **Ventas** | Pedidos abiertos (abiertos, confirmados o con entregas parciales; abajo, cuántos están confirmados) | Pedidos por estado; pedidos confirmados en los últimos seis meses |
+| **Inventario** | Stock bajo mínimo: los productos con stock mínimo cuya existencia está por debajo; abre **Existencias** | — |
+| **Costos** | Costos faltantes: las salidas sin costo pendientes de resolver | — |
+| **Facturación** | Por cobrar: el saldo de las facturas emitidas (en amarillo si alguna está vencida; abajo, cuántas y cuántas vencidas); Por facturar: el valor de lo despachado que aún no está en una factura; abre **Por facturar** | Ventas: el subtotal facturado en los últimos seis meses |
+| **Pagos** | Recaudo: el dinero recibido en los recibos de caja del período en curso | Recaudo de los últimos seis meses |
+
+Por cobrar solo aparece si puedes ver el total y los saldos de las facturas: si tu rol tiene oculto alguno de esos campos, la tarjeta no se muestra.
 
 Cada tarjeta y cada gráfico es un enlace a la pantalla donde está el detalle. Los gráficos de barras muestran el valor sobre cada barra; los de línea, el último valor, y el lector de pantalla los lee completos («Ingresos: 2026-10 $ 1.000,00; …»). Pasa el cursor sobre una barra para ver su valor exacto.
 

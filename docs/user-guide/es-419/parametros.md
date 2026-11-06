@@ -7,6 +7,24 @@ routes:
   - /accounting/parametros/tipos
   - /accounting/parametros/destinatarios
   - /accounting/parametros/plantillas
+  - /inventory/parametros/tipos
+  - /inventory/parametros/destinatarios
+  - /inventory/parametros/plantillas
+  - /costing/parametros/tipos
+  - /costing/parametros/destinatarios
+  - /costing/parametros/plantillas
+  - /crm/parametros/tipos
+  - /crm/parametros/destinatarios
+  - /crm/parametros/plantillas
+  - /sales/parametros/tipos
+  - /sales/parametros/destinatarios
+  - /sales/parametros/plantillas
+  - /invoicing/parametros/tipos
+  - /invoicing/parametros/destinatarios
+  - /invoicing/parametros/plantillas
+  - /payments/parametros/tipos
+  - /payments/parametros/destinatarios
+  - /payments/parametros/plantillas
 processes:
   - kernel.entity_type_settings.update
   - kernel.state_recipients.update
