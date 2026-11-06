@@ -4,6 +4,8 @@ Date: 2026-11-05 · Source: the 2B.1 run ledger `.superpowers/sdd/2026-11-03-pha
 
 This file lists what the 2B.1 implementation decided or met that the design does not yet say. Nothing here is recorded in the design (`docs/superpowers/specs/2026-10-26-erp-ia-design.md` §22 is the owner's) and no rule in `docs/project-rules.md` was changed. Each item gives what was built, then a one-line **recommended §22 wording**. The owner ratifies it (it becomes the next §22 item, dated), or orders a change (it becomes a task). Items marked **Decide** need a choice before 2B.2. The rest record what is already shipped.
 
+Confirmed by the owner, 2026-11-06: design §22 item 26 (record frame and party form: the action bar in the tabs bar, «Descartar cambios» and «Guardar cambios» in the header while the form is dirty, «Grabado» hidden meanwhile, DIAN codes always shown, OD-12 replaced). It is not one of the 41 items below; the numbers below are this file's own.
+
 Housekeeping: §22 has two items numbered 25 (plantillas de comprobante, 2026-11-03; phase 2B decisions, 2026-11-04). The next item should be 26, and the duplicate should be renumbered.
 
 ## A. Kernel additions (rule 1, rule 3, rule 4 and design §5)
