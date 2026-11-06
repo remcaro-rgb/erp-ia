@@ -53,6 +53,15 @@ describe("defineModule", () => {
     expect(defineModule(def)).toBe(def);
   });
 
+  it("card effects (plan 2B Task 25): keyed by an event or one of the module's processes, each a key of the module's own namespace", () => {
+    const ok = manifest("stock", [], { effects: { "sales.order.confirmed": ["stock.effects.reserve"], "stock.thing.list": ["stock.effects.list"] } });
+    expect(defineModule(ok)).toBe(ok);
+    expect(() => defineModule(manifest("stock", [], { effects: { "sales.order.confirmed": ["sales.effects.reserve"] } }))).toThrow(/stock\.effects\.<name>/);
+    expect(() => defineModule(manifest("stock", [], { effects: { "stock.thing.unknown": ["stock.effects.x"] } }))).toThrow(/none of its processes or events/);
+    expect(() => defineModule(manifest("stock", [], { effects: { confirmed: ["stock.effects.x"] } }))).toThrow(/neither an event nor a process/);
+    expect(() => defineModule(manifest("stock", [], { effects: { "sales.order.confirmed": [] } }))).toThrow(/lists no effect/);
+  });
+
   it("rejects a process declared for another module", () => {
     expect(() => defineModule(manifest("core", [], { processes: [proc("sales", "order", "create")] }))).toThrow(
       /process sales\.order\.create.*module "sales".*"core"/,
@@ -109,6 +118,16 @@ describe("loadModules", () => {
     expect(() => loadModules(registry, [b, a])).not.toThrow();
     expect(registry.modules().map((m) => m.id)).toEqual(["a", "b"]);
     expect(() => loadModules(new Registry(), [{ ...a, dependsOn: ["b"] }, b])).toThrow(/cycle/);
+  });
+
+  it("a card effect keyed by a loaded module's event or process must name one it emits or declares (plan 2B Task 25)", () => {
+    const sales = manifest("sales", [], { events: { emits: ["sales.order.confirmed"], consumes: {} } });
+    const stock = (key: string) => defineModule(manifest("stock", [], { effects: { [key]: ["stock.effects.reserve"] } }));
+    expect(() => loadModules(new Registry(), [sales, stock("sales.order.confirmed")])).not.toThrow();
+    expect(() => loadModules(new Registry(), [sales, stock("sales.thing.list")])).not.toThrow();
+    expect(() => loadModules(new Registry(), [sales, stock("sales.order.confirmd")])).toThrow(/"sales\.order\.confirmd" is no event or process of module sales/);
+    // A neighbour that is not loaded is optional: its keys are not checked.
+    expect(() => loadModules(new Registry(), [stock("crm.deal.won")])).not.toThrow();
   });
 
   it("registers each module's entities and processes", () => {

@@ -81,6 +81,7 @@ describe("excluded processes", () => {
       "kernel.import.run",
       "kernel.user.mfa.disable",
       "kernel.user.password.change",
+      "payments.payment.open_invoices",
     ]);
     for (const reason of EXCLUDED_PROCESSES.values()) expect(reason.length).toBeGreaterThan(10);
   });

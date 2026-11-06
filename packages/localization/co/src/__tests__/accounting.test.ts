@@ -45,6 +45,16 @@ describe("Colombia accounting pack", () => {
     for (const m of mappings) expect(known.has(m.code), `${m.role} → ${m.code}`).toBe(true);
     expect(mappings.find((m) => m.role === "vat_out" && m.dimension === "tax:IVA19")?.code).toBe("240801");
     expect(mappings.find((m) => m.role === "vat_out" && m.dimension === "tax:IVA5")?.code).toBe("240802");
+    // INC and the other national taxes an invoice carries post to 249505 (Impuesto nacional al consumo), never to the IVA account (fix round 1
+    // of Task 16; the account is to confirm with the owner's accountant).
+    for (const code of ["INC2", "INC4", "INC8", "INC16", "22", "32", "33", "34", "35", "23"]) {
+      expect(mappings.find((m) => m.role === "vat_out" && m.dimension === `tax:${code}`)?.code, code).toBe("249505");
+    }
+    // A receipt's cash line resolves by its medio de pago (payment_method:<code>, plan 2B Task 21): cash and cheques to the caja, transfers
+    // and cards to the bank (to confirm with the owner's accountant; migration 0110 backfills seeded charts).
+    expect(Object.fromEntries(mappings.filter((m) => m.role === "cash" && m.dimension).map((m) => [m.dimension, m.code]))).toEqual({
+      "payment_method:cash": "110505", "payment_method:transfer": "111005", "payment_method:card": "111005", "payment_method:check": "110505",
+    });
     expect(mappings.find((m) => m.role === "suspense")?.code).toBe("238095");
     expect(mappings.find((m) => m.role === "rounding")?.code).toBe("530595");
     expect(acc.extraAccounts().map((a) => a.code).sort()).toEqual(["238095", "530595"]);

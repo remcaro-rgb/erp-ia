@@ -7,6 +7,8 @@ import type { Origin } from "../audit/audit";
 import type { EntityDef } from "./entities";
 import type { DefaultPostingRule, PostingProvider } from "../posting/provider";
 import type { TypedHooks } from "../typed/runner";
+import type { DefaultPresentation } from "../templates/defaults";
+import type { Template, TemplateScope } from "../templates/schema";
 
 export type ProcessKind = "create" | "update" | "delete" | "consult";
 
@@ -42,6 +44,12 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
    */
   origins?: Origin[];
   /**
+   * When set, the process runs only nested (ctx.runProcess) in one of these parent processes: `runProcess` refuses it on its own
+   * and from any other parent with `forbidden` (plan 2B Task 18: the annulment note runs only inside invoicing.invoice.void, whose
+   * step-up covers it). Its parent's role gate covers it too (no role is granted it). Like `origins`, it is left out of the admin's sensitive-processes page and the assistant gets no tool for it.
+   */
+  nestedOnlyFrom?: string[];
+  /**
    * The record-level guard (kernel.record_access, spec 2026-11-02 §9.1). runProcess derives it from the name for an update or delete
    * process `<entity>.<verb>` of a maestro or documento with an `id` input (void → void; delete → delete on a maestro, modify on
    * a documento; any other, deactivate and activate included → modify). Every other create / update / delete process of a module that owns a maestro or documento, and
@@ -53,12 +61,15 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
    *   - `"none"`: the process changes no record of a maestro or documento (settings, parametros, admin configuration, a new record).
    */
   recordAccess?: { entity: string; idField: string; right: "read" | "use" | "modify" | "delete" | "void" } | "handler" | "none";
-  /** Events the process writes to the outbox; the confirmation card asks each posting provider what they will do (design §5.1). */
+  /**
+   * Events the process writes to the outbox, its nested runs' included; the confirmation card asks each posting provider and each module's
+   * `effects` what they will do (design §5.1).
+   */
   emits?: string[];
   /** What the audit entry of a run records as its input, when less than the whole input (default: the whole input). */
   auditInput?(input: z.infer<I>): unknown;
-  /** Runs with the same key in the same company return the first run's stored result. */
-  idempotencyKey?(input: z.infer<I>): string;
+  /** Runs with the same key in the same company return the first run's stored result; undefined runs the process without a replay. */
+  idempotencyKey?(input: z.infer<I>): string | undefined;
   /**
    * A replay (same idempotency key) returns the first run's stored result, written in the run's transaction, before its post-commit
    * steps ran. When set, the stored result is refreshed through this hook, as the caller under RLS (Notificar reads its log row's
@@ -283,6 +294,14 @@ export interface ModuleDef {
   menuShared?: string[];
   /** Receives the posting engine's composed entries (design §5.1); at most one module provides it. */
   postingProvider?: PostingProvider;
+  /**
+   * What the module does that a confirmation card must tell (design §5.1 `effectsFor`, plan 2B Task 25), as i18n keys of the module's own
+   * namespace (`<module>.effects.<name>`) whose text reads "Label: what happens" ("Inventario: reserva el stock del pedido"). Keyed by an
+   * event name (what the module does when the event happens: a consumer's work, or what follows from it in the module, rule 3: by name
+   * only) or by the id of one of the module's own processes (what a run of it does beyond the events it emits). The assistant's card lists,
+   * for a write, the lines of every module the company has for the process and each event it emits, then the posting provider's lines.
+   */
+  effects?: Record<string, readonly string[]>;
   /** Posting rules the module ships for its events (design §5.4). */
   postingRules?: DefaultPostingRule[];
   /** Account roles the module adds to the kernel catalogue; the country pack must map them. */
@@ -293,5 +312,31 @@ export interface ModuleDef {
    * the kernel never names the module (rule 4).
    */
   typedHooks?: Record<string, TypedHooks>;
+  /**
+   * The template a maestro or documento of the module prints with when the company chose none (entity types spec §6: "each entity ships a
+   * seeded default template, it works with no admin action"), keyed by entity id and scope. The builder gets the print's presentation (the
+   * caller's labels, the title, the tax id's name) and returns a built-in template (`id: null`, version 0); without one the kernel generates
+   * the template from the entity's fields (templates/defaults.ts). A company template set as default always wins.
+   */
+  printTemplates?: Record<string, Partial<Record<TemplateScope, (presentation: DefaultPresentation) => Template>>>;
+  /**
+   * Variables the module adds to the print of one record of its maestro or documento, keyed by entity id (plan 2B Task 19: the electronic
+   * invoice's QR code, its CUFE and the numbering legend). Any template of the entity (the shipped one, a company's) may name them; the
+   * kernel resolves them after the record's own fields, in the print's transaction as the caller.
+   */
+  printVariables?: Record<string, PrintVariables>;
   migrationsDir?: string;
+}
+
+/** What a module adds to a record print of one of its entities (ModuleDef.printVariables). */
+export interface PrintVariables {
+  /** The text variables (a `variable` block names them). */
+  names: readonly string[];
+  /** The image variables (an `image` block names them; the value is a `data:image/png|jpeg;base64,` URI, or "" for none). */
+  images?: readonly string[];
+  /**
+   * The values of `names` and `images` for the record `recordId`, read as the caller in the print's transaction (what the caller may not
+   * read is not printed); `locale` is the print's language, `printedAt` its instant. A missing value prints empty.
+   */
+  resolve(ctx: ProcessContext, recordId: string, options: { locale: string; printedAt: Date }): Promise<Record<string, string>>;
 }

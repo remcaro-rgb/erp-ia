@@ -10,13 +10,17 @@ export type { FileStore } from "./file-store";
 export { SupabaseAuthAdmin } from "./auth-admin";
 export type { AuthAdmin, SessionRevoker } from "./auth-admin";
 export { cloudDurableRunner, dockerDurableRunner, POSTGRES_WORLD } from "./durable-runner";
-export type { DurableRunner } from "./durable-runner";
+export type { DurableRunner, DurableRunStatus } from "./durable-runner";
 export { MAX_BACKOFF_MS, runEvery, tickScheduler } from "./scheduler";
 export type { Scheduler, TickResult } from "./scheduler";
 export { cloudModelProvider, dockerModelProvider } from "./model-provider";
 export type { GatewayConfig, ModelProvider } from "./model-provider";
 export { cloudMailer, dockerMailer, encodeHeader, MailIdempotencyError, ResendMailer, SmtpMailer } from "./mailer";
 export type { MailAttachment, MailMessage, Mailer, MailResult, ResendOptions, SmtpOptions } from "./mailer";
+export { EInvoiceTransportError, MockEInvoiceTransport, mockTrackId, resetMockEInvoiceState } from "./einvoice-transport";
+export type { EInvoiceResult, EInvoiceStatus, EInvoiceSubmitMeta, EInvoiceTransport, MockEInvoiceOptions, MockScenario } from "./einvoice-transport";
+export { EnvSecretStore, InMemorySecretStore, VaultSecretStore } from "./secret-store";
+export type { SecretSql, SecretStore } from "./secret-store";
 export { target } from "./target";
 export type { Env, Target } from "./target";
 

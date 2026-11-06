@@ -12,3 +12,5 @@ dist/
 .workflow-vitest/
 .vercel
 eval-report.json
+# swc plugin caches of any package (final review M-6)
+.swc/

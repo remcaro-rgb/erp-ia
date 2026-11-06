@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, runProcess, type Caller, type RunProcessDeps } from "@erp/kernel";
+import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, runProcess, type Caller, type ModuleDef, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
@@ -24,7 +24,7 @@ export const MEMBER_PROCESS_IDS = LOADED
 
 /** Every accounting table, children first: the harness empties them for its companies. */
 export const ACCOUNTING_TABLES = [
-  "skipped_events", "period_close_checks", "posting_failures", "entry_template_lines", "entry_templates", "entry_lines", "entries",
+  "skipped_events", "voided_sources", "period_close_checks", "posting_failures", "entry_template_lines", "entry_templates", "entry_lines", "entries",
   "posting_rules", "fiscal_concept_mappings", "account_permissions", "account_role_mappings", "settings", "periods", "fiscal_years",
   "journals", "cost_centers", "open_auxiliaries", "items", "business_units", "accounts",
 ];
@@ -59,10 +59,10 @@ export interface AccountingHarness {
  * fresh registry and the Colombian pack, grants the admin role of every company all accounting processes, and creates the
  * `contador` and `auxiliar` roles (with their users) with the consult and entry processes.
  */
-export async function accountingHarness(options: { companies?: number } = {}): Promise<AccountingHarness> {
+export async function accountingHarness(options: { companies?: number; extraModules?: ModuleDef[] } = {}): Promise<AccountingHarness> {
   const sql = testDb();
   const registry = new Registry();
-  loadModules(registry, [kernelModule, core, accounting]);
+  loadModules(registry, [kernelModule, core, accounting, ...(options.extraModules ?? [])]);
   registerCountryPack(co);
   const seed = await seedTenant(sql, {
     companies: options.companies ?? 1,
@@ -70,7 +70,7 @@ export async function accountingHarness(options: { companies?: number } = {}): P
       { name: "contador", companies: [0], role: "member" },
       { name: "auxiliar", companies: [0], role: "member" },
     ],
-    entitlements: ["module:core", "module:accounting"],
+    entitlements: ["module:core", "module:accounting", ...(options.extraModules ?? []).map((m) => `module:${m.id}`)],
   });
   const grantAll = async (companyId: string, roleId: string, ids: string[]) => {
     for (const id of ids) {

@@ -1,9 +1,9 @@
-import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
+import { defineProcess, ProcessError, type PostingRule, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { insertLines } from "./entry";
 import { postEntry } from "./entry-post";
 import { assertValid, validateLines, type LineInput } from "./entry-validate";
-import { idOutput } from "./schemas";
+import { lockedSourceVoided, SOURCE_VOIDED, sourceOf } from "./voided-source";
 
 // The posting engine's write path (accounting design §5.1): `entry.post_from_event` creates and posts the comprobante a rule
 // composed, and `posting_failure.record` keeps the inbox row of a rule that could not post. Both are restricted to origin `event`:
@@ -41,6 +41,9 @@ export const composedEntry = z.looseObject({
   chainId: z.string(),
 });
 export type ComposedInput = z.infer<typeof composedEntry>;
+
+/** The posting module's id: the delivery marks of kernel.outbox_deliveries name it. */
+const ACCOUNTING = "accounting";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -91,9 +94,26 @@ export const entryPostFromEvent = defineProcess({
   emits: ["accounting.entry.posted"],
   idempotencyKey: (input) => `posting:${input.eventId}:${input.ruleId}`,
   input: z.object({ entry: composedEntry, ruleId: z.uuid(), eventId: z.uuid() }),
-  output: z.object({ id: z.string(), number: z.string() }),
+  output: z.object({ id: z.string().nullable(), number: z.string().nullable(), dismissed: z.boolean().optional() }),
   auditInput: (input) => ({ ruleId: input.ruleId, eventId: input.eventId, date: input.entry.date, lines: input.entry.lines.length }),
-  handler: (ctx, input) => postFromEvent(ctx, input),
+  handler: async (ctx, input) => {
+    // The event's outbox row is taken FOR UPDATE first (plan 2B Task 14 review): a dismissal of the event (its source voided before it
+    // posted, kernel.dismiss_events, accounting.posting.reverse_source) takes the same row, so the two serialize. Once the row is ours, an
+    // entry already written is answered as before (redelivery); else a mark of this module on the event means it was dismissed: nothing posts.
+    const [lock] = await ctx.tx<{ handled: boolean }[]>`select kernel.lock_event_for(${input.eventId}, ${ACCOUNTING}) as handled`;
+    if (lock?.handled) {
+      const [existing] = await ctx.tx<{ id: string; number: string }[]>`
+        select id, number from accounting.entries
+        where company_id = ${ctx.companyId} and source_event_id = ${input.eventId} and posting_rule_id = ${input.ruleId}`;
+      return existing ?? { id: null, number: null, dismissed: true };
+    }
+    // Then the source's lock (voided-source.ts): a void of the source that committed first recorded it, and nothing is written; a void that
+    // comes later waits for this post and reverses its entry. Whatever the rule's source path (a wildcard path is never pre-dismissed).
+    const [rule] = await ctx.tx<{ event: string }[]>`select event from accounting.posting_rules where id = ${input.ruleId} and company_id = ${ctx.companyId}`;
+    const sourceId = input.entry.source && UUID.test(input.entry.source.id) ? input.entry.source.id : null;
+    if (rule && (await lockedSourceVoided(ctx, rule.event, sourceId))) return { id: null, number: null, dismissed: true };
+    return postFromEvent(ctx, input);
+  },
 });
 
 export const postingFailureRecord = defineProcess({
@@ -117,13 +137,27 @@ export const postingFailureRecord = defineProcess({
     ]),
     detail: z.string(),
   }),
-  output: idOutput,
+  // `id` null: nothing recorded, the rule's source was voided meanwhile (review round 2, N1).
+  output: z.object({ id: z.string().nullable(), dismissed: z.boolean().optional() }),
   auditInput: (input) => ({ eventId: input.eventId, event: input.event, ruleId: input.ruleId, code: input.code }),
   handler: async (ctx, input) => {
     const [pending] = await ctx.tx<{ id: string }[]>`
       select id from accounting.posting_failures
       where company_id = ${ctx.companyId} and event_id = ${input.eventId} and status = 'pending' and posting_rule_id is not distinct from ${input.ruleId ?? null}
       for update`;
+    // Lock order of every writer of a source's posting (voided-source.ts): the pending row, the event's outbox row, the source. A source
+    // voided before this commits is never left with a live pending: nothing is recorded (an older pending of it is dismissed).
+    await ctx.tx`select kernel.lock_event_for(${input.eventId}, ${"accounting"})`;
+    if (input.ruleId) {
+      const [rule] = await ctx.tx<{ template: PostingRule["template"] }[]>`select template from accounting.posting_rules where id = ${input.ruleId} and company_id = ${ctx.companyId}`;
+      if (await lockedSourceVoided(ctx, input.event, sourceOf(input.payload, rule?.template))) {
+        if (pending) {
+          await ctx.tx`
+            update accounting.posting_failures set status = 'dismissed', extra = extra || ${ctx.tx.json({ dismiss_code: SOURCE_VOIDED })} where id = ${pending.id}`;
+        }
+        return { id: null, dismissed: true };
+      }
+    }
     let failureId: string;
     if (pending) {
       failureId = pending.id;

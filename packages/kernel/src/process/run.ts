@@ -38,6 +38,11 @@ export interface RunProcessOptions {
    */
   dryRun?: boolean;
   /**
+   * A dry run's events (plan 2B Task 25): called, before the rollback, with what the run (its nested runs and inline posting included)
+   * put in the outbox, in order, so a confirmation card lists what the run would set off. Ignored without `dryRun`; not called on a refusal.
+   */
+  onDryRunEvents?: (events: { event: string; payload: unknown }[]) => void;
+  /**
    * Idempotency key of this run when the process declares none (or instead of its own): a second run with the same
    * key in the company answers the first run's stored result without running again. The importer keys each row by
    * `import:<importId>:<rowIndex>`, so a retried batch replays instead of creating twice.
@@ -148,6 +153,9 @@ async function execute<O extends z.ZodTypeAny>(
   if (def.origins && !def.origins.includes(caller.origin)) {
     throw new ProcessError("forbidden", `${def.id} runs only from ${def.origins.join(", ")}`, GATE);
   }
+  if (def.nestedOnlyFrom) {
+    throw new ProcessError("forbidden", `${def.id} runs only nested in ${def.nestedOnlyFrom.join(", ")}`, GATE);
+  }
 
   const stepUpToken = caller.stepUpToken ?? null;
   const gate = await withClaims(deps.sql, claims, async (tx) => {
@@ -212,7 +220,7 @@ async function execute<O extends z.ZodTypeAny>(
       // The roles the caller still holds (0024: the claim's roles intersected with the live memberships), so a role
       // revoked after the token was issued no longer counts for the handler's own checks (custom-field roles).
       const [live] = await tx<{ role_ids: string[] }[]>`select kernel.current_role_ids() as role_ids`;
-      const ctx = buildContext(tx, deps.registry, def, caller, chainId, dryRun, live!.role_ids);
+      const ctx = buildContext(tx, deps, def, caller, chainId, dryRun, live!.role_ids, 0);
       ctx.afterCommit = (fn) => {
         after.push(fn);
       };
@@ -230,7 +238,14 @@ async function execute<O extends z.ZodTypeAny>(
         throw sqlRefusal(cause) ?? new ProcessError("handler_failed", `process ${def.id} failed`, { cause });
       }
       // A dry run ends here: everything the handler wrote (and the step-up consumption) is rolled back.
-      if (dryRun) throw new DryRunRollback(output);
+      if (dryRun) {
+        // This transaction's events on the chain (`created_at` is the transaction's `now()`; an earlier committed run's are not).
+        if (options.onDryRunEvents) {
+          options.onDryRunEvents(await tx<{ event: string; payload: unknown }[]>`
+            select event, payload from kernel.outbox where chain_id = ${chainId} and created_at = now() order by id`);
+        }
+        throw new DryRunRollback(output);
+      }
 
       await writeAudit(tx, {
         ...auditDefaults(def, caller, chainId),
@@ -423,9 +438,13 @@ async function consumeStepUp(tx: Tx, processId: string, token: string, userId: s
   if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`, GATE);
 }
 
-function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean, roleIds: string[]): ProcessContext {
+/** How many runs may nest: a process that runs a process that runs a process… stops here. */
+const MAX_NESTING = 4;
+
+function buildContext(tx: Tx, deps: RunProcessDeps, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean, roleIds: string[], depth: number): ProcessContext {
   const { claims } = caller;
-  return {
+  const registry = deps.registry;
+  const ctx: ProcessContext = {
     tx,
     registry,
     companyId: claims.active_company_id,
@@ -446,7 +465,56 @@ function buildContext(tx: Tx, registry: Registry, def: ProcessDef, caller: Calle
       const { companyId, actorUserId, origin } = defaults;
       await writeAudit(tx, { ...defaults, ...entry, companyId, actorUserId, origin });
     },
+    async runProcess<T>(processId: string, input: unknown): Promise<T> {
+      if (depth >= MAX_NESTING) throw new ProcessError("handler_failed", `${def.id}: nested runs are limited to ${MAX_NESTING} levels`);
+      const inner = resolve(registry, processId);
+      const companyId = claims.active_company_id;
+      if (inner.module !== "kernel" && !(await (deps.entitled ?? resolveEntitled)(deps.sql, companyId, `process:${inner.id}`))) {
+        throw new ProcessError("not_entitled", `process ${inner.id} is not entitled for company ${companyId}`, GATE);
+      }
+      if (inner.origins && !inner.origins.includes(caller.origin)) throw new ProcessError("forbidden", `${inner.id} runs only from ${inner.origins.join(", ")}`, GATE);
+      if (inner.nestedOnlyFrom && !inner.nestedOnlyFrom.includes(def.id)) throw new ProcessError("forbidden", `${inner.id} runs only nested in ${inner.nestedOnlyFrom.join(", ")}`, GATE);
+      const [gate] = await tx<{ allowed: boolean; member: boolean; sensitive: boolean }[]>`
+        select kernel.can_run_process(${inner.id}) as allowed,
+               coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
+               exists (select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${inner.id}) as sensitive`;
+      // A process that runs only nested in named parents is covered by its parent's role gate (the admin's matrix never lists it).
+      if (inner.permission === "none" || inner.nestedOnlyFrom ? !gate!.member : !gate!.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${inner.id}`, GATE);
+      if (gate!.sensitive || inner.sensitivity === "step-up") {
+        throw new ProcessError("step_up_required", `${inner.id} requires its own step-up verification and cannot run nested in ${def.id}`, GATE);
+      }
+      const parsed = inner.input.safeParse(input);
+      if (!parsed.success) throw new ProcessError("invalid_input", `invalid input for ${inner.id}`, { details: parsed.error.issues, stage: "gate" });
+      const nested = buildContext(tx, deps, inner, caller, chainId, ctx.dryRun, roleIds, depth + 1);
+      nested.afterCommit = ctx.afterCommit;
+      const attribute = (id: string) => setAuditContext(tx, { origin: caller.origin, processId: id, chainId, actorUserId: claims.sub, conversationId: caller.conversationId });
+      await attribute(inner.id);
+      let output: unknown;
+      let failed = false;
+      try {
+        try {
+          const guard = recordGuardOf(registry, inner, parsed.data);
+          if (guard) await assertRecordRight(nested, guard.entity, guard.recordId, guard.right);
+          output = await inner.handler(nested, parsed.data);
+        } catch (cause) {
+          if (cause instanceof ProcessError) throw cause;
+          throw sqlRefusal(cause) ?? new ProcessError("handler_failed", `process ${inner.id} failed`, { cause });
+        }
+        await writeAudit(tx, { ...auditDefaults(inner, caller, chainId), rowId: rowIdOf(output), input: inner.auditInput ? inner.auditInput(parsed.data) : parsed.data });
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        // The rest of the outer run is attributed to the outer process again, also when the nested run threw and the outer handler catches
+        // it (final review M-3). After a SQL error the transaction is aborted and this cannot run: the nested error is the one that counts.
+        await attribute(def.id).catch((error: unknown) => {
+          if (!failed) throw error;
+        });
+      }
+      return output as T;
+    },
   };
+  return ctx;
 }
 
 function auditDefaults(def: ProcessDef, caller: Caller, chainId: string) {

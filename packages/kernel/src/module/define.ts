@@ -64,6 +64,16 @@ export function defineModule(def: ModuleDef): ModuleDef {
     }
   }
 
+  // Card effects (plan 2B Task 25): keyed by an event or by one of the module's processes, each an i18n key of the module's namespace.
+  for (const [key, lines] of Object.entries(def.effects ?? {})) {
+    if (!ENTITY_ID.test(key)) throw new Error(`effects of module ${def.id}: "${key}" is neither an event nor a process id`);
+    if (key.startsWith(`${def.id}.`) && !processIds.has(key) && !def.events.emits.includes(key) && def.events.consumes[key] === undefined) {
+      throw new Error(`effects of module ${def.id}: "${key}" is none of its processes or events`);
+    }
+    if (lines.length === 0) throw new Error(`effects of module ${def.id}: "${key}" lists no effect`);
+    for (const line of lines) if (!line.startsWith(`${def.id}.effects.`)) throw new Error(`effects of module ${def.id}: "${line}" must be an i18n key named "${def.id}.effects.<name>"`);
+  }
+
   const tabIds = new Set<string>();
   for (const tab of def.recordTabs ?? []) {
     if (!tab.id.startsWith(`${def.id}.`)) throw new Error(`record tab ${tab.id} must be named "${def.id}.<name>"`);

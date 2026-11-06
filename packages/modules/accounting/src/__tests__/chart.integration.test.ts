@@ -26,7 +26,7 @@ describe("chart.seed", () => {
     expect(first.accounts).toBe(pack.chartOfAccounts().length + pack.extraAccounts().length);
     expect(first.journals).toBe(7);
     expect(first.mappings).toBe(pack.defaultRoleMappings().length + pack.defaultConceptMappings().length);
-    expect(first.rules).toBe(7); // the seven default rules of design §5.4 the module ships
+    expect(first.rules).toBe(9); // the default rules of design §5.4 the module ships (the note's split in three by kind, plan 2B Task 18)
     expect(first.year).toBe(1);
     expect(await count("accounts")).toBe(first.accounts);
     expect(await count("account_role_mappings")).toBe(pack.defaultRoleMappings().length);
@@ -67,7 +67,8 @@ describe("chart.seed", () => {
     await h.sql`update accounting.accounts set name = 'Mi caja', requires_item = true where company_id = ${h.companyId} and code = '110505'`;
     await h.sql`delete from accounting.account_role_mappings where company_id = ${h.companyId} and role = 'cash'`;
     const again = await h.runStepUp<Record<string, number>>(h.admin, "accounting.chart.seed", {});
-    expect(again).toEqual({ accounts: 0, mappings: 1, journals: 0, rules: 0, year: 0 });
+    // The cash role: its default and its four medio de pago mappings (payment_method:cash / transfer / card / check, plan 2B Task 21).
+    expect(again).toEqual({ accounts: 0, mappings: 5, journals: 0, rules: 0, year: 0 });
     const [a] = await h.sql`select name, requires_item from accounting.accounts where company_id = ${h.companyId} and code = '110505'`;
     expect(a).toMatchObject({ name: "Mi caja", requires_item: true });
   });

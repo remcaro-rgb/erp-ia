@@ -2,7 +2,7 @@ import { defineProcess, type AccountSeed, type ProcessContext } from "@erp/kerne
 import { z } from "zod";
 import { companyPack, requireAdmin } from "./common";
 import { openFiscalYear } from "./fiscal-year";
-import { syncDefaultRules } from "./posting-rule";
+import { syncPostingRules } from "./posting-rule";
 
 // accounting.chart.seed (accounting design §5.9, §6): installs the country's chart, role mappings, fuentes, concept mappings,
 // the settings row, the fiscal year of today and the default posting rules from the pack and the loaded modules. Additive
@@ -98,8 +98,8 @@ export const chartSeed = defineProcess({
       year = 1;
     }
 
-    // Default posting rules the loaded modules ship, accounting's own included (design §5.4)
-    const rules = await syncDefaultRules(ctx);
+    // Posting rules of the modules enabled for the company, accounting's own included (design §5.4)
+    const rules = (await syncPostingRules(ctx)).inserted;
 
     return { accounts, mappings: roleRows.length + conceptRows.length, journals: newJournals.length, rules, year };
   },

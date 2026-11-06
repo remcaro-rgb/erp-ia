@@ -25,9 +25,10 @@ export const NAVIGATION: NavItem[] = [
 
 /**
  * Processes no menu item guards (ModuleDef.menuShared): numbering and the units every product screen reads, and the price lists, which
- * have no screen yet (their item will guard them).
+ * have no screen yet (their item will guard them). core.document_sequence.register (plan 2B Task 19) is run from invoicing's Parámetros de
+ * facturación page, whose menu item names it.
  */
-export const MENU_SHARED = ["core.sequence.next", "core.document_sequence.consult", "core.uom.consult", "core.price_list.", "core.price_list_item."];
+export const MENU_SHARED = ["core.sequence.next", "core.document_sequence.consult", "core.document_sequence.register", "core.uom.consult", "core.price_list.", "core.price_list_item."];
 
 const nav = (feature: string) => NAVIGATION.filter((item) => item.feature === feature);
 

@@ -86,6 +86,26 @@ const tpModule = defineModule({
   features: [{ id: "tp.main", label: "feature.tp.main", processes: ["tp.client.consult", "tp.order.consult", "tp.client.create", "tp.order.create"], entities: ["tp.client", "tp.order", "tp.order_line"] }],
   events: { emits: [], consumes: {} },
   navigation: [],
+  // What the module adds to a client's print (ModuleDef.printVariables, plan 2B Task 19): a text read as the caller and an image.
+  printVariables: {
+    "tp.client": {
+      names: ["tp.saludo"],
+      images: ["tp.sello"],
+      resolve: async (ctx, recordId, { locale }) => {
+        const [row] = await ctx.tx<{ name: string }[]>`select name from tp_fixture.v_clients where id = ${recordId}`;
+        return { "tp.saludo": `${locale === "en" ? "Hello" : "Saludo para"} ${row?.name ?? "?"}`, "tp.sello": "" };
+      },
+    },
+  },
+  // The template the module ships for its order list (ModuleDef.printTemplates): used when the company chose none.
+  printTemplates: {
+    "tp.order": {
+      list: (p) => ({
+        id: null, entity: "tp.order", scope: "list", name: p.title ?? "Pedidos", version: 0, isDefault: true, backgroundFileId: null,
+        blocks: [{ kind: "text", x: 40, y: 40, w: 400, value: "Pedidos del módulo" }, { kind: "lines", x: 40, y: 80, w: 500, columns: ["name"] }],
+      }),
+    },
+  },
 });
 
 const typedTable = (name: string, type: "maestro" | "documento", entity: string, columns: string) => `
@@ -363,6 +383,20 @@ describe("PDF templates (Task 11)", () => {
       await asAdmin(SET_DEFAULT, { entity: "tp.client", scope: "record", id: null });
     });
 
+    it("a module's print variables (ModuleDef.printVariables) are names a record template may print; a list template may not", async () => {
+      const id = await newClient("Cliente del saludo", { balance: 1 });
+      const mine = await asAdmin<{ id: string }>(SAVE, {
+        entity: "tp.client", scope: "record", name: "Con saludo",
+        blocks: [block({ kind: "variable", value: "tp.saludo" }), block({ kind: "image", y: 80, w: 60, value: "tp.sello" })],
+      });
+      const { text } = await printed((await run<{ fileId: string }>(member, PRINT, { entity: "tp.client", recordId: id, templateId: mine.id })).fileId);
+      expect(text).toContain("Saludo para Cliente del saludo");
+      // Only on a record of that entity: a list template, or an unknown name, is refused.
+      expect(await refusal(asAdmin(SAVE, { entity: "tp.client", scope: "list", name: "Lista saludo", blocks: [block({ kind: "variable", value: "tp.saludo" })] }))).toMatchObject({ code: "invalid_input" });
+      expect(await refusal(asAdmin(SAVE, { entity: "tp.order", scope: "record", name: "Otra entidad", blocks: [block({ kind: "variable", value: "tp.saludo" })] }))).toMatchObject({ code: "invalid_input" });
+      expect(await refusal(asAdmin(SAVE, { entity: "tp.client", scope: "record", name: "Imagen ajena", blocks: [block({ kind: "image", value: "tp.otra" })] }))).toMatchObject({ code: "invalid_input" });
+    });
+
     it("a record the caller cannot read is refused exactly like one that does not exist", async () => {
       const id = await newClient("Cliente reservado");
       await asAdmin("kernel.record_access.set", { entity: "tp.client", recordId: id, grants: [{ userId: seed.users.both, rights: ["read"] }] });
@@ -410,6 +444,23 @@ describe("PDF templates (Task 11)", () => {
       const full = await printed((await run<{ fileId: string }>(admin, PRINT, { entity: "tp.order", recordId: id })).fileId);
       expect(full.text).toContain("$ 234.567,00");
       expect(full.text).toContain("$ 235.567,00");
+    });
+
+    it("prints with the template the entity's module ships when the company chose none; the company's default still wins", async () => {
+      await run(admin, "tp.order.create", { name: "Pedido del módulo", lines: [] });
+      const state = { filters: [], sort: [], page: 1, pageSize: 50 };
+      const shipped = await printed((await run<{ fileId: string }>(admin, PRINT, { entity: "tp.order", gridState: state })).fileId);
+      expect(shipped.text).toContain("Pedidos del módulo");
+      expect(shipped.text).toContain("Pedido del módulo");
+      const [job] = await sql<{ state: { templateId: string | null; templateVersion: number } }[]>`
+        select state from kernel.export_jobs where company_id = ${companyId} and entity = 'tp.order' order by created_at desc limit 1`;
+      expect(job!.state).toMatchObject({ templateId: null, templateVersion: 0 });
+      const mine = await asAdmin<{ id: string }>(SAVE, { entity: "tp.order", scope: "list", name: "De la empresa", blocks: [block({ kind: "text", value: "Lista de la empresa" })] });
+      await asAdmin(SET_DEFAULT, { entity: "tp.order", scope: "list", id: mine.id });
+      const company = await printed((await run<{ fileId: string }>(admin, PRINT, { entity: "tp.order", gridState: state })).fileId);
+      expect(company.text).toContain("Lista de la empresa");
+      expect(company.text).not.toContain("Pedidos del módulo");
+      await asAdmin(SET_DEFAULT, { entity: "tp.order", scope: "list", id: null });
     });
 
     it("refuses a record whose lines pass the PDF limit (pdf_too_large) instead of printing a part of them", async () => {

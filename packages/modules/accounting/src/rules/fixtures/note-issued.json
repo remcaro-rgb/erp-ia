@@ -2,7 +2,9 @@
   "date": "2026-11-02",
   "number": "NC-208",
   "noteId": "0192b4c0-0000-7000-8000-00000000f002",
-  "reasonCode": "return",
+  "kind": "credit",
+  "annulment": false,
+  "reasonCode": "1",
   "dueDate": "2026-11-02",
   "customer": {
     "partyId": "0192b4c0-0000-7000-8000-00000000c001",
@@ -13,7 +15,8 @@
   },
   "lines": [
     {
-      "subtotal": -100000
+      "subtotal": -100000,
+      "categoryId": "0192b4c0-0000-7000-8000-00000000a001"
     }
   ],
   "taxes": [

@@ -13,6 +13,7 @@ describe("core manifest", () => {
         "core.category.create", "core.category.update", "core.category.consult",
         "core.product.create", "core.product.update", "core.product.deactivate", "core.product.consult",
         "core.sequence.next",
+        "core.document_sequence.register",
         "core.uom.consult", "core.price_list.consult", "core.price_list_item.consult", "core.party_contact.consult", "core.document_sequence.consult",
         // The kernel's generic lifecycle processes of the four maestros (entity types spec §5).
         ...["core.party", "core.product_category", "core.product", "core.price_list"].flatMap((e) => GENERIC_VERBS.map((v) => `${e}.${v}`)),
@@ -68,6 +69,6 @@ describe("core manifest", () => {
     // Importar datos runs the kernel's shared import: hiding it hides that page only (an import is refused by its target's item).
     expect(under("core.import")).toEqual([]);
     // Shared: lookups and numbering every screen uses, and the price lists, which have no screen yet.
-    expect(module.menuShared).toEqual(["core.sequence.next", "core.document_sequence.consult", "core.uom.consult", "core.price_list.", "core.price_list_item."]);
+    expect(module.menuShared).toEqual(["core.sequence.next", "core.document_sequence.consult", "core.document_sequence.register", "core.uom.consult", "core.price_list.", "core.price_list_item."]);
   });
 });

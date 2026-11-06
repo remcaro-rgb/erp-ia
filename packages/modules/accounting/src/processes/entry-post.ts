@@ -238,7 +238,7 @@ export async function reverseEntry(
   ctx: ProcessContext,
   entryId: string,
   input: { date?: string | undefined; reason: string },
-  opts: { allowClosing?: boolean } = {},
+  opts: { allowClosing?: boolean; engine?: boolean } = {},
 ): Promise<{ id: string; number: string }> {
   const original = await lockEntry(ctx, entryId);
   if (original.status !== "posted" || original.extra?.reversed === true) throw invalid(`entry ${entryId} is ${original.status}`, "Solo se revierte un comprobante contabilizado que no haya sido revertido");
@@ -271,7 +271,9 @@ export async function reverseEntry(
     })}
     returning id`;
   await insertMirror(ctx, entryId, reversal!.id);
-  const posted = await postEntry(ctx, reversal!.id);
+  // `engine`: a reversal ordered by an event (an inline void) is the ledger rules' decision, like the engine's own posting: not narrowed by
+  // the account grants of the person who triggered it.
+  const posted = await postEntry(ctx, reversal!.id, opts.engine ? { engine: true } : {});
   await ctx.tx`update accounting.entries set extra = extra || '{"reversed": true}'::jsonb, reversed_by_id = ${reversal!.id} where id = ${entryId}`;
   await ctx.emit("accounting.entry.reversed", { entryId, reversalId: reversal!.id, number: original.number, reversalNumber: posted.number, reason: input.reason });
   return { id: reversal!.id, number: posted.number };

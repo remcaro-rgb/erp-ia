@@ -20,6 +20,7 @@ export const moduleEnable = defineProcess({
   feature: ADMIN_FEATURE,
   sensitivity: "step-up",
   description: "Activa para la empresa un módulo contratado; sus dependencias deben estar activas",
+  emits: ["kernel.module.enabled"],
   input: z.object({ moduleId: MODULE_ID }),
   output,
   handler: async (ctx, { moduleId }) => {
@@ -55,6 +56,8 @@ export const moduleEnable = defineProcess({
       from kernel.roles r cross join unnest(${consults}::text[]) as p(id)
       where r.company_id = ${ctx.companyId} and not (r.is_system and r.name = 'admin')
       on conflict (company_id, role_id, process_id) do nothing`;
+    // Modules that install per-company data (accounting's posting rules) react to this event.
+    await ctx.emit("kernel.module.enabled", { moduleId });
     return { moduleId, enabled: true };
   },
 });

@@ -1,6 +1,6 @@
 import { ProcessError } from "../process/errors";
 import type { EventConsumer } from "../registry/types";
-import { composeEntry, type ComposedEntry, type ComposedLine, type EventRef } from "./compose";
+import { composeEntry, ruleApplies, type ComposedEntry, type ComposedLine, type EventRef } from "./compose";
 import { resolvePath } from "./path";
 import type { PostingFailure, PostingFailureCode, PostingProvider } from "./provider";
 
@@ -33,8 +33,14 @@ const dateOf = (payload: unknown, createdAt: Date): string => {
  * the provider and posted. A configuration or state problem (template, mapping, a ledger refusal) is recorded as a
  * posting failure and the next rule runs; anything else, such as a lost connection, propagates so the outbox retries.
  */
-export function postingConsumer(provider: PostingProvider): EventConsumer {
+export function postingConsumer(provider: PostingProvider, moduleId?: string): EventConsumer {
   return async (ctx, payload) => {
+    // An event the posting module already handled inline (a documento that posted in its own action, or skipped it on purpose, see
+    // inline.ts) is never composed again: whatever the configuration has become since, no second entry and no spurious failure.
+    if (moduleId) {
+      const [handled] = await ctx.sql`select 1 from kernel.outbox_deliveries where outbox_id = ${ctx.event.id} and module_id = ${moduleId}`;
+      if (handled) return;
+    }
     // The provider's own lifecycle events (a document the lifecycle is posting itself) never reach a rule: no double posting.
     if (provider.ignores?.(ctx.event.name)) return;
     // A record entering a status (`<entity>.status_changed`, the typed lifecycle's notice for the state e-mails, Task 12) is not a
@@ -50,6 +56,16 @@ export function postingConsumer(provider: PostingProvider): EventConsumer {
     const settings = await provider.composeSettings(ctx);
     const rules = [...(await provider.rulesFor(ctx, event.event))].sort((a, b) => a.priority - b.priority);
     for (const rule of rules) {
+      // A rule with a `when` that does not hold for this payload (a receipt reaching the adjustment rule) is not for this event.
+      let applies: boolean;
+      try {
+        applies = ruleApplies(rule.template, payload);
+      } catch (error) {
+        // A stored rule with a malformed `when` is a configuration problem of that rule: recorded, and the next rule runs.
+        await provider.recordFailure(ctx, { eventId: event.id, event: event.event, eventDate, ruleId: rule.id, payload, code: "invalid_template", detail: `when: ${error instanceof Error ? error.message : String(error)}` } satisfies PostingFailure);
+        continue;
+      }
+      if (!applies) continue;
       const fail = (code: PostingFailureCode, detail: string): Promise<void> =>
         provider.recordFailure(ctx, { eventId: event.id, event: event.event, eventDate, ruleId: rule.id, payload, code, detail } satisfies PostingFailure);
 
@@ -79,10 +95,10 @@ export function postingConsumer(provider: PostingProvider): EventConsumer {
   };
 }
 
-type Resolved = { ok: true; entry: ComposedEntry } | { ok: false; detail: string };
+export type Resolved = { ok: true; entry: ComposedEntry } | { ok: false; detail: string };
 
 /** Explicit account kept; else (role, dimension), then (role, none) (design §4.2). */
-async function resolveRoles(provider: PostingProvider, ctx: Parameters<EventConsumer>[0], entry: ComposedEntry): Promise<Resolved> {
+export async function resolveRoles(provider: PostingProvider, ctx: Parameters<EventConsumer>[0], entry: ComposedEntry): Promise<Resolved> {
   const resolve = async (line: ComposedLine): Promise<ComposedLine | string> => {
     if (line.accountCode || !line.role) return line;
     const account = (line.dimension ? await provider.resolveAccount(ctx, line.role, line.dimension) : null) ?? (await provider.resolveAccount(ctx, line.role));

@@ -1,15 +1,16 @@
 {
-  "event": "invoicing.note.issued",
-  "name": "Nota crédito o débito de venta",
+  "event": "invoicing.invoice.issued",
+  "name": "Factura de venta emitida",
   "journalCode": "VT",
   "template": {
     "date": "$.date",
-    "description": "Nota {{number}} · {{customer.legalName}}",
+    "description": "Factura {{number}} · {{customer.legalName}}",
     "party": "$.customer.partyId",
     "costCenter": "$.costCenterId",
+    "businessUnit": "$.businessUnitId",
     "source": {
-      "entity": "invoicing.note",
-      "id": "$.noteId"
+      "entity": "invoicing.invoice",
+      "id": "$.invoiceId"
     },
     "lines": [
       {
@@ -23,7 +24,7 @@
         "side": "credit",
         "forEach": "$.lines[*]",
         "amount": "$.subtotal",
-        "dimension": "note_reason:{{$$.reasonCode}}",
+        "dimension": "category:{{categoryId}}",
         "costCenter": "$.costCenterId"
       },
       {

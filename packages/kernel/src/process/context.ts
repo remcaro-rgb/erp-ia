@@ -44,5 +44,17 @@ export interface ProcessContext {
    * An error it throws is logged and the caller still gets the committed result (the next steps still run). Absent on contexts that
    * are not a runProcess run.
    */
+  /**
+   * Runs another registered process inside this run's transaction, as the same caller (nested run). It goes through the gates that
+   * can be asked inside a transaction: the process must be entitled, allow this origin, be runnable by the caller (`kernel.can_run_process`,
+   * menu access included), parse its input and pass the record-level guard. Its writes are attributed to the nested process (its id in
+   * the row audit and its own audit entry, same chain, same actor and origin); the events it emits go on the same chain. It runs without
+   * an idempotency key. A nested process that needs a step-up is refused with `step_up_required`: the outer run's verification covers
+   * the outer process only. A refusal or failure propagates, and so rolls back the whole outer run. An outer handler that catches it
+   * and goes on writes as the outer process again, but the nested run's writes before its failure stay in the transaction: catching a
+   * nested error and continuing needs a savepoint around the call (and after a SQL error the transaction is aborted). Absent on contexts
+   * that are not a runProcess run.
+   */
+  runProcess?<T = unknown>(processId: string, input: unknown): Promise<T>;
   afterCommit?(fn: (asCaller: <T>(work: (tx: Tx) => Promise<T>) => Promise<T>) => Promise<void>): void;
 }

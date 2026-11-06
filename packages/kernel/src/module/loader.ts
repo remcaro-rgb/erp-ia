@@ -66,6 +66,20 @@ export function loadModules(registry: Registry, declared: ModuleDef[]): void {
     }
   }
 
+  // A card effect keyed by another module's event or process (`ModuleDef.effects`, plan 2B Task 25) must name one that module emits or
+  // declares, once that module is loaded: a typo would silently drop the line from every card. (Its own keys `defineModule` checks; a key of
+  // a module that is not loaded is an optional neighbour's and is not checked.)
+  const allModules = [...registry.modules(), ...modules];
+  const ownerOf = new Map(allModules.map((m) => [m.id, m]));
+  for (const module of modules) {
+    for (const key of Object.keys(module.effects ?? {})) {
+      const owner = ownerOf.get(key.slice(0, key.indexOf(".")));
+      if (!owner || owner.id === module.id) continue;
+      const names = new Set([...owner.events.emits, ...owner.processes.flatMap((p) => [p.id, ...(p.emits ?? [])])]);
+      if (!names.has(key)) throw new Error(`effects of module ${module.id}: "${key}" is no event or process of module ${owner.id}`);
+    }
+  }
+
   // A KPI provider's `consult` gate must be a consult process some module declares: a typo would silently hide the card.
   const known = [...registry.processes(), ...modules.flatMap((m) => m.processes)];
   const kinds = new Map(known.map((p) => [p.id, p.kind]));
@@ -117,7 +131,7 @@ export function loadModules(registry: Registry, declared: ModuleDef[]): void {
     for (const provider of module.homeKpis ?? []) registry.registerKpiProvider(provider);
     for (const provider of module.homeCharts ?? []) registry.registerChartProvider(provider);
     for (const [event, fn] of Object.entries(module.events.consumes)) {
-      const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider) : fn;
+      const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider, module.id) : fn;
       consumers.register(module.id, event, wrapped);
     }
     for (const entity of module.entities.filter(isTypedEntity)) consumers.register("kernel", statusChangedEvent(entity.id), stateMailConsumer(registry));

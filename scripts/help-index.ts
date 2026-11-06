@@ -17,6 +17,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
+import { costing } from "@erp/module-costing";
+import { crm } from "@erp/module-crm";
+import { invoicing } from "@erp/module-invoicing";
+import { payments } from "@erp/module-payments";
+import { sales } from "@erp/module-sales";
+import { inventory } from "@erp/module-inventory";
 import { support } from "@erp/module-support";
 import { MissingModelPolicy, resolveModel, type ModelChoice } from "@erp/agent";
 import {
@@ -39,7 +45,7 @@ export const GUIDES_DIR = join(ROOT, "docs", "user-guide", "es-419");
 /** A registry with the modules apps/web loads, in the same order. */
 export function loadAppRegistry(): Registry {
   const registry = new Registry();
-  loadModules(registry, [kernelModule, core, accounting, support]);
+  loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
   return registry;
 }
 

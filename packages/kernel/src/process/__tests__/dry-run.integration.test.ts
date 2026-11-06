@@ -121,6 +121,16 @@ describe("runProcess dry run", () => {
     expect(seenDryRun.get("real-1")).toBe(false);
   });
 
+  it("tells the events the run would emit (onDryRunEvents, plan 2B Task 25), only its own, and leaves none in the outbox", async () => {
+    const chainId = randomUUID();
+    // A committed run earlier on the same chain: its event is not the dry run's.
+    await runProcess(deps(), as(admin, { chainId }), ids.create, { name: "ev-real" });
+    let events: { event: string; payload: unknown }[] | undefined;
+    await runProcess(deps(), as(admin, { chainId }), ids.create, { name: "ev-dry" }, { dryRun: true, onDryRunEvents: (e) => (events = e) });
+    expect(events).toEqual([{ event: "dryrun.probe.created", payload: { id: expect.any(String) } }]);
+    expect(await outbox(chainId)).toBe(1);
+  });
+
   it("a caller-given idempotency key replays the first run instead of running again", async () => {
     const first = await runProcess(deps(), as(admin), ids.create, { name: "keyed-1" }, { idempotencyKey: "import:x:0" });
     const again = await runProcess(deps(), as(admin), ids.create, { name: "keyed-1" }, { idempotencyKey: "import:x:0" });

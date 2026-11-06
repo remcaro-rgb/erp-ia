@@ -6,8 +6,8 @@
     "date": "$.date",
     "description": "Costo de ventas {{number}}",
     "source": {
-      "entity": "costing.cogs",
-      "id": "$.cogsId"
+      "entity": "inventory.movement",
+      "id": "$.movementId"
     },
     "lines": [
       {

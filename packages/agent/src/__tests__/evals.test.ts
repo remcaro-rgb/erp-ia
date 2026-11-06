@@ -5,8 +5,14 @@ import { describe, expect, it } from "vitest";
 import { GridState, kernelModule, loadModules, Registry, type ProcessDef } from "@erp/kernel";
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
+import { costing } from "@erp/module-costing";
+import { crm } from "@erp/module-crm";
+import { inventory } from "@erp/module-inventory";
+import { invoicing } from "@erp/module-invoicing";
+import { payments } from "@erp/module-payments";
+import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
-import { EXCLUDED_PROCESSES, inputJsonSchema, toolName } from "../tools/from-registry";
+import { EXCLUDED_PROCESSES, inputJsonSchema, isAgentTool, toolName } from "../tools/from-registry";
 
 // The evaluation set (rule 30, design §7.1): Spanish prompts → the tool call the assistant must make. The model is not
 // called here (no network in CI); this suite keeps the set honest against the registry the tools are generated from: the
@@ -26,7 +32,8 @@ const files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
 const cases: EvalCase[] = files.flatMap((f) => (JSON.parse(readFileSync(join(dir, f), "utf8")) as { cases: EvalCase[] }).cases);
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, support, accounting]);
+// The app's modules (apps/web/src/lib/server/runtime.ts): the 2A ledger and the 2B sales chain.
+loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments]);
 
 type Schema = { type?: string; properties?: Record<string, Schema>; items?: Schema; enum?: unknown[]; additionalProperties?: unknown };
 
@@ -64,6 +71,24 @@ describe("evaluation set", () => {
     );
   });
 
+  it("has the sales chain prompts of plan 2B Task 25, in Spanish, each a write behind a confirmation card", () => {
+    const byPrompt = new Map(cases.map((c) => [c.prompt, c]));
+    const plan: [string, string][] = [
+      ["cotiza 10 café a Distribuidora X", "crm.quote.create"],
+      ["confirma el pedido 12", "sales.order.confirm"],
+      ["factura lo entregado", "invoicing.invoice.from_orders"],
+      ["registra el pago de la factura FE-1234", "payments.payment.receive"],
+    ];
+    for (const [prompt, process] of plan) {
+      expect(byPrompt.get(prompt)?.expect, prompt).toMatchObject({ process, confirmation: true });
+      expect(byPrompt.get(prompt)?.tier, prompt).toBe("core");
+    }
+    // The annulment of an issued invoice is a step-up write: it is offered as a card that asks for the code.
+    const voiding = cases.find((c) => c.expect.process === "invoicing.invoice.void");
+    expect(voiding?.expect.confirmation).toBe(true);
+    expect(registry.process("invoicing.invoice.void").sensitivity).toBe("step-up");
+  });
+
   it("every case has a tier, and the five plan prompts are core", () => {
     for (const c of cases) expect(["core", "extended"], c.id).toContain(c.tier);
     expect(cases.filter((c) => c.id.startsWith("accounting-")).every((c) => c.tier === "core")).toBe(true);
@@ -74,8 +99,10 @@ describe("evaluation set", () => {
 
     it("expects a registered process the assistant is offered, under a provider-safe tool name", () => {
       expect(process, `${c.expect.process} is not registered`).toBeDefined();
-      expect(process!.origins, "event-only processes are never tools").toBeUndefined();
+      expect(process!.origins, "event-only and screen-only processes are never tools").toBeUndefined();
+      expect(process!.nestedOnlyFrom, "a process that runs only nested is never a tool").toBeUndefined();
       expect(EXCLUDED_PROCESSES.has(process!.id)).toBe(false);
+      expect(isAgentTool(process!)).toBe(true);
       expect(toolName(process!.id)).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
     });
 

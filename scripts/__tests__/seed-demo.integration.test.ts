@@ -5,9 +5,12 @@ import { describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
 import { DEMO_COMPANY_ID } from "../demo/accounts";
 import { SAMPLE_COMPROBANTES } from "../demo/accounting";
+import { ALMACENES_EXITO, CHAIN, SALES_CHAIN_MODULES, WAREHOUSE } from "../demo/sales";
 
 // The whole demo seed against the local stack (owner order 2026-11-02): `DEMO_SEED=1 pnpm db:seed` must finish, with a posted
-// and balanced opening and the October sample comprobantes posted. It writes the demo company, so it runs only on request:
+// and balanced opening and the October sample comprobantes posted; and (plan 2B Task 26) the sale chain's modules entitled to the demo
+// tenant only and enabled, stock in Bodega Principal, and one sale gone the whole way: cotización → pedido → entrega → factura accepted
+// by the (mock) DIAN → recibo, the invoice paid. It writes the demo company, so it runs only on request:
 //   pnpm db:reset && cd scripts && DEMO_SEED=1 pnpm exec vitest run seed-demo
 const enabled = process.env.DEMO_SEED === "1";
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..", "..");
@@ -29,6 +32,32 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
         select description from accounting.entries
         where company_id = ${DEMO_COMPANY_ID} and status = 'posted' and description = any(${SAMPLE_COMPROBANTES.map((c) => c.description)})`;
       expect(posted.map((r) => r.description).sort()).toEqual(SAMPLE_COMPROBANTES.map((c) => c.description).sort());
+
+      const keys = SALES_CHAIN_MODULES.map((m) => `module:${m}`);
+      const entitled = await sql<{ tenant_id: string; key: string }[]>`
+        select tenant_id, key from kernel.tenant_entitlements where key = any(${keys}) and enabled and company_id is null`;
+      const [company] = await sql<{ tenant_id: string }[]>`select tenant_id from kernel.companies where id = ${DEMO_COMPANY_ID}`;
+      const demoTenant = company!.tenant_id;
+      expect(entitled.filter((e) => e.tenant_id === demoTenant).map((e) => e.key).sort()).toEqual([...keys].sort());
+      // No other tenant gets them by default: no plan includes them (the local stack's test tenants hold their own fixtures' grants).
+      expect(await sql`select id from kernel.plans where included_keys && ${keys}::text[]`).toEqual([]);
+      const enabledModules = await sql<{ module_id: string }[]>`
+        select module_id from kernel.company_modules where company_id = ${DEMO_COMPANY_ID} and module_id = any(${[...SALES_CHAIN_MODULES]}) and enabled`;
+      expect(enabledModules.map((m) => m.module_id).sort()).toEqual([...SALES_CHAIN_MODULES].sort());
+      const [stock] = await sql<{ on_hand: string }[]>`
+        select coalesce(sum(s.on_hand), 0)::text as on_hand from inventory.stock_levels s join inventory.warehouses w on w.id = s.warehouse_id
+        where s.company_id = ${DEMO_COMPANY_ID} and w.code = ${WAREHOUSE.code}`;
+      expect(Number(stock!.on_hand)).toBeGreaterThan(0);
+      const [chain] = await sql<{ quote: string; order: string; delivery: string }[]>`
+        select q.stage as quote, o.stage as order, d.stage as delivery
+        from crm.quotes q join core.parties p on p.id = q.party_id join sales.orders o on o.quote_id = q.id join sales.deliveries d on d.order_id = o.id
+        where q.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${ALMACENES_EXITO} order by q.created_at limit 1`;
+      expect(chain).toEqual({ quote: "accepted", order: "delivered", delivery: "shipped" });
+      const [invoice] = await sql<{ stage: string; dian: string; total: number; paid: number }[]>`
+        select i.stage, i.dian_status as dian, i.total::float8 as total, i.paid_amount::float8 as paid
+        from invoicing.invoices i join core.parties p on p.id = i.party_id
+        where i.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${ALMACENES_EXITO} order by i.created_at limit 1`;
+      expect(invoice).toEqual({ stage: "paid", dian: "accepted", total: CHAIN.total, paid: CHAIN.total });
     } finally {
       await sql.end();
     }

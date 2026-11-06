@@ -23,7 +23,7 @@ COPY . .
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store pnpm install --offline --frozen-lockfile
 CMD ["pnpm", "help:index"]
 
-# The worker runs its TypeScript sources and the workspace packages' (kernel, core, support) with tsx: production
+# The worker runs its TypeScript sources and the workspace packages' (kernel and the modules of src/modules.ts) with tsx: production
 # dependencies of the worker and of the packages it uses, nothing else.
 FROM deps AS runner
 ENV NODE_ENV=production

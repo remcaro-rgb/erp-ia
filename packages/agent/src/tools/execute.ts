@@ -1,5 +1,5 @@
 import { ProcessError, runProcess, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
-import { createConfirmation } from "../runtime/confirm";
+import { createConfirmation, scrubRefusal } from "../runtime/confirm";
 import { isBuiltin, runBuiltin } from "./builtin";
 import { capResult } from "./cap";
 import { refusal } from "./descriptor";
@@ -8,7 +8,7 @@ import { permittedProcesses, processIdOfTool } from "./from-registry";
 // One tool call, as the caller (rule 17). A consult runs its process through `runProcess` with origin `agent` and the
 // conversation, so it is entitlement-, permission- and step-up-checked, masked and audited like any other run. A
 // create, update or delete never runs here: it becomes a confirmation card. A refusal of the pipeline comes back as the
-// tool's result (the model explains it to the user); anything else is thrown, and the workflow step retries it.
+// tool's result (the model explains it to the user), scrubbed of the handler's text; anything else is thrown, and the workflow step retries it.
 
 /** The caller as the assistant acts for them: origin `agent`, in the conversation. */
 export const agentCaller = (caller: Caller): Caller => ({ ...caller, origin: "agent" });
@@ -34,7 +34,8 @@ export async function executeTool(deps: RunProcessDeps, caller: Caller, name: st
     if (!permitted.some((p) => p.id === def.id)) return refusal("forbidden");
     return await createConfirmation(deps, asAgent, def, input);
   } catch (error) {
-    if (error instanceof ProcessError) return refusal(error.code, { message: error.message, ...(error.details !== undefined ? { details: error.details } : {}) });
+    // Its code and a catalogue text, as a card's dry run (scrubRefusal): a handler's text may hold what the caller's masks hide.
+    if (error instanceof ProcessError) return scrubRefusal(error, { locale: caller.claims.locale, processId: def.id });
     throw error;
   }
 }

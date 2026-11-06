@@ -61,7 +61,9 @@ describe("posting", () => {
   it("chart.seed installs the default rules of the module for every event of design §5.4", async () => {
     const rules = await h.sql<{ event: string; module: string; is_default: boolean }[]>`select event, module, is_default from accounting.posting_rules where company_id = ${h.companyId} order by event`;
     expect(rules.map((r) => r.event)).toEqual([
-      "costing.cogs.posted", "inventory.movement.posted", "invoicing.invoice.issued", "invoicing.invoice.voided", "invoicing.note.issued", "payments.payment.voided", "payments.received",
+      "costing.cogs.posted", "inventory.movement.posted", "invoicing.invoice.issued", "invoicing.invoice.voided",
+      // The note's rule is three, one per kind of note (plan 2B Task 18 fix round 1).
+      "invoicing.note.issued", "invoicing.note.issued", "invoicing.note.issued", "payments.payment.voided", "payments.received",
     ]);
     expect(rules.every((r) => r.module === "accounting" && r.is_default)).toBe(true);
   });
@@ -206,8 +208,9 @@ describe("posting", () => {
     const lines = await h.sql`
       select a.code, l.debit, l.credit, l.tax_code, l.tax_rate, l.tax_base from accounting.entry_lines l join accounting.accounts a on a.id = l.account_id
       where l.entry_id = ${entry!.id} order by l.line_no`;
+    // The fixture's method is a transfer: the pack maps payment_method:transfer to the bank (plan 2B Task 21; before it, the cash role's 110505).
     expect(lines.map((l) => [l.code, l.debit, l.credit, l.tax_code])).toEqual([
-      ["110505", "1155340.0000", "0.0000", null], ["135515", "25000.0000", "0.0000", "RTEFTE_COMPRAS_2_5"],
+      ["111005", "1155340.0000", "0.0000", null], ["135515", "25000.0000", "0.0000", "RTEFTE_COMPRAS_2_5"],
       ["135518", "9660.0000", "0.0000", "RTEICA_BOGOTA_0_966"], ["130505", "0.0000", "1190000.0000", null],
     ]);
     expect(lines[1]).toMatchObject({ tax_rate: "2.5000", tax_base: "1000000.0000" });
@@ -263,6 +266,20 @@ describe("posting", () => {
     expect(await accountingProvider.effectsFor(ctx, "unknown.event")).toEqual([]);
   });
 
+  it("effectsFor: a rule with a `when` is listed only for a payload it holds on; without the payload it is left out (plan 2B Task 25)", async () => {
+    const { accountingProvider } = await import("../posting/provider");
+    const base = await ruleOf("invoicing.invoice.issued");
+    const [rule] = await h.sql<{ template: Record<string, unknown>; journal_id: string }[]>`select template, journal_id from accounting.posting_rules where id = ${base.id}`;
+    const event = "dryrun.effects.when";
+    await h.runStepUp(h.admin, "accounting.posting_rule.create", {
+      event, name: "Solo exportaciones", journalId: rule!.journal_id, template: { ...rule!.template, when: [{ path: "$.export", equals: true }] }, priority: 400,
+    });
+    const ctx = buildConsumerContext(h.sql, { companyId: h.companyId, chainId: newId() }, h.deps.registry);
+    expect(await accountingProvider.effectsFor(ctx, event, { export: true })).toEqual(["Contabilidad: asiento en Ventas"]);
+    expect(await accountingProvider.effectsFor(ctx, event, { export: false })).toEqual([]);
+    expect(await accountingProvider.effectsFor(ctx, event)).toEqual([]);
+  });
+
   it("the engine refuses a line naming a Pendiente account (D10, usability at Contabilizar): no entry, an inactive_account failure", async () => {
     await h.sql`update accounting.accounts set status = 'pending', requires_approval = true where company_id = ${h.companyId} and code = '413595'`;
     try {
@@ -278,5 +295,233 @@ describe("posting", () => {
     } finally {
       await h.sql`update accounting.accounts set status = 'saved', requires_approval = false where company_id = ${h.companyId} and code = '413595'`;
     }
+  });
+});
+
+// Plan 2B Task 14 review: the void of a source reaches the ledger in one transaction (accounting.posting.reverse_source) that serializes
+// with every post of the source's own event: the pendings are locked first, the undelivered events dismissed (their outbox rows locked),
+// and only then the entry looked for.
+describe("posting: the void of a source vs its own posting", () => {
+  let only: string;
+  let parked: string[] = [];
+  const settled = async (p: Promise<unknown>, ms = 400): Promise<boolean> =>
+    Promise.race([p.then(() => true, () => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
+  const pendingOf = (outboxId: string) =>
+    h.sql<{ id: string; status: string; posting_rule_id: string | null; extra: Record<string, unknown> }[]>`
+      select id, status, posting_rule_id, extra from accounting.posting_failures where company_id = ${h.companyId} and event_id = ${outboxId} order by seq`;
+  const markOf = async (outboxId: string) => (await h.sql`select 1 from kernel.outbox_deliveries where outbox_id = ${outboxId} and module_id = 'accounting'`).length;
+  const voidOf = (invoiceId: string, date = dateIn(4, 20)) => emit("invoicing.invoice.voided", { ...voidedFixture, date, invoiceId });
+  const reversalOf = (entryId: string) => h.sql`select id, status from accounting.entries where reversal_of_id = ${entryId}`;
+
+  beforeAll(async () => {
+    // One active rule on the invoice (earlier tests left a second one active): each invoice posts one entry.
+    only = (await ruleOf("invoicing.invoice.issued")).id;
+    parked = (await h.sql<{ id: string }[]>`
+      update accounting.posting_rules set is_active = false
+       where company_id = ${h.companyId} and event = 'invoicing.invoice.issued' and id <> ${only} and is_active returning id`).map((r) => r.id);
+  });
+  afterAll(async () => {
+    if (parked.length > 0) await h.sql`update accounting.posting_rules set is_active = true where id = any(${parked}::uuid[])`;
+    await h.sql`update accounting.periods set status = 'open' where company_id = ${h.companyId} and number = 2`;
+  });
+
+  it("dismisses only the voided source's pending, with the code source_voided: another source's pending of the same event and a rule without a source survive", async () => {
+    const [rule] = await h.sql<{ template: Record<string, unknown>; journal_id: string }[]>`select template, journal_id from accounting.posting_rules where id = ${only}`;
+    const sourceless = Object.fromEntries(Object.entries(rule!.template).filter(([key]) => key !== "source"));
+    const bare = await h.runStepUp<{ id: string }>(h.admin, "accounting.posting_rule.create", {
+      event: "invoicing.invoice.issued", name: "Sin origen", journalId: rule!.journal_id, template: sourceless, priority: 300,
+    });
+    await h.sql`update accounting.periods set status = 'closed' where company_id = ${h.companyId} and number = 2`;
+    try {
+      const x = invoice(dateIn(2, 11));
+      const y = invoice(dateIn(2, 12));
+      const issuedX = await emit("invoicing.invoice.issued", x);
+      const issuedY = await emit("invoicing.invoice.issued", y);
+      await deliver(issuedX.id);
+      await deliver(issuedY.id);
+      expect((await pendingOf(issuedX.id)).map((f) => f.status)).toEqual(["pending", "pending"]);
+
+      const voided = await voidOf(x.invoiceId);
+      await deliver(voided.id);
+      const mine = await pendingOf(issuedX.id);
+      const sourced = mine.find((f) => f.posting_rule_id === only)!;
+      expect(sourced).toMatchObject({ status: "dismissed", extra: expect.objectContaining({ dismiss_code: "source_voided", dismissed_by_event: voided.id }) });
+      // The code is catalogue-neutral (rule 24): no copy is stored, the inbox names it from accounting.values.dismiss_code.
+      expect(sourced.extra).not.toHaveProperty("dismiss_reason");
+      expect(mine.find((f) => f.posting_rule_id === bare.id)).toMatchObject({ status: "pending" });
+      expect((await pendingOf(issuedY.id)).map((f) => f.status)).toEqual(["pending", "pending"]);
+      expect(await failuresOf(voided.id)).toHaveLength(0);
+      // Redelivered, the void changes nothing more (its idempotency key).
+      await deliver(voided.id);
+      expect((await pendingOf(issuedY.id)).map((f) => f.status)).toEqual(["pending", "pending"]);
+    } finally {
+      await h.runStepUp(h.admin, "accounting.posting_rule.disable", { id: bare.id });
+      await h.sql`update accounting.posting_failures set status = 'dismissed' where company_id = ${h.companyId} and posting_rule_id = ${bare.id} and status = 'pending'`;
+      await h.sql`update accounting.periods set status = 'open' where company_id = ${h.companyId} and number = 2`;
+    }
+  });
+
+  it("a void before the source's event was consumed marks it handled: a post already past the engine's check finds the mark and writes nothing", async () => {
+    const { postingConsumer } = await import("@erp/kernel");
+    const { accountingProvider } = await import("../posting/provider");
+    const z = invoice(dateIn(4, 5));
+    const issued = await emit("invoicing.invoice.issued", z);
+    const voided = await voidOf(z.invoiceId);
+    await deliver(voided.id);
+    expect(await markOf(issued.id)).toBe(1);
+    // The engine skips it (the mark) …
+    await deliver(issued.id);
+    expect(await entriesOf(issued.id)).toHaveLength(0);
+    // … and a post that was already past that check (a consumer without the check) re-checks under the outbox row lock: nothing is written.
+    const [row] = await h.sql<{ created_at: Date; chain_id: string; payload: unknown }[]>`select created_at, chain_id, payload from kernel.outbox where id = ${issued.id}`;
+    const ctx = buildConsumerContext(h.sql, { id: issued.id, event: "invoicing.invoice.issued", createdAt: row!.created_at, companyId: h.companyId, chainId: row!.chain_id }, h.deps.registry);
+    await postingConsumer(accountingProvider)(ctx, row!.payload);
+    expect(await entriesOf(issued.id)).toHaveLength(0);
+    expect(await failuresOf(issued.id)).toHaveLength(0);
+  });
+
+  it("kernel.dismiss_events waits for the event's outbox row: a void blocks while a post holds it, and reverses what that post committed", async () => {
+    const w = invoice(dateIn(4, 6));
+    const issued = await emit("invoicing.invoice.issued", w);
+    const voided = await voidOf(w.invoiceId);
+    // A post in flight holds the event's row (kernel.lock_event_for takes it FOR UPDATE).
+    const holder = await h.sql.reserve();
+    try {
+      await holder`begin`;
+      await holder`select id from kernel.outbox where id = ${issued.id} for update`;
+      const voiding = deliver(voided.id);
+      expect(await settled(voiding)).toBe(false);
+      // The holder ends without posting: the void then marks the event before any post can take the row.
+      await holder`commit`;
+      await voiding;
+    } finally {
+      holder.release();
+    }
+    // The void ran first once the row was free: nothing posted then, the event is marked, and the post afterwards writes nothing.
+    await deliver(issued.id);
+    expect(await entriesOf(issued.id)).toHaveLength(0);
+
+    // The other order: the post committed while the void waited on the pending rows → the void finds and reverses the entry.
+    const v = invoice(dateIn(4, 7));
+    const issuedV = await emit("invoicing.invoice.issued", v);
+    const voidedV = await voidOf(v.invoiceId);
+    const posting = deliver(issuedV.id);
+    const voiding = deliver(voidedV.id);
+    await Promise.all([posting, voiding]);
+    const entries = await entriesOf(issuedV.id);
+    // Whichever ran first, the ledger is consistent: either nothing posted, or it posted and is reversed.
+    if (entries.length === 1) expect(await reversalOf(entries[0]!.id as string)).toHaveLength(1);
+    else expect(entries).toHaveLength(0);
+  });
+
+  it("posting.retry vs the void of its source: in either order (and concurrently) the pending ends resolved and reversed, or dismissed with nothing posted", async () => {
+    const parkedPending = async () => {
+      await h.sql`update accounting.periods set status = 'closed' where company_id = ${h.companyId} and number = 2`;
+      const inv = invoice(dateIn(2, 15));
+      const issued = await emit("invoicing.invoice.issued", inv);
+      await deliver(issued.id);
+      await h.sql`update accounting.periods set status = 'open' where company_id = ${h.companyId} and number = 2`;
+      const [failure] = await pendingOf(issued.id);
+      expect(failure).toMatchObject({ status: "pending" });
+      return { inv, issued, failureId: failure!.id };
+    };
+
+    // Retry first, then the void: the void re-checks the entry after locking the (now resolved) pending, and reverses it.
+    const a = await parkedPending();
+    expect(await h.run<{ resolved: boolean }>(h.admin, "accounting.posting.retry", { failureId: a.failureId })).toMatchObject({ resolved: true });
+    const voidA = await voidOf(a.inv.invoiceId);
+    await deliver(voidA.id);
+    const [entryA] = await entriesOf(a.issued.id);
+    expect(await reversalOf(entryA!.id as string)).toHaveLength(1);
+
+    // The void first, then the retry: the pending is dismissed, the retry is refused and nothing posts.
+    const b = await parkedPending();
+    const voidB = await voidOf(b.inv.invoiceId);
+    await deliver(voidB.id);
+    expect((await pendingOf(b.issued.id))[0]).toMatchObject({ status: "dismissed" });
+    await expect(h.run(h.admin, "accounting.posting.retry", { failureId: b.failureId })).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await entriesOf(b.issued.id)).toHaveLength(0);
+
+    // Both at once, released together from a held lock on the pending row.
+    const c = await parkedPending();
+    const voidC = await voidOf(c.inv.invoiceId);
+    const holder = await h.sql.reserve();
+    let retried: Promise<unknown>;
+    let voiding: Promise<unknown>;
+    try {
+      await holder`begin`;
+      await holder`select id from accounting.posting_failures where id = ${c.failureId} for update`;
+      retried = h.run(h.admin, "accounting.posting.retry", { failureId: c.failureId }).catch((error: unknown) => error);
+      voiding = deliver(voidC.id);
+      expect(await settled(voiding)).toBe(false);
+      await holder`commit`;
+    } finally {
+      holder.release();
+    }
+    await Promise.all([retried!, voiding!]);
+    const [failureC] = await pendingOf(c.issued.id);
+    const entriesC = await entriesOf(c.issued.id);
+    if (failureC!.status === "resolved") {
+      expect(entriesC).toHaveLength(1);
+      expect(await reversalOf(entriesC[0]!.id as string)).toHaveLength(1);
+    } else {
+      expect(failureC).toMatchObject({ status: "dismissed", extra: expect.objectContaining({ dismiss_code: "source_voided" }) });
+      expect(entriesC).toHaveLength(0);
+    }
+  });
+
+  // Review round 2 (N1): a pending recorded while (or after) the void runs never stays live, and no retry posts a voided source.
+  it("a post failing into a pending while the void runs: no live pending remains and the retry does not post", async () => {
+    await h.sql`update accounting.periods set status = 'closed' where company_id = ${h.companyId} and number = 2`;
+    const inv = invoice(dateIn(2, 18));
+    const issued = await emit("invoicing.invoice.issued", inv);
+    const voided = await voidOf(inv.invoiceId);
+    // Both wait on the event's outbox row; the post queues first, fails (closed period), and records its pending while the void goes on.
+    const holder = await h.sql.reserve();
+    let posting: Promise<unknown>;
+    let voiding: Promise<unknown>;
+    try {
+      await holder`begin`;
+      await holder`select id from kernel.outbox where id = ${issued.id} for update`;
+      posting = deliver(issued.id);
+      await settled(posting, 200);
+      voiding = deliver(voided.id);
+      expect(await settled(voiding, 200)).toBe(false);
+      await holder`commit`;
+    } finally {
+      holder.release();
+    }
+    await Promise.all([posting!, voiding!]);
+    expect((await pendingOf(issued.id)).filter((f) => f.status === "pending")).toEqual([]);
+    await h.sql`update accounting.periods set status = 'open' where company_id = ${h.companyId} and number = 2`;
+    for (const f of await pendingOf(issued.id)) {
+      const out = await h.run<{ resolved: boolean }>(h.admin, "accounting.posting.retry", { failureId: f.id }).catch((error: { code: string }) => error);
+      expect(out).not.toMatchObject({ resolved: true });
+    }
+    expect(await entriesOf(issued.id)).toHaveLength(0);
+    expect(await h.sql`select 1 from accounting.voided_sources where company_id = ${h.companyId} and source_id = ${inv.invoiceId}`).toHaveLength(1);
+  });
+
+  it("after the void: a pending recorded late is not recorded, and a retry of a live pending of the voided source dismisses it (source_voided) instead of posting", async () => {
+    const inv = invoice(dateIn(4, 21));
+    const issued = await emit("invoicing.invoice.issued", inv);
+    const voided = await voidOf(inv.invoiceId);
+    await deliver(voided.id);
+    const [row] = await h.sql<{ created_at: Date; chain_id: string; payload: unknown }[]>`select created_at, chain_id, payload from kernel.outbox where id = ${issued.id}`;
+    const ctx = buildConsumerContext(h.sql, { id: issued.id, event: "invoicing.invoice.issued", createdAt: row!.created_at, companyId: h.companyId, chainId: row!.chain_id }, h.deps.registry);
+    // A rule that failed on the event after the void (an engine run already past its own checks) records nothing.
+    const recorded = await ctx.runProcess("accounting.posting_failure.record", {
+      eventId: issued.id, event: "invoicing.invoice.issued", eventDate: dateIn(4, 21), ruleId: only, payload: row!.payload, code: "closed_period", detail: "x",
+    });
+    expect(recorded).toEqual({ id: null, dismissed: true });
+    expect(await pendingOf(issued.id)).toEqual([]);
+    // A live pending of the voided source (written before the void's lock, by whatever path): the retry dismisses it, nothing posts.
+    const [live] = await h.sql<{ id: string }[]>`
+      insert into accounting.posting_failures (company_id, event_id, event, event_date, posting_rule_id, payload, error_code, error_detail)
+      values (${h.companyId}, ${issued.id}, 'invoicing.invoice.issued', ${dateIn(4, 21)}, ${only}, ${h.sql.json(row!.payload as never)}, 'closed_period', 'x') returning id`;
+    expect(await h.run(h.admin, "accounting.posting.retry", { failureId: live!.id })).toMatchObject({ resolved: false, code: "source_voided" });
+    expect((await pendingOf(issued.id))[0]).toMatchObject({ status: "dismissed", extra: expect.objectContaining({ dismiss_code: "source_voided" }) });
+    await expect(h.run(h.admin, "accounting.posting.retry", { failureId: live!.id })).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await entriesOf(issued.id)).toHaveLength(0);
   });
 });

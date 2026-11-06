@@ -24,6 +24,16 @@
         "costCenter": "$.costCenterId"
       }
     ],
-    "reverseOf": null
+    "reverseOf": null,
+    "when": [
+      {
+        "path": "$.kind",
+        "equals": "adjustment"
+      },
+      {
+        "path": "$.value",
+        "notEquals": 0
+      }
+    ]
   }
 }

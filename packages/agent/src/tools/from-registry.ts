@@ -27,7 +27,21 @@ export const EXCLUDED_PROCESSES: ReadonlyMap<string, string> = new Map([
   ["kernel.user.password.change", "a password must never travel through the chat; the user menu's dialog changes it"],
   ["kernel.admin.user.password.reset", "a password must never travel through the chat; the user page's dialog resets it"],
   ["kernel.admin.user.mfa.set", "removing a factor must be followed by the sign-out and the notice; the user page handles them (the admin's own factor included), the chat cannot"],
+  // Rule 17 (plan 2B Task 25): a consult the assistant gets reads masked views only. This one reads invoicing's published, unmasked
+  // invoicing.v_receivable_invoices (number, dates, totals and balances whatever the role's field modes on invoicing.invoice say); the
+  // assistant finds a customer's invoices through kernel.data.query over the masked invoicing.invoice, and payments.payment.receive checks
+  // each allocation itself.
+  ["payments.payment.open_invoices", "reads invoicing's unmasked published view of the invoices; the assistant reads them through the masked invoicing.invoice entity"],
 ]);
+
+/**
+ * Whether the assistant may ever be offered `def`, whoever asks (rules 1 and 17): not a process restricted to other origins (an event
+ * consumer's, a screen's: `origins` without `agent`), not one that runs only nested in another (`nestedOnlyFrom`), not an excluded one.
+ */
+export const isAgentTool = (def: ProcessDef): boolean => (!def.origins || def.origins.includes("agent")) && !def.nestedOnlyFrom && !EXCLUDED_PROCESSES.has(def.id);
+
+/** The registry's processes the assistant may ever be offered (`isAgentTool`), in registry order; the caller's roles and company narrow them. */
+export const agentCandidates = (registry: Registry): ProcessDef[] => registry.processes().filter(isAgentTool);
 
 /**
  * The process's input as a plain JSON Schema object (draft 7, no `$schema` marker): what the model fills in. A part
@@ -51,11 +65,11 @@ export function processToolDescriptor(def: ProcessDef): ToolDescriptor {
 
 /**
  * The processes of `registry` the caller may run and the company is entitled to (the same two checks `runProcess`
- * makes before anything else: entitlement, then the role matrix), minus the excluded ones. Kernel processes are the
+ * makes before anything else: entitlement, then the role matrix), among the candidates (`agentCandidates`). Kernel processes are the
  * platform's and always entitled, as in `runProcess`.
  */
 export async function permittedProcesses(deps: RunProcessDeps, caller: Caller, registry: Registry): Promise<ProcessDef[]> {
-  const candidates = registry.processes().filter((p) => !p.origins && !EXCLUDED_PROCESSES.has(p.id));
+  const candidates = agentCandidates(registry);
   const runnable = await runnableProcesses(deps.sql, registry, caller.claims, candidates.map((p) => p.id));
   const entitled = deps.entitled ?? resolveEntitled;
   const allowed = await Promise.all(

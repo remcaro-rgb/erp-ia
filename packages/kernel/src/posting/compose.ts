@@ -1,5 +1,5 @@
 import { PathError, interpolate, resolvePath } from "./path";
-import { RuleTemplate, type RuleLine } from "./template";
+import { RuleTemplate, type RuleCondition, type RuleLine } from "./template";
 
 export interface EventRef { id: string; event: string; payload: unknown; createdAt: Date; chainId: string }
 export interface ComposedLine {
@@ -29,6 +29,22 @@ const numberOf = (v: unknown, what: string): number => {
   if (!Number.isFinite(n)) throw new Invalid(`${what} does not resolve to a number`);
   return n;
 };
+
+const same = (a: unknown, b: unknown): boolean => (typeof a === "object" || typeof b === "object" ? JSON.stringify(a) === JSON.stringify(b) : Object.is(a, b));
+
+/** Whether the template's `when` conditions all hold on `payload` (no `when`: always). A rule that does not apply is skipped, not failed. */
+export function ruleApplies(template: RuleTemplate, payload: unknown): boolean {
+  const conditions = (template as { when?: RuleCondition[] }).when;
+  if (!Array.isArray(conditions)) return true;
+  return conditions.every((condition) => {
+    // A rule is stored as jsonb and may predate the schema's checks: a malformed condition throws (the engine records it).
+    if (typeof condition?.path !== "string" || !/^\$(\.[A-Za-z_][A-Za-z0-9_]*)+$/.test(condition.path)) throw new PathError("invalid_path", String(condition?.path));
+    const value = resolvePath(payload, condition.path);
+    if (condition.in !== undefined) return value !== undefined && condition.in.some((candidate) => same(value, candidate));
+    if (condition.notEquals !== undefined) return !same(value, condition.notEquals);
+    return value !== undefined && same(value, condition.equals);
+  });
+}
 
 export function composeEntry(template: RuleTemplate, event: EventRef, options: { tolerance: number; companyCurrency: string }): ComposeResult {
   const parsed = RuleTemplate.safeParse(template);

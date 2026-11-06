@@ -36,6 +36,21 @@ export const RuleLine = z
   });
 export type RuleLine = z.infer<typeof RuleLine>;
 
+/**
+ * A condition on the event payload (plan 2B Task 7): `equals`, `in` or `notEquals` (exactly one) compared with the value at `path`
+ * (a `$.` path without `[*]`), no type coercion. A missing value equals nothing.
+ */
+export const RuleCondition = z
+  .object({ path, equals: z.unknown().optional(), in: z.array(z.unknown()).optional(), notEquals: z.unknown().optional() })
+  .strict()
+  .superRefine((condition, ctx) => {
+    if (!/^\$(\.[A-Za-z_][A-Za-z0-9_]*)+$/.test(condition.path)) ctx.addIssue({ code: "custom", path: ["path"], message: "a condition path looks like $.a.b (no [*])" });
+    if (wildcards(condition.path) > 0) ctx.addIssue({ code: "custom", path: ["path"], message: "[*] is not allowed in a condition" });
+    const operators = (["equals", "in", "notEquals"] as const).filter((key) => key in condition && condition[key] !== undefined);
+    if (operators.length !== 1) ctx.addIssue({ code: "custom", message: "a condition has exactly one of equals, in, notEquals" });
+  });
+export type RuleCondition = z.infer<typeof RuleCondition>;
+
 export const RuleTemplate = z
   .object({
     date: path.optional(),
@@ -50,6 +65,8 @@ export const RuleTemplate = z
     source: z.object({ entity: path, id: path }).strict().optional(),
     lines: z.array(RuleLine),
     reverseOf: z.object({ event: path, sourceId: path }).strict().nullable().optional(),
+    /** The rule applies to an event only when every condition holds on its payload (e.g. `kind` equals `adjustment`). */
+    when: z.array(RuleCondition).optional(),
   })
   .strict()
   .superRefine((template, ctx) => {

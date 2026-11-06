@@ -7,7 +7,7 @@
     "description": "Recibo de caja {{number}} · {{customer.legalName}}",
     "party": "$.customer.partyId",
     "source": {
-      "entity": "payments.payment",
+      "entity": "payments.receipt",
       "id": "$.paymentId"
     },
     "lines": [
@@ -48,6 +48,12 @@
         "role": "receivable",
         "side": "credit",
         "amount": "$.applied"
+      },
+      {
+        "role": "customer_advances",
+        "side": "credit",
+        "forEach": "$.advances[*]",
+        "amount": "$.amount"
       }
     ],
     "reverseOf": null

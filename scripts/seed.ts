@@ -21,6 +21,10 @@
  *     25 products (scripts/demo/data.ts), so audit, outbox and consecutive numbers are real; then the required files
  *     (placeholder PDFs) of 6 parties through kernel.attachment.add, so they are invoice-ready.
  *  7. Two recommendations for Laura, with the evidence computed in SQL (rule 29).
+ *  8. The demo ledger (scripts/demo/accounting.ts): January to October 2026.
+ *  9. The phase 2B sale chain (scripts/demo/sales.ts, plan 2B Task 26), after the ledger and dated today: CRM, Ventas, Inventario,
+ *     Costos, Facturación and Pagos enabled; a bodega with stock, the medios de pago, the DIAN resolution of habilitación, and one
+ *     sale from the oportunidad to the paid invoice (accepted by the mock DIAN), plus a pedido shipped and one confirmed.
  *
  * The help index is built apart: `pnpm help:index` (the compose `help-index` job).
  */
@@ -32,8 +36,15 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as OTPAuth from "otpauth";
 import type { Sql } from "postgres";
 import { co } from "@erp/loc-co";
+import { einvoicePack } from "@erp/loc-co/einvoice";
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
+import { costing } from "@erp/module-costing";
+import { crm } from "@erp/module-crm";
+import { inventory } from "@erp/module-inventory";
+import { invoicing } from "@erp/module-invoicing";
+import { payments } from "@erp/module-payments";
+import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { SupabaseAuthAdmin, SupabaseFileStore, type FileStore } from "@erp/infra";
 import {
@@ -54,6 +65,7 @@ import {
 import { CATEGORIES, INVOICE_READY_PARTIES, PARTIES, PRODUCTS } from "./demo/data";
 import { ANDRES, DEMO_ACCOUNTS, DEMO_COMPANY_ID, DEMO_ROLE_IDS, LAURA, MARCELA, type DemoAccount } from "./demo/accounts";
 import { seedAccounting } from "./demo/accounting";
+import { enableSalesChain, seedSalesChain } from "./demo/sales";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 const SEED_SQL = join(ROOT, "supabase", "seed.sql");
@@ -425,8 +437,9 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
 
     step("registry sync");
     const registry = new Registry();
-    loadModules(registry, [kernelModule, core, accounting, support]);
-    registerCountryPack(co);
+    // The app's modules (apps/web/src/lib/server/runtime.ts), the phase 2B sale chain included, and the country pack with its e-invoice part.
+    loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+    registerCountryPack({ ...co, einvoice: einvoicePack });
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
 
@@ -453,11 +466,21 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     step("accounting");
     const ledger = await seedAccounting(sql, deps, { laura, andres, ids }, ids.get(LAURA.email)!);
 
+    // The sale chain after the accounting history (its months keep their figures): the modules enabled, the posting rules they ship
+    // installed (accounting.chart.seed syncs them, as Activar módulo does), then the chain dated today (scripts/demo/sales.ts).
+    step("sale chain");
+    await enableSalesChain(sql, registry);
+    await runProcess(deps, await laura.stepUp(), "accounting.chart.seed", {});
+    const chain = await seedSalesChain(sql, deps, { laura }, new SupabaseFileStore(admin));
+
     console.log(
       `db:seed done: Café del Norte S.A.S. · ${adminRuns} admin change(s), ${created.categories} categories, ${created.parties} parties, ` +
         `${created.products} products, ${files} required file(s) and ${recommendations} recommendation(s) created (existing ones kept).`,
     );
     console.log(`  Contabilidad: ${ledger.entriesFromEvents} document(s) posted from events, ${ledger.periodsClosed} period(s) closed (existing ones kept).`);
+    console.log(
+      `  Ventas: ${chain.actions} action(s) run; the chain ${chain.chain.quote} → ${chain.chain.order} → ${chain.chain.delivery} → ${chain.chain.invoice} (DIAN simulada: aceptada) → ${chain.chain.receipt} (existing documents kept).`,
+    );
     console.log("Demo accounts (LOCAL USE ONLY):");
     console.log(`  ${LAURA.email} / ${LAURA.password} · admin + gerente comercial · TOTP secret ${LAURA.totpSecret}`);
     console.log(`  ${MARCELA.email} / ${MARCELA.password} · cajero · no second step`);

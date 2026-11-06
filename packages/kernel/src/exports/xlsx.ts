@@ -1,5 +1,4 @@
 import { Writable } from "node:stream";
-import type ExcelJS from "exceljs";
 import { cellOf } from "./format";
 import type { ExportColumn, RowSource, WriterOptions } from "./types";
 

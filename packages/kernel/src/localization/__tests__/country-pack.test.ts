@@ -11,6 +11,7 @@ const fake: CountryPack = {
   validateProduct: (input) => ({ errors: [], missing: [], normalized: input }),
   codeLabel: (_table, code) => code,
   accounting: {} as CountryPack["accounting"],
+  taxes: {} as CountryPack["taxes"],
 };
 
 describe("country pack registry", () => {

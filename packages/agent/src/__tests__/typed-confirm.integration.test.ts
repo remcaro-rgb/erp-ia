@@ -35,9 +35,27 @@ const hide = (recordId: string) =>
   h.sql`insert into kernel.record_access (company_id, entity, record_id, grantee_role_id, can_read, can_use, can_modify)
         values (${h.companyId}, 'accounting.entry', ${recordId}, ${h.auxiliar.roleId}, true, true, true)`;
 
+/**
+ * A comprobante that Aprobar would really post (plan 2B Task 25: the card is offered only for a run the process would accept, tried in a
+ * dry run): two balanced lines in an open period, created and sent to approval by the auxiliar, so the contador may approve it.
+ */
+const submittedEntry = async (description: string) => {
+  const [year] = await h.sql<{ year: number }[]>`select year from accounting.fiscal_years where company_id = ${h.companyId}`;
+  const { id } = await h.run<{ id: string }>(h.auxiliar, "accounting.entry.create", {
+    date: `${year!.year}-02-15`, description, lines: [{ accountCode: "510506", debit: 100, credit: 0, costCenterId: costCenter }, { accountCode: "111005", debit: 0, credit: 100 }],
+  });
+  await h.run(h.auxiliar, "accounting.entry.save", { id });
+  await h.run(h.auxiliar, "accounting.entry.submit", { id });
+  return id;
+};
+let costCenter: string;
+
 beforeAll(async () => {
   h = await accountingHarness();
-  journal = (await h.sql<{ id: string }[]>`insert into accounting.journals (company_id, code, name, kind) values (${h.companyId}, 'NC', 'Nota', 'general') returning id`)[0]!.id;
+  await h.runStepUp(h.admin, "accounting.chart.seed", {});
+  await h.runStepUp(h.admin, "accounting.settings.update", { requireApprovalOnManual: true });
+  costCenter = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
+  journal = (await h.sql<{ id: string }[]>`select id from accounting.journals where company_id = ${h.companyId} and code = 'NC'`)[0]!.id;
   await h.grantAll(h.companyId, h.contador.roleId, ["kernel.record.notify", "kernel.doc_template.print"]);
   conversation = (await h.sql<{ id: string }[]>`insert into kernel.agent_conversations (company_id, user_id, title) values (${h.companyId}, ${h.contador.userId}, 'Prueba') returning id`)[0]!.id;
 }, 180_000);
@@ -50,7 +68,7 @@ afterAll(async () => {
 
 describe("typed processes through the assistant", () => {
   it("Aprobar asks for confirmation: a card, and the comprobante stays Pendiente de Aprobación", async () => {
-    const id = await pendingEntry("Por aprobar");
+    const id = await submittedEntry("Por aprobar");
     const out = await call("accounting__entry__approve", { id });
     expect(out.confirmationRequired).toBe(true);
     expect(await statusOf(id)).toBe("pending");
@@ -61,6 +79,15 @@ describe("typed processes through the assistant", () => {
     const out = await call("accounting__entry__void", { id, reason: "Quedó duplicado" });
     expect(out.confirmationRequired).toBe(true);
     expect(await statusOf(id)).toBe("approved");
+  });
+
+  it("no card for a run the process would refuse (tried in a dry run, nothing written): the contador's own comprobante, without lines", async () => {
+    const id = await pendingEntry("Sin líneas");
+    const before = await cards();
+    const out = await call("accounting__entry__approve", { id });
+    expect(out).toMatchObject({ ok: false, error: { code: "invalid_input", message: expect.stringMatching(/^same_user_approval: /) } });
+    expect(await cards()).toBe(before);
+    expect(await statusOf(id)).toBe("pending");
   });
 
   it("refuses a comprobante the caller reads but cannot modify: no card, record_forbidden", async () => {

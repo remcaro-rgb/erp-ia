@@ -51,6 +51,10 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("$ 1.234.567,00");
   });
 
+  it("says a refused action gets no card and the answer explains the refusal's reasons (invoice_ready, plan 2B Task 25)", () => {
+    expect(prompt).toMatch(/no está listo para facturar.*no hay tarjeta.*razones/);
+  });
+
   it("works without a screen and without help", () => {
     const bare = buildSystemPrompt({ ...facts, screen: undefined, help: [] });
     expect(bare).not.toContain("Pantalla actual");

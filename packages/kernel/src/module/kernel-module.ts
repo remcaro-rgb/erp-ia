@@ -136,7 +136,7 @@ export const kernelModule: ModuleDef = defineModule({
       entities: [userEntity.id],
     },
   ],
-  events: { emits: [], consumes: {} },
+  events: { emits: ["kernel.module.enabled"], consumes: {} },
   navigation: ADMIN_NAVIGATION,
   // Menu access (spec §9.2): printing is shared by every entity (each maestro and documento prints; a print of an entity whose menu item
   // is hidden is refused by that entity's consult, kernel.can_run_process). Saving templates and choosing the default are company-admin

@@ -17,7 +17,7 @@ import { gridAccess } from "../query/run";
 import type { ResolvedEntityDef } from "../registry/entities";
 import { IDENTIFIER } from "../registry/fields";
 import { countryPackOf, translatorFor, type Translate } from "../registry/labels";
-import { defaultTemplate, printableFields, printLabels } from "./defaults";
+import { defaultTemplate, printableFields, printLabels, type DefaultPresentation } from "./defaults";
 import type { TableSource } from "./render";
 import { DOC_TEMPLATE_ENTITY, MAX_PAGE_POINTS, TEMPLATE_SCOPES, TemplateBlocks, type Block, type Template, type TemplateScope } from "./schema";
 import { IMAGE_VARIABLES, listVariables, loadPrintCompany, loadPrintUser, resolveVariables, variableNames, type PrintContext } from "./variables";
@@ -55,9 +55,17 @@ const fieldNamesOf = (entity: ResolvedEntityDef) => new Set(printableFields(enti
 const namesField = (names: Set<string>, name: string) => names.has(name) || (name.startsWith(EXTRA_PREFIX) && IDENTIFIER.test(name.slice(EXTRA_PREFIX.length)));
 
 /** Refuses the blocks that name what the entity and scope do not have (the editor shows the messages). */
+/** The variables the entity's module adds to a record print (ModuleDef.printVariables), when it has any. */
+function moduleVariablesOf(ctx: ProcessContext, entity: ResolvedEntityDef) {
+  return ctx.registry.hasModule(entity.module) ? ctx.registry.module(entity.module).printVariables?.[entity.id] : undefined;
+}
+
 function checkBlocks(ctx: ProcessContext, entity: ResolvedEntityDef, scope: TemplateScope, blocks: readonly Block[]): void {
   const problems: string[] = [];
   const variables = variableNames(entity, scope);
+  const added = scope === "record" ? moduleVariablesOf(ctx, entity) : undefined;
+  for (const name of added?.names ?? []) variables.add(name);
+  const images = new Set<string>([...IMAGE_VARIABLES, ...(added?.images ?? [])]);
   const fields = fieldNamesOf(entity);
   const lines = linesEntityOf(ctx, entity);
   const tableFields = scope === "list" ? fields : lines ? fieldNamesOf(lines) : null;
@@ -72,7 +80,7 @@ function checkBlocks(ctx: ProcessContext, entity: ResolvedEntityDef, scope: Temp
         else if (!namesField(fields, block.value ?? "")) problems.push(`${at}: la entidad no tiene el campo ${block.value ?? ""}`);
         break;
       case "image":
-        if (!IMAGE_VARIABLES.includes((block.value ?? "") as (typeof IMAGE_VARIABLES)[number])) problems.push(`${at}: la imagen ${block.value ?? ""} no existe`);
+        if (!images.has(block.value ?? "")) problems.push(`${at}: la imagen ${block.value ?? ""} no existe`);
         break;
       case "lines":
         if (!tableFields) problems.push(`${at}: la entidad no tiene líneas`);
@@ -269,13 +277,18 @@ async function templateFor(ctx: ProcessContext, entity: ResolvedEntityDef, scope
   }
   const [row] = await ctx.tx<TemplateRow[]>`
     select * from kernel.doc_templates where company_id = ${ctx.companyId} and entity = ${entity.id} and scope = ${scope} and is_default`;
-  return row
-    ? asTemplate(row)
-    : defaultTemplate(entity, scope, {
-        ...(presentation.labels ? { labels: presentation.labels } : {}),
-        ...(presentation.title ? { title: presentation.title } : {}),
-        ...(presentation.taxIdLabel ? { taxIdLabel: presentation.taxIdLabel } : {}),
-      });
+  if (row) return asTemplate(row);
+  const builtIn: DefaultPresentation = {
+    ...(presentation.labels ? { labels: presentation.labels } : {}),
+    ...(presentation.title ? { title: presentation.title } : {}),
+    ...(presentation.taxIdLabel ? { taxIdLabel: presentation.taxIdLabel } : {}),
+  };
+  // The template the entity's module ships (ModuleDef.printTemplates), else the one generated from its fields.
+  const shipped = ctx.registry.hasModule(entity.module) ? ctx.registry.module(entity.module).printTemplates?.[entity.id]?.[scope] : undefined;
+  if (!shipped) return defaultTemplate(entity, scope, builtIn);
+  const template = shipped(builtIn);
+  checkBlocks(ctx, entity, scope, template.blocks);
+  return { ...template, id: null, entity: entity.id, scope, version: 0, isDefault: true };
 }
 
 /** The rows of `entity`'s view `where` (as the caller), keyed by the caller's columns, references named. */
@@ -328,6 +341,12 @@ export async function renderPrint(ctx: ProcessContext, input: PrintInput, t: Tra
     if (record.rows.length === 0) throw new ProcessError("not_found", `${entity.id} ${input.recordId} not found`);
     const ctxOf: PrintContext = { ...base, columns: record.columns };
     vars = resolveVariables(ctxOf, entity, record.rows[0]!);
+    // What the entity's module adds to the record's print (ModuleDef.printVariables: Task 19, the invoice's QR and CUFE), as the caller.
+    const added = moduleVariablesOf(ctx, entity);
+    if (added) {
+      const values = await added.resolve(ctx, input.recordId, { locale: ctx.locale, printedAt });
+      for (const name of [...added.names, ...(added.images ?? [])]) vars[name] = values[name] ?? "";
+    }
     if (lines) {
       const parent = entity.typed!.lines!.parentField;
       if (!IDENTIFIER.test(parent)) throw new Error(`entity ${entity.id}: invalid lines parent field "${parent}"`);

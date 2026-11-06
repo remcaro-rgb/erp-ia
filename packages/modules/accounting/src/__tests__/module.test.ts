@@ -27,7 +27,7 @@ describe("accounting manifest", () => {
       "accounting.entry.submitted", "accounting.entry.posted", "accounting.entry.reversed", "accounting.period.closed",
       "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed",
     ]);
-    expect(Object.keys(accounting.events.consumes)).toEqual(["*"]);
+    expect(Object.keys(accounting.events.consumes)).toEqual(["*", "kernel.module.enabled"]);
   });
 
   it("loads into a registry after core and registers every entity with i18n keys for labels", () => {
@@ -68,7 +68,7 @@ describe("accounting manifest", () => {
     expect(target("business_unit_id")).toEqual({ entity: "accounting.business_unit", display: "name" });
   });
 
-  it("contributes the Contabilidad tab to every record, the revenue account to categories and Cuentas to roles and users; four home cards", () => {
+  it("contributes the Contabilidad tab to every record, the revenue account to categories and Cuentas to roles and users; ten home KPIs", () => {
     const registry = new Registry();
     loadModules(registry, [core, accounting]);
     const ids = (entity: string) => registry.recordTabsFor(entity).map((t) => t.id);
@@ -80,7 +80,7 @@ describe("accounting manifest", () => {
     expect(revenue).toMatchObject({ kind: "mapping", dimension: "category:{id}", roles: ["revenue"], lookupEntity: "accounting.account", saveProcess: "accounting.account_role_mapping.update" });
     // Every grid tab reads a registered entity.
     for (const tab of accounting.recordTabs ?? []) if (tab.kind === "grid") expect(registry.entity(tab.source!).id).toBe(tab.source);
-    expect(accounting.homeKpis?.map((k) => k.id)).toEqual(["accounting.result_month", "accounting.pending_failures", "accounting.open_periods", "accounting.draft_entries"]);
+    expect(accounting.homeKpis?.map((k) => k.id)).toEqual(["accounting.result_month", "accounting.income_month", "accounting.expenses_month", "accounting.margin_month", "accounting.working_capital", "accounting.current_ratio", "accounting.posted_entries", "accounting.pending_failures", "accounting.open_periods", "accounting.draft_entries"]);
   });
 });
 

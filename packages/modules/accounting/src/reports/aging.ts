@@ -4,7 +4,10 @@ import { cents, reportInput, reportOutput, windowOf } from "./common";
 
 // Cartera por edades (accounting design §5.11): the open items of receivable or payable accounts by party, in buckets of days past
 // the due date at `asOf`: por vencer, 1–b1, b1+1–b2, b2+1–b3 and más de b3 (30 · 60 · 90 by default). Items come from
-// `accounting.open_items`, which applies receipts and payments FIFO by due date and leaves restricted accounts out.
+// `accounting.open_items`, which leaves restricted accounts out and applies receipts and payments FIFO by due date, or, for the
+// receivables of a company with the payments module, by what each recibo de caja applied to each invoice and each credit note to its
+// invoice (migration 0112). Its credit items (a saldo a favor beyond every document) and advance items (customer_advances) are
+// negative and go to «Anticipos y saldos a favor»; the total is net of them.
 
 const params = z.object({
   kind: z.enum(["receivable", "payable"]),
@@ -20,10 +23,11 @@ const columns: ReportColumn[] = [
   { field: "b2", label: "report.aging.b2", type: "money", total: "sum", mono: true },
   { field: "b3", label: "report.aging.b3", type: "money", total: "sum", mono: true },
   { field: "over", label: "report.aging.over", type: "money", total: "sum", mono: true },
+  { field: "credits", label: "report.aging.credits", type: "money", total: "sum", mono: true },
   { field: "total", label: "report.col.total", type: "money", total: "sum", mono: true },
 ];
 
-const BUCKETS = ["not_due", "b1", "b2", "b3", "over"] as const;
+const BUCKETS = ["not_due", "b1", "b2", "b3", "over", "credits"] as const;
 
 export const agingConsult = defineProcess({
   id: "accounting.report.aging",
@@ -46,13 +50,13 @@ export const agingConsult = defineProcess({
              (${p.asOf}::date - coalesce(o.due_date, o.date)) as days, o.open
       from accounting.open_items(${ctx.companyId}, ${p.asOf}::date) o
       join accounting.accounts a on a.id = o.account_id
-      join groups g on g.grp = left(a.code, 2) and g.is_receivable = ${p.kind === "receivable"}
+      left join groups g on g.grp = left(a.code, 2) and g.is_receivable = ${p.kind === "receivable"}
       left join core.v_parties p on p.id = o.party_id
-      where o.open > 0`;
+      where o.open <> 0 and (g.grp is not null or (o.kind = 'advance' and ${p.kind === "receivable"}))`;
     const byParty = new Map<string, Record<string, unknown>>();
     for (const item of items) {
-      const row = byParty.get(item.party_id) ?? { party_id: item.party_id, party_name: item.party_name ?? "", party_document: item.party_document ?? "", not_due: 0, b1: 0, b2: 0, b3: 0, over: 0, total: 0 };
-      const bucket = item.days <= 0 ? "not_due" : item.days <= b1 ? "b1" : item.days <= b2 ? "b2" : item.days <= b3 ? "b3" : "over";
+      const row = byParty.get(item.party_id) ?? { party_id: item.party_id, party_name: item.party_name ?? "", party_document: item.party_document ?? "", not_due: 0, b1: 0, b2: 0, b3: 0, over: 0, credits: 0, total: 0 };
+      const bucket = Number(item.open) < 0 ? "credits" : item.days <= 0 ? "not_due" : item.days <= b1 ? "b1" : item.days <= b2 ? "b2" : item.days <= b3 ? "b3" : "over";
       row[bucket] = Number(row[bucket]) + Number(item.open);
       row.total = Number(row.total) + Number(item.open);
       byParty.set(item.party_id, row);

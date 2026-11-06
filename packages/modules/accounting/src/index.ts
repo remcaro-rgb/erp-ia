@@ -1,4 +1,4 @@
-import { defineModule, POSTING_CONSUMER, type ModuleDef, type RecordTabContribution } from "@erp/kernel";
+import { defineModule, POSTING_CONSUMER, ProcessError, type ModuleDef, type RecordTabContribution } from "@erp/kernel";
 import { DIMENSION_DEFS } from "./dimensions";
 import { ACCOUNTING_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
@@ -58,7 +58,17 @@ export const accounting: ModuleDef = defineModule({
       "accounting.entry.submitted", "accounting.entry.posted", "accounting.entry.reversed", "accounting.period.closed",
       "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed",
     ],
-    consumes: { "*": POSTING_CONSUMER },
+    consumes: {
+      "*": POSTING_CONSUMER,
+      // A module switched on brings its posting rules (plan 2B Task 1); a company where accounting is off has nothing to install.
+      "kernel.module.enabled": async (ctx) => {
+        try {
+          await ctx.runProcess("accounting.posting_rule.sync", {});
+        } catch (error) {
+          if (!(error instanceof ProcessError) || error.code !== "not_entitled") throw error;
+        }
+      },
+    },
   },
   navigation: NAVIGATION,
   menuShared: MENU_SHARED,

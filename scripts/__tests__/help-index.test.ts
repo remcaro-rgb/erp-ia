@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FakeEmbedder, GatewayEmbedder, chunkGuide, guideProblems, knownRoutes, loadGuides } from "@erp/kernel";
 import { GUIDES_DIR, loadAppRegistry, pickEmbedder, policyEmbeddingModel } from "../help-index";
@@ -114,5 +116,53 @@ describe("the entity types guides (phase 2A.5, rule 35)", () => {
     expect(body("plantillas-pdf.md")).toMatch(/Imprimir/);
     expect(body("navegacion.md")).toMatch(/Contraer menú/);
     for (const file of ["terceros.md", "productos.md", "categorias.md", "contabilidad/comprobantes.md"]) expect(body(file), file).toMatch(/maestros-y-documentos\.md/);
+  });
+});
+
+describe("the inventory guide (phase 2B Task 10, rule 35)", () => {
+  const registry = loadAppRegistry();
+  const guides = loadGuides(GUIDES_DIR);
+
+  it("loads inventario and costos as the app does, and inventario.md covers their screens with registered processes", () => {
+    expect(knownRoutes(registry)).toEqual(expect.arrayContaining(["/inventory/stock", "/inventory/movements", "/inventory/transfers", "/inventory/counts", "/costing/layers", "/costing/missing", "/costing/landed-costs", "/costing/settings"]));
+    const guide = guides.find((g) => g.file === "inventario.md");
+    expect(guide).toBeDefined();
+    expect(guide!.processes).toEqual(expect.arrayContaining(["inventory.adjustment.post", "inventory.count.apply", "costing.landed_cost.void", "costing.settings.update"]));
+    expect(guideProblems(guides, registry)).toEqual([]);
+  });
+
+  it("explains the steps a user needs: Despachar and Recibir, Aplicar conteo with the code, the transit bodega and costs pending", () => {
+    const body = guides.find((g) => g.file === "inventario.md")!.body;
+    expect(body).toMatch(/Despachar/);
+    expect(body).toMatch(/Aplicar conteo/);
+    expect(body).toMatch(/código de verificación/i);
+    expect(body).toMatch(/Costos pendientes/);
+  });
+});
+
+describe("the phase 2B guides (Task 27, rule 35)", () => {
+  const registry = loadAppRegistry();
+  const guides = loadGuides(GUIDES_DIR);
+  const FILES = ["crm.md", "cotizaciones.md", "ventas.md", "pedidos.md", "entregas.md", "inventario.md", "costos.md", "facturacion.md", "facturacion-electronica.md", "pagos.md"];
+
+  it("has a guide for every module of the sales chain, each naming registered processes, and every menu route covered", () => {
+    expect(guides.map((g) => g.file)).toEqual(expect.arrayContaining(FILES));
+    for (const file of FILES) expect(guides.find((g) => g.file === file)!.processes.length, file).toBeGreaterThan(0);
+    expect(knownRoutes(registry)).toEqual(expect.arrayContaining(["/crm/quotes", "/sales/orders", "/sales/deliveries", "/invoicing/invoices", "/invoicing/notes", "/payments/receipts", "/costing/landed-costs"]));
+    expect(guideProblems(guides, registry)).toEqual([]);
+  });
+
+  it("costos.md explains the weighted average, landed costs, costs pending and FIFO in phase 3", () => {
+    const body = guides.find((g) => g.file === "costos.md")!.body;
+    expect(body).toMatch(/promedio ponderado/);
+    expect(body).toMatch(/Costos en destino/);
+    expect(body).toMatch(/Costos pendientes/);
+    expect(body).toMatch(/PEPS \(FIFO\)[^.]*fase 3/);
+    expect(guides.find((g) => g.file === "costos.md")!.routes).toEqual(expect.arrayContaining(["/costing/layers", "/costing/missing", "/costing/landed-costs", "/costing/settings"]));
+  });
+
+  it("the README lists every guide", () => {
+    const readme = readFileSync(join(GUIDES_DIR, "README.md"), "utf8");
+    for (const guide of guides) expect(readme, guide.file).toContain(`(${guide.file})`);
   });
 });
