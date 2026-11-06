@@ -392,6 +392,28 @@ Outlined here so 2B.1 leaves the seams; each task is detailed and approved when 
 - Tests first: many-to-many cases (one quote to two orders, two orders in one delivery, one invoice from two deliveries, one receipt over two invoices), depth and size caps, masking, backfill on the demo company.
 - The per-action chain id is unchanged.
 
+### Tasks 32–50: scope added by the owner's decisions of 2026-11-06 (design §22.28)
+Each is detailed and approved when 2B.2 starts (stubs only; source: `2026-11-05-phase-2b-owner-decisions-pending.md`, item numbers in brackets). Test first, per rule 31.
+- **32** Configurable nested runs [1]: per pair (parent → nested) «parent TOTP covers it» (default off) and «on failure: roll back all | continue and queue»; continue via savepoint and a visible failure queue (retry, admins and granted roles), never for ledger or stock processes; global depth, default 4, hard max 8.
+- **33** Posting mode setting [5]: per company, inline strict (default) or asynchronous with the retry queue; warning in Mapeo de cuentas; amend entity-types §5.2; tests of the asynchronous path.
+- **34** Foreign currency [19]: needs its own design section first (XML rate, TRM source, posting at rate, exchange differences, receipts, aging in both currencies).
+- **35** DIAN verification checklist [20]: admin ticks each item (who, when, audited); `dian_defaults_confirmed` needs all ticked.
+- **36** Aplicar anticipo a factura [23]: new process and screen hint; ledger reclass 280505 to the receivable.
+- **37** Resolution and certificate hardening [24, 25]: admin guard on `resubmit_failed`; QR environment frozen on the invoice at issue; DIAN settings warning when the certificate fingerprint and Vault disagree.
+- **38** Kernel recommendation API [26, 36]: role-addressed recommendations (title, reason, link, status), one open per document and reason, masked, dismissed by hand; used by auto-invoice refusals and costing.
+- **39** Order owner isolation [29]: salesperson sees own orders; «all orders» permission for warehouse, billing, managers; settle owner on quote conversion and inheritance by deliveries and invoices.
+- **40** Unmasked-view guard test [30]: fails when a page reads a listed unmasked view without a visibility check.
+- **41** Declare inventory's dependency on costing [31].
+- **42** «Cotizaciones» shortcut under Ventas from CRM's manifest [32].
+- **43** Void delivery offers re-reserve, default yes, only if stock suffices [34].
+- **44** Costing setting for units without a known cost: 0 (default) or last known cost [36].
+- **45** Landed cost arriving late: sold units' share booked as a COGS adjustment in the current period, void reverses both; accountant confirms the policy first [37].
+- **46** Exógena demo fix: tercero on the NC-18 line, rerun 2A tests, e2e downloads the real 1007 XML [38].
+- **47** Demo seed: price list, resolution with origin `seed`, `db:reset` plus `DEMO_SEED=1 pnpm db:seed` from zero, rerun the e2e [39].
+- **48** Worker startup module-list check [40].
+- **49** Hosted migration pre-check, CLI dry run, local tracking repair [41].
+- **50** Small fixes batch: test that every subscribed event has an effect line [3]; warning for a `when` rule that never matched [6]; dry-run denials not audited, counted as telemetry (needs rule 16 wording) [7]; never-bought modules visible, one entitlement resolver, inline poster aligned [9]; move cogs-posted and inventory-adjustment rules into their own manifests [14]; «Recalcular precios» action, Emitir no longer re-prices, warning on a stale price date [17]; delivery PDF title «Remisión de entrega» [33].
+
 ## Decisions taken (owner, 2026-11-04)
 
 - **OD-2** invoice creation is parametric: `manual` (default) | `on_delivery` | `on_order_confirmation` (Task 16).
