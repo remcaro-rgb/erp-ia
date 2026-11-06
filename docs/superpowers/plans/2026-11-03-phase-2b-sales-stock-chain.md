@@ -385,6 +385,13 @@ Outlined here so 2B.1 leaves the seams; each task is detailed and approved when 
 - Reversal: a voided receipt (collection basis) or an annulment credit note (invoice basis) reverses the unpaid accrual; a paid commission is not reversed automatically but flagged for the user. Paying the commission belongs to the phase 3 disbursements.
 - Tests: accrual shapes under both bases, partial payments, annulment, the provision appears in the aging payable report for the payee, ledger balanced.
 
+### Task 31: Document link table and trail (owner decision 2026-11-06, design §22.27)
+- Kernel or core table `document_links` (company, from entity and id, to entity and id, link kind, creating chain id, `seq`, RLS per rule 12), written by the processes that create links: quote→order, order→delivery, delivery→invoice, invoice→receipt allocation. Many-to-many.
+- Read side: a published view or consult process that walks the links upstream and downstream from a record to a depth limit (default 6) with a size cap, masked per rule 14; the record frame gains a «Documentos relacionados» section, each entry a link (rule 21).
+- Backfill: one forward-only migration fills the table for existing 2B.1 data from the payload ids and the allocation tables.
+- Tests first: many-to-many cases (one quote to two orders, two orders in one delivery, one invoice from two deliveries, one receipt over two invoices), depth and size caps, masking, backfill on the demo company.
+- The per-action chain id is unchanged.
+
 ## Decisions taken (owner, 2026-11-04)
 
 - **OD-2** invoice creation is parametric: `manual` (default) | `on_delivery` | `on_order_confirmation` (Task 16).
