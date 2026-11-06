@@ -121,8 +121,13 @@ export function EntryForm(props: EntryFormProps) {
 
   const journalOptions = journals.some((j) => j.code === header.journalId) || !header.journalId ? journals : [...journals, { code: header.journalId, name: String(record?.journal_id ?? header.journalId) }];
 
+  const discard = () => {
+    setHeader(initial.header);
+    setLines(initial.lines.length > 0 ? initial.lines : [blankLine()]);
+  };
+
   return (
-    <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
+    <RecordForm canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(isNew ? {} : { onDiscard: discard })}>
       {record && (
         <div className="erp-row">
           <Pill tone={STATUS_TONE[reversed ? "reversed" : status] ?? "gray"}>{tv(reversed ? "reversed" : status)}</Pill>
@@ -225,10 +230,7 @@ export function EntryForm(props: EntryFormProps) {
           blocked={missing || totals.partial}
           pendingCount={null}
           onSave={submit}
-          onDiscard={() => {
-            setHeader(initial.header);
-            setLines(initial.lines.length > 0 ? initial.lines : [blankLine()]);
-          }}
+          onDiscard={discard}
           process={isNew ? "accounting.entry.create" : "accounting.entry.update"}
         />
       )}

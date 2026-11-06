@@ -111,7 +111,6 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity], ...(data.company.timeZone ? { timeZone: data.company.timeZone } : {}) }}
       theme={data.theme}
       assistantOpen={data.assistantOpen}
-      dianHints={data.dianHints}
       initialTabs={data.tabs}
       currentHref={pathname}
       bare={bare}
@@ -119,7 +118,6 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       navigate={(href) => guardedNavigate(() => router.push(href))}
       onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}
       onAssistantOpenChange={(open, savedAt) => void saveShellPrefAction({ key: "assistant.open", value: open, savedAt })}
-      onDianHintsChange={(on, savedAt) => void saveShellPrefAction({ key: "forms.dian_hints", value: on, savedAt })}
       onTabsChange={saveTabs}
       confirmLeave={guardedNavigate}
       onSwitchCompany={(companyId) =>

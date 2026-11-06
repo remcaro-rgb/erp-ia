@@ -37,13 +37,16 @@ export interface RecordLabels {
   copyOf: string;
   /** What the person still has to do on the copy. */
   copyNote: string;
+  /** The header's pair while the form holds unsaved changes (owner 2026-11-05). */
+  discardChanges: string;
+  saveChanges: string;
 }
 
 export const DEFAULT_RECORD_LABELS: RecordLabels = {
   tabs: {
     datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos", origen: "Origen",
     saldos: "Saldos", movimientos: "Movimientos", seguridad: "Seguridad", resultados: "Resultados", resumen: "Resumen", comprobantes: "Comprobantes", cierre: "Cierre",
-    lineas: "Líneas", probar: "Probar", historial: "Historial", versiones: "Versiones", acceso: "Acceso",
+    lineas: "Líneas", probar: "Probar", historial: "Historial", versiones: "Versiones", acceso: "Acceso", dian: "DIAN",
   },
   number: "ID",
   docNumber: "Número",
@@ -56,6 +59,8 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
   duplicate: "Duplicar",
   copyOf: "Copia de {name}",
   copyNote: "Completa los datos que identifican el registro. Los contactos, las fotos y los archivos no se copian.",
+  discardChanges: "Descartar cambios",
+  saveChanges: "Guardar cambios",
 };
 
 /**
@@ -87,14 +92,20 @@ const ACCOUNTING_TABS: Readonly<Record<string, readonly RecordTabId[]>> = {
  * contribute (`contributed`, their ids) come next; every record has Datos adicionales and Archivos.
  */
 export function recordTabIds(entity: string, contributed: readonly string[] = []): RecordTabId[] {
+  // An invoice or a note (plan 2B Task 20, prototype 2B): Datos · Líneas e impuestos · Contabilidad (accounting's tab) · DIAN.
+  const einvoice = entity === "invoicing.invoice" || entity === "invoicing.note";
   return [
     "datos",
     ...(ACCOUNTING_TABS[entity] ?? []),
+    ...(einvoice ? (["lineas"] as const) : []),
+    // A recibo de caja (plan 2B Task 24b): Datos · Asignaciones (what it applied to each invoice) · Contabilidad (accounting's tab).
+    ...(entity === "payments.receipt" ? (["asignaciones"] as const) : []),
     ...(entity === "accounting.entry" ? (["origen"] as const) : []),
     ...(entity === "core.party" ? (["contactos"] as const) : []),
     ...(entity === "core.product" ? (["fotos"] as const) : []),
     ...(entity === "support.ticket" ? (["mensajes"] as const) : []),
     ...contributed,
+    ...(einvoice ? (["dian"] as const) : []),
     "extra",
     "archivos",
     // A maestro or documento (Task 15): a documento's Versiones, and Acceso for an admin; the page passes them only when they apply.

@@ -153,7 +153,7 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
   });
 
   return (
-    <RecordForm dianToggle={false} canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
+    <RecordForm canSave={editable && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(isNew ? {} : { onDiscard: () => setDraft(initial) })}>
       {readOnly && editable && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t(`section.${kind}`)}>
         <div className="erp-form2">{fields}</div>
@@ -176,7 +176,8 @@ export function MasterForm({ kind, processes, record, initial: copy, readOnly = 
             <span className="erp-small erp-muted erp-grow" role="status">
               {flow.saving ? tf("saving") : missing ? t("missing") : ""} <kbd className="erp-mono">{tf("save_hint")}</kbd> · <ProcessId id={isNew ? processes.create : processes.update} />
             </span>
-            {dirty && !isNew && (
+            {/* In a record frame its header carries «Descartar cambios» (owner 2026-11-05). */}
+            {dirty && !isNew && !bridge?.registered && (
               <button type="button" className="erp-btn" onClick={() => setDraft(initial)} disabled={flow.saving}>
                 {tf("discard")}
               </button>

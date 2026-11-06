@@ -10,7 +10,7 @@ export interface SaveIssue {
 
 /** The answer of a save: the record's id, or the process's refusal with its details (`invalid_input` messages). */
 /** `updatedAt`: the version the save wrote, when the process answers it (a maestro or documento `<entity>.update`, minor 9). */
-export type SaveResult = { ok: true; id: string; updatedAt?: string } | { ok: false; code: string; details: SaveIssue[] };
+export type SaveResult = { ok: true; id: string; updatedAt?: string; status?: string } | { ok: false; code: string; details: SaveIssue[] };
 
 /** Runs the create (no id) or update process with `input`; `stepUpToken` answers a `step_up_required`. */
 export type SaveRecord = (input: Record<string, unknown>, stepUpToken?: string) => Promise<SaveResult>;

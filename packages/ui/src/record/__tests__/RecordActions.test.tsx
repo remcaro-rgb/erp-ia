@@ -256,5 +256,13 @@ describe("a notice with a link", () => {
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
     await waitFor(() => expect(screen.getByRole("link", { name: "NC-20" }).getAttribute("href")).toBe("/r/accounting.entry/e20"));
   });
-});
 
+  it("shows a module's own buttons (extra) in the bar's main group, next to Guardar, before Cerrar (plan 2B Task 20 fix round 1)", () => {
+    renderEs(
+      <RecordActions entityType="documento" status="draft" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} onAction={ok} onClose={() => {}} extra={<button type="button">Emitir</button>} />,
+    );
+    const main = screen.getByRole("button", { name: "Guardar" }).parentElement!;
+    const names = [...main.querySelectorAll("button")].map((b) => b.textContent);
+    expect(names).toEqual(["Guardar", "Eliminar", "Emitir", "Cerrar"]);
+  });
+});

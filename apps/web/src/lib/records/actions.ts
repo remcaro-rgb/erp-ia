@@ -25,8 +25,10 @@ export async function saveRecordAction(entityId: string, input: Record<string, u
   const sourceRowId = creating && typeof options?.sourceRowId === "string" ? options.sourceRowId : undefined;
   try {
     if (sourceRowId) await runProcess(processDeps(), caller, entity.consult, { id: sourceRowId });
-    const { id, updatedAt } = (await runProcess(processDeps(), caller, process, input, sourceRowId ? { sourceRowId } : {})) as { id: string; updatedAt?: string };
-    return { ok: true, id, ...(typeof updatedAt === "string" ? { updatedAt } : {}) };
+    const { id, updatedAt, status } = (await runProcess(processDeps(), caller, process, input, sourceRowId ? { sourceRowId } : {})) as { id: string; updatedAt?: string; status?: unknown };
+    // `status`: where the save left a documento whose create process already records it (a cotización or a pedido that waits for
+    // approval answers pending): the bar then has no Grabar to run (Task 14b).
+    return { ok: true, id, ...(typeof updatedAt === "string" ? { updatedAt } : {}), ...(typeof status === "string" ? { status } : {}) };
   } catch (error) {
     await signOutIfDisabled(error);
     if (error instanceof ProcessError) return { ok: false, code: error.code, details: issuesOf(error.details) };

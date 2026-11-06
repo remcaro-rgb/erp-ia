@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Field, type HintKind } from "./form-parts";
+import { Field } from "./form-parts";
 
 /** Seconds the "Copiado" confirmation stays. */
 const COPIED_MS = 2000;
@@ -49,9 +49,9 @@ export function CopyButton({ text, label, className }: { text: string; label: st
  * A value the form computes (the check digit, the name on the document, the margin): a read-only box (never `disabled`,
  * so it can be read, selected and reached by assistive technology) styled as computed, with a copy button (M12).
  */
-export function ComputedField({ label, value, copyLabel, copyText = value, hint, hintKind, className, inputClassName, mono, title }: { label: ReactNode; value: string; copyLabel: string; /** What the button copies when it is not the displayed value ("—" shows, nothing copies). */ copyText?: string; inputClassName?: string; hint?: ReactNode; hintKind?: HintKind; className?: string; mono?: boolean; title?: string }) {
+export function ComputedField({ label, value, copyLabel, copyText = value, hint, className, inputClassName, mono, title }: { label: ReactNode; value: string; copyLabel: string; /** What the button copies when it is not the displayed value ("—" shows, nothing copies). */ copyText?: string; inputClassName?: string; hint?: ReactNode; className?: string; mono?: boolean; title?: string }) {
   return (
-    <Field label={label} hint={hint} hintKind={hintKind} className={className}>
+    <Field label={label} hint={hint} className={className}>
       {(id, describedBy) => (
         <div className="erp-computed">
           <input id={id} readOnly value={value} title={title} aria-describedby={describedBy} className={["erp-input--computed", mono && "erp-mono", inputClassName].filter(Boolean).join(" ")} />

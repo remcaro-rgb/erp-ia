@@ -135,7 +135,7 @@ test.describe("Inicio of each module", () => {
     await expect(home.getByRole("button", { name: "Personalizar página de inicio" })).toBeVisible();
     await home.getByRole("button", { name: "Personalizar página de inicio" }).click();
     const dialog = page.getByRole("dialog", { name: "Personalizar página de inicio" });
-    for (const module of ["Contabilidad", "Núcleo", "Soporte", "Sistema"]) await expect(dialog.getByRole("heading", { name: module })).toBeVisible();
+    for (const moduleName of ["Contabilidad", "Núcleo", "Soporte", "Sistema"]) await expect(dialog.getByRole("heading", { name: moduleName })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Gráficos" })).toHaveCount(0);
     await expect(dialog.getByRole("switch", { name: "Mostrar Clientes activos" })).toBeVisible();
   });

@@ -294,6 +294,11 @@
   .erp-form2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .erp-form3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .erp-form4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* A row of fields whose labels wrap differently (e-mails beside the phone): each field's label, control, note and process error sit
+     on shared rows, so the controls start at the same height (owner 2026-11-05). */
+  .erp-form-aligned { row-gap: 4px; }
+  .erp-form-aligned > .erp-field-wrap { display: grid; grid-row: span 4; grid-template-rows: subgrid; row-gap: 4px; }
+  .erp-form-aligned > .erp-field-wrap > .erp-field { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 4px; }
   .erp-span2 { grid-column: span 2; }
   .erp-span3 { grid-column: span 3; }
   .erp-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; border: 0; margin: 0; padding: 0; }
@@ -308,8 +313,6 @@
   .erp-field__ok { font-size: 11px; color: var(--ok); }
   .erp-field--dv { width: 104px; flex: 0 0 auto; }
   .erp-field--dv input { text-align: center; }
-  /* "Ver códigos DIAN" sits at the top right of a record form */
-  .erp-form__tools { display: flex; justify-content: flex-end; }
   /* a computed value (check digit, name on the document, margin): readable and copyable, never disabled (M12) */
   .erp-computed { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .erp-computed input { flex: 1 1 auto; }
@@ -355,6 +358,8 @@
   .erp-record__header { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line-2); }
   .erp-record__header h2 { margin: 0; font-size: 15px; font-weight: 700; }
   .erp-record__unsaved:empty { display: none; }
+  /* «Descartar cambios» · «Guardar cambios» beside «Cambios sin guardar» while the form holds edits (owner 2026-11-05) */
+  .erp-record__dirty { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .erp-record__header .erp-record__ids { margin-left: auto; }
   .erp-record__ids { font-family: var(--font-jetbrains-mono), "JetBrains Mono", Menlo, monospace; font-size: 12px; color: var(--text-muted); }
   .erp-record__open { font-size: 12px; color: var(--link); }
@@ -365,6 +370,18 @@
   /* On a short viewport the title and tabs scroll away with the form instead of keeping a fifth of it under them. */
   @media (max-height: 640px) { .erp-record__top { position: static; } }
   .erp-record__tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 18px; }
+  /* The tabs bar carries the record's buttons right of the tabs (owner 2026-11-05). wrap-reverse: when they do not fit beside the tabs
+     they go on a line above them, so the tabs always sit on the bar's bottom line and never under the buttons. */
+  .erp-record__tabsbar { display: flex; flex-wrap: wrap-reverse; align-items: flex-end; gap: 0 12px; border-bottom: 1px solid var(--line); padding: 0 18px; }
+  .erp-record__tabsbar > .erp-record__tabs { border-bottom: 0; padding: 0; flex: 0 1 auto; }
+  .erp-record__toolbar { margin-left: auto; min-width: 0; max-width: 100%; padding: 6px 0; display: flex; justify-content: flex-end; }
+  .erp-record__toolbar .erp-actbar { width: auto; align-items: flex-end; }
+  .erp-record__toolbar .erp-actbar__row { justify-content: flex-end; }
+  .erp-record__toolbar .erp-actbar__main { margin-left: 0; }
+  .erp-record__toolbar .erp-actbar__menu { top: calc(100% + 4px); bottom: auto; left: auto; right: 0; }
+  .erp-record__toolbar .erp-actbar > .erp-dian, .erp-record__toolbar .erp-actbar__ask, .erp-record__toolbar .erp-stepup { align-self: stretch; }
+  /* On a desktop pointer the bar's buttons are compact; touch screens and phones keep their 44 px targets (rule 24). */
+  @media (pointer: fine) and (min-width: 768px) { .erp-record__toolbar .erp-touch { min-height: 34px; } }
   .erp-record__tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 4px; }
   .erp-record__tab { padding: 10px 12px; border: 0; background: transparent; font-size: 13px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; }
   .erp-record__tab--on { color: var(--link); border-bottom-color: var(--primary); font-weight: 600; }
@@ -931,5 +948,19 @@
 
   /* No blink, slide or fade for readers who ask for reduced motion (WCAG 2.3.3); globals.css shortens the rest. */
   @media (prefers-reduced-motion: reduce) { .erp-typing i { animation: none; opacity: 1; } .erp-toggle, .erp-toggle::after, .erp-drop, .erp-photos__drop, .erp-attachments__drop { transition: none; } }
-}
 
+  /* The totals of a cotización or pedido (plan 2B Task 14b): labels and amounts in two right-aligned columns. */
+  .erp-totals {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    justify-content: end;
+    gap: 4px 24px;
+    margin: 0;
+  }
+  .erp-totals > div {
+    display: contents;
+  }
+  .erp-totals dd {
+    margin: 0;
+  }
+}

@@ -1,4 +1,4 @@
-import { Bookmark, BookOpen, Box, Boxes, Building2, Calculator, CalendarDays, ChartColumn, Check, Circle, Database, Eye, File, FileBarChart, FileText, History, House, LayoutGrid, Layers, LifeBuoy, List, ListTree, Lock, Mail, Network, Notebook, Package, Settings, Shield, SlidersHorizontal, Sparkles, Split, Tags, Upload, Users, Workflow, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, Bookmark, BookOpen, Box, Boxes, Building2, Calculator, CalendarDays, ChartColumn, Check, Circle, ClipboardCheck, Coins, Database, Eye, File, FileBarChart, FileText, History, House, LayoutGrid, Layers, LifeBuoy, List, ListTree, Lock, Mail, MapPin, Network, Notebook, Package, Settings, Shield, Ship, SlidersHorizontal, Sparkles, Split, Tags, TriangleAlert, Truck, Upload, Users, Warehouse, Workflow, type LucideIcon } from "lucide-react";
 
 /** The icon names a manifest's `NavItem.icon` may use, by their lucide component; any other name shows a plain dot. */
 const NAV_ICONS: Record<string, LucideIcon> = {
@@ -37,6 +37,15 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   tags: Tags,
   upload: Upload,
   users: Users,
+  // Inventory and costing (plan 2B Task 10).
+  "alert-triangle": TriangleAlert,
+  "arrow-left-right": ArrowLeftRight,
+  "clipboard-check": ClipboardCheck,
+  coins: Coins,
+  "map-pin": MapPin,
+  ship: Ship,
+  truck: Truck,
+  warehouse: Warehouse,
 };
 
 /** The icon of a menu item (decorative: the label names the item). */

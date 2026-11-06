@@ -7,7 +7,6 @@ import { Toaster } from "@erp/ui/components/ui/sonner";
 import { AssistantDrawer, screenOf, type ResultColumn } from "../assistant";
 import { CellFormatProvider } from "../grid/cell-format";
 import { ExportJobsProvider } from "../grid/export-jobs";
-import { FormPrefsProvider } from "../forms/form-context";
 import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
@@ -18,7 +17,7 @@ import { SideMenu } from "./SideMenu";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
 import { NavigateProvider } from "./navigate";
-import { assistantOpenStorageKey, browserStorage, dianHintsStorageKey, sideMenuStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+import { assistantOpenStorageKey, browserStorage, sideMenuStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
 import { TopBar } from "./TopBar";
@@ -63,10 +62,6 @@ export interface AppShellProps {
   assistantOpen?: Saved<boolean> | null;
   /** The user opened or closed the drawer, with the time, to save it (the shell already caches it in localStorage). */
   onAssistantOpenChange?: (open: boolean, savedAt: number) => void;
-  /** Whether the user turned on "Ver códigos DIAN" in the record forms (`kernel.user_prefs`, key `forms.dian_hints`), or null: off. */
-  dianHints?: Saved<boolean> | null;
-  /** The user switched the DIAN hints, with the time, to save it (the shell already caches it in localStorage). */
-  onDianHintsChange?: (on: boolean, savedAt: number) => void;
   /** The user's saved tabs in this company (`kernel.user_prefs`, key `tabs`), or null. */
   initialTabs?: Saved<unknown> | null;
   /** Every change of the tabs with its time, to save them (the shell already caches them in localStorage). */
@@ -346,26 +341,6 @@ function ShellFrame(props: AppShellProps) {
     },
     [storage, user.id, company.id],
   );
-  // "Ver códigos DIAN" in the record forms: the server's saved choice renders first (no flash), a newer one of this
-  // browser's cache replaces it before the first paint. Off when never chosen.
-  const [dianHints, setDianHintsState] = useState(props.dianHints?.value ?? false);
-  useLayoutEffect(() => {
-    const saved = newerSaved(props.dianHints ?? null, readBooleanPref(storage, dianHintsStorageKey(user.id), company.id));
-    if (saved) setDianHintsState(saved.value);
-    // Once per mounted shell, like the drawer.
-  }, []);
-  const formPrefs = useMemo(
-    () => ({
-      dianHints,
-      setDianHints: (on: boolean) => {
-        setDianHintsState(on);
-        const savedAt = Date.now();
-        writeCachedPref(storage, dianHintsStorageKey(user.id), company.id, { value: on, savedAt });
-        latest.current.onDianHintsChange?.(on, savedAt);
-      },
-    }),
-    [dianHints, storage, user.id, company.id],
-  );
   const [focusInput, setFocusInput] = useState(0);
   /** Opening puts the caret in the composer; closing returns the focus to the toggle (UX-OD-2). */
   const openAssistant = useCallback(() => {
@@ -438,7 +413,7 @@ function ShellFrame(props: AppShellProps) {
         {props.bare ? (
           <main id="erp-main" tabIndex={-1} className="erp-main h-dvh overflow-auto">
             <AskAssistantProvider ask={ask}>
-              <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
+              {props.children}
             </AskAssistantProvider>
           </main>
         ) : (
@@ -485,7 +460,7 @@ function ShellFrame(props: AppShellProps) {
               <div className="flex min-h-0 flex-1">
                 <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
                   <AskAssistantProvider ask={ask}>
-                    <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
+                    {props.children}
                   </AskAssistantProvider>
                 </main>
                 <AssistantDrawer

@@ -262,6 +262,15 @@ describe("record model", () => {
     expect(recordTabIds("core.party", ["accounting.entries"])).toEqual(["datos", "contactos", "accounting.entries", "extra", "archivos", "versiones", "acceso"]);
     expect(recordTabIds("core.product_category", ["a.x", "a.y"])).toEqual(["datos", "a.x", "a.y", "extra", "archivos", "versiones", "acceso"]);
   });
+
+  it("an invoice and a note read Datos · Líneas e impuestos · Contabilidad · DIAN (plan 2B Task 20)", () => {
+    expect(recordTabIds("invoicing.invoice", ["accounting.entries"])).toEqual(["datos", "lineas", "accounting.entries", "dian", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("invoicing.note", ["accounting.entries"])).toEqual(["datos", "lineas", "accounting.entries", "dian", "extra", "archivos", "versiones", "acceso"]);
+  });
+
+  it("a recibo de caja reads Datos · Asignaciones · Contabilidad (plan 2B Task 24b)", () => {
+    expect(recordTabIds("payments.receipt", ["accounting.entries"])).toEqual(["datos", "asignaciones", "accounting.entries", "extra", "archivos", "versiones", "acceso"]);
+  });
 });
 
 describe("record frame ids (D16)", () => {
@@ -270,5 +279,64 @@ describe("record frame ids (D16)", () => {
     expect(screen.getByText("Número CE-000123")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copiar Número" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copiar Ref." })).toBeTruthy();
+  });
+});
+
+// Owner 2026-11-05: the record's buttons live in the tabs bar (right of the tabs), the footer keeps only the status; while the form holds
+// unsaved changes the header shows «Descartar cambios» and «Guardar cambios» next to «Cambios sin guardar», and the state chip steps aside.
+describe("RecordFrame, actions in the tabs bar and the unsaved state (owner 2026-11-05)", () => {
+  const bar = (
+    <div role="group" aria-label="Acciones del registro">
+      <button type="button">Guardar</button>
+    </div>
+  );
+
+  it("renders the toolbar in the tabs bar next to the tabs, and the footer keeps only the status", () => {
+    const { container } = render(<RecordFrame title="Almacenes Éxito S.A." seq={1} uuid={id} tabs={[tab("datos"), tab("contactos")]} toolbar={bar} status={<span>DIAN: completo</span>} />);
+    const tabsBar = container.querySelector(".erp-record__tabsbar")!;
+    expect(tabsBar).toBeTruthy();
+    expect(tabsBar.contains(screen.getByRole("tablist"))).toBe(true);
+    expect(tabsBar.contains(screen.getByRole("group", { name: "Acciones del registro" }))).toBe(true);
+    const footer = screen.getByRole("contentinfo");
+    expect(within(footer).queryByRole("button", { name: "Guardar" })).toBeNull();
+    expect(within(footer).getByText("DIAN: completo")).toBeTruthy();
+    // The tabs stay the only children of the tablist (the toolbar is its sibling).
+    expect(within(screen.getByRole("tablist")).queryByRole("button")).toBeNull();
+  });
+
+  it("hides the state chip («Grabado») while the record has unsaved changes", () => {
+    const chip = <span className="erp-pill">Grabado</span>;
+    const { rerender } = render(<RecordFrame title="Almacenes Éxito S.A." seq={1} uuid={id} tabs={[tab("datos")]} chip={chip} />);
+    expect(screen.getByText("Grabado")).toBeTruthy();
+    rerender(<RecordFrame title="Almacenes Éxito S.A." seq={1} uuid={id} tabs={[tab("datos")]} chip={chip} dirty />);
+    expect(screen.queryByText("Grabado")).toBeNull();
+  });
+
+  it("shows «Descartar cambios» and «Guardar cambios» in the header only while dirty, and runs them", () => {
+    const onDiscardChanges = vi.fn();
+    const onSaveChanges = vi.fn();
+    const frame = (dirty: boolean, saveBlocked = false) => (
+      <RecordFrame title="Almacenes Éxito S.A." seq={1} uuid={id} tabs={[tab("datos")]} dirty={dirty} saveBlocked={saveBlocked} onDiscardChanges={onDiscardChanges} onSaveChanges={onSaveChanges} />
+    );
+    const { container, rerender } = render(frame(false));
+    expect(screen.queryByRole("button", { name: "Descartar cambios" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Guardar cambios" })).toBeNull();
+    rerender(frame(true));
+    const header = container.querySelector(".erp-record__header") as HTMLElement;
+    const discard = within(header).getByRole("button", { name: "Descartar cambios" });
+    const save = within(header).getByRole("button", { name: "Guardar cambios" });
+    expect(save.className).toContain("erp-btn--primary");
+    fireEvent.click(discard);
+    fireEvent.click(save);
+    expect(onDiscardChanges).toHaveBeenCalledTimes(1);
+    expect(onSaveChanges).toHaveBeenCalledTimes(1);
+    rerender(frame(true, true));
+    expect((within(header).getByRole("button", { name: "Guardar cambios" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("without a discard handler only «Guardar cambios» shows", () => {
+    render(<RecordFrame title="Nuevo" tabs={[tab("datos")]} dirty onSaveChanges={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Descartar cambios" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeTruthy();
   });
 });

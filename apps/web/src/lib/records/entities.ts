@@ -12,6 +12,8 @@ export interface RecordEntity {
   titleField: string;
   /** i18n key of the entity's noun for "Crear <entity>" (`nav.create.*`). */
   nounKey: string;
+  /** False: the grid offers no Importar (a DIAN document is never imported: it is issued). Default true. */
+  importable?: boolean;
 }
 
 const RECORD_ENTITIES: readonly RecordEntity[] = [
@@ -60,6 +62,37 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
   { id: "accounting.entry_template", consult: "accounting.entry_template.consult", create: "", update: "accounting.entry_template.update", titleField: "name", nounKey: "nav.create.accounting.entry_template" },
   { id: "accounting.period", consult: "accounting.period.consult", create: "", update: "", titleField: "starts_on", nounKey: "nav.create.accounting.period" },
   { id: "accounting.posting_rule", consult: "accounting.posting_rule.consult", create: "", update: "accounting.posting_rule.update", titleField: "name", nounKey: "nav.create.accounting.posting_rule" },
+  // Inventory and costing (plan 2B Task 10): the bodega and the ubicación are maestros saved by their create and update processes; a
+  // movimiento, traslado, conteo or costo en destino is created by the process that moves the stock (or the cost layers) and never
+  // changes afterwards (no update: Anular, Despachar, Recibir, Registrar and Aplicar are their own steps).
+  { id: "inventory.warehouse", consult: "inventory.warehouse.consult", create: "inventory.warehouse.create", update: "inventory.warehouse.update", titleField: "name", nounKey: "nav.create.inventory.warehouse" },
+  { id: "inventory.location", consult: "inventory.location.consult", create: "inventory.location.create", update: "inventory.location.update", titleField: "name", nounKey: "nav.create.inventory.location" },
+  { id: "inventory.movement", consult: "inventory.movement.consult", create: "inventory.movement.post", update: "", titleField: "number", nounKey: "nav.create.inventory.movement" },
+  { id: "inventory.transfer", consult: "inventory.transfer.consult", create: "inventory.transfer.create", update: "", titleField: "number", nounKey: "nav.create.inventory.transfer" },
+  { id: "inventory.count", consult: "inventory.count.consult", create: "inventory.count.create", update: "", titleField: "number", nounKey: "nav.create.inventory.count" },
+  { id: "costing.landed_cost", consult: "costing.landed_cost.consult", create: "costing.landed_cost.allocate", update: "", titleField: "number", nounKey: "nav.create.costing.landed_cost" },
+  // CRM and Ventas (plan 2B Task 14b): the prospecto and the embudo are maestros, the cotización and the pedido documentos edited while they
+  // are open; an oportunidad, an entrega and a devolución are created and then move only through their steps (no update here), and an
+  // actividad is logged once (sistema).
+  { id: "crm.lead", consult: "crm.lead.consult", create: "crm.lead.create", update: "crm.lead.update", titleField: "name", nounKey: "nav.create.crm.lead" },
+  { id: "crm.pipeline", consult: "crm.pipeline.consult", create: "crm.pipeline.create", update: "crm.pipeline.update", titleField: "name", nounKey: "nav.create.crm.pipeline" },
+  { id: "crm.opportunity", consult: "crm.opportunity.consult", create: "crm.opportunity.create", update: "", titleField: "number", nounKey: "nav.create.crm.opportunity" },
+  { id: "crm.activity", consult: "crm.activity.consult", create: "crm.activity.create", update: "", titleField: "subject", nounKey: "nav.create.crm.activity" },
+  { id: "crm.quote", consult: "crm.quote.consult", create: "crm.quote.create", update: "crm.quote.update", titleField: "number", nounKey: "nav.create.crm.quote" },
+  { id: "sales.order", consult: "sales.order.consult", create: "sales.order.create", update: "sales.order.update", titleField: "number", nounKey: "nav.create.sales.order" },
+  { id: "sales.delivery", consult: "sales.delivery.consult", create: "sales.delivery.create", update: "", titleField: "number", nounKey: "nav.create.sales.delivery" },
+  { id: "sales.return", consult: "sales.return.consult", create: "sales.return.create", update: "", titleField: "number", nounKey: "nav.create.sales.return" },
+  // Facturación (plan 2B Task 20): an invoice is written by hand (Nueva factura, Duplicar) or from pedidos («Por facturar»), changed by its
+  // update while it is a Borrador and issued with «Emitir»; a note is written only from the invoice it corrects («Crear nota crédito /
+  // débito» on the invoice), so it has no create form of its own. Neither is imported: a DIAN document is issued, never loaded.
+  { id: "invoicing.invoice", consult: "invoicing.invoice.consult", create: "invoicing.invoice.create", update: "invoicing.invoice.update", titleField: "number", nounKey: "nav.create.invoicing.invoice", importable: false },
+  { id: "invoicing.note", consult: "invoicing.note.consult", create: "", update: "", titleField: "number", nounKey: "nav.create.invoicing.note", importable: false },
+  // Pagos (plan 2B Task 24b): the medio de pago and the caja are maestros saved by their create and update processes; a recibo de caja is
+  // written by «Registrar pago» (payments.payment.receive: applied, numbered and posted in one action) and never changes afterwards (Anular
+  // recibo is its own step). It is not imported: money received is registered, never loaded.
+  { id: "payments.method", consult: "payments.method.consult", create: "payments.method.create", update: "payments.method.update", titleField: "name", nounKey: "nav.create.payments.method" },
+  { id: "payments.cash_box", consult: "payments.cash_box.consult", create: "payments.cash_box.create", update: "payments.cash_box.update", titleField: "name", nounKey: "nav.create.payments.cash_box" },
+  { id: "payments.receipt", consult: "payments.receipt.consult", create: "payments.payment.receive", update: "", titleField: "number", nounKey: "nav.create.payments.receipt", importable: false },
 ];
 
 /** The id of a record not created yet: `/r/<entity>/new` opens the empty form. */

@@ -384,4 +384,24 @@ describe("DataGrid Imprimir", () => {
     expect(state.columns).toEqual(["seq", "legal_name", "kind", "credit_limit", "balance", "notes", "dian_status"]);
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", "La lista supera las 2.000 filas");
   });
+
+  it("hands the selected rows of the page to the screen's selection action (Por facturar's «Crear facturas», Task 20 fix round 1)", async () => {
+    const seen: string[][] = [];
+    setup({
+      selectionActions: (selected) => {
+        seen.push(selected.map((r) => r.id));
+        return (
+          <button type="button" disabled={selected.length === 0}>
+            Crear facturas
+          </button>
+        );
+      },
+    });
+    await screen.findByText("Almacenes Éxito S.A.");
+    expect(screen.getByRole("button", { name: "Crear facturas" })).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getAllByRole("checkbox", { name: "Seleccionar fila" })[1]!);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Crear facturas" })).toHaveProperty("disabled", false));
+    expect(seen.at(-1)).toEqual(["b"]);
+  });
 });
+

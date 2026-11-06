@@ -1,29 +1,49 @@
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
+import { costing } from "@erp/module-costing";
+import { crm } from "@erp/module-crm";
+import { invoicing } from "@erp/module-invoicing";
+import { payments } from "@erp/module-payments";
+import { sales } from "@erp/module-sales";
+import { inventory } from "@erp/module-inventory";
 import { support } from "@erp/module-support";
 import { co } from "@erp/loc-co";
+import { einvoicePack } from "@erp/loc-co/einvoice";
 import { agentModelFactory, PolicyEmbedder, setAgentModelFactory } from "@erp/agent/boot";
 import { translate } from "@erp/i18n";
-import { FakeEmbedder, getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCatalogue, registerCountryPack, registry, setHelpEmbedder, syncRegistry, type RunProcessDeps } from "@erp/kernel";
-import { SupabaseFileStore, type FileStore } from "@erp/infra";
+import { FakeEmbedder, getServiceDb, installedHelpEmbedder, kernelModule, loadModules, registerCatalogue, registerCountryPack, registry, secretStore, setHelpEmbedder, setSecretStore, syncRegistry, type RunProcessDeps } from "@erp/kernel";
+import { SupabaseFileStore, VaultSecretStore, type FileStore } from "@erp/infra";
 
 // Server-side wiring for route handlers: the process registry with the modules this app ships, the
 // service database connection `runProcess` works through, and the file store. Task 10 grows it.
 
 /** Dependencies for `runProcess`; loads the modules into the registry and the country packs on first use. */
 export function processDeps(): RunProcessDeps {
-  if (!registry.hasModule(kernelModule.id)) loadModules(registry, [kernelModule, core, accounting, support]);
+  if (!registry.hasModule(kernelModule.id)) loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
   // The core processes validate parties and products with the company's pack (rule 5). Registered on every call:
   // the registry lives on globalThis, the pack table in its module, which a bundle may load more than once.
-  registerCountryPack(co);
+  // With its electronic-invoicing entry (server-only: numbering by the DIAN resolution and the CUFE, plan 2B Task 16).
+  registerCountryPack({ ...co, einvoice: einvoicePack });
   // What the kernel prints outside a screen (PDF templates: labels, page numbers) reads the app's catalogue (rule 24).
   registerCatalogue(translate);
   installAgentModel();
+  installSecretStore();
   // The help search embeds questions with the model the policy table names for `embeddings` (rule 26), unless
   // something (a test) installed its own embedder. With the mock model (same opt-in, same production guard) there is no
   // gateway: the deterministic embedder `pnpm help:index` uses without a key.
   if (!installedHelpEmbedder()) setHelpEmbedder(agentModelFactory(process.env) ? new FakeEmbedder() : new PolicyEmbedder(getServiceDb()));
   return { sql: getServiceDb(), registry };
+}
+
+/**
+ * The secret store of the DIAN certificate and the software PIN (rule 12; plan 2B Task 19): Supabase Vault through migration 0099's
+ * service-role wrappers, on the server's service connection, installed when the deployment configures the Supabase service role. Without it
+ * no store is installed: the certificate upload is refused and the real DIAN transports cannot be built (they need a store injected; the
+ * mock, the default of CI and Docker, needs none). Something already installed (a test's store) is kept.
+ */
+function installSecretStore(): void {
+  if (secretStore() || !process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) return;
+  setSecretStore(new VaultSecretStore(getServiceDb()));
 }
 
 const MODEL_KEY = Symbol.for("erp.web.agentModelInstalled");

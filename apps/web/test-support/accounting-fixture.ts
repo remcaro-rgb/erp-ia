@@ -112,7 +112,7 @@ export async function postEntry(fixture: AuthFixture, ledger: SmallLedger, input
 }
 
 const TABLES = [
-  "skipped_events", "period_close_checks", "posting_failures", "entry_template_lines", "entry_templates", "entry_lines", "entries", "posting_rules",
+  "skipped_events", "voided_sources", "period_close_checks", "posting_failures", "entry_template_lines", "entry_templates", "entry_lines", "entries", "posting_rules",
   "fiscal_concept_mappings", "account_permissions", "account_role_mappings", "settings", "periods", "fiscal_years", "journals", "cost_centers",
   "open_auxiliaries", "items", "business_units", "accounts",
 ];

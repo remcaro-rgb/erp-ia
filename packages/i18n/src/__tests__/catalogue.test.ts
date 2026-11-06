@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { kernelModule, loadModules, Registry, type ProcessErrorCode } from "@erp/kernel";
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
+import { costing, FIFO_PHASE_3 } from "@erp/module-costing";
+import { invoicing } from "@erp/module-invoicing";
+import { payments, PAYMENTS_REFUSAL_CODES } from "@erp/module-payments";
+import { crm } from "@erp/module-crm";
+import { sales } from "@erp/module-sales";
+import { inventory } from "@erp/module-inventory";
 import { support } from "@erp/module-support";
 import { z } from "zod";
 import { collectRegistryKeys, defaultLocale, locales, messages, translate, type Messages } from "../index";
@@ -26,7 +32,7 @@ function valueAt(tree: Messages, key: string): string | undefined {
 const argumentsOf = (text: string): string[] => [...new Set([...text.matchAll(/\{\s*([a-z_][a-z0-9_]*)\s*[,}]/g)].map((m) => m[1]!))].sort();
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, support, accounting]);
+loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments]);
 
 const es = messages("es-419");
 const en = messages("en");
@@ -38,7 +44,7 @@ describe("locales", () => {
   });
 
   it("has the namespaces of the design in every catalogue", () => {
-    const namespaces = ["accounting", "agent", "auth", "common", "entity", "errors", "feature", "field", "grid", "home", "nav", "process", "report"];
+    const namespaces = ["accounting", "agent", "auth", "common", "costing", "crm", "entity", "errors", "feature", "field", "grid", "home", "inventory", "invoicing", "nav", "payments", "process", "report", "sales"];
     expect(Object.keys(es).sort()).toEqual(namespaces);
     expect(Object.keys(en).sort()).toEqual(namespaces);
   });
@@ -234,5 +240,79 @@ describe("translate (the catalogue the kernel prints with, registerCatalogue)", 
     expect(translate("fr", "common.yes")).toBe(translate("es-419", "common.yes"));
     expect(translate("en", "common.print")).toBeUndefined();
     expect(translate("en", "no.such.key")).toBeUndefined();
+  });
+});
+
+describe("costing catalogue", () => {
+  it("has the refusal of FIFO the settings process prints (disponible en la fase 3), in both locales", () => {
+    expect(valueAt(es, "costing.errors.fifo_phase_3")).toBe(FIFO_PHASE_3);
+    expect(valueAt(es, "costing.errors.fifo_phase_3")).toContain("disponible en la fase 3");
+    expect(valueAt(en, "costing.errors.fifo_phase_3")).toBeDefined();
+  });
+
+  it("has the values of the landed cost enums and the notes of its fixed flags", () => {
+    for (const tree of [es, en]) {
+      for (const basis of ["value", "quantity", "weight"]) expect(valueAt(tree, `costing.values.landed_basis.${basis}`)).toBeDefined();
+      for (const role of ["payable", "supplier_advances", "cash", "bank", "suspense"]) expect(valueAt(tree, `costing.values.offset_role.${role}`)).toBeDefined();
+      expect(valueAt(tree, "costing.values.event_kind.landed_cost")).toBeDefined();
+      expect(valueAt(tree, "costing.values.cost_source.landed_cost")).toBeDefined();
+      expect(valueAt(tree, "costing.landed_cost.own_flags.requires_approval")).toBeDefined();
+      expect(valueAt(tree, "costing.landed_cost.own_flags.posts")).toBeDefined();
+    }
+  });
+});
+
+describe("crm quotes and sales pricing catalogue (plan 2B Task 12)", () => {
+  it("has the quote stages, the notes of its own flags, the refusals and the price sources, in both locales", () => {
+    for (const tree of [es, en]) {
+      for (const stage of ["open", "sent", "accepted", "expired"]) expect(valueAt(tree, `crm.values.quote_stage.${stage}`)).toBeDefined();
+      expect(valueAt(tree, "crm.quote.own_flags.requires_approval")).toBeDefined();
+      expect(valueAt(tree, "crm.quote.own_flags.posts")).toBeDefined();
+      for (const code of ["quote_pending_approval", "quote_accepted", "quote_expired", "not_invoice_ready"]) expect(valueAt(tree, `crm.errors.${code}`)).toBeDefined();
+      for (const source of ["customer_list", "default_list", "list_price"]) expect(valueAt(tree, `sales.values.price_source.${source}`)).toBeDefined();
+      expect(valueAt(tree, "nav.modules.sales")).toBeDefined();
+    }
+    expect(valueAt(es, "sales.errors.price_not_found")).toContain("indica el precio unitario");
+  });
+});
+
+describe("payments catalogue", () => {
+  it("names the module, the kinds of medio de pago and the receipt's own flags, in both locales", () => {
+    for (const tree of [es, en]) {
+      expect(valueAt(tree, "nav.modules.payments")).toBeDefined();
+      for (const kind of ["cash", "transfer", "card", "check", "other"]) expect(valueAt(tree, `payments.values.method_kind.${kind}`)).toBeDefined();
+      expect(valueAt(tree, "payments.receipt.own_flags.requires_approval")).toBeDefined();
+      expect(valueAt(tree, "payments.receipt.own_flags.posts")).toBeDefined();
+      for (const code of PAYMENTS_REFUSAL_CODES) expect(valueAt(tree, `payments.errors.${code}`), code).toBeDefined();
+    }
+    expect(valueAt(es, "nav.modules.payments")).toBe("Pagos");
+  });
+});
+
+describe("invoicing catalogue", () => {
+  it("names every value the invoicing fields take and the invoice's own flags, in both locales", () => {
+    // The side menu, the module Inicio, the permission matrix and Módulos name a module by nav.modules.<id> (Task 27: Facturación had none).
+    expect(valueAt(es, "nav.modules.invoicing")).toBe("Facturación");
+    expect(valueAt(en, "nav.modules.invoicing")).toBe("Invoicing");
+    for (const tree of [es, en]) {
+      for (const mode of ["manual", "on_delivery", "on_order_confirmation"]) expect(valueAt(tree, `invoicing.values.invoice_creation.${mode}`)).toBeDefined();
+      for (const env of ["habilitacion", "produccion"]) expect(valueAt(tree, `invoicing.values.dian_environment.${env}`)).toBeDefined();
+      for (const stage of ["draft", "issued", "paid", "voided"]) expect(valueAt(tree, `invoicing.values.stage.${stage}`)).toBeDefined();
+      for (const status of ["draft", "submitted", "accepted", "rejected"]) expect(valueAt(tree, `invoicing.values.dian_status.${status}`)).toBeDefined();
+      for (const origin of ["manual", "from_orders", "on_delivery", "on_order_confirmation"]) expect(valueAt(tree, `invoicing.values.origin.${origin}`)).toBeDefined();
+      for (const form of ["1", "2"]) expect(valueAt(tree, `invoicing.values.payment_form.${form}`)).toBeDefined();
+      for (const status of ["open", "resolved"]) expect(valueAt(tree, `invoicing.values.recommendation_status.${status}`)).toBeDefined();
+      // The DIAN submission (Task 17): its statuses and the reasons the invoice page shows.
+      for (const status of ["queued", "not_configured", "processing", "submitted", "accepted", "rejected", "failed"]) expect(valueAt(tree, `invoicing.values.submission_status.${status}`)).toBeDefined();
+      for (const code of ["einvoice_accepted", "einvoice_in_progress", "einvoice_not_configured", "einvoice_not_awaiting", "invoice_not_issued", "poll_limit", "cufe_changed", "document_changed", "currency_not_supported", "submission_in_doubt", "credentials_missing"]) expect(valueAt(tree, `invoicing.errors.${code}`)).toBeDefined();
+      expect(valueAt(tree, "invoicing.invoice.own_flags.requires_approval")).toBeDefined();
+      expect(valueAt(tree, "invoicing.invoice.own_flags.posts")).toBeDefined();
+      // Task 18: the notes' kinds and stages, their own flags and the refusals of a note or an annulment.
+      for (const kind of ["credit", "debit"]) expect(valueAt(tree, `invoicing.values.note_kind.${kind}`)).toBeDefined();
+      for (const stage of ["draft", "issued"]) expect(valueAt(tree, `invoicing.values.note_stage.${stage}`)).toBeDefined();
+      expect(valueAt(tree, "invoicing.note.own_flags.requires_approval")).toBeDefined();
+      expect(valueAt(tree, "invoicing.note.own_flags.posts")).toBeDefined();
+      for (const code of ["invoice_rejected", "invoice_not_sent", "invoice_send_failed", "invoice_not_accepted", "invoice_voided", "invoice_has_note", "note_references_note", "credit_exceeds_invoice", "invalid_note_line", "invalid_note_concept", "annulment_by_void", "note_not_voidable", "note_not_issued", "cude_changed", "nothing_to_note", "note_draft_delete", "note_issued", "note_not_sent", "annulment_invoice_not_issued", "no_sequence"]) expect(valueAt(tree, `invoicing.errors.${code}`)).toBeDefined();
+    }
   });
 });

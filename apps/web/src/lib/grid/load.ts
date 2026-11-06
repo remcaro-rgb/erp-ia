@@ -58,6 +58,8 @@ async function openPeriod(deps: ReturnType<typeof processDeps>, caller: Caller):
  * view and a link's query win over it.
  */
 const ENTITY_DEFAULT_STATES: Record<string, DefaultStates> = {
+  // Costos pendientes (plan 2B Task 10): the products still moved without a cost; the resolved ones stay one filter away.
+  "costing.cost_missing": async () => ({ filters: [{ field: "status", op: "eq", value: "open" }], sort: [{ field: "last_date", dir: "desc" }] }),
   "accounting.ledger_line": async (caller, deps) => {
     const [period, settings] = await Promise.all([
       openPeriod(deps, caller),
@@ -124,7 +126,7 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
       partyScope: entity.id === "core.party" ? access.partyScope : null,
       views,
       canCreate: record ? runnable.has(record.create) : false,
-      canImport: record ? runnable.has(record.create) && runnable.has(IMPORT_PROCESS) : false,
+      canImport: record ? record.importable !== false && runnable.has(record.create) && runnable.has(IMPORT_PROCESS) : false,
       canPrint: (entity.entityType === "maestro" || entity.entityType === "documento") && runnable.has(PRINT_PROCESS),
       xlsxOnly: entity.entityType === "documento",
       newTitle: record ? t("grid.record_title.new", { entity: t(record.nounKey) }) : "",

@@ -14,6 +14,12 @@
   "devDependencies": {
     "@erp/module-accounting": "workspace:*",
     "@erp/module-core": "workspace:*",
+    "@erp/module-costing": "workspace:*",
+    "@erp/module-crm": "workspace:*",
+    "@erp/module-inventory": "workspace:*",
+    "@erp/module-invoicing": "workspace:*",
+    "@erp/module-payments": "workspace:*",
+    "@erp/module-sales": "workspace:*",
     "@erp/module-support": "workspace:*",
     "zod": "^4.6.7"
   }

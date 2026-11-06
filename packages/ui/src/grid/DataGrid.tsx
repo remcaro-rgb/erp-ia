@@ -76,6 +76,11 @@ export interface DataGridProps {
   renderCell?: CellRenderer;
   /** Buttons before the grid's own (Nuevo, Importar). */
   toolbar?: ReactNode;
+  /**
+   * A screen's action on the selected rows of the page (Por facturar's «Crear facturas», plan 2B Task 20 fix round 1): drawn in the toolbar
+   * with the rows the selection column checked (the page's, in its order); the screen decides what an empty selection shows.
+   */
+  selectionActions?: (selected: GridRow[]) => ReactNode;
   /** Next to the title (the party switches). */
   headerExtra?: ReactNode;
   /** Filters every request carries. */
@@ -117,7 +122,7 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, emptyAction, params, onExport, onPrint, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, selectionActions, headerExtra, baseFilters, emptyAction, params, onExport, onPrint, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, params, debounceMs });
@@ -392,6 +397,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         {headerExtra}
         <div className="erp-grow" />
         {toolbar}
+        {selectionActions?.(rows.filter((r) => selected.has(r.id)))}
         <ColumnChooser columns={columns} order={view.order} shown={view.columns} onToggle={grid.showColumn} onMove={grid.stepColumn} onReset={grid.resetColumns} />
         {savedViews && (
           <SavedViewsMenu

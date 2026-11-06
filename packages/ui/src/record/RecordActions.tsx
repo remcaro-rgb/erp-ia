@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Ban, BookmarkPlus, CheckCircle2, Copy, FilePlus2, Mail, Printer, Save, Send, Trash2, Undo2, X, XCircle } from "lucide-react";
 import { RecordLink } from "./RecordLink";
@@ -50,13 +50,18 @@ export interface RecordActionsProps {
   initialNotice?: string | null;
   /** The record the initial notice names, when it does. */
   initialNoticeLink?: RecordNoticeLink | null;
+  /**
+   * A module's own buttons for the record (plan 2B Task 20 fix round 1: an invoice's Emitir, Reintentar envío and «Anular (nota crédito)»),
+   * shown in the bar's main group after the state buttons and before Cerrar, on every tab. The module runs them itself.
+   */
+  extra?: ReactNode;
   /** Receives what ⌘S / Ctrl+S in the form runs: the bar's Guardar. */
   registerShortcut?: (run: () => void) => void;
 }
 
 const ICONS: Record<BarAction, typeof Save> = { save: Save, save_submit: Send, submit: Send, approve: CheckCircle2, reject: XCircle, void: Ban, delete: Trash2 };
 
-export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, initialNoticeLink = null, registerShortcut, onSaveTemplate, onClose }: RecordActionsProps) {
+export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, initialNoticeLink = null, registerShortcut, onSaveTemplate, onClose, extra }: RecordActionsProps) {
   const t = useTranslations("common.record.actions");
   const te = useTranslations("errors");
   const id = useId();
@@ -236,6 +241,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
               </button>
             );
           })}
+          {extra}
           {onClose && (
             <button type="button" data-action="close" className="erp-btn erp-touch" disabled={busy} onClick={close}>
               <X aria-hidden size={16} />

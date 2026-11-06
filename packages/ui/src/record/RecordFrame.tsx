@@ -29,8 +29,21 @@ export interface RecordFrameProps {
   tabs: readonly RecordTab[];
   /** Left of the footer: the DIAN status and the like. */
   status?: ReactNode;
-  /** Right of the footer: save, cancel and the like. */
+  /** Right of the footer: a frame without the action bar may put its own controls here. */
   footer?: ReactNode;
+  /**
+   * The record's buttons (the action bar): in the tabs bar, right of the tabs, on the same line while they fit and above the tabs when
+   * they do not (owner 2026-11-05). The footer keeps the status.
+   */
+  toolbar?: ReactNode;
+  /** The form holds unsaved changes: the state chip steps aside for «Cambios sin guardar», and the header offers the pair below. */
+  dirty?: boolean;
+  /** «Descartar cambios» in the header while dirty; absent: not offered. */
+  onDiscardChanges?: () => void;
+  /** «Guardar cambios» (primary) in the header while dirty: the same save as the bar's Guardar. */
+  onSaveChanges?: () => void;
+  /** The changes cannot be saved yet (client errors, missing data, busy): «Guardar cambios» waits. */
+  saveBlocked?: boolean;
   initialTab?: RecordTabId;
   onTabChange?: (tab: RecordTabId) => void;
   labels?: Partial<Omit<RecordLabels, "tabs">> & { tabs?: Partial<RecordLabels["tabs"]> };
@@ -51,10 +64,10 @@ export interface RecordFrameProps {
 
 /**
  * The frame every record opens in (design §5.16): header with title, N.º, UUID and the open-in-a-new-tab
- * link, the tabs the entity needs, and the status footer. Panels stay mounted when hidden, so a form that is
+ * link, the tabs the entity needs with the record's buttons on their bar, and the status footer. Panels stay mounted when hidden, so a form that is
  * half filled or an upload that is staged survives a change of tab.
  */
-export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, duplicateButton = true, copyOf }: RecordFrameProps) {
+export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, deepLinkHref, tabs, status, footer, toolbar, dirty = false, onDiscardChanges, onSaveChanges, saveBlocked = false, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, duplicateButton = true, copyOf }: RecordFrameProps) {
   const labels: RecordLabels = { ...DEFAULT_RECORD_LABELS, ...overrides, tabs: { ...DEFAULT_RECORD_LABELS.tabs, ...overrides?.tabs } };
   const base = useId();
   const [unsavedSlot, setUnsavedSlot] = useState<HTMLElement | null>(null);
@@ -105,7 +118,22 @@ export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, d
         <header className="erp-record__header">
           <h2>{title}</h2>
           <span ref={setUnsavedSlot} className="erp-record__unsaved" />
-          {chip}
+          {dirty && (onDiscardChanges || onSaveChanges) && (
+            <span className="erp-record__dirty">
+              {onDiscardChanges && (
+                <button type="button" className="erp-btn erp-btn--sm" onClick={onDiscardChanges}>
+                  {labels.discardChanges}
+                </button>
+              )}
+              {onSaveChanges && (
+                <button type="button" className="erp-btn erp-btn--sm erp-btn--primary" onClick={onSaveChanges} disabled={saveBlocked}>
+                  {labels.saveChanges}
+                </button>
+              )}
+            </span>
+          )}
+          {/* While «Cambios sin guardar» shows, the stored state («Grabado») steps aside (owner 2026-11-05). */}
+          {!dirty && chip}
           <span className="erp-record__ids">
             {seq != null && uuid ? (
               <>
@@ -145,6 +173,7 @@ export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, d
             </button>
           )}
         </header>
+        <div className="erp-record__tabsbar">
         <div role="tablist" className="erp-record__tabs">
           {tabs.map((tab, index) => (
             <button
@@ -169,6 +198,8 @@ export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, d
               ) : null}
             </button>
           ))}
+        </div>
+        {toolbar && <div className="erp-record__toolbar">{toolbar}</div>}
         </div>
       </div>
       {copyOf && (

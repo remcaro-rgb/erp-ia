@@ -31,6 +31,12 @@ export interface GridPresentation {
 const ready: FieldPresentation = { valuesKey: "grid.values.ready", pills: { true: "ok", false: "danger" } };
 const active: FieldPresentation = { valuesKey: "grid.values.active", pills: { true: "ok", false: "gray" } };
 const dian: FieldPresentation = { display: "dian" };
+const recordStatus: FieldPresentation = { valuesKey: "grid.values.record_status", pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok" } };
+const documentStatus: FieldPresentation = { valuesKey: "grid.values.record_status", pills: { draft: "gray", saved: "ok", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" } };
+
+/** An invoice's commercial stage and where it stands with the DIAN (plan 2B Task 20). */
+const invoiceStage: FieldPresentation = { valuesKey: "invoicing.values.stage", pills: { draft: "gray", issued: "info", paid: "ok", voided: "danger" } };
+const dianStatus: FieldPresentation = { valuesKey: "invoicing.values.dian_status", pills: { draft: "gray", submitted: "warn", accepted: "ok", rejected: "danger" } };
 
 const PRESENTATIONS: Record<string, GridPresentation> = {
   "core.party": {
@@ -158,6 +164,251 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       conversation_id: { display: "mono" },
       source_row_id: { display: "mono" },
     },
+  },
+  // Inventory and costing (plan 2B Task 10): the maestros, the documentos and Existencias. Enum values read the module's catalogue.
+  "inventory.warehouse": {
+    shown: ["seq", "code", "name", "address_line", "allow_backorders", "status", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: { code: { display: "mono" }, status: recordStatus, is_active: { ...active, valuesKey: "grid.values.active_feminine" } },
+  },
+  "inventory.location": {
+    shown: ["seq", "warehouse_id", "code", "name", "kind", "status", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: { code: { display: "mono" }, kind: { valuesKey: "inventory.values.location_kind", pills: { storage: "gray", transit: "warn" } }, status: recordStatus, is_active: { ...active, valuesKey: "grid.values.active_feminine" } },
+  },
+  "inventory.movement": {
+    title: "number",
+    shown: ["number", "kind", "date", "warehouse_id", "reference", "description", "status", "applied_at"],
+    exclude: ["extra", "extra_free", "requires_approval", "posts", "source_id"],
+    fields: { number: { display: "mono" }, kind: { valuesKey: "inventory.values.movement_kind", pills: { receipt: "ok", issue: "warn", sale_issue: "warn", sale_return: "info", adjustment: "danger", transfer_out: "gray", transfer_in: "gray" } }, status: documentStatus },
+  },
+  "inventory.movement_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "location_id", "qty", "uom", "unit_cost"],
+    exclude: ["extra", "extra_free", "lot_id", "serial_id", "source_entity", "source_line_id", "movement_id"],
+    fields: { uom: { display: "mono" } },
+  },
+  "inventory.transfer": {
+    title: "number",
+    shown: ["number", "date", "from_warehouse_id", "to_warehouse_id", "stage", "reference", "status", "shipped_at", "received_at"],
+    exclude: ["extra", "extra_free", "requires_approval", "posts"],
+    fields: { number: { display: "mono" }, stage: { valuesKey: "inventory.values.transfer_stage", pills: { requested: "info", in_transit: "warn", received: "ok" } }, status: documentStatus },
+  },
+  "inventory.transfer_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "from_location_id", "to_location_id", "qty", "uom"],
+    exclude: ["extra", "extra_free", "transfer_id"],
+    fields: { uom: { display: "mono" } },
+  },
+  "inventory.count": {
+    title: "number",
+    shown: ["number", "date", "warehouse_id", "stage", "description", "adjustment_id", "status", "applied_at"],
+    exclude: ["extra", "extra_free", "requires_approval", "posts"],
+    fields: { number: { display: "mono" }, stage: { valuesKey: "inventory.values.count_stage", pills: { open: "info", applied: "ok" } }, status: documentStatus },
+  },
+  "inventory.stock_level": {
+    title: "product_id",
+    shown: ["product_id", "warehouse_id", "location_id", "on_hand", "updated_at"],
+    exclude: ["extra", "extra_free", "lot_id", "serial_id", "created_at"],
+    fields: {},
+  },
+  "costing.cost_layer": {
+    title: "product_id",
+    shown: ["product_id", "warehouse_id", "qty", "avg_cost", "value", "method", "last_movement_id", "updated_at"],
+    exclude: ["extra", "extra_free", "last_movement_seq", "created_at"],
+    fields: { method: { valuesKey: "costing.values.method" }, currency: { display: "mono" } },
+  },
+  "costing.cost_missing": {
+    title: "product_id",
+    shown: ["product_id", "warehouse_id", "status", "occurrences", "qty", "first_date", "last_date", "last_movement_id", "resolved_at"],
+    exclude: ["extra", "extra_free", "created_at"],
+    fields: { status: { valuesKey: "costing.values.missing_status", pills: { open: "warn", resolved: "ok" } } },
+  },
+  "costing.landed_cost": {
+    title: "number",
+    shown: ["number", "date", "movement_id", "basis", "amount", "offset_role", "party_id", "reference", "status"],
+    exclude: ["extra", "extra_free", "requires_approval", "posts", "movement_number"],
+    fields: { number: { display: "mono" }, basis: { valuesKey: "costing.values.landed_basis" }, offset_role: { valuesKey: "costing.values.offset_role" }, status: documentStatus },
+  },
+  // CRM and Ventas (plan 2B Task 14b, prototype 2B): the commercial stage beside the lifecycle status; ids of other modules' records
+  // (bodega, owner, cotización of a pedido) stay out of the columns, the record's page names them.
+  "crm.lead": {
+    title: "name",
+    shown: ["seq", "name", "contact_name", "email", "phone", "source", "stage", "status", "is_active"],
+    exclude: ["extra", "extra_free", "owner_id", "requires_approval", "posts"],
+    fields: {
+      source: { valuesKey: "crm.values.lead_source" },
+      stage: { valuesKey: "crm.values.lead_stage", pills: { new: "info", contacted: "warn", qualified: "ok", converted: "ok", discarded: "gray" } },
+      status: recordStatus,
+      is_active: active,
+    },
+  },
+  "crm.pipeline": {
+    title: "name",
+    shown: ["code", "name", "description", "is_default", "status", "is_active"],
+    exclude: ["extra", "extra_free", "requires_approval", "posts"],
+    fields: { code: { display: "mono" }, status: recordStatus, is_active: active },
+  },
+  "crm.stage": {
+    title: "line_no",
+    shown: ["line_no", "name", "probability", "kind"],
+    exclude: ["extra", "extra_free", "pipeline_id"],
+    fields: { kind: { valuesKey: "crm.values.stage_kind", pills: { open: "info", won: "ok", lost: "danger" } } },
+  },
+  "crm.opportunity": {
+    title: "number",
+    shown: ["number", "title", "party_id", "lead_id", "stage_id", "amount", "probability", "expected_close", "outcome", "status"],
+    exclude: ["extra", "extra_free", "owner_id", "order_id", "requires_approval", "posts", "exchange_rate"],
+    fields: { number: { display: "mono" }, outcome: { valuesKey: "crm.values.outcome", pills: { open: "info", won: "ok", lost: "danger" } }, status: documentStatus },
+  },
+  "crm.opportunity_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty", "unit_price"],
+    exclude: ["extra", "extra_free", "opportunity_id"],
+    fields: {},
+  },
+  "crm.activity": {
+    title: "subject",
+    shown: ["seq", "kind", "subject", "opportunity_id", "lead_id", "party_id", "due_at", "done_at"],
+    exclude: ["extra", "extra_free", "owner_id", "source_entity", "source_id"],
+    fields: { kind: { valuesKey: "crm.values.activity_kind" } },
+  },
+  "crm.quote": {
+    title: "number",
+    shown: ["number", "party_id", "issue_date", "valid_until", "stage", "total", "status"],
+    exclude: ["extra", "extra_free", "owner_id", "requires_approval", "posts", "exchange_rate"],
+    fields: { number: { display: "mono" }, stage: { valuesKey: "crm.values.quote_stage", pills: { open: "info", sent: "warn", accepted: "ok", expired: "gray" } }, currency: { display: "mono" }, status: documentStatus },
+  },
+  "crm.quote_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty", "unit_price", "discount_pct", "base", "iva", "total"],
+    exclude: ["extra", "extra_free", "quote_id"],
+    fields: {},
+  },
+  "sales.order": {
+    title: "number",
+    shown: ["number", "party_id", "issue_date", "delivery_date", "stage", "total", "status"],
+    exclude: ["extra", "extra_free", "owner_id", "quote_id", "opportunity_id", "warehouse_id", "requires_approval", "posts", "exchange_rate"],
+    fields: {
+      number: { display: "mono" },
+      stage: { valuesKey: "sales.values.order_stage", pills: { open: "info", confirmed: "ok", partially_delivered: "warn", delivered: "ok", cancelled: "gray" } },
+      currency: { display: "mono" },
+      status: documentStatus,
+    },
+  },
+  "sales.order_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty", "unit_price", "discount_pct", "base", "iva", "total"],
+    exclude: ["extra", "extra_free", "order_id", "quote_line_id"],
+    fields: {},
+  },
+  "sales.delivery": {
+    title: "number",
+    shown: ["number", "order_id", "party_id", "warehouse_id", "date", "stage", "shipped_at", "status"],
+    exclude: ["extra", "extra_free", "cost_center_id", "requires_approval", "posts"],
+    fields: { number: { display: "mono" }, stage: { valuesKey: "sales.values.delivery_stage", pills: { open: "info", shipped: "ok" } }, status: documentStatus },
+  },
+  "sales.delivery_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty", "invoiced_qty"],
+    exclude: ["extra", "extra_free", "delivery_id", "movement_id"],
+    fields: {},
+  },
+  "sales.return": {
+    title: "number",
+    shown: ["number", "delivery_id", "party_id", "warehouse_id", "date", "reason", "stage", "received_at", "status"],
+    exclude: ["extra", "extra_free", "cost_center_id", "requires_approval", "posts"],
+    fields: { number: { display: "mono" }, stage: { valuesKey: "sales.values.return_stage", pills: { open: "info", received: "ok" } }, status: documentStatus },
+  },
+  "sales.return_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty"],
+    exclude: ["extra", "extra_free", "return_id"],
+    fields: {},
+  },
+  "sales.customer_terms": {
+    title: "party_id",
+    shown: ["party_id", "price_list_id", "discount_pct", "credit_limit", "notes"],
+    exclude: ["extra", "extra_free", "seq"],
+    fields: {},
+  },
+  // Facturación (plan 2B Task 20, prototype 2B «Facturas»: Número · Cliente · Fecha · Total · Estado · DIAN). The Estado is the invoice's
+  // stage (Borrador, Emitida, Pagada, Anulada): an annulled invoice keeps its posted status (its note posted the reversal), so the grid and
+  // its filters read the stage; the lifecycle status stays in the column chooser.
+  "invoicing.invoice": {
+    title: "number",
+    // Prototype 2B «Facturas»: ID · Número · Cliente · Fecha · Total · Estado · DIAN (Vence kept after the date: what is owed when).
+    shown: ["seq", "number", "party_id", "issue_date", "due_date", "total", "stage", "dian_status"],
+    exclude: ["extra", "extra_free", "resolution", "requires_approval", "posts", "cost_center_id", "annulment_note_id"],
+    fields: { number: { display: "mono" }, cufe: { display: "mono" }, currency: { display: "mono" }, stage: invoiceStage, dian_status: dianStatus, origin: { valuesKey: "invoicing.values.origin" }, payment_form: { valuesKey: "invoicing.values.payment_form" }, status: documentStatus },
+  },
+  // Pagos (plan 2B Task 24b, prototype 2B «Recibos de caja»: ID · Número · Cliente · Fecha · Total · Estado).
+  "payments.method": {
+    shown: ["seq", "code", "name", "kind", "means_code", "status", "is_active"],
+    exclude: ["extra", "extra_free", "requires_approval"],
+    fields: { code: { display: "mono" }, means_code: { display: "mono" }, kind: { valuesKey: "payments.values.method_kind" }, status: recordStatus, is_active: active },
+  },
+  "payments.cash_box": {
+    shown: ["seq", "code", "name", "description", "status", "is_active"],
+    exclude: ["extra", "extra_free", "requires_approval"],
+    fields: { code: { display: "mono" }, status: recordStatus, is_active: { ...active, valuesKey: "grid.values.active_feminine" } },
+  },
+  "payments.receipt": {
+    title: "number",
+    shown: ["seq", "number", "party_id", "date", "amount", "status"],
+    exclude: ["extra", "extra_free", "requires_approval", "posts", "exchange_rate"],
+    fields: { number: { display: "mono" }, reference: { display: "mono" }, method_code: { display: "mono" }, currency: { display: "mono" }, status: documentStatus },
+  },
+  "payments.receipt_allocation": {
+    title: "line_no",
+    shown: ["line_no", "invoice_number", "amount", "withholding_total", "cash_amount"],
+    exclude: ["extra", "extra_free", "receipt_id", "invoice_id", "withholdings"],
+    fields: { invoice_number: { display: "mono" } },
+  },
+  "invoicing.invoice_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty", "unit_price", "discount_pct", "base", "iva_rate", "iva", "inc", "total"],
+    exclude: ["extra", "extra_free", "invoice_id", "order_line_id", "delivery_line_id", "category_id", "order_id", "delivery_id"],
+    fields: {},
+  },
+  "invoicing.invoice_tax": {
+    title: "code",
+    shown: ["family", "code", "rate", "base", "amount", "ledger_code"],
+    exclude: ["extra", "extra_free", "invoice_id"],
+    fields: { code: { display: "mono" }, ledger_code: { display: "mono" } },
+  },
+  "invoicing.note": {
+    title: "number",
+    shown: ["seq", "number", "kind", "invoice_id", "party_id", "issue_date", "reason", "total", "stage", "dian_status", "annulment"],
+    exclude: ["extra", "extra_free", "resolution", "requires_approval", "posts", "cost_center_id"],
+    fields: {
+      number: { display: "mono" },
+      cude: { display: "mono" },
+      kind: { valuesKey: "invoicing.values.note_kind", pills: { credit: "info", debit: "warn" } },
+      stage: { valuesKey: "invoicing.values.note_stage", pills: { draft: "gray", issued: "ok" } },
+      dian_status: dianStatus,
+      annulment: { valuesKey: "invoicing.values.annulment", pills: { true: "danger", false: "gray" } },
+      status: documentStatus,
+    },
+  },
+  "invoicing.note_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "description", "qty", "unit_price", "base", "iva_rate", "iva", "inc", "total"],
+    exclude: ["extra", "extra_free", "note_id", "invoice_line_id", "category_id"],
+    fields: {},
+  },
+  "invoicing.note_tax": {
+    title: "code",
+    shown: ["family", "code", "rate", "base", "amount", "ledger_code"],
+    exclude: ["extra", "extra_free", "note_id"],
+    fields: { code: { display: "mono" }, ledger_code: { display: "mono" } },
+  },
+  // Por facturar (Task 20 fix round 1): the pedido, the entrega, the customer, the product and the quantities; the ids only link.
+  "invoicing.pending_line": {
+    title: "order_number",
+    shown: ["order_number", "delivery_number", "delivery_date", "party_id", "product_id", "delivered_qty", "invoiced_qty", "pending_qty"],
+    exclude: ["order_id", "delivery_id"],
+    fields: { order_number: { display: "mono" }, delivery_number: { display: "mono" } },
   },
   "support.ticket": {
     shown: ["seq", "kind", "title", "status", "priority", "created_at"],

@@ -13,6 +13,9 @@ import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
 import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
+import { InvoicingBarActions } from "./invoicing-bar";
+import { InvoicingDianTab, InvoicingLinesTab } from "./invoicing-tabs";
+import { ReceiptAllocationsTab, ReceiptBarActions } from "./payments-view";
 import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
 import { AppRecordFrame } from "./record-frame";
@@ -78,13 +81,28 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
   const newTitle = t("grid.record_title.new", { entity: t(entity.nounKey) });
   // The action bar of a maestro or documento (Task 15): its buttons, tools and footer facts.
+  // An invoice or a note (plan 2B Task 20, fix round 1, prototype 2B): «Emitir», «Reintentar envío» and «Anular (nota crédito)» (and a
+  // note's Duplicar) are the bar's own buttons (extraActions, on every tab), so the bar's Guardar only saves a new invoice or a Borrador's
+  // edits (never issues it) and the bar has no generic Anular (an issued DIAN document is annulled by its credit note, with the reason and
+  // the code, in its own dialog).
+  const invoicing = form.kind === "invoicing";
+  // A recibo de caja (plan 2B Task 24b): «Registrar pago» is its create and posts at once, so the bar's Guardar only registers a new one
+  // (never edits a stored one) and «Anular recibo» (step-up, its own dialog) is the bar's own button; no generic Enviar, Anular or Eliminar.
+  const receipt = form.kind === "payments" && form.payments === "receipt";
   const frameLifecycle = lc
     ? {
         entityType: lc.entityType,
         status: lc.status,
         // A new comprobante takes Requiere aprobación from the accounting settings (manual entries), as its create process writes it.
         flags: form.kind === "entry" && !record ? { ...lc.flags, requiresApproval: form.settings.requireApprovalOnManual } : lc.flags,
-        rights: lc.rights,
+        rights: invoicing
+          ? { ...lc.rights, modify: canSave && (record === null || form.editable), submit: false, approve: false, reject: false, void: false }
+          : receipt
+            ? { ...lc.rights, modify: canSave && record === null, submit: false, approve: false, reject: false, void: false, delete: false }
+            : lc.rights,
+        ...(invoicing || receipt ? { saveOnly: true } : {}),
+        ...(form.kind === "invoicing" && record && form.view ? { extraActions: <InvoicingBarActions entity={entity.id} recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
+        ...(form.kind === "payments" && record && form.view ? { extraActions: <ReceiptBarActions recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
         tools: lc.tools,
         updatedAt: lc.updatedAt,
         createdAt: lc.createdAt,
@@ -138,6 +156,15 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   // Versiones of a documento (D18: masked for the viewer by the server) and Acceso for an admin (Task 15).
   if (lc?.snapshots) content.versiones = { count: lc.snapshots.length, content: <VersionsTab snapshots={lc.snapshots} labels={lc.versionLabels} masked={MASKED} /> };
   if (lc?.access) content.acceso = { content: <AccessPanel entity={entity.id} recordId={record.id} entityType={lc.entityType} grants={lc.access.grants} options={lc.access.options} /> };
+
+  // An invoice's or a note's Líneas e impuestos and DIAN (plan 2B Task 20).
+  if (form.kind === "invoicing" && form.view) {
+    content.lineas = { label: t("invoicing.view.tabs.lines"), content: <InvoicingLinesTab view={form.view} /> };
+    content.dian = { label: t("invoicing.view.tabs.dian"), content: <InvoicingDianTab view={form.view} /> };
+  }
+
+  // A recibo de caja's Asignaciones (plan 2B Task 24b): what it applied to each invoice and the withholdings.
+  if (form.kind === "payments" && form.view) content.asignaciones = { label: t("payments.view.tabs.allocations"), content: <ReceiptAllocationsTab view={form.view} /> };
 
   // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
   for (const tab of contributed) {
@@ -243,6 +270,8 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
     // The frame puts the source's name, as a link, where `{name}` is.
     copyOf: t.raw("common.record.copy_of") as string,
     copyNote: t("common.record.copy_note"),
+    discardChanges: t("common.record.discard_changes"),
+    saveChanges: t("common.record.save_changes"),
   };
 }
 

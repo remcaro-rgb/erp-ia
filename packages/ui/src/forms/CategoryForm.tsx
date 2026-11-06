@@ -61,7 +61,7 @@ export function CategoryForm({ record, initial: copy, tables, productCount = 0, 
   const submit = () => void send();
 
   return (
-    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(isNew ? {} : { onDiscard: () => setDraft(initial) })}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("category")}>
         <div className="erp-form2">

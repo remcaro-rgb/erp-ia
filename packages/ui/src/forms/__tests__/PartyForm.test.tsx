@@ -80,17 +80,17 @@ describe("PartyForm location comboboxes", () => {
     fireEvent.change(field("Número"), { target: { value: "900373115" } });
     const department = screen.getByRole("combobox", { name: /^Departamento/ });
     const municipality = screen.getByRole("combobox", { name: /^Municipio/ });
-    expect((department as HTMLInputElement).value).toBe("Bogotá, D.C.");
+    expect((department as HTMLInputElement).value).toBe("11 · Bogotá, D.C.");
     fireEvent.change(department, { target: { value: "antio" } });
     fireEvent.keyDown(department, { key: "Enter" });
-    expect((department as HTMLInputElement).value).toBe("Antioquia");
+    expect((department as HTMLInputElement).value).toBe("05 · Antioquia");
     // Changing the department clears a municipality that belongs to another.
     expect((municipality as HTMLInputElement).value).toBe("");
     fireEvent.change(municipality, { target: { value: "bogota" } });
     expect(screen.getByText("Sin coincidencias")).toBeTruthy();
     fireEvent.change(municipality, { target: { value: "medellin" } });
     fireEvent.keyDown(municipality, { key: "Enter" });
-    expect((municipality as HTMLInputElement).value).toBe("Medellín");
+    expect((municipality as HTMLInputElement).value).toBe("05001 · Medellín");
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(save.mock.calls[0]![0]).toMatchObject({ departmentCode: "05", municipalityCode: "05001" });
@@ -308,13 +308,10 @@ describe("PartyForm", () => {
 
   it("links a field's hint with aria-describedby, and Ctrl+S on a blocked form goes to the problem instead of saving", () => {
     const { save } = setup();
-    // The schema hints are off until "Ver códigos DIAN" is turned on (OD-12).
-    expect(field("Tipo de persona").getAttribute("aria-describedby")).toBeNull();
-    expect(screen.queryByText("AdditionalAccountID")).toBeNull();
-    fireEvent.click(screen.getByRole("switch", { name: "Ver códigos DIAN" }));
-    const personType = field("Tipo de persona");
-    const hint = document.getElementById(personType.getAttribute("aria-describedby")!)!;
-    expect(hint.textContent).toContain("AdditionalAccountID");
+    // A help hint describes its control: Número says what it takes for the chosen document type.
+    const number = field("Número");
+    const hint = document.getElementById(number.getAttribute("aria-describedby")!.split(" ")[0]!)!;
+    expect(hint.textContent).toContain("máx.");
     // NIT with letters: the client check blocks the save.
     fireEvent.change(field("Número"), { target: { value: "90037311A" } });
     field("Razón social").focus();
@@ -347,3 +344,23 @@ describe("PartyForm", () => {
     expect(save.mock.calls[1]![1]).toBe("tok-2");
   });
 });
+
+// Owner 2026-11-05: no XML/UBL field names on the form (they were schema hints behind "Ver códigos DIAN"); the codes always show before
+// the names of the DIAN lists; the semantic hints stay.
+describe("PartyForm without technical labels (owner 2026-11-05)", () => {
+  const TECHNICAL = /AdditionalAccountID|schemeName|TaxScheme|TaxLevelCode|ISO 3166|DANE\b|CityCode|cbc:|UBL/;
+
+  it("shows no XML/UBL names, no switch, and the DIAN codes before the names", () => {
+    setup();
+    expect(screen.queryByRole("switch")).toBeNull();
+    const form = document.querySelector("form")!;
+    const labels = [...form.querySelectorAll("label, legend")].map((l) => l.textContent ?? "").join(" | ");
+    expect(labels).not.toMatch(TECHNICAL);
+    expect(field("Tipo de persona").getAttribute("aria-describedby")).toBeNull();
+    // The codes of a DIAN list show before its names.
+    expect([...field("Tipo de documento").querySelectorAll("option")].some((o) => / · /.test(o.textContent ?? ""))).toBe(true);
+    // Semantic hints stay: the responsibilities still say where they come from in the RUT.
+    expect(labels).toContain("RUT");
+  });
+});
+

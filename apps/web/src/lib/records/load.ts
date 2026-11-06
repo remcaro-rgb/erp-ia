@@ -31,6 +31,10 @@ import { gridTab, loadAccountingTabs, loadMasterOptions, type AccountingTabs, ty
 import { loadContributedTabs, type LoadedContribution } from "./contributed-load";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
 import { partyTables, productTables } from "./tables";
+import { loadStockForm, STOCK_FORMS, type StockFormData } from "@/lib/inventory/record";
+import { loadSalesForm, SALES_FORMS, type SalesFormData } from "@/lib/sales/record";
+import { INVOICING_FORMS, loadInvoicingForm, type InvoicingFormData } from "@/lib/invoicing/record";
+import { loadPaymentsForm, PAYMENTS_FORMS, type PaymentsFormData } from "@/lib/payments/record";
 
 // Server-side loading of one record for the full-page frame. Every read is a consult process (or the grid query) run
 // as the session's user, so company RLS, the party scope, field masking and roles_view apply exactly as in the grid.
@@ -48,7 +52,15 @@ export type FormData =
   | { kind: "category"; tables: ProductTables; productCount: number }
   | ({ kind: "entry"; linesGrid: GridTab | null } & EntryFormData)
   // The accounting masters (Task 28): Cuenta, the four analytic nodes, Fuente, Plantilla, Período and Regla contable share one form.
-  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean } | null };
+  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean } | null }
+  // The inventory and costing records (plan 2B Task 10): bodega, ubicación, movimiento, traslado, conteo, costo en destino.
+  | StockFormData
+  // The CRM and sales records (plan 2B Task 14b): prospecto, embudo, oportunidad, actividad, cotización, pedido, entrega, devolución.
+  | SalesFormData
+  // The invoice and the note (plan 2B Task 20).
+  | InvoicingFormData
+  // The medio de pago, the caja and the recibo de caja (plan 2B Task 24b).
+  | PaymentsFormData;
 
 /** What the caller may do on the record's tabs: each flag is the process (and, for files, the owner's update) they may run. */
 export interface RecordAbilities {
@@ -221,6 +233,10 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
       rule: master === "rule" && record ? { isDefault: record.is_default === true, isModified: record.is_modified === true } : null,
     };
   }
+  if (STOCK_FORMS[entity.id]) return loadStockForm(caller, entity.id, record);
+  if (SALES_FORMS[entity.id]) return loadSalesForm(caller, entity.id, record);
+  if (INVOICING_FORMS[entity.id]) return loadInvoicingForm(caller, entity.id, record);
+  if (PAYMENTS_FORMS[entity.id]) return loadPaymentsForm(caller, entity.id, record);
   const locale = await getLocale();
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
   if (entity.id === "accounting.entry") {

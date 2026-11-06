@@ -75,7 +75,8 @@
         "contabilidad": "Accounting",
         "cuentas": "Accounts",
         "versiones": "Versions",
-        "acceso": "Access"
+        "acceso": "Access",
+        "dian": "DIAN"
       },
       "number": "ID",
       "uuid": "UUID",
@@ -85,6 +86,8 @@
       "duplicate": "Duplicate",
       "copy_of": "Copy of {name}",
       "copy_note": "Fill in what identifies the record. Contacts, photos and files are not copied.",
+      "discard_changes": "Discard changes",
+      "save_changes": "Save changes",
       "duplicate_failed": "The record could not be duplicated: {reason}",
       "contributed": {
         "save": "Save",
@@ -336,7 +339,6 @@
       "step_up_failed": "The code is not valid. Try again.",
       "step_up_cancel": "Cancel",
       "save_hint": "Ctrl+S saves",
-      "dian_hints": "Show DIAN codes",
       "copy_field": "Copy {field}",
       "copied": "Copied",
       "copy_failed": "Could not copy",
@@ -373,7 +375,7 @@
       "document_name_title": "Built from surnames and names, as exógena requires",
       "tax": "Tax responsibility",
       "responsibilities": "Responsibilities",
-      "responsibilities_hint": "TaxLevelCode · RUT box 53",
+      "responsibilities_hint": "RUT box 53",
       "tax_scheme": "Tax scheme",
       "ciiu": "CIIU economic activity",
       "ciiu_hint": "4 digits · optional",
@@ -1158,7 +1160,13 @@
       "accounting": "Accounting",
       "core": "Core",
       "support": "Support",
-      "kernel": "System"
+      "kernel": "System",
+      "inventory": "Inventory",
+      "costing": "Costing",
+      "crm": "CRM",
+      "sales": "Sales",
+      "payments": "Payments",
+      "invoicing": "Invoicing"
     },
     "keywords": {
       "core": {
@@ -1198,6 +1206,37 @@
         "entry_template": "entry template",
         "period": "period",
         "posting_rule": "posting rule"
+      },
+      "inventory": {
+        "warehouse": "warehouse",
+        "location": "location",
+        "movement": "inventory movement",
+        "transfer": "inventory transfer",
+        "count": "physical count"
+      },
+      "costing": {
+        "landed_cost": "landed cost"
+      },
+      "crm": {
+        "lead": "lead",
+        "pipeline": "sales pipeline",
+        "opportunity": "opportunity",
+        "quote": "quote",
+        "activity": "activity"
+      },
+      "sales": {
+        "order": "order",
+        "delivery": "delivery",
+        "return": "return"
+      },
+      "invoicing": {
+        "invoice": "invoice",
+        "note": "note"
+      },
+      "payments": {
+        "method": "payment method",
+        "cash_box": "cash box",
+        "receipt": "cash receipt"
       }
     },
     "support": {
@@ -1229,6 +1268,50 @@
         "state_recipients": "Recipients by state",
         "doc_templates": "PDF templates"
       }
+    },
+    "inventory": {
+      "warehouses": "Warehouses",
+      "locations": "Locations",
+      "movements": "Movements",
+      "transfers": "Transfers",
+      "counts": "Counts",
+      "stock": "Stock on hand"
+    },
+    "costing": {
+      "landed_costs": "Landed costs",
+      "layers": "Cost layers",
+      "missing": "Missing costs",
+      "settings": "Costing"
+    },
+    "crm": {
+      "leads": "Leads",
+      "pipelines": "Pipelines",
+      "opportunities": "Opportunities",
+      "activities": "Activities",
+      "quotes": "Quotes",
+      "settings": "CRM settings"
+    },
+    "sales": {
+      "customer_terms": "Customer terms",
+      "settings": "Sales settings",
+      "orders": "Orders",
+      "deliveries": "Deliveries",
+      "returns": "Returns"
+    },
+    "invoicing": {
+      "maestros": "Master data",
+      "documentos": "Documents",
+      "reportes": "Reports",
+      "parametros": "Settings",
+      "invoices": "Invoices",
+      "pending": "To invoice",
+      "settings": "Invoicing settings",
+      "notes": "Credit and debit notes"
+    },
+    "payments": {
+      "methods": "Payment methods",
+      "cash_boxes": "Cash boxes",
+      "receipts": "Cash receipts"
     }
   },
   "entity": {
@@ -1274,6 +1357,65 @@
     "support": {
       "ticket": "Ticket",
       "ticket_message": "Ticket message"
+    },
+    "inventory": {
+      "warehouse": "Warehouse",
+      "location": "Location",
+      "movement": "Inventory movement",
+      "movement_line": "Movement line",
+      "stock_level": "Stock level",
+      "reservation": "Stock reservation",
+      "transfer": "Inventory transfer",
+      "transfer_line": "Transfer line",
+      "count": "Physical count",
+      "count_line": "Count line"
+    },
+    "costing": {
+      "cost_layer": "Cost layer",
+      "cost_event": "Cost event",
+      "cost_missing": "Product without cost",
+      "landed_cost": "Landed cost",
+      "landed_cost_line": "Landed cost line",
+      "settings": "Costing settings"
+    },
+    "crm": {
+      "lead": "Lead",
+      "pipeline": "Sales pipeline",
+      "stage": "Pipeline stage",
+      "opportunity": "Opportunity",
+      "activity": "Activity",
+      "opportunity_line": "Opportunity line",
+      "quote": "Quote",
+      "quote_line": "Quote line",
+      "settings": "CRM settings"
+    },
+    "sales": {
+      "settings": "Sales settings",
+      "customer_terms": "Customer terms",
+      "order": "Sales order",
+      "order_line": "Order line",
+      "delivery": "Delivery",
+      "delivery_line": "Delivery line",
+      "return": "Sales return",
+      "return_line": "Return line"
+    },
+    "invoicing": {
+      "settings": "Invoicing settings",
+      "invoice": "Sales invoice",
+      "invoice_line": "Invoice line",
+      "invoice_tax": "Invoice tax",
+      "invoice_recommendation": "Invoice recommendation",
+      "einvoice_submission": "DIAN submission",
+      "note": "Sales note (credit or debit)",
+      "note_line": "Note line",
+      "note_tax": "Note tax",
+      "pending_line": "Line to invoice"
+    },
+    "payments": {
+      "method": "Payment method",
+      "cash_box": "Cash box",
+      "receipt": "Cash receipt",
+      "receipt_allocation": "Receipt allocation"
     }
   },
   "field": {
@@ -1903,6 +2045,923 @@
         "created_at": "Created",
         "updated_at": "Updated"
       }
+    },
+    "inventory": {
+      "warehouse": {
+        "seq": "ID",
+        "code": "Code",
+        "name": "Name",
+        "address_line": "Address",
+        "allow_backorders": "Allows negative stock",
+        "is_active": "Active",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "location": {
+        "seq": "ID",
+        "warehouse_id": "Warehouse",
+        "code": "Code",
+        "name": "Name",
+        "kind": "Type",
+        "is_active": "Active",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "movement": {
+        "seq": "ID",
+        "number": "Number",
+        "kind": "Type",
+        "date": "Date",
+        "warehouse_id": "Warehouse",
+        "reference": "Reference",
+        "description": "Description",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "source_entity": "Source document",
+        "source_id": "Source id",
+        "applied_at": "Applied to stock",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "movement_line": {
+        "seq": "ID",
+        "movement_id": "Movement",
+        "line_no": "Line",
+        "product_id": "Product",
+        "location_id": "Location",
+        "lot_id": "Lot",
+        "serial_id": "Serial",
+        "qty": "Quantity",
+        "uom": "Unit",
+        "unit_cost": "Unit cost",
+        "source_entity": "Source document",
+        "source_line_id": "Source line",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "stock_level": {
+        "seq": "ID",
+        "product_id": "Product",
+        "warehouse_id": "Warehouse",
+        "location_id": "Location",
+        "lot_id": "Lot",
+        "serial_id": "Serial",
+        "on_hand": "On hand",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "reservation": {
+        "seq": "ID",
+        "source_entity": "Source document",
+        "source_line_id": "Source line",
+        "product_id": "Product",
+        "warehouse_id": "Warehouse",
+        "location_id": "Location",
+        "qty": "Reserved quantity",
+        "released_qty": "Released quantity",
+        "status": "Status",
+        "released_at": "Released on",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "transfer": {
+        "seq": "ID",
+        "number": "Number",
+        "date": "Date",
+        "from_warehouse_id": "Source warehouse",
+        "to_warehouse_id": "Destination warehouse",
+        "reference": "Reference",
+        "description": "Description",
+        "stage": "Stage",
+        "shipped_at": "Shipped",
+        "received_at": "Received",
+        "transit_location_id": "Transit location",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "transfer_line": {
+        "seq": "ID",
+        "transfer_id": "Transfer",
+        "line_no": "Line",
+        "product_id": "Product",
+        "from_location_id": "Source location",
+        "to_location_id": "Destination location",
+        "qty": "Quantity",
+        "uom": "Unit",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "count": {
+        "seq": "ID",
+        "number": "Number",
+        "date": "Date",
+        "warehouse_id": "Warehouse",
+        "description": "Description",
+        "stage": "Stage",
+        "applied_at": "Applied",
+        "adjustment_id": "Adjustment",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "count_line": {
+        "seq": "ID",
+        "count_id": "Count",
+        "line_no": "Line",
+        "product_id": "Product",
+        "location_id": "Location",
+        "system_qty": "System quantity",
+        "counted_qty": "Counted quantity",
+        "difference": "Difference",
+        "recorded_at": "Counted on",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
+    },
+    "costing": {
+      "cost_layer": {
+        "seq": "No.",
+        "product_id": "Product",
+        "warehouse_id": "Warehouse",
+        "method": "Method",
+        "qty": "Quantity",
+        "value": "Value",
+        "avg_cost": "Average cost",
+        "currency": "Currency",
+        "last_movement_id": "Last movement",
+        "last_movement_seq": "Last movement sequence",
+        "extra": "Additional data",
+        "extra_free": "Free additional data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "cost_event": {
+        "seq": "No.",
+        "movement_id": "Movement",
+        "movement_line_id": "Movement line",
+        "movement_seq": "Movement sequence",
+        "movement_number": "Movement number",
+        "kind": "Kind",
+        "date": "Date",
+        "product_id": "Product",
+        "category_id": "Category",
+        "warehouse_id": "Warehouse",
+        "layer_id": "Cost layer",
+        "qty": "Quantity",
+        "unit_cost": "Unit cost",
+        "amount": "Amount",
+        "cost_source": "Cost source",
+        "cost_missing": "No cost",
+        "qty_after": "Quantity after",
+        "value_after": "Value after",
+        "avg_after": "Average cost after",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "source_entity": "Source entity",
+        "source_id": "Source document",
+        "source_line_id": "Source line",
+        "return_of_line_id": "Returned issue line",
+        "cogs_posted_at": "Cost of sales sent",
+        "extra": "Additional data",
+        "extra_free": "Free additional data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "cost_missing": {
+        "seq": "No.",
+        "product_id": "Product",
+        "warehouse_id": "Warehouse",
+        "status": "Status",
+        "occurrences": "Occurrences",
+        "qty": "Quantity without cost",
+        "first_movement_id": "First movement",
+        "last_movement_id": "Last movement",
+        "first_date": "First date",
+        "last_date": "Last date",
+        "resolved_at": "Resolved",
+        "resolved_movement_id": "Resolving movement",
+        "extra": "Additional data",
+        "extra_free": "Free additional data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "landed_cost": {
+        "seq": "ID",
+        "number": "Number",
+        "date": "Date",
+        "movement_id": "Receipt",
+        "movement_number": "Receipt number",
+        "basis": "Allocated by",
+        "amount": "Amount",
+        "offset_role": "Offset",
+        "party_id": "Supplier",
+        "reference": "Reference",
+        "description": "Description",
+        "currency": "Currency",
+        "applied_at": "Allocated on",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "landed_cost_line": {
+        "seq": "ID",
+        "landed_cost_id": "Landed cost",
+        "line_no": "Line",
+        "movement_line_id": "Receipt line",
+        "product_id": "Product",
+        "warehouse_id": "Warehouse",
+        "qty": "Quantity",
+        "base": "Allocation base",
+        "weight": "Weight",
+        "amount": "Amount allocated",
+        "unit_cost_added": "Unit cost added",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "settings": {
+        "seq": "ID",
+        "method": "Costing method",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
+    },
+    "crm": {
+      "lead": {
+        "seq": "ID",
+        "name": "Name",
+        "contact_name": "Contact",
+        "email": "E-mail",
+        "phone_cc": "Dialing code",
+        "phone": "Phone",
+        "person_type": "Person type",
+        "document_type": "Document type",
+        "document_number": "Document number",
+        "source": "Source",
+        "stage": "Stage",
+        "owner_id": "Salesperson",
+        "notes": "Notes",
+        "converted_party_id": "Customer created",
+        "converted_opportunity_id": "Opportunity created",
+        "converted_at": "Converted",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
+      },
+      "pipeline": {
+        "seq": "ID",
+        "code": "Code",
+        "name": "Name",
+        "description": "Description",
+        "is_default": "Default",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
+      },
+      "stage": {
+        "seq": "ID",
+        "pipeline_id": "Pipeline",
+        "line_no": "Order",
+        "name": "Name",
+        "probability": "Probability (%)",
+        "kind": "Type",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "opportunity": {
+        "seq": "ID",
+        "number": "Number",
+        "title": "Title",
+        "party_id": "Customer",
+        "lead_id": "Lead",
+        "pipeline_id": "Pipeline",
+        "stage_id": "Stage",
+        "owner_id": "Salesperson",
+        "amount": "Amount",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "probability": "Probability (%)",
+        "expected_close": "Expected close",
+        "outcome": "Outcome",
+        "closed_at": "Closed",
+        "lost_reason": "Lost reason",
+        "order_id": "Winning order",
+        "description": "Description",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "activity": {
+        "seq": "ID",
+        "kind": "Type",
+        "subject": "Subject",
+        "notes": "Notes",
+        "opportunity_id": "Opportunity",
+        "lead_id": "Lead",
+        "party_id": "Party",
+        "owner_id": "Salesperson",
+        "due_at": "Due",
+        "done_at": "Done",
+        "source_entity": "Source document",
+        "source_id": "Source id",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "opportunity_line": {
+        "seq": "ID",
+        "opportunity_id": "Opportunity",
+        "line_no": "Line",
+        "product_id": "Product",
+        "description": "Description",
+        "qty": "Quantity",
+        "unit_price": "Unit price",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "quote": {
+        "seq": "ID",
+        "number": "Number",
+        "party_id": "Customer",
+        "opportunity_id": "Opportunity",
+        "owner_id": "Salesperson",
+        "issue_date": "Date",
+        "valid_until": "Valid until",
+        "stage": "Stage",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "subtotal": "Subtotal",
+        "discount_total": "Discounts",
+        "tax_total": "Taxes",
+        "total": "Total",
+        "total_company": "Total in company currency",
+        "max_discount_pct": "Largest discount (%)",
+        "sent_at": "Sent",
+        "accepted_at": "Accepted",
+        "expired_at": "Expired",
+        "notes": "Notes",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "quote_line": {
+        "seq": "ID",
+        "quote_id": "Quote",
+        "line_no": "Line",
+        "product_id": "Product",
+        "description": "Description",
+        "qty": "Quantity",
+        "unit_price": "Unit price",
+        "price_list_id": "Price list",
+        "discount_pct": "Discount (%)",
+        "discount": "Discount",
+        "base": "Base",
+        "iva_rate": "VAT rate",
+        "iva": "VAT",
+        "inc_rate": "INC rate",
+        "inc": "INC",
+        "other_taxes": "Other taxes",
+        "total": "Total",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "settings": {
+        "seq": "ID",
+        "quote_approval_discount_pct": "Largest discount without approval (%)",
+        "quote_validity_days": "Quote validity (days)",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
+    },
+    "sales": {
+      "settings": {
+        "seq": "ID",
+        "default_price_list_id": "Default price list",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "order_approval_discount_pct": "Largest order discount without approval (%)"
+      },
+      "customer_terms": {
+        "seq": "ID",
+        "party_id": "Customer",
+        "price_list_id": "Price list",
+        "discount_pct": "Standing discount (%)",
+        "notes": "Notes",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "credit_limit": "Credit limit"
+      },
+      "order": {
+        "seq": "ID",
+        "number": "Number",
+        "party_id": "Customer",
+        "quote_id": "Quote",
+        "opportunity_id": "Opportunity",
+        "owner_id": "Salesperson",
+        "warehouse_id": "Warehouse",
+        "issue_date": "Date",
+        "delivery_date": "Promised delivery",
+        "stage": "Stage",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "subtotal": "Subtotal",
+        "discount_total": "Discounts",
+        "tax_total": "Taxes",
+        "total": "Total",
+        "total_company": "Total in company currency",
+        "max_discount_pct": "Largest discount (%)",
+        "credit_exceeded": "Over the credit limit",
+        "discount_exceeded": "Over the discount threshold",
+        "confirmed_at": "Confirmed",
+        "cancelled_at": "Cancelled",
+        "notes": "Notes",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "order_line": {
+        "seq": "ID",
+        "order_id": "Order",
+        "line_no": "Line",
+        "product_id": "Product",
+        "description": "Description",
+        "qty": "Quantity",
+        "unit_price": "Unit price",
+        "price_list_id": "Price list",
+        "discount_pct": "Discount (%)",
+        "discount": "Discount",
+        "base": "Base",
+        "iva_rate": "VAT rate",
+        "iva": "VAT",
+        "inc_rate": "INC rate",
+        "inc": "INC",
+        "other_taxes": "Other taxes",
+        "total": "Total",
+        "quote_line_id": "Quote line",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "delivery": {
+        "seq": "ID",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "number": "Number",
+        "party_id": "Customer",
+        "warehouse_id": "Warehouse",
+        "date": "Date",
+        "stage": "Stage",
+        "cost_center_id": "Cost center",
+        "notes": "Notes",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "order_id": "Order",
+        "shipped_at": "Shipped",
+        "stock_refusal": "Inventory refusal reason",
+        "stock_refused_at": "Refused by inventory on"
+      },
+      "delivery_line": {
+        "seq": "ID",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "delivery_id": "Delivery",
+        "line_no": "Line",
+        "order_line_id": "Order line",
+        "product_id": "Product",
+        "description": "Description",
+        "qty": "Quantity",
+        "invoiced_qty": "Invoiced quantity",
+        "movement_id": "Inventory movement",
+        "stock_posted_at": "Stock issued"
+      },
+      "return": {
+        "seq": "ID",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "number": "Number",
+        "party_id": "Customer",
+        "warehouse_id": "Warehouse",
+        "date": "Date",
+        "stage": "Stage",
+        "cost_center_id": "Cost center",
+        "notes": "Notes",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "delivery_id": "Delivery",
+        "order_id": "Order",
+        "reason": "Reason",
+        "stock_refusal": "Inventory refusal reason",
+        "stock_refused_at": "Refused by inventory on",
+        "received_at": "Received"
+      },
+      "return_line": {
+        "seq": "ID",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "return_id": "Return",
+        "line_no": "Line",
+        "delivery_line_id": "Delivery line",
+        "product_id": "Product",
+        "qty": "Quantity"
+      }
+    },
+    "invoicing": {
+      "settings": {
+        "seq": "ID",
+        "invoice_creation": "Invoice creation",
+        "dian_environment": "DIAN environment",
+        "default_cost_center_id": "Default cost center",
+        "credit_days": "Credit days",
+        "software_id": "Software identifier (DIAN)",
+        "software_provider_tax_id": "Software provider NIT",
+        "test_set_id": "Test set identifier",
+        "issuer_tax_responsibilities": "Issuer tax responsibilities",
+        "issuer_tax_scheme": "Issuer tax scheme",
+        "issuer_department_code": "Issuer department DANE code",
+        "issuer_municipality_code": "Issuer municipality DANE code",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "dian_defaults_confirmed": "DIAN defaults confirmed",
+        "certificate_subject": "Certificate subject",
+        "certificate_tax_id": "Certificate tax id",
+        "certificate_issuer": "Certificate issuer",
+        "certificate_serial": "Certificate serial",
+        "certificate_valid_from": "Certificate valid from",
+        "certificate_valid_to": "Certificate expires",
+        "certificate_uploaded_at": "Certificate uploaded",
+        "software_pin_set_at": "Software PIN saved",
+        "certificate_fingerprint": "Certificate fingerprint"
+      },
+      "invoice": {
+        "seq": "ID",
+        "number": "Number",
+        "prefix": "Prefix",
+        "consecutive": "Consecutive",
+        "cufe": "CUFE",
+        "party_id": "Customer",
+        "issue_date": "Date",
+        "issue_time": "Issue time",
+        "due_date": "Due date",
+        "service_date": "Delivery or service date",
+        "payment_form": "Payment form",
+        "payment_means": "Payment means",
+        "stage": "Invoice stage",
+        "dian_status": "DIAN status",
+        "origin": "Origin",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "subtotal": "Subtotal",
+        "discount_total": "Discounts",
+        "tax_total": "Taxes",
+        "total": "Total",
+        "total_company": "Total in company currency",
+        "paid_amount": "Paid",
+        "credited_amount": "Credited by notes",
+        "resolution": "DIAN resolution",
+        "cost_center_id": "Cost center",
+        "issued_at": "Issued",
+        "annulment_note_id": "Annulment note",
+        "notes": "Notes",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "debited_amount": "Debited by notes"
+      },
+      "invoice_line": {
+        "seq": "ID",
+        "invoice_id": "Invoice",
+        "line_no": "Line",
+        "product_id": "Product",
+        "description": "Description",
+        "qty": "Quantity",
+        "unit_price": "Unit price",
+        "discount_pct": "Discount %",
+        "discount": "Discount",
+        "base": "Base",
+        "iva_rate": "VAT rate",
+        "iva": "VAT",
+        "inc_rate": "Consumption tax rate",
+        "inc": "Consumption tax",
+        "other_taxes": "Other taxes",
+        "total": "Total",
+        "free_sample": "Free sample",
+        "category_id": "Category",
+        "order_id": "Order",
+        "order_line_id": "Order line",
+        "delivery_id": "Delivery",
+        "delivery_line_id": "Delivery line",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "invoice_tax": {
+        "seq": "ID",
+        "invoice_id": "Invoice",
+        "family": "Tax",
+        "code": "DIAN code",
+        "ledger_code": "Ledger code",
+        "rate": "Rate",
+        "base": "Base",
+        "amount": "Amount",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "invoice_recommendation": {
+        "seq": "ID",
+        "invoice_id": "Invoice",
+        "status": "Status",
+        "code": "Code",
+        "message": "Message",
+        "details": "Details",
+        "resolved_at": "Resolved",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "einvoice_submission": {
+        "seq": "ID",
+        "invoice_id": "Invoice",
+        "status": "Submission status",
+        "round": "Submission no.",
+        "attempts": "Send attempts",
+        "polls": "DIAN polls",
+        "track_id": "DIAN tracking number",
+        "run_id": "Run",
+        "cufe": "CUFE",
+        "errors": "DIAN errors",
+        "last_error": "Last error",
+        "xml_path": "Signed XML",
+        "response_path": "DIAN response",
+        "pdf_path": "Graphic representation (PDF)",
+        "submitted_at": "Sent",
+        "decided_at": "Answered",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "note_id": "Note"
+      },
+      "note": {
+        "seq": "ID",
+        "kind": "Note type",
+        "number": "Number",
+        "prefix": "Prefix",
+        "consecutive": "Consecutive",
+        "cude": "CUDE",
+        "invoice_id": "Invoice",
+        "party_id": "Customer",
+        "concept": "Correction concept",
+        "annulment": "Invoice annulment",
+        "reason": "Reason",
+        "issue_date": "Date",
+        "issue_time": "Issue time",
+        "due_date": "Due date",
+        "stage": "Status",
+        "dian_status": "DIAN status",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "subtotal": "Subtotal",
+        "tax_total": "Taxes",
+        "total": "Total",
+        "total_company": "Total in company currency",
+        "resolution": "DIAN resolution",
+        "cost_center_id": "Cost center",
+        "issued_at": "Issued",
+        "notes": "Notes",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "note_line": {
+        "seq": "ID",
+        "note_id": "Note",
+        "line_no": "Line",
+        "invoice_line_id": "Invoice line",
+        "product_id": "Product",
+        "description": "Description",
+        "qty": "Quantity",
+        "unit_price": "Unit price",
+        "discount": "Discount",
+        "base": "Base",
+        "iva_rate": "VAT rate",
+        "iva": "VAT",
+        "inc_rate": "Consumption tax rate",
+        "inc": "Consumption tax",
+        "other_taxes": "Other taxes",
+        "total": "Total",
+        "free_sample": "Free sample",
+        "category_id": "Category",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "note_tax": {
+        "seq": "ID",
+        "note_id": "Note",
+        "family": "Tax",
+        "code": "DIAN code",
+        "ledger_code": "Ledger code",
+        "rate": "Rate",
+        "base": "Base",
+        "amount": "Amount",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "pending_line": {
+        "order_id": "Order (id)",
+        "order_number": "Order",
+        "delivery_id": "Delivery (id)",
+        "delivery_number": "Delivery",
+        "delivery_date": "Delivery date",
+        "party_id": "Customer",
+        "product_id": "Product",
+        "description": "Description",
+        "delivered_qty": "Delivered",
+        "invoiced_qty": "Invoiced",
+        "pending_qty": "To invoice"
+      }
+    },
+    "payments": {
+      "method": {
+        "seq": "ID",
+        "code": "Code",
+        "name": "Name",
+        "kind": "Kind",
+        "means_code": "DIAN payment means code",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
+      },
+      "cash_box": {
+        "seq": "ID",
+        "code": "Code",
+        "name": "Name",
+        "description": "Description",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
+      },
+      "receipt": {
+        "seq": "ID",
+        "number": "Number",
+        "date": "Date",
+        "party_id": "Customer",
+        "method_id": "Payment method",
+        "method_code": "Payment method code",
+        "cash_box_id": "Cash box",
+        "reference": "Reference",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "amount": "Amount received",
+        "applied": "Applied to invoices",
+        "withholding_total": "Withholdings",
+        "advance": "Advance",
+        "notes": "Notes",
+        "applied_at": "Applied at",
+        "voided_at": "Voided at",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "receipt_allocation": {
+        "seq": "ID",
+        "receipt_id": "Cash receipt",
+        "line_no": "Line",
+        "invoice_id": "Invoice",
+        "invoice_number": "Invoice number",
+        "amount": "Amount applied",
+        "cash_amount": "Cash applied",
+        "withholding_total": "Withholdings",
+        "withholdings": "Withholding detail",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
     }
   },
   "feature": {
@@ -1936,6 +2995,37 @@
       "ledger": "Ledgers: chart of accounts, sources, vouchers and movements",
       "periods": "Fiscal years, periods and closings",
       "posting": "Posting rules, unposted events and settings"
+    },
+    "inventory": {
+      "warehouses": "Warehouses and locations",
+      "stock": "Stock, movements and reservations"
+    },
+    "costing": {
+      "costs": "Average cost and cost of sales",
+      "landed_costs": "Landed costs",
+      "settings": "Costing settings"
+    },
+    "crm": {
+      "leads": "Leads",
+      "pipelines": "Pipelines and stages",
+      "opportunities": "Opportunities",
+      "activities": "Activities",
+      "quotes": "Quotes",
+      "settings": "CRM settings"
+    },
+    "sales": {
+      "pricing": "Pricing and customer terms",
+      "orders": "Sales orders",
+      "deliveries": "Sales deliveries",
+      "returns": "Sales returns"
+    },
+    "invoicing": {
+      "invoices": "Sales invoices",
+      "settings": "Invoicing settings"
+    },
+    "payments": {
+      "methods": "Payment methods and cash boxes",
+      "receipts": "Cash receipts"
     }
   },
   "process": {
@@ -2517,6 +3607,34 @@
       "core_new_parties": {
         "label": "New parties this month",
         "detail": "{previous_text} the month before"
+      },
+      "invoicing_receivable": {
+        "label": "Receivable",
+        "detail": "{count, plural, =0 {No invoice to collect} one {# issued invoice} other {# issued invoices}} · {overdue, plural, =0 {none overdue} one {# overdue} other {# overdue}}"
+      },
+      "invoicing_to_invoice": {
+        "label": "To invoice",
+        "detail": "{deliveries, plural, =0 {Nothing delivered and not invoiced} one {# delivery not invoiced, before taxes} other {# deliveries not invoiced, before taxes}}"
+      },
+      "sales_open_orders": {
+        "label": "Open orders",
+        "detail": "{confirmed, plural, =0 {none confirmed} one {# confirmed to deliver} other {# confirmed to deliver}}"
+      },
+      "inventory_below_minimum": {
+        "label": "Stock below minimum",
+        "detail": "of {tracked_text} products with a minimum stock"
+      },
+      "costing_cost_missing": {
+        "label": "Missing costs",
+        "detail": "{open, plural, =0 {Every issue has a cost} one {# product issued without a cost} other {# products issued without a cost}}"
+      },
+      "crm_pipeline": {
+        "label": "Pipeline",
+        "detail": "{count, plural, =0 {No open opportunity} one {# open opportunity} other {# open opportunities}}"
+      },
+      "payments_collected_month": {
+        "label": "Collected this month",
+        "detail": "{count, plural, =0 {No cash receipt} one {# cash receipt} other {# cash receipts}} in {month}"
       }
     },
     "recommendations": {
@@ -2626,7 +3744,11 @@
         "entries": "Entries",
         "parties": "Parties",
         "products": "Products",
-        "tickets": "Tickets"
+        "tickets": "Tickets",
+        "sales": "Sales",
+        "orders": "Orders",
+        "pipeline": "Pipeline",
+        "collected": "Collected"
       },
       "point": {
         "entry_draft": "Draft",
@@ -2648,7 +3770,27 @@
         "ticket_closed": "Closed",
         "priority_high": "High",
         "priority_normal": "Normal",
-        "priority_low": "Low"
+        "priority_low": "Low",
+        "order_open": "Open",
+        "order_confirmed": "Confirmed",
+        "order_partially_delivered": "Partially delivered",
+        "order_delivered": "Delivered",
+        "order_cancelled": "Cancelled"
+      },
+      "invoicing_sales_by_month": {
+        "label": "Sales by month"
+      },
+      "sales_orders_by_stage": {
+        "label": "Orders by stage"
+      },
+      "sales_orders_by_month": {
+        "label": "Confirmed orders by month"
+      },
+      "crm_pipeline_by_stage": {
+        "label": "Pipeline by stage"
+      },
+      "payments_collected_by_month": {
+        "label": "Collected by month"
       }
     },
     "catalog": {
@@ -2795,6 +3937,54 @@
       "kernel_audit_daily": {
         "label": "Audited actions per day",
         "description": "Line of the movements audited each day of the last two weeks."
+      },
+      "invoicing_receivable": {
+        "label": "Receivable",
+        "description": "Balance of the issued invoices the customers still owe, and how many are overdue."
+      },
+      "invoicing_to_invoice": {
+        "label": "To invoice",
+        "description": "What was delivered and no invoice bills yet, at the order's price and before taxes."
+      },
+      "invoicing_sales_by_month": {
+        "label": "Sales by month",
+        "description": "Bar chart: subtotal of the invoices issued in each of the last 6 months."
+      },
+      "sales_open_orders": {
+        "label": "Open orders",
+        "description": "Orders not yet wholly delivered nor cancelled, and how many are confirmed."
+      },
+      "sales_orders_by_stage": {
+        "label": "Orders by stage",
+        "description": "Bar chart: open, confirmed, partially delivered, delivered and cancelled orders."
+      },
+      "sales_orders_by_month": {
+        "label": "Confirmed orders by month",
+        "description": "Bar chart: subtotal of the orders confirmed in each of the last 6 months."
+      },
+      "inventory_below_minimum": {
+        "label": "Stock below minimum",
+        "description": "Products whose stock across every warehouse is below their minimum stock."
+      },
+      "costing_cost_missing": {
+        "label": "Missing costs",
+        "description": "Products issued from a warehouse with no cost to value them, not yet resolved."
+      },
+      "crm_pipeline": {
+        "label": "Pipeline",
+        "description": "Value of the open opportunities (neither won nor lost) and how many there are."
+      },
+      "crm_pipeline_by_stage": {
+        "label": "Pipeline by stage",
+        "description": "Bar chart: value of the open opportunities in each stage of the pipeline."
+      },
+      "payments_collected_month": {
+        "label": "Collected this month",
+        "description": "Money received through the cash receipts of the current month, voided ones left out."
+      },
+      "payments_collected_by_month": {
+        "label": "Collected by month",
+        "description": "Line with the money received through cash receipts in each of the last 6 months."
       }
     },
     "module": {
@@ -2873,6 +4063,25 @@
       "not_permitted_create": "Your role does not allow creating parties, so I cannot do it for you. Ask whoever administers the company.",
       "not_permitted_query": "Your role does not allow consulting parties.",
       "fallback": "I am the test model (AGENT_MODEL=mock). I can look up a customer (“find the customer Éxito”) or create one (“create the customer Panadería La Espiga, NIT 800197268-4”)."
+    },
+    "refusal": {
+      "reason": {
+        "unbalanced": "The entry is unbalanced: debits and credits must be equal",
+        "missing_account_mapping": "An account for this operation is not mapped in the accounting settings",
+        "closed_period": "The accounting period of the date is closed or does not exist",
+        "ledger_not_started": "The company's ledger has not started: set its start date in the accounting settings",
+        "inactive_account": "An account of the entry is inactive",
+        "missing_party": "An account of the entry requires a third party ready to invoice",
+        "missing_cost_center": "An account of the entry requires a cost center",
+        "missing_open_auxiliary": "An account of the entry requires an open subsidiary account",
+        "missing_item": "An account of the entry requires the item",
+        "missing_business_unit": "An account of the entry requires the business unit",
+        "inactive_dimension": "An analytic node of the entry is inactive",
+        "account_forbidden": "Your role has no permission on an account of the entry",
+        "same_user_approval": "Whoever created the entry cannot approve it: someone else approves it",
+        "manual_journal_only": "A manual entry goes in the manual entries journal",
+        "no_journal": "The company does not have the journal this operation needs"
+      }
     }
   },
   "auth": {
@@ -2938,7 +4147,8 @@
     "export_timeout": "The export is taking longer than expected. It carries on in the background; try again in a few minutes.",
     "ai_budget_exceeded": "Your company reached its monthly AI usage limit. Ask your administrator to raise it; meanwhile you can keep working in the app.",
     "confirmation_expired": "The confirmation card expired. Ask the assistant for the action again.",
-    "maestro_not_usable_named": "{field}: «{name}» cannot be used: it must be active and Saved (or Approved when it requires approval)."
+    "maestro_not_usable_named": "{field}: «{name}» cannot be used: it must be active and Saved (or Approved when it requires approval).",
+    "nothing_moved": "No product of the movement keeps stock: nothing was registered."
   },
   "report": {
     "file": {
@@ -3026,7 +4236,8 @@
       "b1": "1–30 days",
       "b2": "31–60 days",
       "b3": "61–90 days",
-      "over": "Over 90 days"
+      "over": "Over 90 days",
+      "credits": "Advances and credit balances"
     },
     "param": {
       "from": "From",
@@ -3697,6 +4908,9 @@
         "same_user_approval": "The creator cannot approve",
         "manual_journal_only": "Manual vouchers source only"
       },
+      "dismiss_code": {
+        "source_voided": "Source voided before it posted"
+      },
       "failure_status": {
         "pending": "Pending",
         "resolved": "Resolved",
@@ -3711,6 +4925,1145 @@
         "2": "Group 2 · IFRS for SMEs",
         "3": "Group 3 · micro-entities"
       }
+    }
+  },
+  "inventory": {
+    "movement": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: a movement is in the stock once saved.",
+        "posts": "Does not post: costing values the issues and accounting posts the adjustments from their events."
+      }
+    },
+    "values": {
+      "movement_kind": {
+        "receipt": "Receipt",
+        "issue": "Issue",
+        "sale_issue": "Sale issue",
+        "sale_return": "Sale return",
+        "adjustment": "Adjustment",
+        "transfer_out": "Transfer out",
+        "transfer_in": "Transfer in"
+      },
+      "location_kind": {
+        "storage": "Storage",
+        "transit": "In transit"
+      },
+      "reservation_status": {
+        "active": "Active",
+        "released": "Released"
+      },
+      "transfer_stage": {
+        "requested": "Requested",
+        "in_transit": "In transit",
+        "received": "Received"
+      },
+      "count_stage": {
+        "open": "Open",
+        "applied": "Applied"
+      }
+    },
+    "transfer": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: a transfer is shipped and received without approval.",
+        "posts": "Does not post: moving stock between warehouses creates no entry."
+      }
+    },
+    "count": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: applying the count asks for a step-up.",
+        "posts": "Does not post: accounting posts the count's adjustment from its event."
+      }
+    },
+    "form": {
+      "section": {
+        "warehouse": "Warehouse",
+        "location": "Location",
+        "movement_receipt": "Stock receipt",
+        "movement_issue": "Stock issue",
+        "movement_adjustment": "Stock adjustment",
+        "transfer": "Transfer between warehouses",
+        "count": "Physical count"
+      },
+      "warehouse": "Warehouse",
+      "code": "Code",
+      "name": "Name",
+      "address": "Address",
+      "location_kind": "Location type",
+      "allow_backorders": "Allows negative stock",
+      "active": "Active",
+      "allow_backorders_hint": "When not allowed, an issue that leaves the warehouse below zero is refused.",
+      "missing_master": "Fill in the code and the name",
+      "kind": "Type",
+      "date": "Date",
+      "from_warehouse": "Source warehouse",
+      "to_warehouse": "Destination warehouse",
+      "reference": "Reference",
+      "description": "Description",
+      "reason": "Reason",
+      "reason_hint": "Why it is adjusted (shrinkage, surplus, damage). It stays on the adjustment and its entry.",
+      "lines": "Lines",
+      "product": "Product",
+      "location": "Location",
+      "from_location": "Source location",
+      "to_location": "Destination location",
+      "qty": "Quantity",
+      "qty_signed": "Quantity (+ adds, − takes)",
+      "unit_cost": "Unit cost",
+      "remove_line": "Remove line",
+      "remove_line_n": "Remove line {n}",
+      "product_line": "Product, line {n}",
+      "location_line": "Location, line {n}",
+      "to_location_line": "Destination location, line {n}",
+      "qty_line": "Quantity, line {n}",
+      "unit_cost_line": "Unit cost, line {n}",
+      "no_location": "No location",
+      "adjustment_hint": "An adjustment asks for your verification code when saved; accounting posts it at each product's cost.",
+      "missing": "Missing",
+      "missing_field": {
+        "date": "the date",
+        "warehouse": "the warehouse",
+        "to_warehouse": "a different destination warehouse",
+        "reason": "the reason",
+        "lines": "at least one line",
+        "qty": "a valid quantity",
+        "receipt": "the receipt",
+        "amount": "the amount",
+        "party": "the supplier"
+      }
+    },
+    "view": {
+      "facts": "Document data",
+      "adjustment": "Adjustment",
+      "count_sheet": "Count sheet",
+      "product": "Product",
+      "location": "Location",
+      "system_qty": "In the system",
+      "counted_qty": "Counted",
+      "difference": "Difference",
+      "counted_line": "Counted quantity, line {n}",
+      "count_hint": "Record what was counted (in parts if you like); applying posts the difference between counted and system as one adjustment.",
+      "working": "Working…",
+      "ship": "Ship",
+      "receive": "Receive",
+      "record_count": "Record count",
+      "apply_count": "Apply count",
+      "apply_hint": "Asks for your verification code; every line must be counted."
+    },
+    "effects": {
+      "order_reserve": "Inventory: reserves the stock of the order lines in their warehouse",
+      "order_release": "Inventory: releases the stock the order had reserved",
+      "delivery_issue": "Inventory: takes the delivered stock out of the warehouse and uses up its reservation",
+      "delivery_reentry": "Inventory: puts the stock of the voided delivery back in the warehouse",
+      "return_reentry": "Inventory: puts the returned stock back in the warehouse",
+      "return_void": "Inventory: takes the stock of the voided return out of the warehouse again"
+    }
+  },
+  "costing": {
+    "values": {
+      "method": {
+        "average": "Weighted average"
+      },
+      "event_kind": {
+        "receipt": "Receipt",
+        "issue": "Issue",
+        "sale_issue": "Sale issue",
+        "sale_return": "Sale return",
+        "adjustment": "Adjustment",
+        "transfer_out": "Transfer out",
+        "transfer_in": "Transfer in",
+        "landed_cost": "Landed cost",
+        "reversal": "Void reversal"
+      },
+      "cost_source": {
+        "line": "Line cost",
+        "average": "Average cost",
+        "standard": "Standard cost",
+        "original_issue": "Original issue cost",
+        "transfer": "Transfer cost",
+        "none": "No cost",
+        "landed_cost": "Landed cost",
+        "reversal": "Reversal"
+      },
+      "missing_status": {
+        "open": "Open",
+        "resolved": "Resolved"
+      },
+      "landed_basis": {
+        "value": "Value",
+        "quantity": "Quantity",
+        "weight": "Weight"
+      },
+      "offset_role": {
+        "payable": "Accounts payable",
+        "supplier_advances": "Supplier advances",
+        "cash": "Cash",
+        "bank": "Banks",
+        "suspense": "Suspense account"
+      }
+    },
+    "landed_cost": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: a landed cost is allocated and posted when it is registered.",
+        "posts": "Always posts: Dr inventory / Cr the offset you name, from the landed cost event."
+      }
+    },
+    "errors": {
+      "fifo_phase_3": "The FIFO method is available in phase 3; for now cost is calculated by weighted average"
+    },
+    "form": {
+      "section": {
+        "landed_cost": "Landed cost"
+      },
+      "receipt": "Goods receipt",
+      "receipt_hint": "The receipt whose cost goes up (freight, duties, insurance).",
+      "amount": "Amount",
+      "basis": "Spread by",
+      "offset_role": "Offset",
+      "party": "Supplier",
+      "party_hint": "Who is owed, when the offset is a payable or an advance.",
+      "date": "Date",
+      "reference": "Reference",
+      "description": "Description"
+    },
+    "settings_page": {
+      "title": "Costing method",
+      "configured": "Configured for the company.",
+      "default": "Not configured: the company costs by weighted average.",
+      "method": "Method",
+      "average": "Weighted average",
+      "fifo": "FIFO · phase 3",
+      "hint": "Saving asks for your verification code. FIFO arrives in phase 3.",
+      "saved": "Saved",
+      "save": "Save"
+    },
+    "effects": {
+      "delivery_cogs": "Cost of sales: values the issue at weighted average cost and sends the cost of sales to accounting",
+      "delivery_void_cogs": "Cost of sales: reverses the cost of sales of the voided delivery",
+      "return_cogs": "Cost of sales: reverses the cost of sales of what was returned, at the cost it left with",
+      "return_void_cogs": "Cost of sales: records again the cost of sales of the voided return",
+      "movement_cost": "Costing: values the movement at the warehouse's weighted average cost",
+      "movement_void_cost": "Costing: reverses the valuation of the voided movement"
+    }
+  },
+  "crm": {
+    "opportunity": {
+      "own_flags": {
+        "requires_approval": "No approval needed: an opportunity is saved as soon as it is created.",
+        "posts": "Does not post: an opportunity creates no entries."
+      }
+    },
+    "values": {
+      "lead_source": {
+        "web": "Website",
+        "referral": "Referral",
+        "event": "Event",
+        "call": "Call",
+        "social": "Social media",
+        "other": "Other"
+      },
+      "lead_stage": {
+        "new": "New",
+        "contacted": "Contacted",
+        "qualified": "Qualified",
+        "converted": "Converted",
+        "discarded": "Discarded"
+      },
+      "stage_kind": {
+        "open": "Open",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "outcome": {
+        "open": "Open",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "activity_kind": {
+        "call": "Call",
+        "meeting": "Meeting",
+        "email": "E-mail",
+        "note": "Note",
+        "task": "Task",
+        "payment": "Payment"
+      },
+      "quote_stage": {
+        "open": "Open",
+        "sent": "Sent",
+        "accepted": "Accepted",
+        "expired": "Expired"
+      }
+    },
+    "quote": {
+      "own_flags": {
+        "requires_approval": "Needs approval only when a line discount is above the threshold in CRM settings.",
+        "posts": "Does not post: a quote creates no entries."
+      }
+    },
+    "errors": {
+      "quote_pending_approval": "The quote is waiting for approval: it can be sent or accepted once approved",
+      "quote_accepted": "The quote was accepted: its lines and amounts do not change",
+      "quote_expired": "The quote has expired",
+      "not_invoice_ready": "The customer or a product is not ready for invoicing"
+    },
+    "form": {
+      "section": {
+        "lead": "Lead",
+        "pipeline": "Sales pipeline",
+        "opportunity": "Opportunity",
+        "activity": "Activity"
+      },
+      "name": "Name",
+      "contact": "Contact",
+      "email": "Email",
+      "phone_cc": "Country code",
+      "phone": "Phone",
+      "source": "Source",
+      "stage": "Stage",
+      "person_type": "Person type",
+      "person_type_1": "Legal entity",
+      "person_type_2": "Natural person",
+      "document_type": "Document type",
+      "document_number": "Document number",
+      "notes": "Notes",
+      "active": "Active",
+      "code": "Code",
+      "description": "Description",
+      "is_default": "Default pipeline",
+      "stages": "Stages",
+      "stage_name": "Stage",
+      "probability": "Probability %",
+      "stage_kind": "Kind",
+      "reorder": "Order",
+      "stage_name_line": "Stage, row {n}",
+      "probability_line": "Probability %, row {n}",
+      "stage_kind_line": "Kind, row {n}",
+      "move_up": "Move stage {n} up",
+      "move_down": "Move stage {n} down",
+      "remove_stage": "Remove stage {n}",
+      "add_stage": "Add stage",
+      "stages_hint": "At least three stages, one Won and one Lost. New opportunities start in the first one.",
+      "title": "Title",
+      "customer": "Customer",
+      "party_or_lead_hint": "A customer or a lead",
+      "lead": "Lead",
+      "pipeline": "Pipeline",
+      "pipeline_hint": "Empty: the default pipeline",
+      "default_pipeline": "Default pipeline",
+      "amount": "Amount",
+      "amount_hint": "In pesos",
+      "expected_close": "Expected close",
+      "opportunity_lines": "Opportunity products",
+      "product": "Product",
+      "qty": "Quantity",
+      "unit_price": "Unit price",
+      "product_line": "Product, line {n}",
+      "description_line": "Description, line {n}",
+      "qty_line": "Quantity, line {n}",
+      "unit_price_line": "Unit price, line {n}",
+      "activity_kind": "Kind",
+      "subject": "Subject",
+      "opportunity": "Opportunity",
+      "party": "Party",
+      "due_date": "Due",
+      "done": "Done",
+      "about_hint": "An activity is logged on an opportunity, a lead or a party; it stays in the history and is not edited.",
+      "missing": "Missing",
+      "missing_field": {
+        "name": "the name",
+        "phone": "the phone country code",
+        "code": "the code",
+        "name_pipeline": "the name",
+        "stages": "a Won and a Lost stage (three at least)",
+        "title": "the title",
+        "party_or_lead": "the customer or the lead",
+        "amount": "the amount",
+        "qty": "a quantity above zero",
+        "subject": "the subject",
+        "about": "the opportunity, the lead or the party"
+      }
+    },
+    "settings_page": {
+      "title": "CRM settings",
+      "hint": "How the company's quotes are approved and how long they last.",
+      "approval_discount": "Maximum discount without approval (%)",
+      "approval_discount_hint": "Empty: no quote waits for approval because of its discount",
+      "validity_days": "Quote validity (days)"
+    },
+    "effects": {
+      "order_won": "CRM: marks the opportunity the order comes from as won",
+      "invoice_paid": "CRM: notes on the opportunity that the invoice was paid"
+    }
+  },
+  "sales": {
+    "errors": {
+      "price_not_found": "The product has no price in the customer's lists and no list price; enter the unit price",
+      "order_pending_approval": "The order is waiting for approval: it is confirmed once approved",
+      "order_confirmed": "The order is already confirmed: its lines and amounts do not change",
+      "order_cancelled": "The order is cancelled",
+      "quote_not_accepted": "The customer has not accepted the quote",
+      "quote_already_ordered": "The quote already has an order",
+      "order_rejected": "The order was not approved: correct it and save it again",
+      "order_not_saved": "The order is not saved",
+      "order_not_editable": "The order is waiting for approval or approved: it does not change",
+      "quote_voided": "The quote is voided",
+      "invalid_quote": "The quote has no lines",
+      "invalid_warehouse": "The warehouse does not exist, is not visible or is not active",
+      "invalid_delivery_date": "The delivery date is before the order date",
+      "exchange_rate_required": "Enter the exchange rate of the order currency",
+      "invalid_party": "The customer does not exist, is not visible or is not a customer",
+      "invalid_product": "The product does not exist or is not visible",
+      "not_invoice_ready": "The customer or a product is not ready to invoice",
+      "invalid_price_list": "The price list does not exist, is not active or is not approved",
+      "over_delivery": "The delivery delivers more than is left to deliver on the order",
+      "invalid_order_line": "The line is not on this order",
+      "order_not_confirmed": "The order is not confirmed: only a confirmed order is delivered",
+      "order_delivered": "The order is already fully delivered",
+      "order_has_deliveries": "The order has deliveries: void them before cancelling the order",
+      "nothing_to_deliver": "Nothing is left to deliver on the order",
+      "warehouse_required": "Choose the warehouse the delivery ships from",
+      "delivery_shipped": "The delivery has shipped: it does not change",
+      "delivery_not_saved": "The delivery is not saved",
+      "delivery_voided": "The delivery is voided",
+      "delivery_invoiced": "The delivery has invoiced units: it is not voided (correct it with a credit note)",
+      "delivery_returned": "The delivery has received returns: void them first",
+      "delivery_not_shipped": "The delivery has not shipped: there is nothing to return",
+      "invalid_delivery_line": "The line is not on this delivery",
+      "over_return": "The return receives more than left on the delivery",
+      "nothing_to_return": "Nothing is left to return on the delivery",
+      "invalid_return_date": "The return date is before the delivery's",
+      "return_received": "The return has been received: it does not change",
+      "return_not_saved": "The return is not saved",
+      "return_voided": "The return is voided",
+      "negative_stock_refused": "The warehouse does not have the stock the delivery ships",
+      "split_location": "A delivery line leaves from a single location and none holds the whole quantity: split the line or transfer the goods"
+    },
+    "values": {
+      "price_source": {
+        "customer_list": "Customer price list",
+        "default_list": "Default price list",
+        "list_price": "Product list price"
+      },
+      "order_stage": {
+        "open": "Open",
+        "confirmed": "Confirmed",
+        "cancelled": "Cancelled",
+        "partially_delivered": "Partially delivered",
+        "delivered": "Delivered"
+      },
+      "delivery_stage": {
+        "open": "To ship",
+        "shipped": "Shipped"
+      },
+      "return_stage": {
+        "open": "To receive",
+        "received": "Received"
+      }
+    },
+    "order": {
+      "own_flags": {
+        "requires_approval": "Requires approval only when the order takes the customer over their credit limit or a line discount is above the threshold in the sales settings.",
+        "posts": "Does not post: an order makes no ledger entries (the invoice does)."
+      }
+    },
+    "delivery": {
+      "own_flags": {
+        "requires_approval": "Does not require approval: the delivery comes from an order already confirmed.",
+        "posts": "Does not post by itself: when it ships, inventory issues the stock and costing posts the cost of sales."
+      }
+    },
+    "return": {
+      "own_flags": {
+        "requires_approval": "Does not require approval: it returns what left on a shipped delivery.",
+        "posts": "Does not post by itself: when it is received, the stock comes back at the original issue's cost and costing returns that cost of sales."
+      }
+    },
+    "form": {
+      "section": {
+        "quote": "Quote",
+        "order": "Order",
+        "delivery": "Delivery",
+        "return": "Return"
+      },
+      "customer": "Customer",
+      "customer_hint": "Only customers ready to invoice",
+      "opportunity": "Opportunity",
+      "opportunity_hint": "Optional: the opportunity being quoted",
+      "issue_date": "Date",
+      "valid_until": "Valid until",
+      "delivery_date": "Promised delivery",
+      "warehouse": "Warehouse",
+      "warehouse_hint": "Where it leaves from and is reserved",
+      "notes": "Notes",
+      "validity_hint": "Empty: the validity of the CRM settings.",
+      "lines": "Lines",
+      "product": "Product",
+      "qty": "Quantity",
+      "unit_price": "Unit price",
+      "discount_pct": "Discount %",
+      "description": "Description",
+      "remove_line": "Remove",
+      "remove_line_n": "Remove line {n}",
+      "product_line": "Product, line {n}",
+      "qty_line": "Quantity, line {n}",
+      "unit_price_line": "Unit price, line {n}",
+      "discount_line": "Discount %, line {n}",
+      "description_line": "Description, line {n}",
+      "from_list": "From the list",
+      "customer_discount": "Customer's",
+      "pricing_hint": "Empty price: the customer's price list, the default one or the product's list price. Empty discount: the customer's usual one. Taxes are the country's.",
+      "order": "Order",
+      "order_hint": "A confirmed order",
+      "delivery": "Delivery",
+      "delivery_hint": "A shipped delivery",
+      "date": "Date",
+      "delivery_warehouse_hint": "Empty: the order's warehouse",
+      "reason": "Reason",
+      "ordered_qty": "Ordered",
+      "delivered_qty": "Delivered",
+      "deliver_qty": "To ship",
+      "return_qty": "To return",
+      "fulfil_line": "Quantity, line {n}",
+      "all_left": "What is left",
+      "deliver_hint": "Empty on every line: everything the order has left ships.",
+      "return_hint": "Empty on every line: everything delivered and not yet returned comes back.",
+      "missing": "Missing",
+      "missing_field": {
+        "party": "the customer",
+        "lines": "at least one line with a product",
+        "qty": "a quantity above zero",
+        "price": "a valid price",
+        "discount": "a discount between 0 and 100",
+        "order": "the order",
+        "delivery": "the delivery",
+        "reason": "the reason"
+      },
+      "lines_masked": "You do not see the lines' price or discount: this document's lines are not edited from your role."
+    },
+    "view": {
+      "facts": "Details",
+      "edit": "Edit",
+      "stop_editing": "Stop editing",
+      "totals": "Totals",
+      "subtotal": "Subtotal",
+      "discount": "Discount",
+      "taxes": "Taxes",
+      "total": "Total",
+      "orders": "Orders",
+      "deliveries": "Deliveries",
+      "returns": "Returns",
+      "working": "Working…",
+      "send": "Send to customer",
+      "accept": "Accept quote",
+      "expire": "Mark expired",
+      "to_order": "Create order",
+      "order_warehouse": "Order warehouse",
+      "confirm": "Confirm order",
+      "cancel": "Cancel order",
+      "cancel_reason": "Cancellation reason",
+      "to_delivery": "Create delivery",
+      "ship": "Ship",
+      "to_return": "Create return",
+      "return_reason": "Return reason",
+      "receive": "Receive",
+      "convert": "Convert into customer",
+      "stage": "Stage",
+      "lost_reason": "Loss reason",
+      "stage_move": "Move stage",
+      "created": {
+        "order": "Order",
+        "delivery": "Delivery",
+        "return": "Return"
+      },
+      "convert_panel": {
+        "title": "Convert into customer",
+        "hint": "Creates the party with the missing DIAN data and opens an opportunity with it in the default pipeline.",
+        "first_name": "First name",
+        "first_surname": "First surname",
+        "opportunity_title": "Opportunity title",
+        "amount": "Opportunity amount",
+        "expected_close": "Expected close",
+        "cancel": "Cancel",
+        "convert": "Convert"
+      },
+      "credit_limit": "Credit limit",
+      "credit_value": "{limit} · Available {available}"
+    },
+    "settings_page": {
+      "title": "Sales settings",
+      "hint": "Which price sells to customers without a list of their own, and when an order waits for approval.",
+      "default_price_list": "Default price list",
+      "default_price_list_hint": "Empty: the product's list price",
+      "approval_discount": "Maximum order discount without approval (%)",
+      "approval_discount_hint": "Empty: no order waits for approval because of its discount",
+      "save": "Save",
+      "saved": "Saved",
+      "bad_number": "Check: {fields}"
+    },
+    "customer_terms_page": {
+      "form_title": "Set a customer's terms",
+      "form_hint": "Pick the customer and write their terms; the ones they had change.",
+      "customer": "Customer",
+      "price_list": "Price list",
+      "discount_pct": "Usual discount (%)",
+      "credit_limit": "Credit limit",
+      "credit_limit_hint": "In pesos; empty: no limit",
+      "notes": "Notes"
+    },
+    "effects": {
+      "invoice_issued": "Sales: records what was invoiced of each delivery line"
+    }
+  },
+  "invoicing": {
+    "values": {
+      "invoice_creation": {
+        "manual": "Manually (from “To invoice”)",
+        "on_delivery": "When each delivery ships",
+        "on_order_confirmation": "When the order is confirmed"
+      },
+      "dian_environment": {
+        "habilitacion": "Qualification (testing)",
+        "produccion": "Production"
+      },
+      "stage": {
+        "draft": "Draft",
+        "issued": "Issued",
+        "paid": "Paid",
+        "voided": "Voided"
+      },
+      "dian_status": {
+        "draft": "Not sent",
+        "submitted": "In progress",
+        "accepted": "Accepted",
+        "rejected": "Rejected"
+      },
+      "origin": {
+        "manual": "Manual",
+        "from_orders": "From orders",
+        "on_delivery": "Automatic on shipping",
+        "on_order_confirmation": "Automatic on confirmation"
+      },
+      "payment_form": {
+        "1": "Cash",
+        "2": "Credit"
+      },
+      "recommendation_status": {
+        "open": "Open",
+        "resolved": "Resolved"
+      },
+      "submission_status": {
+        "queued": "Queued",
+        "not_configured": "Not configured",
+        "processing": "Preparing",
+        "submitted": "Sent, awaiting answer",
+        "accepted": "Accepted by the DIAN",
+        "rejected": "Rejected by the DIAN",
+        "failed": "Submission stopped"
+      },
+      "note_kind": {
+        "credit": "Credit note",
+        "debit": "Debit note"
+      },
+      "note_stage": {
+        "draft": "Draft",
+        "issued": "Issued"
+      },
+      "payment_means": {
+        "1": "Undefined instrument",
+        "10": "Cash",
+        "20": "Cheque",
+        "42": "Bank deposit",
+        "47": "Bank debit transfer",
+        "48": "Credit card",
+        "49": "Debit card",
+        "71": "Bonds",
+        "zzz": "Mutual agreement"
+      },
+      "annulment": {
+        "true": "Annulment",
+        "false": "No"
+      }
+    },
+    "invoice": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: an invoice is issued with “Issue”.",
+        "posts": "Always posts when issued: receivable, revenue and VAT, in the same operation."
+      }
+    },
+    "errors": {
+      "einvoice_accepted": "The DIAN already accepted this invoice: it is not sent again. To correct it, issue a credit or debit note.",
+      "einvoice_in_progress": "This invoice is being sent to the DIAN: wait for the answer before retrying.",
+      "einvoice_not_configured": "Electronic invoicing is not configured: register the company's software, PIN and certificate in Invoicing settings.",
+      "einvoice_not_awaiting": "This submission is not awaiting an answer from the DIAN.",
+      "invoice_not_issued": "Only an issued invoice is sent to the DIAN.",
+      "poll_limit": "The DIAN did not answer in time. «Retry submission» polls the same submission again, without resending it.",
+      "cufe_changed": "The document no longer matches the issued invoice's CUFE: correct it with a note; it is not resent.",
+      "document_changed": "The invoice's stored amounts do not add up: its electronic document cannot be built; it is corrected with a note.",
+      "currency_not_supported": "The invoice's currency is not in the DIAN's currency table: its electronic document cannot be built.",
+      "submission_in_doubt": "The previous send may have reached the DIAN and its tracking number is unknown: check it on the DIAN portal.",
+      "credentials_missing": "The digital certificate or the software PIN is missing: upload them in Invoicing settings.",
+      "invoice_rejected": "The DIAN rejected this invoice: correct it and use «Retry submission». A note or an annulment only corrects an invoice the DIAN accepted.",
+      "invoice_not_sent": "This invoice has not been sent to the DIAN yet: a note or an annulment only corrects an invoice the DIAN accepted.",
+      "invoice_send_failed": "This invoice's submission to the DIAN stopped: use «Retry submission» and wait for the DIAN to accept it.",
+      "invoice_not_accepted": "This invoice is on its way to the DIAN: wait for it to be accepted before issuing a note or annulling it.",
+      "invoice_voided": "This invoice is voided: it takes no more notes.",
+      "invoice_has_note": "This invoice already has a credit or debit note: it is not annulled again.",
+      "note_references_note": "A note corrects an invoice, never another note: name the sales invoice.",
+      "credit_exceeds_invoice": "The credit note exceeds what is left of the invoice (its total plus debit notes, less credit notes).",
+      "invalid_note_line": "A line of the note does not belong to the invoice or asks for more than was invoiced.",
+      "invalid_note_concept": "The correction concept is not one of the DIAN's table for that note type.",
+      "annulment_by_void": "An invoice is annulled with «Void» on the invoice, which issues the full annulment credit note.",
+      "note_not_voidable": "A note issued before the DIAN is not voided: it is corrected by another note.",
+      "note_not_issued": "Only an issued note is sent to the DIAN.",
+      "cude_changed": "The note's document no longer matches the CUDE of its first submission: correct it with another note.",
+      "nothing_to_note": "The note has no lines or value: name the invoice lines it corrects.",
+      "note_draft_delete": "This note is a draft: delete it instead of voiding it.",
+      "note_issued": "This note has already been issued.",
+      "note_not_sent": "This note has no DIAN submission yet: wait a few seconds and try again.",
+      "annulment_invoice_not_issued": "The DIAN accepted the annulment note, but the invoice is no longer issued (for example, it was paid meanwhile): review it with support.",
+      "no_sequence": "The company has no numbering for this kind of note: register it in Core › Settings › Document sequences (prefix and next number; notes carry no DIAN resolution)."
+    },
+    "note": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: a note is issued with «Issue».",
+        "posts": "Always posts when issued, in its own month: a credit note reverses the revenue, the VAT and the receivable."
+      }
+    },
+    "print": {
+      "title_invoice": "Electronic sales invoice",
+      "title_credit": "Electronic credit note",
+      "title_debit": "Electronic debit note",
+      "cufe": "CUFE",
+      "cude": "CUDE",
+      "representation_invoice": "Graphic representation of the electronic sales invoice",
+      "representation_credit": "Graphic representation of the electronic credit note",
+      "representation_debit": "Graphic representation of the electronic debit note",
+      "test_notice": "Test document (DIAN habilitación): no fiscal value",
+      "pending_notice": "Document pending validation by the DIAN",
+      "reference": "Corrects invoice {number} · CUFE {code}"
+    },
+    "settings_page": {
+      "title": "Electronic invoicing",
+      "subtitle": "Settings · every change asks for your verification code",
+      "admins_only": "Only the company's administrators open the electronic invoicing settings",
+      "saved": "Settings saved",
+      "creation_title": "Invoice creation",
+      "creation_hint": "When sales invoices are created",
+      "creation_manual": "Deliveries wait to be invoiced; someone invoices when they choose (several may be grouped)",
+      "creation_on_delivery": "Shipping issues the invoice of what shipped; a customer not ready to invoice leaves a draft and a recommendation",
+      "creation_on_order_confirmation": "Confirming the order issues the invoice of the whole order (services, prepayment)",
+      "credit_days": "Credit days",
+      "save_creation": "Save creation",
+      "connection_title": "DIAN connection",
+      "connection_hint": "The environment, the software registered with the DIAN and the company's fiscal profile as issuer",
+      "environment": "DIAN environment",
+      "software_id": "Software id",
+      "software_provider_tax_id": "Software provider's tax id",
+      "software_provider_tax_id_hint": "Without check digit",
+      "test_set_id": "Test set id",
+      "issuer_responsibilities": "Tax responsibilities",
+      "issuer_responsibilities_hint": "Codes separated by commas, e.g. O-13, O-15",
+      "issuer_tax_scheme": "Issuer tax",
+      "tax_schemes": {
+        "scheme_01": "01 · VAT",
+        "scheme_04": "04 · INC",
+        "scheme_za": "ZA · VAT and INC",
+        "scheme_zz": "ZZ · Not applicable"
+      },
+      "issuer_department": "Department code",
+      "issuer_municipality": "Municipality code",
+      "defaults_confirm": "I confirm the electronic document's default values",
+      "defaults_credit_note_type": "Credit notes are sent with type 91 (CreditNoteTypeCode)",
+      "defaults_export_customization": "Export invoices are sent with CustomizationID 10",
+      "defaults_notes_without_control": "Credit and debit notes are sent without InvoiceControl (no numbering resolution)",
+      "production_hint": "Production requires these values confirmed, the server configured for production, the software, the certificate and the PIN",
+      "save_connection": "Save connection",
+      "numbering_title": "Resolution and numbering",
+      "numbering_hint": "The DIAN invoicing resolution (prefix, range, validity and technical key) and the notes' numbering; the counter never goes back",
+      "numbering_table": "Registered numberings",
+      "numbering_empty": "No numbering registered",
+      "numbering_saved": "Numbering registered",
+      "document_type": "Document",
+      "document_types": {
+        "invoice": "Electronic sales invoice",
+        "credit_note": "Credit note",
+        "debit_note": "Debit note"
+      },
+      "prefix": "Prefix",
+      "prefix_hint": "Up to 4 letters or digits; empty if the resolution has none",
+      "no_prefix": "No prefix",
+      "resolution_number": "Resolution number",
+      "no_resolution": "No resolution",
+      "range": "Range",
+      "validity": "Validity",
+      "from": "From",
+      "to": "To",
+      "valid_from": "Valid from",
+      "valid_to": "Valid to",
+      "technical_key": "Technical key",
+      "technical_key_hint": "The DIAN delivers it with the resolution; only its last characters are shown",
+      "next_number": "Next",
+      "next_number_optional": "Next number (optional)",
+      "next_number_hint": "Empty: the first of the range (or the one it already has)",
+      "register_numbering": "Register numbering",
+      "certificate_title": "Digital signing certificate",
+      "certificate_hint": "The company's .p12 certificate (tax id {nit}); kept encrypted in the secret store, only its subject, serial and expiry are shown here",
+      "certificate_none": "No certificate",
+      "certificate_subject": "Subject",
+      "certificate_tax_id": "Subject's tax id",
+      "certificate_issuer": "Issuer",
+      "certificate_serial": "Serial",
+      "certificate_valid_to": "Expires",
+      "certificate_uploaded_at": "Uploaded",
+      "certificate_file": ".p12 file",
+      "certificate_password": "Certificate password",
+      "certificate_upload": "Upload certificate",
+      "certificate_saved": "Certificate saved",
+      "certificate_status_mismatch": "The stored certificate is not the one these details describe (an upload did not finish): upload it again",
+      "certificate_status_missing": "No certificate in the secret store: upload it again",
+      "certificate_status_unverified": "Certificate uploaded before fingerprint checking: upload it again to verify it",
+      "pin_title": "Software PIN",
+      "pin_none": "No PIN saved",
+      "pin_set_at": "PIN saved on {date}; not shown",
+      "pin_save": "Save PIN",
+      "pin_saved": "PIN saved",
+      "pending_title": "Pending sendings",
+      "pending_hint": "{notConfigured} wait for the software to be registered and {failed} stopped",
+      "resubmit_all": "Retry all",
+      "resubmit_none": "There was nothing to retry",
+      "resubmit_done": "{count} sent again"
+    },
+    "view": {
+      "facts": "Invoice details",
+      "dian_chip": "Status with the DIAN",
+      "trail": {
+        "label": "DIAN trail",
+        "issued": "Issued",
+        "submitted": "Sent to the DIAN",
+        "accepted": "Accepted",
+        "rejected": "Rejected"
+      },
+      "errors_title": "DIAN errors",
+      "errors_hint": "Fix what the DIAN points out (the customer's or the products' data) and use «Resend»: it is sent with the same number and CUFE.",
+      "annulment": {
+        "accepted": "Annulment credit note <note></note> accepted by the DIAN. The invoice is <b>Voided</b>; its number is never used again.",
+        "sent": "Annulment credit note <note></note> sent to the DIAN. The invoice stays <b>issued</b> until the DIAN accepts the note.",
+        "note": "Annulment note"
+      },
+      "notes": "Credit and debit notes",
+      "totals": "Totals",
+      "subtotal": "Subtotal",
+      "discount": "Discount",
+      "taxes": "Taxes",
+      "total": "Total",
+      "cancel": "Cancel",
+      "working": "Working…",
+      "issue": "Issue",
+      "resubmit": "Resend",
+      "to_credit": "Create credit note",
+      "to_debit": "Create debit note",
+      "void": "Void (credit note)",
+      "void_hint": "Issues the annulment credit note; asks for your verification code",
+      "created_note": "New note",
+      "note_panel": {
+        "title_credit": "Credit note",
+        "title_debit": "Debit note",
+        "hint_credit": "Corrects the invoice downwards: return, rebate, discount or price adjustment. Type the quantity of each line it corrects; without a price, the invoice's.",
+        "hint_debit": "Corrects the invoice upwards: interest, charges or a change of value. Type the quantity and, if it changes, the unit price.",
+        "concept": "Concept",
+        "reason": "Reason",
+        "lines": "Invoice lines",
+        "line": "Line",
+        "invoiced": "Invoiced",
+        "qty": "Quantity",
+        "unit_price": "Unit price",
+        "qty_line": "Quantity, line {n}",
+        "unit_price_line": "Unit price, line {n}",
+        "from_invoice": "The invoice's",
+        "missing": "Missing",
+        "missing_field": {
+          "concept": "the concept",
+          "reason": "the reason",
+          "lines": "at least one line with a quantity",
+          "qty": "a valid quantity (a credit note never exceeds what was invoiced)",
+          "price": "a valid price"
+        },
+        "cancel": "Cancel",
+        "create": "Create note"
+      },
+      "orders": "Orders",
+      "deliveries": "Deliveries",
+      "payment_means_value": "{name} (code {code})",
+      "resolution": "DIAN resolution",
+      "resolution_value": "{number} · {prefix} {from}–{to}",
+      "note_block": {
+        "voided": "Invoice {number} is voided",
+        "annulled": "Invoice {number} already has its annulment note",
+        "rejected": "The DIAN rejected invoice {number}: fix it and use «Resend»; a note or a void only corrects an invoice the DIAN accepted",
+        "not_sent": "Invoice {number} has not been sent to the DIAN yet: a note or a void only corrects an invoice the DIAN accepted",
+        "send_failed": "Sending invoice {number} to the DIAN stopped: use «Resend» and wait for its acceptance",
+        "not_configured": "Invoice {number} was not sent to the DIAN: register the e-invoicing software and use «Resend»",
+        "in_progress": "Invoice {number} is on its way to the DIAN: wait for it to be accepted"
+      },
+      "no_access": "Your role does not see this document's lines",
+      "tabs": {
+        "lines": "Lines and taxes",
+        "dian": "DIAN"
+      },
+      "dian_tab": {
+        "title": "DIAN submission",
+        "round": "Submission number",
+        "attempts": "Attempts",
+        "track_id": "TrackId",
+        "submitted_at": "Sent",
+        "decided_at": "DIAN answer",
+        "last_error": "Last error",
+        "errors": "DIAN errors",
+        "files": "Files",
+        "no_files": "No files kept yet",
+        "xml": "Signed electronic document (XML)",
+        "response": "DIAN answer (ApplicationResponse)",
+        "pdf": "Graphic representation (PDF)",
+        "draft": "A draft is not sent to the DIAN: it is sent when issued",
+        "none": "No DIAN submission yet: it is recorded a few seconds after issuing"
+      },
+      "dian_in_progress": "In progress",
+      "this_invoice": "this invoice",
+      "this_note": "this note",
+      "errors_pending": "Resent to the DIAN: these are the errors of the last rejection; the new verdict has not arrived yet.",
+      "unsaved_issue": "Save your changes before issuing",
+      "duplicate": "Duplicate",
+      "duplicate_hint": "Opens the invoice with «Create note» filled with this note's concept, reason and lines",
+      "resubmit_block": {
+        "draft": "A draft is not sent to the DIAN: issue it first",
+        "voided": "The document is voided",
+        "accepted": "The DIAN already accepted it: it is not resent; correct it with a note",
+        "in_progress": "The sending is in progress: wait for the DIAN's answer"
+      },
+      "void_block": {
+        "paid": "The invoice has payments applied: it cannot be voided",
+        "not_now": "The invoice cannot be voided now"
+      },
+      "duplicate_block": {
+        "annulment": "The annulment note is not duplicated: only «Void (credit note)» issues it"
+      },
+      "void_dialog": {
+        "title": "Void invoice {number}",
+        "explain": "The DIAN does not allow an issued invoice to be edited or deleted: it is voided with a <b>credit note</b> that references it. Number {number} is never used again.",
+        "preview": "Note to be issued",
+        "kind": "Type: credit · concept <b>{concept}</b>",
+        "reference": "Reference to the invoice's CUFE",
+        "value": "Amount: <b>{total}</b> (total)",
+        "numbering": "Own numbering: {numbering}",
+        "numbering_value": "{prefix} · next {next}",
+        "numbering_missing": "Credit notes' own numbering (not registered)",
+        "step_up": "It will ask for the verification code (sensitive process). The invoice stays <b>issued</b> until the DIAN accepts the note.",
+        "reason": "Reason for voiding",
+        "cancel": "Cancel",
+        "confirm": "Issue credit note"
+      },
+      "receipts": "Cash receipts"
+    },
+    "form": {
+      "section": "Sale invoice",
+      "payment_form": "Payment form",
+      "payment_form_hint": "Not chosen: credit with the days of the settings",
+      "payment_form_1": "Cash",
+      "payment_form_2": "Credit",
+      "payment_means": "Payment means",
+      "due_date": "Due date",
+      "lines_from_sale": "The lines come from what the orders shipped: to change them, delete the draft and create it again from «To invoice»"
+    },
+    "grid": {
+      "stage_draft": "Drafts",
+      "stage_issued": "Issued",
+      "stage_paid": "Paid",
+      "stage_voided": "Voided",
+      "dian_rejected": "Rejected by the DIAN",
+      "from_orders": "Create invoice from orders"
+    },
+    "pending_page": {
+      "title": "To invoice",
+      "working": "Creating invoices…",
+      "chosen": "{count, plural, =0 {No order chosen} one {# order chosen} other {# orders chosen}}",
+      "create": "Create invoices",
+      "hint": "What the deliveries shipped and no invoice bills yet. Choose the orders: one draft per customer and currency is created, at the order's price and discount.",
+      "draft_title": "Draft invoice"
+    },
+    "effects": {
+      "order_auto_invoice": "Invoicing: creates the invoice as a Draft if the company invoices when the order is confirmed",
+      "delivery_auto_invoice": "Invoicing: creates the invoice as a Draft if the company invoices each delivery when it ships",
+      "draft_created": "Invoicing: leaves the invoice as a Draft; nothing goes to the DIAN until it is issued",
+      "issue_dian": "DIAN e-invoicing: numbers the invoice with the current resolution, generates the CUFE and sends it to the DIAN",
+      "note_dian": "DIAN e-invoicing: numbers the note, generates the CUDE and sends it to the DIAN",
+      "void_annulment": "DIAN credit note: an issued invoice is annulled by its annulment credit note, sent to the DIAN and posted; the invoice is voided once the DIAN accepts it. A Draft is just deleted: no credit note, no entry",
+      "resubmit_dian": "DIAN e-invoicing: sends the document to the DIAN again with the same number and CUFE",
+      "payment_applied": "Invoicing: credits what was paid to each invoice and marks it paid when settled",
+      "payment_voided": "Invoicing: the invoices get back the balance the voided receipt paid"
+    }
+  },
+  "payments": {
+    "values": {
+      "method_kind": {
+        "cash": "Cash",
+        "transfer": "Transfer",
+        "card": "Card",
+        "check": "Check",
+        "other": "Other"
+      },
+      "withholding_kind": {
+        "income": "Income tax withholding",
+        "vat": "VAT withholding",
+        "ica": "ICA withholding"
+      }
+    },
+    "receipt": {
+      "own_flags": {
+        "requires_approval": "No approval required: a cash receipt is applied and posted when it is recorded.",
+        "posts": "Always posts: Dr cash or bank (by payment method) and withholdings / Cr receivable and advances, from the receipt's event."
+      }
+    },
+    "errors": {
+      "allocation_exceeds_open": "The invoice's open amount does not cover what is applied to it",
+      "invoice_other_customer": "The invoice belongs to another customer",
+      "invoice_not_issued": "The invoice is a draft: only an issued invoice can be paid",
+      "invoice_voided": "The invoice is voided",
+      "invoice_annulment_pending": "The invoice has an annulment credit note in progress: it takes no payments",
+      "invoice_not_accepted": "The DIAN has not accepted the invoice yet: record the payment once it does",
+      "currency_not_supported": "Receipts for foreign-currency invoices come in a later phase",
+      "invoice_after_receipt": "The invoice is dated after the receipt",
+      "invoice_not_found": "The invoice does not exist or is not visible",
+      "duplicate_invoice": "An invoice goes only once on the receipt",
+      "cash_short": "The amount received does not cover the cash applied to the invoices",
+      "invalid_withholding": "A withholding does not match its base and rate or exceeds what is applied to the invoice",
+      "nothing_received": "The receipt has no amount received and no invoices to apply",
+      "not_invoice_ready": "The customer is not ready to receive payments",
+      "invalid_party": "The party does not exist or is not a customer",
+      "invalid_method": "The payment method does not exist",
+      "invalid_cash_box": "The cash box does not exist",
+      "cash_box_not_cash": "A cash box takes cash: the payment method is not cash",
+      "method_kind_unmapped": "The payment method's kind has no cash or bank account",
+      "invalid_means_code": "The DIAN payment means code is not valid",
+      "means_code_kind_mismatch": "The DIAN code does not fit the payment method's kind",
+      "receipt_in_future": "The receipt cannot be dated after today",
+      "void_before_receipt": "The void cannot be dated before the receipt",
+      "invalid_receipt": "A cash receipt is recorded with «Registrar pago»",
+      "receipt_posted": "A recorded cash receipt does not change: void it and record another"
+    },
+    "form": {
+      "section": {
+        "method": "Payment method",
+        "cash_box": "Cash box",
+        "receipt": "Record payment"
+      },
+      "code": "Code",
+      "name": "Name",
+      "kind": "Type",
+      "kind_hint": "Cash and checks go to a cash box; transfers and cards, to banks.",
+      "means_code": "DIAN code",
+      "means_code_hint": "The e-invoice payment means (table 13.3.4.2).",
+      "description": "Description",
+      "active": "Active",
+      "missing_master": "Code and name are missing",
+      "customer": "Customer",
+      "customer_hint": "Only a customer with complete DIAN data can receive a receipt.",
+      "method": "Payment method",
+      "cash_box": "Cash box",
+      "cash_box_hint": "Where the cash goes.",
+      "date": "Date",
+      "date_hint": "Today or earlier.",
+      "amount": "Amount received",
+      "reference": "Reference",
+      "reference_hint": "The transfer, voucher or check number.",
+      "notes": "Notes",
+      "invoices": "Customer invoices",
+      "invoices_pick_customer": "Pick the customer to see their open invoices.",
+      "invoices_loading": "Loading invoices…",
+      "invoices_none": "The customer has no open invoices: what is received becomes an advance.",
+      "invoice": "Invoice",
+      "issue_date": "Date",
+      "due_date": "Due",
+      "open": "Balance",
+      "apply": "Applied",
+      "apply_to": "Apply to {invoice}",
+      "apply_open": "Full balance",
+      "apply_open_hint": "Applies the whole balance of the invoice.",
+      "over_open": "Exceeds the invoice balance",
+      "withholdings": "Withholdings",
+      "add_withholding": "Withholding",
+      "add_withholding_to": "Add withholding to {invoice}",
+      "not_payable": "Cannot be paid",
+      "withholding_of": "Withholding {n} of {invoice}",
+      "w_kind": "Type",
+      "w_code": "Code",
+      "w_rate": "Rate %",
+      "w_base": "Base",
+      "w_amount": "Amount",
+      "w_hint": "The amount follows base and rate; you can type the certificate's (tolerance $ 0.50).",
+      "w_remove": "Remove withholding",
+      "totals": "Totals",
+      "total_applied": "Applied to invoices",
+      "total_withholdings": "Withholdings",
+      "total_cash": "Cash applied",
+      "total_advance": "Advance",
+      "cash_short": "The amount received does not cover the cash applied.",
+      "advance_note": "What is received and not applied to invoices becomes a customer advance (280505).",
+      "receiving": "Recording…",
+      "missing": "Missing",
+      "missing_field": {
+        "party": "the customer",
+        "method": "the payment method",
+        "amount": "the amount received",
+        "cash_short": "an amount that covers the cash applied",
+        "over_open": "apply at most each invoice's balance",
+        "withholding": "complete the withholdings"
+      },
+      "receive_hint": "The receipt posts when recorded",
+      "receive": "Record payment"
+    },
+    "view": {
+      "tabs": {
+        "allocations": "Allocations"
+      },
+      "this_receipt": "this receipt",
+      "facts": "Receipt data",
+      "invoices": "Invoices paid",
+      "totals": "Totals",
+      "amount": "Amount received",
+      "applied": "Applied to invoices",
+      "withholdings": "Withholdings",
+      "advance": "Advance",
+      "note": {
+        "withholdings": "The withholding (<b>{amount}</b>) posts as a tax receivable (135515) and the invoice is settled by what was applied.",
+        "settled": "What was applied settles the invoices' receivable (130505).",
+        "advance": "The remainder (<b>{amount}</b>) becomes a customer advance (280505).",
+        "no_advance": "No remainder, no advance.",
+        "voided": "Receipt voided: its entry was reversed and the invoices are owed again."
+      },
+      "no_access": "No access to the allocations.",
+      "withholdings_title": "Withholdings practised by the customer",
+      "withholdings_none": "The customer practised no withholdings on this receipt.",
+      "w_invoice": "Invoice",
+      "w_kind": "Type",
+      "w_code": "Code",
+      "w_rate": "Rate",
+      "w_base": "Base",
+      "w_amount": "Amount",
+      "void": "Void receipt",
+      "void_hint": "Reverses the receipt's entry; asks for the verification code.",
+      "void_dialog": {
+        "title": "Void receipt {number}",
+        "explain": "Voiding <b>{number}</b> reverses its accounting entry and the invoices it paid are receivable again. The receipt stays Voided; it is not deleted.",
+        "invoices": "Invoices owed again",
+        "reason": "Reason for voiding",
+        "step_up": "When you confirm we will ask for your <b>verification code</b>.",
+        "cancel": "Cancel",
+        "confirm": "Void receipt"
+      }
+    },
+    "effects": {
+      "receipt_applied": "Payments: numbers the cash receipt and applies the payment to the invoices; what is not applied stays as a customer advance",
+      "receipt_withholdings": "Withholdings: those the customer applied are recorded as withholdings suffered",
+      "receipt_voided": "Payments: the receipt is voided (never deleted) and its entry is reversed"
     }
   }
 }

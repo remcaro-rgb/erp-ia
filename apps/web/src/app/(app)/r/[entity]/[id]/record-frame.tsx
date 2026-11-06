@@ -1,9 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { browserDownload, NotifyDialog, RecordActions, RecordBridgeProvider, RecordFrame, recordHref, useTabs, type RecordActionOutcome, type RecordBarAction, type RecordBridge, type RecordFrameProps, type RecordRights } from "@erp/ui";
+import { barButtons, browserDownload, NotifyDialog, RecordActions, RecordBridgeProvider, RecordFrame, recordHref, useTabs, type RecordActionOutcome, type RecordBarAction, type RecordBridge, type RecordFrameProps, type RecordRights } from "@erp/ui";
 import type { LifecycleFlags, RecordStatus } from "@erp/kernel/lifecycle";
 import { runEntryAction } from "@/lib/accounting/entry-actions";
 import { SaveAsTemplateDialog } from "./save-as-template";
@@ -13,7 +13,7 @@ import { cloneRecordAction } from "@/lib/records/clone";
 import { notifyRecordAction, printRecordAction, runRecordAction } from "@/lib/records/lifecycle-actions";
 import { currentClone, finishClone, handOffClone, leaveClone, subscribeClones, takeClone, type CloneHandoff } from "@/lib/records/clone-handoff";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
-import { actionKey, chainedStep, keepNotice, takeNotice, takeNoticeLink, type NoticeLink } from "@/lib/records/bar-flow";
+import { actionKey, chainedStep, keepNotice, stepLeftAfterSave, stepsAfterSave, takeNotice, takeNoticeLink, type NoticeLink } from "@/lib/records/bar-flow";
 
 // The record frame of the app (rule 37): on a stored record the caller may copy, "Duplicar" (or Ctrl+D / ⌘+D) reads
 // the copy through the server action and opens `/r/<entity>/new` with it; there the frame shows "Copia de <nombre>"
@@ -37,8 +37,11 @@ export const useRecordClone = () => useContext(CloneContext);
 interface SaveHold {
   /** The bar's Guardar is running: the form leaves the navigation to it. */
   held: () => boolean;
-  /** The form saved the record `id`; `updatedAt` is the version the save wrote, when its process answers it (minor 9). */
-  saved: (id: string, updatedAt?: string | null) => void;
+  /**
+   * The form saved the record `id`; `updatedAt` is the version the save wrote, when its process answers it (minor 9); `status` is the
+   * lifecycle status the save left it in, when its process answers it (a create that already routed it to approval: pending).
+   */
+  saved: (id: string, updatedAt?: string | null, status?: string | null) => void;
   /**
    * The form saved `id` outside the bar's run (with the step-up code its save asked for): the lifecycle step the bar's Guardar still
    * had goes on (minor 6). True when there was one: it then opens or reloads the record itself.
@@ -71,10 +74,20 @@ export interface FrameLifecycle {
   saveTemplate?: boolean;
   /** Where Eliminar leaves to (the entity's grid). */
   listHref: string;
+  /**
+   * Guardar only saves the Datos form (create or update): the documento's Grabar is a step of its own (an invoice's or a note's «Emitir»,
+   * plan 2B Task 20, which numbers it by the DIAN resolution and posts it; a Borrador is saved as a Borrador).
+   */
+  saveOnly?: boolean;
+  /**
+   * A module's own buttons for the record, shown in the bar next to Guardar on every tab (plan 2B Task 20 fix round 1: an invoice's Emitir,
+   * Reintentar envío and «Anular (nota crédito)»). Other entities leave it out and their bar is unchanged.
+   */
+  extraActions?: ReactNode;
 }
 
 export type AppRecordFrameProps = Omit<RecordFrameProps, "onDuplicate" | "duplicating" | "copyOf"> & {
-  /** A maestro or documento: the standard action bar in the footer (its Guardar saves the Datos form). */
+  /** A maestro or documento: the standard action bar in the tabs bar (its Guardar saves the Datos form; owner 2026-11-05). */
   lifecycle?: FrameLifecycle | null;
   entity: string;
   /** Null on the create form. */
@@ -91,13 +104,19 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
   const format = useFormatter();
   const close = useTabs((s) => s.close);
   const hold = useRef(false);
-  const lastSaved = useRef<{ id: string; updatedAt: string | null } | null>(null);
+  const lastSaved = useRef<{ id: string; updatedAt: string | null; status?: string | null } | null>(null);
   const chain = useRef(chainedStep());
   const holdValue = useMemo<SaveHold>(
     () => ({
       held: () => hold.current,
-      saved: (id, updatedAt = null) => (lastSaved.current = { id, updatedAt: updatedAt ?? (lastSaved.current?.id === id ? lastSaved.current.updatedAt : null) }),
-      resume: (id) => chain.current.resume(id, lastSaved.current?.id === id ? lastSaved.current.updatedAt : null),
+      saved: (id, updatedAt = null, status = null) =>
+        (lastSaved.current = {
+          id,
+          updatedAt: updatedAt ?? (lastSaved.current?.id === id ? lastSaved.current.updatedAt : null),
+          status: status ?? (lastSaved.current?.id === id ? (lastSaved.current.status ?? null) : null),
+        }),
+      resume: (id) =>
+        chain.current.resume(id, lastSaved.current?.id === id ? lastSaved.current.updatedAt : null, lastSaved.current?.id === id ? (lastSaved.current.status ?? null) : null),
     }),
     [],
   );
@@ -194,15 +213,26 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
       } finally {
         hold.current = false;
       }
-      const saved = lastSaved.current as { id: string; updatedAt: string | null } | null;
+      const saved = lastSaved.current as { id: string; updatedAt: string | null; status?: string | null } | null;
       if (!ok || !saved) {
         // The form shows its own refusal (fields, step-up) and keeps the user's edits. When it asked for a step-up code, its save with
         // the code goes on with this step (minor 6); any other refusal is saved again through the bar, which disarms it.
-        chain.current.arm(async (id, updatedAt) => {
+        chain.current.arm(async (id, updatedAt, status) => {
+          // The save with the code may itself have left the record pending approval: nothing is left to run (Task 14b).
+          if (!stepLeftAfterSave(status)) {
+            finish(id, null);
+            return;
+          }
           const outcome = await afterSave(lc, submit, id, true, updatedAt);
           if (!outcome.ok && outcome.code !== "shown") setFailure(outcome.messages.length > 0 ? outcome.messages.join(" · ") : ta("refused", { action: ta(submit ? "save_submit" : "save"), reason: reason(outcome) }));
         });
         return { ok: false, code: "shown", messages: [] };
+      }
+      // A documento its own save already routed to approval (a cotización or a pedido whose discount or credit asks for it, Task 14b):
+      // there is no Grabar or Enviar left to run, the record opens as it stands.
+      if (!stepLeftAfterSave(saved.status)) {
+        finish(saved.id, null);
+        return { ok: true };
       }
       return afterSave(lc, submit, saved.id, true, saved.updatedAt);
     }
@@ -218,7 +248,8 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
   const afterSave = async (lc: FrameLifecycle, submit: boolean, id: string, savedNow: boolean, savedVersion: string | null): Promise<RecordActionOutcome> => {
     let version: string | null = savedVersion;
     let message: string | undefined;
-    if (lc.entityType === "documento") {
+    const plan = stepsAfterSave(lc, submit, savedNow);
+    if (plan.grabar) {
       const grabado = await runRecordAction(entity, "save", id, version ? { expectedUpdatedAt: version } : {}, undefined, actionKey(`${entity}.save`));
       if (!grabado.ok) {
         const failure = grabado.code === "stale_record" ? ta("stale") : ta("refused", { action: ta("save"), reason: reason(grabado) });
@@ -227,7 +258,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
       }
       version = grabado.updatedAt ?? null;
       message = grabado.message;
-    } else if (!savedNow && !submit) return { ok: true };
+    } else if (plan.nothing) return { ok: true };
     if (submit) {
       const sentTo = await runRecordAction(entity, "submit", id, version ? { expectedUpdatedAt: version } : {}, undefined, actionKey(`${entity}.submit`));
       if (!sentTo.ok) {
@@ -327,6 +358,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
                 requestStepUp={requestStepUp}
                 disabled={busy}
                 registerShortcut={(run) => (shortcut.current = run)}
+                {...(lc.extraActions ? { extra: lc.extraActions } : {})}
               />
             ) : undefined;
             const meta =
@@ -337,12 +369,23 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
                   {sent && <span role="status">{sent}</span>}
                 </>
               ) : undefined;
+            // While the Datos form holds edits the header offers «Descartar cambios» and «Guardar cambios» (owner 2026-11-05); the latter is
+            // the bar's Guardar (save, then the lifecycle step), or the form's own save on a frame without the bar.
+            const dirty = bridge.registered && bridge.state.dirty;
+            const saveChanges = () => {
+              if (bar) shortcut.current();
+              else void bridge.save();
+            };
             return (
               <>
                 <RecordFrame
                   {...frame}
-                  {...(bar ? { footer: bar } : {})}
+                  {...(bar ? { toolbar: bar } : {})}
                   {...(meta ? { meta } : {})}
+                  dirty={dirty}
+                  saveBlocked={busy || !bridge.state.ready || (lc !== null && !barButtons(lc.entityType, lc.status, lc.flags, lc.rights).some((b) => b.action === "save"))}
+                  onSaveChanges={saveChanges}
+                  {...(bridge.canDiscard ? { onDiscardChanges: bridge.discard } : {})}
                   duplicateButton={!bar}
                   {...(recordId && canDuplicate ? { onDuplicate: () => void duplicate(), duplicating: busy } : {})}
                   copyOf={clone ? { title: clone.sourceTitle, href: recordHref(entity, clone.sourceRowId) } : null}

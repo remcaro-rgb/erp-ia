@@ -8,8 +8,7 @@ import { AppShell } from "../AppShell";
 import { GridCell } from "../../grid/GridCell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
-import { RecordForm } from "../../forms/form-parts";
-import { assistantOpenStorageKey, dianHintsStorageKey, readCachedPref, sideMenuStorageKey, writeCachedPref } from "../prefs-cache";
+import { assistantOpenStorageKey, readCachedPref, sideMenuStorageKey, writeCachedPref } from "../prefs-cache";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
@@ -555,48 +554,6 @@ describe("AppShell, the drawer's unset state is CSS-first", () => {
     shell("/");
     expect(drawer().hasAttribute("data-assistant")).toBe(false);
     expect(drawer().hidden).toBe(true);
-  });
-});
-
-// "Ver códigos DIAN" (OD-12) is a saved preference the shell hands to every record form below it: the server's copy
-// renders on the first paint (no flash), a newer copy of this browser wins, and a change is cached and reported.
-describe("AppShell, the DIAN hints preference", () => {
-  const withForm = (extra: Partial<ShellProps> = {}) => (
-    <AppShell company={cafe} companies={[cafe]} user={{ id: "u1", name: "L", email: "l@x.co", roles: [] }} modules={[{ id: "core", label: "nav.modules.core" }]} nav={nav} currentHref="/r/core.party/1" navigate={vi.fn()} storage={memoryStorage()} {...extra}>
-      <RecordForm canSave onSave={() => {}} failure={null}>
-        <input aria-label="campo" />
-      </RecordForm>
-    </AppShell>
-  );
-  const dianSwitch = () => screen.getByRole("switch", { name: "Ver códigos DIAN" });
-
-  it("is off when nothing was saved, and on from the first server markup when the saved choice is on", () => {
-    const ssr = (extra: Partial<ShellProps> = {}) =>
-      renderToString(
-        <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
-          {withForm({ storage: null, ...extra })}
-        </NextIntlClientProvider>,
-      );
-    expect(ssr()).toMatch(/role="switch"[^>]*aria-checked="false"|aria-checked="false"[^>]*role="switch"/);
-    expect(ssr({ dianHints: { value: true, savedAt: 1 } })).toMatch(/role="switch"[^>]*aria-checked="true"|aria-checked="true"[^>]*role="switch"/);
-  });
-
-  it("a change turns the forms' hints on, is cached for this browser and is reported with its time", () => {
-    const storage = memoryStorage();
-    const onDianHintsChange = vi.fn();
-    renderEs(withForm({ storage, onDianHintsChange }));
-    expect(dianSwitch().getAttribute("aria-checked")).toBe("false");
-    fireEvent.click(dianSwitch());
-    expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
-    expect(onDianHintsChange).toHaveBeenCalledWith(true, expect.any(Number));
-    expect(readCachedPref(storage, dianHintsStorageKey("u1"), "c1")?.value).toBe(true);
-  });
-
-  it("a newer copy in this browser's cache wins over the server's", () => {
-    const storage = memoryStorage();
-    writeCachedPref(storage, dianHintsStorageKey("u1"), "c1", { value: true, savedAt: 50 });
-    renderEs(withForm({ storage, dianHints: { value: false, savedAt: 10 } }));
-    expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
   });
 });
 
