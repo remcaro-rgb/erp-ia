@@ -91,3 +91,14 @@ export async function saveSettingsAction(edit: SettingsEdit, stepUpToken?: strin
   if (!edit || !UUID.test(String(edit.manualJournalId)) || !["1", "2", "3"].includes(edit.niifGroup) || typeof edit.roundingTolerance !== "number" || !Number.isInteger(edit.ruleStaleDays) || edit.ruleStaleDays < 1 || edit.ruleStaleDays > 3650) return bad;
   return perform<{ id: string }, object>("accounting.settings.update", edit, () => ({}), stepUpToken);
 }
+
+/** Mapeo de cuentas, modo de contabilización: `accounting.posting_mode.set` (step-up). Switching rewrites nothing; the answer carries what still awaits the ledger. */
+export async function setPostingModeAction(mode: string, stepUpToken?: string): Promise<ActionResult<{ mode: string; previous: string; pendingDocuments: number; pendingFailures: number }>> {
+  if (mode !== "inline_strict" && mode !== "asynchronous") return bad;
+  return perform<{ mode: string; previous: string; pendingDocuments: number; pendingFailures: number }, { mode: string; previous: string; pendingDocuments: number; pendingFailures: number }>(
+    "accounting.posting_mode.set",
+    { mode },
+    (out) => ({ mode: out.mode, previous: out.previous, pendingDocuments: out.pendingDocuments, pendingFailures: out.pendingFailures }),
+    stepUpToken,
+  );
+}

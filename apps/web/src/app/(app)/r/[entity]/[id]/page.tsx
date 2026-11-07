@@ -10,6 +10,8 @@ import { AccessPanel } from "./access-panel";
 import { accountingContent } from "./accounting-content";
 import { loadRecord } from "@/lib/records/load";
 import { loadRelated } from "@/lib/records/related-load";
+import { loadPendingPostings } from "@/lib/accounting/pending";
+import { PendingPostingBadge } from "../../../_components/pending-posting-badge";
 import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
 import { ExtraPanel } from "./extra-panel";
@@ -31,6 +33,9 @@ import { TicketView } from "../../../support/ticket-view";
 
 type Params = Promise<{ entity: string; id: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** The contabiliza documentos (Task 33, R33-8): their frame says «Pendiente de contabilizar» while the entry is not in the ledger. */
+const POSTING_DOCUMENTS: ReadonlySet<string> = new Set(["invoicing.invoice", "invoicing.note", "payments.receipt", "costing.landed_cost"]);
 
 /** "Abrir en una pestaña nueva": the record alone in its own browser tab (`?view=full`), using all the width. */
 const FULL_VIEW = "?view=full";
@@ -77,6 +82,7 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form, lifecycle: lc } = loaded;
   // Documentos relacionados (Task 31): started now, in parallel with the page's other loads; it never rejects (a failing trail is a page without the tab).
   const relatedLoad = record ? loadRelated(loaded.caller, entity.id, record.id) : Promise.resolve(null);
+  const pendingLoad = record && POSTING_DOCUMENTS.has(entity.id) ? loadPendingPostings(loaded.caller, [record.id]) : Promise.resolve(null);
   const t = await getTranslations();
   const locale = await getLocale();
 
@@ -179,6 +185,16 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   const related = await relatedLoad;
   if (related) content.relacionados = { label: t("common.record.related.tab"), count: related.model.count, content: <RelatedTab related={related} /> };
 
+  // A posted comprobante that was reversed reads «Revertido», in red (owner 2026-11-03).
+  const statusChip = lc ? (
+    form.kind === "entry" && lc.status === "posted" && !!record.reversed_by_id ? (
+      <Pill tone="danger">{t("accounting.values.entry_status.reversed")}</Pill>
+    ) : (
+      <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill>
+    )
+  ) : null;
+  const pendingPosting = (await pendingLoad)?.get(record.id) ?? null;
+
   return (
     <div className={wrapperClass}>
       <AppRecordFrame
@@ -191,15 +207,15 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
         uuid={record.id}
         number={typeof record.number === "string" && record.number ? record.number : null}
         reference={typeof record.reference === "string" && record.reference ? record.reference : null}
-        {...(lc
+        {...(statusChip || pendingPosting
           ? {
-              chip:
-                // A posted comprobante that was reversed reads «Revertido», in red (owner 2026-11-03).
-                form.kind === "entry" && lc.status === "posted" && !!record.reversed_by_id ? (
-                  <Pill tone="danger">{t("accounting.values.entry_status.reversed")}</Pill>
-                ) : (
-                  <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill>
-                ),
+              chip: (
+                <>
+                  {statusChip}
+                  {statusChip && pendingPosting ? " " : null}
+                  {pendingPosting ? <PendingPostingBadge pending={pendingPosting} /> : null}
+                </>
+              ),
             }
           : {})}
         lifecycle={frameLifecycle}

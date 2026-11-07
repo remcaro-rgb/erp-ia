@@ -96,6 +96,8 @@ Si el valor recibido es mayor que lo que se aplica en efectivo a las facturas, l
 
 El recibo se contabiliza en el mismo momento (diario **RC**, recibos de caja), con el cliente como tercero. Si el periodo de la fecha está **cerrado**, o la contabilidad no puede tomar el asiento, el recibo **no se registra** y te dice por qué. Si la empresa aún no inició su contabilidad (fecha de inicio), el recibo se rechaza. Si la empresa no usa el módulo de contabilidad, el recibo se registra y su asiento queda pendiente hasta que la active.
 
+**Pendiente de contabilizar.** Si la empresa eligió el modo de contabilización **Asíncrona con reintentos** (guía **Reglas contables**), el recibo de caja se guarda antes de que su comprobante exista y su ficha muestra la insignia **Pendiente de contabilizar** hasta que el sistema lo registre; si el registro falla, la insignia dice **Contabilización fallida · ver pendientes** y lleva a **Pendientes de contabilizar**. Con la contabilidad apagada la insignia dice **Contabilidad desactivada**, y sin el módulo contratado, **Módulo contable no contratado**. En el modo por defecto, **Inmediata y estricta**, esta insignia no aparece: sin comprobante no hay documento.
+
 Si un administrador modificó la regla contable **Recibo de caja** de su empresa, esa regla se conserva tal como la dejó. La regla del sistema incluye la línea de **anticipos**; una regla modificada antes de esta versión no la tiene, y un recibo con anticipo se rechaza como **descuadrado** hasta que el administrador la agregue (guía **Reglas contables**).
 
 Si repites la misma solicitud (por ejemplo, el formulario se envió dos veces), el sistema reconoce que es el mismo pago y responde con el recibo ya registrado: nunca lo registra dos veces.

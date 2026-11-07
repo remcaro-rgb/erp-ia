@@ -23,6 +23,18 @@ function failureCodeOf(error: ProcessError): PostingFailureCode {
   return FAILURE_CODES.find((code) => candidates.includes(code)) ?? "invalid_template";
 }
 
+/** SQLSTATEs a repeated attempt can clear: deadlock_detected (40P01) and serialization_failure (40001). */
+const TRANSIENT_SQLSTATE = /^40(?:P01|001)$/;
+
+/** Whether `error`, or the cause it wraps (runProcess wraps a SQL error as `handler_failed`), is a transient SQL failure. */
+export function isTransient(error: unknown): boolean {
+  for (let e: unknown = error, depth = 0; e !== null && typeof e === "object" && depth < 5; e = (e as { cause?: unknown }).cause, depth++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && TRANSIENT_SQLSTATE.test(code)) return true;
+  }
+  return false;
+}
+
 const dateOf = (payload: unknown, createdAt: Date): string => {
   const own = payload !== null && typeof payload === "object" ? (payload as { date?: unknown }).date : undefined;
   return typeof own === "string" && /^\d{4}-\d{2}-\d{2}/.test(own) ? own.slice(0, 10) : createdAt.toISOString().slice(0, 10);
@@ -88,7 +100,9 @@ export function postingConsumer(provider: PostingProvider, moduleId?: string): E
       try {
         await provider.post(ctx, resolved.entry, rule);
       } catch (error) {
-        if (!(error instanceof ProcessError)) throw error;
+        // A transient SQL failure (deadlock, serialization) is no ledger refusal: rethrown, the dispatcher retries the delivery with backoff
+        // and no pending is recorded (plan 2B Task 33 fix round 1, I2; the key posting:<event_id>:<rule_id> keeps the retry idempotent).
+        if (!(error instanceof ProcessError) || isTransient(error)) throw error;
         await fail(failureCodeOf(error), error.message);
       }
     }

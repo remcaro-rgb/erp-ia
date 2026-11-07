@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProcessContext } from "../../process/context";
 import { ProcessError } from "../../process/errors";
+import type { Registry } from "../../registry";
 import type { PostingProvider, PostingRule } from "../provider";
 import type { RuleTemplate } from "../template";
 
@@ -16,7 +17,7 @@ vi.mock("../../admin/modules-state", () => ({
     gate: !states.bought && states.acct ? "not_purchased" : states.acct ? "enabled" : "switched_off",
   }]),
 }));
-const { emitAndPostStrict, dismissParkedEvents } = await import("../inline");
+const { emitAndPostStrict, dismissParkedEvents, inlinePostingProcesses } = await import("../inline");
 const { enqueueEvent } = await import("../../events/outbox");
 
 const allocated: RuleTemplate = {
@@ -140,6 +141,13 @@ describe("emitAndPostStrict", () => {
     await expect(emitAndPostStrict(ctxWith(refused), "x.voided", payload)).rejects.toThrow(/closed_period/);
   });
 
+  it("the inline reversal names the void's own event, so the provider records the source voided under it (Task 33 fix round 1, C1)", async () => {
+    const seen: unknown[] = [];
+    const p = provider({ rules: [rule("r2", reversal)], reverseInline: async (_c, ref, date, name, voidEventId) => { seen.push({ ref, date, name, voidEventId }); return null; } });
+    await emitAndPostStrict(ctxWith(p), "x.voided", payload);
+    expect(seen).toEqual([{ ref: { event: "x.allocated", sourceId: "s1" }, date: "2026-03-15", name: "x.voided", voidEventId: "0192b4c0-0000-7000-8000-0000000000e1" }]);
+  });
+
   it("an enabled posting module whose provider cannot post inline is refused (no_posting_provider)", async () => {
     const noInline = { ...provider(), postInline: undefined, reverseInline: undefined } as PostingProvider;
     await expect(emitAndPostStrict(ctxWith(noInline), "x.allocated", payload)).rejects.toThrow(/no_posting_provider/);
@@ -160,5 +168,118 @@ describe("dismissParkedEvents", () => {
 
   it("does nothing when no module posts", async () => {
     expect(await dismissParkedEvents(ctxWith(null), "x.allocated", { landedCostId: "s1" })).toBe(0);
+  });
+});
+
+// Plan 2B Task 33 (R33-2, R33-3): the posting mode is the provider's answer. Asynchronous keeps the deterministic preconditions (a started
+// ledger, a rule that applies when one is required) and defers everything else to the consumer: no inline post, the event is not marked handled.
+describe("emitAndPostStrict in asynchronous mode", () => {
+  const asyncProvider = (over: Parameters<typeof provider>[0] = {}) => ({ ...provider(over), postingMode: async () => "asynchronous" as const });
+
+  it("a provider without postingMode posts inline as before (inline_strict is the default)", async () => {
+    const p = provider();
+    expect("postingMode" in p).toBe(false);
+    expect(await emitAndPostStrict(ctxWith(p), "x.allocated", payload, { requireRule: true })).toMatchObject({ posted: true, entryIds: ["entry-1"] });
+    expect(marked()).toBe(true);
+    const explicit = { ...provider(), postingMode: async () => "inline_strict" as const };
+    calls.length = 0;
+    expect(await emitAndPostStrict(ctxWith(explicit), "x.allocated", payload)).toMatchObject({ posted: true, entryIds: ["entry-1"] });
+    expect(calls).toEqual(["post:r1:0192b4c0-0000-7000-8000-0000000000e1:3"]);
+  });
+
+  it("queues the event: no inline post, not marked handled, reason queued", async () => {
+    const out = await emitAndPostStrict(ctxWith(asyncProvider()), "x.allocated", payload, { requireRule: true });
+    expect(out).toEqual({ posted: false, eventId: "0192b4c0-0000-7000-8000-0000000000e1", reason: "queued" });
+    expect(enqueueEvent).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual([]);
+    expect(marked()).toBe(false);
+  });
+
+  it("defers what the ledger would refuse (an unmapped role, an unbalanced rule, a refusing post) to the consumer", async () => {
+    const unmapped: RuleTemplate = { ...allocated, lines: [{ role: "missing", side: "debit", amount: "$.amount" }, { role: "payable", side: "credit", amount: "$.amount" }] };
+    expect(await emitAndPostStrict(ctxWith(asyncProvider({ rules: [rule("r1", unmapped)] })), "x.allocated", payload, { requireRule: true })).toMatchObject({ posted: false, reason: "queued" });
+    const refusing = asyncProvider({ postInline: async () => { throw new ProcessError("invalid_input", "closed_period: cerrado"); } });
+    expect(await emitAndPostStrict(ctxWith(refusing), "x.allocated", payload)).toMatchObject({ posted: false, reason: "queued" });
+    expect(calls).not.toContain("recordFailure");
+    expect(marked()).toBe(false);
+  });
+
+  it("an event dated before the ledger start is queued too: the consumer counts it as skipped", async () => {
+    const p = { ...asyncProvider({ startsOn: new Date("2027-01-01T00:00:00Z") }), countSkipped: async () => { calls.push("countSkipped"); } } as PostingProvider;
+    expect(await emitAndPostStrict(ctxWith(p), "x.allocated", payload)).toMatchObject({ posted: false, reason: "queued" });
+    expect(calls).toEqual([]);
+    expect(marked()).toBe(false);
+  });
+
+  it("still refuses a ledger that was never started (ledger_not_started)", async () => {
+    await expect(emitAndPostStrict(ctxWith(asyncProvider({ startsOn: null })), "x.allocated", payload)).rejects.toThrow(/ledger_not_started/);
+    expect(calls).toEqual([]);
+  });
+
+  it("still refuses no_rule when a rule is required and none applies (evaluated with the rule's when, nothing composed)", async () => {
+    const other: RuleTemplate = { ...allocated, when: [{ path: "$.kind", equals: "adjustment" }] };
+    await expect(emitAndPostStrict(ctxWith(asyncProvider({ rules: [rule("r1", other)] })), "x.allocated", payload, { requireRule: true })).rejects.toThrow(/no_rule/);
+    await expect(emitAndPostStrict(ctxWith(asyncProvider({ rules: [] })), "x.allocated", payload, { requireRule: true })).rejects.toThrow(/no_rule/);
+    // Without requireRule an event no rule is for is queued (the consumer posts nothing).
+    expect(await emitAndPostStrict(ctxWith(asyncProvider({ rules: [] })), "x.allocated", payload)).toMatchObject({ posted: false, reason: "queued" });
+    expect(calls).toEqual([]);
+  });
+
+  it("a reversal rule is queued as well: the consumer reverses through the source lock", async () => {
+    expect(await emitAndPostStrict(ctxWith(asyncProvider({ rules: [rule("r2", reversal)] })), "x.voided", payload, { requireRule: true })).toMatchObject({ posted: false, reason: "queued" });
+    expect(calls).toEqual([]);
+  });
+
+  it("the parked gates behave the same in both modes", async () => {
+    for (const p of [provider(), asyncProvider()]) {
+      states.acct = false;
+      states.bought = true;
+      expect(await emitAndPostStrict(ctxWith(p), "x.allocated", payload, { requireRule: true })).toMatchObject({ posted: false, reason: "accounting_disabled" });
+      states.acct = true;
+      states.bought = false;
+      expect(await emitAndPostStrict(ctxWith(p), "x.allocated", payload, { requireRule: true })).toMatchObject({ posted: false, reason: "not_entitled" });
+    }
+    expect(calls).toEqual([]);
+    expect(marked()).toBe(false);
+  });
+
+  it("asks the provider for the mode with the company and the event", async () => {
+    const seen: { companyId: string; event: string }[] = [];
+    const p = { ...provider(), postingMode: async (c: { companyId: string; event: { name: string } }) => { seen.push({ companyId: c.companyId, event: c.event.name }); return "asynchronous" as const; } } as PostingProvider;
+    await emitAndPostStrict(ctxWith(p), "x.allocated", payload);
+    expect(seen).toEqual([{ companyId: "c1", event: "x.allocated" }]);
+  });
+});
+
+// R33-4: the documentos whose post goes through emitAndPostStrict, derived from the registry: a process (of a module that is not the posting
+// module) that emits an event some module's postingRules post, minus the posting provider's reasoned list of consumer-posted processes.
+describe("inlinePostingProcesses", () => {
+  const proc = (id: string, emits: string[]) => ({ id, module: id.split(".")[0]!, emits });
+  const fake = (asyncByDesign?: ReadonlyMap<string, string>) => {
+    const p = { ...provider(), ...(asyncByDesign ? { asyncByDesign } : {}) } as PostingProvider;
+    const modules = [
+      { id: "acct", postingProvider: p, postingRules: [{ event: "acct.closed", name: "Cierre", journalCode: "CI", template: allocated }] },
+      { id: "doc", postingRules: [{ event: "doc.issued", name: "Emitida", journalCode: "VE", template: allocated }, { event: "doc.voided", name: "Anulada", journalCode: "VE", template: reversal }] },
+      { id: "inv", postingRules: [{ event: "inv.moved", name: "Movimiento", journalCode: "IN", template: allocated }] },
+      { id: "crm" },
+    ];
+    const processes = [
+      proc("doc.issue", ["doc.issued"]), proc("doc.void", ["doc.voided", "doc.status"]), proc("doc.create", ["doc.created"]), proc("doc.consult", []),
+      proc("acct.close", ["acct.closed"]), proc("inv.move", ["inv.moved"]), proc("crm.lead.create", ["crm.lead.created"]), { id: "doc.noemits", module: "doc" },
+    ];
+    return { modules: () => modules, processes: () => processes } as unknown as Registry;
+  };
+
+  it("lists, sorted, the processes that emit a posted event; the posting module's own and the consumer-posted ones are out", () => {
+    expect(inlinePostingProcesses(fake(new Map([["inv.move", "posted by the consumer"]])))).toEqual(["doc.issue", "doc.void"]);
+  });
+
+  it("without the provider's exclusion list every emitter is listed", () => {
+    expect(inlinePostingProcesses(fake())).toEqual(["doc.issue", "doc.void", "inv.move"]);
+  });
+
+  it("no posting module loaded: nothing is posted inline", () => {
+    const registry = { modules: () => [{ id: "doc", postingRules: [{ event: "doc.issued" }] }], processes: () => [proc("doc.issue", ["doc.issued"])] } as unknown as Registry;
+    expect(inlinePostingProcesses(registry)).toEqual([]);
   });
 });

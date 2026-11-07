@@ -9,6 +9,7 @@ import { GridRoute } from "../../_components/grid-route";
 import { ConceptsPanel } from "./concepts-panel";
 import { MappingTable } from "./mapping-table";
 import { PendingTable } from "./pending-table";
+import { PostingModeCard } from "./posting-mode-card";
 import { SettingsForm } from "./settings-form";
 
 // Reglas contables (accounting design §5.4, §5.5, §5.9, §8): the rules, the account each role posts to, the exógena concepts, the inbox
@@ -42,6 +43,7 @@ async function Posting({ searchParams }: { searchParams: Promise<{ tab?: string;
         ))}
       </nav>
       {data.tab === "rules" && <GridRoute entity="accounting.posting_rule" href="/accounting/posting?tab=rules" />}
+      {data.tab === "mapping" && data.postingMode && <PostingModeCard data={data.postingMode} canEdit={data.can.postingMode} />}
       {data.tab === "mapping" && data.lookup && <MappingTable rows={data.mapping ?? []} unmapped={data.unmapped ?? []} lookup={data.lookup} canEdit={data.can.mapping} />}
       {data.tab === "concepts" && (data.concepts ? <ConceptsPanel data={data.concepts} lookup={data.lookup} canEdit={data.can.concepts} /> : <p className="erp-muted">{t("concepts_none")}</p>)}
       {data.tab === "pending" && <PendingTable failures={data.failures ?? []} can={data.can} today={new Date().toISOString().slice(0, 10)} />}

@@ -3132,6 +3132,9 @@
     "accounting": {
       "entry": {
         "reject": "No Aprobar comprobante"
+      },
+      "posting_mode": {
+        "set": "Cambiar el modo de contabilización"
       }
     },
     "kernel": {
@@ -4886,7 +4889,37 @@
         "ledger_facts": "Inicio del libro",
         "ledger_starts_on": "El libro empieza el",
         "skipped_events": "Eventos anteriores al inicio del libro",
-        "skipped_hint": "Esos eventos se reconocieron sin contabilizar porque ocurrieron antes de la fecha de inicio."
+        "skipped_hint": "Esos eventos se reconocieron sin contabilizar porque ocurrieron antes de la fecha de inicio.",
+        "mode": {
+          "title": "Modo de contabilización",
+          "hint": "Cómo se registra el asiento contable de los documentos que contabilizan solos.",
+          "group": "Elegir el modo de contabilización",
+          "inline_strict": "Inmediata y estricta (recomendada)",
+          "inline_strict_hint": "El documento y su asiento se guardan en la misma operación: si el asiento no se puede registrar, el documento tampoco se guarda.",
+          "asynchronous": "Asíncrona con reintentos",
+          "asynchronous_hint": "El documento se guarda primero y su asiento se registra después; si falla, queda en Pendientes para reintentar.",
+          "warning": "Con el modo asíncrono, una factura emitida y aceptada por la DIAN puede existir sin su asiento contable hasta que el reintento tenga éxito, y los reportes contables no la incluyen mientras tanto.",
+          "pending_documents": "{count, plural, one {# documento espera su asiento} other {# documentos esperan su asiento}}",
+          "pending_failures": "{count, plural, one {# fallo en la cola de reintentos} other {# fallos en la cola de reintentos}}",
+          "see_pending": "Ver pendientes",
+          "applies_to": "Documentos a los que aplica el modo: {documents}.",
+          "read_only": "Tu rol puede ver el modo, pero no cambiarlo.",
+          "change_title": "Cambiar el modo de contabilización",
+          "change_inline_strict": "Volverás al modo inmediato y estricto. Los asientos ya registrados no cambian y los documentos que esperan su asiento se registran igual.",
+          "change_asynchronous": "Los documentos se guardarán antes de que su asiento se registre. Los que ya esperan su asiento se registran igual.",
+          "change_confirm": "Cambiar a «{mode}»",
+          "cancel": "Cancelar",
+          "document": {
+            "invoicing_invoice_issue": "Emitir factura",
+            "invoicing_invoice_void": "Anular factura",
+            "invoicing_note_issue": "Emitir nota crédito o débito",
+            "invoicing_note_issue_annulment": "Emitir nota crédito de anulación",
+            "payments_payment_receive": "Registrar recibo de caja",
+            "payments_payment_void": "Anular recibo de caja",
+            "costing_landed_cost_allocate": "Distribuir costo en destino",
+            "costing_landed_cost_void": "Anular costo en destino"
+          }
+        }
       },
       "setup": {
         "title": "Configurar contabilidad",
@@ -5031,6 +5064,15 @@
         "2": "Grupo 2 · NIIF para pymes",
         "3": "Grupo 3 · microempresas"
       }
+    },
+    "pending": {
+      "queued": "Pendiente de contabilizar",
+      "queued_hint": "El asiento de este documento se registra en segundo plano y los reportes contables aún no lo incluyen.",
+      "failed": "Contabilización fallida · ver pendientes",
+      "dead": "Contabilización detenida · ver Módulos",
+      "parked": "Pendiente de contabilizar",
+      "reason_accounting_disabled": "Contabilidad desactivada",
+      "reason_not_entitled": "Módulo contable no contratado"
     }
   },
   "inventory": {

@@ -1,11 +1,14 @@
 import "server-only";
 import { getTranslations } from "next-intl/server";
-import { countryPack, gridPageAccess, ProcessError, runnableProcesses, runProcess, withClaims, type Caller } from "@erp/kernel";
+import { countryPack, gridPageAccess, inlinePostingProcesses, ProcessError, runnableProcesses, runProcess, withClaims, type Caller } from "@erp/kernel";
 import type { GridColumn } from "@erp/ui";
 import { gridEntity } from "@/lib/grid/access";
 import { buildColumns } from "@/lib/grid/columns";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
+import { postingModeData, type PostingModeData } from "./posting-mode";
+
+export type { PostingMode, PostingModeData } from "./posting-mode";
 
 // What the Reglas contables page needs (accounting design §5.5, §5.9, §8), read as the caller: the tab strip with the pending count,
 // and for the chosen tab the stored role mappings, the exógena concepts, the inbox of events that could not post and the settings.
@@ -67,12 +70,14 @@ export interface ConceptsData {
 export interface PostingPageData {
   tab: PostingTab;
   pending: number;
-  can: { reopenPeriod: boolean; retry: boolean; dismiss: boolean; mapping: boolean; concepts: boolean; settings: boolean };
+  can: { reopenPeriod: boolean; retry: boolean; dismiss: boolean; mapping: boolean; concepts: boolean; settings: boolean; postingMode: boolean };
   /** The tabs the caller's roles can open. */
   tabs: PostingTab[];
   lookup: AccountLookup | null;
   mapping?: MappingRow[];
   unmapped?: string[];
+  /** The posting mode card of the mapping tab (Task 33, R33-9): the mode, what awaits the ledger and the documentos it applies to. */
+  postingMode?: PostingModeData;
   concepts?: ConceptsData | null;
   failures?: FailureRow[];
   settings?: SettingsData | null;
@@ -89,13 +94,30 @@ async function accountLookup(caller: Caller): Promise<AccountLookup | null> {
   return { columns: buildColumns(entity, access, presentationOf(entity.id), (key) => t(key as never)), entityLabel: t(entity.label as never) };
 }
 
+/**
+ * The mode card's facts (Task 33, R33-9), for whoever reads the mapping: the mode from `accounting.v_posting_mode` (the one column, not
+ * sensitive; no other setting is unmasked), the documents awaiting their entry from `v_pending_postings` (queued or dead-lettered, as the consult
+ * counts them) and the failures of the retry queue (a number, no row). All read as the caller under RLS (rule 14).
+ */
+async function postingModeOf(caller: Caller, processIds: readonly string[]): Promise<PostingModeData> {
+  const deps = processDeps();
+  const companyId = caller.claims.active_company_id;
+  const [facts] = await withClaims(deps.sql, caller.claims, (tx) =>
+    tx<{ posting_mode: string | null; documents: number; failures: number }[]>`
+      select (select posting_mode from accounting.v_posting_mode where company_id = ${companyId}) as posting_mode,
+             (select count(distinct source_id)::int from accounting.v_pending_postings where state in ('queued', 'dead')) as documents,
+             (select count(*)::int from accounting.v_posting_failures where company_id = ${companyId} and status = 'pending') as failures`,
+  );
+  return postingModeData({ postingMode: facts?.posting_mode, pendingDocuments: facts?.documents, pendingFailures: facts?.failures }, processIds);
+}
+
 export async function loadPostingPage(caller: Caller, requested: PostingTab, query: { format?: string; year?: number } = {}): Promise<PostingPageData> {
   const deps = processDeps();
   const companyId = caller.claims.active_company_id;
   const runnable = await runnableProcesses(deps.sql, deps.registry, caller.claims, [
     "accounting.posting_rule.consult", "accounting.account_role_mapping.consult", "accounting.fiscal_concept_mapping.consult", "accounting.posting_failure.consult",
     "accounting.settings.consult", "accounting.period.reopen", "accounting.posting.retry", "accounting.posting_failure.dismiss",
-    "accounting.account_role_mapping.update", "accounting.fiscal_concept_mapping.update", "accounting.settings.update",
+    "accounting.account_role_mapping.update", "accounting.fiscal_concept_mapping.update", "accounting.settings.update", "accounting.posting_mode.set",
   ]);
   const tabs = POSTING_TABS.filter((tab) => {
     const need = { rules: "accounting.posting_rule.consult", mapping: "accounting.account_role_mapping.consult", concepts: "accounting.fiscal_concept_mapping.consult", pending: "accounting.posting_failure.consult", settings: "accounting.settings.consult" }[tab];
@@ -117,6 +139,7 @@ export async function loadPostingPage(caller: Caller, requested: PostingTab, que
       mapping: runnable.has("accounting.account_role_mapping.update"),
       concepts: runnable.has("accounting.fiscal_concept_mapping.update"),
       settings: runnable.has("accounting.settings.update"),
+      postingMode: runnable.has("accounting.posting_mode.set"),
     },
   };
 
@@ -139,6 +162,7 @@ export async function loadPostingPage(caller: Caller, requested: PostingTab, que
       data.mapping = [];
       data.unmapped = [];
     }
+    data.postingMode = await postingModeOf(caller, inlinePostingProcesses(deps.registry));
   }
 
   if (tab === "concepts") {

@@ -10,7 +10,8 @@ import type { ModuleDef, ConsumerContext } from "../registry/types";
 import { composeEntry, ruleApplies, type EventRef } from "./compose";
 import { resolveRoles } from "./engine";
 import { resolvePath } from "./path";
-import type { PostingProvider } from "./provider";
+import type { PostingMode, PostingProvider } from "./provider";
+import type { Registry } from "../registry";
 
 // Inline strict posting (entity types spec §5.2 and D8, controller rulings of Task 9): a documento that posts (contabiliza) puts its
 // entry in the ledger in the SAME transaction as the lifecycle action that posts it, and the whole action rolls back when it cannot.
@@ -30,12 +31,23 @@ import type { PostingProvider } from "./provider";
 //    0078): the dispatcher skips it and the engine returns early, so the asynchronous consumer never composes it again, whatever the
 //    configuration has become (a mapping removed, a rule added, the ledger start moved): no spurious failure, no second entry.
 //  - A reversal rule reverses the entry of its source through the provider's exact lookup (every entry, whoever may read it); a source
-//    with no entry (the allocation parked or predated the ledger) reverses nothing. `dismissParkedEvents` lets a document that is voided
+//    with no entry (the allocation parked or predated the ledger) reverses nothing. Either way the provider records the source as voided
+//    under the void's event and dismisses its pendings (plan 2B Task 33 fix round 1), so a pending of the original never posts afterwards. `dismissParkedEvents` lets a document that is voided
 //    before its parked event reached the ledger make sure the event never posts afterwards.
+//  - The posting mode (plan 2B Task 33, owner decisions item 5, R33-3): the provider's `postingMode` answers, each time, `inline_strict`
+//    (the default, and when the provider has no such method: everything above) or `asynchronous`. Asynchronous keeps the same order up to the
+//    gates (enqueue, report to the nested-run collector, the parked states of a module switched off or never bought: identical in both
+//    modes) and the two deterministic preconditions without which the event could never become an entry (`ledger_not_started`, and with
+//    `requireRule` `no_rule`, evaluated with the rules' `when`, nothing composed); everything else the ledger could say (mapping, closed period,
+//    party, balance, template, a date before the ledger start) is deferred: the function answers `{ posted: false, reason: "queued" }`, writes
+//    nothing more and does NOT mark the event handled, so the accounting consumer posts it (its refusals go to the retry queue) and counts a
+//    predated one as skipped. Every combination of a switch and an action in flight yields one entry: inline marks the event handled in its
+//    own transaction, the consumer returns early on a handled event, and `posting:<event_id>:<rule_id>` makes a retry or a replay idempotent.
 
 export type InlinePosting =
   | { posted: true; eventId: string; entryIds: string[] }
-  | { posted: false; eventId: string; reason: "before_ledger_start" | "accounting_disabled" | "not_entitled" };
+  | { posted: false; eventId: string; reason: "before_ledger_start" | "accounting_disabled" | "not_entitled" }
+  | { posted: false; eventId: string; reason: "queued" };
 
 const refuse = (code: string, detail: string): never => {
   throw new ProcessError("invalid_input", `${code}: ${detail}`, { details: [detail] });
@@ -88,8 +100,27 @@ export async function emitAndPostStrict(ctx: ProcessContext, name: string, paylo
     runProcess: () => { throw new Error("inline posting runs in the caller's transaction: no nested process"); },
   };
   const date = await dateOf(ctx, payload);
+  const mode: PostingMode = (await provider.postingMode?.(reader)) ?? "inline_strict";
   const starts = await provider.ledgerStartsOn(reader);
   if (starts === null) return refuse("ledger_not_started", "Configura la contabilidad: la empresa aún no inicia su libro contable");
+  if (mode === "asynchronous") {
+    // Only what can never become an entry is refused now; the consumer composes, posts or records a pending (see the header).
+    if (options.requireRule) {
+      const rules = await provider.rulesFor(reader, name);
+      let applies = false;
+      for (const rule of rules) {
+        try {
+          if (ruleApplies(rule.template, payload)) applies = true;
+        } catch {
+          // A malformed `when` is the consumer's to record as a pending of that rule: it counts as a rule for the event.
+          applies = true;
+        }
+        if (applies) break;
+      }
+      if (!applies) refuse("no_rule", `No hay una regla contable activa para el evento ${name}`);
+    }
+    return { posted: false, eventId, reason: "queued" };
+  }
   if (date < starts.toISOString().slice(0, 10)) {
     await provider.countSkipped(reader, eventId);
     await markHandled(ctx, eventId, module.id);
@@ -112,7 +143,7 @@ export async function emitAndPostStrict(ctx: ProcessContext, name: string, paylo
     applied += 1;
     if (rule.template.reverseOf) {
       const ref = rule.template.reverseOf;
-      const reversed = await provider.reverseInline(ctx, { event: ref.event, sourceId: String(resolvePath(payload, ref.sourceId) ?? "") }, date, name);
+      const reversed = await provider.reverseInline(ctx, { event: ref.event, sourceId: String(resolvePath(payload, ref.sourceId) ?? "") }, date, name, eventId);
       if (reversed) entryIds.push(reversed.entryId);
       continue;
     }
@@ -161,4 +192,22 @@ export async function asPostingEngine<T>(ctx: ProcessContext, work: () => Promis
     // When `work` failed in SQL the transaction is already aborted and about to roll back: do not mask its error with this one.
     await ctx.tx`select set_config('request.jwt.claims', ${saved?.claims ?? ""}, true)`.catch(() => undefined);
   }
+}
+
+/**
+ * The contabiliza documentos the posting mode applies to (plan 2B Task 33, R33-4), derived from the registry, sorted: the processes of any
+ * module but the posting module that emit an event some module's `postingRules` post, minus the posting provider's `asyncByDesign` (processes
+ * whose events the consumer posts by design). Informative (the screen lists it, the coverage test pins a case per process): the mode itself is
+ * enforced at the seam, emitAndPostStrict, which every such documento calls.
+ */
+export function inlinePostingProcesses(registry: Pick<Registry, "modules" | "processes">): string[] {
+  const modules = registry.modules();
+  const poster = modules.find((m) => m.postingProvider !== undefined);
+  if (!poster) return [];
+  const posted = new Set(modules.flatMap((m) => (m.postingRules ?? []).map((r) => r.event)));
+  const byDesign = poster.postingProvider!.asyncByDesign ?? new Map<string, string>();
+  return registry.processes()
+    .filter((p) => p.module !== poster.id && !byDesign.has(p.id) && (p.emits ?? []).some((e) => posted.has(e)))
+    .map((p) => p.id)
+    .sort();
 }

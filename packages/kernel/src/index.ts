@@ -124,9 +124,9 @@ export { BORRADOR_STATUS, documentLinkTrail, LINK_KIND, LINK_PROCESSES, linkEnd,
 export type { LinkEnd, LinksApi, LinksSync, LinksVoid, TrailInput, TrailNode, TrailResult } from "./links";
 
 export type { AccountingPack, AccountLevel, AccountSeed, ExogenaCompany, ExogenaFormat, ExogenaRow, JournalKind, LineCode, StatementSection } from "./localization/country-pack";
-export { ACCOUNT_ROLES, asPostingEngine, composeEntry, dismissParkedEvents, emitAndPostStrict, postingConsumer, POSTING_CONSUMER, interpolate, PathError, resolvePath, ruleApplies, RuleLine, RuleTemplate } from "./posting";
+export { ACCOUNT_ROLES, asPostingEngine, composeEntry, dismissParkedEvents, emitAndPostStrict, inlinePostingProcesses, postingConsumer, POSTING_CONSUMER, interpolate, PathError, resolvePath, ruleApplies, RuleLine, RuleTemplate } from "./posting";
 export type { InlinePosting } from "./posting";
-export type { AccountRole, ComposeResult, ComposedEntry, ComposedLine, DefaultPostingRule, EventRef, PostingFailure, PostingFailureCode, PostingProvider, PostingRule, ResolvedAccount } from "./posting";
+export type { AccountRole, ComposeResult, ComposedEntry, ComposedLine, DefaultPostingRule, EventRef, PostingFailure, PostingFailureCode, PostingMode, PostingProvider, PostingRule, ResolvedAccount } from "./posting";
 export { allowedActions, canEditData, isUsable, nextStatus } from "./typed";
 export type { LifecycleAction, LifecycleFlags, RecordStatus } from "./typed";
 export { assertReferencesUsable, GENERIC_VERBS, genericProcess, genericProcesses, isTypedEntity, runLifecycle, snapshotPayload, statusChangedEvent, typedHooksOf, writeSnapshot, causingUser, emitStatusChanged } from "./typed";

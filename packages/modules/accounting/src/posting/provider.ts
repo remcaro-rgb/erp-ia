@@ -1,6 +1,7 @@
-import { asPostingEngine, ProcessError, ruleApplies, type ConsumerContext, type PostingFailure, type PostingFailureCode, type PostingProvider, type PostingRule, type RuleTemplate } from "@erp/kernel";
-import { reverseEntry } from "../processes/entry-post";
+import { asPostingEngine, ProcessError, ruleApplies, type ConsumerContext, type PostingFailure, type PostingFailureCode, type PostingMode, type PostingProvider, type PostingRule, type RuleTemplate } from "@erp/kernel";
 import { postFromEvent, type ComposedInput } from "../processes/post-from-event";
+import { reverseVoidedSource } from "../processes/posting-failure";
+import { ASYNC_BY_DESIGN } from "./mode";
 
 // The accounting module as the posting engine's provider (accounting design §5.1). It runs on the service connection of the
 // event consumer, so every query names the company; everything it writes goes through the module's own processes.
@@ -92,17 +93,14 @@ export const accountingProvider: PostingProvider = {
     });
   },
 
-  async reverseInline(ctx, ref, date, eventName) {
+  async reverseInline(ctx, ref, date, eventName, voidEventId) {
     if (!UUID.test(ref.sourceId)) return null;
+    // The same protocol as accounting.posting.reverse_source, in the caller's transaction and as the engine (plan 2B Task 33 fix round 1, C1):
+    // the source's pendings locked, its undelivered events dismissed, the source recorded voided under its lock, the entry reversed when it
+    // exists (the lookup sees every entry: "none" means there is none), the source's pendings dismissed. A refusal throws (the void rolls back).
     return asPostingEngine(ctx, async () => {
-      // The lookup sees every entry (the engine role), so "none" means there is none: the allocation parked, or predated the ledger.
-      const [entry] = await ctx.tx<{ id: string }[]>`
-        select e.id from accounting.entries e join accounting.posting_rules r on r.id = e.posting_rule_id
-        where e.company_id = ${ctx.companyId} and e.source_record_id = ${ref.sourceId} and r.event = ${ref.event} and e.status = 'posted' and e.reversal_of_id is null and not coalesce((e.extra->>'reversed')::boolean, false)
-        order by e.posted_at limit 1`;
-      if (!entry) return null;
-      const reversal = await reverseEntry(ctx, entry.id, { date, reason: `Evento ${eventName}` }, { engine: true });
-      return { entryId: reversal.id };
+      const out = await reverseVoidedSource(ctx, { event: ref.event, sourceId: ref.sourceId, voidEventId, voidEvent: eventName, date });
+      return out.entryId ? { entryId: out.entryId } : null;
     });
   },
 
@@ -128,4 +126,11 @@ export const accountingProvider: PostingProvider = {
   },
   /** A comprobante's own Contabiliza event: the typed lifecycle is posting it in that same run (Task 8b), so no rule may post it again. */
   ignores: (event) => event === "accounting.entry.ready_to_post",
+
+  // The company's posting mode (plan 2B Task 33, R33-1): a column of its settings row; inline strict before accounting is configured.
+  async postingMode(ctx) {
+    const [row] = await ctx.sql<{ posting_mode: PostingMode }[]>`select posting_mode from accounting.settings where company_id = ${ctx.companyId}`;
+    return row?.posting_mode ?? "inline_strict";
+  },
+  asyncByDesign: ASYNC_BY_DESIGN,
 };

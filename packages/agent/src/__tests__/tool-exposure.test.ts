@@ -47,6 +47,8 @@ describe("the assistant's tool candidates", () => {
       "payments.payment.open_invoices",
       // Nested-run configuration and its failure queue (plan 2B Task 32, R32-10): the assistant neither edits them nor retries or dismisses.
       "kernel.admin.nested_run.pair.set", "kernel.admin.nested_run.depth.set", "kernel.nested_failure.retry", "kernel.nested_failure.dismiss",
+      // The posting mode (plan 2B Task 33, R33-5): the assistant cannot change the ledger's guarantee.
+      "accounting.posting_mode.set",
     ];
     for (const id of never) {
       expect(() => registry.process(id), id).not.toThrow();

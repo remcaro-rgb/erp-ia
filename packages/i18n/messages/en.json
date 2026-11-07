@@ -3132,6 +3132,9 @@
     "accounting": {
       "entry": {
         "reject": "Do not approve voucher"
+      },
+      "posting_mode": {
+        "set": "Change the posting mode"
       }
     },
     "kernel": {
@@ -4886,7 +4889,37 @@
         "ledger_facts": "Start of the ledger",
         "ledger_starts_on": "The ledger starts on",
         "skipped_events": "Events before the start of the ledger",
-        "skipped_hint": "Those events were acknowledged without posting because they happened before the start date."
+        "skipped_hint": "Those events were acknowledged without posting because they happened before the start date.",
+        "mode": {
+          "title": "Posting mode",
+          "hint": "How the accounting entry of the documents that post by themselves is recorded.",
+          "group": "Choose the posting mode",
+          "inline_strict": "Immediate and strict (recommended)",
+          "inline_strict_hint": "The document and its entry are saved in the same operation: if the entry cannot be recorded, the document is not saved either.",
+          "asynchronous": "Asynchronous with retries",
+          "asynchronous_hint": "The document is saved first and its entry is recorded afterwards; if it fails, it waits in Pending for a retry.",
+          "warning": "With the asynchronous mode, an invoice issued and accepted by the DIAN can exist without its accounting entry until the retry succeeds, and the accounting reports leave it out meanwhile.",
+          "pending_documents": "{count, plural, one {# document awaits its entry} other {# documents await their entry}}",
+          "pending_failures": "{count, plural, one {# failure in the retry queue} other {# failures in the retry queue}}",
+          "see_pending": "See pending",
+          "applies_to": "Documents the mode applies to: {documents}.",
+          "read_only": "Your role can see the mode but not change it.",
+          "change_title": "Change the posting mode",
+          "change_inline_strict": "You will go back to the immediate and strict mode. Entries already recorded do not change and the documents awaiting their entry are still recorded.",
+          "change_asynchronous": "Documents will be saved before their entry is recorded. Those already awaiting their entry are still recorded.",
+          "change_confirm": "Change to «{mode}»",
+          "cancel": "Cancel",
+          "document": {
+            "invoicing_invoice_issue": "Issue invoice",
+            "invoicing_invoice_void": "Void invoice",
+            "invoicing_note_issue": "Issue credit or debit note",
+            "invoicing_note_issue_annulment": "Issue annulment credit note",
+            "payments_payment_receive": "Record cash receipt",
+            "payments_payment_void": "Void cash receipt",
+            "costing_landed_cost_allocate": "Allocate landed cost",
+            "costing_landed_cost_void": "Void landed cost"
+          }
+        }
       },
       "setup": {
         "title": "Set up accounting",
@@ -5031,6 +5064,15 @@
         "2": "Group 2 · IFRS for SMEs",
         "3": "Group 3 · micro-entities"
       }
+    },
+    "pending": {
+      "queued": "Pending posting",
+      "queued_hint": "This document's entry is being recorded in the background and the accounting reports do not include it yet.",
+      "failed": "Posting failed · see pending",
+      "dead": "Posting stopped · see Modules",
+      "parked": "Pending posting",
+      "reason_accounting_disabled": "Accounting switched off",
+      "reason_not_entitled": "Accounting module not purchased"
     }
   },
   "inventory": {

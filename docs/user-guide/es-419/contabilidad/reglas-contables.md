@@ -14,6 +14,7 @@ processes:
   - accounting.account_role_mapping.consult
   - accounting.settings.update
   - accounting.settings.consult
+  - accounting.posting_mode.set
 ---
 
 # Reglas contables
@@ -29,6 +30,21 @@ Si la contabilidad aún no está configurada, la pantalla ofrece **Configurar co
 Cada regla habla de **roles contables** (clientes, ventas, caja, IVA generado…), no de números de cuenta. En **Mapeo de cuentas** cada rol tiene su **Cuenta**; la pantalla dice «Todos los roles tienen cuenta» o cuántos faltan (en rojo, **Sin cuenta**). Para cambiar una, escoge otra cuenta en la lista y **Guardar** (pide código de verificación).
 
 Algunos roles pueden variar por **Dimensión**: por ejemplo, la cuenta de ingresos por categoría de producto, que también se edita en la pestaña **Contabilidad** de la categoría.
+
+## Modo de contabilización
+
+Arriba de **Mapeo de cuentas** está el **Modo de contabilización**, que dice cuándo se registra el comprobante de los documentos que contabilizan solos (facturas, notas crédito y débito, recibos de caja y costos en destino). Debajo del control, la pantalla lista a qué documentos aplica.
+
+- **Inmediata y estricta (recomendada)**: el documento y su comprobante se guardan en la misma operación. Si el comprobante no se puede registrar (falta una cuenta, el período está cerrado, el comprobante no cuadra), el documento tampoco se guarda y la pantalla dice por qué. Nunca hay un documento sin su comprobante.
+- **Asíncrona con reintentos**: el documento se guarda primero y su comprobante se registra después, en segundo plano. Si el comprobante falla, el documento queda guardado y el fallo va a **Pendientes de contabilizar**, donde se corrige y se reintenta.
+
+**El riesgo del modo asíncrono.** Una factura emitida y aceptada por la DIAN puede existir sin su asiento contable hasta que el reintento tenga éxito, y los reportes contables no la incluyen mientras tanto. Por eso la pantalla muestra un aviso rojo mientras el modo sea asíncrono, y también antes de elegirlo. En este modo solo se rechaza al emitir un documento si el libro aún no empezó o si ninguna regla contable le aplica.
+
+**Cómo cambiarlo.** Elige la otra opción, lee el aviso en el cuadro que se abre, pulsa **Cambiar a…** y escribe el código de verificación. Solo lo puede hacer quien tiene el permiso de cambiar el modo; los demás ven el modo sin poder cambiarlo. Cambiar de modo no reescribe nada: los comprobantes ya registrados se quedan y los documentos que esperan su comprobante se registran igual.
+
+**Los dos contadores.** Debajo del control: cuántos **documentos esperan su asiento** (el comprobante todavía no se registró) y cuántos **fallos hay en la cola de reintentos** (**Ver pendientes**). Se muestran en los dos modos, porque al volver a **Inmediata y estricta** puede quedar una cola de la etapa asíncrona: se vacía sola cuando el sistema registra los comprobantes que faltan, y los fallos se resuelven en **Pendientes de contabilizar**.
+
+**En el documento.** Mientras el comprobante no existe, la ficha de la factura, la nota, el recibo o el costo en destino muestra **Pendiente de contabilizar**; si falló, **Contabilización fallida · ver pendientes** (lleva a la lista). Si la contabilidad está apagada para la empresa, dice **Contabilidad desactivada**, y si nunca se contrató, **Módulo contable no contratado**. La insignia desaparece sola cuando el comprobante existe.
 
 ## Reglas
 

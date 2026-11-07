@@ -15,6 +15,8 @@ const settings = async () => (await h.sql`select * from accounting.settings wher
 describe("settings", () => {
   it("before the chart is seeded, consult says so and update asks to configure the accounting first", async () => {
     expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ configured: false, useItems: false, roundingTolerance: 1 });
+    // Plan 2B Task 33 (R33-1): before accounting is configured the posting mode is inline strict and nothing is pending.
+    expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ postingMode: "inline_strict", pendingDocuments: 0, pendingFailures: 0 });
     await expect(h.runStepUp(h.admin, "accounting.settings.update", { useItems: true })).rejects.toMatchObject({ code: "invalid_input" });
   });
 
@@ -55,5 +57,13 @@ describe("settings", () => {
     for (const bad of [0, -3, 1.5, 4000]) await expect(h.runStepUp(h.admin, "accounting.settings.update", { ruleStaleDays: bad })).rejects.toMatchObject({ code: "invalid_input" });
     await expect(h.sql`update accounting.settings set rule_stale_days = 0 where company_id = ${h.companyId}`).rejects.toThrow();
     await h.runStepUp(h.admin, "accounting.settings.update", { ruleStaleDays: 30 });
+  });
+
+  it("consult returns the posting mode (inline strict by default) and the counts of what awaits the ledger (plan 2B Task 33)", async () => {
+    expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ configured: true, postingMode: "inline_strict", pendingDocuments: 0, pendingFailures: 0 });
+    expect((await settings())!.posting_mode).toBe("inline_strict");
+    expect(await h.run(h.contador, "accounting.settings.consult", {})).toMatchObject({ postingMode: "inline_strict" });
+    // settings.update stays strict: the mode changes only through accounting.posting_mode.set.
+    await expect(h.runStepUp(h.admin, "accounting.settings.update", { postingMode: "asynchronous" })).rejects.toMatchObject({ code: "invalid_input" });
   });
 });

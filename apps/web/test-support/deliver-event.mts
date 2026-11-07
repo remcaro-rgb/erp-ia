@@ -32,6 +32,8 @@ try {
   const consumer = consumers.for(row.event).find((c) => c.moduleId === moduleId);
   if (!consumer) throw new Error(`no ${moduleId} consumer of ${row.event}`);
   await consumer.fn(buildConsumerContext(sql, { id: row.id, event: row.event, createdAt: row.created_at, companyId: row.company_id, chainId: row.chain_id }, registry), row.payload);
+  // The dispatch step records the delivery once the consumer returned (events/dispatch.workflow.ts): pending_postings and the drain read it (Task 33).
+  await sql`insert into kernel.outbox_deliveries (outbox_id, module_id) values (${row.id}, ${moduleId}) on conflict do nothing`;
   console.log(`delivered ${row.event} ${row.id} to ${moduleId}`);
 } finally {
   await sql.end({ timeout: 5 });

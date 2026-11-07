@@ -1,4 +1,4 @@
-import { composeEntry, defineProcess, dismissParkedEvents, ProcessError, RuleTemplate, visibleExtra, type ComposedLine, type PostingRule } from "@erp/kernel";
+import { composeEntry, defineProcess, dismissParkedEvents, ProcessError, RuleTemplate, visibleExtra, type ComposedLine, type PostingRule, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { invalid } from "./common";
 import { reverseEntry } from "./entry-post";
@@ -179,47 +179,58 @@ export const postingReverseSource = defineProcess({
   idempotencyKey: (input) => `reverse_source:${input.voidEventId}:${input.event}:${input.sourceId}`,
   input: z.object({ event: z.string().min(1), sourceId: id, voidEventId: id, voidEvent: z.string().min(1), date: z.iso.date() }).strict(),
   output: z.object({ entryId: z.string().nullable(), dismissed: z.array(z.string()) }),
-  handler: async (ctx, input) => {
-    // 1. Lock the event's pendings (only the lock: they are read again below, after the other locks).
-    await ctx.tx`
-      select f.id from accounting.posting_failures f
-      where f.company_id = ${ctx.companyId} and f.event = ${input.event} and f.status = 'pending'
-      order by f.id
-      for update of f`;
-
-    const rules = await ctx.tx<{ path: string | null }[]>`
-      select distinct template #>> '{source,id}' as path from accounting.posting_rules where company_id = ${ctx.companyId} and event = ${input.event}`;
-    for (const { path } of rules) {
-      const match = path ? matchOf(path, input.sourceId) : null;
-      if (match) await dismissParkedEvents(ctx, input.event, match);
-    }
-    await lockSource(ctx, input.event, input.sourceId);
-    await recordVoidedSource(ctx, input.event, input.sourceId, input.voidEventId);
-    // Read again after the locks (a pending recorded while this waited is now committed and seen).
-    const again = await ctx.tx<{ id: string; payload: unknown; template: PostingRule["template"] | null }[]>`
-      select f.id, f.payload, r.template from accounting.posting_failures f left join accounting.posting_rules r on r.id = f.posting_rule_id
-      where f.company_id = ${ctx.companyId} and f.event = ${input.event} and f.status = 'pending'
-      order by f.id
-      for update of f skip locked`;
-    const mine = again.filter((row) => sourceOf(row.payload, row.template) === input.sourceId);
-
-    const [entry] = await ctx.tx<{ id: string }[]>`
-      select e.id from accounting.entries e join accounting.posting_rules r on r.id = e.posting_rule_id
-      where e.company_id = ${ctx.companyId} and e.source_record_id = ${input.sourceId} and r.event = ${input.event} and e.status = 'posted'
-        and e.reversal_of_id is null and not coalesce((e.extra->>'reversed')::boolean, false)
-      order by e.posted_at limit 1`;
-    const reversal = entry ? await reverseEntry(ctx, entry.id, { date: input.date, reason: `Evento ${input.voidEvent}` }, { engine: true }) : null;
-    // A pending of another rule of the same source never posts either once the source is void.
-    const dismissed: string[] = [];
-    for (const row of mine) {
-      await ctx.tx`
-        update accounting.posting_failures
-           set status = 'dismissed', extra = extra || ${ctx.tx.json({ dismiss_code: SOURCE_VOIDED, dismissed_by_event: input.voidEventId })}
-         where id = ${row.id}`;
-      dismissed.push(row.id);
-    }
-    return { entryId: reversal?.id ?? null, dismissed };
-  },
+  handler: (ctx, input) => reverseVoidedSource(ctx, input),
 });
+
+/**
+ * The body of accounting.posting.reverse_source (steps 1–4 above), in the caller's transaction: also what the inline strict reversal of a
+ * void runs (the provider's reverseInline, plan 2B Task 33 fix round 1, C1), so an inline void records its source voided and dismisses its
+ * pendings exactly as the consumer's does (a pending of the original left by the asynchronous mode never posts afterwards). Throws when the
+ * ledger refuses the reversal (a closed period).
+ */
+export async function reverseVoidedSource(
+  ctx: ProcessContext,
+  input: { event: string; sourceId: string; voidEventId: string; voidEvent: string; date: string },
+): Promise<{ entryId: string | null; dismissed: string[] }> {
+  // 1. Lock the event's pendings (only the lock: they are read again below, after the other locks).
+  await ctx.tx`
+    select f.id from accounting.posting_failures f
+    where f.company_id = ${ctx.companyId} and f.event = ${input.event} and f.status = 'pending'
+    order by f.id
+    for update of f`;
+
+  const rules = await ctx.tx<{ path: string | null }[]>`
+    select distinct template #>> '{source,id}' as path from accounting.posting_rules where company_id = ${ctx.companyId} and event = ${input.event}`;
+  for (const { path } of rules) {
+    const match = path ? matchOf(path, input.sourceId) : null;
+    if (match) await dismissParkedEvents(ctx, input.event, match);
+  }
+  await lockSource(ctx, input.event, input.sourceId);
+  await recordVoidedSource(ctx, input.event, input.sourceId, input.voidEventId);
+  // Read again after the locks (a pending recorded while this waited is now committed and seen).
+  const again = await ctx.tx<{ id: string; payload: unknown; template: PostingRule["template"] | null }[]>`
+    select f.id, f.payload, r.template from accounting.posting_failures f left join accounting.posting_rules r on r.id = f.posting_rule_id
+    where f.company_id = ${ctx.companyId} and f.event = ${input.event} and f.status = 'pending'
+    order by f.id
+    for update of f skip locked`;
+  const mine = again.filter((row) => sourceOf(row.payload, row.template) === input.sourceId);
+
+  const [entry] = await ctx.tx<{ id: string }[]>`
+    select e.id from accounting.entries e join accounting.posting_rules r on r.id = e.posting_rule_id
+    where e.company_id = ${ctx.companyId} and e.source_record_id = ${input.sourceId} and r.event = ${input.event} and e.status = 'posted'
+      and e.reversal_of_id is null and not coalesce((e.extra->>'reversed')::boolean, false)
+    order by e.posted_at limit 1`;
+  const reversal = entry ? await reverseEntry(ctx, entry.id, { date: input.date, reason: `Evento ${input.voidEvent}` }, { engine: true }) : null;
+  // A pending of another rule of the same source never posts either once the source is void.
+  const dismissed: string[] = [];
+  for (const row of mine) {
+    await ctx.tx`
+      update accounting.posting_failures
+         set status = 'dismissed', extra = extra || ${ctx.tx.json({ dismiss_code: SOURCE_VOIDED, dismissed_by_event: input.voidEventId })}
+       where id = ${row.id}`;
+    dismissed.push(row.id);
+  }
+  return { entryId: reversal?.id ?? null, dismissed };
+}
 
 export const POSTING_FAILURE_PROCESSES = [postingRetry, postingFailureDismiss, postingFailureConsult, postingReverseSource];

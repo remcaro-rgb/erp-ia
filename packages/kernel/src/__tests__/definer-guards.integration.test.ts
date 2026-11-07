@@ -191,6 +191,31 @@ describe("process guards of the definer functions (migration 0116)", () => {
     }
   });
 
+  // Plan 2B Task 33 (R33-8, migration 0128): the pending-postings reader is a definer function a member of the company may call; it refuses an
+  // anonymous session and answers nothing for a company the caller is not a member of.
+  it("accounting.pending_postings refuses anon and answers nothing for a foreign company", async () => {
+    const anon = sql.begin(async (tx) => {
+      await tx`select set_config('role', 'anon', true)`;
+      return tx`select * from accounting.pending_postings()`;
+    });
+    await expect(anon).rejects.toMatchObject({ code: "42501" });
+    const foreign = randomUUID();
+    const saved = claims;
+    claims = { ...saved, active_company_id: foreign } as JwtClaims;
+    try {
+      expect(await asUser(null, (tx) => tx`select * from accounting.pending_postings()`)).toEqual([]);
+      expect(await asUser(null, (tx) => tx`select * from accounting.pending_postings(${randomUUID()}::uuid)`)).toEqual([]);
+    } finally {
+      claims = saved;
+    }
+    expect(await asUser(null, (tx) => tx`select * from accounting.pending_postings()`)).toEqual([]);
+    const [fn] = await sql<{ definer: boolean; config: string[] | null; anon: boolean; authenticated: boolean }[]>`
+      select p.prosecdef as definer, p.proconfig as config, has_function_privilege('anon', p.oid, 'execute') as anon,
+             has_function_privilege('authenticated', p.oid, 'execute') as authenticated
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'accounting' and p.proname = 'pending_postings'`;
+    expect(fn).toEqual({ definer: true, config: ['search_path=""'], anon: false, authenticated: true });
+  });
+
   it("a session without a user (service role, migrations) is not refused", async () => {
     await sql.begin(async (tx) => {
       for (const fn of COUNTERS) {

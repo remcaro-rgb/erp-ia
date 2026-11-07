@@ -220,3 +220,7 @@ Numbers continue this file's own list. Each has the build's current behaviour an
 72. **All nested-run configuration processes are step-up, also when narrowing** (Task 32); the process id is static, so «only widening is sensitive» would need two processes.
     Recommended: accept (rule 15: admin processes are sensitive by default).
 
+73. **Asynchronous posting: ordering and late replay** (Task 33). The consumer is not serialized per company; the entry number follows posting order, not document order; a replay that posts late lands on the event's own date, so in an open period the reports of that period change retroactively, and in a closed period it becomes a `closed_period` pending that needs a reopen. A void racing its own queued original is safe (`reverse_source` dismisses the original).
+    Recommended: accept for 2B.2 and warn in the guide; if the accountant needs stable numbering by document date, number entries at document date in a later task.
+74. **Age alert for documents awaiting posting** (Task 33). Nothing alerts when a document stays «Pendiente de contabilizar» for long in asynchronous mode.
+    Recommended: a kernel recommendation (Task 38 API) to the accounting role when a queued or failed posting is older than N minutes (N configurable, default 60); a small follow-up task.

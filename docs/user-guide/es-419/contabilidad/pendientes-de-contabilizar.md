@@ -33,6 +33,10 @@ Cada fila trae el **Evento**, la **Fecha**, la **Regla**, la **Causa** (en palab
 2. Pulsa **Reintentar**. Si funciona, la fila dice «Contabilizado en el comprobante …» con el número; si no, «Sigue pendiente: …» con la razón.
 3. Si el evento no debe contabilizarse, pulsa **Descartar**, escribe el **Motivo** y confirma. Queda en el historial y el pendiente sale de la cuenta.
 
+## Documentos que esperan y fallos
+
+Esta lista guarda los **fallos**: eventos que una regla intentó contabilizar y no pudo. Es distinta de los **documentos que esperan su asiento**, que aparecen con el modo **Asíncrona con reintentos** (guía **Reglas contables**, sección **Modo de contabilización**): el documento ya está guardado y su comprobante todavía no se ha registrado, pero no ha fallado; el sistema lo registra solo en unos instantes. Si falla, pasa a esta lista. Arriba de **Mapeo de cuentas** ves los dos contadores, y en la ficha de cada documento la insignia **Pendiente de contabilizar** (esperando) o **Contabilización fallida · ver pendientes** (aquí).
+
 ## Por qué importa
 
 El cierre del período se niega mientras haya pendientes (**Sin pendientes de contabilizar**, guía **Períodos y cierre**). Revisa esta lista antes de cerrar el mes.

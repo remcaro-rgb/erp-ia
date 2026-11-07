@@ -38,6 +38,8 @@ export const EXCLUDED_PROCESSES: ReadonlyMap<string, string> = new Map([
   ["kernel.admin.nested_run.depth.set", "changes how deep nested runs may go; only the admin screen sets it"],
   ["kernel.nested_failure.retry", "replays a queued nested write chosen on the failure queue screen; the chat does not see the queue"],
   ["kernel.nested_failure.dismiss", "closes a queued nested failure chosen on the failure queue screen; the chat does not see the queue"],
+  // Plan 2B Task 33 (R33-5): the posting mode decides whether a documento may exist without its entry; the assistant cannot change that guarantee.
+  ["accounting.posting_mode.set", "changes whether documents post inline and strict or asynchronously; only the Mapeo de cuentas screen sets it, under step-up"],
 ]);
 
 /**

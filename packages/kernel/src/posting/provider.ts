@@ -48,6 +48,24 @@ export interface PostingProvider {
    * no posting failure. Used by `emitAndPostStrict` for a documento that posts (contabiliza).
    */
   postInline?(ctx: ProcessContext, draft: ComposedEntry, rule: PostingRule): Promise<{ entryId: string }>;
-  /** Inline strict reversal of the entry `ref` names, dated `date`; null when nothing was posted for the source; throws when it cannot be reversed. */
-  reverseInline?(ctx: ProcessContext, ref: { event: string; sourceId: string }, date: string, eventName: string): Promise<{ entryId: string } | null>;
+  /**
+   * Inline strict reversal of the entry `ref` names, dated `date`; null when nothing was posted for the source; throws when it cannot be
+   * reversed. `voidEventId` is the void's own event: the provider records the source as voided under it and dismisses the source's pendings,
+   * as the consumer's reversal does (plan 2B Task 33 fix round 1), so nothing of the source posts afterwards.
+   */
+  reverseInline?(ctx: ProcessContext, ref: { event: string; sourceId: string }, date: string, eventName: string, voidEventId: string): Promise<{ entryId: string } | null>;
+  /**
+   * The company's posting mode (plan 2B Task 33, R33-2), read by `emitAndPostStrict` each time a contabiliza documento posts: `inline_strict`
+   * (the default, also when the method is absent) posts in the caller's transaction and rolls the action back on a refusal; `asynchronous`
+   * leaves the event to the consumer (engine.ts), whose refusals go to the retry queue.
+   */
+  postingMode?(ctx: ConsumerContext): Promise<PostingMode>;
+  /**
+   * Processes whose posted events the consumer posts by design (they never call `emitAndPostStrict`: stock movements, cost of sales), each with
+   * its reason. `inlinePostingProcesses` leaves them out of the contabiliza documentos the posting mode applies to (R33-4).
+   */
+  asyncByDesign?: ReadonlyMap<string, string>;
 }
+
+/** How a company's contabiliza documentos reach the ledger (plan 2B Task 33). */
+export type PostingMode = "inline_strict" | "asynchronous";
