@@ -61,7 +61,8 @@ describe("posting", () => {
   it("chart.seed installs the default rules of the module for every event of design §5.4", async () => {
     const rules = await h.sql<{ event: string; module: string; is_default: boolean }[]>`select event, module, is_default from accounting.posting_rules where company_id = ${h.companyId} order by event`;
     expect(rules.map((r) => r.event)).toEqual([
-      "costing.cogs.posted", "inventory.movement.posted", "invoicing.invoice.issued", "invoicing.invoice.voided",
+      // cogs-posted and inventory-adjustment are the manifests of costing and inventory (Task 50.14), not accounting's own.
+      "invoicing.invoice.issued", "invoicing.invoice.voided",
       // The note's rule is three, one per kind of note (plan 2B Task 18 fix round 1).
       "invoicing.note.issued", "invoicing.note.issued", "invoicing.note.issued", "payments.payment.voided", "payments.received",
     ]);

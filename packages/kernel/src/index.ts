@@ -37,8 +37,8 @@ export { KERNEL_PARAMETER_PAGES, MENU_SECTIONS, menuItemsOf, menuSections, uncov
 export type { MenuItemRow, ParameterPage } from "./module/menu";
 export { menuHiddenKeys, menuPathAllowed } from "./typed";
 export type { MenuAccessRule } from "./typed";
-export { entitled, entitlementLimit, enableModule, syncModuleManifest, syncModuleManifestIfChanged } from "./entitlements/resolver";
-export type { EntitledFn } from "./entitlements/resolver";
+export { entitled, entitlementLimit, enableModule, gateOf, moduleGate, replayParkedEvents, syncModuleManifest, syncModuleManifestIfChanged } from "./entitlements/resolver";
+export type { EntitledFn, ModuleGate } from "./entitlements/resolver";
 export { CODE_TABLES, registerCountryPack, countryPack } from "./localization/country-pack";
 export { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "./validation";
 export type { PartyTaxProfile, TaxLineInput, TaxedDocument, TaxedLine, TaxesPack } from "./localization/country-pack";
@@ -111,8 +111,8 @@ export {
 export type { EmbedOptions, Embedder, HelpIndexSummary, HelpResult } from "./help";
 export { costUsd, DEFAULT_PRICE, MODEL_PRICES, priceOf, providerOfModel, recordLlmUsage } from "./ai/usage";
 export type { EmbeddingUsage, LlmTask, LlmUsageRow, ModelPrice } from "./ai/usage";
-export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcesses, moduleStates, readAiUsage, readPermissionMatrix, setAuthAdmin, syncRegistry } from "./admin";
-export type { AiUsage, MatrixProcess, ModuleState, PermissionMatrix } from "./admin";
+export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcesses, moduleStates, neededBy, parkedNotEntitled, readAiUsage, readPermissionMatrix, setAuthAdmin, syncRegistry } from "./admin";
+export type { AiUsage, MatrixProcess, ModuleState, ParkedEvents, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
 
 export { aiTokensKpi, catalogItemSchema, catalogKey, chartSchema, dailyPoints, dailySeries, HOME_FEATURE, HOME_HIDDEN_PREF, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS, kpiGridHref, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";

@@ -124,7 +124,7 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
       options: form.options,
       ...(form.templateLines ? { footer: <TemplateLines lines={form.templateLines} /> } : {}),
     };
-    if (form.master === "rule") return <RuleForm key={key} {...masterProps} isDefault={form.rule?.isDefault ?? false} isModified={form.rule?.isModified ?? false} />;
+    if (form.master === "rule") return <RuleForm key={key} {...masterProps} isDefault={form.rule?.isDefault ?? false} isModified={form.rule?.isModified ?? false} stale={form.rule?.stale ?? false} staleDays={form.rule?.staleDays ?? 30} />;
     return <MasterForm key={key} kind={form.master} processes={{ create: processes?.create ?? "", update: processes?.update ?? "" }} {...masterProps} />;
   }
   if (form.kind === "stock") {

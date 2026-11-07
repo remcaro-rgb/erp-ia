@@ -16,7 +16,7 @@ const sql = testDb();
 const WAIT = { timeout: 30_000, interval: 100 };
 // The registry is process-wide: every run of this file registers modules under fresh ids.
 const run = randomUUID().slice(0, 8);
-const ids = { main: `dsp_main_${run}`, paused: `dsp_paused_${run}`, a: `dsp_a_${run}`, b: `dsp_b_${run}`, wild: `dsp_wild_${run}` };
+const ids = { main: `dsp_main_${run}`, paused: `dsp_paused_${run}`, a: `dsp_a_${run}`, b: `dsp_b_${run}`, wild: `dsp_wild_${run}`, wild2: `dsp_wild2_${run}`, unbought: `dsp_unbought_${run}` };
 
 /** Consumer behaviour set by each test, by event or (more specific) by `<module>/<event>`; the stub modules forward to it. */
 let handlers: Record<string, EventConsumer> = {};
@@ -96,10 +96,14 @@ describe("outbox dispatch", () => {
         [touch],
       ),
       stub(ids.paused, ["test.probe.paused"]),
-      stub(ids.a, ["test.probe.partial"]),
+      stub(ids.a, ["test.probe.partial", "test.probe.deliv"]),
       stub(ids.b, ["test.probe.partial"]),
+      stub(ids.unbought, ["test.probe.unbought", "test.probe.deliv"]),
     ]);
-    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${ids.main}`}, 'manual')`;
+    // Task 50.9: the dispatcher asks the entitlement resolver, so every consumer module but `unbought` is bought.
+    for (const id of [ids.main, ids.paused, ids.a, ids.b]) {
+      await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${id}`}, 'manual')`;
+    }
     await sql`insert into kernel.process_permissions(company_id, role_id, process_id)
       values (${companyId}, ${seed.companies[0]!.adminRoleId}, ${touch.id})`;
   });
@@ -246,6 +250,34 @@ describe("outbox dispatch", () => {
     expect(calls).toEqual(["a", "b"]);
   });
 
+  it("a consumer of a module the company never bought is dead-lettered not_entitled:<module> without running; a switched-off one stays silent (Task 50.9)", async () => {
+    const seen: string[] = [];
+    handlers["test.probe.unbought"] = async (ctx) => void seen.push(ctx.chainId);
+    const chainId = await enqueue("test.probe.unbought");
+    expect(await drain()).toBe(1);
+    await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
+    expect((await deadLetter(chainId))!.last_error).toBe(`not_entitled:${ids.unbought}`);
+    expect(await outboxRow(chainId)).toBeUndefined();
+    expect(seen).toEqual([]);
+
+    // Bought but switched off: parked silently, nothing dead-lettered.
+    handlers["test.probe.paused"] = async () => undefined;
+    await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, ${ids.paused}, false)`;
+    const parked = await enqueue("test.probe.paused");
+    expect(await drain()).toBe(1);
+    await vi.waitFor(async () => expect((await outboxRow(parked))!.last_error).toBe("module_disabled"), WAIT);
+    expect(await deadLetter(parked)).toBeUndefined();
+  });
+
+  it("a module row switched off wins over a lapsed purchase: silent, not dead-lettered", async () => {
+    // A module row exists only once the module was enabled; a lapsed plan leaves it off: that is switched off, silent.
+    await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, ${ids.unbought}, false)`;
+    const chainId = await enqueue("test.probe.unbought");
+    expect(await drain()).toBe(1);
+    await vi.waitFor(async () => expect((await outboxRow(chainId))!.last_error).toBe("module_disabled"), WAIT);
+    expect(await deadLetter(chainId)).toBeUndefined();
+  });
+
   it("overlapping drains do not start a second workflow for a claimed row", async () => {
     let calls = 0;
     let release!: () => void;
@@ -323,6 +355,7 @@ describe("outbox dispatch", () => {
       events: { emits: [], consumes: { "*": async (ctx, payload) => handlers[`${ids.wild}/*`]?.(ctx, payload) } },
       navigation: [],
     })]);
+    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${ids.wild}`}, 'manual')`;
     const calls: string[] = [];
     expect(consumers.for("test.probe.partial").map((c) => c.moduleId)).toEqual([ids.a, ids.b, ids.wild]);
     handlers[`${ids.a}/test.probe.partial`] = async () => void calls.push("a");
@@ -341,5 +374,53 @@ describe("outbox dispatch", () => {
     expect(await drain()).toBe(1);
     await vi.waitFor(isDispatched(chainId), WAIT);
     expect(calls).toEqual(["a", "b", "wild"]);
+  });
+  it("a never-bought module's \"*\" consumer and its kernel.* consumer are skipped silently: events flow, nothing is dead-lettered (fix round 1, I2)", async () => {
+    const ran: string[] = [];
+    loadModules(registry, [defineModule({
+      id: ids.wild2,
+      version: "1",
+      dependsOn: [],
+      entities: [],
+      processes: [],
+      features: [],
+      events: { emits: [], consumes: { "*": async () => void ran.push("*"), "kernel.module.enabled": async () => void ran.push("kernel") } },
+      navigation: [],
+    })]);
+    handlers[`${ids.a}/test.probe.partial`] = async () => undefined;
+    handlers[`${ids.b}/test.probe.partial`] = async () => undefined;
+    handlers[`${ids.wild}/*`] = async () => undefined;
+    expect(consumers.for("test.probe.partial").map((c) => c.moduleId)).toContain(ids.wild2);
+    const normal = await enqueue("test.probe.partial");
+    const platform = await enqueue("kernel.module.enabled", { moduleId: "x" });
+    expect(await drain()).toBe(2);
+    await vi.waitFor(isDispatched(normal), WAIT);
+    await vi.waitFor(isDispatched(platform), WAIT);
+    expect(await deadLetter(normal)).toBeUndefined();
+    expect(await deadLetter(platform)).toBeUndefined();
+    expect(ran).toEqual([]);
+  });
+
+  it("dead-lettering keeps who had handled the event; buying the module (an entitlement row) replays it on the next drain and only the unentitled consumer runs (fix round 1, I3 and I4)", async () => {
+    const calls: string[] = [];
+    handlers[`${ids.a}/test.probe.deliv`] = async () => void calls.push("a");
+    handlers[`${ids.unbought}/test.probe.deliv`] = async () => void calls.push("unbought");
+    const chainId = await enqueue("test.probe.deliv");
+    expect(await drain()).toBe(1);
+    await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
+    const dead = (await deadLetter(chainId))!;
+    expect(dead.last_error).toBe(`not_entitled:${ids.unbought}`);
+    expect(dead.delivered_modules).toContain(ids.a);
+    expect(calls).toEqual(["a"]);
+
+    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${ids.unbought}`}, 'manual')`;
+    try {
+      expect(await drain()).toBe(1); // the sweep put it back, then it was claimed
+      await vi.waitFor(isDispatched(chainId), WAIT);
+      expect(calls).toEqual(["a", "unbought"]);
+      expect(await deadLetter(chainId)).toBeUndefined();
+    } finally {
+      await sql`delete from kernel.tenant_entitlements where tenant_id = ${seed.tenantId} and key = ${`module:${ids.unbought}`}`;
+    }
   });
 });

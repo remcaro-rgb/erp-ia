@@ -17,8 +17,9 @@ import {
 //      meanwhile is refused, an Anular in flight is waited for, nothing is invoiced twice: common.checkSources); the customer and every
 //      product must be invoice_ready, with the reasons (rule 10); the invoice is dated on the company's today (its time zone: DIAN numbers
 //      are consecutive and the issue date is the date it is generated; controller ruling of fix round 1), the date it had (the entrega's,
-//      the pedido's or the Borrador's own) kept as its service_date; the lines and taxes are priced again by the country pack (rule 5) on
-//      that date; the due date follows the payment form (contado: today; crédito: today plus the term the Borrador had);
+//      the pedido's or the Borrador's own) kept as its service_date; the taxes are evaluated again by the country pack (rule 5) on that
+//      date; the PRICES are kept (owner item 17: «Recalcular precios», invoicing.invoice.reprice, is the user's action; «Emitir» only warns
+//      when price_date is not the issue date); the due date follows the payment form (contado: today; crédito: today plus the term the Borrador had);
 //   2. number (on save, D9): the next consecutive of the company's DIAN resolution (the pack's nextNumber over core.next_document_number,
 //      in this transaction: a refused issue leaves no gap); out of range, expired, not yet valid or no resolution is refused with the
 //      resolution's data. The CUFE is computed with it (the pack's invoiceCode: number, date and time, totals, both tax ids, the
@@ -75,6 +76,8 @@ export const invoiceOutput = z.object({
   origin: z.string(),
   partyId: z.string(),
   issueDate: z.string(),
+  /** Set by «Emitir» only: the Borrador's prices are from another day than the issue date (owner item 17); null/absent: they are from the issue date. */
+  priceWarning: z.string().nullable().optional(),
   /** The date of what the invoice bills (entrega, pedido or the Borrador's own date); «Emitir» dates the invoice today. */
   serviceDate: z.string().nullable(),
   dueDate: z.string().nullable(),
@@ -192,6 +195,7 @@ export async function createInvoice(ctx: ProcessContext, args: CreateArgs): Prom
       party_id: args.partyId,
       issue_date: args.issueDate,
       service_date: args.serviceDate ?? args.issueDate,
+      price_date: await today(ctx),
       due_date: dueDate,
       payment_form: paymentForm,
       payment_means: args.paymentMeans ?? einvoice.defaultPaymentMeans,
@@ -287,6 +291,36 @@ export const invoiceUpdate = defineProcess({
     const drafts = input.lines ? await manualLines(ctx, invoice.party_id, input.lines) : (await linesOf(ctx, invoice.id)).map(draftOf);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
     await writeParts(ctx, invoice.id, await priceLines(ctx, facts.party, facts.products, drafts, issueDate), num(invoice.exchange_rate));
+    // New lines are priced now (the list of today or the typed price): their price date is today. A change of dates or terms keeps it.
+    if (input.lines) await ctx.tx`update invoicing.invoices set price_date = ${await today(ctx)} where id = ${invoice.id}`;
+    return outputOf(ctx, invoice.id);
+  },
+});
+
+/**
+ * «Recalcular precios» (owner item 17, ruling R50-17): the Borrador keeps its prices until the user asks. This sets every line's unit price
+ * from its product's list price of today (a product with no list price keeps the line's price; the discount stays), taxes the lines again
+ * with the country pack on the invoice's own date (the issue date is moved to today by «Emitir», which taxes again then) and writes
+ * price_date = the company's today. A Borrador only.
+ */
+export const invoiceReprice = defineProcess({
+  id: "invoicing.invoice.reprice",
+  module: "invoicing",
+  kind: "update",
+  feature: FEATURE_INVOICES,
+  description:
+    "Recalcula los precios de una factura en borrador con la lista de precios de hoy y vuelve a calcular sus impuestos; «Emitir» ya no cambia los precios. Una factura emitida no se recalcula",
+  input: z.object({ id, expectedUpdatedAt: z.string().optional() }).strict(),
+  output: invoiceOutput,
+  handler: async (ctx, input) => {
+    const invoice = await readInvoice(ctx, input.id, true);
+    if (invoice.stage !== "draft" || invoice.status !== "draft") refuseState("invoice_issued", [`La factura ${label(invoice)} ya se emitió: los precios no se recalculan; se corrigen con una nota`]);
+    const drafts = (await linesOf(ctx, invoice.id)).map(draftOf);
+    if (drafts.length === 0) refuse("nothing_to_invoice", ["La factura no tiene líneas"]);
+    const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
+    const repriced = drafts.map((l) => ({ ...l, unitPrice: facts.products.get(l.productId)!.listPrice ?? l.unitPrice }));
+    await writeParts(ctx, invoice.id, await priceLines(ctx, facts.party, facts.products, repriced, invoice.issue_date), num(invoice.exchange_rate));
+    await ctx.tx`update invoicing.invoices set price_date = ${await today(ctx)} where id = ${invoice.id}`;
     return outputOf(ctx, invoice.id);
   },
 });
@@ -376,7 +410,10 @@ export const invoiceIssue = defineProcess({
       refuseState("invoice_issued", [`La factura ${label(invoice)} ya se emitió`]);
     }
     await runLifecycle(ctx, ctx.registry.entity(invoiceEntity.id), invoiceId, "save", notes === undefined ? {} : { data: { notes } });
-    return outputOf(ctx, invoiceId);
+    // Owner item 17: «Emitir» keeps the prices; it only says when they are from another day than the issue date.
+    const [dates] = await ctx.tx<{ price_date: string | null; issue_date: string }[]>`select price_date::text, issue_date::text from invoicing.invoices where id = ${invoiceId}`;
+    const priceWarning = dates?.price_date && dates.price_date !== dates.issue_date ? `Los precios son del ${dates.price_date}, no de la fecha de emisión (${dates.issue_date})` : null;
+    return { ...(await outputOf(ctx, invoiceId)), priceWarning };
   },
 });
 
@@ -507,7 +544,7 @@ export const invoiceHooks: TypedHooks = {
       const refused = Object.keys(data).filter((name) => !WRITABLE.includes(name));
       if (refused.length > 0) throw new ProcessError("invalid_input", "invalid input for invoicing.invoice.save", { details: refused.map((name) => `El campo ${name} no se puede modificar con Grabar`) });
     }
-    // Only «Emitir» (Grabar from Borrador) checks and prices again; a Grabar of the notes of an issued invoice is refused by its status.
+    // Only «Emitir» (Grabar from Borrador) checks and taxes again; a Grabar of the notes of an issued invoice is refused by its status.
     if (previous.status !== "draft") return;
     const invoice = await readInvoice(ctx, record.id as string);
     const drafts = (await linesOf(ctx, invoice.id)).map(draftOf);
@@ -515,6 +552,8 @@ export const invoiceHooks: TypedHooks = {
     await checkSources(ctx, { id: invoice.id, partyId: invoice.party_id, currency: invoice.currency }, drafts);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
     // Dated today (ruling, fix round 1): the date the Borrador had is its service date; crédito keeps the term it had (due − date).
+    // Prices are NOT recalculated here (owner item 17): the lines keep their stored unit price (draftOf); only the taxes are evaluated on the
+    // issue date. «Recalcular precios» (invoicing.invoice.reprice) is the user's own action.
     const issueDate = await today(ctx);
     const [term] = await ctx.tx<{ days: number | null }[]>`select (${invoice.due_date}::date - ${invoice.issue_date}::date) as days`;
     const [dated] = await ctx.tx<{ due: string }[]>`select (${issueDate}::date + ${invoice.payment_form === "2" ? Math.max(term?.days ?? 0, 0) : 0}::int)::text as due`;
@@ -608,5 +647,5 @@ export const invoiceHooks: TypedHooks = {
 };
 
 export const INVOICE_PROCESSES = [
-  invoiceCreate, invoiceUpdate, invoiceFromOrders, invoiceIssue, invoiceVoid, invoiceConsult, invoiceLineConsult, invoiceTaxConsult, recommendationConsult,
+  invoiceCreate, invoiceUpdate, invoiceReprice, invoiceFromOrders, invoiceIssue, invoiceVoid, invoiceConsult, invoiceLineConsult, invoiceTaxConsult, recommendationConsult,
 ];

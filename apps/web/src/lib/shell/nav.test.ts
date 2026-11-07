@@ -3,6 +3,8 @@ import { z } from "zod";
 import { defineModule, defineProcess, flattenNav, kernelModule, loadModules, menuSections, Registry, type NavItem } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { accounting } from "@erp/module-accounting";
+import { crm } from "@erp/module-crm";
+import { sales } from "@erp/module-sales";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
 // What the shell offers a caller (design §19a, rule 4, rule 13): modules the company is entitled to, menu items
@@ -222,5 +224,42 @@ describe("⌘K create commands (UX-OD-5, T2)", () => {
   it("each command has its own label and its own destination, so the palette never shows three 'Crear comprobante'", () => {
     expect(new Set(creates.map((c) => c.labelKey)).size).toBe(creates.length);
     expect(creates.filter((c) => c.labelKey === "nav.create.accounting.entry")).toHaveLength(1);
+  });
+});
+
+describe("«Cotizaciones» under Ventas, contributed by CRM (plan 2B Task 42, Ruling R42-1)", () => {
+  const reg = new Registry();
+  loadModules(reg, [kernelModule, core, sales, crm]);
+  const k = shellAccessKeys(reg);
+  const full = { entitled: new Set(k.entitlements), runnable: new Set(k.processes) };
+  const children = (shell: ReturnType<typeof buildShellNav>, id: string) => shell.nav.find((i) => i.id === id)?.children?.map((c) => [c.id, c.href]);
+
+  it("with crm and sales entitled Ventas › Documentos lists Cotizaciones last and CRM keeps its own", () => {
+    const shell = buildShellNav(reg, full);
+    expect(children(shell, "sales.documentos")?.at(-1)).toEqual(["crm.quotes_shortcut", "/crm/quotes"]);
+    expect(children(shell, "crm.documentos")).toContainEqual(["crm.quotes", "/crm/quotes"]);
+    const flat = shell.nav.flatMap((i) => [i, ...(i.children ?? [])]).map((i) => i.id);
+    expect(new Set(flat).size).toBe(flat.length);
+  });
+
+  it("without crm entitled, or without its quotes process runnable, Ventas has no such item", () => {
+    const noCrm = { ...full, entitled: new Set([...full.entitled].filter((e) => e !== "module:crm")) };
+    expect(children(buildShellNav(reg, noCrm), "sales.documentos")?.map((c) => c[0])).not.toContain("crm.quotes_shortcut");
+    const noFeature = { ...full, entitled: new Set([...full.entitled].filter((e) => e !== "feature:crm.quotes")) };
+    expect(children(buildShellNav(reg, noFeature), "sales.documentos")?.map((c) => c[0])).not.toContain("crm.quotes_shortcut");
+    const noProcess = { ...full, runnable: new Set([...full.runnable].filter((p) => !p.startsWith("crm.quote"))) };
+    expect(children(buildShellNav(reg, noProcess), "sales.documentos")?.map((c) => c[0])).not.toContain("crm.quotes_shortcut");
+  });
+
+  it("without sales entitled nothing is placed and nothing fails", () => {
+    const noSales = { ...full, entitled: new Set([...full.entitled].filter((e) => !e.includes("sales"))) };
+    const shell = buildShellNav(reg, noSales);
+    expect(shell.nav.some((i) => i.id === "sales.documentos")).toBe(false);
+    expect(shell.nav.flatMap((i) => i.children ?? []).some((c) => c.id === "crm.quotes_shortcut")).toBe(false);
+  });
+
+  it("a company rule hiding Cotizaciones of CRM hides the shortcut too", () => {
+    const shell = buildShellNav(reg, { ...full, hidden: new Set(["crm.quotes"]) });
+    expect(children(shell, "sales.documentos")?.map((c) => c[0])).not.toContain("crm.quotes_shortcut");
   });
 });

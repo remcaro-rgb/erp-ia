@@ -762,7 +762,9 @@
         "hint": "Un módulo desactivado desaparece del menú, de las exportaciones y de las herramientas del asistente; sus datos y eventos se conservan.",
         "on": "activo",
         "off": "inactivo",
-        "not_purchased": "no contratado",
+        "not_purchased": "módulo no contratado",
+        "parked": "{count, plural, one {# evento detenido} other {# eventos detenidos}} porque el módulo no está contratado; se reprocesan al contratarlo y activarlo.",
+        "dismiss": "Descartar",
         "requires": "Requiere: {list}",
         "used_by": "Lo necesitan: {list}",
         "menu": "Menú: {list}",
@@ -1289,6 +1291,7 @@
       "opportunities": "Oportunidades",
       "activities": "Actividades",
       "quotes": "Cotizaciones",
+      "quotes_shortcut": "Cotizaciones",
       "settings": "Parámetros de CRM"
     },
     "sales": {
@@ -2697,6 +2700,7 @@
         "issue_time": "Hora de emisión",
         "due_date": "Vencimiento",
         "service_date": "Fecha de entrega o servicio",
+        "price_date": "Fecha de los precios",
         "payment_form": "Forma de pago",
         "payment_means": "Medio de pago",
         "stage": "Estado de la factura",
@@ -4597,6 +4601,7 @@
       },
       "rule": {
         "modified": "Modificada",
+        "stale": "Sin coincidencias en {days} días",
         "default": "Predeterminada",
         "own": "Propia de la empresa",
         "lines_label": "Líneas de la regla",
@@ -4777,6 +4782,8 @@
         "niif_3": "Grupo 3 · contabilidad simplificada",
         "rounding_tolerance": "Tolerancia de ajuste al peso",
         "rounding_hint": "Diferencia máxima, en pesos, que se absorbe al cuadrar un comprobante automático.",
+        "rule_stale_days": "Días para marcar una regla sin coincidencias",
+        "rule_stale_hint": "Una regla con condición que no coincidió con ningún evento en este número de días muestra la advertencia «Sin coincidencias en N días».",
         "ledger_facts": "Inicio del libro",
         "ledger_starts_on": "El libro empieza el",
         "skipped_events": "Eventos anteriores al inicio del libro",
@@ -5510,7 +5517,14 @@
       "notes": "Notas"
     },
     "effects": {
-      "invoice_issued": "Ventas: registra lo facturado de cada línea de entrega"
+      "invoice_issued": "Ventas: registra lo facturado de cada línea de entrega",
+      "movement_posted": "Ventas: marca en cada línea de la entrega lo que Inventario despachó",
+      "issue_refused": "Ventas: si Inventario no puede despachar, la entrega vuelve atrás con el motivo",
+      "return_void_refused": "Ventas: si Inventario no puede devolver el stock, la devolución vuelve atrás con el motivo",
+      "invoice_annulled": "Ventas: las entregas recuperan lo que la factura anulada había facturado"
+    },
+    "print": {
+      "delivery_title": "Remisión de entrega"
     }
   },
   "invoicing": {
@@ -5831,6 +5845,9 @@
       "this_note": "esta nota",
       "errors_pending": "Se reenvió a la DIAN: estos son los errores del último rechazo; el nuevo resultado aún no llega.",
       "unsaved_issue": "Guarda los cambios antes de emitir",
+      "reprice": "Recalcular precios",
+      "reprice_hint": "Pone los precios de hoy de la lista de cada producto y vuelve a calcular los impuestos del borrador",
+      "price_warning": "Los precios son del {date}; usa Recalcular precios para actualizarlos",
       "duplicate": "Duplicar",
       "duplicate_hint": "Abre la factura con «Crear nota» lleno con el concepto, el motivo y las líneas de esta nota",
       "resubmit_block": {

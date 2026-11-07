@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { defineEntity, GENERIC_VERBS, isTypedEntity, kernelModule, loadModules, maskedViewSql, Registry, menuItemsOf, uncoveredMenuProcesses, uncoveredRecordWrites } from "@erp/kernel";
+import { ruleApplies, RuleTemplate, defineEntity, GENERIC_VERBS, isTypedEntity, kernelModule, loadModules, maskedViewSql, Registry, menuItemsOf, uncoveredMenuProcesses, uncoveredRecordWrites } from "@erp/kernel";
+import { needStub } from "@erp/kernel/testing";
 import { core } from "@erp/module-core";
-import { inventory, INVENTORY_ENTITIES } from "../index";
+import { inventory, INVENTORY_ENTITIES, INVENTORY_POSTING_RULES } from "../index";
+import adjustmentFixture from "../defaults/inventory-adjustment.fixture.json" with { type: "json" };
 import { savedMovementId } from "../processes/common";
 
 // The inventory manifest (plan 2B Task 6, design §8): two maestros (bodegas, ubicaciones), one documento (movimiento) with its lines, the
@@ -15,14 +17,25 @@ const migration = ["0066_inventory_core.sql", "0069_inventory_transfers_counts.s
 
 const loaded = () => {
   const registry = new Registry();
-  loadModules(registry, [kernelModule, core, inventory]);
+  loadModules(registry, [kernelModule, core, inventory, needStub("costing")]);
   return registry;
 };
 
 describe("inventory manifest", () => {
+  it("ships the inventory-adjustment posting rule (moved from accounting's defaults, Task 50.14), valid and applying to its fixture", () => {
+    expect(inventory.postingRules).toBe(INVENTORY_POSTING_RULES);
+    expect(INVENTORY_POSTING_RULES.map((r) => `${r.event} · ${r.name}`)).toEqual(["inventory.movement.posted · Ajuste de inventario"]);
+    const rule = INVENTORY_POSTING_RULES[0]!;
+    expect(RuleTemplate.safeParse(rule.template).success).toBe(true);
+    expect(ruleApplies(rule.template as never, adjustmentFixture as never)).toBe(true);
+    expect(ruleApplies(rule.template as never, { ...adjustmentFixture, kind: "receipt" } as never)).toBe(false);
+  });
+
   it("depends on core, declares the four menu sections and the two features", () => {
     expect(inventory.id).toBe("inventory");
     expect(inventory.dependsOn).toEqual(["core"]);
+    // Costing already depends on inventory, so inventory names it in `needs` (not a load-order edge; plan 2B Task 41, Ruling R41-1).
+    expect(inventory.needs).toEqual(["costing"]);
     expect(inventory.navigation.map((n) => n.id)).toEqual(["inventory.maestros", "inventory.documentos", "inventory.reportes", "inventory.parametros"]);
     expect(inventory.features.map((f) => f.id)).toEqual(["inventory.warehouses", "inventory.stock"]);
     // Every entity belongs to exactly one feature.

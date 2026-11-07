@@ -33,6 +33,11 @@ export class ConsumerRegistry {
     return [...own, ...(this.byEvent.get("*") ?? []).filter((c) => !taken.has(c.moduleId))];
   }
 
+  /** True when `moduleId` consumes `event` only through its `"*"` consumer (it has none of its own for the event). */
+  isWildcard(event: string, moduleId: string): boolean {
+    return event !== "*" && !(this.byEvent.get(event) ?? []).some((c) => c.moduleId === moduleId);
+  }
+
   /** Every (event, module) pair registered; the outbox drain uses it to know which modules gate a row. */
   pairs(): Array<{ event: string; module_id: string }> {
     return [...this.byEvent].flatMap(([event, list]) => list.map((c) => ({ event, module_id: c.moduleId })));

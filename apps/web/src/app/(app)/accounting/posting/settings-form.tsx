@@ -19,6 +19,7 @@ export function SettingsForm({ settings, canEdit }: { settings: SettingsData; ca
     roundingTolerance: settings.roundingTolerance,
     manualJournalId: settings.manualJournalId ?? settings.journals[0]?.id ?? "",
     niifGroup: settings.niifGroup,
+    ruleStaleDays: settings.ruleStaleDays,
   });
   const set = <K extends keyof SettingsEdit>(key: K, value: SettingsEdit[K]) => setForm((f) => ({ ...f, [key]: value }));
   const check = (key: "useOpenAuxiliaries" | "useItems" | "useBusinessUnits" | "requireApprovalOnManual" | "requireAttachmentOnManual", label: string) => (
@@ -33,7 +34,7 @@ export function SettingsForm({ settings, canEdit }: { settings: SettingsData; ca
         <h2>{t("tab.settings")}</h2>
         <span className="erp-grow" />
         {canEdit && (
-          <button type="button" className="erp-btn erp-btn--primary" disabled={busy || form.manualJournalId === ""} onClick={() => void execute((token) => saveSettingsAction(form, token))}>
+          <button type="button" className="erp-btn erp-btn--primary" disabled={busy || form.manualJournalId === "" || !(form.ruleStaleDays >= 1)} onClick={() => void execute((token) => saveSettingsAction(form, token))}>
             {t("save")}
           </button>
         )}
@@ -74,6 +75,11 @@ export function SettingsForm({ settings, canEdit }: { settings: SettingsData; ca
           <label htmlFor="set-tolerance">{t("rounding_tolerance")}</label>
           <input id="set-tolerance" type="number" min={0} step="0.01" disabled={!canEdit} value={form.roundingTolerance} onChange={(e) => set("roundingTolerance", Number(e.target.value))} />
           <div className="erp-small erp-muted">{t("rounding_hint")}</div>
+        </div>
+        <div className="erp-field">
+          <label htmlFor="set-stale">{t("rule_stale_days")}</label>
+          <input id="set-stale" type="number" min={1} max={3650} step={1} disabled={!canEdit} value={form.ruleStaleDays} onChange={(e) => set("ruleStaleDays", Math.trunc(Number(e.target.value)))} />
+          <div className="erp-small erp-muted">{t("rule_stale_hint")}</div>
         </div>
       </div>
       <dl className="erp-kv" aria-label={t("ledger_facts")}>

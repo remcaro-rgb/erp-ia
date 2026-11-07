@@ -16,6 +16,8 @@ El módulo **Ventas** decide el precio de cada línea de lo que vendes (cotizaci
 
 Las dos pantallas están en **Ventas › Parámetros**: **Condiciones comerciales** y **Parámetros de ventas**. Cada una guarda con su botón **Guardar** y muestra **Guardado** al terminar; si algo no se acepta, el mensaje dice por qué. También puedes pedirlo al **asistente** (guía **El asistente**), que ejecuta las mismas acciones con tus permisos y te pide confirmar cada cambio.
 
+En **Ventas › Documentos** también encuentras un acceso a **Cotizaciones**. Las cotizaciones siguen siendo de **CRM** (guía **Cotizaciones**): el acceso abre la misma pantalla y solo aparece si tu empresa tiene CRM y puedes verla.
+
 ## De dónde sale el precio
 
 Para un producto y un cliente, el sistema busca en este orden y usa el primero que tenga precio:
@@ -37,3 +39,7 @@ Una lista inactiva, sin aprobar (si requiere aprobación) o en otra moneda que e
 **Ventas › Parámetros › Parámetros de ventas**: la **Lista de precios predeterminada**, la que da el precio a los clientes sin lista propia o cuando su lista no trae el producto. Debe estar activa (y aprobada, si las listas requieren aprobación). Sin lista predeterminada, se usa el precio de lista del producto. El **Descuento máximo de un pedido sin aprobación (%)**: un pedido con una línea de descuento mayor espera aprobación; vacío, ningún pedido la espera por su descuento.
 
 Las cotizaciones que usan estos precios se explican en la guía **Cotizaciones**; los pedidos, en la guía **Pedidos de venta**.
+
+## El PDF de una entrega
+
+En pantalla el documento se llama **Entrega** (prefijo **ENT-**). Al **Imprimir** una entrega, el PDF lleva como título **Remisión de entrega**, el nombre que usan los clientes y transportadores para este documento. El PDF no trae precios: es lo que salió de la bodega. Si tu empresa definió su propia plantilla de impresión para las entregas, se usa esa y su título.

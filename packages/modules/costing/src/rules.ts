@@ -1,5 +1,6 @@
 import type { DefaultPostingRule } from "@erp/kernel";
 import { OFFSET_ROLES } from "./entities";
+import cogsPosted from "./defaults/cogs-posted.json" with { type: "json" };
 
 // The default posting rules the costing module ships (accounting design §5.4; `accounting.posting_rule.sync` installs them for a company
 // that has costing on, and switches them off with the module). Landed costs: costing.landed_cost.allocated posts Dr inventory (one line per
@@ -44,8 +45,8 @@ const voided: DefaultPostingRule = {
   },
 };
 
-// The cost of sales of the entregas (Task 14). A sale issue's cost of sales (costing.cogs.posted) is posted by accounting's own 2A rule
-// `cogs-posted`; a sale return's goes back the other way at the original issue's cost (Dr inventory / Cr cogs, on the cost center the
+// The cost of sales of the entregas (Task 14). A sale issue's cost of sales (costing.cogs.posted) is posted by the 2A rule
+// `cogs-posted` (defaults/cogs-posted.json, moved here from accounting's defaults in Task 50.14: it follows costing's off-switch); a sale return's goes back the other way at the original issue's cost (Dr inventory / Cr cogs, on the cost center the
 // devolución carries); a voided sale issue or sale return reverses the entry of its cost of sales (`reverseOf`, found by its movement).
 const returned: DefaultPostingRule = {
   event: "costing.cogs.returned",
@@ -87,4 +88,4 @@ const returnVoided: DefaultPostingRule = {
   },
 };
 
-export const COSTING_POSTING_RULES: DefaultPostingRule[] = [...OFFSET_ROLES.map(allocated), voided, returned, cogsVoided, returnVoided];
+export const COSTING_POSTING_RULES: DefaultPostingRule[] = [...OFFSET_ROLES.map(allocated), voided, cogsPosted as DefaultPostingRule, returned, cogsVoided, returnVoided];

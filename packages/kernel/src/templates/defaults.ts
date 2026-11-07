@@ -30,6 +30,8 @@ export interface DefaultPresentation {
   title?: string;
   /** The name of the tax id printed before it (the country pack's, `NIT`); none, the tax id alone. */
   taxIdLabel?: string;
+  /** The app's catalogue in the caller's language, for a module template that titles its print with its own key (rule 24). */
+  t?: Translate;
 }
 
 /**

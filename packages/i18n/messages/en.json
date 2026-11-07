@@ -762,7 +762,9 @@
         "hint": "A disabled module disappears from the menu, the exports and the assistant's tools; its data and events are kept.",
         "on": "on",
         "off": "off",
-        "not_purchased": "not purchased",
+        "not_purchased": "module not purchased",
+        "parked": "{count, plural, one {# event} other {# events}} held because the module is not purchased; they are reprocessed once it is bought and enabled.",
+        "dismiss": "Dismiss",
         "requires": "Requires: {list}",
         "used_by": "Needed by: {list}",
         "menu": "Menu: {list}",
@@ -1289,6 +1291,7 @@
       "opportunities": "Opportunities",
       "activities": "Activities",
       "quotes": "Quotes",
+      "quotes_shortcut": "Quotes",
       "settings": "CRM settings"
     },
     "sales": {
@@ -2697,6 +2700,7 @@
         "issue_time": "Issue time",
         "due_date": "Due date",
         "service_date": "Delivery or service date",
+        "price_date": "Price date",
         "payment_form": "Payment form",
         "payment_means": "Payment means",
         "stage": "Invoice stage",
@@ -4597,6 +4601,7 @@
       },
       "rule": {
         "modified": "Modified",
+        "stale": "No matches in {days} days",
         "default": "Default",
         "own": "Company's own",
         "lines_label": "Rule lines",
@@ -4777,6 +4782,8 @@
         "niif_3": "Group 3 · simplified accounting",
         "rounding_tolerance": "Rounding tolerance",
         "rounding_hint": "Largest difference, in pesos, absorbed when balancing an automatic entry.",
+        "rule_stale_days": "Days before a rule is flagged as having no matches",
+        "rule_stale_hint": "A rule with a condition that matched no event in this many days shows the warning «No matches in N days».",
         "ledger_facts": "Start of the ledger",
         "ledger_starts_on": "The ledger starts on",
         "skipped_events": "Events before the start of the ledger",
@@ -5510,7 +5517,14 @@
       "notes": "Notes"
     },
     "effects": {
-      "invoice_issued": "Sales: records what was invoiced of each delivery line"
+      "invoice_issued": "Sales: records what was invoiced of each delivery line",
+      "movement_posted": "Sales: marks on each delivery line what Inventory issued",
+      "issue_refused": "Sales: if Inventory cannot issue the stock, the delivery goes back with the reason",
+      "return_void_refused": "Sales: if Inventory cannot give the stock back, the return goes back with the reason",
+      "invoice_annulled": "Sales: the deliveries get back what the annulled invoice had invoiced"
+    },
+    "print": {
+      "delivery_title": "Delivery note"
     }
   },
   "invoicing": {
@@ -5831,6 +5845,9 @@
       "this_note": "this note",
       "errors_pending": "Resent to the DIAN: these are the errors of the last rejection; the new verdict has not arrived yet.",
       "unsaved_issue": "Save your changes before issuing",
+      "reprice": "Recalculate prices",
+      "reprice_hint": "Sets each product's list price of today on the draft and works out its taxes again",
+      "price_warning": "Prices are from {date}; use Recalculate prices to update them",
       "duplicate": "Duplicate",
       "duplicate_hint": "Opens the invoice with «Create note» filled with this note's concept, reason and lines",
       "resubmit_block": {

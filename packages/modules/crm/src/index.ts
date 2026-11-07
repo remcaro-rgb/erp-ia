@@ -1,7 +1,7 @@
 import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { CRM_ENTITIES } from "./entities";
-import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
+import { FEATURES, MENU_SHARED, NAVIGATION, SHORTCUTS } from "./features";
 import { ACTIVITY_PROCESSES, onInvoicePaid } from "./processes/activity";
 import { leadHooks, LEAD_PROCESSES } from "./processes/lead";
 import { onOrderConfirmed, OPPORTUNITY_LOST, OPPORTUNITY_PROCESSES, OPPORTUNITY_STAGE_MOVED, OPPORTUNITY_WON, opportunityHooks } from "./processes/opportunity";
@@ -38,6 +38,7 @@ export const crm: ModuleDef = defineModule({
     consumes: { "sales.order.confirmed": onOrderConfirmed, "invoicing.invoice.paid": onInvoicePaid },
   },
   navigation: NAVIGATION,
+  shortcuts: SHORTCUTS,
   menuShared: MENU_SHARED,
   // What the assistant's confirmation card tells about the deals (plan 2B Task 25): what this module's consumers do.
   effects: {

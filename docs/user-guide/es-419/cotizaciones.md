@@ -17,6 +17,8 @@ processes:
 
 Una **cotización** es lo que le ofreces a un cliente, línea por línea: el producto, la cantidad, el precio, el descuento y los impuestos. Vive en **CRM › Documentos › Cotizaciones**, se numera `COT-…` al grabarla y nunca genera asientos contables. Cuando el cliente la acepta, de ella sale el pedido.
 
+Si tu empresa también tiene el módulo **Ventas**, la misma pantalla aparece como **Ventas › Documentos › Cotizaciones**, al final de la lista, para tenerla junto a los pedidos y las entregas. Es la misma lista de CRM, con los mismos permisos: si no puedes abrirla en CRM, tampoco aparece en Ventas.
+
 El listado de **CRM › Documentos › Cotizaciones** muestra el número, el cliente, las fechas, la etapa (**Abierta**, **Enviada**, **Aceptada**, **Vencida**), el total y el estado. **Nuevo** abre **Crear cotización**; un clic en el número abre la cotización en su propia pestaña. Todo esto también lo puedes pedir al **asistente** (guía **El asistente**).
 
 ## Crear una cotización

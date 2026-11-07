@@ -49,6 +49,8 @@ export interface SettingsData {
   useOpenAuxiliaries: boolean;
   useItems: boolean;
   useBusinessUnits: boolean;
+  /** Days without a matching event after which a rule with a `when` shows «Sin coincidencias en N días». */
+  ruleStaleDays: number;
   /** Events acknowledged without posting because they predate the start of the ledger. */
   skippedEvents: number;
   journals: { id: string; label: string }[];
@@ -187,7 +189,7 @@ export async function loadPostingPage(caller: Caller, requested: PostingTab, que
       data.settings = out.configured
         ? {
             ledgerStartsOn: out.ledgerStartsOn, roundingTolerance: out.roundingTolerance, manualJournalId: out.manualJournalId, requireAttachmentOnManual: out.requireAttachmentOnManual,
-            requireApprovalOnManual: out.requireApprovalOnManual, niifGroup: out.niifGroup, useOpenAuxiliaries: out.useOpenAuxiliaries, useItems: out.useItems, useBusinessUnits: out.useBusinessUnits,
+            requireApprovalOnManual: out.requireApprovalOnManual, niifGroup: out.niifGroup, useOpenAuxiliaries: out.useOpenAuxiliaries, useItems: out.useItems, useBusinessUnits: out.useBusinessUnits, ruleStaleDays: out.ruleStaleDays ?? 30,
             skippedEvents: out.skippedEvents, journals: journals.map((j) => ({ id: j.id, label: `${j.code} · ${j.name}` })),
           }
         : null;

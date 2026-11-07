@@ -23,6 +23,7 @@ export const settingsUpdate = defineProcess({
       roundingTolerance: z.number().min(0).max(1_000_000),
       manualJournalId: id,
       niifGroup: z.enum(["1", "2", "3"]),
+      ruleStaleDays: z.number().int().min(1).max(3650),
     })
     .partial()
     .strict(),
@@ -45,6 +46,7 @@ export const settingsUpdate = defineProcess({
       rounding_tolerance: input.roundingTolerance,
       manual_journal_id: input.manualJournalId,
       niif_group: input.niifGroup,
+      rule_stale_days: input.ruleStaleDays,
     });
     if (Object.keys(set).length > 0) await ctx.tx`update accounting.settings set ${ctx.tx(set)} where id = ${current.id}`;
     return { id: current.id };
@@ -64,7 +66,7 @@ export const settingsConsult = defineProcess({
     if (!settings) {
       return {
         configured: false, ledgerStartsOn: null, roundingTolerance: 1, manualJournalId: null, requireAttachmentOnManual: false, niifGroup: "2",
-        requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false, skippedEvents: 0,
+        requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false, ruleStaleDays: 30, skippedEvents: 0,
       };
     }
     // Events acknowledged without posting because they predate the start of the ledger (Reglas contables → Configuración, §5.1).

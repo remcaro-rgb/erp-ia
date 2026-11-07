@@ -1,6 +1,7 @@
 import type { Sql } from "postgres";
 import { SYSTEM_USER_ID } from "../events/consumers";
 import { moduleStates } from "../admin/modules-state";
+import type { ModuleGate } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
 import type { ProcessContext } from "../process/context";
 import { ProcessError } from "../process/errors";
@@ -15,9 +16,13 @@ import type { PostingProvider } from "./provider";
 // `emitAndPostStrict` is what its `post` hook calls: it writes the business event to the outbox (the chain and the audit keep it) and
 // posts every rule that applies to it right now through the module that provides the PostingProvider (the kernel names no module, rule 4).
 // Unlike the asynchronous engine (engine.ts) it never records a posting failure: any refusal throws and runProcess undoes the action.
-//  - Only a posting module ENABLED for the company counts (the dispatcher's gate: bought and not switched off). A company without
-//    accounting gets `{ posted: false, reason: "accounting_disabled" }`: the action succeeds and the event stays in the outbox, NOT marked
-//    handled, so it parks and the accounting consumer posts it when accounting is enabled (plan Task 24).
+//  - Only a posting module ENABLED for the company counts, and the entitlement resolver decides exactly as it does for the dispatcher
+//    (`gateOf`, owner 2026-11-06, decision item 9): a module the company switched off gets `{ posted: false, reason: "accounting_disabled" }`
+//    (silent: the action succeeds and the event stays in the outbox, NOT marked handled, so it parks and the accounting consumer posts it
+//    when accounting is switched on again, plan Task 24); a module the tenant NEVER bought gets `{ posted: false, reason: "not_entitled" }`
+//    (visible: the action succeeds, the event stays in the outbox unhandled and the dispatcher dead-letters it `not_entitled:<module>`,
+//    where Admin › Módulos shows it as «módulo no contratado» and replays it once the module is bought and enabled). A process with no posting
+//    module at all is `accounting_disabled`.
 //  - A ledger that was never started (no start date) is refused: `ledger_not_started`, "Configura la contabilidad". An event dated before
 //    the start posts nothing (`before_ledger_start`): it is counted as skipped, as the engine does.
 //  - Whatever the module posted or skipped inline, the event is marked as handled by that module (kernel.outbox_deliveries, migration
@@ -29,7 +34,7 @@ import type { PostingProvider } from "./provider";
 
 export type InlinePosting =
   | { posted: true; eventId: string; entryIds: string[] }
-  | { posted: false; eventId: string; reason: "before_ledger_start" | "accounting_disabled" };
+  | { posted: false; eventId: string; reason: "before_ledger_start" | "accounting_disabled" | "not_entitled" };
 
 const refuse = (code: string, detail: string): never => {
   throw new ProcessError("invalid_input", `${code}: ${detail}`, { details: [detail] });
@@ -47,12 +52,12 @@ const dateOf = async (ctx: ProcessContext, payload: unknown): Promise<string> =>
   return company?.today ?? new Date().toISOString().slice(0, 10);
 };
 
-/** The module that provides posting, and whether the active company has it enabled. */
-async function postingModule(ctx: ProcessContext): Promise<{ module: ModuleDef; provider: PostingProvider; enabled: boolean } | null> {
+/** The module that provides posting, and the entitlement gate of the active company for it. */
+async function postingModule(ctx: ProcessContext): Promise<{ module: ModuleDef; provider: PostingProvider; gate: ModuleGate } | null> {
   const module = ctx.registry.modules().find((m) => m.postingProvider !== undefined);
   if (!module) return null;
   const state = (await moduleStates(ctx.tx, ctx.registry)).find((m) => m.id === module.id);
-  return { module, provider: module.postingProvider!, enabled: state?.enabled === true };
+  return { module, provider: module.postingProvider!, gate: state?.gate ?? "not_purchased" };
 }
 
 const markHandled = async (ctx: ProcessContext, eventId: string, moduleId: string): Promise<void> => {
@@ -66,8 +71,10 @@ const markHandled = async (ctx: ProcessContext, eventId: string, moduleId: strin
 export async function emitAndPostStrict(ctx: ProcessContext, name: string, payload: unknown, options: { requireRule?: boolean } = {}): Promise<InlinePosting> {
   const posting = await postingModule(ctx);
   const eventId = await enqueueEvent(ctx.tx, { companyId: ctx.companyId, event: name, payload, chainId: ctx.chainId });
-  // No posting module, or switched off for the company: the event parks in the outbox for the consumer of a later activation.
-  if (!posting || !posting.enabled) return { posted: false, eventId, reason: "accounting_disabled" };
+  // No posting module, or switched off for the company: the event parks in the outbox for the consumer of a later activation. Never bought:
+  // the same parking, but visible (the dispatcher dead-letters it `not_entitled`, see the header).
+  if (!posting || posting.gate === "switched_off") return { posted: false, eventId, reason: "accounting_disabled" };
+  if (posting.gate === "not_purchased") return { posted: false, eventId, reason: "not_entitled" };
   const { provider, module } = posting;
   if (!provider.postInline || !provider.reverseInline) return refuse("no_posting_provider", "El módulo contable no puede contabilizar este documento en línea");
 

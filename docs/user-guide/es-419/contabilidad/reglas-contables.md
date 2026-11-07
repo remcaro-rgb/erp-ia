@@ -32,7 +32,7 @@ Algunos roles pueden variar por **Dimensión**: por ejemplo, la cuenta de ingres
 
 ## Reglas
 
-El listado de **Reglas** muestra Evento, Módulo, Fuente, Prioridad y si está **Activa**; una insignia **Modificada** marca las que cambiaste frente a las de fábrica. Abre una:
+El listado de **Reglas** muestra Evento, Módulo, Fuente, Prioridad y si está **Activa**; una insignia **Modificada** marca las que cambiaste frente a las de fábrica. Al abrir una regla activa que tiene condición (por ejemplo, «solo cuando el tipo es ajuste»), la insignia amarilla **Sin coincidencias en N días** avisa que ningún evento de ese tipo cumplió la condición en los últimos N días: revisa si la condición está bien escrita o si la regla ya no se necesita. No aparece en reglas sin condición, en reglas apagadas ni en reglas creadas hace menos de N días; es un aviso, la regla sigue funcionando. Abre una:
 
 - **Datos**: evento, fuente, prioridad, activa.
 - **Líneas**: la plantilla, una fila por línea del comprobante: **Rol** (o **Cuenta fija**), **Lado** (Débito o Crédito), **Valor** (la ruta del dato en el evento, por ejemplo `$.totals.total`), **Dimensión**, tercero, centro de costo y demás. **Agregar línea** o **Quitar la línea n**.
@@ -48,6 +48,7 @@ Para cambiarla: edita las líneas, pruébalas y pulsa **Guardar** (pide el códi
 - **Dimensiones analíticas en uso**: **Usar auxiliares abiertos**, **Usar ítems**, **Usar unidades de negocio**.
 - **Comprobantes manuales**: **Exigir aprobación de otra persona**, **Exigir un archivo adjunto** y **Fuente de los comprobantes manuales**.
 - **Grupo NIIF** (1, 2 o 3) y **Tolerancia de ajuste al peso**: la diferencia máxima que se absorbe al cuadrar un comprobante automático.
+- **Días para marcar una regla sin coincidencias** (N, por defecto 30): el plazo de la advertencia anterior; es un número entero de días, de 1 en adelante.
 - **El libro empieza el**: los eventos anteriores a esa fecha se reconocen sin contabilizar.
 
 Guarda con **Guardar**; pide el código de verificación.

@@ -53,6 +53,11 @@ export function InvoicingBarActions({ entity, recordId, view, updatedAt = null }
           {t("issue")}
         </button>
       )}
+      {bar.reprice && (
+        <button type="button" data-action="reprice" className="erp-btn erp-touch" disabled={step.busy || dirty} title={dirty ? t("unsaved_issue") : t("reprice_hint")} onClick={() => step.run("reprice")}>
+          {t("reprice")}
+        </button>
+      )}
       {bar.resubmit && (
         <button type="button" data-action="resubmit" className="erp-btn erp-touch" disabled={step.busy || bar.resubmit.block !== null} title={bar.resubmit.block ?? undefined} onClick={() => step.run("resubmit")}>
           {t("resubmit")}

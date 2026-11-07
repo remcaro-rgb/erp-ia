@@ -14,6 +14,33 @@ export type EntitledFn = (sql: Sql, companyId: string, key: string) => Promise<b
  */
 export const entitled: EntitledFn = (sql, companyId, key) => askEntitled(sql, companyId).ask(key);
 
+/**
+ * What a company may do with a module (design §5.12, owner 2026-11-06 decision item 9): `enabled` (bought and on), `switched_off` (the
+ * company turned it off: its events park silently and wait for it) or `not_purchased` (the tenant never bought it: its events are
+ * dead-lettered `not_entitled` and stay visible on Admin › Módulos). One answer for the dispatcher, the inline poster and the admin page.
+ */
+export type ModuleGate = "enabled" | "switched_off" | "not_purchased";
+
+/**
+ * The gate from its two facts: the company's own switch (`disabled`: a `kernel.company_modules` row with `enabled = false`) and whether the
+ * tenant bought it. A switch that is off wins (a module once bought, then switched off, is silent even if the plan lapsed); otherwise a
+ * module that was not bought is `not_purchased`. The platform module is always on.
+ */
+export function gateOf(facts: { moduleId?: string; purchased: boolean; disabled: boolean }): ModuleGate {
+  if (facts.moduleId === "kernel") return "enabled";
+  if (facts.disabled) return "switched_off";
+  return facts.purchased ? "enabled" : "not_purchased";
+}
+
+/** `gateOf` for the company's module, asked in SQL on the service connection (`kernel.entitled` resolves the purchase; the switch is read from `kernel.company_modules`). */
+export async function moduleGate(sql: Sql, companyId: string, moduleId: string): Promise<ModuleGate> {
+  if (moduleId === "kernel") return "enabled";
+  const [row] = await sql<{ disabled: boolean }[]>`
+    select exists (select 1 from kernel.company_modules where company_id = ${companyId} and module_id = ${moduleId} and not enabled) as disabled`;
+  if (row?.disabled) return "switched_off";
+  return gateOf({ moduleId, purchased: await entitled(sql, companyId, `module:${moduleId}`), disabled: false });
+}
+
 type EntitledBatch = { keys: Set<string>; answers: Promise<Map<string, boolean>>; ask: (key: string) => Promise<boolean> };
 const entitledBatches = new WeakMap<Sql, Map<string, EntitledBatch>>();
 
@@ -221,4 +248,12 @@ export async function enableModule(sql: Sql, companyId: string, moduleId: string
     values (${companyId}, ${moduleId}, true, now())
     on conflict (company_id, module_id)
     do update set enabled = true, enabled_at = case when kernel.company_modules.enabled then kernel.company_modules.enabled_at else now() end`;
+  // The events parked as `not_entitled` while the module was not bought go back to the outbox, once (Task 50.9).
+  await replayParkedEvents(sql, companyId, moduleId);
+}
+
+/** Sends the module's open `not_entitled` dead letters of the company back to the outbox; answers how many (`kernel.parked_events_replay`, 0120). */
+export async function replayParkedEvents(sql: Sql, companyId: string, moduleId: string): Promise<number> {
+  const [row] = await sql<{ n: number }[]>`select kernel.parked_events_replay(${companyId}, ${moduleId}) as n`;
+  return Number(row?.n ?? 0);
 }

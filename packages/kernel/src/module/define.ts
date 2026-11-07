@@ -28,6 +28,14 @@ function checkNavigation(moduleId: string, items: readonly NavItem[]): void {
 export function defineModule(def: ModuleDef): ModuleDef {
   if (!MODULE_ID.test(def.id)) throw new Error(`invalid module id "${def.id}": use lowercase letters, digits and underscores`);
   if (def.dependsOn.includes(def.id)) throw new Error(`module ${def.id} depends on itself`);
+  for (const need of def.needs ?? []) {
+    if (typeof need !== "string") throw new Error(`module ${def.id}: needs must be module id strings`);
+    if (need === def.id) throw new Error(`module ${def.id} needs itself`);
+  }
+  for (const { item, under } of def.shortcuts ?? []) {
+    if (!/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(under)) throw new Error(`module ${def.id}: shortcut ${item.id} must sit under <module>.<section>, got "${under}"`);
+    if (!def.dependsOn.includes(under.slice(0, under.indexOf(".")))) throw new Error(`module ${def.id}: shortcut ${item.id} under ${under} needs ${under.slice(0, under.indexOf("."))} in dependsOn`);
+  }
 
   const processIds = new Set<string>();
   for (const process of def.processes) {

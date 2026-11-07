@@ -1,6 +1,7 @@
 import { FatalError, RetryableError, getStepMetadata } from "workflow";
 import type { JSONValue, Sql } from "postgres";
 import { getServiceDb } from "../db/service";
+import { moduleGate } from "../entitlements/resolver";
 import { ProcessError, type ProcessErrorCode } from "../process/errors";
 import { registry } from "../registry";
 import { buildConsumerContext, consumers } from "./consumers";
@@ -14,7 +15,7 @@ interface OutboxRow {
   chainId: string;
 }
 
-type ConsumerResult = "done" | "module_disabled";
+type ConsumerResult = "done" | "module_disabled" | "not_purchased";
 
 /** Refusals that repeating the run cannot fix: they dead-letter at once instead of burning retries. */
 const DETERMINISTIC: ReadonlySet<ProcessErrorCode> = new Set(["invalid_input", "forbidden", "not_entitled", "not_found"]);
@@ -22,9 +23,10 @@ const DETERMINISTIC: ReadonlySet<ProcessErrorCode> = new Set(["invalid_input", "
 /**
  * Delivers one outbox row to the consumers registered for its event (design §5.5): each consumer is a
  * durable step with retries; once all ran the row is marked dispatched. A consumer that already has
- * a row in `kernel.outbox_deliveries` is not run again. A consumer of a module the company disabled is
- * skipped and the row stays undispatched with `last_error = 'module_disabled'`, its claim released
- * (design §5.12). A `FatalError`, or a consumer that keeps failing after its retries, sends the row to
+ * a row in `kernel.outbox_deliveries` is not run again. The entitlement resolver (`moduleGate`) decides per consumer module: a module the
+ * company switched off is skipped silently and the row stays undispatched with `last_error = 'module_disabled'`, its claim released
+ * (design §5.12); a module the tenant never bought dead-letters the row as `not_entitled:<module id>` without running the consumer, so it
+ * stays visible on Admin › Módulos (owner 2026-11-06). A `FatalError`, or a consumer that keeps failing after its retries, sends the row to
  * `kernel.outbox_dead_letter`. A worker with no modules loaded fails the run instead, leaving the row
  * undispatched (its claim lapses and a worker that has the modules picks it up).
  */
@@ -38,7 +40,12 @@ export async function dispatchOutboxRow(outboxId: string): Promise<void> {
   let paused = false;
   for (const moduleId of moduleIds) {
     try {
-      if ((await runConsumer(outboxId, moduleId)) === "module_disabled") paused = true;
+      const result = await runConsumer(outboxId, moduleId);
+      if (result === "module_disabled") paused = true;
+      else if (result === "not_purchased") {
+        await deadLetter(outboxId, `not_entitled:${moduleId}`);
+        return;
+      }
     } catch (error) {
       await deadLetter(outboxId, error instanceof Error ? error.message : String(error));
       return;
@@ -71,7 +78,7 @@ async function consumersFor(outboxId: string, event: string): Promise<string[]> 
 /**
  * Runs the consumer `moduleId` registered for the row's event, then records its delivery. Does nothing
  * when the delivery is already recorded, and returns `module_disabled` when the company has the
- * module disabled. A failure counts an attempt and is retried with backoff; a `FatalError`, or a
+ * module switched off and `not_purchased` when the tenant never bought it (the consumer does not run). A failure counts an attempt and is retried with backoff; a `FatalError`, or a
  * process refusal that cannot change (`invalid_input`, `forbidden`, `not_entitled`, `not_found`), is not.
  */
 async function runConsumer(outboxId: string, moduleId: string): Promise<ConsumerResult> {
@@ -83,9 +90,15 @@ async function runConsumer(outboxId: string, moduleId: string): Promise<Consumer
   const [delivered] = await sql`select 1 from kernel.outbox_deliveries where outbox_id = ${outboxId} and module_id = ${moduleId}`;
   if (delivered) return "done";
 
-  const [gate] = await sql<{ enabled: boolean }[]>`
-    select enabled from kernel.company_modules where company_id = ${row.companyId} and module_id = ${moduleId}`;
-  if (gate && !gate.enabled) return "module_disabled";
+  const gate = await moduleGate(sql, row.companyId, moduleId);
+  if (gate === "switched_off") return "module_disabled";
+  if (gate === "not_purchased") {
+    // A module the tenant never bought is skipped silently, as before, for its `"*"` (posting) consumer and for the platform's own
+    // `kernel.*` events: every company emits events and none of them is a failure of the module it does not have. Only an explicit
+    // consumer of another module's event dead-letters, visibly (owner 2026-11-06, decision item 9).
+    if (consumers.isWildcard(row.event, moduleId) || row.event.startsWith("kernel.")) return "done";
+    return "not_purchased";
+  }
 
   const consumer = consumers.for(row.event).find((c) => c.moduleId === moduleId);
   if (!consumer) throw new FatalError(`no consumer of ${moduleId} registered for ${row.event}`);
@@ -129,13 +142,15 @@ async function markDispatched(outboxId: string): Promise<void> {
     where id = ${outboxId} and dispatched_at is null`;
 }
 
-/** Moves the row to `kernel.outbox_dead_letter` (same id, `failed_at = now()`, `last_error = error`). */
+/** Moves the row to `kernel.outbox_dead_letter` (same id, `failed_at = now()`, `last_error = error`), keeping the modules that had handled it (`delivered_modules`, restored on a replay). */
 async function deadLetter(outboxId: string, error: string): Promise<void> {
   "use step";
   await getServiceDb()`
     with moved as (delete from kernel.outbox where id = ${outboxId} returning *)
-    insert into kernel.outbox_dead_letter (id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, last_error, failed_at)
-    select id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, ${error}, now() from moved`;
+    insert into kernel.outbox_dead_letter (id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, last_error, failed_at, delivered_modules)
+    select id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, ${error}, now(),
+           coalesce((select array_agg(d.module_id) from kernel.outbox_deliveries d where d.outbox_id = moved.id), '{}')
+    from moved`;
 }
 
 async function readRow(outboxId: string): Promise<OutboxRow | null> {

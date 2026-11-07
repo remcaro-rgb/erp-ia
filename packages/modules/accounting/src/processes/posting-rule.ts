@@ -1,4 +1,4 @@
-import { composeEntry, defineProcess, moduleStates, ProcessError, RuleTemplate, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
+import { composeEntry, defineProcess, moduleStates, ProcessError, RuleTemplate, ruleApplies, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { defined, invalid } from "./common";
 import { knownRoles, resolveRoleAccount } from "./mapping";
@@ -114,9 +114,49 @@ export const postingRuleConsult = defineProcess({
       from accounting.v_posting_rules r left join accounting.v_journals j on j.id = r.journal_id
       where r.id = ${ruleId}`;
     if (!row) throw new ProcessError("not_found", `posting rule ${ruleId} not found`);
-    return { ...row, id: ruleId, extra: await visibleExtra(ctx, "accounting.posting_rule", row.extra) };
+    return { ...row, id: ruleId, stale: await ruleIsStale(ctx, ruleId), extra: await visibleExtra(ctx, "accounting.posting_rule", row.extra) };
   },
 });
+
+/** Most recent events of the rule's event read per rule when deciding it is stale (plan 50.6, ruling R50-6). */
+export const STALE_SCAN_CAP = 5000;
+
+/**
+ * Stale (Task 50.6): an active rule with a non-empty `when`, older than N days (`accounting.settings.rule_stale_days`), for which no
+ * `kernel.outbox` row of its event created in the last N days satisfies `ruleApplies`. The scan reads at most STALE_SCAN_CAP rows, newest
+ * first, so on a very busy event it is a heuristic. Reads the table as the company's rule check, not the caller's view: the answer is a
+ * boolean about the company's own events, never their content.
+ */
+async function ruleIsStale(ctx: ProcessContext, ruleId: string): Promise<boolean> {
+  const [rule] = await ctx.tx<{ event: string; template: unknown; is_active: boolean; old_enough: boolean }[]>`
+    select r.event, r.template, r.is_active,
+           greatest(r.created_at, r.updated_at) <= now() - make_interval(days => coalesce(s.rule_stale_days, 30)) as old_enough
+    from accounting.posting_rules r left join accounting.settings s on s.company_id = r.company_id
+    where r.id = ${ruleId} and r.company_id = ${ctx.companyId}`;
+  if (!rule || !rule.is_active || !rule.old_enough) return false;
+  // The raw jsonb, as the engine reads it: the template schema does not list `when`, so a parse would drop it.
+  const template = rule.template as RuleTemplate;
+  const when = (template as { when?: unknown[] }).when;
+  if (!Array.isArray(when) || when.length === 0) return false;
+  // Only the top-level payload keys the `when` paths start with leave the database (paths are `$.a.b`, checked by ruleApplies).
+  const keys = [...new Set((when as { path?: unknown }[]).map((c) => (typeof c?.path === "string" ? c.path.split(".")[1]?.replace(/\[\*\]$/, "") : undefined)).filter((k): k is string => !!k && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)))];
+  const events = await ctx.tx<{ payload: unknown }[]>`
+    select (select coalesce(jsonb_object_agg(k, o.payload -> k) filter (where o.payload ? k), '{}'::jsonb) from unnest(${keys}::text[]) as k) as payload
+    from (
+      select payload from kernel.outbox
+      where company_id = ${ctx.companyId} and event = ${rule.event}
+        and created_at > now() - make_interval(days => coalesce((select rule_stale_days from accounting.settings where company_id = ${ctx.companyId}), 30))
+      order by created_at desc limit ${STALE_SCAN_CAP}
+    ) o`;
+  for (const event of events) {
+    try {
+      if (ruleApplies(template, event.payload)) return false;
+    } catch {
+      // A malformed condition applies to nothing; the engine records it when the event posts.
+    }
+  }
+  return true;
+}
 
 export const postingRuleTest = defineProcess({
   id: "accounting.posting_rule.test",

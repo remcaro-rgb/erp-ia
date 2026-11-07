@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { JSONValue, Sql } from "postgres";
 import type { z } from "zod";
 import "../zod-locale";
-import { setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
+import { countDryRunDenial, setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
@@ -32,11 +32,17 @@ export interface RunProcessOptions {
   /**
    * Runs the whole pipeline (resolve, entitlement, permission, step-up, input, handler) in a transaction that is
    * always rolled back: the handler's output (or its refusal) comes back, and no record, audit, outbox or
-   * idempotency row is written. A denial is still audited; an idempotency key already stored answers its stored
+   * idempotency row is written. A denial is still audited (except in the assistant's `preflight`); an idempotency key already stored answers its stored
    * result, as a real run would. The importer validates rows this way (Task 13b). Only what the handler does in
    * `ctx.tx` is undone: handlers read `ctx.dryRun` and skip any effect outside the database.
    */
   dryRun?: boolean;
+  /**
+   * Marks a dry run as the assistant's preflight before a confirmation card (rule 16 second exception, design §22.28). Only
+   * `packages/agent/src/runtime/confirm.ts` sets it: a denial of such a run writes no audit row and is counted as telemetry. Any other dry
+   * run (the import preview) audits its denials as a real run does. Ignored without `dryRun`.
+   */
+  preflight?: "assistant";
   /**
    * A dry run's events (plan 2B Task 25): called, before the rollback, with what the run (its nested runs and inline posting included)
    * put in the outbox, in order, so a confirmation card lists what the run would set off. Ignored without `dryRun`; not called on a refusal.
@@ -99,7 +105,7 @@ const DENIALS = new Set<ProcessErrorCode>(["not_entitled", "forbidden", "step_up
  * consumption, the handler, its outbox events, the audit row and the idempotency record. A handler
  * error rolls all of it back and surfaces as `handler_failed`, except a `ProcessError` the handler
  * throws itself, which keeps its code (a denial code is then audited like any other denial), and a SQL refusal raised
- * with the `SQL_INVALID_INPUT` prefix, which becomes `invalid_input`. A denial is audited (action `denied`)
+ * with the `SQL_INVALID_INPUT` prefix, which becomes `invalid_input`. A denial is audited (action `denied`, except in the assistant's preflight dry run: counted, not audited, rule 16)
  * in its own committed transaction, on the attempt's chain. With `options.dryRun` the transaction is always
  * rolled back after the handler (see `RunProcessOptions`).
  *
@@ -121,11 +127,15 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
     return await execute<O>(deps, caller, def, chainId, input, options);
   } catch (error) {
     if (error instanceof ProcessError && DENIALS.has(error.code)) {
+      // A denial inside the assistant's preflight dry run (`options.preflight`) writes no audit row: it is counted (rule 16,
+      // design §22.28, plan 2B Task 50.7). A denial of a real run is audited.
       const denial = { ...auditDefaults(def, caller, chainId), action: "denied" as const, input: { code: error.code, process_id: def.id } };
       // A deactivated membership's company is no longer in the caller's company_ids (0027), so their own session cannot
       // write that company's audit: the refusal is recorded on the service connection, still on their name.
-      if (isMembershipInactive(error)) await deps.sql.begin((tx) => writeAudit(tx, denial));
-      else await withClaims(deps.sql, caller.claims, (tx) => writeAudit(tx, denial));
+      const asService = isMembershipInactive(error);
+      const record = (tx: Tx) => (options.dryRun === true && options.preflight === "assistant" ? countDryRunDenial(tx, caller.claims.active_company_id, def.id, error.code) : writeAudit(tx, denial));
+      if (asService) await deps.sql.begin(record);
+      else await withClaims(deps.sql, caller.claims, record);
     }
     throw error;
   }

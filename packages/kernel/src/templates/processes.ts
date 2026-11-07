@@ -282,6 +282,7 @@ async function templateFor(ctx: ProcessContext, entity: ResolvedEntityDef, scope
     ...(presentation.labels ? { labels: presentation.labels } : {}),
     ...(presentation.title ? { title: presentation.title } : {}),
     ...(presentation.taxIdLabel ? { taxIdLabel: presentation.taxIdLabel } : {}),
+    t: translatorFor(ctx.locale),
   };
   // The template the entity's module ships (ModuleDef.printTemplates), else the one generated from its fields.
   const shipped = ctx.registry.hasModule(entity.module) ? ctx.registry.module(entity.module).printTemplates?.[entity.id]?.[scope] : undefined;

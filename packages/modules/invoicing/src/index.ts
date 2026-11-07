@@ -68,6 +68,8 @@ export const invoicing: ModuleDef = defineModule({
     [RESUBMIT_REQUESTED]: ["invoicing.effects.resubmit_dian"],
     "invoicing.invoice.void": ["invoicing.effects.void_annulment"],
     "invoicing.note.issue": ["invoicing.effects.note_dian"],
+    // The event of a note's Emitir: the same line (the card lists a line said twice once).
+    [NOTE_ISSUED]: ["invoicing.effects.note_dian"],
     "payments.received": ["invoicing.effects.payment_applied"],
     "payments.payment.voided": ["invoicing.effects.payment_voided"],
   },

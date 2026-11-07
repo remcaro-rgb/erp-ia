@@ -104,6 +104,19 @@ describe("sales manifest", () => {
   });
 });
 
+describe("sales never names crm in its manifest (rule 3, plan 2B Task 42)", () => {
+  const strip = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  // The manifest and its menu; crm's published views are read by sales.order.from_quote (migration 0084) by view name, a pre-existing, sanctioned read.
+  for (const file of ["../index.ts", "../features.ts"]) {
+    it(`${file} has no crm in code`, () => {
+      expect(strip(readFileSync(new URL(file, import.meta.url), "utf8"))).not.toMatch(/crm/i);
+    });
+  }
+  it("the manifest declares no shortcuts: the crm module contributes its own", () => {
+    expect((sales as { shortcuts?: unknown }).shortcuts).toBeUndefined();
+  });
+});
+
 describe("sales masked views, migrations 0082, 0084 and 0085", () => {
   for (const entity of SALES_ENTITIES) {
     it(`sales.v_${entity.table} is the generated masked view of ${entity.id} in its latest migration`, () => {
@@ -147,6 +160,18 @@ describe("sales print templates (plan 2B Task 14b)", () => {
     const delivery = deliveryRecordTemplate({ title: "Entrega" });
     expect(delivery.blocks.filter((b) => b.kind === "field").map((b) => b.value)).toEqual(DELIVERY_PRINT_FIELDS);
     expect(delivery.blocks.find((b) => b.kind === "lines")?.columns).toEqual(DELIVERY_PRINT_LINE_COLUMNS);
+  });
+
+  it("the entrega prints titled «Remisión de entrega» (Task 50.33) while the screen keeps «Entrega»", async () => {
+    const { deliveryRecordTemplate } = await import("../print");
+    const read = (locale: string) => JSON.parse(readFileSync(new URL(`../../../../i18n/messages/${locale}.json`, import.meta.url), "utf8")) as { sales: { print: { delivery_title: string } } };
+    expect(read("es-419").sales.print.delivery_title).toBe("Remisión de entrega");
+    expect(read("en").sales.print.delivery_title).toBe("Delivery note");
+    const t = (key: string) => (key === "sales.print.delivery_title" ? "Remisión de entrega" : undefined);
+    const delivery = deliveryRecordTemplate({ title: "Entrega", t });
+    const titles = delivery.blocks.filter((b) => b.kind === "text" && b.font?.size === 14).map((b) => b.value);
+    expect(titles).toEqual(["Remisión de entrega"]);
+    expect(delivery.name).toBe("Remisión de entrega");
   });
 
   it("ships one for the devolución too (fix round 1): what came back, without prices", async () => {

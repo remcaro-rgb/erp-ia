@@ -120,6 +120,36 @@ describe("loadModules", () => {
     expect(() => loadModules(new Registry(), [{ ...a, dependsOn: ["b"] }, b])).toThrow(/cycle/);
   });
 
+  it("`needs` is no load-order edge: a mutual dependsOn + needs loads, an unknown needs fails (plan 2B Task 41, Ruling R41-1)", () => {
+    const costing = defineModule(manifest("costing", ["inventory"]));
+    const inventory = defineModule(manifest("inventory", [], { needs: ["costing"] }));
+    const registry = new Registry();
+    expect(() => loadModules(registry, [inventory, costing])).not.toThrow();
+    expect(registry.modules().map((m) => m.id)).toEqual(["inventory", "costing"]);
+    expect(() => loadModules(new Registry(), [defineModule(manifest("inventory", [], { needs: ["ghost"] }))])).toThrow(/needs ghost.*not loaded|missing need: ghost/);
+    // A need already in the registry counts as loaded.
+    const first = new Registry();
+    loadModules(first, [costing, defineModule(manifest("inventory"))]);
+    expect(() => loadModules(first, [defineModule(manifest("sales", [], { needs: ["costing"] }))])).not.toThrow();
+  });
+
+  it("defineModule rejects a module that needs itself or a non-string id", () => {
+    expect(() => defineModule(manifest("core", [], { needs: ["core"] }))).toThrow(/needs itself/);
+    expect(() => defineModule(manifest("core", [], { needs: [1 as unknown as string] }))).toThrow(/needs/);
+  });
+
+  it("shortcuts: `under` is <module>.<section> of a module in dependsOn, and the target group must exist (plan 2B Task 42, Ruling R42-1)", () => {
+    const item = { id: "b.quotes_shortcut", label: "nav.b.quotes_shortcut", href: "/b/quotes", icon: "file-text" };
+    const withShortcut = (under: string, deps = ["a"]) => manifest("b", deps, { shortcuts: [{ item, under }] });
+    expect(() => defineModule(withShortcut("a.documentos"))).not.toThrow();
+    expect(() => defineModule(withShortcut("a.documentos", []))).toThrow(/shortcut.*a\.documentos.*dependsOn/);
+    expect(() => defineModule(withShortcut("documentos"))).toThrow(/shortcut.*<module>\.<section>/);
+    expect(() => defineModule(withShortcut("b.documentos"))).toThrow(/shortcut.*dependsOn/);
+    const a = defineModule(manifest("a"));
+    expect(() => loadModules(new Registry(), [a, defineModule(withShortcut("a.documentos"))])).not.toThrow();
+    expect(() => loadModules(new Registry(), [a, defineModule(withShortcut("a.nowhere"))])).toThrow(/shortcut.*a\.nowhere.*does not exist/);
+  });
+
   it("a card effect keyed by a loaded module's event or process must name one it emits or declares (plan 2B Task 25)", () => {
     const sales = manifest("sales", [], { events: { emits: ["sales.order.confirmed"], consumes: {} } });
     const stock = (key: string) => defineModule(manifest("stock", [], { effects: { [key]: ["stock.effects.reserve"] } }));

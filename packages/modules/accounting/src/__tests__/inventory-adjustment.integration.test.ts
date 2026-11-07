@@ -1,3 +1,4 @@
+import { needStub } from "@erp/kernel/testing";
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildConsumerContext, consumers, type Caller } from "@erp/kernel";
@@ -21,7 +22,7 @@ const run = <T = unknown>(processId: string, input: unknown, caller: Caller = h.
 const date = () => `${year}-03-15`;
 
 beforeAll(async () => {
-  h = await accountingHarness({ extraModules: [inventory] });
+  h = await accountingHarness({ extraModules: [inventory, needStub("costing")] });
   const ids = [...h.deps.registry.processes({ module: "core" }), ...h.deps.registry.processes({ module: "inventory" })].map((p) => p.id);
   await h.grantAll(h.companyId, h.seed.companies[0]!.adminRoleId, ids);
   await h.runStepUp(h.admin, "accounting.chart.seed", {});

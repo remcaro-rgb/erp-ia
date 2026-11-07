@@ -29,6 +29,8 @@ processes:
   - kernel.admin.sensitive_process.set
   - kernel.admin.module.enable
   - kernel.admin.module.disable
+  - kernel.admin.module.parked_events
+  - kernel.admin.module.parked_events.dismiss
   - kernel.admin.company.update
   - kernel.admin.ai_usage.consult
   - kernel.required_file.set
@@ -202,7 +204,11 @@ Cada tarjeta muestra un módulo, si está **activo**, su menú, de qué módulos
 
 - Un módulo desactivado desaparece del menú, de las exportaciones y de las herramientas del asistente. **Sus datos se conservan** y vuelven al activarlo.
 - No puedes desactivar un módulo del que depende otro activo: por ejemplo, **Núcleo** no se apaga mientras **Soporte** esté activo. Desactiva primero el que depende.
+- **Inventario** usa **Costos** para valorar sus ajustes, pero activar Inventario no activa Costos. Si Inventario está activo, Costos no se puede desactivar («El módulo inventory necesita este módulo; desactívalo primero»); con Costos apagado, los ajustes se valoran al costo estándar.
 - Solo se activan los módulos que tu empresa tiene **contratados**.
+- **Módulo desactivado y módulo no contratado no son lo mismo.** Un módulo que **desactivaste** es silencioso: lo que le llega (por ejemplo los asientos de Contabilidad) queda en espera y se procesa solo cuando lo vuelves a activar, sin avisos. Un módulo que tu empresa **nunca contrató** se ve cuando otro módulo le envía un evento que solo él procesa (los asientos automáticos de Contabilidad y los eventos de la plataforma no cuentan: se omiten sin avisos): su tarjeta dice **módulo no contratado** y muestra cuántos eventos quedaron detenidos porque ese módulo no existe para tu empresa (por ejemplo, ventas que debían contabilizarse).
+- En la tarjeta de un módulo no contratado, **Descartar** olvida esos eventos: dejan de contarse y no se reprocesan (queda el registro en la **Auditoría**; no pide verificación en dos pasos). El conteo se muestra mientras queden eventos sin descartar ni reprocesar, sea cual sea el estado actual del módulo. Si **contratas y activas** el módulo (desde Módulos o porque tu plan cambió), los eventos detenidos vuelven a procesarse una sola vez, automáticamente, en el siguiente ciclo de procesamiento; solo se ejecuta lo que faltaba, no lo que ya se había procesado.
+- Al emitir un documento que se contabiliza, si Contabilidad está desactivada el documento se emite y el asiento queda en espera; si nunca se contrató, el documento también se emite y el evento queda detenido como **módulo no contratado**.
 - Al activar un módulo, todos los roles reciben permiso de **consultar** sus registros; los demás permisos se dan en **Permisos**.
 
 ## Archivos obligatorios

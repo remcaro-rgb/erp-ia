@@ -46,4 +46,14 @@ describe("settings", () => {
     expect(await h.run(h.contador, "accounting.settings.consult", {})).toMatchObject({ configured: true, useItems: true, requireApprovalOnManual: true, roundingTolerance: 2.5, niifGroup: "1" });
     await expect(h.runStepUp(h.contador, "accounting.settings.update", { useItems: false })).rejects.toMatchObject({ code: "forbidden" });
   });
+
+  it("rule_stale_days defaults to 30, is consulted and updated, and must be a positive whole number of days", async () => {
+    expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ ruleStaleDays: 30 });
+    await h.runStepUp(h.admin, "accounting.settings.update", { ruleStaleDays: 45 });
+    expect(await settings()).toMatchObject({ rule_stale_days: 45 });
+    expect(await h.run(h.admin, "accounting.settings.consult", {})).toMatchObject({ ruleStaleDays: 45 });
+    for (const bad of [0, -3, 1.5, 4000]) await expect(h.runStepUp(h.admin, "accounting.settings.update", { ruleStaleDays: bad })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(h.sql`update accounting.settings set rule_stale_days = 0 where company_id = ${h.companyId}`).rejects.toThrow();
+    await h.runStepUp(h.admin, "accounting.settings.update", { ruleStaleDays: 30 });
+  });
 });

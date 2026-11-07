@@ -4,6 +4,7 @@ import { ProcessError } from "../process/errors";
 import { countryPackOf } from "../registry/labels";
 import { ADMIN_FEATURE, invalid, requireAdmin } from "./common";
 import { moduleStates } from "./modules-state";
+import { parkedNotEntitled } from "./parked-events";
 
 // Modules on and off per company (design §5.12, rule 4). Switching a module off keeps its data and events; its
 // processes stop being entitled, so its menus, its exports and the assistant's tools of it disappear at once. The
@@ -56,6 +57,8 @@ export const moduleEnable = defineProcess({
       from kernel.roles r cross join unnest(${consults}::text[]) as p(id)
       where r.company_id = ${ctx.companyId} and not (r.is_system and r.name = 'admin')
       on conflict (company_id, role_id, process_id) do nothing`;
+    // The events parked as `not_entitled` while the module was not bought go back to the outbox, once (Task 50.9).
+    await ctx.tx`select kernel.parked_events_replay(${ctx.companyId}, ${moduleId})`;
     // Modules that install per-company data (accounting's posting rules) react to this event.
     await ctx.emit("kernel.module.enabled", { moduleId });
     return { moduleId, enabled: true };
@@ -78,6 +81,9 @@ export const moduleDisable = defineProcess({
     const states = await moduleStates(ctx.tx, ctx.registry);
     const dependent = states.find((m) => m.enabled && m.dependsOn.includes(moduleId));
     if (dependent) throw invalid(`module ${dependent.id} depends on ${moduleId}`, `El módulo ${dependent.id} depende de este; desactívalo primero`);
+    // `ModuleDef.needs` (Ruling R41-1): only disabling is refused; enabling the needer never forces the needed module on.
+    const needer = states.find((m) => m.enabled && m.needs.includes(moduleId));
+    if (needer) throw invalid(`module ${needer.id} needs ${moduleId}`, `El módulo ${needer.id} necesita este módulo; desactívalo primero`);
     await ctx.tx`
       insert into kernel.company_modules (company_id, module_id, enabled, enabled_at)
       values (${ctx.companyId}, ${moduleId}, false, now())
@@ -86,4 +92,35 @@ export const moduleDisable = defineProcess({
   },
 });
 
-export const MODULE_PROCESSES = [moduleEnable, moduleDisable];
+export const parkedEventsConsult = defineProcess({
+  id: "kernel.admin.module.parked_events",
+  module: "kernel",
+  kind: "consult",
+  feature: ADMIN_FEATURE,
+  // A read: no step-up (admin consults are not sensitive, ruling 2026-10-28).
+  description: "Consulta los eventos detenidos porque la empresa no tiene contratado el módulo que los procesa, contados por módulo",
+  input: z.object({}),
+  output: z.object({ modules: z.array(z.object({ moduleId: z.string(), count: z.number().int() })) }),
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    return { modules: await parkedNotEntitled(ctx.tx) };
+  },
+});
+
+export const parkedEventsDismiss = defineProcess({
+  id: "kernel.admin.module.parked_events.dismiss",
+  module: "kernel",
+  kind: "update",
+  feature: ADMIN_FEATURE,
+  // No step-up (Task 50.9): the events stay on the dead-letter table marked dismissed, and the audit records who did it.
+  description: "Descarta los eventos detenidos de un módulo no contratado: dejan de contarse en Módulos y no se reprocesan",
+  input: z.object({ moduleId: MODULE_ID }),
+  output: z.object({ moduleId: z.string(), dismissed: z.number().int() }),
+  handler: async (ctx, { moduleId }) => {
+    await requireAdmin(ctx);
+    const [row] = await ctx.tx<{ n: number }[]>`select kernel.parked_events_dismiss(${ctx.companyId}, ${moduleId}) as n`;
+    return { moduleId, dismissed: Number(row?.n ?? 0) };
+  },
+});
+
+export const MODULE_PROCESSES = [moduleEnable, moduleDisable, parkedEventsConsult, parkedEventsDismiss];

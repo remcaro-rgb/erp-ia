@@ -56,7 +56,13 @@ export const sales: ModuleDef = defineModule({
   navigation: NAVIGATION,
   menuShared: MENU_SHARED,
   // What the assistant's confirmation card tells about the entregas (plan 2B Task 25): what this module's consumer does with an issued invoice.
-  effects: { "invoicing.invoice.issued": ["sales.effects.invoice_issued"] },
+  effects: {
+    "inventory.movement.posted": ["sales.effects.movement_posted"],
+    "inventory.sale_issue.refused": ["sales.effects.issue_refused"],
+    "inventory.sale_return_void.refused": ["sales.effects.return_void_refused"],
+    "invoicing.invoice.issued": ["sales.effects.invoice_issued"],
+    "invoicing.invoice.annulled": ["sales.effects.invoice_annulled"],
+  },
   // The lifecycle of the pedido (entity types spec §5): Grabar runs the checks; it numbers PED- on save.
   typedHooks: { "sales.order": orderHooks, "sales.delivery": deliveryHooks, "sales.return": returnHooks },
   // What a pedido and an entrega print with when the company chose no template of its own (Task 14b).

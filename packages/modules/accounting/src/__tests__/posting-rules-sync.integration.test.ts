@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildConsumerContext, consumers, defineModule, runProcess, type DefaultPostingRule, type ModuleDef } from "@erp/kernel";
 import { accountingHarness, type AccountingHarness } from "./helpers";
 import invoiceIssued from "../rules/defaults/invoice-issued.json" with { type: "json" };
 import invoiceVoided from "../rules/defaults/invoice-voided.json" with { type: "json" };
 import noteIssued from "../rules/defaults/note-credit-issued.json" with { type: "json" };
+import { COSTING_POSTING_RULES } from "../../../costing/src/rules";
+import { INVENTORY_POSTING_RULES } from "../../../inventory/src/rules";
 
 // Posting rules ship in the module manifests (plan 2B Task 1, accounting design §5.4). Only core and accounting exist, so the test
 // registers an `invoicing` stand-in carrying three rules (the 2A templates under test names) and proves the sync over it.
@@ -24,11 +27,20 @@ const invoicing: ModuleDef = defineModule({
     rule(invoiceVoided, "Factura de prueba anulada"),
   ],
 });
+// Stand-ins for the two owners of the rules moved out of accounting's defaults (Task 50.14): each ships exactly its real rules.
+const inventoryOwner: ModuleDef = defineModule({
+  id: "inventory", version: "0.0.1", dependsOn: ["core"], entities: [], processes: [], features: [], events: { emits: [], consumes: {} }, navigation: [],
+  postingRules: INVENTORY_POSTING_RULES,
+});
+const costingOwner: ModuleDef = defineModule({
+  id: "costing", version: "0.0.1", dependsOn: ["core", "inventory"], entities: [], processes: [], features: [], events: { emits: [], consumes: {} }, navigation: [],
+  postingRules: COSTING_POSTING_RULES,
+});
 const NAMES = ["Factura de prueba anulada", "Factura de prueba emitida", "Nota de prueba emitida"];
 
 let h: AccountingHarness;
 beforeAll(async () => {
-  h = await accountingHarness({ extraModules: [invoicing] });
+  h = await accountingHarness({ extraModules: [invoicing, inventoryOwner, costingOwner] });
   await h.runStepUp(h.admin, "accounting.chart.seed", {});
 }, 180_000);
 afterAll(async () => {
@@ -45,7 +57,7 @@ describe("accounting.posting_rule.sync", () => {
     const rules = await rulesOf("invoicing");
     expect(rules.map((r) => r.name)).toEqual(NAMES);
     expect(rules.every((r) => r.is_active && !r.is_modified)).toBe(true);
-    expect((await rulesOf("accounting")).length).toBe(9);
+    expect((await rulesOf("accounting")).length).toBe(7);
   });
 
   it("is event-only (a user is forbidden) and a second run changes nothing", async () => {
@@ -90,5 +102,63 @@ describe("accounting.posting_rule.sync", () => {
     const on = await rulesOf("invoicing");
     expect(on.filter((r) => r.is_active).map((r) => r.name)).toEqual(NAMES.filter((n) => n !== first!.name));
     expect(on.find((r) => r.id === first!.id)).toMatchObject({ is_active: false, is_modified: true });
+  });
+});
+
+// Owner item 14 (Task 50.14): cogs-posted follows costing, inventory-adjustment follows inventory.
+describe("rules moved to their owners (migration 0117)", () => {
+  const COGS = "Costo de ventas";
+  const ADJ = "Ajuste de inventario";
+  const rule = (moduleId: string, name: string) => h.sql<{ id: string; module: string; is_active: boolean; is_modified: boolean }[]>`
+    select id, module, is_active, is_modified from accounting.posting_rules where company_id = ${h.companyId} and module = ${moduleId} and name = ${name}`;
+  const snapshot = () => h.sql`select id, event, name, journal_id, template, priority, is_default, is_active, is_modified from accounting.posting_rules
+    where company_id = ${h.companyId} and name in (${COGS}, ${ADJ}) order by name`;
+  const migrate = () => h.sql.unsafe(readFileSync(new URL("../../../../../supabase/migrations/0117_accounting_rules_retag_module.sql", import.meta.url), "utf8"));
+
+  it("a new company gets both rules from the owning manifests, and accounting's own list no longer has them", async () => {
+    expect(await rule("costing", COGS)).toHaveLength(1);
+    expect(await rule("inventory", ADJ)).toHaveLength(1);
+    expect(await rule("accounting", COGS)).toHaveLength(0);
+    expect(await rule("accounting", ADJ)).toHaveLength(0);
+    const total = await h.sql<{ n: number }[]>`select count(*)::int as n from accounting.posting_rules where company_id = ${h.companyId} and name in (${COGS}, ${ADJ})`;
+    expect(total[0]!.n).toBe(2);
+  });
+
+  it("the migration re-tags rows still held by accounting by (event, name) and changes nothing else; a modified row is untouched; a second run changes nothing", async () => {
+    const before = await snapshot();
+    await h.sql`update accounting.posting_rules set module = 'accounting' where company_id = ${h.companyId} and name = ${COGS}`;
+    await h.sql`update accounting.posting_rules set module = 'accounting', is_modified = true where company_id = ${h.companyId} and name = ${ADJ}`;
+    await migrate();
+    expect(await rule("costing", COGS)).toHaveLength(1);
+    expect(await rule("accounting", ADJ)).toHaveLength(1);
+    expect(await rule("inventory", ADJ)).toHaveLength(0);
+    const after = await snapshot();
+    expect(after.map((r) => ({ ...r, is_modified: undefined }))).toEqual(before.map((r) => ({ ...r, is_modified: undefined })));
+    const once = await h.sql`select id, module from accounting.posting_rules where company_id = ${h.companyId} order by seq`;
+    await migrate();
+    expect(await h.sql`select id, module from accounting.posting_rules where company_id = ${h.companyId} order by seq`).toEqual(once);
+    // Put the adjustment back as an unmodified inventory rule for the next test.
+    await h.sql`update accounting.posting_rules set module = 'inventory', is_modified = false where company_id = ${h.companyId} and name = ${ADJ}`;
+  });
+
+  it("disabling costing deactivates costing's rules (cogs-posted among them) and neither inventory's nor accounting's; enabling it again wakes them", async () => {
+    await h.runStepUp(h.admin, "kernel.admin.module.disable", { moduleId: "costing" });
+    expect(await sync()).toMatchObject({ inserted: 0, deactivated: COSTING_POSTING_RULES.length });
+    expect((await rule("accounting", "Factura de venta emitida")).every((r) => r.is_active)).toBe(true);
+    expect((await rule("costing", COGS))[0]).toMatchObject({ is_active: false, is_modified: false });
+    expect((await rule("inventory", ADJ))[0]).toMatchObject({ is_active: true });
+    await h.runStepUp(h.admin, "kernel.admin.module.enable", { moduleId: "costing" });
+    expect(await sync()).toMatchObject({ activated: COSTING_POSTING_RULES.length });
+    expect((await rule("costing", COGS))[0]).toMatchObject({ is_active: true });
+  });
+
+  it("a rule the admin modified (disabled) keeps its state when its module goes off and on", async () => {
+    const [cogs] = await rule("costing", COGS);
+    await h.runStepUp(h.admin, "accounting.posting_rule.disable", { id: cogs!.id });
+    await h.runStepUp(h.admin, "kernel.admin.module.disable", { moduleId: "costing" });
+    await sync();
+    await h.runStepUp(h.admin, "kernel.admin.module.enable", { moduleId: "costing" });
+    await sync();
+    expect((await rule("costing", COGS))[0]).toMatchObject({ is_active: false, is_modified: true });
   });
 });

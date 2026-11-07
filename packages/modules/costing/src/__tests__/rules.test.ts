@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeEntry, RuleTemplate } from "@erp/kernel";
-import { COSTING_POSTING_RULES, FIFO_PHASE_3, OFFSET_ROLES } from "../index";
+import { costing, COSTING_POSTING_RULES, FIFO_PHASE_3, OFFSET_ROLES } from "../index";
 
 // The default rules the costing manifest ships for landed costs (plan 2B Task 9): exactly one allocation rule applies to an event, it
 // composes balanced, and the void rule is a reversal. The real engine over the demo chart is landed-cost.integration.test.ts.
@@ -21,6 +21,14 @@ const allocation = COSTING_POSTING_RULES.filter((r) => r.event === "costing.land
 describe("landed cost posting rules", () => {
   it("every shipped template is valid", () => {
     for (const rule of COSTING_POSTING_RULES) expect(RuleTemplate.safeParse(rule.template).success, rule.name).toBe(true);
+  });
+
+  it("ships cogs-posted (moved from accounting's defaults, Task 50.14): Dr cogs / Cr inventory on the movement, and the manifest carries it once", () => {
+    const cogs = COSTING_POSTING_RULES.filter((r) => r.event === "costing.cogs.posted");
+    expect(cogs.map((r) => r.name)).toEqual(["Costo de ventas"]);
+    expect(cogs[0]!.template).toMatchObject({ source: { entity: "inventory.movement", id: "$.movementId" }, reverseOf: null });
+    expect(costing.postingRules).toBe(COSTING_POSTING_RULES);
+    expect(COSTING_POSTING_RULES).toHaveLength(OFFSET_ROLES.length + 5);
   });
 
   it("one allocation rule per offset role, and only the named one applies", () => {

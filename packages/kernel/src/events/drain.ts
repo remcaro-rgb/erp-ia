@@ -28,6 +28,9 @@ export interface DrainOptions {
 export async function drainOutbox(sql: Sql, limit = 100, options: DrainOptions = {}): Promise<number> {
   if (registry.modules().length === 0) throw new Error("outbox: no modules loaded");
 
+  // Dead letters of a module the company may use now (bought by any path, or the dispatcher raced the purchase) go back first.
+  await sql`select kernel.parked_events_sweep(${options.companyIds ? [...options.companyIds] : null}::uuid[])`;
+
   const ids = await sql.begin(async (tx) => {
     const gates = tx.json(consumers.pairs());
     const companies = options.companyIds ? [...options.companyIds] : null;

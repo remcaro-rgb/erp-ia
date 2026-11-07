@@ -90,4 +90,5 @@ El valor se reparte entre las líneas al centavo (la suma da exactamente el valo
 
 - **«El costo promedio no cambió después de una venta»**: es lo esperado. Las salidas usan el promedio, no lo cambian.
 - **«Registré el flete y el costo de ventas de lo que ya vendí no subió»**: un costo en destino no recalcula lo ya vendido; sube el costo de las unidades que quedan.
+- **«No puedo desactivar Costos»**: Inventario lo necesita para valorar sus ajustes. Desactiva primero Inventario (guía **Administración**, sección Módulos); Costos puede quedar apagado con Inventario activo solo después de ese paso, y los ajustes usan entonces el costo estándar.
 - **«No veo los costos»**: tu rol los tiene enmascarados u ocultos. Pídeselo al administrador (guía **Administración**).

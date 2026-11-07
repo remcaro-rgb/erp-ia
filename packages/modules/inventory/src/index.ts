@@ -6,6 +6,7 @@ import { INVENTORY_PROCESSES } from "./processes";
 import { MOVEMENT_POSTED, MOVEMENT_VOIDED, movementHooks } from "./processes/movement";
 import { countHooks } from "./processes/count";
 import { onDeliveryShipped, onDeliveryVoided, onReturnReceived, onReturnVoided, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
+import { INVENTORY_POSTING_RULES } from "./rules";
 import { onOrderCancelled, onOrderConfirmed } from "./processes/sales-orders";
 import { transferHooks } from "./processes/transfer";
 import { locationHooks, warehouseHooks } from "./processes/warehouse";
@@ -19,9 +20,9 @@ import { locationHooks, warehouseHooks } from "./processes/warehouse";
  * sales.delivery.shipped posts the sale issue and uses up the reservation, sales.delivery.voided voids it, sales.return.received posts
  * the sale return at the issue's cost, sales.return.voided voids it. Lots and serials, picking and put-away arrive in 2B.2 (OD-8).
  *
- * One read is not declared in `dependsOn`: an adjustment is valued at costing's weighted average of its bodega through the published
+ * One read is declared in `needs`, not `dependsOn` (costing depends on inventory; Task 41): an adjustment is valued at costing's weighted average of its bodega through the published
  * definer function costing.average_costs() (migrations 0073 and 0075; processes/common.ts productCosts). It is a read of a published
- * function, not a write (rule 3), and inventory does not depend on costing: when the costing module is switched off for the company the
+ * function, not a write (rule 3), and inventory does not require costing on: disabling costing is refused while inventory is enabled, but when the costing module is switched off for the company the
  * function returns nothing and the adjustment falls back to the standard cost (core.product_standard_costs). Likewise the Anular of a
  * receipt reads costing.movement_landed_costs() (migration 0086) and refuses `landed_costs_active` while a landed cost is allocated to it.
  */
@@ -29,6 +30,8 @@ export const inventory: ModuleDef = defineModule({
   id: "inventory",
   version: "0.1.0",
   dependsOn: ["core"],
+  // Costing depends on inventory, so inventory cannot list it in dependsOn (load cycle): `needs` is no load-order edge (plan 2B Task 41, R41-1).
+  needs: ["costing"],
   icon: "warehouse",
   entities: INVENTORY_ENTITIES,
   processes: INVENTORY_PROCESSES,
@@ -46,6 +49,7 @@ export const inventory: ModuleDef = defineModule({
     },
   },
   navigation: NAVIGATION,
+  postingRules: INVENTORY_POSTING_RULES,
   menuShared: MENU_SHARED,
   // What the assistant's confirmation card tells about the stock (plan 2B Task 25): what this module's consumers do with each sales event.
   effects: {
@@ -67,6 +71,7 @@ export const inventory: ModuleDef = defineModule({
   },
 });
 
+export { INVENTORY_POSTING_RULES } from "./rules";
 export { INVENTORY_ENTITIES, KIND_PREFIX, KIND_SIGN, MOVEMENT_KINDS, POSTABLE_KINDS } from "./entities";
 export type { MovementKind } from "./entities";
 export { postAdjustment } from "./processes/adjustment";

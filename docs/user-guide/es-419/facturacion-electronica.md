@@ -5,6 +5,7 @@ routes:
   - /invoicing/notes
   - /invoicing/settings
 processes:
+  - invoicing.invoice.reprice
   - invoicing.invoice.resubmit
   - invoicing.invoice.resubmit_failed
   - invoicing.invoice.void
@@ -40,6 +41,14 @@ En la factura, el **Estado DIAN** dice dónde va:
 El estado solo avanza: de Sin enviar a En proceso, y de En proceso a Aceptada o Rechazada. Una factura rechazada vuelve a **En proceso** cuando la reenvías. Una aceptada no cambia más.
 
 Además del estado DIAN, cada envío tiene su propio estado, que ves en el detalle de la factura: **En cola**, **Preparando**, **Enviada, esperando respuesta**, **Aceptada por la DIAN**, **Rechazada por la DIAN**, **Envío detenido** (el motivo aparece como **Último error**) y **Sin configurar** (la empresa aún no tiene su software DIAN registrado; ver abajo).
+
+## Antes de emitir: fecha y precios
+
+La DIAN exige que la factura lleve la fecha del día en que se genera, y el CUFE depende de ella. Por eso, al pulsar **Emitir**, la factura toma **la fecha de hoy** (la de la empresa) y los **impuestos se calculan con las tarifas vigentes en esa fecha**. La fecha que tenía el borrador queda como **Fecha de entrega o servicio**.
+
+Los **precios no cambian solos al emitir**: el borrador conserva los precios que tiene. Si quieres ponerlos al día, pulsa **Recalcular precios** en la barra del borrador: cada línea toma el precio de lista de hoy de su producto (si el producto no tiene precio de lista, la línea conserva el suyo; el descuento no cambia) y los impuestos se calculan de nuevo. Los precios que escribiste a mano en una línea se reemplazan por la lista. El botón no aparece en una factura ya emitida: allí se corrige con una nota.
+
+El borrador guarda la **Fecha de los precios**, el día en que se pusieron sus precios (al crearlo, al cambiar sus líneas o al recalcular). Si no es hoy, la ficha muestra el aviso **«Los precios son del <fecha>; usa Recalcular precios para actualizarlos»**. El aviso no impide emitir: emitir con esos precios es una decisión tuya. Al emitir, el sistema responde de nuevo con ese aviso si los precios eran de otro día.
 
 ## «Reintentar envío»
 

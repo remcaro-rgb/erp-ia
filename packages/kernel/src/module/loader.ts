@@ -56,6 +56,22 @@ export function loadModules(registry: Registry, declared: ModuleDef[]): void {
   };
   for (const module of modules) visit(module);
 
+  // `needs` is not part of the load order (so no cycle with a `dependsOn` the other way), but each id must be a loaded module.
+  const loadedIds = new Set([...registry.modules().map((m) => m.id), ...modules.map((m) => m.id)]);
+  for (const module of modules) {
+    for (const need of module.needs ?? []) {
+      if (!loadedIds.has(need)) throw new Error(`module ${module.id} needs ${need}, which is not loaded (missing need: ${need})`);
+    }
+  }
+
+  // A shortcut's target group must be a navigation item of a loaded module.
+  const groupIds = new Set([...registry.modules(), ...modules].flatMap((m) => m.navigation.map((n) => n.id)));
+  for (const module of modules) {
+    for (const { item, under } of module.shortcuts ?? []) {
+      if (!groupIds.has(under)) throw new Error(`module ${module.id}: shortcut ${item.id} under ${under}, which does not exist`);
+    }
+  }
+
   // An entity's declared processes (`processIds.create` / `.attach`) must exist once these modules are in.
   const processIds = new Set([...registry.processes().map((p) => p.id), ...modules.flatMap((m) => m.processes.map((p) => p.id))]);
   for (const module of modules) {

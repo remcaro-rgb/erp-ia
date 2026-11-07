@@ -157,7 +157,7 @@ describe("runProcess dry run", () => {
     expect(await audits(chainId)).toBe(0);
   });
 
-  it("a forbidden dry run is refused and the denial is audited", async () => {
+  it("a forbidden dry run (import preview, not the assistant's preflight) is refused and the denial is audited", async () => {
     const chainId = randomUUID();
     await expect(runProcess(deps(), as(member, { chainId }), ids.create, { name: "dry-member" }, { dryRun: true })).rejects.toMatchObject({ code: "forbidden", stage: "gate" });
     const [denied] = await sql`select action, process_id from kernel.audit_log where chain_id = ${chainId}`;

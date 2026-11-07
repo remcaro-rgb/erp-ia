@@ -32,6 +32,14 @@ export const NAVIGATION: NavItem[] = menuSections("crm", {
   ],
 });
 
+/**
+ * ModuleDef.shortcuts (plan 2B Task 42, owner item 32): Cotizaciones also listed under Ventas › Documentos, same address as CRM's own item
+ * (quotes stay CRM's); its own id so menu rules and the one-id-once check keep working. Gated by the crm.quotes feature.
+ */
+export const SHORTCUTS = [
+  { under: "sales.documentos", item: { id: "crm.quotes_shortcut", label: "nav.crm.quotes_shortcut", href: "/crm/quotes", icon: "file-text", feature: "crm.quotes", entity: "crm.quote" } },
+] satisfies { under: string; item: NavItem }[];
+
 /** Items of the bar whose gate is `feature`. */
 const nav = (feature: string) => NAVIGATION.flatMap((item) => item.children ?? [item]).filter((item) => item.feature === feature);
 

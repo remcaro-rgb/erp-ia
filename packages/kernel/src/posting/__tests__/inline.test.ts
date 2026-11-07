@@ -9,9 +9,12 @@ import type { RuleTemplate } from "../template";
 
 vi.mock("../../events/outbox", () => ({ enqueueEvent: vi.fn(async () => "0192b4c0-0000-7000-8000-0000000000e1") }));
 // The company's module states (the dispatcher's gate): accounting is enabled unless a test says otherwise.
-const states = { acct: true };
+const states: { acct: boolean; bought: boolean } = { acct: true, bought: true };
 vi.mock("../../admin/modules-state", () => ({
-  moduleStates: vi.fn(async () => [{ id: "acct", dependsOn: [], purchased: states.acct, enabled: states.acct }]),
+  moduleStates: vi.fn(async () => [{
+    id: "acct", dependsOn: [], needs: [], purchased: states.bought, enabled: states.acct && states.bought,
+    gate: !states.bought && states.acct ? "not_purchased" : states.acct ? "enabled" : "switched_off",
+  }]),
 }));
 const { emitAndPostStrict, dismissParkedEvents } = await import("../inline");
 const { enqueueEvent } = await import("../../events/outbox");
@@ -49,7 +52,7 @@ const ctxWith = (p: PostingProvider | null): ProcessContext =>
   ({ tx: tx as never, companyId: "c1", chainId: "chain1", registry: { modules: () => [p ? { id: "acct", postingProvider: p } : { id: "none" }] } }) as unknown as ProcessContext;
 const payload = { date: "2026-03-15", number: "CD-1", amount: 100, half: 50, lines: [{ cost: 40 }, { cost: 60 }], id: "s1" };
 
-beforeEach(() => { calls.length = 0; sqlRan.length = 0; states.acct = true; vi.mocked(enqueueEvent).mockClear(); });
+beforeEach(() => { calls.length = 0; sqlRan.length = 0; states.acct = true; states.bought = true; vi.mocked(enqueueEvent).mockClear(); });
 const marked = () => sqlRan.some((q) => q.includes("kernel.mark_event_handled"));
 
 describe("emitAndPostStrict", () => {
@@ -113,6 +116,15 @@ describe("emitAndPostStrict", () => {
     states.acct = false;
     const out = await emitAndPostStrict(ctxWith(provider()), "x.allocated", payload, { requireRule: true });
     expect(out).toEqual({ posted: false, reason: "accounting_disabled", eventId: "0192b4c0-0000-7000-8000-0000000000e1" });
+    expect(enqueueEvent).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual([]);
+    expect(marked()).toBe(false);
+  });
+
+  it("a posting module the company never bought parks the event as not_entitled (visible), unlike a switched-off one (Task 50.9)", async () => {
+    states.bought = false;
+    const out = await emitAndPostStrict(ctxWith(provider()), "x.allocated", payload, { requireRule: true });
+    expect(out).toEqual({ posted: false, reason: "not_entitled", eventId: "0192b4c0-0000-7000-8000-0000000000e1" });
     expect(enqueueEvent).toHaveBeenCalledTimes(1);
     expect(calls).toEqual([]);
     expect(marked()).toBe(false);

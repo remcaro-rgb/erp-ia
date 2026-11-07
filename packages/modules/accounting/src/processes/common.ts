@@ -70,6 +70,8 @@ export interface AccountingSettings {
   useOpenAuxiliaries: boolean;
   useItems: boolean;
   useBusinessUnits: boolean;
+  /** Days without a matching event after which a rule with a `when` is flagged stale (Task 50.6). */
+  ruleStaleDays: number;
 }
 
 /** The company's settings row, or null while the accounting has not been configured (`chart.seed` not run). */
@@ -78,10 +80,10 @@ export async function settingsOf(ctx: ProcessContext): Promise<AccountingSetting
     {
       id: string; ledger_starts_on: string | null; rounding_tolerance: string; manual_journal_id: string | null;
       require_attachment_on_manual: boolean; niif_group: "1" | "2" | "3"; require_approval_on_manual: boolean;
-      use_open_auxiliaries: boolean; use_items: boolean; use_business_units: boolean;
+      use_open_auxiliaries: boolean; use_items: boolean; use_business_units: boolean; rule_stale_days: number;
     }[]
   >`select id, ledger_starts_on::text, rounding_tolerance, manual_journal_id, require_attachment_on_manual, niif_group,
-           require_approval_on_manual, use_open_auxiliaries, use_items, use_business_units
+           require_approval_on_manual, use_open_auxiliaries, use_items, use_business_units, rule_stale_days
     from accounting.settings where company_id = ${ctx.companyId}`;
   if (!row) return null;
   return {
@@ -95,6 +97,7 @@ export async function settingsOf(ctx: ProcessContext): Promise<AccountingSetting
     useOpenAuxiliaries: row.use_open_auxiliaries,
     useItems: row.use_items,
     useBusinessUnits: row.use_business_units,
+    ruleStaleDays: row.rule_stale_days,
   };
 }
 

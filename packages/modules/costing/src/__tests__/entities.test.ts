@@ -4,7 +4,7 @@ import { defineEntity, kernelModule, loadModules, maskedViewSql, menuItemsOf, Re
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
 import { inventory } from "@erp/module-inventory";
-import cogsFixture from "../../../accounting/src/rules/fixtures/cogs-posted.json" with { type: "json" };
+import cogsFixture from "../defaults/cogs-posted.fixture.json" with { type: "json" };
 import { costing, COSTING_ENTITIES } from "../index";
 import { cogsPayload } from "../processes/cost";
 

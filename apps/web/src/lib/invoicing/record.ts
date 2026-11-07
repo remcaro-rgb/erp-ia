@@ -10,6 +10,7 @@ import { linkableEntities } from "@/lib/grid/links";
 import { receiptsOfInvoice } from "@/lib/payments/record";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
+import { priceDateWarning } from "./price-date";
 
 // What the pages of an invoice and a note need besides the record (plan 2B Task 20, prototype 2B «Factura FE-1234»), read as the caller
 // through the masked views and the grid (rule 14): the Datos tab's facts (references link to their records, rule 21), its totals in the
@@ -30,10 +31,10 @@ export const INVOICING_FORMS: Readonly<Record<string, InvoicingFormKind>> = {
 /**
  * The steps a stored invoice's or note's screen runs, by entity and step name: the process each runs. «Emitir» numbers, dates and posts
  * the Borrador (the documento's Grabar); «Reintentar envío» sends a rejected (or stopped) document again; «Anular (nota crédito)» issues the
- * annulment credit note (step-up); `to_note` writes a credit or debit note of the invoice and opens it.
+ * annulment credit note (step-up); `reprice` («Recalcular precios», owner item 17) sets a Borrador's prices from today's list (Emitir never does); `to_note` writes a credit or debit note of the invoice and opens it.
  */
 export const INVOICING_STEPS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  "invoicing.invoice": { issue: "invoicing.invoice.issue", resubmit: "invoicing.invoice.resubmit", void: "invoicing.invoice.void", to_note: "invoicing.note.create" },
+  "invoicing.invoice": { issue: "invoicing.invoice.issue", reprice: "invoicing.invoice.reprice", resubmit: "invoicing.invoice.resubmit", void: "invoicing.invoice.void", to_note: "invoicing.note.create" },
   "invoicing.note": { issue: "invoicing.note.issue", resubmit: "invoicing.note.resubmit" },
 };
 
@@ -90,6 +91,8 @@ export interface InvoicingView {
   invoiceLines: Record<string, unknown>[];
   concepts: { credit: CodeOption[]; debit: CodeOption[] };
   submission: DianSubmissionView | null;
+  /** A Borrador whose prices are from another day than today: «Los precios son del <fecha>…» (null: none). */
+  priceWarning: string | null;
   /** The record bar's own buttons (Task 20 fix round 1, prototype 2B): Emitir, Reintentar envío, «Anular (nota crédito)», a note's Duplicar. */
   bar: InvoicingBar;
   /** A note's concept, reason and lines as Duplicar copies them (its identity is never copied). */
@@ -107,6 +110,8 @@ export interface InvoicingBar {
   /** The document's name (its number, else its id) for the dialogs. */
   name: string;
   issue: BarStep | null;
+  /** «Recalcular precios» of a Borrador (owner item 17). */
+  reprice: BarStep | null;
   resubmit: BarStep | null;
   void: BarStep | null;
   /** «Nota que se emitirá» of the Anular dialog (prototype openVoid). */
@@ -220,7 +225,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
   const stored = Array.isArray(record.lines) ? (record.lines as Record<string, unknown>[]) : [];
   const named = await withClaims(deps.sql, caller.claims, async (tx) => {
     await addRefLabels(tx, deps.registry, entity, [header]);
-    const [company] = await tx<{ timezone: string; currency: string | null }[]>`select timezone, currency_code as currency from kernel.companies where id = ${caller.claims.active_company_id}`;
+    const [company] = await tx<{ timezone: string; currency: string | null; today: string }[]>`select timezone, currency_code as currency, (now() at time zone timezone)::date::text as today from kernel.companies where id = ${caller.claims.active_company_id}`;
     // Its own DIAN submission (a note's submission names the invoice too: an invoice reads the one without a note).
     const [submission] =
       kind === "invoice"
@@ -246,7 +251,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
         ? await tx<{ prefix: string | null; next_number: string | null }[]>`
             select prefix, next_number::text from core.v_document_sequences where document_type = 'credit_note' order by seq desc limit 1`
         : [];
-    return { timeZone: company?.timezone, companyCurrency: company?.currency ?? null, submission: submission ?? null, orders, deliveries, notes, invoice: invoice ?? null, creditSequence: creditSequence ?? null };
+    return { today: company?.today ?? new Date().toISOString().slice(0, 10), timeZone: company?.timezone, companyCurrency: company?.currency ?? null, submission: submission ?? null, orders, deliveries, notes, invoice: invoice ?? null, creditSequence: creditSequence ?? null };
   });
   const gridDef = gridEntity(deps.registry, entityId);
   const [linesGrid, taxesGrid, runnable, linkable, access] = await Promise.all([
@@ -362,6 +367,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
     else if (dianStatus !== "accepted") noteBlock = !s ? tv("note_block.not_sent", { number: name }) : sStatus === "failed" ? tv("note_block.send_failed", { number: name }) : sStatus === "not_configured" ? tv("note_block.not_configured", { number: name }) : tv("note_block.in_progress", { number: name });
     const live = record.status !== "voided" && stage !== "voided";
     allow("issue", live && stage === "draft" && record.status === "draft");
+    allow("reprice", live && stage === "draft" && record.status === "draft");
     allow("resubmit", live && stage !== "draft" && dianStatus !== "accepted" && (!s || ["rejected", "failed", "not_configured"].includes(sStatus ?? "")));
     allow("void", live && stage === "issued" && !annul);
     allow("to_note", live && (stage === "issued" || stage === "paid") && !annul);
@@ -399,6 +405,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
   const bar: InvoicingBar = {
     name: docName,
     issue: can.includes("issue") ? { block: null } : null,
+    reprice: can.includes("reprice") ? { block: null } : null,
     resubmit: may("resubmit") ? { block: resubmitBlock() } : null,
     void: kind === "invoice" && may("void") && stage !== "draft" ? { block: voidBlock() } : null,
     voidPreview:
@@ -444,6 +451,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
     annulment,
     notes: named.notes.map((n) => ({ id: n.id, number: n.number ?? n.id, kind: n.kind })),
     steps: can,
+    priceWarning: kind === "invoice" && stage === "draft" ? priceDateWarning(record.price_date, named.today, (date) => tv("price_warning", { date })) : null,
     noteBlock,
     invoiceLines: kind === "invoice" ? stored : [],
     // The annulment concept is Anular's own: a note written by hand never takes it (annulment_by_void).

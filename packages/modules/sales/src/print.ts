@@ -28,8 +28,10 @@ export function orderRecordTemplate(presentation: DefaultPresentation): Template
   return template(orderEntity, ORDER_PRINT_FIELDS, ORDER_PRINT_LINE_COLUMNS, presentation);
 }
 
+/** The print of an entrega is titled «Remisión de entrega» (catalogue `sales.print.delivery_title`, owner item 33); the screen keeps «Entrega». */
 export function deliveryRecordTemplate(presentation: DefaultPresentation): Template {
-  return template(deliveryEntity, DELIVERY_PRINT_FIELDS, DELIVERY_PRINT_LINE_COLUMNS, presentation);
+  const title = presentation.t?.("sales.print.delivery_title") ?? presentation.title;
+  return template(deliveryEntity, DELIVERY_PRINT_FIELDS, DELIVERY_PRINT_LINE_COLUMNS, title ? { ...presentation, title } : presentation);
 }
 
 export function returnRecordTemplate(presentation: DefaultPresentation): Template {

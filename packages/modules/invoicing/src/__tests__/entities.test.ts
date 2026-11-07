@@ -17,7 +17,7 @@ const migrationFile = (name: string) => readFileSync(new URL(`../../../../../sup
 // 0092 creates the views; 0094 recreates invoicing.v_invoices with service_date (fix round 1); 0095 recreates invoicing.v_settings with the
 // DIAN submission's Parámetros and creates invoicing.v_einvoice_submissions (Task 17); 0096 creates the notes' views and recreates
 // v_invoices (debited_amount) and v_einvoice_submissions (note_id) (Task 18): the latest definition of each view must match.
-const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql"].map(migrationFile).join("\n");
+const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql"].map(migrationFile).join("\n");
 
 const loaded = () => {
   const registry = new Registry();
@@ -171,7 +171,7 @@ describe("invoicing manifest", () => {
   });
 });
 
-describe("invoicing masked views, migrations 0092, 0094, 0095, 0096, 0101, 0103 and 0107", () => {
+describe("invoicing masked views, migrations 0092, 0094, 0095, 0096, 0101, 0103, 0107 and 0121", () => {
   for (const entity of INVOICING_ENTITIES) {
     it(`invoicing.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       expect(migration).toContain(maskedViewSql(defineEntity(entity)));

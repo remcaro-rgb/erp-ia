@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { buildConsumerContext, kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncModuleManifest, type Caller, type ProcessError } from "@erp/kernel";
-import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
+import { needStub, seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
 import { inventory } from "@erp/module-inventory";
@@ -14,7 +14,7 @@ import { sales } from "../index";
 // releases it. Sales and inventory are loaded together, as a company that has both.
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, inventory, sales]);
+loadModules(registry, [kernelModule, core, inventory, needStub("costing"), sales]);
 const PROCESS_IDS = ["core", "inventory", "sales"].flatMap((m) => registry.processes({ module: m })).map((p) => p.id);
 
 const good = (sku: string, overrides: Record<string, unknown> = {}) => ({

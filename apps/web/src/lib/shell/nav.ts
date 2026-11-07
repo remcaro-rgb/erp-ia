@@ -114,7 +114,7 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
       }
     }
   }
-  return { modules, nav: adoptItems(registry, nav), creates };
+  return { modules, nav: placeShortcuts(registry, access, adoptItems(registry, nav)), creates };
 }
 
 /**
@@ -130,6 +130,30 @@ function adoptItems(registry: Registry, nav: NavItem[]): NavItem[] {
       const to = from?.section ? out.find((g) => g.id === `${mod.id}.${from.section}`) : undefined;
       if (!from || !item || !to || to === from) continue;
       out = out.map((g) => (g === from ? { ...g, children: g.children!.filter((c) => c.id !== itemId) } : g === to ? { ...g, children: [item, ...g.children!] } : g));
+    }
+  }
+  return out;
+}
+
+/**
+ * ModuleDef.shortcuts: an item a module contributes to a group of a module it depends on, last in the group. Placed only when the target group
+ * is in the shell (its module entitled), the contributing module is entitled, the item's feature is entitled with one of its processes
+ * runnable, its process (if any) is runnable and no company rule hides it. The contributing module's own item stays where it is, and a rule
+ * hiding that item (same address) hides the shortcut too.
+ */
+function placeShortcuts(registry: Registry, access: ShellAccess, nav: NavItem[]): NavItem[] {
+  const hidden = access.hidden ?? new Set<string>();
+  let out = nav;
+  for (const mod of registry.modules()) {
+    if (!access.entitled.has(`module:${mod.id}`)) continue;
+    for (const { item, under } of mod.shortcuts ?? []) {
+      const feature = item.feature ? mod.features.find((f) => f.id === item.feature) : undefined;
+      if (hidden.has(item.id) || flattenNav(mod.navigation).some((own) => own.href === item.href && hidden.has(own.id))) continue;
+      if (item.process && !access.runnable.has(item.process)) continue;
+      if (item.feature && !(access.entitled.has(`feature:${item.feature}`) && (feature?.processes.some((p) => access.runnable.has(p)) ?? false))) continue;
+      const target = out.find((g) => g.id === under);
+      if (!target?.children) continue;
+      out = out.map((g) => (g === target ? { ...g, children: [...g.children!, item] } : g));
     }
   }
   return out;

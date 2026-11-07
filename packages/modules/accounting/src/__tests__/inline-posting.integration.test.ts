@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildConsumerContext, consumers, defineModule, defineProcess, emitAndPostStrict, type ModuleDef } from "@erp/kernel";
 import { z } from "zod";
+import { COSTING_POSTING_RULES } from "../../../costing/src/rules";
 import { accountingHarness, type AccountingHarness } from "./helpers";
 
-// Inline strict posting on the real engine (entity types D8, Task 9 ruling): a probe module's process posts the 2A rule `cogs-posted`
+// Inline strict posting on the real engine (entity types D8, Task 9 ruling): a probe module's process posts the 2A rule `cogs-posted` (shipped by
+// costing since Task 50.14; the probe carries that one rule from costing's manifest list so accounting's harness needs no costing module)
 // through emitAndPostStrict in its own transaction. A refusal rolls everything back (no entry, no failure, no outbox row); the
 // asynchronous consumer that later receives the same event posts nothing twice; the reversal runs inline and is refused in a closed period.
 
@@ -24,6 +26,7 @@ const probe: ModuleDef = defineModule({
   features: [{ id: "probe.all", label: "feature.probe.all", processes: ["probe.post"], entities: [] }],
   events: { emits: [], consumes: {} },
   navigation: [],
+  postingRules: COSTING_POSTING_RULES.filter((r) => r.event === "costing.cogs.posted"),
   menuShared: ["probe."],
 });
 
@@ -85,5 +88,30 @@ describe("inline strict posting", () => {
   it("requires a rule when asked, and answers nothing posted for an event no rule is for", async () => {
     await expect(inline(payload(1, `${year}-03-15`), true).then(() => h.run(h.admin, "probe.post", { event: "nobody.listens", payload: { date: `${year}-03-15` }, requireRule: true }))).rejects.toThrow(/no_rule/);
     expect(await h.run(h.admin, "probe.post", { event: "nobody.listens", payload: { date: `${year}-03-15` } })).toMatchObject({ posted: true, entryIds: [] });
+  });
+  // Task 50.9 (owner 2026-11-06, decision item 9): the inline poster asks the same entitlement resolver as the dispatcher.
+  it("accounting switched off parks the event silently (accounting_disabled); never bought parks it visibly (not_entitled); nothing posts either way", async () => {
+    const entries = await count("accounting.entries");
+    const eventParked = async (eventId: string) => {
+      const [row] = await h.sql<{ dispatched_at: Date | null }[]>`select dispatched_at from kernel.outbox where id = ${eventId}`;
+      const deliveries = await h.sql`select 1 from kernel.outbox_deliveries where outbox_id = ${eventId}`;
+      return row !== undefined && row.dispatched_at === null && deliveries.length === 0;
+    };
+
+    await h.sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${h.companyId}, 'accounting', false) on conflict (company_id, module_id) do update set enabled = false`;
+    const off = await inline(payload(5, `${year}-03-17`));
+    expect(off).toMatchObject({ posted: false, reason: "accounting_disabled" });
+    expect(await eventParked(off.eventId)).toBe(true);
+    await h.sql`delete from kernel.company_modules where company_id = ${h.companyId} and module_id = 'accounting'`;
+
+    await h.sql`update kernel.tenant_entitlements set enabled = false where tenant_id = ${h.seed.tenantId} and key = 'module:accounting'`;
+    try {
+      const never = await inline(payload(5, `${year}-03-18`));
+      expect(never).toMatchObject({ posted: false, reason: "not_entitled" });
+      expect(await eventParked(never.eventId)).toBe(true);
+    } finally {
+      await h.sql`update kernel.tenant_entitlements set enabled = true where tenant_id = ${h.seed.tenantId} and key = 'module:accounting'`;
+    }
+    expect(await count("accounting.entries")).toBe(entries);
   });
 });

@@ -5,8 +5,8 @@ import {
   hasRecordPage,
   loadCustomFields,
   matrixProcesses,
-  flattenNav,
   moduleStates,
+  parkedNotEntitled,
   readAiUsage,
   readPermissionMatrix,
   registeredVerifiers,
@@ -15,7 +15,6 @@ import {
   type Caller,
   type CustomFieldRow,
   type MatrixProcess,
-  type ModuleState,
   type PermissionMatrix,
   type Registry,
   type Tx,
@@ -25,6 +24,7 @@ import { loadGridPage, type GridPageData } from "@/lib/grid/load";
 import type { AuditCatalogue } from "./audit-links";
 import { callerIsCompanyAdmin } from "./company-admin";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
+import { buildModuleViews, type ModuleView } from "./modules-view";
 
 // What the administration screens show (design §6, prototype v5 "Administración"), read as the caller under RLS from
 // the kernel's admin views: plain reads, not consult processes, so opening a screen asks for no step-up and writes no
@@ -260,23 +260,13 @@ export const loadVerifiers = (): Promise<VerifiersData | null> =>
   });
 
 export interface ModulesData {
-  modules: (ModuleState & { usedBy: string[]; menu: string[] })[];
+  modules: ModuleView[];
 }
 
 export const loadModules = (): Promise<ModulesData | null> =>
   asAdmin(async (tx, { registry }) => {
     const states = (await moduleStates(tx, registry)).filter((m) => m.id !== "kernel");
-    return {
-      modules: states.map((state) => {
-        const def = registry.module(state.id);
-        const items = flattenNav([...def.navigation, ...def.features.flatMap((f) => f.nav ?? [])]).filter((item) => item.menu !== false);
-        return {
-          ...state,
-          usedBy: states.filter((other) => other.dependsOn.includes(state.id)).map((other) => other.id),
-          menu: [...new Set(items.map((item) => item.label))],
-        };
-      }),
-    };
+    return { modules: buildModuleViews(states, registry, await parkedNotEntitled(tx)) };
   });
 
 export interface CompanyData {

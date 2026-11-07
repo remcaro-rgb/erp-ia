@@ -263,6 +263,12 @@ export interface ModuleDef {
   version: string;
   /** Modules that must be loaded, and enabled for a company, before this one. */
   dependsOn: string[];
+  /**
+   * Modules this one uses without a load-order edge (plan 2B Task 41, Ruling R41-1): each must be loaded, but `needs` takes no part in
+   * the load order, so two modules may need each other's schema (inventory needs costing, which dependsOn inventory). Only disabling a
+   * needed module is refused while the needer is enabled; enabling the needer does not force the needed module on.
+   */
+  needs?: string[];
   entities: EntityDef[];
   processes: ProcessDef[];
   features: FeatureDef[];
@@ -277,6 +283,13 @@ export interface ModuleDef {
    * guard and its menu-access key, and it stays in its own module's menu when this module is not entitled.
    */
   adopts?: string[];
+  /**
+   * Menu items this module places in the section group of a module it depends on (plan 2B Task 42, Ruling R42-1): `under` is the target
+   * group id (`<module>.<section>`, e.g. `sales.documentos`), whose module must be in `dependsOn`, so the target module never names the
+   * contributor. The shell adds the item last in the group, only when this module is entitled and the item's feature and process pass;
+   * the module's own item stays in its menu. The shortcut's id is its own (it is not in `navigation`).
+   */
+  shortcuts?: { item: NavItem; under: string }[];
   /** KPIs the module contributes to the home screen. */
   homeKpis?: HomeKpiProvider[];
   /** Charts the module contributes to its Inicio page. */

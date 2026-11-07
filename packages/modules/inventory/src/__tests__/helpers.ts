@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { buildConsumerContext, kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncModuleManifest, type Caller, type ConsumerContext, type RunProcessDeps } from "@erp/kernel";
-import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
+import { needStub, seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
 import { inventory } from "../index";
@@ -8,7 +8,7 @@ import { inventory } from "../index";
 export type Db = ReturnType<typeof testDb>;
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, inventory]);
+loadModules(registry, [kernelModule, core, inventory, needStub("costing")]);
 
 /** Every process of core and inventory as the loader registers them (the generic lifecycle ones included). */
 const PROCESS_IDS = [...registry.processes({ module: "core" }), ...registry.processes({ module: "inventory" })].map((p) => p.id);

@@ -111,6 +111,11 @@ export function InvoicingRecordView({ entity, recordId, view, editForm }: Invoic
             ))}
           </ol>
         )}
+        {view.priceWarning && (
+          <div className="erp-dian erp-dian--warn" role="status" data-testid="price-date-warning">
+            {view.priceWarning}
+          </div>
+        )}
         {view.errors.length > 0 && (
           <div className="erp-dian erp-dian--bad">
             <b>{t("errors_title")}</b>

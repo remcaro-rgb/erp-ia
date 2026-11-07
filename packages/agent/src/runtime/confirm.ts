@@ -169,17 +169,17 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
   }
 
   // A card only for what would run now (rules 10 and 17, plan 2B Task 25): the process runs as the caller in a dry run, whose transaction
-  // is always rolled back (nothing is written, no event, no audit but a denial's), and its refusal goes back to the model instead of a card:
+  // is always rolled back (nothing is written, no event, no audit row, a denial is counted), and its refusal goes back to the model instead of a card:
   // a customer or product that is not invoice_ready, a closed period, an order that cannot be confirmed. A step-up process is not tried
   // (it skips this preflight): its run needs the code, which the user types on the card, so its refusals come at the confirmation (which
   // checks everything again) and its card lists the effects of the events it declares, without the posting rules that have a `when`.
-  // The preflight runs the handler once more than the accept does, audits a denial like any run, and holds its row locks until the rollback.
+  // The preflight runs the handler once more than the accept does, counts a denial as telemetry without an audit row (rule 16, design §22.28), and holds its row locks until the rollback.
   const stepUp = await needsStepUp(deps, claims.active_company_id, def);
   let events: DryRunEvent[] | undefined;
   if (!stepUp) {
     try {
       // What the run would emit, so the card lists the effects of those events only, each posting rule's `when` checked on its payload.
-      await runProcess(deps, caller, def.id, parsed.data, { dryRun: true, onDryRunEvents: (e) => (events = e) });
+      await runProcess(deps, caller, def.id, parsed.data, { dryRun: true, preflight: "assistant", onDryRunEvents: (e) => (events = e) });
     } catch (error) {
       if (!(error instanceof ProcessError)) throw error;
       // Its code and a catalogue text only (scrubRefusal): the handler's text may hold what the caller's masks hide.

@@ -8,6 +8,7 @@ routes:
 processes:
   - invoicing.invoice.create
   - invoicing.invoice.update
+  - invoicing.invoice.reprice
   - invoicing.invoice.from_orders
   - invoicing.invoice.issue
   - invoicing.invoice.void
@@ -38,7 +39,7 @@ Arriba ves la **etapa** (Borrador, Emitida, Pagada, Anulada), el **Estado ante l
 
 ![factura emitida, pagada y aceptada por la DIAN, con su recorrido DIAN, el cliente, el pedido, la entrega, el recibo de caja, la resolución y el CUFE](img/factura-emitida.png)
 
-La barra de la ficha tiene los botones del documento, en cualquier pestaña: **Guardar** guarda el borrador (sigue siendo un borrador), **Emitir** lo emite (si tienes cambios sin guardar, guárdalos primero), **Reintentar envío** reenvía a la DIAN una factura rechazada o cuyo envío se detuvo (si no hay nada que reenviar, el botón se ve apagado y dice por qué), **Anular (nota crédito)** (ver abajo), **Eliminar** borra un borrador, **Imprimir** genera el PDF y **Duplicar** abre una factura nueva con los mismos datos. Un borrador que salió de pedidos solo deja cambiar su encabezado (fechas, forma y medio de pago, notas): sus líneas son las de las entregas.
+La barra de la ficha tiene los botones del documento, en cualquier pestaña: **Guardar** guarda el borrador (sigue siendo un borrador), **Emitir** lo emite (si tienes cambios sin guardar, guárdalos primero), **Recalcular precios** (solo en un borrador) pone los precios de la lista de hoy y recalcula los impuestos, **Reintentar envío** reenvía a la DIAN una factura rechazada o cuyo envío se detuvo (si no hay nada que reenviar, el botón se ve apagado y dice por qué), **Anular (nota crédito)** (ver abajo), **Eliminar** borra un borrador, **Imprimir** genera el PDF y **Duplicar** abre una factura nueva con los mismos datos. Un borrador que salió de pedidos solo deja cambiar su encabezado (fechas, forma y medio de pago, notas): sus líneas son las de las entregas.
 
 ## Crear una factura
 
@@ -60,7 +61,7 @@ Al cambiar un borrador, lo que no indicas queda igual; puedes **quitar** las not
 
 1. Revisa de nuevo que el cliente y los productos sigan listos para facturar, y que lo que la factura cobra de un pedido siga en pie: una entrega **anulada** no se factura, y nada se factura dos veces (ni más de lo que pide el pedido ni más de lo que salió en la entrega). Si alguien está anulando la entrega en ese mismo momento, la factura espera a que termine y luego la rechaza.
    Si alguien está cancelando el pedido en ese momento, la factura espera y luego la rechaza.
-2. **Fecha la factura hoy** (la fecha de la empresa): la DIAN exige que la fecha de una factura sea la del día en que se genera y que los números sigan el orden de las fechas. La fecha que tenía el borrador (la de la entrega o la del pedido en las automáticas) queda como **Fecha de entrega o servicio**. Una de contado vence hoy; una a crédito conserva el plazo que tenía, contado desde hoy. Recalcula los impuestos con la fecha de hoy.
+2. **Fecha la factura hoy** (la fecha de la empresa): la DIAN exige que la fecha de una factura sea la del día en que se genera y que los números sigan el orden de las fechas. La fecha que tenía el borrador (la de la entrega o la del pedido en las automáticas) queda como **Fecha de entrega o servicio**. Una de contado vence hoy; una a crédito conserva el plazo que tenía, contado desde hoy. Recalcula los impuestos con la fecha de hoy; **los precios no cambian**: si quieres los de la lista de hoy, antes de emitir pulsa **Recalcular precios** (guía **Facturación electrónica**, «Antes de emitir»).
 3. Toma el siguiente número de la **resolución DIAN** de facturación. Si la resolución agotó su rango, está vencida o aún no está vigente, la factura se rechaza con los datos de la resolución (número, prefijo, rango y vigencia): registra la nueva resolución en **Facturación › Parámetros › Parámetros de facturación** (tarjeta **Resolución y numeración**) y vuelve a emitir. El número nunca se repite y no se gasta si la factura no se emite.
 4. Calcula el **CUFE**, que lleva el NIT de la empresa y el número de identificación del cliente: si el número del cliente no se puede leer, la factura se rechaza; corrígelo en el tercero.
 5. Contabiliza la factura con su fecha (hoy): el IVA va a su cuenta por tarifa; el **impuesto al consumo (INC)** y los otros impuestos nacionales (bolsas, licores, plásticos, bebidas azucaradas, ultraprocesados, carbono) van a la cuenta 249505 Impuesto nacional al consumo, nunca a la del IVA. Si el periodo está **cerrado**, si al cliente le falta algo para la contabilidad o falta una cuenta en la configuración contable, la factura no se emite. Si la contabilidad no está activa en la empresa, la factura se emite y el asiento se registra cuando se active.

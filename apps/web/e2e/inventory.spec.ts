@@ -28,7 +28,7 @@ const PROCESSES = [
 ];
 
 const DELIVER = join(__dirname, "..", "test-support", "deliver-event.mts");
-const RULE = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "packages", "modules", "accounting", "src", "rules", "defaults", "inventory-adjustment.json"), "utf8")) as {
+const RULE = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "packages", "modules", "inventory", "src", "defaults", "inventory-adjustment.json"), "utf8")) as {
   event: string;
   name: string;
   template: Record<string, unknown>;

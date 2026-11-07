@@ -83,10 +83,11 @@ export interface SettingsEdit {
   roundingTolerance: number;
   manualJournalId: string;
   niifGroup: "1" | "2" | "3";
+  ruleStaleDays: number;
 }
 
 /** Configuración: `accounting.settings.update` (admin, step-up). */
 export async function saveSettingsAction(edit: SettingsEdit, stepUpToken?: string): Promise<ActionResult> {
-  if (!edit || !UUID.test(String(edit.manualJournalId)) || !["1", "2", "3"].includes(edit.niifGroup) || typeof edit.roundingTolerance !== "number") return bad;
+  if (!edit || !UUID.test(String(edit.manualJournalId)) || !["1", "2", "3"].includes(edit.niifGroup) || typeof edit.roundingTolerance !== "number" || !Number.isInteger(edit.ruleStaleDays) || edit.ruleStaleDays < 1 || edit.ruleStaleDays > 3650) return bad;
   return perform<{ id: string }, object>("accounting.settings.update", edit, () => ({}), stepUpToken);
 }

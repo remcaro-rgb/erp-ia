@@ -114,6 +114,8 @@ export const invoiceEntity: EntityDef = entity("invoicing.invoice", "documento",
   f("due_date", "date"),
   /** The date of what the invoice bills (the entrega's or the pedido's, or the Borrador's own date): «Emitir» dates the invoice today (ruling, fix round 1). */
   f("service_date", "date"),
+  /** The day the Borrador's prices were set (creation, a change of its lines, or «Recalcular precios»); «Emitir» leaves it and warns when it is not the issue date (owner item 17). */
+  f("price_date", "date"),
   f("payment_form", "enum", { required: true, enumValues: ["1", "2"], valuesKey: "invoicing.values.payment_form" }),
   f("payment_means", "text", { required: true }),
   f("stage", "enum", { required: true, enumValues: [...INVOICE_STAGES], valuesKey: "invoicing.values.stage" }),
@@ -150,7 +152,7 @@ export const invoiceEntity: EntityDef = entity("invoicing.invoice", "documento",
   // Task 20: the invoice opens at /r/invoicing.invoice/<id> (Datos · Líneas e impuestos · Contabilidad · DIAN).
   recordPage: true,
   // A copy is a new Borrador: today's date, no number, no CUFE, nothing issued, paid or sent (the pages come with Task 20).
-  cloneReset: ["seq", "number", "prefix", "consecutive", "cufe", "issue_date", "issue_time", "due_date", "service_date", "stage", "dian_status", "origin", "resolution", "issued_at", "annulment_note_id", "paid_amount", "credited_amount", "debited_amount"],
+  cloneReset: ["seq", "number", "prefix", "consecutive", "cufe", "issue_date", "issue_time", "due_date", "service_date", "price_date", "stage", "dian_status", "origin", "resolution", "issued_at", "annulment_note_id", "paid_amount", "credited_amount", "debited_amount"],
   defaultSort: { field: "seq", dir: "desc" },
 });
 

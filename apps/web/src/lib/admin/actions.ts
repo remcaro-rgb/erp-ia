@@ -17,7 +17,7 @@ import { processDeps, registrySynced } from "@/lib/server/runtime";
  * types (Configuración de tipos, Destinatarios por estado, Plantillas PDF, Acceso al menú; Task 16).
  */
 const ADMIN_PROCESS =
-  /^kernel\.(admin\.[a-z_]+\.[a-z_]+|required_file\.(set|remove)|verifier\.set|custom_field\.(set|remove)|entity_type_settings\.update|state_recipients\.update|menu_access\.set|doc_template\.(save|set_default))$/;
+  /^kernel\.(admin\.[a-z_]+\.[a-z_]+|admin\.module\.parked_events\.dismiss|required_file\.(set|remove)|verifier\.set|custom_field\.(set|remove)|entity_type_settings\.update|state_recipients\.update|menu_access\.set|doc_template\.(save|set_default))$/;
 
 export async function adminAction(processId: string, input: unknown, stepUpToken?: string): Promise<ActionResult<{ output: unknown }>> {
   if (!ADMIN_PROCESS.test(processId)) return { ok: false, code: "not_found", details: [] };

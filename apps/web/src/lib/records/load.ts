@@ -52,7 +52,7 @@ export type FormData =
   | { kind: "category"; tables: ProductTables; productCount: number }
   | ({ kind: "entry"; linesGrid: GridTab | null } & EntryFormData)
   // The accounting masters (Task 28): Cuenta, the four analytic nodes, Fuente, Plantilla, Período and Regla contable share one form.
-  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean } | null }
+  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean; stale: boolean; staleDays: number } | null }
   // The inventory and costing records (plan 2B Task 10): bodega, ubicación, movimiento, traslado, conteo, costo en destino.
   | StockFormData
   // The CRM and sales records (plan 2B Task 14b): prospecto, embudo, oportunidad, actividad, cotización, pedido, entrega, devolución.
@@ -222,6 +222,20 @@ export async function refLabelsOf(caller: Caller, entity: EntityDef, values: Rec
   return labels;
 }
 
+/** The «Sin coincidencias en N días» flag of a rule (Task 50.6): from `posting_rule.consult`; a caller who may not consult sees no flag. */
+async function ruleStale(caller: Caller, id: string): Promise<{ stale: boolean; staleDays: number }> {
+  try {
+    const [rule, settings] = await Promise.all([
+      runProcess(processDeps(), caller, "accounting.posting_rule.consult", { id }) as Promise<{ stale?: boolean }>,
+      runProcess(processDeps(), caller, "accounting.settings.consult", {}) as Promise<{ ruleStaleDays?: number }>,
+    ]);
+    return { stale: rule.stale === true, staleDays: settings.ruleStaleDays ?? 30 };
+  } catch (error) {
+    if (error instanceof ProcessError && ["forbidden", "not_entitled", "not_found", "step_up_required"].includes(error.code)) return { stale: false, staleDays: 30 };
+    throw error;
+  }
+}
+
 async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"], accounting: AccountingTabs | null, templateId: string | null = null): Promise<FormData> {
   const master = MASTER_KINDS[entity.id];
   if (master) {
@@ -230,7 +244,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
       master,
       options: await loadMasterOptions(caller, entity.id, record?.id ?? null),
       templateLines: accounting?.kind === "template" ? accounting.lines : null,
-      rule: master === "rule" && record ? { isDefault: record.is_default === true, isModified: record.is_modified === true } : null,
+      rule: master === "rule" && record ? { isDefault: record.is_default === true, isModified: record.is_modified === true, ...(await ruleStale(caller, record.id)) } : null,
     };
   }
   if (STOCK_FORMS[entity.id]) return loadStockForm(caller, entity.id, record);
