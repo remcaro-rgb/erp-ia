@@ -61,6 +61,11 @@ wipes the hosted database, applies the migrations and the demo seed, deploys to 
 `scripts/share/update-site.sh` (`~/Desktop/Actualizar ERP-IA.command`) updates the site without touching its data: it applies only
 the migrations the hosted database lacks (`supabase db push`, forward-only), deploys to production and smoke-tests `/login`.
 
+**Hosted checklist: worker image.** The Docker worker loads the same modules as the web app. When a release adds a module,
+rebuild and redeploy the worker image (`Dockerfile.worker`) before the hosted outbox runs on it. At start the worker compares its
+modules with `kernel.manifest_hashes` and refuses to start in production (`NODE_ENV=production`) when a deployed module is missing
+from its image, warning only elsewhere; `WORKER_MODULE_CHECK=refuse|warn|off` overrides it (a rollback image needs `warn`).
+
 ### Demo accounts (local use only)
 
 | Account | Password | Roles | Second step |

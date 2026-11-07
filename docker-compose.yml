@@ -270,6 +270,9 @@ services:
       WORKFLOW_LOCAL_BASE_URL: http://web:3000
       # The name its delivery log carries (apps/worker/src/delivery-log.ts).
       WORKER_NAME: worker
+      # Startup module-list check against kernel.manifest_hashes (apps/worker/src/module-check.ts): refuse | warn | off.
+      # Unset: refuse when NODE_ENV=production, else warn. A rollback image with fewer modules needs `warn` or `off`.
+      # WORKER_MODULE_CHECK: warn
     networks: [internal]
 
   # The only published service: the app through nginx, with the workflow and internal routes behind a token.

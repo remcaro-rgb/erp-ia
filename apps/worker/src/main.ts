@@ -3,11 +3,13 @@ import { infra, runEvery } from "@erp/infra";
 import { translate } from "@erp/i18n";
 import { getServiceDb, loadModules, registerCatalogue, registry, syncRegistry } from "@erp/kernel";
 import { logDeliveries } from "./delivery-log";
+import { checkWorkerModules, resolveModuleCheckMode } from "./module-check";
 import { WORKER_MODULES } from "./modules";
 import { tickOutbox } from "./tick";
 
 // The Docker worker (design §21, rule 6): the long-running process the Workflow Postgres World needs and Vercel does
 // not. It
+//  0. checks its module list against kernel.manifest_hashes (module-check.ts: refuse in production, warn elsewhere, WORKER_MODULE_CHECK);
 //  1. loads the modules the web app ships (modules.ts: the web runtime's list, kept equal by its test) and registers their manifests in SQL, as the web
 //     app's instrumentation does at boot (design §5.2);
 //  2. starts the Postgres World (`world.start()`, node_modules/workflow/docs/worlds/postgres.mdx): its graphile runner
@@ -57,6 +59,8 @@ async function main(): Promise<void> {
   const webUrl = env("WORKFLOW_LOCAL_BASE_URL");
   const token = env("INTERNAL_TOKEN");
 
+  // Before the worker's own sync overwrites the picture: is this image as new as what is deployed? (Task 48, WORKER_MODULE_CHECK)
+  await checkWorkerModules({ sql: getServiceDb(), workerIds: WORKER_MODULES.map((m) => m.id), mode: resolveModuleCheckMode(process.env) });
   await syncManifests();
   logDeliveries(process.env.WORKER_NAME?.trim() || hostname());
   await runner.startWorld();
