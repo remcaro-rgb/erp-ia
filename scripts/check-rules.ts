@@ -22,7 +22,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "agents-claude-identical" | "puc-code-outside-pack" | "entity-type" | "menu-sections";
+export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "unmasked-view-read" | "agents-claude-identical" | "puc-code-outside-pack" | "entity-type" | "menu-sections";
 
 export interface Violation {
   rule: RuleId;
@@ -150,6 +150,38 @@ function checkMaskedViewReads(root: string): Violation[] {
           message: `reads ${schema}.${table} directly; read ${schema}.v_${table} so field visibility applies (rule 14)`,
         });
       }
+    }
+  }
+  return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
+}
+
+/**
+ * Module views published unmasked (rule 3 lets processes read them) and the process that reads one for a screen. A page, route handler
+ * or apps/web/src/lib file that names one must also call a field-visibility helper, so the screen shows a figure only to who may see
+ * its fields (rule 14, plan 2B Task 40). A comment is not a marker: there is no escape hatch.
+ */
+export const UNMASKED_VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "payments.v_invoice_allocations"] as const;
+export const UNMASKED_PROCESSES = ["payments.payment.open_invoices"] as const;
+const VISIBILITY_MARKER = /\b(?:gridPageAccess|creditVisibleTo|linkableEntities)\s*\(|\bkernel\.field_visible\s*\(/;
+
+// Best effort and file-level: a marker anywhere in the file (even inside a string literal) satisfies the guard, and `linkableEntities(`
+// only proves the entity's visibility, not each field's. Review still checks that the right fields are gated (rule 36).
+function checkUnmaskedViewReads(root: string): Violation[] {
+  const violations: Violation[] = [];
+  const viewRead = new RegExp(`\\b(?:from|join)\\s+(${UNMASKED_VIEWS.map((v) => v.replace(".", "\\.")).join("|")})\\b`, "gi");
+  const processCall = new RegExp(`["'\`](${UNMASKED_PROCESSES.map((p) => p.replace(/\./g, "\\.")).join("|")})["'\`]`, "g");
+  for (const file of walk(join(root, "apps", "web", "src")).filter((f) => /\.tsx?$/.test(f))) {
+    const path = rel(root, file);
+    if (isTestFile(path)) continue;
+    const text = withoutComments(readFileSync(file, "utf8"));
+    if (VISIBILITY_MARKER.test(text)) continue;
+    for (const m of [...text.matchAll(viewRead), ...text.matchAll(processCall)]) {
+      violations.push({
+        rule: "unmasked-view-read",
+        file: path,
+        line: text.slice(0, m.index).split("\n").length,
+        message: `reads ${m[1]}, published unmasked; the file must check field visibility (gridPageAccess, creditVisibleTo, linkableEntities or kernel.field_visible) first (rule 14)`,
+      });
     }
   }
   return violations.sort((x, y) => x.file.localeCompare(y.file) || (x.line ?? 0) - (y.line ?? 0));
@@ -401,7 +433,7 @@ function checkInstructionFiles(root: string): Violation[] {
 }
 
 export function checkRules(root: string): Violation[] {
-  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkPucCodes(root), ...checkEntityTypes(root), ...checkMenuSections(root), ...checkInstructionFiles(root)];
+  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkUnmaskedViewReads(root), ...checkPucCodes(root), ...checkEntityTypes(root), ...checkMenuSections(root), ...checkInstructionFiles(root)];
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

@@ -1,11 +1,11 @@
 "use server";
 
 import { runProcess } from "@erp/kernel";
-import type { OpenInvoice } from "@erp/ui";
 import { requireCaller } from "@/lib/auth/claims";
 import { defined, isUuid, text } from "@/lib/records/step-helpers";
 import { stepRefusal as refusal } from "@/lib/records/step-refusal";
 import { processDeps } from "@/lib/server/runtime";
+import { openInvoicesFor, type OpenInvoicesOutcome } from "./open-invoices";
 import { PAYMENTS_STEPS } from "./record";
 
 // The payments screens' server side (plan 2B Task 24b, rule 1): every button runs a registered process as the session's user, with the
@@ -16,18 +16,10 @@ import { PAYMENTS_STEPS } from "./record";
 
 export type PaymentsStepOutcome = { ok: true } | { ok: false; code: string; messages: string[] };
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** «Registrar pago»: the customer's issued invoices with what is open and whether this receipt can pay each (and why not). */
-export async function openInvoicesAction(partyId: unknown, date: unknown): Promise<{ ok: true; invoices: OpenInvoice[] } | { ok: false; code: string; messages: string[] }> {
+/** «Registrar pago»: the customer's issued invoices with what is open and whether this receipt can pay each (and why not). Refuses `forbidden` when the caller may not see the invoices' amounts (Ruling R40-2). */
+export async function openInvoicesAction(partyId: unknown, date: unknown): Promise<OpenInvoicesOutcome> {
   if (!isUuid(partyId)) return { ok: false, code: "invalid_input", messages: [] };
-  const caller = await requireCaller();
-  try {
-    const result = (await runProcess(processDeps(), caller, "payments.payment.open_invoices", { partyId, ...(typeof date === "string" && DAY.test(date) ? { date } : {}) })) as { invoices: OpenInvoice[] };
-    return { ok: true, invoices: result.invoices };
-  } catch (error) {
-    return refusal(error);
-  }
+  return openInvoicesFor(await requireCaller(), partyId, date);
 }
 
 /** What each step's process takes, built from the record and the fields the step's screen sends. */

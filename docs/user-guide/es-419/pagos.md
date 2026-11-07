@@ -57,6 +57,8 @@ El recibo muestra en **Datos** el cliente, el medio de pago, la caja, la fecha y
 
 Cada factura pagada muestra, en sus datos, los **Recibos de caja** que la pagaron, con un enlace a cada uno.
 
+Si tu rol no puede ver los valores de las facturas (número, total o lo ya pagado, acreditado o debitado), **Registrar pago** no lista las facturas abiertas del cliente y avisa que no tienes permiso: el sistema no muestra por esa vía lo que tu rol tiene oculto. Pide al administrador que te dé acceso a esos campos de la factura (guía **Administración**).
+
 ## Qué factura se puede pagar
 
 El sistema acepta una factura solo si:

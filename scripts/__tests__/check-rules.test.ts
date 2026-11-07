@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { checkRules } from "../check-rules";
+import { checkRules, UNMASKED_PROCESSES, UNMASKED_VIEWS } from "../check-rules";
 
 let root: string;
 
@@ -181,6 +182,68 @@ describe("check-rules: reads through masked views in apps/web and packages/agent
     put("apps/web/test-support/fixtures.ts", "sql`select * from core.parties`;\n");
     put("packages/modules/core/src/processes/party.ts", "tx`select * from core.parties where id = ${1}`;\n");
     expect(checkRules(root)).toEqual([]);
+  });
+});
+
+describe("check-rules: unmasked module views", () => {
+  const VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "payments.v_invoice_allocations"];
+
+  it("flags a page reading an unmasked view with no field-visibility helper, with file and line", () => {
+    put("apps/web/src/app/(app)/x/page.tsx", "export const q = (tx) => tx`\n  select id from invoicing.v_receivable_invoices where party_id = ${1}`;\n");
+    const violations = checkRules(root);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ rule: "unmasked-view-read", file: "apps/web/src/app/(app)/x/page.tsx", line: 2 });
+  });
+
+  it("accepts the same file when it calls a field-visibility helper", () => {
+    for (const helper of ["gridPageAccess(", "creditVisibleTo(", "linkableEntities(", "kernel.field_visible("]) {
+      put("apps/web/src/lib/x.ts", `await ${helper}deps);\ntx\`select id from invoicing.v_receivable_invoices\`;\n`);
+      expect(checkRules(root), helper).toEqual([]);
+    }
+  });
+
+  it("does not accept a comment as a marker (no escape hatch)", () => {
+    put("apps/web/src/lib/x.ts", "// visibility-checked: gridPageAccess\n// gridPageAccess(\ntx`select id from invoicing.v_receivable_invoices`;\n");
+    expect(checkRules(root).map((v) => v.rule)).toEqual(["unmasked-view-read"]);
+  });
+
+  it("flags each of the five views and the open_invoices process", () => {
+    for (const view of VIEWS) {
+      put("apps/web/src/lib/x.ts", `tx\`select 1 from ${view} v\`;\n`);
+      expect(checkRules(root).map((v) => v.rule), view).toEqual(["unmasked-view-read"]);
+      const [schema, name] = view.split(".") as [string, string];
+      put("apps/web/src/lib/x.ts", `tx\`select 1 from ${schema}.${name} v join ${schema}.${name} w on true\`;\n`);
+      expect(checkRules(root).length, view).toBe(2);
+    }
+    put("apps/web/src/lib/x.ts", 'await runProcess(deps, caller, "payments.payment.open_invoices", {});\n');
+    expect(checkRules(root).map((v) => v.rule)).toEqual(["unmasked-view-read"]);
+  });
+
+  it("does not scan test files or code under packages/modules", () => {
+    put("apps/web/src/lib/__tests__/x.integration.test.ts", "sql`select * from invoicing.v_receivable_invoices`;\n");
+    put("apps/web/src/lib/x.test.ts", "sql`select * from payments.v_invoice_allocations`;\n");
+    put("packages/modules/payments/src/processes/x.ts", "tx`select * from invoicing.v_receivable_invoices`; run(\"payments.payment.open_invoices\");\n");
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("documents the guard's known limits: it is file-level and best effort", () => {
+    // A marker inside a string literal satisfies it (only comments are stripped).
+    put("apps/web/src/lib/x.ts", 'const note = "gridPageAccess(";\ntx`select id from invoicing.v_receivable_invoices`;\n');
+    expect(checkRules(root)).toEqual([]);
+    // linkableEntities( proves the entity's visibility only, not that each field read is visible.
+    put("apps/web/src/lib/x.ts", "await linkableEntities(deps, claims, []);\ntx`select total from invoicing.v_receivable_invoices`;\n");
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("holds the declared views and processes", () => {
+    expect([...UNMASKED_VIEWS]).toEqual(VIEWS);
+    expect([...UNMASKED_PROCESSES]).toEqual(["payments.payment.open_invoices"]);
+  });
+
+  it("the real repo has no unmasked-view-read violation, and the inventory KPI checks field_visible", () => {
+    const real = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    expect(checkRules(real).filter((v) => v.rule === "unmasked-view-read")).toEqual([]);
+    expect(readFileSync(join(real, "packages/modules/inventory/src/home.ts"), "utf8")).toMatch(/kernel\.field_visible\(/);
   });
 });
 
