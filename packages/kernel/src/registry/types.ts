@@ -91,6 +91,8 @@ export interface NavItem {
   feature?: string;
   /** Process id one of the caller's roles must be able to run for the item to show (`kernel.import.run`). */
   process?: string;
+  /** Like `process`, but any one of these ids runnable by one of the caller's roles shows the item (the nested-run queue: retry or dismiss). */
+  anyProcess?: string[];
   /** Shows in the active module's horizontal items bar. Default true. */
   menu?: boolean;
   /**

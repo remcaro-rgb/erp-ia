@@ -32,6 +32,12 @@ export const EXCLUDED_PROCESSES: ReadonlyMap<string, string> = new Map([
   // assistant finds a customer's invoices through kernel.data.query over the masked invoicing.invoice, and payments.payment.receive checks
   // each allocation itself.
   ["payments.payment.open_invoices", "reads invoicing's unmasked published view of the invoices; the assistant reads them through the masked invoicing.invoice entity"],
+  // Plan 2B Task 32 (R32-10): the assistant gains nothing from configurable nested runs. It neither widens what a nested run may do nor
+  // retries or dismisses a queued failure (a replayed write chosen from a queue the chat does not show).
+  ["kernel.admin.nested_run.pair.set", "changes which nested runs a parent's step-up covers and which may continue after a failure; only the admin screen sets it"],
+  ["kernel.admin.nested_run.depth.set", "changes how deep nested runs may go; only the admin screen sets it"],
+  ["kernel.nested_failure.retry", "replays a queued nested write chosen on the failure queue screen; the chat does not see the queue"],
+  ["kernel.nested_failure.dismiss", "closes a queued nested failure chosen on the failure queue screen; the chat does not see the queue"],
 ]);
 
 /**

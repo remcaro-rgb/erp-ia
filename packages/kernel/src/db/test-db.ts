@@ -144,6 +144,9 @@ export async function seedTenant(sql: Sql, options: SeedOptions): Promise<Seeded
       await sql`delete from kernel.entity_type_settings where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.recommendations where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.document_links where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.nested_run_failures where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.nested_run_pairs where company_id = any(${companyIds}::uuid[])`;
+      await sql`delete from kernel.nested_run_settings where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from core.entity_sequences where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.imports where company_id = any(${companyIds}::uuid[])`;
       await sql`delete from kernel.process_idempotency where company_id = any(${companyIds}::uuid[])`;

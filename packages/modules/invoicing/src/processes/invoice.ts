@@ -478,6 +478,9 @@ export const invoiceVoid = defineProcess({
       refuseState("annulment_not_available", [`Una factura emitida se anula con una nota crédito de anulación, que aún no está disponible: la factura ${label(invoice)} sigue vigente`]);
     }
     const note = await ctx.runProcess<{ id: string }>(ANNULMENT_PROCESS, { invoiceId: invoice.id, reason: input.reason });
+    // A nested run set to «continue» resolves undefined after queuing its failure (plan 2B Task 32): the void needs its note, so it fails and
+    // rolls back as with no configuration (decisions item 68; the note posts, so «continue» is refused for it anyway).
+    if (!note) throw new ProcessError("handler_failed", `invoicing.invoice.void needs the annulment note ${ANNULMENT_PROCESS} did not issue`);
     return { id: invoice.id, deleted: false, annulmentNoteId: note.id };
   },
 });

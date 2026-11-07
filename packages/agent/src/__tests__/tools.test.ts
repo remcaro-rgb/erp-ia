@@ -73,12 +73,16 @@ describe("input schemas", () => {
 describe("excluded processes", () => {
   it("leaves out what needs a file, a job or a sign-out the chat cannot handle, each with its reason", () => {
     expect([...EXCLUDED_PROCESSES.keys()].sort()).toEqual([
+      "kernel.admin.nested_run.depth.set",
+      "kernel.admin.nested_run.pair.set",
       "kernel.admin.user.mfa.set",
       "kernel.admin.user.password.reset",
       "kernel.attachment.add",
       "kernel.export.run",
       "kernel.import.preview",
       "kernel.import.run",
+      "kernel.nested_failure.dismiss",
+      "kernel.nested_failure.retry",
       "kernel.user.mfa.disable",
       "kernel.user.password.change",
       "payments.payment.open_invoices",

@@ -15,6 +15,7 @@ import { IDENTIFIER } from "../registry/fields";
 import type { ProcessDef, ProcessKind } from "../registry/types";
 import type { Caller, ProcessContext } from "./context";
 import { isMembershipInactive, MEMBERSHIP_INACTIVE, ProcessError, type ProcessErrorCode } from "./errors";
+import { asProcessError, CONTINUABLE_CODES, ledgerOrStockEvent, ledgerOrStockReason, NESTED_RETRY_PROCESS, nestedPolicy, observeEmits, queuedReason, reportEmitted } from "./nested-policy";
 
 export interface RunProcessDeps {
   sql: Sql;
@@ -94,6 +95,17 @@ function sqlRefusal(cause: unknown): ProcessError | undefined {
   if (code !== "P0001" || typeof message !== "string" || !message.startsWith(SQL_INVALID_INPUT)) return undefined;
   const text = message.slice(SQL_INVALID_INPUT.length).trim();
   return new ProcessError("invalid_input", text, { details: [text], cause, stage: "handler" });
+}
+
+/**
+ * The denial a nested run in a `continue` pair failed with when its cause is a SQL `insufficient_privilege` (42501): `forbidden`, so it
+ * propagates and is never queued (plan 2B Task 32, fix round 1, M1). Outside `continue` the code stays as before (`handler_failed`).
+ */
+function sqlDenial(error: unknown, processId: string): ProcessError | undefined {
+  const sqlState = (e: unknown) => (typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined);
+  const cause = error instanceof ProcessError ? (error as { cause?: unknown }).cause : error;
+  if (sqlState(cause) !== "42501") return undefined;
+  return new ProcessError("forbidden", `process ${processId} was refused by the database (insufficient privilege)`, { cause });
 }
 
 /** Refusals recorded in the audit log with action `denied` (design §5.4 step 2). */
@@ -215,6 +227,8 @@ async function execute<O extends z.ZodTypeAny>(
   }
 
   const after: Array<Parameters<NonNullable<ProcessContext["afterCommit"]>>[0]> = [];
+  // The nested runs this run queued (a `continue` pair) are noted in its own success audit row (R32-9 ii).
+  const nesting: NestingState = { collectors: [], queued: [] };
   try {
     const result = await withClaims(deps.sql, claims, async (tx) => {
       await setAuditContext(tx, {
@@ -232,7 +246,7 @@ async function execute<O extends z.ZodTypeAny>(
       // The roles the caller still holds (0024: the claim's roles intersected with the live memberships), so a role
       // revoked after the token was issued no longer counts for the handler's own checks (custom-field roles).
       const [live] = await tx<{ role_ids: string[] }[]>`select kernel.current_role_ids() as role_ids`;
-      const ctx = buildContext(tx, deps, def, caller, chainId, dryRun, live!.role_ids, 0);
+      const ctx = buildContext(tx, deps, def, caller, chainId, dryRun, live!.role_ids, 0, nesting);
       ctx.afterCommit = (fn) => {
         after.push(fn);
       };
@@ -262,7 +276,7 @@ async function execute<O extends z.ZodTypeAny>(
       await writeAudit(tx, {
         ...auditDefaults(def, caller, chainId),
         rowId: rowIdOf(output),
-        input: def.auditInput ? def.auditInput(parsed.data) : parsed.data,
+        input: withQueued(def.auditInput ? def.auditInput(parsed.data) : parsed.data, nesting.queued),
         sourceRowId: options.sourceRowId,
       });
 
@@ -450,10 +464,41 @@ async function consumeStepUp(tx: Tx, processId: string, token: string, userId: s
   if (consumed.length === 0) throw new ProcessError("step_up_required", `${processId} requires a fresh step-up verification`, GATE);
 }
 
-/** How many runs may nest: a process that runs a process that runs a process… stops here. */
-const MAX_NESTING = 4;
+/** A nested run that failed and was queued (a `continue` pair): noted in its parent's success audit row as `nested_queued`. */
+interface QueuedNested {
+  process: string;
+  failure_id: string;
+}
 
-function buildContext(tx: Tx, deps: RunProcessDeps, def: ProcessDef, caller: Caller, chainId: string, dryRun: boolean, roleIds: string[], depth: number): ProcessContext {
+/** What one context of a run shares with the runs nested in it (plan 2B Task 32). */
+interface NestingState {
+  /** Event collectors of the `continue` subtrees this context is in: each event it writes is reported to all of them (R32-5). */
+  collectors: string[][];
+  /** The nested runs of this context that failed and were queued. */
+  queued: QueuedNested[];
+}
+
+/** The audit input of a run, with the nested runs it queued merged in when there are any (R32-9 ii); unchanged otherwise. */
+function withQueued(input: unknown, queued: QueuedNested[]): unknown {
+  if (queued.length === 0) return input;
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) return { ...(input as Record<string, unknown>), nested_queued: queued };
+  return { input, nested_queued: queued };
+}
+
+/** Process ids are identifiers of dotted lowercase segments; a savepoint name is built from a depth only. */
+const savepointName = (depth: number) => `nested_run_${Math.trunc(depth)}`;
+
+function buildContext(
+  tx: Tx,
+  deps: RunProcessDeps,
+  def: ProcessDef,
+  caller: Caller,
+  chainId: string,
+  dryRun: boolean,
+  roleIds: string[],
+  depth: number,
+  nesting: NestingState = { collectors: [], queued: [] },
+): ProcessContext {
   const { claims } = caller;
   const registry = deps.registry;
   const ctx: ProcessContext = {
@@ -472,6 +517,7 @@ function buildContext(tx: Tx, deps: RunProcessDeps, def: ProcessDef, caller: Cal
     links: makeLinks(tx, registry, def.id),
     async emit(event, payload) {
       await enqueueEvent(tx, { companyId: claims.active_company_id, event, payload, chainId });
+      reportEmitted(ctx, event);
     },
     async audit(entry) {
       // The handler may describe the entry, never change who did it or from where.
@@ -479,33 +525,71 @@ function buildContext(tx: Tx, deps: RunProcessDeps, def: ProcessDef, caller: Cal
       const { companyId, actorUserId, origin } = defaults;
       await writeAudit(tx, { ...defaults, ...entry, companyId, actorUserId, origin });
     },
-    async runProcess<T>(processId: string, input: unknown): Promise<T> {
-      if (depth >= MAX_NESTING) throw new ProcessError("handler_failed", `${def.id}: nested runs are limited to ${MAX_NESTING} levels`);
+    async runProcess<T>(processId: string, input: unknown, opts: { asParent?: string } = {}): Promise<T | undefined> {
+      // `asParent` (R32-8): only the queue's retry replays a nested run in its original parent's pair context.
+      let parentId = def.id;
+      if (opts.asParent !== undefined) {
+        if (def.id !== NESTED_RETRY_PROCESS) throw new ProcessError("forbidden", `${def.id} may not run a nested process as another parent`, GATE);
+        parentId = resolve(registry, opts.asParent).id;
+      }
+      // The pair's policy and the company's depth (defaults with no configuration: depth 4, no coverage, roll back all).
+      const policy = await nestedPolicy(tx, parentId, processId);
+      if (depth >= policy.maxDepth) throw new ProcessError("handler_failed", `${def.id}: nested runs are limited to ${policy.maxDepth} levels`);
       const inner = resolve(registry, processId);
       const companyId = claims.active_company_id;
       if (inner.module !== "kernel" && !(await (deps.entitled ?? resolveEntitled)(deps.sql, companyId, `process:${inner.id}`))) {
         throw new ProcessError("not_entitled", `process ${inner.id} is not entitled for company ${companyId}`, GATE);
       }
       if (inner.origins && !inner.origins.includes(caller.origin)) throw new ProcessError("forbidden", `${inner.id} runs only from ${inner.origins.join(", ")}`, GATE);
-      if (inner.nestedOnlyFrom && !inner.nestedOnlyFrom.includes(def.id)) throw new ProcessError("forbidden", `${inner.id} runs only nested in ${inner.nestedOnlyFrom.join(", ")}`, GATE);
-      const [gate] = await tx<{ allowed: boolean; member: boolean; sensitive: boolean }[]>`
+      if (inner.nestedOnlyFrom && !inner.nestedOnlyFrom.includes(parentId)) throw new ProcessError("forbidden", `${inner.id} runs only nested in ${inner.nestedOnlyFrom.join(", ")}`, GATE);
+      // Step-up coverage (R32-4): the caller's token covers the nested process only when it is a fresh verification of this user that this
+      // very transaction consumed (`consumed_at = now()`: the step-up parent's own run), and only for a pair the admin switched on.
+      const stepUpToken = caller.stepUpToken ?? null;
+      const [gate] = await tx<{ allowed: boolean; parent_allowed: boolean; member: boolean; sensitive: boolean; covered: boolean }[]>`
         select kernel.can_run_process(${inner.id}) as allowed,
+               kernel.can_run_process(${parentId}) as parent_allowed,
                coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
-               exists (select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${inner.id}) as sensitive`;
+               exists (select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${inner.id}) as sensitive,
+               ${policy.totpCovers} and exists (
+                 select 1 from kernel.step_up_verifications v
+                 where v.token = ${stepUpToken} and v.user_id = ${claims.sub} and v.company_id = ${companyId}
+                   and v.verified_at > now() - interval '5 minutes' and v.consumed_at = now()
+               ) as covered`;
       // A process that runs only nested in named parents is covered by its parent's role gate (the admin's matrix never lists it).
       if (inner.permission === "none" || inner.nestedOnlyFrom ? !gate!.member : !gate!.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${inner.id}`, GATE);
-      if (gate!.sensitive || inner.sensitivity === "step-up") {
+      // A replay as another parent (the queue's retry) of a process the parent's role gate covers (nestedOnlyFrom, permission "none") needs
+      // the retrying user to be able to run that parent: the retry grant alone never stands in for it (fix round 1, I2).
+      if (opts.asParent !== undefined && (inner.permission === "none" || inner.nestedOnlyFrom) && !gate!.parent_allowed) {
+        throw new ProcessError("forbidden", `no role of the caller may run ${parentId}, the parent ${inner.id} is replayed in`, GATE);
+      }
+      if ((gate!.sensitive || inner.sensitivity === "step-up") && !gate!.covered) {
         throw new ProcessError("step_up_required", `${inner.id} requires its own step-up verification and cannot run nested in ${def.id}`, GATE);
       }
       const parsed = inner.input.safeParse(input);
       if (!parsed.success) throw new ProcessError("invalid_input", `invalid input for ${inner.id}`, { details: parsed.error.issues, stage: "gate" });
-      const nested = buildContext(tx, deps, inner, caller, chainId, ctx.dryRun, roleIds, depth + 1);
-      nested.afterCommit = ctx.afterCommit;
-      const attribute = (id: string) => setAuditContext(tx, { origin: caller.origin, processId: id, chainId, actorUserId: claims.sub, conversationId: caller.conversationId });
-      await attribute(inner.id);
-      let output: unknown;
-      let failed = false;
-      try {
+
+      // Continue and queue (R32-5, R32-6): never for a retry, never for a process that posts to the ledger or moves stock (a stored
+      // `continue` of such a pair runs as rollback, with an audit note).
+      let continueMode = policy.onFailure === "continue" && opts.asParent === undefined;
+      const ledgerOrStock = continueMode ? ledgerOrStockReason(registry, inner.id) : null;
+      if (ledgerOrStock !== null) {
+        continueMode = false;
+        await writeAudit(tx, { ...auditDefaults(def, caller, chainId), input: { code: "nested_continue_refused", nested_process: inner.id, reason: ledgerOrStock } });
+      }
+      const collected: string[] = [];
+      const nestedQueued: QueuedNested[] = [];
+      // In a `continue` subtree the nested run's deferred steps wait for its success, so a savepoint rollback drops them too.
+      const deferred: Array<Parameters<NonNullable<ProcessContext["afterCommit"]>>[0]> = [];
+      const attribute = (on: Tx, id: string) => setAuditContext(on, { origin: caller.origin, processId: id, chainId, actorUserId: claims.sub, conversationId: caller.conversationId });
+      /** The nested run itself, on `on`: the outer transaction, or the savepoint a `continue` pair opens around it. */
+      const body = async (on: Tx): Promise<unknown> => {
+        const nested = buildContext(on, deps, inner, caller, chainId, ctx.dryRun, roleIds, depth + 1, {
+          collectors: continueMode ? [...nesting.collectors, collected] : nesting.collectors,
+          queued: nestedQueued,
+        });
+        nested.afterCommit = continueMode ? (fn) => void deferred.push(fn) : ctx.afterCommit;
+        await attribute(on, inner.id);
+        let output: unknown;
         try {
           const guard = recordGuardOf(registry, inner, parsed.data);
           if (guard) await assertRecordRight(nested, guard.entity, guard.recordId, guard.right);
@@ -514,20 +598,56 @@ function buildContext(tx: Tx, deps: RunProcessDeps, def: ProcessDef, caller: Cal
           if (cause instanceof ProcessError) throw cause;
           throw sqlRefusal(cause) ?? new ProcessError("handler_failed", `process ${inner.id} failed`, { cause });
         }
-        await writeAudit(tx, { ...auditDefaults(inner, caller, chainId), rowId: rowIdOf(output), input: inner.auditInput ? inner.auditInput(parsed.data) : parsed.data });
-      } catch (error) {
-        failed = true;
-        throw error;
-      } finally {
-        // The rest of the outer run is attributed to the outer process again, also when the nested run threw and the outer handler catches
-        // it (final review M-3). After a SQL error the transaction is aborted and this cannot run: the nested error is the one that counts.
-        await attribute(def.id).catch((error: unknown) => {
-          if (!failed) throw error;
-        });
+        await writeAudit(on, { ...auditDefaults(inner, caller, chainId), rowId: rowIdOf(output), input: withQueued(inner.auditInput ? inner.auditInput(parsed.data) : parsed.data, nestedQueued) });
+        return output;
+      };
+
+      if (!continueMode) {
+        let failed = false;
+        try {
+          return (await body(tx)) as T;
+        } catch (error) {
+          failed = true;
+          throw error;
+        } finally {
+          // The rest of the outer run is attributed to the outer process again, also when the nested run threw and the outer handler catches
+          // it (final review M-3). After a SQL error the transaction is aborted and this cannot run: the nested error is the one that counts.
+          await attribute(tx, def.id).catch((error: unknown) => {
+            if (!failed) throw error;
+          });
+        }
       }
+
+      // Continue and queue (R32-6): the nested run happens inside a savepoint (named per depth; the driver's own scope, so a SQL error of
+      // the nested run is contained in it and does not abort the outer transaction). On failure only the nested run is undone: its writes,
+      // audit, outbox, links and the audit context it set (set_config reverts with the savepoint), and its deferred steps are dropped.
+      let output: unknown;
+      try {
+        output = await tx.savepoint(savepointName(depth + 1), (sp) => body(sp as unknown as Tx));
+      } catch (error) {
+        await attribute(tx, def.id);
+        // A SQL denial (insufficient_privilege, 42501: a definer writer or a grant refusing this run) is a denial like the typed ones (M1).
+        const failure = sqlDenial(error, inner.id) ?? asProcessError(sqlRefusal(error) ?? error, inner.id);
+        // A denial always propagates (R32-16); so does a failure after the subtree set off a ledger or stock event (R32-5 run-time guard).
+        if (!CONTINUABLE_CODES.has(failure.code) || collected.some((event) => ledgerOrStockEvent(registry, event))) throw failure;
+        const [row] = await tx<{ id: string }[]>`
+          select kernel.nested_failure_record(${def.id}, ${inner.id}, ${tx.json((parsed.data ?? null) as JSONValue)}, ${failure.code}, ${queuedReason(failure)},
+                                              ${chainId}::uuid, ${caller.origin}) as id`;
+        const failureId = row!.id;
+        await writeAudit(tx, { ...auditDefaults(inner, caller, chainId), input: { code: "nested_run_queued", error_code: failure.code, failure_id: failureId } });
+        await writeAudit(tx, { ...auditDefaults(def, caller, chainId), input: { code: "nested_run_queued", nested_process: inner.id, failure_id: failureId } });
+        nesting.queued.push({ process: inner.id, failure_id: failureId });
+        return undefined;
+      }
+      await attribute(tx, def.id);
+      for (const fn of deferred) ctx.afterCommit?.(fn);
       return output as T;
     },
   };
+  // Every event this context writes is reported to the collectors of the `continue` subtrees it is in (R32-5 run-time guard).
+  if (nesting.collectors.length > 0) observeEmits(ctx, (event) => {
+    for (const collector of nesting.collectors) collector.push(event);
+  });
   return ctx;
 }
 

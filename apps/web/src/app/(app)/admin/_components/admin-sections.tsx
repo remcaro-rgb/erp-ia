@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 /** The administration's sections (prototype v5 subnav), in the prototype's order; the audit and the AI usage report last. */
 export const ADMIN_SECTIONS = [
   { href: "/admin/permissions", label: "common.admin.section.permissions" },
+  { href: "/admin/nested-runs", label: "nav.kernel.nested_runs" },
   { href: "/admin/roles", label: "nav.kernel.roles" },
   { href: "/admin/users", label: "nav.kernel.users" },
   { href: "/admin/fields", label: "nav.kernel.fields" },

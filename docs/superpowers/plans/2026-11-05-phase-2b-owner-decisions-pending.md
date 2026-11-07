@@ -206,3 +206,17 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept for 2B (the guide says so); switch to a cap per direction (50 + 50) if a real sale hits it.
 67. **The order's «Cotización» field shows the quote's raw UUID** (found by Task 31's e2e). On the order record the field `quote_id` is rendered as the id, not as the quote's number with a link (rule 21 asks every reference to a record to be a link). It is the order's own field, not the trail.
     Recommended: fix it as a small task in 2C (declare `quote_id` as a `ref` to `crm.quote` so the frame shows the number and links to it).
+
+## J. Items met while expanding 2B.2 Task 32 (configurable nested runs), 2026-11-07 · to decide
+
+68. **Existing parents do not tolerate a skipped nested run** (Task 32). In `continue` mode `ctx.runProcess` resolves `undefined` after queuing the failure. The current parents (CRM lead conversion over `core.party.create`, invoice void over `invoicing.note.issue_annulment`) read the nested output, so a configured `continue` on them fails with `handler_failed` and rolls back like today (safe, and the screen can still save the setting).
+    Recommended: accept for 2B; when the owner wants a real `continue` on a named pair, make that parent handle `undefined` in its own small task (and decide what the parent does without the nested result).
+69. **The failure queue stores the nested run's validated input** (Task 32) so a retry can replay it. The row audit of `kernel.nested_run_failures` records the row, `input` included, in `kernel.audit_log` (as item 58 for recommendations); users have no grant on the column and the view omits it.
+    Recommended: accept while only administrators read the audit log; exclude `input` from the row diff before a non-admin audit reader exists.
+70. **Retry is permission-checked for the retrying user, not the original actor** (Task 32). The owner's text speaks of the original actor's permission check. The build checks the retrying user (who must be an admin or a role granted `kernel.nested_failure.retry`, with a fresh step-up), keeps the original actor id on the row and in the retry's audit rows, and does not impersonate anyone.
+    Recommended: accept; if both checks are wanted, add `kernel.user_can_run_process(user, company, process)` and call it in the retry.
+71. **`ledger or stock` derivation over-refuses** (Task 32). A nested process counts when its `emits` hit a posting rule or any module's declared `effects`, or at run time when its subtree emits such an event; a harmless process whose event has a declared consumer effect cannot be set to `continue`.
+    Recommended: accept; a manifest can narrow it by not declaring the effect, or a later explicit `ProcessDef` flag can replace the derivation.
+72. **All nested-run configuration processes are step-up, also when narrowing** (Task 32); the process id is static, so «only widening is sensitive» would need two processes.
+    Recommended: accept (rule 15: admin processes are sensitive by default).
+

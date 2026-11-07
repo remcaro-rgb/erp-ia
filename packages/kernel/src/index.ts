@@ -27,6 +27,8 @@ export { maskedViewSql } from "./security/masked-views";
 export { defineProcess } from "./process/define";
 export { assertRecordRight, recordGuardOf, runProcess, uncoveredRecordWrites } from "./process/run";
 export type { RecordRight } from "./process/run";
+export { DEFAULT_NESTED_DEPTH, ledgerOrStockEvent, ledgerOrStockReason, NESTED_HARD_MAX, NESTED_RETRY_PROCESS, nestedPolicy } from "./process/nested-policy";
+export type { NestedPolicy } from "./process/nested-policy";
 export type { RunProcessDeps, RunProcessOptions } from "./process/run";
 export { isMembershipInactive, MEMBERSHIP_INACTIVE, ProcessError } from "./process/errors";
 export type { ProcessErrorCode, ProcessErrorStage } from "./process/errors";
@@ -111,7 +113,7 @@ export {
 export type { EmbedOptions, Embedder, HelpIndexSummary, HelpResult } from "./help";
 export { costUsd, DEFAULT_PRICE, MODEL_PRICES, priceOf, providerOfModel, recordLlmUsage } from "./ai/usage";
 export type { EmbeddingUsage, LlmTask, LlmUsageRow, ModelPrice } from "./ai/usage";
-export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcesses, moduleStates, neededBy, parkedNotEntitled, readAiUsage, readPermissionMatrix, setAuthAdmin, syncRegistry } from "./admin";
+export { ADMIN_FEATURE, ADMIN_PROCESSES, NESTED_FAILURE_PROCESSES, NESTED_FAILURES_FEATURE, NESTED_RUN_PROCESSES, authAdmin, matrixProcess, matrixProcesses, moduleStates, neededBy, parkedNotEntitled, readAiUsage, readPermissionMatrix, setAuthAdmin, syncRegistry } from "./admin";
 export type { AiUsage, MatrixProcess, ModuleState, ParkedEvents, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
 

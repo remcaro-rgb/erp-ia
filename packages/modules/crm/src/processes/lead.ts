@@ -174,7 +174,11 @@ export const leadConvert = defineProcess({
         contactName: lead.contact_name ?? undefined,
       });
       if (!ctx.runProcess) throw new ProcessError("handler_failed", "crm.lead.convert needs a context that can run core.party.create");
-      partyId = (await ctx.runProcess<{ id: string }>("core.party.create", partyInput)).id;
+      const party = await ctx.runProcess<{ id: string }>("core.party.create", partyInput);
+      // A nested run an admin set to «continue» resolves undefined after queuing its failure: the conversion needs the tercero, so it fails
+      // and rolls back as with no configuration (plan 2B Task 32, decisions item 68).
+      if (!party) throw new ProcessError("handler_failed", "crm.lead.convert needs the tercero core.party.create did not create");
+      partyId = party.id;
     }
 
     const opportunity = await createOpportunity(ctx, {

@@ -59,7 +59,10 @@ export function shellAccessKeys(registry: Registry): { entitlements: string[]; p
     const items = moduleItems(mod).flatMap((item) => [item, ...(item.children ?? [])]);
     if (items.length === 0) continue;
     if (mod.id !== PLATFORM) entitlements.add(`module:${mod.id}`);
-    for (const item of items) if (item.process) processes.add(item.process);
+    for (const item of items) {
+      if (item.process) processes.add(item.process);
+      for (const id of item.anyProcess ?? []) processes.add(id);
+    }
     for (const feature of mod.features) {
       if (!items.some((item) => item.feature === feature.id)) continue;
       entitlements.add(`feature:${feature.id}`);
@@ -87,6 +90,7 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
     const opens = (item: NavItem) => {
       if (hidden.has(item.id)) return false;
       if (item.process && !access.runnable.has(item.process)) return false;
+      if (item.anyProcess && !item.anyProcess.some((p) => access.runnable.has(p))) return false;
       if (!item.feature) return true;
       const feature = mod.features.find((f) => f.id === item.feature);
       return access.entitled.has(`feature:${item.feature}`) && (feature?.processes.some((p) => access.runnable.has(p)) ?? false);
@@ -150,6 +154,7 @@ function placeShortcuts(registry: Registry, access: ShellAccess, nav: NavItem[])
       const feature = item.feature ? mod.features.find((f) => f.id === item.feature) : undefined;
       if (hidden.has(item.id) || flattenNav(mod.navigation).some((own) => own.href === item.href && hidden.has(own.id))) continue;
       if (item.process && !access.runnable.has(item.process)) continue;
+      if (item.anyProcess && !item.anyProcess.some((p) => access.runnable.has(p))) continue;
       if (item.feature && !(access.entitled.has(`feature:${item.feature}`) && (feature?.processes.some((p) => access.runnable.has(p)) ?? false))) continue;
       const target = out.find((g) => g.id === under);
       if (!target?.children) continue;

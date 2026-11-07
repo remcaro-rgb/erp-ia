@@ -3,7 +3,10 @@ import { getTranslations } from "next-intl/server";
 import {
   auditEntityOf,
   hasRecordPage,
+  DEFAULT_NESTED_DEPTH,
+  ledgerOrStockReason,
   loadCustomFields,
+  NESTED_HARD_MAX,
   matrixProcesses,
   moduleStates,
   parkedNotEntitled,
@@ -245,6 +248,72 @@ export const loadSensitive = (): Promise<SensitiveData | null> =>
   asAdmin(async (tx, { registry }) => {
     const rows = await tx<{ process_id: string }[]>`select process_id from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`;
     return { processes: matrixProcesses(registry, await usableModules(tx, registry)), sensitive: rows.map((r) => r.process_id) };
+  });
+
+/** One process the nested-run screen offers as a parent or as a nested process (chosen from the registry, never typed: R32-13). */
+export interface NestedProcessOption {
+  id: string;
+  kind: string;
+  /** What the process does, in Spanish (the registry's description): its name where the catalogue has no label. */
+  description: string;
+  /** The parents a `nestedOnlyFrom` process may run in, or null when it may run in any. */
+  onlyFrom: string[] | null;
+  /** True when the process posts to the ledger or moves stock (derived from the registry): it may never continue after a failure. */
+  ledgerOrStock: boolean;
+  /** The process always asks for the step-up, or the company marked it sensitive. */
+  stepUp: boolean;
+}
+
+export interface NestedPair {
+  id: string;
+  parent: string;
+  nested: string;
+  totpCovers: boolean;
+  onFailure: "rollback" | "continue";
+}
+
+export interface NestedRunsData {
+  maxDepth: number;
+  defaultDepth: number;
+  hardMax: number;
+  pairs: NestedPair[];
+  processes: NestedProcessOption[];
+  /** Failures waiting in the queue (the link to /nested-failures). */
+  pending: number;
+}
+
+/** The processes that configure or work the nested runs themselves: never a parent or a nested process of a pair. */
+const NESTED_OWN = /^kernel\.(admin\.nested_run\.|nested_failure\.)/;
+
+export const loadNestedRuns = (): Promise<NestedRunsData | null> =>
+  asAdmin(async (tx, { registry }) => {
+    const [settings] = await tx<{ max_depth: number }[]>`select max_depth from kernel.nested_run_settings where company_id = kernel.current_company_id()`;
+    const pairs = await tx<{ id: string; parent_process: string; nested_process: string; parent_totp_covers: boolean; on_failure: string }[]>`
+      select id, parent_process, nested_process, parent_totp_covers, on_failure from kernel.nested_run_pairs
+      where company_id = kernel.current_company_id() order by parent_process, nested_process`;
+    const marked = new Set((await tx<{ process_id: string }[]>`select process_id from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`).map((r) => r.process_id));
+    const [count] = await tx<{ n: number }[]>`select count(*)::int as n from kernel.v_nested_run_failures where status = 'pending'`;
+    const usable = await usableModules(tx, registry);
+    const processes = registry
+      .processes()
+      .filter((p) => usable.has(p.module) && !NESTED_OWN.test(p.id))
+      .map((p) => ({
+        id: p.id,
+        kind: p.kind,
+        description: p.description,
+        onlyFrom: p.nestedOnlyFrom ? [...p.nestedOnlyFrom] : null,
+        ledgerOrStock: ledgerOrStockReason(registry, p.id) !== null,
+        stepUp: p.sensitivity === "step-up" || marked.has(p.id),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return {
+      maxDepth: settings?.max_depth ?? DEFAULT_NESTED_DEPTH,
+      defaultDepth: DEFAULT_NESTED_DEPTH,
+      hardMax: NESTED_HARD_MAX,
+      pairs: pairs.map((r) => ({ id: r.id, parent: r.parent_process, nested: r.nested_process, totpCovers: r.parent_totp_covers, onFailure: r.on_failure === "continue" ? "continue" : "rollback" })),
+      processes,
+      pending: count?.n ?? 0,
+    };
   });
 
 export interface VerifiersData {

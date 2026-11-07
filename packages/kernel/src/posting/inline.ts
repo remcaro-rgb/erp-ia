@@ -5,6 +5,7 @@ import type { ModuleGate } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
 import type { ProcessContext } from "../process/context";
 import { ProcessError } from "../process/errors";
+import { reportEmitted } from "../process/nested-policy";
 import type { ModuleDef, ConsumerContext } from "../registry/types";
 import { composeEntry, ruleApplies, type EventRef } from "./compose";
 import { resolveRoles } from "./engine";
@@ -71,6 +72,8 @@ const markHandled = async (ctx: ProcessContext, eventId: string, moduleId: strin
 export async function emitAndPostStrict(ctx: ProcessContext, name: string, payload: unknown, options: { requireRule?: boolean } = {}): Promise<InlinePosting> {
   const posting = await postingModule(ctx);
   const eventId = await enqueueEvent(ctx.tx, { companyId: ctx.companyId, event: name, payload, chainId: ctx.chainId });
+  // A nested run inside a `continue` pair must know it set off a ledger event (plan 2B Task 32, R32-5): such a failure is never swallowed.
+  reportEmitted(ctx, name);
   // No posting module, or switched off for the company: the event parks in the outbox for the consumer of a later activation. Never bought:
   // the same parking, but visible (the dispatcher dead-letters it `not_entitled`, see the header).
   if (!posting || posting.gate === "switched_off") return { posted: false, eventId, reason: "accounting_disabled" };

@@ -62,7 +62,7 @@ describe("buildShellNav", () => {
     expect(keys.processes).toEqual(expect.arrayContaining(["kernel.admin.permission.set", "kernel.audit.consult", "kernel.admin.ai_usage.consult"]));
     const admin = buildShellNav(registry, { entitled: new Set(), runnable: new Set(keys.processes.filter((p) => p.startsWith("kernel.") || p === "kernel.custom_field.set")) });
     expect(admin.modules).toEqual([{ id: "kernel", label: "nav.modules.kernel", icon: "settings" }]);
-    expect(admin.nav.filter((i) => i.menu !== false).map((i) => i.href)).toEqual(["/admin/permissions", "/admin/audit", "/admin/ai-usage"]);
+    expect(admin.nav.filter((i) => i.menu !== false).map((i) => i.href)).toEqual(["/admin/permissions", "/admin/audit", "/admin/ai-usage", "/nested-failures"]);
     expect(admin.nav.filter((i) => i.menu === false).map((i) => i.href)).toEqual([
       "/admin/roles",
       "/admin/users",
@@ -74,11 +74,27 @@ describe("buildShellNav", () => {
       "/admin/modules",
       "/admin/menu-access",
       "/admin/companies",
+      "/admin/nested-runs",
     ]);
     const onlyUsage = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.admin.ai_usage.consult"]) });
     expect(onlyUsage.nav.map((i) => i.href)).toEqual(["/admin/ai-usage"]);
     const onlyAudit = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.audit.consult"]) });
     expect(onlyAudit.nav.map((i) => i.href)).toEqual(["/admin/audit"]);
+  });
+
+  it("the nested-run failure queue shows to a role granted its retry or its dismissal (not an administrator), the pairs screen only to who may set a pair", () => {
+    const granted = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.nested_failure.retry"]) });
+    expect(granted.modules.map((m) => m.id)).toEqual(["kernel"]);
+    expect(granted.nav.map((i) => i.href)).toEqual(["/nested-failures"]);
+    expect(granted.nav[0]!.menu).not.toBe(false);
+    // A role granted only the dismissal also opens the queue (the database lets it read it); one granted neither does not.
+    const dismissOnly = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.nested_failure.dismiss"]) });
+    expect(dismissOnly.nav.map((i) => i.href)).toEqual(["/nested-failures"]);
+    expect(keys.processes).toEqual(expect.arrayContaining(["kernel.nested_failure.retry", "kernel.nested_failure.dismiss"]));
+    const ungranted = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.audit.consult"]) });
+    expect(ungranted.nav.map((i) => i.href)).toEqual(["/admin/audit"]);
+    const admin = buildShellNav(registry, { entitled: new Set(), runnable: new Set(["kernel.admin.nested_run.pair.set"]) });
+    expect(admin.nav.map((i) => i.href)).toEqual(["/admin/nested-runs"]);
   });
 
   it("an item whose feature is not entitled is hidden", () => {

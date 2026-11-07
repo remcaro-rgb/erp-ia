@@ -45,6 +45,8 @@ describe("the assistant's tool candidates", () => {
       "invoicing.certificate.upload", "invoicing.software_pin.set", "core.document_sequence.register",
       // Reads invoicing's unmasked published view (rule 17: the assistant reads invoices through the masked invoicing.invoice).
       "payments.payment.open_invoices",
+      // Nested-run configuration and its failure queue (plan 2B Task 32, R32-10): the assistant neither edits them nor retries or dismisses.
+      "kernel.admin.nested_run.pair.set", "kernel.admin.nested_run.depth.set", "kernel.nested_failure.retry", "kernel.nested_failure.dismiss",
     ];
     for (const id of never) {
       expect(() => registry.process(id), id).not.toThrow();

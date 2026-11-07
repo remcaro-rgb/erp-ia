@@ -96,6 +96,10 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
         await sql`delete from kernel.menu_access where company_id = any(${companyIds}::uuid[])`;
         // The action bar runs its steps under an idempotency key (Phase 2A.5 minor 2): its rows go with the company.
         await sql`delete from kernel.process_idempotency where company_id = any(${companyIds}::uuid[])`;
+        // Nested-run settings, pairs and queued failures belong to the company (0126).
+        await sql`delete from kernel.nested_run_failures where company_id = any(${companyIds}::uuid[])`;
+        await sql`delete from kernel.nested_run_pairs where company_id = any(${companyIds}::uuid[])`;
+        await sql`delete from kernel.nested_run_settings where company_id = any(${companyIds}::uuid[])`;
         // PDF templates belong to the company (kernel.doc_templates, 0048).
         await sql`delete from kernel.doc_templates where company_id = any(${companyIds}::uuid[])`;
         await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where user_id = ${userId})`;

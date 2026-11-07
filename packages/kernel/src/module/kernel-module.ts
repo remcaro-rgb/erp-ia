@@ -12,7 +12,7 @@ import { exportJobEntity } from "../exports/entity";
 import { EXPORT_PROCESSES } from "../exports/export.process";
 import { HELP_PROCESSES } from "../help/help.process";
 import { DATA_PROCESSES } from "../query/data-query.process";
-import { ADMIN_FEATURE, ADMIN_PROCESSES } from "../admin";
+import { ADMIN_FEATURE, ADMIN_PROCESSES, NESTED_FAILURE_PROCESSES, NESTED_FAILURES_FEATURE } from "../admin";
 import { ADMIN_NAVIGATION } from "../admin/navigation";
 import { HOME_FEATURE, HOME_PROCESSES, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS } from "../home";
 import { AUDIT_FEATURE, AUDIT_PROCESSES, auditEntity } from "../audit/viewer";
@@ -36,7 +36,7 @@ export const kernelModule: ModuleDef = defineModule({
   dependsOn: [],
   icon: "settings",
   entities: [importEntity, exportJobEntity, auditEntity, userEntity, docTemplateEntity],
-  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_PROCESSES, ...NOTIFY_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES, ...LINK_PROCESSES],
+  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_PROCESSES, ...NOTIFY_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES, ...LINK_PROCESSES, ...NESTED_FAILURE_PROCESSES],
   features: [
     {
       id: "kernel.attachments",
@@ -129,6 +129,13 @@ export const kernelModule: ModuleDef = defineModule({
       label: "feature.kernel.audit",
       processes: AUDIT_PROCESSES.map((p) => p.id),
       entities: [auditEntity.id],
+    },
+    {
+      // The nested-run failure queue (plan 2B Task 32): retry and dismiss, grantable to a role (the pairs and the depth are kernel.admin's).
+      id: NESTED_FAILURES_FEATURE,
+      label: "feature.kernel.nested_failures",
+      processes: NESTED_FAILURE_PROCESSES.map((p) => p.id),
+      entities: [],
     },
     {
       id: USERS_FEATURE,

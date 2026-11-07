@@ -860,6 +860,42 @@
           "failed": "No se pudo cargar la entrada.",
           "masked": "Valor enmascarado para tu rol"
         }
+      },
+      "nested_runs": {
+        "title": "Ejecuciones anidadas",
+        "hint": "Cuando un proceso corre otro dentro de su misma operación, aquí decides si el código de verificación del primero cubre al segundo y qué pasa si el segundo falla. Cada cambio pide el código de 6 dígitos.",
+        "queue_link": "{count, plural, =0 {Ver la cola de fallos} one {Ver la cola de fallos (# pendiente)} other {Ver la cola de fallos (# pendientes)}}",
+        "pairs_title": "Pares configurados",
+        "col_parent": "Proceso padre",
+        "col_nested": "Proceso anidado",
+        "covers": "La TOTP del padre cubre",
+        "covers_idle": "El padre {parent} no pide verificación en dos pasos: esta opción no hace nada mientras no la pida.",
+        "empty": "Aún no hay pares configurados: todo se comporta como siempre (un fallo revierte todo y el código del padre no se extiende).",
+        "not_registered": "Este proceso ya no está en el registro.",
+        "depth": {
+          "label": "Niveles permitidos",
+          "hint": "Cuántos procesos pueden anidarse uno dentro de otro, de 1 a {max}. Si no lo cambias, son {default}.",
+          "save": "Guardar niveles"
+        },
+        "add": {
+          "title": "Agregar un par",
+          "nested": "Proceso anidado",
+          "parent": "Proceso padre",
+          "choose": "Elige un proceso",
+          "covers": "La TOTP del padre cubre",
+          "failure": "En caso de fallo",
+          "submit": "Agregar par",
+          "only_from": "Este proceso solo corre dentro de: {list}"
+        },
+        "failure": {
+          "label": "En caso de fallo",
+          "rollback": "Revertir todo",
+          "continue": "Continuar y encolar"
+        },
+        "ledger": {
+          "badge": "Contabiliza o mueve existencias",
+          "hint": "Si falla, siempre se revierte todo: una ejecución que contabiliza o mueve existencias no puede continuar tras un fallo."
+        }
       }
     },
     "not_found": {
@@ -1030,6 +1066,30 @@
         "inherit": "Una regla en un módulo o en una sección aplica a todo lo que está debajo.",
         "none": "La empresa no usa módulos con menú."
       }
+    },
+    "nested_failures": {
+      "title": "Fallos de ejecuciones anidadas",
+      "hint": "Ejecuciones anidadas que fallaron, se apartaron y dejaron seguir al proceso padre. Reintenta o descarta cada una; los datos originales no se muestran aquí.",
+      "only_pending": "Solo pendientes",
+      "settings_link": "Configurar ejecuciones anidadas",
+      "col_parent": "Proceso padre",
+      "col_nested": "Proceso anidado",
+      "col_reason": "Motivo",
+      "col_who": "Quién",
+      "col_when": "Cuándo",
+      "col_status": "Estado",
+      "col_attempts": "Intentos",
+      "status": {
+        "pending": "Pendiente",
+        "resolved": "Resuelto",
+        "dismissed": "Descartado"
+      },
+      "retry": "Reintentar",
+      "dismiss": "Descartar",
+      "empty": "No hay fallos en la cola.",
+      "unknown_actor": "No disponible",
+      "truncated": "Hay más fallos de los que se listan: se muestran los pendientes y los más recientes.",
+      "retention": "Los fallos resueltos o descartados se borran a los 90 días; los pendientes se conservan hasta que los resuelvas o los descartes."
     }
   },
   "nav": {
@@ -1275,7 +1335,9 @@
       "modules": "Módulos",
       "companies": "Empresa",
       "audit": "Auditoría",
-      "menu_access": "Acceso al menú"
+      "menu_access": "Acceso al menú",
+      "nested_runs": "Ejecuciones anidadas",
+      "nested_failures": "Fallos de ejecuciones anidadas"
     },
     "section": {
       "maestros": "Maestros",
@@ -3008,7 +3070,8 @@
       "audit": "Auditoría de la empresa",
       "users": "Usuarios de la empresa",
       "doc_templates": "Impresión con plantillas PDF",
-      "notifications": "Notificar por correo"
+      "notifications": "Notificar por correo",
+      "nested_failures": "Cola de fallos de ejecuciones anidadas"
     },
     "support": {
       "tickets": "Tickets de soporte"
@@ -3085,6 +3148,20 @@
       },
       "record": {
         "notify": "Enviar el PDF de un registro por correo (Notificar)"
+      },
+      "admin": {
+        "nested_run": {
+          "pair": {
+            "set": "Configurar una ejecución anidada (padre y proceso anidado)"
+          },
+          "depth": {
+            "set": "Fijar la profundidad de las ejecuciones anidadas"
+          }
+        }
+      },
+      "nested_failure": {
+        "retry": "Reintentar una ejecución anidada fallida",
+        "dismiss": "Descartar una ejecución anidada fallida"
       }
     }
   },

@@ -17,4 +17,7 @@ export const ADMIN_NAVIGATION: NavItem[] = [
   { id: "kernel.admin_modules", label: "nav.kernel.modules", href: "/admin/modules", icon: "grid", process: "kernel.admin.module.enable", menu: false },
   { id: "kernel.admin_menu_access", label: "nav.kernel.menu_access", href: "/admin/menu-access", icon: "lock", process: "kernel.menu_access.set", menu: false },
   { id: "kernel.admin_companies", label: "nav.kernel.companies", href: "/admin/companies", icon: "building", process: "kernel.admin.company.update", menu: false },
+  { id: "kernel.admin_nested_runs", label: "nav.kernel.nested_runs", href: "/admin/nested-runs", icon: "workflow", process: "kernel.admin.nested_run.pair.set", menu: false },
+  // The nested-run failure queue (plan 2B Task 32): outside /admin so a role granted the retry or the dismissal can open it; on the bar for whoever may run either.
+  { id: "kernel.nested_failures", label: "nav.kernel.nested_failures", href: "/nested-failures", icon: "list", anyProcess: ["kernel.nested_failure.retry", "kernel.nested_failure.dismiss"] },
 ];

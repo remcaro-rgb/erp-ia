@@ -860,6 +860,42 @@
           "failed": "The entry could not be loaded.",
           "masked": "Value masked for your role"
         }
+      },
+      "nested_runs": {
+        "title": "Nested runs",
+        "hint": "When one process runs another inside its own operation, decide here whether the first one's verification code covers the second and what happens if the second fails. Every change asks for the 6-digit code.",
+        "queue_link": "{count, plural, =0 {See the failure queue} one {See the failure queue (# pending)} other {See the failure queue (# pending)}}",
+        "pairs_title": "Configured pairs",
+        "col_parent": "Parent process",
+        "col_nested": "Nested process",
+        "covers": "The parent's TOTP covers",
+        "covers_idle": "The parent {parent} does not ask for two-step verification: this option does nothing until it does.",
+        "empty": "No pairs configured yet: everything behaves as always (a failure rolls everything back and the parent's code is not extended).",
+        "not_registered": "This process is no longer in the registry.",
+        "depth": {
+          "label": "Levels allowed",
+          "hint": "How many processes may nest inside one another, from 1 to {max}. If you do not change it, it is {default}.",
+          "save": "Save levels"
+        },
+        "add": {
+          "title": "Add a pair",
+          "nested": "Nested process",
+          "parent": "Parent process",
+          "choose": "Choose a process",
+          "covers": "The parent's TOTP covers",
+          "failure": "On failure",
+          "submit": "Add pair",
+          "only_from": "This process only runs inside: {list}"
+        },
+        "failure": {
+          "label": "On failure",
+          "rollback": "Roll everything back",
+          "continue": "Continue and queue"
+        },
+        "ledger": {
+          "badge": "Posts to the ledger or moves stock",
+          "hint": "If it fails, everything is always rolled back: a run that posts to the ledger or moves stock cannot continue after a failure."
+        }
       }
     },
     "not_found": {
@@ -1030,6 +1066,30 @@
         "inherit": "A rule on a module or a section applies to everything under it.",
         "none": "The company uses no module with a menu."
       }
+    },
+    "nested_failures": {
+      "title": "Nested run failures",
+      "hint": "Nested runs that failed, were set aside and let the parent process carry on. Retry or dismiss each one; the original data is not shown here.",
+      "only_pending": "Pending only",
+      "settings_link": "Configure nested runs",
+      "col_parent": "Parent process",
+      "col_nested": "Nested process",
+      "col_reason": "Reason",
+      "col_who": "Who",
+      "col_when": "When",
+      "col_status": "Status",
+      "col_attempts": "Attempts",
+      "status": {
+        "pending": "Pending",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed"
+      },
+      "retry": "Retry",
+      "dismiss": "Dismiss",
+      "empty": "The queue has no failures.",
+      "unknown_actor": "Not available",
+      "truncated": "There are more failures than listed: the pending ones and the most recent are shown.",
+      "retention": "Resolved or dismissed failures are deleted after 90 days; pending ones are kept until you resolve or dismiss them."
     }
   },
   "nav": {
@@ -1275,7 +1335,9 @@
       "modules": "Modules",
       "companies": "Company",
       "audit": "Audit",
-      "menu_access": "Menu access"
+      "menu_access": "Menu access",
+      "nested_runs": "Nested runs",
+      "nested_failures": "Nested run failures"
     },
     "section": {
       "maestros": "Master data",
@@ -3008,7 +3070,8 @@
       "audit": "Company audit",
       "users": "Company users",
       "doc_templates": "Printing with PDF templates",
-      "notifications": "E-mail notifications"
+      "notifications": "E-mail notifications",
+      "nested_failures": "Nested run failure queue"
     },
     "support": {
       "tickets": "Support tickets"
@@ -3085,6 +3148,20 @@
       },
       "record": {
         "notify": "E-mail a record's PDF (Notify)"
+      },
+      "admin": {
+        "nested_run": {
+          "pair": {
+            "set": "Configure a nested run (parent and nested process)"
+          },
+          "depth": {
+            "set": "Set the depth of nested runs"
+          }
+        }
+      },
+      "nested_failure": {
+        "retry": "Retry a failed nested run",
+        "dismiss": "Dismiss a failed nested run"
       }
     }
   },

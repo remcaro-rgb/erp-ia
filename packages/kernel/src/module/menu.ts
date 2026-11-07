@@ -155,6 +155,7 @@ export function menuItemsOf(module: ModuleDef): MenuItemRow[] {
   const guarded = (item: NavItem): string[] => {
     const ids = new Set<string>();
     if (item.process && own.some((p) => p.id === item.process)) ids.add(item.process);
+    for (const id of item.anyProcess ?? []) if (own.some((p) => p.id === id)) ids.add(id);
     const entity = item.entity ? module.entities.find((e) => e.id === item.entity) : undefined;
     if (entity) {
       for (const id of boundTo(entity.id)) ids.add(id);

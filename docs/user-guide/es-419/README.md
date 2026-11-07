@@ -34,6 +34,7 @@ Guías para quien usa Goliatt todos los días, en español latinoamericano. El a
 - [Inventario: bodegas, movimientos, traslados, conteos y existencias](inventario.md): bodegas y ubicaciones, entradas, salidas y ajustes (con código de verificación), traslados por la bodega de tránsito, conteos físicos que se aplican como un solo ajuste y las existencias con lo reservado y lo disponible.
 - [Costos: promedio ponderado, capas de costo, costos en destino y costos pendientes](costos.md): cómo se valora cada movimiento por bodega, el costo de ventas al despachar, el flete o los aranceles que suben el costo de una entrada, los productos que salieron sin costo y el método de costeo (PEPS en la fase 3).
 - [Documentos relacionados: de dónde viene un documento y qué salió de él](documentos-relacionados.md): la pestaña de cotizaciones, pedidos, entregas, facturas y recibos con lo que viene antes y lo que salió después, «Anulado», los documentos que no puedes ver y los límites.
+- [Ejecuciones anidadas: niveles, la TOTP del padre, «Continuar y encolar» y la cola de fallos](ejecuciones-anidadas.md): cuándo un proceso corre otro dentro de su misma operación, los niveles permitidos, si el código del padre cubre al anidado, qué pasa si el anidado falla, por qué lo que contabiliza o mueve existencias siempre revierte todo, y la cola con Reintentar y Descartar (quién la ve, 90 días).
 
 ## Contabilidad
 

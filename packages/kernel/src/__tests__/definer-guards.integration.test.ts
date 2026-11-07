@@ -97,6 +97,32 @@ describe("process guards of the definer functions (migration 0116)", () => {
     for (const running of [null, "kernel.recommendation.decide"]) {
       await expect(asUser(running, (tx) => tx`select * from kernel.document_link_step('down', '{}'::text[], '{}'::uuid[])`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
     }
+    // The nested-run writers of 0126 (plan 2B Task 32) refuse a user session outside the run of their own process.
+    const someId = randomUUID();
+    const nested = [
+      (tx: Tx) => tx`select kernel.nested_run_pair_set('a.b.c', 'a.b.d', false, 'rollback')`,
+      (tx: Tx) => tx`select kernel.nested_run_depth_set(5)`,
+      (tx: Tx) => tx`select kernel.nested_failure_record('a.b.c', 'a.b.d', '{}'::jsonb, 'invalid_input', 'x', ${someId}::uuid, 'ui')`,
+      (tx: Tx) => tx`select * from kernel.nested_failure_take(${someId}::uuid)`,
+      (tx: Tx) => tx`select kernel.nested_failure_close(${someId}::uuid, 'resolved', ${someId}::uuid)`,
+      (tx: Tx) => tx`select kernel.nested_failure_close(${someId}::uuid, 'dismissed', null)`,
+    ];
+    for (const call of nested) {
+      await expect(asUser(null, call)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    }
+    // The policy reader is read-only and needs no process: it answers the defaults for a company without configuration.
+    const [policy] = await asUser(null, (tx) => tx`select * from kernel.nested_run_policy('a.b.c', 'a.b.d')`);
+    expect(policy).toEqual({ totp_covers: false, on_failure: "rollback", max_depth: 4 });
+    const nestedDefiners = await sql<{ name: string; config: string[] | null; anon: boolean }[]>`
+      select p.proname as name, p.proconfig as config, has_function_privilege('anon', p.oid, 'execute') as anon
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'kernel' and p.prosecdef
+        and p.proname in ('nested_run_policy', 'nested_run_pair_set', 'nested_run_depth_set', 'nested_failure_record', 'nested_failure_take', 'nested_failure_close')`;
+    expect(nestedDefiners.map((d) => d.name).sort()).toEqual(["nested_failure_close", "nested_failure_record", "nested_failure_take", "nested_run_depth_set", "nested_run_pair_set", "nested_run_policy"]);
+    for (const d of nestedDefiners) {
+      expect(d.config, d.name).toContain("search_path=\"\"");
+      expect(d.anon, d.name).toBe(false);
+    }
     // A DIAN number needs an invoicing process: another module's process is refused.
     await expect(asUser("sales.order.confirm", (tx) => tx`select core.next_document_number(${companyId}::uuid, 'invoice', current_date)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
   });
