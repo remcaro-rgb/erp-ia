@@ -414,6 +414,103 @@ Each is detailed and approved when 2B.2 starts (stubs only; source: `2026-11-05-
 - **49** Hosted migration pre-check, CLI dry run, local tracking repair [41].
 - **50** Small fixes batch: test that every subscribed event has an effect line [3]; warning for a `when` rule that never matched [6]; dry-run denials not audited, counted as telemetry (needs rule 16 wording) [7]; never-bought modules visible, one entitlement resolver, inline poster aligned [9]; move cogs-posted and inventory-adjustment rules into their own manifests [14]; «Recalcular precios» action, Emitir no longer re-prices, warning on a stale price date [17]; delivery PDF title «Remisión de entrega» [33].
 
+### Expanded tasks of the 2B.2 small batch (Tasks 40, 41, 42, 48, 50; expanded 2026-11-06)
+
+Source of every decision: `2026-11-05-phase-2b-owner-decisions-pending.md` (each item's "Decided by the owner, 2026-11-06" line). Rulings of the expansion are in the run ledger as `Ruling:` lines. Every brief: "Read `docs/project-rules.md` and the design sections for X before starting; follow the plan task verbatim." Migrations from `0117`, forward-only. Commits are not made unless the owner asks (rule 33); each task ends with its tests green and a report.
+
+#### Task 40: Unmasked-view guard test [item 30]
+
+**Files:**
+- Modify: `scripts/check-rules.ts` (new rule id `unmasked-view-read`, function `checkUnmaskedViewReads`, added to `RuleId` and to the `checkRules` spread); `apps/web/src/lib/payments/actions.ts` and `packages/modules/payments/src/processes/receipt.ts` only as the guard demands (see Ruling R40-2)
+- Test: `scripts/__tests__/check-rules.test.ts` (new `describe("check-rules: unmasked module views")`, `put()` style)
+
+**Interfaces:**
+- `UNMASKED_VIEWS` (exported const): `crm.v_quote_offers`, `crm.v_quote_offer_lines`, `sales.v_invoice_order_lines`, `invoicing.v_receivable_invoices`, `payments.v_invoice_allocations`; `UNMASKED_PROCESSES`: `payments.payment.open_invoices`.
+- Rule: a `.ts`/`.tsx` file under `apps/web/src` (non-test) that names one of the views in a `from`/`join`, or names a listed process in a `runProcess(...)` call, must also contain a field-visibility marker: a call to `gridPageAccess(`, `creditVisibleTo(`, `linkableEntities(` or the SQL helper `kernel.field_visible(`, or the line comment `// visibility-checked: <reason naming the helper>` is NOT accepted (no escape hatch). Allowed readers outside `apps/web` (module processes) are unchanged: only pages, route handlers and `apps/web/src/lib` are scanned.
+- The three gated screens pass: `apps/web/src/lib/sales/credit.ts` + `record.ts` (creditVisibleTo), `packages/modules/inventory/src/home.ts` is outside the scan but has a test asserting `kernel.field_visible(` in its SQL, `apps/web/src/lib/payments/record.ts` `receiptsOfInvoice` (gridPageAccess).
+- `openInvoicesAction` (`apps/web/src/lib/payments/actions.ts`) reads `payments.payment.open_invoices` with no check today: the guard fails on it; fix it by gating the action with `gridPageAccess` on `invoicing.invoice` (fields total, balance, number) and returning masked rows' ids only for visible fields, or by refusing when a field is not `visible` (Ruling R40-2: refuse with a typed `forbidden` result).
+
+- [ ] **Step 1: Failing tests** — fake repo with `put()`: (a) a page reading `from invoicing.v_receivable_invoices` with no helper → violation `unmasked-view-read` with file and line; (b) same file calling `gridPageAccess(` → clean; (c) each of the five views and the process name flagged; (d) a test file and a file under `packages/modules` are not scanned; (e) the real repo passes `checkRules(root)` with zero violations of this rule after the fix; (f) integration test in `apps/web/src/lib/payments/__tests__` (or the existing receipt integration file): a role with `invoicing.invoice.total` masked gets `forbidden` from `openInvoicesAction`, a visible role gets rows.
+- [ ] **Step 2–4:** FAIL → implement rule and the `openInvoicesAction` gate → PASS; `pnpm check:rules` green.
+- [ ] **Step 5:** user guide note in `docs/user-guide/es-419/pagos.md` (Registrar pago hides open invoices when the amounts are masked). Commit message when the owner asks: `test(rules): guard unmasked module views`.
+
+#### Task 41: Inventory's dependency on costing [item 31]
+
+**Files:**
+- Modify: `packages/kernel/src/registry/types.ts` (new optional `ModuleDef.needs?: string[]`), `packages/kernel/src/module/define.ts` (validate: no self, ids are strings), `packages/kernel/src/module/loader.ts` (every `needs` id must be a loaded module; `needs` is NOT part of load order, so no cycle with costing's `dependsOn: ["core","inventory"]`), `packages/kernel/src/admin/modules-state.ts` (`ModuleState.needs`), `packages/kernel/src/admin/modules.ts` (disable refuses while an enabled module needs it), `apps/web/src/lib/admin/load.ts` and `apps/web/src/app/(app)/admin/modules/modules-screen.tsx` (`used_by` includes needers, `requires` shows needs), `packages/modules/inventory/src/index.ts` (`needs: ["costing"]`, docblock updated), i18n `admin.*` copy if a new string is needed (es-419 + en)
+- Test: `packages/kernel/src/__tests__/module-loader.test.ts`; `packages/modules/support/src/__tests__/admin-modules.integration.test.ts` (or a new kernel integration file using the same harness); `packages/modules/inventory/src/__tests__/entities.test.ts`
+
+**Interfaces:**
+- Disable message: `El módulo <X> necesita este módulo; desactívalo primero` (`invalid_input`), same shape as the `dependsOn` refusal. Enabling inventory does not force costing on (inventory falls back to the standard cost, documented): only disabling costing is refused while inventory is enabled (Ruling R41-1).
+
+- [ ] **Step 1: Failing tests** — loader accepts `needs` with a mutual `dependsOn` (inventory needs costing, costing dependsOn inventory) and rejects `needs` of an unknown module; `kernel.admin.module.disable costing` with inventory enabled → `invalid_input`; with inventory disabled → ok; `moduleStates` exposes `needs`; the admin modules page data lists inventory under costing's `used_by`; inventory manifest `needs` equals `["costing"]` and `dependsOn` stays `["core"]`.
+- [ ] **Step 2–4:** FAIL → implement → PASS (kernel unit, the integration file, web unit for load.ts).
+- [ ] **Step 5:** guide line in `docs/user-guide/es-419/costos.md` and the admin modules guide. Commit when asked: `feat(kernel): module needs, inventory needs costing`.
+
+#### Task 42: «Cotizaciones» shortcut under Ventas [item 32]
+
+**Files:**
+- Modify: `packages/kernel/src/registry/types.ts` (new optional `ModuleDef.shortcuts?: { item: NavItem; under: string }[]`, `under` = target section group id, e.g. `sales.documentos`), `packages/kernel/src/module/define.ts` (validate the group id shape `<module>.<section>` and that `under`'s module is in `dependsOn`, so a module may place a shortcut only under a module it depends on), `packages/kernel/src/module/loader.ts` (target group must exist), `apps/web/src/lib/shell/nav.ts` (`placeShortcuts` after `adoptItems`: the item is added last in the target group, only when the contributing module is entitled and its feature/process guards pass; the contributing module's own item stays in its menu), `packages/modules/crm/src/index.ts` and `features.ts` (CRM declares the shortcut: id `crm.quotes_shortcut`, label `nav.crm.quotes_shortcut`, href `/crm/quotes`, feature `crm.quotes`, under `sales.documentos`), i18n `nav.crm.quotes_shortcut` = «Cotizaciones» (es-419 + en)
+- Test: `apps/web/src/lib/shell/nav.test.ts` (new cases), `packages/kernel/src/__tests__/module-loader.test.ts`, `packages/modules/sales/src/__tests__/entities.test.ts` (sales source never contains the string `crm`: a `readFileSync` scan of `packages/modules/sales/src/**/*.ts` excluding tests, rule 3)
+
+**Interfaces:** the shortcut shares the target `href` with the CRM item, so `menu-guard` access and the "every item id appears once" test must use distinct ids; the shortcut is hidden when `module:crm` is not entitled or its process is not runnable.
+
+- [ ] **Step 1: Failing tests** — with crm + sales entitled, the Ventas Documentos group lists «Cotizaciones» (href `/crm/quotes`) and CRM Documentos still lists its own; with crm not entitled the Ventas group has no such item and no error; with sales not entitled nothing is placed; `defineModule` rejects a shortcut under a module not in `dependsOn`; sales manifest and sources contain no `crm`.
+- [ ] **Step 2–4:** FAIL → implement → PASS (kernel unit, web nav unit, `check:rules` menu sections).
+- [ ] **Step 5:** guide line in `docs/user-guide/es-419/cotizaciones.md` and `ventas.md`. Commit when asked: `feat(shell): CRM contributes a Cotizaciones shortcut under Ventas`.
+
+#### Task 48: Worker startup module-list check [item 40]
+
+**Files:**
+- Create: `apps/worker/src/module-check.ts` (pure, injectable: `compareModuleLists(workerIds, deployedIds): { missing: string[]; extra: string[] }`, `checkWorkerModules({ sql, workerIds, mode, log }): Promise<void>`)
+- Modify: `apps/worker/src/main.ts` (call before `syncManifests()`), worker env docs (`docker-compose.yml` comment, `.env.example` if present) for `WORKER_MODULE_CHECK`
+- Test: `apps/worker/src/__tests__/module-check.test.ts` (unit, fake `sql`), and one integration-free test of the mode selection
+
+**Interfaces:**
+- Deployed list = `select module_id from kernel.manifest_hashes` read before the worker's own `syncRegistry`. `missing` = deployed minus worker (a stale image: events of those modules would not be processed); `extra` = worker minus deployed (info only).
+- Mode (Ruling R48-1): `WORKER_MODULE_CHECK` = `refuse | warn | off`; default `refuse` when `NODE_ENV === "production"`, else `warn`. `refuse` throws before the first tick (main's catch logs and exits 1); `warn` logs `[worker] WARNING module list differs…` listing the missing ids at `console.warn`. An empty `manifest_hashes` (first boot) is never a mismatch.
+
+- [ ] **Step 1: Failing tests** — equal lists silent; missing id in `warn` logs once loudly and resolves; in `refuse` rejects with a message naming the ids; `off` skips the query; empty deployed list passes; default mode by `NODE_ENV`.
+- [ ] **Step 2–4:** FAIL → implement → PASS; the existing `modules.test.ts` stays green.
+- [ ] **Step 5:** hosted checklist line in the deployment doc that already lists the worker image rebuild. Commit when asked: `feat(worker): refuse or warn on a stale module list`.
+
+#### Task 50: Small fixes batch (seven sub-tasks, each with its own test)
+
+Each sub-task is its own implementer dispatch; tests first; i18n through `packages/i18n` with the `en` mirror.
+
+**50.3 [item 3] Every subscribed event has an effect line.**
+- Test (written first): `packages/agent/src/__tests__/effects-coverage.test.ts`: load every module, for each `events.consumes` key except `"*"` and `kernel.*`, `module.effects[event]` must exist and be non-empty; an exported `EFFECTS_EXEMPT` allowlist, each entry with a reason string, is the only way out (none expected).
+- Fix: add the missing effect lines (known gap: sales consumes `inventory.*` events with none) with i18n keys `<module>.effects.<name>` in both catalogues.
+
+**50.6 [item 6] Posting rule with a `when` that matched nothing in N days.**
+- Files: migration `NNNN_accounting_rule_stale_days.sql` (`accounting.settings.rule_stale_days int not null default 30 check (>0)`), `packages/modules/accounting/src/processes/settings.ts` (consult/update field), `packages/modules/accounting/src/processes/posting-rule.ts` (`postingRuleConsult` adds `stale: boolean` for active rules with a non-empty `when`, true when no `kernel.outbox` row of the rule's event created within N days satisfies `ruleApplies`; scan capped at 5000 rows per rule; a rule younger than N days is never stale), the rules grid/record in `apps/web/src/lib/accounting/posting.ts` + `packages/ui/src/accounting/RuleForm.tsx` (warning badge «Sin coincidencias en N días»), `posting/settings-form.tsx` (the N field), i18n `accounting.*`.
+- Tests: accounting integration (`posting-rules-sync.integration.test.ts` style): stale true with no events, false after a matching event, false for non-matching payload events only → true, false for a rule without `when`, false for a rule younger than N; settings update validates N; ui unit for the badge.
+
+**50.7 [item 7] Dry-run denials: no audit row, counted as telemetry.**
+- Files: `packages/kernel/src/process/run.ts` (in the denial catch, when `options.dryRun` skip `writeAudit` and call the counter), migration `NNNN_kernel_dry_run_denial_counters.sql` (`kernel.dry_run_denial_counters(company_id, day date, process_id text, code text, count bigint, primary key(company_id, day, process_id, code))`, RLS on, no direct grants, written by a `security definer` function `kernel.count_dry_run_denial(...)`; read by service role only), `packages/kernel/src/audit` helper.
+- Ruling R50-7: the `telemetry` process kind does not exist in code, so the counter is a table, not a `ProcessKind`; the `ProcessKind` union is unchanged.
+- Tests: `run-process.integration.test.ts`: a dry run denied (`forbidden`, `not_entitled`, `step_up_required`, `record_forbidden`) writes no `denied` audit row and increments the counter once per denial; a real run denied still writes the audit row; the assistant `confirm.integration.test.ts` path through `createConfirmation` shows the same; counters are per company and RLS-bound.
+
+**50.9 [item 9] Never-bought visible, switched-off silent, one resolver.**
+- Files: `packages/kernel/src/entitlements/resolver.ts` (new `moduleGate(sql, companyId, moduleId): "enabled" | "switched_off" | "not_purchased"`), `packages/kernel/src/events/dispatch.workflow.ts` (switched off → park `module_disabled` as today; not purchased → dead-letter `not_entitled` as today but through the resolver), `packages/kernel/src/posting/inline.ts` (posting module not purchased → park the event with reason `not_entitled` and return `{ posted:false, reason:"not_entitled" }`; switched off → `accounting_disabled` unchanged; fix the header comment), `packages/kernel/src/admin/modules-state.ts` reuses the resolver, a kernel read process `kernel.admin.module.parked_events` and the admin modules page row «módulo no contratado» with the parked `not_entitled` count and the actions Descartar (new `kernel.admin.module.parked_events.dismiss`, step-up not required, audited) and an automatic replay on purchase/enable (hook in `enableModule`: `not_entitled` dead letters of that module go back to the outbox once).
+- Ruling R50-9: there is no screen for `kernel.outbox_dead_letter` today, so the «módulo no contratado» visibility lives on Admin › Módulos (kernel-owned), not in the accounting failures tab.
+- Tests: `dispatch.integration.test.ts` (never bought → dead-letter `not_entitled`; switched off → `module_disabled`, silent), `inline-posting.integration.test.ts` (never-bought accounting parks `not_entitled`, switched-off `accounting_disabled`), resolver unit/integration, dismiss and replay-on-enable integration, web load.ts unit.
+
+**50.14 [item 14] Move cogs-posted to costing, inventory-adjustment to inventory.**
+- Files: move `rules/defaults/cogs-posted.json` and `inventory-adjustment.json` (and their fixtures) from `packages/modules/accounting/src/rules/` into `packages/modules/costing/src/` and `packages/modules/inventory/src/` (`postingRules` in each manifest; accounting's `ACCOUNTING_DEFAULT_RULES` drops them), a migration `NNNN_accounting_rules_retag_module.sql` setting `module = 'costing'` / `'inventory'` on existing company rows by (event, name) so the off-switch and the sync follow the owner, behaviour identical (same templates, `when`, priority, journal code).
+- Tests: `posting-rules-sync.integration.test.ts` (a new company gets both rules from the owning manifests; existing rows re-tagged and unchanged otherwise; disabling costing deactivates only its rule; `is_modified` rows untouched), `inventory-adjustment.integration.test.ts` and `inline-posting.integration.test.ts` unchanged and green, `costing/rules.test.ts` counts updated.
+
+**50.17 [item 17] «Recalcular precios»; Emitir no longer re-prices.**
+- Files: migration `NNNN_invoicing_price_date.sql` (`invoicing.invoices.price_date date`, backfilled from `issue_date` for drafts), `packages/modules/invoicing/src/processes/invoice.ts` (new process `invoicing.invoice.reprice`, update kind, normal sensitivity, draft only; sets lines' prices at today's company date through `priceLines`, taxes through `computeTaxes` at the invoice date, writes `price_date = today`; `invoiceHooks.validate` at issue keeps the stored `unit_price`, still re-dates and re-evaluates taxes at the issue date, and returns a warning field when `price_date <> issue_date`), `INVOICE_PROCESSES`, `apps/web/src/lib/invoicing/record.ts` (`INVOICING_STEPS` entry `reprice`, `allow("reprice", draft)`), `step-actions.ts`, `invoicing-bar.tsx` button «Recalcular precios», warning banner «Los precios son del <fecha>; usa Recalcular precios para actualizarlos» on the draft when the price date differs from today, i18n `invoicing.*`.
+- Tests: `issue.integration.test.ts` (issue keeps prices, re-evaluates taxes at the issue date, `price_date` unchanged), a new reprice integration (prices follow today's list, price_date = today, issued invoice refused), web record unit for the step and warning, `sales-chain.spec.ts` unaffected (run it).
+
+**50.33 [item 33] Delivery PDF title «Remisión de entrega».**
+- Files: `packages/modules/sales/src/print.ts` (`deliveryRecordTemplate` overrides the title block and `name` through the catalogue key `sales.print.delivery_title`), i18n es-419 «Remisión de entrega» and en «Delivery note».
+- Test: `packages/modules/sales/src/__tests__/entities.test.ts` (title text block value and template name), plus a web print unit if one exists. The on-screen name stays «Entrega» (item 33).
+- User guide: `docs/user-guide/es-419/ventas.md` (the PDF is titled «Remisión de entrega»).
+
+**Task 50 close:** guides updated for 50.6 (`contabilidad` posting rules), 50.9 (administración › módulos), 50.17 (`facturacion-electronica.md`).
+
 ## Decisions taken (owner, 2026-11-04)
 
 - **OD-2** invoice creation is parametric: `manual` (default) | `on_delivery` | `on_order_confirmation` (Task 16).
