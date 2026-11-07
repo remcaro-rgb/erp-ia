@@ -12,6 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@erp/ui/components/ui/dropdown-menu";
+import type { RecommendationItem } from "../home/RecommendationCard";
+import { recommendationText } from "../home/recommendation-text";
 import { MobileMenu } from "./MobileMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { nextTheme } from "./theme";
@@ -31,8 +33,15 @@ export interface TopBarProps {
   onOpenPalette: () => void;
   /** The assistant drawer is showing (the toggle's expanded state). */
   assistantOpen?: boolean;
-  /** Unread notifications; the dot shows only above zero. */
+  /** Unread notifications; the dot shows only above zero. Ignored when `notifications` is given (its total counts). */
   notificationCount?: number;
+  /**
+   * The caller's open recommendations (plan 2B Task 38): `total` on the dot, the newest `items` (five) in the menu, each opening its record
+   * (`href`) or Inicio when it has none the caller may open.
+   */
+  notifications?: { total: number; items: RecommendationItem[] };
+  /** Opens a notification's page. */
+  onOpenNotification?: (href: string) => void;
   onToggleAssistant: () => void;
   onSwitchCompany?: (companyId: string) => void;
   /** Server action of the sign-out form. */
@@ -69,6 +78,8 @@ export function TopBar(props: TopBarProps) {
   const t = useTranslations();
   const s = (key: string, values?: Record<string, string | number>) => t(`nav.shell.${key}`, values);
   const active = modules.find((m) => m.id === activeModuleId) ?? modules[0];
+  const count = props.notifications ? props.notifications.total : (props.notificationCount ?? 0);
+  const notices = props.notifications?.items ?? [];
   const themeName = s(`theme_${props.theme}`).toLowerCase();
 
   return (
@@ -135,17 +146,35 @@ export function TopBar(props: TopBarProps) {
           className="relative hidden size-[34px] max-md:size-11 [@media(pointer:coarse)]:size-11 shrink-0 place-items-center rounded-md border sm:grid border-bar-line bg-transparent text-bar-text hover:bg-bar-ctl focus-visible:outline-2 focus-visible:outline-focus"
         >
           <Bell aria-hidden="true" className="size-[18px]" />
-          {(props.notificationCount ?? 0) > 0 && (
+          {count > 0 && (
             <span aria-hidden="true" className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-alert px-1 text-[10px] font-bold text-bar tabular-nums">
-              {props.notificationCount! > 9 ? "9+" : props.notificationCount}
+              {count > 9 ? "9+" : count}
             </span>
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className={menuClass}>
+        <DropdownMenuContent align="end" className={cn(menuClass, "max-w-[360px]")}>
           <DropdownMenuLabel className={headClass}>{s("notifications")}</DropdownMenuLabel>
-          <DropdownMenuItem disabled className={itemClass}>
-            {s("notifications_empty")}
-          </DropdownMenuItem>
+          {notices.length === 0 ? (
+            <DropdownMenuItem disabled className={itemClass}>
+              {s("notifications_empty")}
+            </DropdownMenuItem>
+          ) : (
+            <>
+              {notices.map((item) => {
+                const text = recommendationText(t, item);
+                return (
+                  <DropdownMenuItem key={item.id} className={cn(itemClass, "flex-col items-start gap-0.5")} onSelect={() => props.onOpenNotification?.(item.href ?? "/")}>
+                    <span className="font-semibold">{text.title}</span>
+                    <span className="line-clamp-2 text-xs text-text-muted">{text.body}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator className="my-1 bg-line-2" />
+              <DropdownMenuItem className={itemClass} onSelect={() => props.onOpenNotification?.("/")}>
+                {s("notifications_more")}
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -176,7 +205,7 @@ export function TopBar(props: TopBarProps) {
           </DropdownMenuItem>
           <DropdownMenuItem disabled className={cn(itemClass, "sm:hidden")}>
             {s("notifications")}
-            <span className="ml-auto text-xs text-text-muted">{(props.notificationCount ?? 0) > 0 ? props.notificationCount : s("notifications_empty")}</span>
+            <span className="ml-auto text-xs text-text-muted">{count > 0 ? count : s("notifications_empty")}</span>
           </DropdownMenuItem>
           {props.onOpenMfa && (
             <DropdownMenuItem className={itemClass} onSelect={props.onOpenMfa}>

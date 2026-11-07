@@ -1,6 +1,9 @@
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
+import { cleanupCompanies } from "../test-support/company-cleanup";
 
 // The home screen in a real browser (design §19a, rules 25 and 28, prototype `renderHome`): the widget dashboard whose cards
 // are dragged by their header to relocate and by the corner to resize, the layout saved per user in kernel.user_prefs
@@ -217,5 +220,102 @@ test.describe("home dashboard", () => {
     // It can still be dismissed.
     await recs.getByRole("button", { name: "Descartar" }).click();
     await expect(recs.getByText("Crea un producto")).toHaveCount(0);
+  });
+});
+
+// A recommendation a process raised (plan 2B Task 38, owner item 36): a receipt without a cost, run through the registered processes and
+// handed to costing's consumer (test-support/raise-cost-missing.mts), leaves a «Falta el costo» notice for the holders of
+// inventory.adjustment.post. It shows in «Recomendaciones para ti» with its Spanish text and its record link, in the bell with the count,
+// and on Costos' Inicio under «Pendientes»; without the audience process the role sees it nowhere; «Descartar» removes it from all three.
+const RAISE = join(__dirname, "..", "test-support", "raise-cost-missing.mts");
+const COST_PROCESSES = [
+  "kernel.home.kpis", "kernel.home.recent", "kernel.recommendation.list", "kernel.recommendation.decide",
+  "core.product.create", "core.product.consult", "inventory.warehouse.create", "inventory.location.create", "inventory.movement.post",
+  "costing.cost_missing.consult",
+];
+const AUDIENCE = "inventory.adjustment.post";
+
+test.describe("process recommendations", () => {
+  let fixture: AuthFixture;
+  let companyId: string;
+  let roleId: string;
+  let missingId: string;
+
+  const grant = (processId: string) =>
+    fixture.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${roleId}, ${processId}) on conflict do nothing`;
+
+  test.beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "member" });
+    companyId = fixture.companyIds[0]!;
+    const { sql } = fixture;
+    for (const key of ["module:core", "module:inventory", "module:costing"]) {
+      await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${fixture.tenantId}, ${key}, 'manual')`;
+    }
+    [{ id: roleId }] = await sql<{ id: string }[]>`select id from kernel.roles where company_id = ${companyId}`;
+    // The event consumer runs as the company's system admin role, as on every company the onboarding creates.
+    await sql`insert into kernel.roles(company_id, name, is_system) values (${companyId}, 'admin', true)`;
+    for (const process of [...COST_PROCESSES, AUDIENCE]) await grant(process);
+    const out = execFileSync("pnpm", ["exec", "tsx", RAISE, companyId, fixture.userId], { cwd: join(__dirname, ".."), stdio: "pipe", env: process.env, timeout: 120_000 }).toString();
+    missingId = (JSON.parse(out.trim().split("\n").pop()!) as { missingId: string }).missingId;
+    expect(missingId).toBeTruthy();
+  });
+
+  test.afterAll(async () => {
+    if (!fixture) return;
+    try {
+      await fixture.sql`delete from kernel.recommendations where company_id = ${companyId}`;
+      await cleanupCompanies(fixture.sql, fixture.companyIds, fixture.tenantId);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  test("shows on Inicio, in the bell and on Costos' Inicio; hidden without the audience; «Descartar» removes it everywhere", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page, fixture);
+    const title = "Falta el costo de un producto";
+    const body = "Café Pendiente 250 g se movió en Bodega Pendientes sin costo conocido (1 movimientos): corrígelo con un ajuste de inventario.";
+
+    // Inicio: the composed Spanish text and the record link.
+    const recs = page.getByRole("region", { name: "Recomendaciones para ti" });
+    await expect(recs.getByText(title)).toBeVisible();
+    await expect(recs.getByText(body)).toBeVisible();
+    await expect(recs.getByRole("button", { name: "Abrir registro" })).toBeVisible();
+
+    // The bell: the count on the dot, the notice in its menu.
+    const bell = page.getByRole("button", { name: "Notificaciones" });
+    await expect(bell).toHaveText("1");
+    await bell.click();
+    await expect(page.getByRole("menu").getByRole("menuitem").first()).toContainText(title);
+    await page.keyboard.press("Escape");
+
+    // «Abrir registro» opens the cost_missing list (the entity has no record page of its own).
+    await recs.getByRole("button", { name: "Abrir registro" }).click();
+    await expect(page).toHaveURL(/\/costing\/missing$/);
+
+    // Costos' Inicio: «Pendientes».
+    await page.goto("/inicio/costing");
+    const pending = page.getByTestId("module-pending");
+    await expect(pending.getByRole("heading", { name: "Pendientes" })).toBeVisible();
+    await expect(pending.getByText(title)).toBeVisible();
+
+    // Without the audience process the role sees it nowhere.
+    await fixture.sql`delete from kernel.process_permissions where company_id = ${companyId} and role_id = ${roleId} and process_id = ${AUDIENCE}`;
+    await page.goto("/");
+    await expect(page.getByRole("region", { name: "Recomendaciones para ti" }).getByText("Sin recomendaciones pendientes", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Notificaciones" })).toHaveText("");
+    await page.goto("/inicio/costing");
+    await expect(page.getByTestId("module-pending")).toHaveCount(0);
+
+    // With it again, «Descartar» on Costos' Inicio: gone from the three places, the decision stored.
+    await grant(AUDIENCE);
+    await page.reload();
+    await page.getByTestId("module-pending").getByRole("button", { name: "Descartar" }).click();
+    await expect(page.getByTestId("module-pending")).toHaveCount(0);
+    await expect.poll(async () => (await fixture.sql`select status from kernel.recommendations where company_id = ${companyId} and subject_id = ${missingId}`)[0]?.status).toBe("dismissed");
+    await page.goto("/");
+    await expect(page.getByRole("region", { name: "Recomendaciones para ti" }).getByText(title)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Notificaciones" })).toHaveText("");
   });
 });

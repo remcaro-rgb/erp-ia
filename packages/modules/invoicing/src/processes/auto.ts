@@ -1,4 +1,4 @@
-import { defineProcess, ProcessError, type ConsumerContext, type EventConsumer, type Tx } from "@erp/kernel";
+import { defineProcess, ProcessError, type ConsumerContext, type EventConsumer, type ProcessContext, type Tx } from "@erp/kernel";
 import { z } from "zod";
 import type { InvoiceCreation } from "../entities";
 import { FEATURE_INVOICES, id, INVOICE_CREATED, num, pendingDeliveryLines, settingsOf, today, type DraftLine } from "./common";
@@ -13,10 +13,14 @@ import { createInvoice, readInvoice } from "./invoice";
 // closed period…), never fails the entrega or the pedido: the Borrador stays and invoicing.invoice.recommend writes why
 // (invoicing.invoice_recommendations), until someone issues it. A refusal of the creation itself (what the entrega or pedido bills is already
 // invoiced, the pedido was cancelled or is not firm, the tercero is not a customer…) leaves nothing to recommend on: auto_create answers
-// `skipped` with the reason (kept in its audit row) instead of failing the event into the dead letter (fix round 1). Either way the invoice
+// `skipped` with the reason (kept in its audit row) instead of failing the event into the dead letter (fix round 1), and raises a kernel
+// recommendation for whoever may create invoices (owner item 26, plan 2B Task 38): one open per entrega or pedido and reason (a redelivery
+// merges into it), closed by the invoice that later bills that entrega or pedido (invoice.ts createInvoice). Either way the invoice
 // is dated on the day it is issued; the entrega's or the pedido's date is its service_date (ruling, fix round 1).
 
 const RECOMMEND = "invoicing.invoice.recommend";
+/** Who is told when no Borrador could be created: whoever may create the invoice by hand. */
+const SKIPPED_AUDIENCE = "invoicing.invoice.create";
 
 const trigger = z.discriminatedUnion("trigger", [
   z.object({ trigger: z.literal("delivery"), deliveryId: id }).strict(),
@@ -103,7 +107,9 @@ export const invoiceAutoCreate = defineProcess({
       // A refusal (a ProcessError thrown before anything is written: the checks run before the insert) is final for this entrega or pedido.
       if (!(error instanceof ProcessError) || (error.code !== "invalid_input" && error.code !== "invalid_state")) throw error;
       const details = Array.isArray(error.details) ? error.details.map((d) => (typeof d === "string" ? d : JSON.stringify(d))) : [error.message];
-      return { id: null, created: false, stage: null, notReady: [], skipped: error.message.split(":")[0]!, details };
+      const skipped = error.message.split(":")[0]!;
+      await raiseSkipped(ctx, input, skipped);
+      return { id: null, created: false, stage: null, notReady: [], skipped, details };
     }
     if (created.notReady.length > 0) {
       await writeRecommendation(ctx.tx, ctx.companyId, created.id, "not_invoice_ready", created.notReady);
@@ -111,6 +117,28 @@ export const invoiceAutoCreate = defineProcess({
     return { id: created.id, created: true, stage: "draft", notReady: created.notReady };
   },
 });
+
+/** The refusal codes a recommendation names as its reason (a code of the refusal helpers); anything else reads as `refused`. */
+const REASON = /^[a-z][a-z0-9_]{0,99}$/;
+
+/**
+ * Raises the recommendation of a refused automatic creation: about the entrega or the pedido it was for, its number a param of that
+ * document's `number` field (masked for a role that does not see it), the refusal code as the reason.
+ */
+async function raiseSkipped(ctx: ProcessContext, input: z.output<typeof trigger>, code: string): Promise<void> {
+  const subject = input.trigger === "delivery" ? { entity: "sales.delivery", id: input.deliveryId } : { entity: "sales.order", id: input.orderId };
+  const [doc] = input.trigger === "delivery"
+    ? await ctx.tx<{ number: string | null }[]>`select delivery_number as number from sales.v_invoice_delivery_lines where delivery_id = ${input.deliveryId} limit 1`
+    : await ctx.tx<{ number: string | null }[]>`select order_number as number from sales.v_invoice_order_lines where order_id = ${input.orderId} limit 1`;
+  await ctx.recommendations?.raise({
+    audienceProcess: SKIPPED_AUDIENCE,
+    subject,
+    reason: REASON.test(code) ? code : "refused",
+    titleKey: "invoicing.recommendation.auto_skipped.title",
+    bodyKey: "invoicing.recommendation.auto_skipped.body",
+    params: { document: { value: doc?.number ?? null, entity: subject.entity, field: "number" } },
+  });
+}
 
 async function writeRecommendation(tx: Tx, companyId: string, invoiceId: string, code: string, details: string[]): Promise<void> {
   const message = `La factura automática quedó en borrador: ${details[0] ?? code}`.slice(0, 2000);

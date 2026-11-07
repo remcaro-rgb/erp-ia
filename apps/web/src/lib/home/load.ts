@@ -1,10 +1,10 @@
 import "server-only";
-import { flattenNav, gridEntity, ProcessError, readUserPrefs, runProcess, type CatalogItem, type Caller, type Chart, type Kpi } from "@erp/kernel";
+import { flattenNav, gridEntity, ProcessError, readUserPrefs, runProcess, type CatalogItem, type Caller, type Chart, type Kpi, type RecommendationOut } from "@erp/kernel";
 import { sanitizeHiddenItems, type HelpShortcut, type RecentRecord, type RecommendationItem, type Saved } from "@erp/ui";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps } from "@/lib/server/runtime";
 import type { ShellData } from "@/lib/shell/load";
-import { helpShortcuts, recentHref } from "./shape";
+import { helpShortcuts, recentHref, recommendationItem } from "./shape";
 
 // Everything the home screen shows, read as the caller through the registered processes (design §19a, §7.5): the KPIs of
 // the modules the company has, the recommendations inbox, the records they touched last and their saved layout. A widget
@@ -63,8 +63,9 @@ export function hiddenOf(row: Parameters<typeof savedFrom>[0]): string[] {
   return sanitizeHiddenItems(savedFrom(row)?.value) ?? [];
 }
 
-interface RecommendationOut {
-  recommendations: { id: string; agentProfile: string; title: string; body: string; confidence: number | null; suggestedActions: RecommendationItem["suggestedActions"] }[];
+interface RecommendationsOut {
+  recommendations: RecommendationOut[];
+  total: number;
 }
 interface RecentOut {
   records: { entity: string; entityLabel: string; id: string; title: string | null; action: "insert" | "update"; at: string }[];
@@ -75,7 +76,7 @@ export async function loadHome(shell: ShellData, caller: Caller, now: Date = new
   const run = <T>(id: string, input: unknown = {}) => allowed(() => runProcess(deps, caller, id, input) as Promise<T>);
   const [kpis, recommendations, recent, prefs] = await Promise.all([
     run<KpisOut>("kernel.home.kpis"),
-    run<RecommendationOut>("kernel.recommendation.list"),
+    run<RecommendationsOut>("kernel.recommendation.list"),
     run<RecentOut>("kernel.home.recent"),
     // A plain read under RLS, not a process: the layout is the user's own and is read on every visit.
     readUserPrefs(deps.sql, caller.claims, ["home_layout", "home_hidden"]),
@@ -83,7 +84,7 @@ export async function loadHome(shell: ShellData, caller: Caller, now: Date = new
   return {
     greeting: { period: greetingPeriod(now, shell.company.timeZone ?? "America/Bogota"), name: firstNameOf(shell.user.name) },
     kpis: kpis?.kpis ?? null,
-    recommendations: recommendations?.recommendations.map(({ id, agentProfile, title, body, confidence, suggestedActions }) => ({ id, agentProfile, title, body, confidence, suggestedActions })) ?? null,
+    recommendations: recommendations?.recommendations.map((r) => recommendationItem(deps.registry, flattenNav(shell.nav), r)) ?? null,
     recent: recent?.records.map((r) => ({ ...r, href: recentHref(gridEntity(deps.registry, r.entity), r.id) })) ?? null,
     help: helpShortcuts(flattenNav(shell.nav).map((item) => item.href)),
     layout: savedFrom(prefs.home_layout),
@@ -102,14 +103,17 @@ export interface ModuleHomeData {
   hidden: string[];
   /** The saved `home_layout.<module>` as stored (the dashboard validates it), or null. */
   layout: Saved<unknown> | null;
+  /** «Pendientes»: the caller's open recommendations the module raised (plan 2B Task 38), or null when they may not list them. */
+  pending: RecommendationItem[] | null;
   asOf: string;
 }
 
 /** A module's Inicio page: the module's indicators and charts the caller may see and has not switched off, and their layout for it. */
 export async function loadModuleHome(shell: ShellData, caller: Caller, module: string, now: Date = new Date()): Promise<ModuleHomeData> {
   const deps = processDeps();
-  const [out, prefs] = await Promise.all([
+  const [out, pending, prefs] = await Promise.all([
     allowed(() => runProcess(deps, caller, "kernel.home.kpis", { module }) as Promise<KpisOut>),
+    allowed(() => runProcess(deps, caller, "kernel.recommendation.list", { module }) as Promise<RecommendationsOut>),
     readUserPrefs(deps.sql, caller.claims, [`home_layout.${module}`, "home_hidden"]),
   ]);
   return {
@@ -120,6 +124,7 @@ export async function loadModuleHome(shell: ShellData, caller: Caller, module: s
     catalog: out?.catalog ?? [],
     hidden: hiddenOf(prefs.home_hidden),
     layout: savedFrom(prefs[`home_layout.${module}`]),
+    pending: pending?.recommendations.map((r) => recommendationItem(deps.registry, flattenNav(shell.nav), r)) ?? null,
     asOf: now.toISOString(),
   };
 }

@@ -37,9 +37,11 @@ export interface RecommendationsWidgetProps {
   onAction: (id: string, processId: string, input: Record<string, unknown>, index: number) => void;
   onLink: (id: string, href: string, index: number) => void;
   onDismiss: (id: string) => void;
+  /** Opens the record a process row is about (plan 2B Task 38). */
+  onOpen?: (href: string) => void;
 }
 
-export function RecommendationsWidget({ items, status = "ready", pendingId = null, error = null, onAction, onLink, onDismiss }: RecommendationsWidgetProps) {
+export function RecommendationsWidget({ items, status = "ready", pendingId = null, error = null, onAction, onLink, onDismiss, onOpen }: RecommendationsWidgetProps) {
   const t = useTranslations("home.recommendations");
   return (
     <div className="erp-home-recs">
@@ -73,6 +75,7 @@ export function RecommendationsWidget({ items, status = "ready", pendingId = nul
               onAction={(processId, input, index) => onAction(item.id, processId, input, index)}
               onLink={(href, index) => onLink(item.id, href, index)}
               onDismiss={onDismiss}
+              {...(onOpen ? { onOpen } : {})}
             />
           ))}
         </div>

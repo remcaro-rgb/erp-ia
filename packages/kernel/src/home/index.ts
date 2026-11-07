@@ -8,7 +8,10 @@ export { dailyPoints, dailySeries, SERIES_DAYS } from "./series";
 export { homeRecent } from "./recent";
 export { kpiGridHref } from "./links";
 export type { KpiFilter } from "./links";
-export { recommendationDecide, recommendationList, suggestedAction } from "./recommendations";
+export { composeMessage, openRecommendations, recommendationDecide, recommendationList, suggestedAction } from "./recommendations";
+export type { RecommendationOut } from "./recommendations";
+export { makeRecommendations, paramValues, reasonKeyOf, recommendationCloseInput, recommendationParam, recommendationRaiseInput, RECOMMENDATION_PARAMS_MAX } from "./recommend";
+export type { RecommendationClose, RecommendationParam, RecommendationRaise, RecommendationsApi } from "./recommend";
 export type { SuggestedAction } from "./recommendations";
 
 /** The processes behind the home screen, all of the feature `kernel.home`. */

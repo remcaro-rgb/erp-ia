@@ -83,6 +83,24 @@ Inicio es tuyo: cada cambio se guarda para tu usuario y tu empresa, y nadie lo m
 
 Tu disposición vuelve igual la próxima vez que entres, también desde otro computador.
 
+### Pendientes del sistema y la campana
+
+Además de las sugerencias de los agentes, **los propios procesos** dejan avisos cuando algo quedó a medias y alguien debe resolverlo, por ejemplo «Falta el costo de un producto» o «No se creó la factura automática». Se ven en tres lugares:
+
+- En **Recomendaciones para ti**, con la etiqueta «Aviso de» y el módulo que lo dejó.
+- En la **campana** de la barra azul: el número es cuántos avisos tienes abiertos y el menú muestra los cinco más recientes. **Ver todo en Inicio** abre esta pantalla.
+- En el **Inicio del módulo** que lo dejó, en la tarjeta **Pendientes** (solo aparece cuando hay alguno).
+
+**Quién los ve.** Cada aviso va a las personas cuyo rol puede corregir la causa: un costo faltante, a quien puede registrar ajustes de inventario; una factura automática que no se creó, a quien puede crear facturas. Si tu rol no tiene ese permiso, no lo ves en ninguna parte.
+
+**Valores ocultos.** Si tu rol no puede ver un dato que el aviso menciona (por ejemplo, el número de la entrega), el aviso lo muestra como «—».
+
+**El enlace.** **Abrir registro** lleva al registro del que habla el aviso. Si tu rol no puede consultarlo, el aviso dice **Sin acceso al registro** y en la campana te lleva a Inicio.
+
+**Descartar.** Pulsa **Descartar** si ya no te sirve: sale de tu lista, de la campana y del Inicio del módulo para todas las personas que lo veían, y queda registrado en la auditoría. Si la misma causa vuelve a pasar, aparece un aviso nuevo.
+
+**Se cierran solos.** Cuando la causa se corrige (llega una entrada con costo, la entrega se factura), el aviso se cierra sin que hagas nada. Si el mismo problema se repite antes de corregirlo, no se acumulan avisos: el que está abierto cuenta las veces. Los avisos cerrados o descartados se borran a los **90 días**.
+
 ### Inicio de cada módulo
 
 Cada módulo tiene su propio **Inicio**: es el primer botón de la barra de opciones del módulo (bajo la barra azul) y abre una pestaña llamada «Inicio de Contabilidad», «Inicio de Núcleo», etc. La pestaña **Inicio** fija, la primera, sigue siendo el panel general de la empresa. El Inicio de un módulo reúne los **indicadores** (una tarjeta con los números) y los **gráficos** de ese módulo, con el mismo tablero que el Inicio general: se mueven y cambian de tamaño igual, y cada módulo guarda su propia disposición para tu usuario.

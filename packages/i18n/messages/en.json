@@ -1150,7 +1150,8 @@
       "expand_menu": "Expand menu",
       "toggle_menu": "Collapse or expand menu",
       "page": "Page",
-      "module_home": "{module} home"
+      "module_home": "{module} home",
+      "notifications_more": "See everything in Home"
     },
     "core": {
       "parties": "Parties",
@@ -3654,9 +3655,12 @@
       "agents": {
         "help": "Help agent",
         "seed": "Goliatt suggestion",
-        "other": "Agent: {name}"
+        "other": "Agent: {name}",
+        "process": "{module} notice"
       },
-      "refused": "Your role cannot do this action, so we did not open it. Dismiss the recommendation or ask your administrator."
+      "refused": "Your role cannot do this action, so we did not open it. Dismiss the recommendation or ask your administrator.",
+      "open_record": "Open record",
+      "no_link": "No access to the record"
     },
     "assistant": {
       "run": "Run {process} with {input}",
@@ -3996,7 +4000,8 @@
       "empty": "There are no indicators or charts available for your role in this module.",
       "all_off": "You turned off every indicator and chart of this page. Use Customize home page to turn them back on.",
       "chart_empty": "There is no data for this chart yet.",
-      "chart_summary": "{title}: {summary}"
+      "chart_summary": "{title}: {summary}",
+      "pending": "Pending"
     }
   },
   "agent": {
@@ -5150,6 +5155,12 @@
       "return_void_cogs": "Cost of sales: records again the cost of sales of the voided return",
       "movement_cost": "Costing: values the movement at the warehouse's weighted average cost",
       "movement_void_cost": "Costing: reverses the valuation of the voided movement"
+    },
+    "recommendation": {
+      "cost_missing": {
+        "title": "A product's cost is missing",
+        "body": "{product} moved in {warehouse} with no known cost ({count} movements): fix it with an inventory adjustment."
+      }
     }
   },
   "crm": {
@@ -5916,6 +5927,28 @@
       "resubmit_dian": "DIAN e-invoicing: sends the document to the DIAN again with the same number and CUFE",
       "payment_applied": "Invoicing: credits what was paid to each invoice and marks it paid when settled",
       "payment_voided": "Invoicing: the invoices get back the balance the voided receipt paid"
+    },
+    "recommendation": {
+      "auto_skipped": {
+        "title": "The automatic invoice was not created",
+        "body": "{document} was not invoiced automatically: {reason}."
+      },
+      "reason": {
+        "invalid_party": "the party is no longer a customer or is not visible",
+        "invalid_product": "a product no longer exists or is not visible",
+        "over_invoicing": "what shipped is already invoiced",
+        "order_cancelled": "the order is cancelled",
+        "order_not_confirmed": "the order is not confirmed",
+        "delivery_voided": "the delivery is voided",
+        "delivery_not_shipped": "the delivery has not shipped",
+        "invalid_order_line": "a line does not match its order",
+        "price_not_found": "a product has no price",
+        "invalid_payment_means": "the payment means is not valid",
+        "exchange_rate_required": "the exchange rate is missing",
+        "nothing_to_invoice": "there is nothing to invoice",
+        "einvoice_not_available": "the country has no electronic invoicing registered",
+        "refused": "the invoice was refused"
+      }
     }
   },
   "payments": {

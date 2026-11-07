@@ -15,6 +15,8 @@ export type { CustomizeDialogProps, CustomizeItem } from "./CustomizeDialog";
 export { KpiCard } from "./KpiCard";
 export type { KpiCardProps } from "./KpiCard";
 export { RecommendationCard } from "./RecommendationCard";
+export { MASKED_VALUE, recommendationText } from "./recommendation-text";
+export type { RecommendationTranslator } from "./recommendation-text";
 export type { RecommendationCardProps, RecommendationItem, SuggestedActionItem } from "./RecommendationCard";
 export { HelpWidget, KpisWidget, RecentWidget, RecommendationsWidget } from "./widgets";
 export type { HelpShortcut, HelpWidgetProps, KpisWidgetProps, RecentRecord, RecentWidgetProps, RecommendationsWidgetProps } from "./widgets";

@@ -2,21 +2,24 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { chartWidgetId, ChartCard, Dashboard, defaultModuleLayout, isModuleWidgetId, KpisWidget, UpdatedAt, type DashboardWidget, type WidgetLayout } from "@erp/ui";
+import { chartWidgetId, ChartCard, Dashboard, defaultModuleLayout, isModuleWidgetId, KpisWidget, RecommendationsWidget, UpdatedAt, type DashboardWidget, type WidgetLayout } from "@erp/ui";
 import type { ModuleHomeData } from "@/lib/home/load";
 import { createLayoutSaver } from "@/lib/home/layout-save";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import type { ShellPrefKey } from "@/lib/prefs/validate";
 import { useHomeCustomize } from "./use-customize";
+import { useRecommendations } from "./use-recommendations";
 
 /**
  * A module's Inicio page (design §19a): the module's indicators as one strip and each chart as a card, on the same draggable and
  * resizable grid as the company-wide Inicio, with its own layout per user. "Personalizar página de inicio" switches items on and off.
- * What the caller's role cannot see never reaches the page (the kernel runs each provider as the caller).
+ * What the caller's role cannot see never reaches the page (the kernel runs each provider as the caller). «Pendientes» lists the caller's
+ * open recommendations this module raised (plan 2B Task 38), each with its record link and «Descartar»; it shows only when there are some.
  */
 export function ModuleHomeScreen({ data, userId, companyId }: { data: ModuleHomeData; userId: string; companyId: string }) {
   const t = useTranslations();
   const { hidden, actions } = useHomeCustomize(data.hidden, data.catalog);
+  const recommendations = useRecommendations(data.pending ?? []);
   const off = new Set(hidden);
   const kpis = data.kpis.filter((kpi) => !off.has(kpi.id));
   const charts = data.charts.filter((chart) => !off.has(chart.id));
@@ -63,6 +66,22 @@ export function ModuleHomeScreen({ data, userId, companyId }: { data: ModuleHome
         actions={actions}
         heading={<h1>{t("home.module.title", { module: t(`nav.modules.${data.module}`) })}</h1>}
       />
+      {recommendations.items.length > 0 && (
+        <section className="erp-card" aria-labelledby="module-pending-title" data-testid="module-pending">
+          <h2 id="module-pending-title" className="erp-card__title" style={{ padding: "12px 16px 0" }}>
+            {t("home.module.pending")}
+          </h2>
+          <RecommendationsWidget
+            items={recommendations.items}
+            pendingId={recommendations.pending}
+            error={recommendations.failed}
+            onAction={(id, _processId, _input, index) => void recommendations.decide(id, "accepted", index)}
+            onLink={(id, _href, index) => void recommendations.decide(id, "accepted", index)}
+            onDismiss={(id) => void recommendations.decide(id, "dismissed")}
+            onOpen={recommendations.open}
+          />
+        </section>
+      )}
       {data.catalog.length === 0 ? (
         <p className="erp-muted erp-small" data-testid="module-home-empty">
           {t("home.module.empty")}

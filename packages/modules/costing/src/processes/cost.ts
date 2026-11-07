@@ -2,7 +2,7 @@ import { defineProcess, ProcessError, type EventConsumer, type ProcessContext } 
 import { z } from "zod";
 import { averageOf, CostError, enter, exit, round2, round4, type Layer } from "../average";
 import type { CostSource, EventKind } from "../entities";
-import { feedLockKey } from "./common";
+import { closeCostMissing, feedLockKey, raiseCostMissing } from "./common";
 
 // Costing of the inventory movements (plan 2B Task 8, design §8.1, OD-5 weighted average only).
 //
@@ -133,29 +133,30 @@ export class Layers {
   }
 }
 
-/** Raises (or counts on) the open cost_missing row of the product in the bodega. */
+/** Raises (or counts on) the open cost_missing row of the product in the bodega, and its kernel recommendation (Task 38). */
 async function raiseMissing(ctx: ProcessContext, movement: FeedMovement, productId: string, warehouseId: string, qty: number): Promise<void> {
   const [open] = await ctx.tx<{ id: string }[]>`
     select id from costing.cost_missing where company_id = ${ctx.companyId} and product_id = ${productId} and warehouse_id = ${warehouseId} and status = 'open' for update`;
-  if (open) {
-    await ctx.tx`
-      update costing.cost_missing set occurrences = occurrences + 1, qty = qty + ${String(Math.abs(qty))}::numeric, last_movement_id = ${movement.id},
-        last_date = greatest(last_date, ${movement.date}::date)
-      where id = ${open.id}`;
-    return;
-  }
-  await ctx.tx`
-    insert into costing.cost_missing ${ctx.tx({
-      company_id: ctx.companyId, product_id: productId, warehouse_id: warehouseId, qty: Math.abs(qty), first_movement_id: movement.id,
-      last_movement_id: movement.id, first_date: movement.date, last_date: movement.date,
-    })}`;
+  const [row] = open
+    ? await ctx.tx<{ id: string; occurrences: number }[]>`
+        update costing.cost_missing set occurrences = occurrences + 1, qty = qty + ${String(Math.abs(qty))}::numeric, last_movement_id = ${movement.id},
+          last_date = greatest(last_date, ${movement.date}::date)
+        where id = ${open.id} returning id, occurrences`
+    : await ctx.tx<{ id: string; occurrences: number }[]>`
+        insert into costing.cost_missing ${ctx.tx({
+          company_id: ctx.companyId, product_id: productId, warehouse_id: warehouseId, qty: Math.abs(qty), first_movement_id: movement.id,
+          last_movement_id: movement.id, first_date: movement.date, last_date: movement.date,
+        })} returning id, occurrences`;
+  await raiseCostMissing(ctx, { id: row!.id, productId, warehouseId, occurrences: row!.occurrences });
 }
 
-/** An entry that brings a cost resolves the product's open cost_missing row in the bodega. */
+/** An entry that brings a cost resolves the product's open cost_missing row in the bodega, and closes its recommendation. */
 async function resolveMissing(ctx: ProcessContext, movement: FeedMovement, productId: string, warehouseId: string): Promise<void> {
-  await ctx.tx`
+  const resolved = await ctx.tx<{ id: string }[]>`
     update costing.cost_missing set status = 'resolved', resolved_at = now(), resolved_movement_id = ${movement.id}
-    where company_id = ${ctx.companyId} and product_id = ${productId} and warehouse_id = ${warehouseId} and status = 'open'`;
+    where company_id = ${ctx.companyId} and product_id = ${productId} and warehouse_id = ${warehouseId} and status = 'open'
+    returning id`;
+  for (const r of resolved) await closeCostMissing(ctx, r.id);
 }
 
 /** Values the lines of one movement, in line order, writing their cost events, the layers and the cost_missing rows. */

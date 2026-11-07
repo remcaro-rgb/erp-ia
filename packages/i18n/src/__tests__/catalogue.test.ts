@@ -316,3 +316,20 @@ describe("invoicing catalogue", () => {
     }
   });
 });
+
+describe("recommendation copy (plan 2B Task 38)", () => {
+  it("names the texts and reasons the processes raise, the card's link and the bell, in both locales with the same arguments", () => {
+    const reasons = ["invalid_party", "invalid_product", "over_invoicing", "order_cancelled", "order_not_confirmed", "delivery_voided", "delivery_not_shipped", "invalid_order_line", "price_not_found", "invalid_payment_means", "exchange_rate_required", "nothing_to_invoice", "einvoice_not_available", "refused"];
+    for (const tree of [es, en]) {
+      expect(argumentsOf(valueAt(tree, "invoicing.recommendation.auto_skipped.body")!)).toEqual(["document", "reason"]);
+      expect(valueAt(tree, "invoicing.recommendation.auto_skipped.title")).toBeDefined();
+      for (const reason of reasons) expect(valueAt(tree, `invoicing.recommendation.reason.${reason}`), reason).toBeDefined();
+      expect(argumentsOf(valueAt(tree, "costing.recommendation.cost_missing.body")!)).toEqual(["count", "product", "warehouse"]);
+      expect(valueAt(tree, "costing.recommendation.cost_missing.title")).toBeDefined();
+      for (const key of ["home.recommendations.open_record", "home.recommendations.no_link", "home.recommendations.agents.process", "home.module.pending", "nav.shell.notifications_more"]) expect(valueAt(tree, key), key).toBeDefined();
+    }
+    expect(valueAt(es, "invoicing.recommendation.auto_skipped.title")).toBe("No se creó la factura automática");
+    expect(valueAt(es, "costing.recommendation.cost_missing.title")).toBe("Falta el costo de un producto");
+    expect(valueAt(es, "home.module.pending")).toBe("Pendientes");
+  });
+});

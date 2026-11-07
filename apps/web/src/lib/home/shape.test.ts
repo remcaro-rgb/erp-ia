@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { kernelModule, loadModules, Registry } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { support } from "@erp/module-support";
-import { helpShortcuts, recentHref } from "./shape";
+import { helpShortcuts, recentHref, recommendationItem, subjectHref } from "./shape";
 
 const registry = new Registry();
 loadModules(registry, [kernelModule, core, support]);
@@ -31,5 +31,33 @@ describe("helpShortcuts", () => {
 
   it("carries the i18n key of the question each shortcut asks the assistant", () => {
     expect(helpShortcuts(["/parties"])[0]).toEqual({ id: "parties", questionKey: "home.help.parties.question", labelKey: "home.help.parties.label" });
+  });
+});
+
+// Where a recommendation a process raised opens (plan 2B Task 38): the record's page, else the list page of its entity the caller has in
+// the menu, else nothing (the card says «Sin acceso al registro»); a subject the kernel hid from the caller opens nothing.
+describe("subjectHref", () => {
+  const nav = [{ entity: "core.uom", href: "/uoms" }];
+  it("opens the record's page, else its entity's list page in the caller's menu, else nothing", () => {
+    expect(subjectHref(registry, nav, { entity: "core.party", id: "p1" })).toBe("/r/core.party/p1");
+    expect(subjectHref(registry, nav, { entity: "core.uom", id: "u1" })).toBe("/uoms");
+    expect(subjectHref(registry, [], { entity: "core.uom", id: "u1" })).toBeNull();
+    expect(subjectHref(registry, nav, { entity: "nope.thing", id: "x" })).toBeNull();
+    expect(subjectHref(registry, nav, null)).toBeNull();
+  });
+});
+
+describe("recommendationItem", () => {
+  it("hands the card the keys, the masked params, the reason's key and the link", () => {
+    const item = recommendationItem(registry, [], {
+      id: "r1", source: "process", agentProfile: "process", title: "t", body: "b", confidence: null, suggestedActions: [], createdAt: "2026-11-06T00:00:00.000Z",
+      module: "invoicing", reason: "over_invoicing", titleKey: "invoicing.recommendation.auto_skipped.title", bodyKey: "invoicing.recommendation.auto_skipped.body",
+      params: { document: null }, subject: { entity: "core.party", id: "p1" }, occurrences: 2, lastRaisedAt: null,
+    });
+    expect(item).toEqual({
+      id: "r1", source: "process", agentProfile: "process", title: "t", body: "b", confidence: null, suggestedActions: [], module: "invoicing",
+      titleKey: "invoicing.recommendation.auto_skipped.title", bodyKey: "invoicing.recommendation.auto_skipped.body",
+      reason: "over_invoicing", reasonKey: "invoicing.recommendation.reason.over_invoicing", params: { document: null }, href: "/r/core.party/p1",
+    });
   });
 });

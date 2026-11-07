@@ -1,5 +1,6 @@
 import type { AuditEntry, Origin } from "../audit/audit";
 import type { JwtClaims, Tx } from "../db/client";
+import type { RecommendationsApi } from "../home/recommend";
 import type { Registry } from "../registry";
 
 /** Who runs a process and from where: the user's claims, also when the assistant or a job acts for them. */
@@ -56,5 +57,11 @@ export interface ProcessContext {
    * that are not a runProcess run.
    */
   runProcess?<T = unknown>(processId: string, input: unknown): Promise<T>;
+  /**
+   * Raises or closes a recommendation of this process for the people who can act on it (design §22.28, plan 2B Task 38): written in the
+   * run's transaction under this process's name (a nested run writes under its own), refused for a consult. A dry run's rows roll back with
+   * it. Absent on contexts that are not a runProcess run.
+   */
+  recommendations?: RecommendationsApi;
   afterCommit?(fn: (asCaller: <T>(work: (tx: Tx) => Promise<T>) => Promise<T>) => Promise<void>): void;
 }

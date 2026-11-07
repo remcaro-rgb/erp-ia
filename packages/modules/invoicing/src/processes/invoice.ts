@@ -210,6 +210,15 @@ export async function createInvoice(ctx: ProcessContext, args: CreateArgs): Prom
       posts: true,
     })} returning id`;
   await writeParts(ctx, row!.id, priced, exchangeRate);
+  // The entregas and pedidos this invoice bills no longer wait on a refused automatic invoice: their recommendations close (Task 38).
+  const billed = [
+    ...new Set(args.lines.flatMap((l) => (l.deliveryId ? [`sales.delivery:${l.deliveryId}`] : []))),
+    ...new Set(args.lines.flatMap((l) => (l.orderId ? [`sales.order:${l.orderId}`] : []))),
+  ];
+  for (const key of billed) {
+    const [entity, id] = key.split(":") as [string, string];
+    await ctx.recommendations?.close({ subject: { entity, id } });
+  }
   await ctx.emit(INVOICE_CREATED, { invoiceId: row!.id, partyId: args.partyId, origin: args.origin, issueDate: args.issueDate, currency, total: priced.total });
   return { id: row!.id, notReady: facts.notReady };
 }

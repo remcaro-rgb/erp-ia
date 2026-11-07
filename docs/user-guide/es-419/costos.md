@@ -64,6 +64,8 @@ Si sale mercancía de un producto que en esa bodega todavía no tiene costo (por
 - Las unidades que salieron en cero no se revalúan después: si el valor debe corregirse, registra un **Ajuste** en Inventario.
 - Revisa esta lista antes de cerrar el mes. El listado empieza mostrando solo los pendientes abiertos.
 
+Cada fila abierta deja además un **aviso** «Falta el costo de un producto» con el producto, la bodega y cuántos movimientos salieron sin costo. Lo ven quienes pueden registrar ajustes de inventario, en **Recomendaciones para ti**, en la **campana** y en el **Inicio de Costos** (tarjeta **Pendientes**); **Abrir registro** lleva a **Costos pendientes**. Un segundo movimiento sin costo del mismo producto y bodega suma al mismo aviso. Cuando la fila se marca **Resuelto** (llega la entrada con costo, o se anula el último movimiento sin costo), el aviso se cierra solo (guía **Primeros pasos**, «Pendientes del sistema y la campana»).
+
 ## Costos en destino
 
 Un **costo en destino** suma al costo de una entrada lo que pagaste después por traerla: flete, aranceles, seguro. Se numera `CD-…` y se contabiliza en el mismo momento en que lo registras.

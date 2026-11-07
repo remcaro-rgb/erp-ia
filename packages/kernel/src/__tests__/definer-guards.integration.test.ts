@@ -10,7 +10,8 @@ import { registry } from "../registry";
 
 // Final review M-1 (migration 0116, rule 1): the SECURITY DEFINER functions that consume a number or mark, dismiss or lock an event refuse
 // a user session outside a process run (erp.audit_process_id empty, or not an invoicing process for a DIAN number). Inside a process run
-// they work as before, and a session without a user (the service role, migrations) is not affected.
+// they work as before, and a session without a user (the service role, migrations) is not affected. The recommendation writers of 0123
+// (kernel.recommendation_raise / _close) refuse any session that is not the run of the process they name.
 
 const GUARDED = /only inside a process run/;
 const COUNTERS = ["inventory.next_movement_number", "crm.next_number", "sales.next_number", "costing.next_document_number", "payments.next_document_number"];
@@ -57,6 +58,12 @@ describe("process guards of the definer functions (migration 0116)", () => {
     await expect(asUser(null, (tx) => tx`select kernel.mark_event_handled(${id}::uuid, 'accounting')`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
     await expect(asUser(null, (tx) => tx`select kernel.dismiss_events('accounting', 'test.guard.happened', '{"guard":"m1"}'::jsonb)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
     await expect(asUser(null, (tx) => tx`select kernel.lock_event_for(${id}::uuid, 'accounting')`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    // The recommendation writers (0123, plan 2B Task 38) also refuse a run of another process than the one named.
+    const raise = (tx: Tx, processId: string) =>
+      tx`select * from kernel.recommendation_raise(${processId}, ${processId}, null, 'kernel.guard', ${randomUUID()}::uuid, 'guard', 't', 'b', '{}'::jsonb)`;
+    await expect(asUser(null, (tx) => raise(tx, "kernel.recommendation.decide"))).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    await expect(asUser("kernel.user_prefs.set", (tx) => raise(tx, "kernel.recommendation.decide"))).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    await expect(asUser(null, (tx) => tx`select kernel.recommendation_close('kernel.recommendation.decide', 'kernel.guard', ${randomUUID()}::uuid, null)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
     // A DIAN number needs an invoicing process: another module's process is refused.
     await expect(asUser("sales.order.confirm", (tx) => tx`select core.next_document_number(${companyId}::uuid, 'invoice', current_date)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
   });
@@ -78,6 +85,18 @@ describe("process guards of the definer functions (migration 0116)", () => {
     expect(marked).toBe(true);
     const [dismissed] = await asUser("payments.receipt.void", (tx) => tx<{ n: number }[]>`select kernel.dismiss_events('accounting', 'test.guard.happened', '{"guard":"m1"}'::jsonb) as n`);
     expect(dismissed!.n).toBeGreaterThanOrEqual(1);
+    // A registered update process naming itself raises and closes (rolled back; the process row exists only inside the transaction).
+    const raised = await asUser("test.guard.recommend", async (tx) => {
+      const subject = randomUUID();
+      await tx`reset role`;
+      await tx`insert into kernel.registered_processes (process_id, module_id, kind) values ('test.guard.recommend', 'test', 'update')`;
+      await tx`set local role authenticated`;
+      const [r] = await tx<{ merged: boolean }[]>`
+        select merged from kernel.recommendation_raise('test.guard.recommend', 'test.guard.recommend', null, 'test.guard', ${subject}::uuid, 'guard', 't', 'b', '{}'::jsonb)`;
+      const [c] = await tx<{ n: number }[]>`select kernel.recommendation_close('test.guard.recommend', 'test.guard', ${subject}::uuid, null) as n`;
+      return { merged: r!.merged, closed: c!.n };
+    });
+    expect(raised).toEqual({ merged: false, closed: 1 });
 
     // The same through a real run: runProcess attributes the transaction to the process.
     const probe = defineProcess({

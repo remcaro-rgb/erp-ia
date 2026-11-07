@@ -115,8 +115,9 @@ export { ADMIN_FEATURE, ADMIN_PROCESSES, authAdmin, matrixProcess, matrixProcess
 export type { AiUsage, MatrixProcess, ModuleState, ParkedEvents, PermissionMatrix } from "./admin";
 export { ADMIN_NAVIGATION } from "./admin/navigation";
 
-export { aiTokensKpi, catalogItemSchema, catalogKey, chartSchema, dailyPoints, dailySeries, HOME_FEATURE, HOME_HIDDEN_PREF, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS, kpiGridHref, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction } from "./home";
-export type { CatalogItem, SuggestedAction } from "./home";
+export { aiTokensKpi, catalogItemSchema, catalogKey, chartSchema, dailyPoints, dailySeries, HOME_FEATURE, HOME_HIDDEN_PREF, HOME_PROCESSES, homeKpis, homeRecent, KERNEL_CHART_PROVIDERS, KERNEL_KPI_PROVIDERS, kpiGridHref, kpiSchema, recommendationDecide, recommendationList, SERIES_DAYS, suggestedAction,
+  composeMessage, makeRecommendations, openRecommendations, paramValues, reasonKeyOf, recommendationCloseInput, recommendationParam, recommendationRaiseInput, RECOMMENDATION_PARAMS_MAX } from "./home";
+export type { CatalogItem, RecommendationClose, RecommendationOut, RecommendationParam, RecommendationRaise, RecommendationsApi, SuggestedAction } from "./home";
 
 export type { AccountingPack, AccountLevel, AccountSeed, ExogenaCompany, ExogenaFormat, ExogenaRow, JournalKind, LineCode, StatementSection } from "./localization/country-pack";
 export { ACCOUNT_ROLES, asPostingEngine, composeEntry, dismissParkedEvents, emitAndPostStrict, postingConsumer, POSTING_CONSUMER, interpolate, PathError, resolvePath, ruleApplies, RuleLine, RuleTemplate } from "./posting";

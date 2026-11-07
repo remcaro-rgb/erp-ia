@@ -1150,7 +1150,8 @@
       "expand_menu": "Expandir menú",
       "toggle_menu": "Contraer o expandir menú",
       "page": "Página",
-      "module_home": "Inicio de {module}"
+      "module_home": "Inicio de {module}",
+      "notifications_more": "Ver todo en Inicio"
     },
     "core": {
       "parties": "Terceros",
@@ -3654,9 +3655,12 @@
       "agents": {
         "help": "Agente de ayuda",
         "seed": "Sugerencia de Goliatt",
-        "other": "Agente: {name}"
+        "other": "Agente: {name}",
+        "process": "Aviso de {module}"
       },
-      "refused": "Tu rol no puede hacer esta acción, así que no la abrimos. Descarta la recomendación o consulta al administrador."
+      "refused": "Tu rol no puede hacer esta acción, así que no la abrimos. Descarta la recomendación o consulta al administrador.",
+      "open_record": "Abrir registro",
+      "no_link": "Sin acceso al registro"
     },
     "assistant": {
       "run": "Ejecuta {process} con {input}",
@@ -3996,7 +4000,8 @@
       "empty": "No hay indicadores ni gráficos disponibles para tu rol en este módulo.",
       "all_off": "Apagaste todos los indicadores y gráficos de esta página. Usa Personalizar página de inicio para volver a activarlos.",
       "chart_empty": "Todavía no hay datos para este gráfico.",
-      "chart_summary": "{title}: {summary}"
+      "chart_summary": "{title}: {summary}",
+      "pending": "Pendientes"
     }
   },
   "agent": {
@@ -5150,6 +5155,12 @@
       "return_void_cogs": "Costo de ventas: vuelve a registrar el costo de ventas de la devolución anulada",
       "movement_cost": "Costos: valora el movimiento al costo promedio ponderado de la bodega",
       "movement_void_cost": "Costos: reversa la valoración del movimiento anulado"
+    },
+    "recommendation": {
+      "cost_missing": {
+        "title": "Falta el costo de un producto",
+        "body": "{product} se movió en {warehouse} sin costo conocido ({count} movimientos): corrígelo con un ajuste de inventario."
+      }
     }
   },
   "crm": {
@@ -5916,6 +5927,28 @@
       "resubmit_dian": "Facturación DIAN: vuelve a enviar el documento a la DIAN con el mismo número y CUFE",
       "payment_applied": "Facturación: abona lo pagado a cada factura y la marca pagada cuando queda saldada",
       "payment_voided": "Facturación: las facturas recuperan el saldo que pagaba el recibo anulado"
+    },
+    "recommendation": {
+      "auto_skipped": {
+        "title": "No se creó la factura automática",
+        "body": "{document} no se facturó solo: {reason}."
+      },
+      "reason": {
+        "invalid_party": "el tercero ya no es un cliente o no es visible",
+        "invalid_product": "un producto ya no existe o no es visible",
+        "over_invoicing": "lo despachado ya está facturado",
+        "order_cancelled": "el pedido está cancelado",
+        "order_not_confirmed": "el pedido no está confirmado",
+        "delivery_voided": "la entrega está anulada",
+        "delivery_not_shipped": "la entrega no se ha despachado",
+        "invalid_order_line": "una línea no corresponde a su pedido",
+        "price_not_found": "un producto no tiene precio",
+        "invalid_payment_means": "el medio de pago no es válido",
+        "exchange_rate_required": "falta la tasa de cambio",
+        "nothing_to_invoice": "no hay nada por facturar",
+        "einvoice_not_available": "el país no tiene facturación electrónica registrada",
+        "refused": "la factura fue rechazada"
+      }
     }
   },
   "payments": {

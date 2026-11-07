@@ -20,6 +20,7 @@ import { NavigateProvider } from "./navigate";
 import { assistantOpenStorageKey, browserStorage, sideMenuStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
+import type { RecommendationItem } from "../home/RecommendationCard";
 import { TopBar } from "./TopBar";
 import { moduleOf, type CommandItem, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type TabKind, type TabsSnapshot, type ThemeMode } from "./types";
 
@@ -72,6 +73,8 @@ export interface AppShellProps {
   signOutAction?: () => void | Promise<void>;
   /** The caller's second step (design §22.19); with `onDisableMfa`, the user menu offers "Verificación en dos pasos". */
   mfa?: MfaState;
+  /** The caller's open recommendations for the bell (plan 2B Task 38): the open count and the newest few. */
+  notifications?: { total: number; items: RecommendationItem[] };
   /** Runs kernel.user.mfa.disable through the app's step-up flow; on success the app ends the session. */
   onDisableMfa?: () => Promise<MfaDisableResult>;
   /** Runs kernel.user.password.change; with it, the user menu offers "Cambiar contraseña". */
@@ -438,6 +441,7 @@ function ShellFrame(props: AppShellProps) {
             onToggleAssistant={() => (assistantOpen ? closeAssistant() : openAssistant())}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
+            {...(props.notifications ? { notifications: props.notifications, onOpenNotification: (href: string) => navigate(href) } : {})}
             {...(mfaWired ? { mfaEnrolled: props.mfa!.enrolled, onOpenMfa: () => setMfaOpen(true) } : {})}
             {...(props.onChangePassword ? { onOpenPassword: () => setPasswordOpen(true) } : {})}
           />

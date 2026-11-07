@@ -1,8 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { getTranslations } from "next-intl/server";
-import { callerProfile, entitled, menuHiddenKeys, readUserPrefs, runnableProcesses, withClaims, type Caller, type RunProcessDeps } from "@erp/kernel";
-import { isThemeMode, type CommandItem, type MfaState, type ResultColumn, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
+import { callerProfile, entitled, flattenNav, menuHiddenKeys, openRecommendations, readUserPrefs, runnableProcesses, withClaims, type Caller, type RunProcessDeps } from "@erp/kernel";
+import { isThemeMode, type CommandItem, type MfaState, type RecommendationItem, type ResultColumn, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type ThemeMode } from "@erp/ui";
+import { recommendationItem } from "@/lib/home/shape";
 import { assertComplete, getSessionState, Unauthenticated, type SessionState } from "@/lib/auth/claims";
 import { savedFrom } from "@/lib/prefs/validate";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
@@ -30,6 +31,23 @@ export interface ShellData {
   tabs: Saved<unknown> | null;
   /** The caller's second step, for "Verificación en dos pasos" in the user menu (design §22.19). */
   mfa: MfaState;
+  /** The bell (plan 2B Task 38): the caller's open recommendations and the five newest, or null when they may not list them. */
+  notifications: { total: number; items: RecommendationItem[] } | null;
+}
+
+/** How many recommendations the bell's menu lists (the newest); the dot counts every open one. */
+export const BELL_ITEMS = 5;
+
+/**
+ * The bell's content, as the caller: a plain read under RLS (kernel.v_recommendations masks the params and the subject), not the list
+ * process, so a page load writes no audit row; gated on the list process as the inbox is.
+ */
+async function readNotifications(deps: RunProcessDeps, caller: Caller): Promise<{ total: number; recommendations: Awaited<ReturnType<typeof openRecommendations>>["recommendations"] } | null> {
+  return withClaims(deps.sql, caller.claims, async (tx) => {
+    const [gate] = await tx<{ allowed: boolean }[]>`select kernel.can_run_process('kernel.recommendation.list') as allowed`;
+    if (!gate?.allowed) return null;
+    return openRecommendations(tx, { companyId: caller.claims.active_company_id, locale: caller.claims.locale, limit: BELL_ITEMS });
+  });
 }
 
 /**
@@ -49,7 +67,7 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
   await registrySynced();
   const { claims } = caller;
   const keys = shellAccessKeys(deps.registry);
-  const [profile, entitledKeys, runnable, hidden, prefs, t, mfa] = await Promise.all([
+  const [profile, entitledKeys, runnable, hidden, prefs, t, mfa, inbox] = await Promise.all([
     callerProfile(deps.sql, claims),
     Promise.all(keys.entitlements.map(async (key) => ((await entitled(deps.sql, claims.active_company_id, key)) ? key : null))),
     runnableProcesses(deps.sql, deps.registry, claims, keys.processes),
@@ -59,6 +77,11 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
     readUserPrefs(deps.sql, claims, ["theme", "tabs", "assistant.open"]),
     getTranslations(),
     readMfa(deps.sql, caller, session.mfaEnrolled),
+    // The bell never takes the shell down: a failed read draws it empty.
+    readNotifications(deps, caller).catch((error: unknown) => {
+      console.error("shell notifications failed", error);
+      return null;
+    }),
   ]);
   // A membership the admin deactivated (design §22.16) opens nothing: the layout signs the session out.
   if (!profile.active) throw new Unauthenticated("account_disabled");
@@ -89,6 +112,7 @@ export async function loadShell(caller: Caller, session: Pick<SessionState, "mfa
     assistantOpen: assistantOpen && typeof assistantOpen.value === "boolean" ? { value: assistantOpen.value, savedAt: assistantOpen.savedAt } : null,
     tabs: savedFrom(prefs.tabs),
     mfa,
+    notifications: inbox ? { total: inbox.total, items: inbox.recommendations.map((r) => recommendationItem(deps.registry, flattenNav(nav), r)) } : null,
   };
 }
 

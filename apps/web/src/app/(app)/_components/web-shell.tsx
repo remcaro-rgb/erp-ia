@@ -136,6 +136,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
         )
       }
       mfa={data.mfa}
+      {...(data.notifications ? { notifications: data.notifications } : {})}
       mfaStepUpPrompt={mfaStepUpPrompt}
       onCancelMfaStepUp={cancelMfaStepUp}
       onDisableMfa={async () => {

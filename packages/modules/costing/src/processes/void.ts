@@ -2,7 +2,7 @@ import { defineProcess, dismissParkedEvents, ProcessError, type EventConsumer, t
 import { z } from "zod";
 import { CostError, reverse } from "../average";
 import type { EventKind } from "../entities";
-import { feedLockKey } from "./common";
+import { closeCostMissing, feedLockKey } from "./common";
 import { catchUp, COGS_POSTED, COGS_RETURNED, currencyOf, Layers } from "./cost";
 
 // The cost of a voided inventory movement (plan 2B Task 14, the voids carried from the reviews of Tasks 6–9; design §8.1).
@@ -51,6 +51,8 @@ async function undoMissing(ctx: ProcessContext, movementId: string, productId: s
   if (!open) return;
   if (open.occurrences <= 1) {
     await ctx.tx`update costing.cost_missing set status = 'resolved', resolved_at = now(), resolved_movement_id = ${movementId} where id = ${open.id}`;
+    // Nothing is missing any more: its recommendation closes (Task 38).
+    await closeCostMissing(ctx, open.id);
     return;
   }
   await ctx.tx`

@@ -1,59 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Dashboard, HelpWidget, KpisWidget, RecentWidget, RecommendationsWidget, UpdatedAt, useAskAssistant, type DashboardWidget, type RecommendationItem, type WidgetLayout } from "@erp/ui";
-import { decideRecommendationAction } from "@/lib/home/actions";
+import { Dashboard, HelpWidget, KpisWidget, RecentWidget, RecommendationsWidget, UpdatedAt, useAskAssistant, type DashboardWidget, type WidgetLayout } from "@erp/ui";
 import type { HomeData } from "@/lib/home/load";
 import { createLayoutSaver } from "@/lib/home/layout-save";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
 import type { ShellPrefKey } from "@/lib/prefs/validate";
 import { useHomeCustomize } from "./use-customize";
+import { useRecommendations } from "./use-recommendations";
 
 /**
  * The home screen (design §19a, prototype `renderHome`): the greeting and the widget dashboard. The widgets the caller may
  * not have (their process refused) are not drawn. An accepted recommendation action opens the assistant with
  * "Ejecuta <proceso> con <input>", so the agent produces the usual confirmation card (rules 17 and 28): nothing runs here.
+ * A recommendation a process raised (plan 2B Task 38) links its record («Abrir registro») and is dismissed with «Descartar».
  */
 export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId: string; companyId: string }) {
   const t = useTranslations();
   const router = useRouter();
   const ask = useAskAssistant();
-  const [recommendations, setRecommendations] = useState<RecommendationItem[]>(data.recommendations ?? []);
-  const [pending, setPending] = useState<string | null>(null);
-  const [failed, setFailed] = useState<"failed" | "refused" | null>(null);
+  const { items: recommendations, pending, failed, decide, open } = useRecommendations(data.recommendations ?? []);
   const { hidden, actions } = useHomeCustomize(data.hidden, data.catalog);
-
-  const decide = useCallback(
-    async (id: string, decision: "accepted" | "dismissed", action = 0) => {
-      setPending(id);
-      setFailed(null);
-      try {
-        const outcome = await decideRecommendationAction({ id, decision, action });
-        if (!outcome.ok) {
-          // Already decided elsewhere or no longer yours: it leaves the inbox; anything else is said.
-          if (outcome.code === "not_found" || outcome.code === "handler_failed") setRecommendations((list) => list.filter((r) => r.id !== id));
-          // A suggested action the role may not take: the recommendation stays, with the reason.
-          setFailed(outcome.code === "not_found" ? null : outcome.code === "forbidden" || outcome.code === "not_entitled" ? "refused" : "failed");
-          return;
-        }
-        setRecommendations((list) => list.filter((r) => r.id !== id));
-        const { open, href } = outcome.result;
-        if (open) {
-          const input = JSON.stringify(open.input);
-          ask(Object.keys(open.input).length === 0 ? t("home.assistant.run_plain", { process: open.processId }) : t("home.assistant.run", { process: open.processId, input }));
-        } else if (href) {
-          router.push(href);
-        }
-      } catch {
-        setFailed("failed");
-      } finally {
-        setPending(null);
-      }
-    },
-    [ask, router, t],
-  );
 
   // The KPIs and the recommendations are a snapshot of the page load: they say when it was read.
   const asOf = <UpdatedAt at={data.asOf} />;
@@ -72,6 +41,7 @@ export function HomeScreen({ data, userId, companyId }: { data: HomeData; userId
           onAction={(id, _processId, _input, index) => void decide(id, "accepted", index)}
           onLink={(id, _href, index) => void decide(id, "accepted", index)}
           onDismiss={(id) => void decide(id, "dismissed")}
+          onOpen={open}
         />
       ),
     });
