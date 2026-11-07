@@ -1,7 +1,7 @@
-import { countryPack, defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChanged, ProcessError, runLifecycle, visibleExtra, writeSnapshot, type ProcessContext, type RecordStatus, type TypedHooks, type TypedRecord } from "@erp/kernel";
+import { countryPack, defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChanged, genericProcess, ProcessError, runLifecycle, visibleExtra, writeSnapshot, type ProcessContext, type ProcessDef, type RecordStatus, type TypedHooks, type TypedRecord } from "@erp/kernel";
 import { z } from "zod";
 import { receiptEntity, WITHHOLDING_KINDS, type WithholdingKind } from "../entities";
-import { cents, date, id, idInput, money, num, pesos, refuse, refuseState, today } from "./common";
+import { cents, date, id, idInput, markReceiptLinksVoided, money, num, pesos, refuse, refuseState, syncReceiptLinks, today } from "./common";
 
 // Recibos de caja (plan 2B Task 21; design §8 and §8.1 step 7; accounting design §5.4 and §10a.7: the withholdings a customer practises are
 // recognised when it pays, never on the invoice). A documento that posts (contabiliza) and never waits for approval (own flags).
@@ -417,6 +417,8 @@ export const paymentReceive = defineProcess({
         withholdings: ctx.tx.json(a.withholdings as never),
       })))}`;
     }
+    // invoice_to_receipt, in this transaction (Task 31): one link per invoice the receipt applies to.
+    await syncReceiptLinks(ctx, receiptId, planned.map((a) => a.invoiceId));
     // Grabar: the number (on save) and the posting (Contabiliza): the post hook emits payments.received, posted inline.
     await runLifecycle(ctx, ctx.registry.entity(receiptEntity.id), receiptId, "save");
     return outputOf(ctx, receiptId);
@@ -506,6 +508,8 @@ export const paymentVoid = defineProcess({
     const entity = ctx.registry.entity(receiptEntity.id);
     await writeSnapshot(ctx, entity, receiptId, "voided", reason);
     await emitStatusChanged(ctx, entity, { id: receiptId, number: voided!.number }, "posted", "voided");
+    // The void keeps the receipt's links, marked (Task 31).
+    await markReceiptLinksVoided(ctx, receiptId, reason);
     // A receipt whose event is still parked (accounting was off) must never reach the ledger after this void: dismiss it.
     await dismissParkedEvents(ctx, PAYMENT_RECEIVED, { paymentId: receiptId });
     // The reversal of the receipt's entry, inline and strict: a closed period (or any refusal) undoes the whole void.
@@ -595,4 +599,20 @@ export const receiptHooks: TypedHooks = {
   },
 };
 
-export const RECEIPT_PROCESSES = [paymentReceive, paymentVoid, openInvoices, receiptConsult, allocationConsult];
+/**
+ * Eliminar of the record frame (a Borrador only, design §22.23): the generic `payments.receipt.delete`, still a delete process (same id,
+ * same audit label), with the receipt's links taken away first (Task 31): the kernel lets a delete process unlink its own document
+ * (`ctx.links.sync` with `from: []`) and nothing else.
+ */
+const genericDelete = genericProcess({ id: receiptEntity.id, module: "payments", entityType: "documento" }, "delete");
+export const receiptDelete = {
+  ...genericDelete,
+  feature: FEATURE_RECEIPTS,
+  handler: async (ctx: ProcessContext, input: unknown) => {
+    const receipt = await readReceipt(ctx, (input as { id: string }).id, true);
+    await syncReceiptLinks(ctx, receipt.id, []);
+    return genericDelete.handler(ctx, input);
+  },
+} as ProcessDef;
+
+export const RECEIPT_PROCESSES = [receiptDelete, paymentReceive, paymentVoid, openInvoices, receiptConsult, allocationConsult];

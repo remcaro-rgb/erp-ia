@@ -3,6 +3,7 @@ import { z } from "zod";
 import { orderEntity, type OrderStage } from "../entities";
 import { lineDiscount, resolveLineDiscount, resolveLinePrice, type ResolvedPrice } from "../price";
 import { assertSaleReady, type SaleParty, type SaleProduct } from "../readiness";
+import { linkOrderToQuote, markLinksVoided } from "./common";
 
 // Pedidos de venta (plan 2B Task 13, design §8 and §8.1 steps 1–2): a documento numbered PED- on save that never posts (the invoice posts,
 // Task 16). Each line is priced like a cotización line (the customer's price list, then the default list, then the product's list price; a
@@ -384,6 +385,8 @@ async function createOrder(ctx: ProcessContext, input: NewOrder): Promise<OrderO
     })}
     returning id`);
   await insertLines(ctx, header!.id, priced.lines);
+  // quote_to_order, in this transaction (Task 31): the cotización this pedido came from.
+  await linkOrderToQuote(ctx, header!.id, input.quoteId);
   const state = await saveAndRoute(ctx, header!.id, "draft", approval.requiresApproval, false);
   await ctx.emit(ORDER_CREATED, {
     orderId: header!.id,
@@ -653,6 +656,8 @@ async function cancelOrder(ctx: ProcessContext, input: z.output<typeof cancelInp
   if (billed?.invoiced) refuseState("order_invoiced", [`El pedido ${label(order)} ya está facturado: anula primero la factura (nota crédito)`]);
   await runLifecycle(ctx, ctx.registry.entity(orderEntity.id), order.id, "void", { reason: input.reason, ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}) });
   await ctx.tx`update sales.orders set stage = 'cancelled', cancelled_at = now() where id = ${order.id}`;
+  // The void keeps its links, marked (Task 31): a cotización ordered again shows the cancelled pedido and the new one.
+  await markLinksVoided(ctx, "sales.order", order.id, input.reason);
   if (FIRM_STAGES.has(order.stage)) {
     const lines = await ctx.tx<{ id: string; line_no: number; product_id: string; qty: string }[]>`
       select id, line_no, product_id, qty::text from sales.order_lines where order_id = ${order.id} order by line_no`;

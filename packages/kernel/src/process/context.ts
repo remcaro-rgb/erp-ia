@@ -1,6 +1,7 @@
 import type { AuditEntry, Origin } from "../audit/audit";
 import type { JwtClaims, Tx } from "../db/client";
 import type { RecommendationsApi } from "../home/recommend";
+import type { LinksApi } from "../links/links";
 import type { Registry } from "../registry";
 
 /** Who runs a process and from where: the user's claims, also when the assistant or a job acts for them. */
@@ -63,5 +64,12 @@ export interface ProcessContext {
    * it. Absent on contexts that are not a runProcess run.
    */
   recommendations?: RecommendationsApi;
+  /**
+   * Writes the document links of this process's document (design §22.27, plan 2B Task 31): `sync` sets the links of one kind into a
+   * document of this process's module, `markVoided` marks every link of a document it voids. In the run's transaction under this
+   * process's name (a nested run writes under its own), refused for a consult or a delete; each link carries the run's chain. A dry run's
+   * rows roll back with it. Absent on contexts that are not a runProcess run.
+   */
+  links?: LinksApi;
   afterCommit?(fn: (asCaller: <T>(work: (tx: Tx) => Promise<T>) => Promise<T>) => Promise<void>): void;
 }

@@ -33,6 +33,7 @@ Guías para quien usa Goliatt todos los días, en español latinoamericano. El a
 - [Ventas: precios y condiciones comerciales](ventas.md): de qué lista sale el precio de cada línea, la lista y el descuento de cada cliente y la lista predeterminada.
 - [Inventario: bodegas, movimientos, traslados, conteos y existencias](inventario.md): bodegas y ubicaciones, entradas, salidas y ajustes (con código de verificación), traslados por la bodega de tránsito, conteos físicos que se aplican como un solo ajuste y las existencias con lo reservado y lo disponible.
 - [Costos: promedio ponderado, capas de costo, costos en destino y costos pendientes](costos.md): cómo se valora cada movimiento por bodega, el costo de ventas al despachar, el flete o los aranceles que suben el costo de una entrada, los productos que salieron sin costo y el método de costeo (PEPS en la fase 3).
+- [Documentos relacionados: de dónde viene un documento y qué salió de él](documentos-relacionados.md): la pestaña de cotizaciones, pedidos, entregas, facturas y recibos con lo que viene antes y lo que salió después, «Anulado», los documentos que no puedes ver y los límites.
 
 ## Contabilidad
 

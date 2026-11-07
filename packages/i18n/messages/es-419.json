@@ -89,6 +89,23 @@
       "discard_changes": "Descartar cambios",
       "save_changes": "Guardar cambios",
       "duplicate_failed": "No se pudo duplicar el registro: {reason}",
+      "related": {
+        "title": "Documentos relacionados",
+        "tab": "Documentos relacionados",
+        "up": "Origen",
+        "down": "Derivados",
+        "voided": "Anulado",
+        "hidden": "Y {count, plural, one {# documento más} other {# documentos más}} que no puedes ver",
+        "truncated": "Se muestran los primeros {count}",
+        "empty": "Este documento no tiene documentos relacionados",
+        "kind": {
+          "quote_to_order": "Cotización → Pedido",
+          "order_to_delivery": "Pedido → Entrega",
+          "delivery_to_invoice": "Entrega → Factura",
+          "order_to_invoice": "Pedido → Factura",
+          "invoice_to_receipt": "Factura → Recibo"
+        }
+      },
       "contributed": {
         "save": "Guardar",
         "discard": "Descartar",

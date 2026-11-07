@@ -1,4 +1,4 @@
-import { countryPack, ProcessError, type EInvoicePack, type ProcessContext, type TaxedDocument, type TaxLineInput } from "@erp/kernel";
+import { countryPack, ProcessError, type EInvoicePack, type LinksApi, type ProcessContext, type TaxedDocument, type TaxLineInput } from "@erp/kernel";
 import { z } from "zod";
 import type { InvoiceCreation } from "../entities";
 import { refuse, type InvoiceParty, type InvoiceProduct } from "../readiness";
@@ -192,11 +192,46 @@ export function companyAmounts<L extends { base: number | string; free_sample: b
   return { revenue, taxLines, total };
 }
 
+// The document links invoicing writes (design §22.27, plan 2B Task 31): through ctx.links only (rule 1), in the transaction of the write of
+// the invoice's lines, as the process that writes them. delivery_to_invoice: one link per entrega a line bills; order_to_invoice: one per
+// pedido a line bills with no entrega (an invoice made on the pedido). A line with both names the entrega only (the pedido is upstream of it).
+// Voiding an invoice marks every link it has (kept, never deleted); a Borrador's delete takes them away.
+
+const INVOICE = "invoicing.invoice";
+
+function linksOf(ctx: ProcessContext): LinksApi {
+  if (!ctx.links) throw new Error("ctx.links is not available: the kernel builds it for every run");
+  return ctx.links;
+}
+
+/**
+ * Makes the invoice's upstream links equal what its lines bill (insert, edit and every rewrite of the lines of a Borrador). The Emitir hook
+ * rewrites the lines after the lifecycle left the Borrador status: the same from-set then, so the sync inserts and removes nothing.
+ */
+export async function syncInvoiceLinks(ctx: ProcessContext, invoiceId: string, lines: readonly { order_id?: string | null; delivery_id?: string | null }[]): Promise<void> {
+  const deliveries = [...new Set(lines.flatMap((l) => (l.delivery_id ? [l.delivery_id] : [])))];
+  const orders = [...new Set(lines.flatMap((l) => (!l.delivery_id && l.order_id ? [l.order_id] : [])))];
+  const to = { entity: INVOICE, id: invoiceId };
+  await linksOf(ctx).sync({ to, kind: "delivery_to_invoice", from: deliveries.map((id) => ({ entity: "sales.delivery", id })) });
+  await linksOf(ctx).sync({ to, kind: "order_to_invoice", from: orders.map((id) => ({ entity: "sales.order", id })) });
+}
+
+/** The Borrador is about to be deleted: its links go first (the kernel removes them only while it is a Borrador). */
+export async function unlinkInvoice(ctx: ProcessContext, invoiceId: string): Promise<void> {
+  await syncInvoiceLinks(ctx, invoiceId, []);
+}
+
+/** The invoice was voided (its annulment accepted): every link touching it is marked. */
+export async function markInvoiceLinksVoided(ctx: ProcessContext, invoiceId: string, reason: string): Promise<void> {
+  await linksOf(ctx).markVoided({ entity: INVOICE, id: invoiceId, reason: reason.slice(0, 500) });
+}
+
 /** Replaces the lines and taxes of the Borrador `invoiceId` and its totals with `priced`. */
 export async function writeParts(ctx: ProcessContext, invoiceId: string, priced: Priced, exchangeRate: number): Promise<void> {
   await ctx.tx`delete from invoicing.invoice_taxes where invoice_id = ${invoiceId}`;
   await ctx.tx`delete from invoicing.invoice_lines where invoice_id = ${invoiceId}`;
   await ctx.tx`insert into invoicing.invoice_lines ${ctx.tx(priced.lines.map((l) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...l })))}`;
+  await syncInvoiceLinks(ctx, invoiceId, priced.lines);
   if (priced.taxes.length > 0) {
     await ctx.tx`insert into invoicing.invoice_taxes ${ctx.tx(priced.taxes.map((t) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...t })))}`;
   }

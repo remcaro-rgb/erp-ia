@@ -1,4 +1,4 @@
-import { countryPack, defineProcess, ProcessError, runLifecycle, writeSnapshot, type ProcessContext, type TaxLineInput, type TypedHooks } from "@erp/kernel";
+import { countryPack, defineProcess, genericProcess, ProcessError, runLifecycle, writeSnapshot, type ProcessContext, type ProcessDef, type TaxLineInput, type TypedHooks } from "@erp/kernel";
 import { assertSaleReady, lineDiscount, resolveLineDiscount, resolveLinePrice, type ResolvedPrice, type SaleParty, type SaleProduct } from "@erp/module-sales";
 import { z } from "zod";
 import { quoteEntity, type QuoteStage } from "../entities";
@@ -521,4 +521,20 @@ export const quoteHooks: TypedHooks = {
   },
 };
 
-export const QUOTE_PROCESSES = [quoteCreate, quoteUpdate, quoteSend, quoteAccept, quoteExpire, quoteConsult, quoteLineConsult];
+/**
+ * Anular of the record frame: the generic `crm.quote.void` (same id, kind and audit action) that also marks the cotización's links as voided
+ * (Task 31, design §22.27): a pedido made from it keeps its quote_to_order link, flagged, as the backfill (0125) marks it.
+ */
+const genericVoid = genericProcess({ id: quoteEntity.id, module: "crm", entityType: "documento" }, "void");
+export const quoteVoid = {
+  ...genericVoid,
+  feature: FEATURE,
+  handler: async (ctx: ProcessContext, input: unknown) => {
+    const result = await genericVoid.handler(ctx, input);
+    const { id: quoteId, reason } = input as { id: string; reason: string };
+    await ctx.links!.markVoided({ entity: quoteEntity.id, id: quoteId, reason: reason.slice(0, 500) });
+    return result;
+  },
+} as ProcessDef;
+
+export const QUOTE_PROCESSES = [quoteVoid, quoteCreate, quoteUpdate, quoteSend, quoteAccept, quoteExpire, quoteConsult, quoteLineConsult];

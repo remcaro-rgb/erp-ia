@@ -189,3 +189,20 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept; a module that raises recommendations owns its copy.
 60. **The audience is a process, the administrator is in every one** (Task 38). A process-raised recommendation is shown to whoever may run its audience process (`kernel.can_run_process`), so a company administrator sees every notice of every module. With many modules raising, an admin's bell may get noisy.
     Recommended: accept for 2B; if it gets noisy, add a per-user mute by module in 2C.
+
+## I. Items met while expanding 2B.2 Task 31 (document links), 2026-11-07 · to decide
+
+61. **Which documents join the trail** (Task 31). Task 31 and design §22.27 name four relations (quote→order, order→delivery, delivery→invoice, invoice→receipt); the build adds `order_to_invoice` because an invoice created on an order with no delivery has no other upstream. Credit and debit notes (invoice→note), returns (delivery→return) and advances applied to an invoice are not linked.
+    Recommended: accept the five kinds now; add `invoice_to_note`, `delivery_to_return` and `advance_to_invoice` as one small task in 2C (each is one `ctx.links.sync` line in its creating process plus one backfill source and a kind name in the catalogue).
+62. **Hidden documents are walked through, counted, never named** (Task 31). A viewer who cannot see the invoice between a quote and a receipt still sees both ends and «Y 1 documento más que no puedes ver». The count tells them N more documents exist; it names nothing.
+    Recommended: accept (it is what §22.27's masking line asks for); if you prefer the trail to stop at the first hidden document, say so and it is one flag.
+63. **Migration numbers** (Task 31). The task text said 0123 was the next free number; Task 38 had already taken it, so the links use 0124 (table and functions) and 0125 (backfill).
+    Recommended: nothing to decide; recorded so the numbering in the roadmap stays honest.
+64. **Every record page now runs one trail consult, and each writes a consult audit row** (Task 31). Opening any record (parties and products included) calls `kernel.document_link.trail`; the pipeline writes a second audit row for the consult. Empty answers are quick but the audit log grows by one row per page view.
+    Recommended: accept for 2B (consults are already audited); if the volume matters, load the tab only for entities that carry links (documents) or mark the process as a telemetry-kind consult (an exception to rule 16 that needs your wording).
+65. **Feature-level entitlement in the trail** (Task 31, R-F1). The trail checks that the company is entitled to the document's module, not to a feature inside it. A document of a disabled feature appears as a short-id link.
+    Recommended: accept; the link opens a page the feature gate already refuses.
+66. **Trail cap per direction** (Task 31). With direction «both» the 100-document cap is shared: when upstream fills it, no downstream is returned (and the trail says it was truncated). A very wide sale could hide its downstream.
+    Recommended: accept for 2B (the guide says so); switch to a cap per direction (50 + 50) if a real sale hits it.
+67. **The order's «Cotización» field shows the quote's raw UUID** (found by Task 31's e2e). On the order record the field `quote_id` is rendered as the id, not as the quote's number with a link (rule 21 asks every reference to a record to be a link). It is the order's own field, not the trail.
+    Recommended: fix it as a small task in 2C (declare `quote_id` as a `ref` to `crm.quote` so the frame shows the number and links to it).

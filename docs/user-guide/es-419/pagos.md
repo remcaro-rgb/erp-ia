@@ -111,3 +111,5 @@ Un recibo registrado no se edita. Si hubo un error (la consignación se devolvi�
 Un recibo anulado no se puede volver a anular.
 
 **Duplicar** un recibo copia solo el cliente, el medio de pago y la caja: el valor, la referencia y las facturas se indican de nuevo y el sistema revisa todo al registrarlo. Duplicar un medio de pago o una caja copia sus datos menos el código, que escribes de nuevo.
+
+La pestaña **Documentos relacionados** del recibo muestra la factura que pagó y los documentos de donde viene; un recibo anulado sigue en la lista, tachado y con la etiqueta **Anulado** (guía **Documentos relacionados**).

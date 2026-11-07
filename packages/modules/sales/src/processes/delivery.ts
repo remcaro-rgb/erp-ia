@@ -2,6 +2,7 @@ import { defineProcess, ProcessError, runLifecycle, writeSnapshot, type EventCon
 import { z } from "zod";
 import { deliveryEntity, type DeliveryStage, type OrderStage } from "../entities";
 import { assertSaleReady } from "../readiness";
+import { linkDeliveryToOrder, markLinksVoided } from "./common";
 import { assertWarehouse, FIRM_STAGES, refuse, refuseState, today } from "./order";
 import { lockShipStock, pendingShipped, qtyText } from "./stock";
 
@@ -245,6 +246,8 @@ export const deliveryCreate = defineProcess({
       })}
       returning id`;
     await writeLines(ctx, header!.id, lines);
+    // order_to_delivery, in this transaction (Task 31).
+    await linkDeliveryToOrder(ctx, header!.id, order.id);
     await runLifecycle(ctx, ctx.registry.entity(deliveryEntity.id), header!.id, "save");
     return outputOf(ctx, header!.id);
   },
@@ -449,6 +452,8 @@ export const deliveryVoid = defineProcess({
     if (returned) refuseState("delivery_returned", [`La entrega ${label(delivery)} tiene la devolución ${returned.number ?? ""} vigente: anúlala primero`]);
 
     await runLifecycle(ctx, ctx.registry.entity(deliveryEntity.id), delivery.id, "void", { reason: input.reason, ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}) });
+    // The void keeps its link, marked (Task 31).
+    await markLinksVoided(ctx, "sales.delivery", delivery.id, input.reason);
     if (delivery.stage === "shipped") {
       await refreshOrderStage(ctx, order.id);
       await ctx.emit(DELIVERY_VOIDED, {

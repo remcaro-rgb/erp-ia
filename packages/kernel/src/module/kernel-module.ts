@@ -24,6 +24,7 @@ import { MENU_ACCESS_PROCESSES } from "../typed/menu-access.processes";
 import { DOC_TEMPLATE_ADMIN_PROCESSES, DOC_TEMPLATE_FEATURE, DOC_TEMPLATE_PROCESSES, docTemplatePrint } from "../templates/processes";
 import { docTemplateEntity } from "../templates/schema";
 import { NOTIFY_FEATURE, NOTIFY_PROCESSES } from "../typed/notify";
+import { LINK_PROCESSES } from "../links";
 
 /**
  * The kernel as a module, so its processes are registered, audited and permissioned like any other.
@@ -35,7 +36,7 @@ export const kernelModule: ModuleDef = defineModule({
   dependsOn: [],
   icon: "settings",
   entities: [importEntity, exportJobEntity, auditEntity, userEntity, docTemplateEntity],
-  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_PROCESSES, ...NOTIFY_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES],
+  processes: [...ATTACHMENT_PROCESSES, ...AI_PROCESSES, ...CUSTOM_FIELD_PROCESSES, ...VERIFY_PROCESSES, ...USER_PREF_PROCESSES, ...SAVED_VIEW_PROCESSES, ...IMPORT_PROCESSES, ...EXPORT_PROCESSES, ...HELP_PROCESSES, ...DATA_PROCESSES, ...HOME_PROCESSES, ...ADMIN_PROCESSES, ...TYPED_SETTINGS_PROCESSES, ...RECORD_ACCESS_PROCESSES, ...MENU_ACCESS_PROCESSES, ...DOC_TEMPLATE_PROCESSES, ...NOTIFY_PROCESSES, ...AUDIT_PROCESSES, ...USER_PROCESSES, ...USER_MFA_PROCESSES, ...LINK_PROCESSES],
   features: [
     {
       id: "kernel.attachments",

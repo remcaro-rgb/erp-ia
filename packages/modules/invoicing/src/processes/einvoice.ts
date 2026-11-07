@@ -2,7 +2,7 @@ import { infra } from "@erp/infra";
 import { defineProcess, fileStore, ProcessError, renderPrint, translatorFor, type EventConsumer, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { SUBMISSION_STATUSES, type SubmissionStatus } from "../entities";
-import { FEATURE_INVOICES, id, num, packOf, refuseState, round2, settingsOf } from "./common";
+import { FEATURE_INVOICES, id, markInvoiceLinksVoided, num, packOf, refuseState, round2, settingsOf } from "./common";
 import { label, readInvoice } from "./invoice";
 import { noteLabel, readNote } from "./note";
 import { einvoiceSubmission } from "../workflows/einvoice.workflow";
@@ -497,6 +497,8 @@ export const noteDianResult = defineProcess({
         refuseState("annulment_invoice_not_issued", [`La DIAN aceptó la nota de anulación ${noteLabel(note)}, pero la factura ${now?.number ?? note.invoice_id} ya no está emitida (${now?.stage ?? "no existe"}): revísala con soporte`]);
       }
       invoiceVoided = true;
+      // The void keeps the invoice's links, marked (Task 31).
+      await markInvoiceLinksVoided(ctx, voided!.id, `Anulada por la nota ${noteLabel(note)}`);
       const lines = await ctx.tx<{ order_id: string | null; delivery_id: string | null }[]>`select order_id, delivery_id from invoicing.invoice_lines where invoice_id = ${voided!.id}`;
       await ctx.emit(INVOICE_ANNULLED, {
         invoiceId: voided!.id, number: voided!.number, noteId: note.id, noteNumber: note.number, partyId: note.party_id,

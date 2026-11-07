@@ -89,6 +89,23 @@
       "discard_changes": "Discard changes",
       "save_changes": "Save changes",
       "duplicate_failed": "The record could not be duplicated: {reason}",
+      "related": {
+        "title": "Related documents",
+        "tab": "Related documents",
+        "up": "Origin",
+        "down": "Derived",
+        "voided": "Voided",
+        "hidden": "And {count, plural, one {# more document} other {# more documents}} you cannot see",
+        "truncated": "Showing the first {count}",
+        "empty": "This document has no related documents",
+        "kind": {
+          "quote_to_order": "Quote → Order",
+          "order_to_delivery": "Order → Delivery",
+          "delivery_to_invoice": "Delivery → Invoice",
+          "order_to_invoice": "Order → Invoice",
+          "invoice_to_receipt": "Invoice → Receipt"
+        }
+      },
       "contributed": {
         "save": "Save",
         "discard": "Discard",

@@ -47,6 +47,7 @@ export const DEFAULT_RECORD_LABELS: RecordLabels = {
     datos: "Datos", contactos: "Contactos", fotos: "Fotos", mensajes: "Mensajes", extra: "Datos adicionales", archivos: "Archivos", origen: "Origen",
     saldos: "Saldos", movimientos: "Movimientos", seguridad: "Seguridad", resultados: "Resultados", resumen: "Resumen", comprobantes: "Comprobantes", cierre: "Cierre",
     lineas: "Líneas", probar: "Probar", historial: "Historial", versiones: "Versiones", acceso: "Acceso", dian: "DIAN",
+    relacionados: "Documentos relacionados",
   },
   number: "ID",
   docNumber: "Número",
@@ -106,6 +107,8 @@ export function recordTabIds(entity: string, contributed: readonly string[] = []
     ...(entity === "support.ticket" ? (["mensajes"] as const) : []),
     ...contributed,
     ...(einvoice ? (["dian"] as const) : []),
+    // Documentos relacionados (Task 31, design §22.27): every record offers it; the page leaves it out when the trail has no document.
+    "relacionados",
     "extra",
     "archivos",
     // A maestro or documento (Task 15): a documento's Versiones, and Acceso for an admin; the page passes them only when they apply.

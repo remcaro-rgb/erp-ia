@@ -11,7 +11,8 @@ import { registry } from "../registry";
 // Final review M-1 (migration 0116, rule 1): the SECURITY DEFINER functions that consume a number or mark, dismiss or lock an event refuse
 // a user session outside a process run (erp.audit_process_id empty, or not an invoicing process for a DIAN number). Inside a process run
 // they work as before, and a session without a user (the service role, migrations) is not affected. The recommendation writers of 0123
-// (kernel.recommendation_raise / _close) refuse any session that is not the run of the process they name.
+// (kernel.recommendation_raise / _close) refuse any session that is not the run of the process they name, and so do the document link
+// writers of 0124 (kernel.document_link_sync / _mark_voided, through kernel.document_link_writer, plan 2B Task 31).
 
 const GUARDED = /only inside a process run/;
 const COUNTERS = ["inventory.next_movement_number", "crm.next_number", "sales.next_number", "costing.next_document_number", "payments.next_document_number"];
@@ -64,6 +65,38 @@ describe("process guards of the definer functions (migration 0116)", () => {
     await expect(asUser(null, (tx) => raise(tx, "kernel.recommendation.decide"))).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
     await expect(asUser("kernel.user_prefs.set", (tx) => raise(tx, "kernel.recommendation.decide"))).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
     await expect(asUser(null, (tx) => tx`select kernel.recommendation_close('kernel.recommendation.decide', 'kernel.guard', ${randomUUID()}::uuid, null)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    // The document link writers (0124, plan 2B Task 31) refuse a session that is not the run of the process they name.
+    const linkSync = (tx: Tx, processId: string) =>
+      tx`select * from kernel.document_link_sync(${processId}, 'kernel.guard', ${randomUUID()}::uuid, 'guard_to_guard', '[]'::jsonb)`;
+    for (const [running, named] of [[null, "kernel.recommendation.decide"], ["kernel.user_prefs.set", "kernel.recommendation.decide"]] as const) {
+      await expect(asUser(running, (tx) => linkSync(tx, named))).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+      await expect(asUser(running, (tx) => tx`select kernel.document_link_mark_voided(${named}, 'kernel.guard', ${randomUUID()}::uuid, null)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    }
+    // The gate itself is not callable by a user session at all.
+    await expect(asUser("kernel.recommendation.decide", (tx) => tx`select kernel.document_link_writer('kernel.recommendation.decide', 'kernel.guard')`)).rejects.toMatchObject({ code: "42501" });
+    // The trail reads as the caller (security invoker): it is no definer function and needs no process.
+    const [trail] = await sql<{ definer: boolean }[]>`select prosecdef as definer from pg_proc where oid = 'kernel.document_trail(text, uuid, text, integer, integer)'::regprocedure`;
+    expect(trail!.definer).toBe(false);
+    // Every new definer function pins its search_path and is not executable by anon.
+    const definers = await sql<{ name: string; config: string[] | null; anon: boolean; authenticated: boolean }[]>`
+      select p.proname as name, p.proconfig as config, has_function_privilege('anon', p.oid, 'execute') as anon,
+             has_function_privilege('authenticated', p.oid, 'execute') as authenticated
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'kernel' and p.prosecdef
+        and p.proname in ('document_link_writer', 'document_link_record', 'document_link_sync', 'document_link_mark_voided', 'document_link_step',
+                          'entity_entitled', 'entity_consult_processes', 'document_visible', 'document_trail')`;
+    expect(definers.map((d) => d.name).sort()).toEqual(["document_link_mark_voided", "document_link_record", "document_link_step", "document_link_sync", "document_link_writer", "entity_entitled"]);
+    for (const d of definers) {
+      expect(d.config, d.name).toContain("search_path=\"\"");
+      expect(d.anon, d.name).toBe(false);
+    }
+    // The gate and the record reader are internal to the writers: a user session cannot call them.
+    expect(definers.filter((d) => !d.authenticated).map((d) => d.name).sort()).toEqual(["document_link_record", "document_link_writer"]);
+    await expect(asUser("kernel.recommendation.decide", (tx) => tx`select * from kernel.document_link_record('kernel.guard', ${randomUUID()}::uuid, ${companyId}::uuid)`)).rejects.toMatchObject({ code: "42501" });
+    // The trail's step reads the links only inside a run of the trail.
+    for (const running of [null, "kernel.recommendation.decide"]) {
+      await expect(asUser(running, (tx) => tx`select * from kernel.document_link_step('down', '{}'::text[], '{}'::uuid[])`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
+    }
     // A DIAN number needs an invoicing process: another module's process is refused.
     await expect(asUser("sales.order.confirm", (tx) => tx`select core.next_document_number(${companyId}::uuid, 'invoice', current_date)`)).rejects.toMatchObject({ code: "42501", message: expect.stringMatching(GUARDED) });
   });
@@ -97,6 +130,14 @@ describe("process guards of the definer functions (migration 0116)", () => {
       return { merged: r!.merged, closed: c!.n };
     });
     expect(raised).toEqual({ merged: false, closed: 1 });
+    // The link writers under a registered update naming itself pass the gate (it then refuses the unknown entity: invalid input).
+    const linked = asUser("test.guard.recommend", async (tx) => {
+      await tx`reset role`;
+      await tx`insert into kernel.registered_processes (process_id, module_id, kind) values ('test.guard.recommend', 'test', 'update')`;
+      await tx`set local role authenticated`;
+      return tx`select * from kernel.document_link_sync('test.guard.recommend', 'test.guard', ${randomUUID()}::uuid, 'guard_to_guard', '[]'::jsonb)`;
+    });
+    await expect(linked).rejects.toMatchObject({ code: "22023" });
 
     // The same through a real run: runProcess attributes the transaction to the process.
     const probe = defineProcess({

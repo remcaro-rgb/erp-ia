@@ -1,11 +1,11 @@
-import { defineProcess, emitAndPostStrict, ProcessError, runLifecycle, type ProcessContext, type TypedHooks, type TypedRecord } from "@erp/kernel";
+import { defineProcess, emitAndPostStrict, genericProcess, ProcessError, runLifecycle, type ProcessContext, type ProcessDef, type TypedHooks, type TypedRecord } from "@erp/kernel";
 import { z } from "zod";
 import { invoiceEntity, type InvoiceStage } from "../entities";
 import { allocatedTo } from "../consumers/payments";
 import { assertInvoiceReady, readInvoiceFacts } from "../readiness";
 import {
   assertDianAccepted, checkSources, companyAmounts, date, FEATURE_INVOICES, id, INVOICE_CREATED, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
-  refuse, refuseState, settingsOf, today, writeParts, type DraftLine,
+  refuse, refuseState, settingsOf, today, unlinkInvoice, writeParts, type DraftLine,
 } from "./common";
 
 // Facturas de venta (plan 2B Task 16, design §8 and §8.1 step 5, OD-2, OD-7). A documento that posts (contabiliza) and never waits for
@@ -462,6 +462,7 @@ export const invoiceVoid = defineProcess({
   handler: async (ctx, input) => {
     const invoice = await readInvoice(ctx, input.id, true);
     if (invoice.stage === "draft") {
+      await unlinkInvoice(ctx, invoice.id);
       await runLifecycle(ctx, ctx.registry.entity(invoiceEntity.id), invoice.id, "delete", input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {});
       return { id: invoice.id, deleted: true, annulmentNoteId: null };
     }
@@ -655,6 +656,22 @@ export const invoiceHooks: TypedHooks = {
   },
 };
 
+/**
+ * Eliminar of the record frame (a Borrador only, design §22.23): the generic `invoicing.invoice.delete`, still a delete process (same id,
+ * same audit label), with the invoice's links taken away first (Task 31): the kernel lets a delete process unlink its own document
+ * (`ctx.links.sync` with `from: []`) and nothing else.
+ */
+const genericDelete = genericProcess({ id: invoiceEntity.id, module: "invoicing", entityType: "documento" }, "delete");
+export const invoiceDelete = {
+  ...genericDelete,
+  feature: FEATURE_INVOICES,
+  handler: async (ctx: ProcessContext, input: unknown) => {
+    const invoice = await readInvoice(ctx, (input as { id: string }).id, true);
+    await unlinkInvoice(ctx, invoice.id);
+    return genericDelete.handler(ctx, input);
+  },
+} as ProcessDef;
+
 export const INVOICE_PROCESSES = [
-  invoiceCreate, invoiceUpdate, invoiceReprice, invoiceFromOrders, invoiceIssue, invoiceVoid, invoiceConsult, invoiceLineConsult, invoiceTaxConsult, recommendationConsult,
+  invoiceDelete, invoiceCreate, invoiceUpdate, invoiceReprice, invoiceFromOrders, invoiceIssue, invoiceVoid, invoiceConsult, invoiceLineConsult, invoiceTaxConsult, recommendationConsult,
 ];

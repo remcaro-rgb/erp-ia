@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { buildConsumerContext, kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncModuleManifest, type Caller, type ProcessError } from "@erp/kernel";
+import { buildConsumerContext, defineEntity, defineModule, kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncModuleManifest, type Caller, type ProcessError } from "@erp/kernel";
 import { needStub, seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
@@ -14,7 +14,16 @@ import { sales } from "../index";
 // releases it. Sales and inventory are loaded together, as a company that has both.
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, inventory, needStub("costing"), sales]);
+// crm depends on sales, so this package cannot load it: a stand-in that declares only the entity a pedido from a cotización links from
+// (the document link of Task 31 names crm.quote; the table and the views are the migrations').
+const crmQuoteStub = defineModule({
+  id: "crm", version: "0", dependsOn: ["core", "sales"], processes: [], features: [], navigation: [], events: { emits: [], consumes: {} },
+  entities: [defineEntity({
+    entityType: "documento", id: "crm.quote", module: "crm", schema: "crm", table: "quotes", label: "entity.crm.quote", displayField: "number",
+    defaultSort: { field: "number", dir: "asc" }, fields: [{ name: "number", type: "text", label: "field.crm.quote.number" }],
+  })],
+});
+loadModules(registry, [kernelModule, core, inventory, needStub("costing"), sales, crmQuoteStub]);
 const PROCESS_IDS = ["core", "inventory", "sales"].flatMap((m) => registry.processes({ module: m })).map((p) => p.id);
 
 const good = (sku: string, overrides: Record<string, unknown> = {}) => ({

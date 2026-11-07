@@ -1,4 +1,4 @@
-import { GENERIC_VERBS, genericProcess, ProcessError, runLifecycle, type EntityDef, type ProcessContext, type ProcessDef } from "@erp/kernel";
+import { GENERIC_VERBS, genericProcess, ProcessError, runLifecycle, type EntityDef, type LinksApi, type ProcessContext, type ProcessDef } from "@erp/kernel";
 import { z } from "zod";
 
 // Helpers every payments handler shares: typed refusals, the first lifecycle state of a maestro, Grabar's duplicate refusal, the company's
@@ -99,4 +99,25 @@ export const round2 = (n: number): number => cents(n) / 100;
 export function pesos(n: number): string {
   const [int, dec] = Math.abs(n).toFixed(2).split(".");
   return `${n < 0 ? "-" : ""}$ ${int!.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec}`;
+}
+
+// The document links payments writes (design §22.27, plan 2B Task 31): invoice_to_receipt, one link per invoice a receipt applies to, through
+// ctx.links only (rule 1), in the transaction that writes the receipt's allocations, as the process that writes them. Anular keeps them,
+// marked; a Borrador's delete takes them away.
+
+const RECEIPT = "payments.receipt";
+
+function linksOf(ctx: ProcessContext): LinksApi {
+  if (!ctx.links) throw new Error("ctx.links is not available: the kernel builds it for every run");
+  return ctx.links;
+}
+
+/** Makes the receipt's upstream links equal the invoices its allocations apply to (written while the receipt is a Borrador). */
+export async function syncReceiptLinks(ctx: ProcessContext, receiptId: string, invoiceIds: readonly string[]): Promise<void> {
+  await linksOf(ctx).sync({ to: { entity: RECEIPT, id: receiptId }, kind: "invoice_to_receipt", from: [...new Set(invoiceIds)].map((id) => ({ entity: "invoicing.invoice", id })) });
+}
+
+/** The receipt was voided: every link touching it is marked (kept, never deleted). */
+export async function markReceiptLinksVoided(ctx: ProcessContext, receiptId: string, reason: string): Promise<void> {
+  await linksOf(ctx).markVoided({ entity: RECEIPT, id: receiptId, reason: reason.slice(0, 500) });
 }

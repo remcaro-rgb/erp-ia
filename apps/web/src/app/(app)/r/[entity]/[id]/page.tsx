@@ -9,6 +9,7 @@ import { MASKED } from "@/lib/records/lifecycle-load";
 import { AccessPanel } from "./access-panel";
 import { accountingContent } from "./accounting-content";
 import { loadRecord } from "@/lib/records/load";
+import { loadRelated } from "@/lib/records/related-load";
 import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
 import { ExtraPanel } from "./extra-panel";
@@ -18,6 +19,7 @@ import { InvoicingDianTab, InvoicingLinesTab } from "./invoicing-tabs";
 import { ReceiptAllocationsTab, ReceiptBarActions } from "./payments-view";
 import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
+import { RelatedTab } from "./related-tab";
 import { AppRecordFrame } from "./record-frame";
 import { RecordStatus } from "./record-status";
 import { untitledRecordTitle } from "@/lib/records/record-title";
@@ -73,6 +75,8 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
     notFound();
   }
   const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form, lifecycle: lc } = loaded;
+  // Documentos relacionados (Task 31): started now, in parallel with the page's other loads; it never rejects (a failing trail is a page without the tab).
+  const relatedLoad = record ? loadRelated(loaded.caller, entity.id, record.id) : Promise.resolve(null);
   const t = await getTranslations();
   const locale = await getLocale();
 
@@ -171,6 +175,10 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
     content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
   }
 
+  // Documentos relacionados (Task 31, design §22.27): the trail of this document, only when it has a related document or a hidden one.
+  const related = await relatedLoad;
+  if (related) content.relacionados = { label: t("common.record.related.tab"), count: related.model.count, content: <RelatedTab related={related} /> };
+
   return (
     <div className={wrapperClass}>
       <AppRecordFrame
@@ -257,6 +265,7 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
       historial: t("common.record.tabs.historial"),
       versiones: t("common.record.tabs.versiones"),
       acceso: t("common.record.tabs.acceso"),
+      relacionados: t("common.record.related.tab"),
     },
     number: t("common.record.number"),
     docNumber: t("common.record.ids.number"),

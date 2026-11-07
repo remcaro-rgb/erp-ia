@@ -7,6 +7,7 @@ import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
 import { makeRecommendations } from "../home/recommend";
+import { makeLinks } from "../links/links";
 import { consultProcessesOf } from "../query/access";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
@@ -468,6 +469,7 @@ function buildContext(tx: Tx, deps: RunProcessDeps, def: ProcessDef, caller: Cal
     conversationId: caller.conversationId,
     dryRun,
     recommendations: makeRecommendations(tx, registry, def.id),
+    links: makeLinks(tx, registry, def.id),
     async emit(event, payload) {
       await enqueueEvent(tx, { companyId: claims.active_company_id, event, payload, chainId });
     },

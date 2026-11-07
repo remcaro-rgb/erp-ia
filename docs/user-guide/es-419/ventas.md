@@ -57,3 +57,5 @@ Las cotizaciones que usan estos precios se explican en la guía **Cotizaciones**
 ## El PDF de una entrega
 
 En pantalla el documento se llama **Entrega** (prefijo **ENT-**). Al **Imprimir** una entrega, el PDF lleva como título **Remisión de entrega**, el nombre que usan los clientes y transportadores para este documento. El PDF no trae precios: es lo que salió de la bodega. Si tu empresa definió su propia plantilla de impresión para las entregas, se usa esa y su título.
+
+De una cotización a su recibo, cada documento de la venta muestra los demás en su pestaña **Documentos relacionados** (guía **Documentos relacionados**).

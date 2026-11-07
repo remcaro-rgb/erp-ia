@@ -252,24 +252,24 @@ describe("record model", () => {
   });
 
   it("parties show Contactos, products show Fotos, every record shows Datos adicionales and Archivos", () => {
-    expect(recordTabIds("core.party")).toEqual(["datos", "contactos", "extra", "archivos", "versiones", "acceso"]);
-    expect(recordTabIds("core.product")).toEqual(["datos", "fotos", "extra", "archivos", "versiones", "acceso"]);
-    expect(recordTabIds("core.product_category")).toEqual(["datos", "extra", "archivos", "versiones", "acceso"]);
-    expect(recordTabIds("support.ticket")).toEqual(["datos", "mensajes", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.party")).toEqual(["datos", "contactos", "relacionados", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.product")).toEqual(["datos", "fotos", "relacionados", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.product_category")).toEqual(["datos", "relacionados", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("support.ticket")).toEqual(["datos", "mensajes", "relacionados", "extra", "archivos", "versiones", "acceso"]);
   });
 
   it("contributed tabs come after the entity's own and before Datos adicionales", () => {
-    expect(recordTabIds("core.party", ["accounting.entries"])).toEqual(["datos", "contactos", "accounting.entries", "extra", "archivos", "versiones", "acceso"]);
-    expect(recordTabIds("core.product_category", ["a.x", "a.y"])).toEqual(["datos", "a.x", "a.y", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.party", ["accounting.entries"])).toEqual(["datos", "contactos", "accounting.entries", "relacionados", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("core.product_category", ["a.x", "a.y"])).toEqual(["datos", "a.x", "a.y", "relacionados", "extra", "archivos", "versiones", "acceso"]);
   });
 
   it("an invoice and a note read Datos · Líneas e impuestos · Contabilidad · DIAN (plan 2B Task 20)", () => {
-    expect(recordTabIds("invoicing.invoice", ["accounting.entries"])).toEqual(["datos", "lineas", "accounting.entries", "dian", "extra", "archivos", "versiones", "acceso"]);
-    expect(recordTabIds("invoicing.note", ["accounting.entries"])).toEqual(["datos", "lineas", "accounting.entries", "dian", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("invoicing.invoice", ["accounting.entries"])).toEqual(["datos", "lineas", "accounting.entries", "dian", "relacionados", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("invoicing.note", ["accounting.entries"])).toEqual(["datos", "lineas", "accounting.entries", "dian", "relacionados", "extra", "archivos", "versiones", "acceso"]);
   });
 
   it("a recibo de caja reads Datos · Asignaciones · Contabilidad (plan 2B Task 24b)", () => {
-    expect(recordTabIds("payments.receipt", ["accounting.entries"])).toEqual(["datos", "asignaciones", "accounting.entries", "extra", "archivos", "versiones", "acceso"]);
+    expect(recordTabIds("payments.receipt", ["accounting.entries"])).toEqual(["datos", "asignaciones", "accounting.entries", "relacionados", "extra", "archivos", "versiones", "acceso"]);
   });
 });
 

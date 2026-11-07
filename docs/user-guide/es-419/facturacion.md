@@ -121,3 +121,5 @@ El cupo de crédito de un cliente (guía **Pedidos**) cuenta sus pedidos confirm
 ## Permisos
 
 Cada acción es un permiso del rol: crear y cambiar facturas, facturar pedidos, emitir, anular y cambiar los parámetros de facturación. Anular y cambiar los parámetros piden además el código de verificación.
+
+La pestaña **Documentos relacionados** de la factura muestra la entrega, el pedido y la cotización de donde viene, y los recibos que la pagan (guía **Documentos relacionados**).
