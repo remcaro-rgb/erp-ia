@@ -18,6 +18,9 @@ export const TRILLADORA = "900135791";
 export const TOSTADORA = "900246802";
 export const ELECTRIC = "900975310";
 
+/** The bank that pays the savings account's interest: the tercero of the 421005 sample line (exógena 1007 refuses an income with none). */
+export const BANCOLOMBIA = "890903938";
+
 export const OPENING_LINES = [
   { accountCode: "110505", debit: 5_000_000 },
   { accountCode: "11100502", debit: 80_000_000 },

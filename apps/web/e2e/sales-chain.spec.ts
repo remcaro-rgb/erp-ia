@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import postgres from "postgres";
@@ -13,7 +14,7 @@ import { testEnv } from "../test-support/env";
 // CUFE, the entry); the mock DIAN accepts it (test-support/mock-dian.mts: the e-invoice workflow's processes, the e2e stack runs no worker);
 // «Registrar pago» with a retención en la fuente. Along the way the Inicio cards move (Pedidos abiertos, Por facturar, Por cobrar before and
 // after the payment), the aging report and Información exógena 1007 include the sale, and the invoice's XML downloads
-// (the exógena XML of the demo year is refused by a 2A sample line with no tercero; the spec checks the sale is not among the reasons).
+// and so does the 1007 exógena XML (it holds the customer and the bank's tercero).
 //
 // The spec runs on the shared demo: it measures every figure as a difference from what it read before its own sale, and leaves its sale
 // paid (one more paid sale per run; the demo's opening stock covers hundreds of runs). Nothing is dated in October: accounting-smoke.spec.ts
@@ -118,6 +119,15 @@ test.describe("the sale chain on the demo company", () => {
       select i.stage, i.dian_status from invoicing.invoices i join core.parties p on p.id = i.party_id
       where i.company_id = ${DEMO_COMPANY_ID} and p.document_number = '890900608' order by i.created_at limit 1`;
     expect(seeded).toEqual({ stage: "paid", dian_status: "accepted" });
+    // Task 51: Club Campestre El Rodeo's terms name the seeded list Mayoristas, which prices Café en grano Norte Especial 500 g at 10 % under its list
+    // price (whole pesos): the row sales.price.resolve reads first (customer_list) for that customer and product.
+    const [wholesale] = await sql<{ list: string; price: string; list_price: string }[]>`
+      select l.name as list, i.price::text, p.list_price::text from sales.customer_terms t
+      join core.parties c on c.id = t.party_id join core.price_lists l on l.id = t.price_list_id
+      join core.price_list_items i on i.price_list_id = l.id join core.products p on p.id = i.product_id
+      where t.company_id = ${DEMO_COMPANY_ID} and c.document_number = '890981234' and p.sku = 'CAF-GRA-500'`;
+    expect(wholesale!.list).toBe("Mayoristas");
+    expect(Number(wholesale!.price)).toBe(Math.round(Number(wholesale!.list_price) * 0.9));
 
     // ── Cotización (CRM › Documentos): the customer, one line, Guardar; Enviar al cliente; Aceptar cotización. ──
     await page.goto("/r/crm.quote/new");
@@ -237,12 +247,16 @@ test.describe("the sale chain on the demo company", () => {
     expect(await income(page.request, year)).toBeCloseTo(before.income + SUBTOTAL, 2);
     await page.goto(`/accounting/reports/exogena?p=${encodeURIComponent(JSON.stringify({ year, format: "1007" }))}`);
     await expect(page.getByRole("button", { name: "Exportar XML" })).toBeVisible();
-    // Exportar XML: the demo's 2026 1007 file is refused by a line of the 2A sample data (NC-18, Rendimientos financieros de octubre, on
-    // 421005 with no tercero; accounting-smoke reads it as it is), never by this sale: the refusal names that line only.
-    await page.getByRole("button", { name: "Exportar XML" }).click();
-    const refusal = page.getByRole("alert").filter({ hasText: "No se generó el archivo:" });
-    await expect(refusal).toContainText("421005");
-    await expect(refusal).not.toContainText(CUSTOMER_DOCUMENT);
-    await expect(refusal).not.toContainText(issued!.number);
+    // Exportar XML downloads the real 1007 file of the demo year: the 2A sample line on 421005 (Rendimientos financieros) names its tercero
+    // (Bancolombia, scripts/demo/accounting.ts), so nothing refuses the file. It holds the sale's customer and the bank.
+    const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Exportar XML" }).click()]);
+    expect(file.suggestedFilename()).toMatch(/\.xml$/);
+    const exogenaXml = (await readFile((await file.path())!)).toString("utf8");
+    expect(exogenaXml).toContain("<Formato>1007</Formato>");
+    expect(exogenaXml).toContain(`<Ano>${year}</Ano>`);
+    expect(exogenaXml).toContain(`nid="${CUSTOMER_DOCUMENT}"`);
+    // The bank's interest (NC-18, $ 320.000) is under the default threshold: it is reported in the «CUANTÍAS MENORES» row, no longer refused.
+    expect(exogenaXml).toContain('raz="CUANTÍAS MENORES"');
+    await expect(page.getByRole("alert").filter({ hasText: "No se generó el archivo:" })).toHaveCount(0);
   });
 });

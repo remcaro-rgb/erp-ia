@@ -25,9 +25,9 @@ import type { Sql } from "postgres";
 import { accounting } from "@erp/module-accounting";
 import { ATTACHMENT_PROCESSES, buildConsumerContext, consumers, enqueueEvent, runProcess, type Caller, type RunProcessDeps } from "@erp/kernel";
 import { DEMO_COMPANY_ID, DEMO_ROLE_IDS } from "./accounts";
-import { DEMO_YEAR, LEDGER_STARTS_ON, HOTEL_CUMBRE, BOSQUE, TRILLADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, type InvoiceSpec } from "./ledger-data";
+import { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, HOTEL_CUMBRE, BOSQUE, TRILLADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, type InvoiceSpec } from "./ledger-data";
 
-export { DEMO_YEAR, LEDGER_STARTS_ON, EXITO, COLINA, HOTEL_CUMBRE, CARIBE_EXPRESS, SOL_DEL_CARIBE, CATERING_ANDES, ANDINAS, BOSQUE, TRILLADORA, TOSTADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, type InvoiceSpec } from "./ledger-data";
+export { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, EXITO, COLINA, HOTEL_CUMBRE, CARIBE_EXPRESS, SOL_DEL_CARIBE, CATERING_ANDES, ANDINAS, BOSQUE, TRILLADORA, TOSTADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, type InvoiceSpec } from "./ledger-data";
 
 /** A signed-in demo account: the caller of its processes and, when it has a second step, a fresh step-up. */
 export interface DemoSession {
@@ -190,7 +190,7 @@ export const SAMPLE_COMPROBANTES: { description: string; date: string; lines: Sa
     date: "2026-10-31",
     lines: [
       { accountCode: "11100502", debit: 320_000, description: "Intereses de la cuenta de ahorros" },
-      { accountCode: "421005", costCenter: "ADM", credit: 320_000, description: "Intereses financieros" },
+      { accountCode: "421005", partyDocument: BANCOLOMBIA, costCenter: "ADM", credit: 320_000, description: "Intereses financieros" },
     ],
   },
 ];

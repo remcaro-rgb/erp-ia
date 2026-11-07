@@ -92,6 +92,12 @@ describe("the demo ledger's parties on receivables and payables", () => {
     expect(PARTIES.length - ready.size).toBeGreaterThan(5);
   });
 
+  it("the interest income on 421005 names its tercero, the bank (exógena 1007 refuses an income with none)", () => {
+    const lines = SAMPLE_COMPROBANTES.flatMap((c) => c.lines).filter((l) => l.accountCode === "421005");
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) expect(line.partyDocument).toBe("890903938");
+  });
+
   it("the sample comprobantes are balanced, carry parties on groups 13 and 22 to 25 and cost centers on classes 4 to 7", () => {
     const centers = new Set(COST_CENTERS.map((n) => n.code));
     expect(SAMPLE_COMPROBANTES.length).toBeGreaterThanOrEqual(4);

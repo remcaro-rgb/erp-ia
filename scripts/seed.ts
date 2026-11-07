@@ -442,6 +442,9 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     registerCountryPack({ ...co, einvoice: einvoicePack });
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
+    // Pagos stays switched off while the 2A history is seeded and its periods close: with it entitled, receivable open items follow payment
+    // allocations only (0112) and the history's receipts have none, so period 2 would not close (owner item 57). enableSalesChain switches it on.
+    await sql`insert into kernel.company_modules (company_id, module_id, enabled) values (${DEMO_COMPANY_ID}, 'payments', false) on conflict do nothing`;
 
     step("auth users");
     const admin = createClient(env.supabaseUrl, env.serviceKey, noSession);

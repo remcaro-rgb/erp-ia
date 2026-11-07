@@ -132,7 +132,7 @@ const BOGOTA = ["11", "11001"] as const;
 const MEDELLIN = ["05", "05001"] as const;
 const CALI = ["76", "76001"] as const;
 
-/** 40 parties: 28 customers, 10 suppliers and 2 that are both. */
+/** 41 parties: 28 customers, 11 suppliers and 2 that are both. */
 export const PARTIES: DemoParty[] = [
   company(["customer"], "890900608", "Almacenes Éxito S.A.", ["05", "05266", "Carrera 48 # 32B Sur-139", "055422"], {
     tradeName: "Éxito",
@@ -180,6 +180,8 @@ export const PARTIES: DemoParty[] = [
   company(["supplier"], "901357924", "Vasos y Desechables El Roble S.A.S.", [...MEDELLIN, "Carrera 52 # 14-30", "050024"], { ciiu: "1702" }),
   person(["supplier"], "4567890", { firstName: "Jorge", otherNames: "Eliécer", firstSurname: "Cárdenas", secondSurname: "Montoya" }, ["17", "17001", "Vereda La Cabaña, finca El Paraíso"], "finca.elparaiso@correo.co", "3128765432"),
   company(["supplier"], "900864213", "Mantenimiento Industrial Barista Pro S.A.S.", [...BOGOTA, "Calle 72 # 20-45", "111211"], { ciiu: "3312" }),
+  // The bank of the demo's interest income (421005 sample line, exógena 1007); NIT 890903938-8.
+  company(["supplier"], "890903938", "Bancolombia S.A.", ["05", "05001", "Carrera 48 # 26-85", "050015"], { ciiu: "6411", taxResponsibilities: ["O-13", "O-23"] }),
   // Customer and supplier.
   company(["customer", "supplier"], "900531642", "Café del Bosque S.A.S.", [...MEDELLIN, "Carrera 37 # 8A-32", "050021"], { ciiu: "1062", creditLimit: 22_000_000 }),
   company(["customer", "supplier"], "901642753", "Distribuciones Andinas del Café S.A.S.", [...BOGOTA, "Avenida Carrera 68 # 13-45", "111611"], { ciiu: "4631", creditLimit: 55_000_000 }),

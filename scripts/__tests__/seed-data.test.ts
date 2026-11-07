@@ -11,9 +11,9 @@ import { adminProfile, assertSeedAllowed, seedSqlIds } from "../seed";
 // writes are the ones the TypeScript seed and the smoke test use; and the seed only ever runs against a local stack.
 
 describe("the demo master data", () => {
-  it("has 40 DIAN-complete parties with unique documents, Éxito among them", () => {
-    expect(PARTIES).toHaveLength(40);
-    expect(new Set(PARTIES.map((p) => `${p.documentType}:${p.documentNumber}`)).size).toBe(40);
+  it("has 41 DIAN-complete parties with unique documents, Éxito among them", () => {
+    expect(PARTIES).toHaveLength(41);
+    expect(new Set(PARTIES.map((p) => `${p.documentType}:${p.documentNumber}`)).size).toBe(41);
     for (const party of PARTIES) {
       const result = co.validateParty({ ...party, countryCode: "CO", kind: [...party.kind] });
       expect(result.errors, party.legalName ?? party.firstSurname).toEqual([]);
@@ -23,7 +23,11 @@ describe("the demo master data", () => {
     expect(exito).toMatchObject({ documentNumber: "890900608", kind: ["customer"], creditLimit: 250_000_000 });
     expect(co.validateParty({ ...exito!, countryCode: "CO", kind: [...exito!.kind] }).normalized.checkDigit).toBe("9");
     expect(PARTIES.filter((p) => p.kind.includes("customer"))).toHaveLength(30);
-    expect(PARTIES.filter((p) => p.kind.includes("supplier"))).toHaveLength(12);
+    expect(PARTIES.filter((p) => p.kind.includes("supplier"))).toHaveLength(13);
+    // The bank of the 421005 sample line (exógena 1007): a valid NIT with DV 8.
+    const bank = PARTIES.find((p) => p.documentNumber === "890903938");
+    expect(bank).toMatchObject({ legalName: "Bancolombia S.A.", kind: ["supplier"], ciiu: "6411" });
+    expect(co.validateParty({ ...bank!, countryCode: "CO", kind: [...bank!.kind] }).normalized.checkDigit).toBe("8");
   });
 
   it("has 25 products in 6 categories, DIAN-complete with their category's taxes and unit, suppliers that are suppliers", () => {

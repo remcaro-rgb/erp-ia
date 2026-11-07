@@ -107,7 +107,7 @@ test.describe("phase 1 smoke on the demo company", () => {
     await expect(page).toHaveURL(/\/parties$/);
     await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).getByRole("button", { name: "Terceros", exact: true })).toHaveAttribute("aria-current", "page");
     const terceros = page.getByRole("region", { name: "Terceros" });
-    await expect(terceros.getByText("40 registros")).toBeVisible();
+    await expect(terceros.getByText("41 registros")).toBeVisible();
     await terceros.getByLabel("Filtrar Razón social").fill("Éxito");
     await expect(bodyRows(page)).toHaveCount(1);
     await expect(bodyRows(page).first()).toContainText("Almacenes Éxito S.A.");
