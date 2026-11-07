@@ -22,5 +22,5 @@ describe("INVOICING_STEPS", () => {
     const { INVOICING_STEPS } = await import("./record");
     expect(INVOICING_STEPS["invoicing.invoice"]).toMatchObject({ reprice: "invoicing.invoice.reprice", issue: "invoicing.invoice.issue" });
     expect(INVOICING_STEPS["invoicing.note"]).not.toHaveProperty("reprice");
-  });
+  }, 20_000); // a cold import of the record module, slow when the whole suite runs in parallel
 });

@@ -14,7 +14,7 @@ describe("core manifest", () => {
         "core.product.create", "core.product.update", "core.product.deactivate", "core.product.consult",
         "core.sequence.next",
         "core.document_sequence.register",
-        "core.uom.consult", "core.price_list.consult", "core.price_list_item.consult", "core.party_contact.consult", "core.document_sequence.consult",
+        "core.uom.consult", "core.price_list.consult", "core.price_list_item.consult", "core.price_list.create", "core.price_list_item.set", "core.price_list_item.remove", "core.party_contact.consult", "core.document_sequence.consult",
         // The kernel's generic lifecycle processes of the four maestros (entity types spec §5).
         ...["core.party", "core.product_category", "core.product", "core.price_list"].flatMap((e) => GENERIC_VERBS.map((v) => `${e}.${v}`)),
       ].sort(),

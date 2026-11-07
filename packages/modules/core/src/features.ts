@@ -4,6 +4,7 @@ import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
 import { PARTY_PROCESSES } from "./processes/party";
 import { PRICE_LIST_LIFECYCLE } from "./processes/price-list";
+import { PRICE_LIST_WRITE_PROCESSES } from "./processes/price-list-write";
 import { PRODUCT_PROCESSES } from "./processes/product";
 import { SEQUENCE_PROCESSES } from "./processes/sequence";
 
@@ -43,7 +44,7 @@ export const FEATURES: FeatureDef[] = [
   {
     id: "core.products",
     label: "feature.core.products",
-    processes: [...ids(PRODUCT_PROCESSES), ...ids(CATEGORY_PROCESSES), ...ids(CONSULT_PROCESSES.products), ...ids(PRICE_LIST_LIFECYCLE)],
+    processes: [...ids(PRODUCT_PROCESSES), ...ids(CATEGORY_PROCESSES), ...ids(CONSULT_PROCESSES.products), ...ids(PRICE_LIST_LIFECYCLE), ...ids(PRICE_LIST_WRITE_PROCESSES)],
     entities: ["core.product", "core.product_category", "core.uom", "core.price_list", "core.price_list_item"],
     nav: nav("core.products"),
   },

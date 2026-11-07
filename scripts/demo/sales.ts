@@ -23,8 +23,11 @@
  * Idempotent: each step looks for what an earlier run left (by code, title, the documents' links or their notes) and does only what is
  * missing, so a rerun changes nothing. A run interrupted in the middle of the chain resumes from the documents it finds.
  *
- * Gaps (reported in plan 2B Task 26): no price list is seeded (core.price_list has no create process yet: the generic Grabar only writes an
- * existing row), so prices come from each product's list price; no certificate (see 4).
+ *  8. The price list «Mayoristas» (plan 2B Task 51): every demo good at 10 % under its list price (whole pesos), created and priced through
+ *     core.price_list.create and core.price_list_item.set, and named in Club Campestre El Rodeo's commercial terms. It comes AFTER the chain, so the
+ *     chain's own documents keep the list prices their figures (CHAIN) are written for; the other specs keep list prices because their customers have no list.
+ *
+ * Gap (reported in plan 2B Task 26): no certificate (see 4).
  */
 import { randomUUID } from "node:crypto";
 import type { Sql } from "postgres";
@@ -98,6 +101,13 @@ export const CHAIN = {
   retefuente: { kind: "income" as const, code: "RTEFTE_COMPRAS_2.5", rate: 2.5, base: 384_000, amount: 9_600 },
   reference: "TRF-EXITO-DEMO-01",
 };
+
+/** The price list of the demo (Task 51, R51-2): each good at 10 % under its list price, rounded to whole pesos; Éxito buys with it. */
+/** Named in Club Campestre El Rodeo's terms, a customer no e2e spec prices, so the other specs keep list prices. */
+export const PRICE_LIST = { name: "Mayoristas", currencyCode: "COP", discountPct: 10, customer: "890981234" };
+
+/** The Mayoristas price of a good: 10 % under the list price, in whole pesos. */
+export const wholesalePrice = (listPrice: number): number => Math.round((listPrice * (100 - PRICE_LIST.discountPct)) / 100);
 
 /** The halfway documents (by their notes). */
 export const HALFWAY = [
@@ -308,6 +318,19 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
     await drain();
     if (doc.ship) await shipOrder(sql, act, drain, half.id, today, costCenter);
   }
+
+  // 8. The price list Mayoristas and the club's terms (after the chain: see the header).
+  let list = await one(sql<{ id: string }[]>`select id from core.price_lists where company_id = ${DEMO_COMPANY_ID} and name = ${PRICE_LIST.name}`);
+  if (!list) list = await act("core.price_list.create", { name: PRICE_LIST.name, currencyCode: PRICE_LIST.currencyCode });
+  const priced = new Set((await sql<{ product_id: string }[]>`select product_id from core.price_list_items where price_list_id = ${list.id}`).map((r) => r.product_id));
+  const goods = await sql<{ id: string; list_price: string }[]>`
+    select id, list_price::text from core.products where company_id = ${DEMO_COMPANY_ID} and kind = 'good' and is_active and deleted_at is null and list_price > 0 order by sku`;
+  for (const good of goods) {
+    if (!priced.has(good.id)) await act("core.price_list_item.set", { priceListId: list.id, productId: good.id, price: wholesalePrice(Number(good.list_price)) });
+  }
+  const club = await partyId(PRICE_LIST.customer);
+  const terms = await one(sql<{ price_list_id: string | null }[]>`select price_list_id from sales.customer_terms where party_id = ${club}`);
+  if (!terms?.price_list_id) await act("sales.customer_terms.set", { partyId: club, priceListId: list.id });
 
   const [paid] = await sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${invoice.id}`;
   if (paid!.stage !== "paid") throw new Error(`demo sale chain: the invoice ${invoice.number} is ${paid!.stage}, not paid`);

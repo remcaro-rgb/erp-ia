@@ -7,6 +7,7 @@ import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
 import { PARTY_PROCESSES, partyHooks } from "./processes/party";
 import { PRICE_LIST_LIFECYCLE, priceListHooks } from "./processes/price-list";
+import { PRICE_LIST_WRITE_PROCESSES } from "./processes/price-list-write";
 import { PRODUCT_PROCESSES, productHooks } from "./processes/product";
 import { SEQUENCE_PROCESSES } from "./processes/sequence";
 
@@ -26,6 +27,7 @@ export const core: ModuleDef = defineModule({
     ...CONSULT_PROCESSES.parties,
     ...CONSULT_PROCESSES.products,
     ...PRICE_LIST_LIFECYCLE,
+    ...PRICE_LIST_WRITE_PROCESSES,
     ...CONSULT_PROCESSES.settings,
   ],
   features: FEATURES,

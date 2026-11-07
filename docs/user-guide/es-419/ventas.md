@@ -8,6 +8,9 @@ processes:
   - sales.settings.update
   - sales.price.resolve
   - sales.discount.resolve
+  - core.price_list.create
+  - core.price_list_item.set
+  - core.price_list_item.remove
 ---
 
 # Ventas: precios y condiciones comerciales
@@ -27,6 +30,17 @@ Para un producto y un cliente, el sistema busca en este orden y usa el primero q
 3. El **precio de lista** del producto (su ficha en **Productos**).
 
 Una lista inactiva, sin aprobar (si requiere aprobación) o en otra moneda que el documento no se usa. Si ninguna da precio, el sistema lo dice y escribes el precio a mano; el descuento habitual del cliente se aplica igual. Un precio escrito a mano en la línea siempre gana. Puedes preguntar al asistente «¿a qué precio le vendo el café de 500 g a Distribuidora Andina?» y te responde con el precio, la lista de donde sale y el descuento.
+
+## Crear una lista de precios y fijar sus precios
+
+Las listas de precios se crean y se llenan con el **asistente** (guía **El asistente**); todavía no tienen pantalla propia. Pídele, por ejemplo: «crea una lista de precios Mayoristas en pesos» y, después, «fija el precio del café de 500 g en la lista Mayoristas en 28.800». El asistente te muestra una tarjeta con lo que va a hacer y solo ejecuta cuando la confirmas, con tus permisos.
+
+- **Crear una lista**: lleva un **nombre** (no puede repetirse en la empresa) y una **moneda** (código de tres letras, p. ej. COP). Nace **Grabada**; si tu empresa exige aprobación para las listas de precios, nace **Pendiente de Aprobación** y no se usa en los documentos hasta aprobarse.
+- **Fijar un precio**: elige la lista y el producto, e indica el precio (no negativo, hasta dos decimales). Si el producto ya tenía precio en esa lista, se cambia; si no, se agrega. El producto debe estar activo y grabado (o aprobado, si se exige). No hace falta que esté listo para facturar: eso se exige en las líneas de los documentos, no en la lista. La lista debe estar activa y no esperar aprobación.
+- **Quitar un precio**: el producto deja de tener precio en esa lista y, al vender, se usa el de la lista predeterminada o su precio de lista.
+- **Cambiar el nombre o la moneda** de una lista existente se hace con **Grabar** (por el asistente o desde el registro de la lista).
+
+Para que una lista se use, asígnala a un cliente en **Condiciones comerciales** o como **Lista de precios predeterminada** en **Parámetros de ventas** (más abajo). En la empresa de demostración, la lista **Mayoristas** (en pesos, con los productos físicos a un 10 % menos que su precio de lista, en pesos enteros) viene creada y es la lista de Almacenes Éxito.
 
 ## Condiciones comerciales de un cliente
 

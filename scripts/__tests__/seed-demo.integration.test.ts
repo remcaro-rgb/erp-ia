@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
 import { DEMO_COMPANY_ID } from "../demo/accounts";
 import { SAMPLE_COMPROBANTES } from "../demo/accounting";
-import { ALMACENES_EXITO, CHAIN, SALES_CHAIN_MODULES, WAREHOUSE } from "../demo/sales";
+import { ALMACENES_EXITO, CHAIN, PRICE_LIST, SALES_CHAIN_MODULES, WAREHOUSE, wholesalePrice } from "../demo/sales";
 
 // The whole demo seed against the local stack (owner order 2026-11-02): `DEMO_SEED=1 pnpm db:seed` must finish, with a posted
 // and balanced opening and the October sample comprobantes posted; and (plan 2B Task 26) the sale chain's modules entitled to the demo
@@ -58,6 +58,19 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
         from invoicing.invoices i join core.parties p on p.id = i.party_id
         where i.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${ALMACENES_EXITO} order by i.created_at limit 1`;
       expect(invoice).toEqual({ stage: "paid", dian: "accepted", total: CHAIN.total, paid: CHAIN.total });
+
+      // Task 51: the price list Mayoristas, every demo good 10 % under its list price, named in the club's terms.
+      const [list] = await sql<{ id: string; status: string; currency_code: string }[]>`
+        select id, status, currency_code from core.price_lists where company_id = ${DEMO_COMPANY_ID} and name = ${PRICE_LIST.name}`;
+      expect(list).toMatchObject({ status: "saved", currency_code: PRICE_LIST.currencyCode });
+      const goods = await sql<{ id: string; list_price: string }[]>`
+        select id, list_price::text from core.products where company_id = ${DEMO_COMPANY_ID} and kind = 'good' and is_active and list_price > 0`;
+      const prices = new Map((await sql<{ product_id: string; price: string }[]>`select product_id, price::text from core.price_list_items where price_list_id = ${list!.id}`).map((r) => [r.product_id, Number(r.price)]));
+      expect(goods.length).toBeGreaterThan(0);
+      for (const good of goods) expect(prices.get(good.id), good.id).toBe(wholesalePrice(Number(good.list_price)));
+      const [terms] = await sql<{ price_list_id: string }[]>`
+        select t.price_list_id from sales.customer_terms t join core.parties p on p.id = t.party_id where t.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${ALMACENES_EXITO}`;
+      expect(terms!.price_list_id).toBe(list!.id);
     } finally {
       await sql.end();
     }
