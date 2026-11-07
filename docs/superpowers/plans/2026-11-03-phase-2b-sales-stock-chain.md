@@ -413,6 +413,7 @@ Each is detailed and approved when 2B.2 starts (stubs only; source: `2026-11-05-
 - **48** Worker startup module-list check [40].
 - **49** Hosted migration pre-check, CLI dry run, local tracking repair [41].
 - **50** Small fixes batch: test that every subscribed event has an effect line [3]; warning for a `when` rule that never matched [6]; dry-run denials not audited, counted as telemetry (needs rule 16 wording) [7]; never-bought modules visible, one entitlement resolver, inline poster aligned [9]; move cogs-posted and inventory-adjustment rules into their own manifests [14]; «Recalcular precios» action, Emitir no longer re-prices, warning on a stale price date [17]; delivery PDF title «Remisión de entrega» [33].
+- **51** Price list processes [55]: `core.price_list.create` and `core.price_list_item.set` (permissions, audit, i18n, user guide), then the demo seed creates a price list through them; the e2e checks a price from it. Test first.
 
 ### Expanded tasks of the 2B.2 small batch (Tasks 40, 41, 42, 48, 50; expanded 2026-11-06)
 
@@ -510,6 +511,53 @@ Each sub-task is its own implementer dispatch; tests first; i18n through `packag
 - User guide: `docs/user-guide/es-419/ventas.md` (the PDF is titled «Remisión de entrega»).
 
 **Task 50 close:** guides updated for 50.6 (`contabilidad` posting rules), 50.9 (administración › módulos), 50.17 (`facturacion-electronica.md`).
+
+### Expanded tasks of the demo batch (Tasks 46, 47; expanded 2026-11-06)
+
+Source: `2026-11-05-phase-2b-owner-decisions-pending.md` items 38 and 39 ("Decided by the owner, 2026-11-06"). Order: 46, then 47 (47 resets the database and reruns the e2e that 46 changes). Every brief: "Read `docs/project-rules.md` and the design sections for X before starting; follow the plan task verbatim." Rulings are in the run ledger as `Ruling:` lines.
+
+#### Task 46: Exógena demo fix [item 38]
+
+**Files:**
+- Modify: `scripts/demo/data.ts` (one new party: Bancolombia S.A., NIT 890903938, supplier; comment «40 parties» becomes 41 with 11 suppliers); `scripts/demo/accounting.ts` (the NC-18 sample line «Intereses financieros» on 421005 gets `partyDocument: "890903938"`; export a `BANCOLOMBIA` constant); `apps/web/e2e/sales-chain.spec.ts` (Exportar XML downloads the real file)
+- Test: `apps/web/e2e/sales-chain.spec.ts`; the 2A and report tests that read the demo ledger: `accounting-smoke`, `accounting-reports`, `report-file.integration`, `exogena.integration` (run each; change only an expectation the new tercero moves)
+
+- [ ] **Step 1 (test first):** change the e2e's Exportar XML step: wait for the download (`page.waitForEvent("download")`), read the file, assert it is XML for format 1007 (root element and `ano`/year of the demo), that it contains the customer's document and the new bank's document, and that no «No se generó el archivo» alert shows. Run it: it fails (refusal on 421005).
+- [ ] **Step 2:** add the party and the tercero on the line. The party gets the same DIAN-complete fields as the other suppliers (document type NIT with DV, address, municipality, e-mail, CIIU `6411`). It need not be `invoice_ready`: 421005 is not flagged `requires_invoice_ready` (design §22.22). Seed data only: no change to `accounting/reports/exogena*`, `exogena-xml.ts` or the localization pack; no edit of any posted or audit row outside the seed.
+- [ ] **Step 3:** rerun the 2A tests and every report that reads the demo ledger; fix an expectation only if the tercero moves it (the count of demo parties, the 1007 rows). Update the user guide of the demo (`docs/user-guide/es-419`, the demo and exógena guides) if it lists the parties or says the XML is refused.
+- [ ] **Step 4:** the e2e passes against the seeded demo company.
+
+#### Task 47: Demo seed gaps [item 39]
+
+**Files:**
+- Modify: `scripts/demo/sales.ts` (and `scripts/seed.ts` only if the stages need it); the demo user guide
+- Test: `pnpm db:reset` then `DEMO_SEED=1 pnpm db:seed` twice (the second changes nothing), then the full e2e
+
+- [ ] **Step 1:** price list: seed one for the demo company through a registered process or existing seed helper only. **Blocked, see Ruling R47-1.**
+- [ ] **Step 2:** resolution with origin `seed`: **Blocked, see Ruling R47-2.** The seed already registers the habilitación resolution through `core.document_sequence.register`.
+- [ ] **Step 3:** certificate and PIN stay unseeded: DIAN settings show `not_configured` in the demo (assert it in the e2e or a seed test).
+- [ ] **Step 4:** from zero on the local OrbStack stack: confirm nothing else uses the database, `pnpm db:reset` (migrations 0001..latest in order; report the last applied), `DEMO_SEED=1 pnpm db:seed`, a second seed run (idempotent), the full e2e on the production build. Report the outcome.
+
+**Rulings of the expansion**
+- R46-1: the tercero is a new party, Bancolombia S.A. (the bank that pays the interest), because no bank exists in the demo parties; reusing a customer or supplier would misstate who pays the interest. Cost if wrong: one party row to rename.
+- R47-1: a price list has no create process and its items have no process at all (`core.price_list` only has the generic `save|submit|approve|reject|void|delete`, which write an existing row; `core.price_list_item` has none). The seed cannot create one without raw SQL, which the brief forbids (rule 1). Not invented here: owner item 55.
+- R47-2: `seed` is not an audit origin (`kernel.audit_log.origin` allows `ui|agent|scheduler|event|api|db`, rule 16), and the screen-only register process requires origin `ui`. Adding `seed` is a rule 16 change plus a migration: owner item 56. The seed already registers the resolution (`scripts/demo/sales.ts`); item 39's «registered with origin `ui`» describes the e2e's own registration.
+
+#### Task 51: Price list processes [item 55] (expanded 2026-11-06)
+
+**Files:**
+- Create: `packages/modules/core/src/processes/price-list-write.ts` (`core.price_list.create`, `core.price_list_item.set`, `core.price_list_item.remove`); modify `packages/modules/core/src/processes/price-list.ts` or `index.ts` to register them, `packages/modules/core/src/features.ts` (they belong to the existing products feature; add the ids where `core.price_list.` / `core.price_list_item` are listed), and the i18n process descriptions in `packages/i18n` (es-419 and en mirror)
+- Modify: `scripts/demo/sales.ts` (seed one price list «Mayoristas» in COP with the demo's goods at 10 % under list price, idempotent by name, through these processes; drop the «Gaps» comment about the price list)
+- Test (first): `packages/modules/core/src/__tests__/price-list-write.integration.test.ts` (create: Grabado state, `usable`, duplicate name refused as `invalid_input` like `save`; item set: inserts then updates the price for the same product, refuses a negative price and a product that is not usable, refuses a list that is not writable; remove deletes the item; permissions per process; audit row with before/after; a role without the process is denied); the seed unit tests; `apps/web/e2e/sales-chain.spec.ts` or a demo e2e asserting `sales.price.resolve` of a demo product returns the list price of Mayoristas for a customer whose terms name it
+- Docs: `docs/user-guide/es-419` (the products or price-list guide: how a price list is created today; if none exists, a short section in the Ventas precios guide), indexed for the assistant
+
+- [ ] **Step 1 (test first):** write the integration tests above; they fail (no processes).
+- [ ] **Step 2:** `core.price_list.create {name, currencyCode}`: follow `core.product.create` for the pattern (initialLifecycle state, validate hook, `refuseDuplicate` on `price_lists_company_id_name_key`, `seq` from `core.next_sequence`, audit via the runner). `core.price_list_item.set {priceListId, productId, price}`: upsert on `(price_list_id, product_id)`, the list must be writable and the product usable (rule 10: invoice_ready is for document lines, not for a price list; only `kernel.record_usable`), price >= 0 with two decimals; `core.price_list_item.remove {priceListId, productId}`. Every state change through `runProcess` (rule 1); permissions per process (rule 13); not sensitive; not screen-only.
+- [ ] **Step 3:** register in the module and the products feature; i18n descriptions; no migration needed (the tables exist), so none is added.
+- [ ] **Step 4:** seed the list in `scripts/demo/sales.ts` through the processes (the existing `act` helper), set it as the default list of Ventas settings only if the seed already sets settings through `sales.settings.update`; otherwise leave the default empty and name it in the customers' terms for the chain's customer (Almacenes Éxito) through `sales.customer_terms.set`-style process that exists (check `packages/modules/sales/src/processes/pricing.ts`). Idempotent.
+- [ ] **Step 5:** the user guide; `db:reset` + two seed runs (second changes nothing); the e2e.
+
+**Rulings:** R51-1 no «update» process: `core.price_list.save` (generic) edits name and currency of an existing list, `item.set` is the only item write. R51-2 the discount of the seeded list is 10 % under list price, rounded to whole pesos; a demo value, no owner impact.
 
 ## Decisions taken (owner, 2026-11-04)
 
