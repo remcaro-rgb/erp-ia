@@ -6,6 +6,7 @@ import { core } from "@erp/module-core";
 import { inventory } from "@erp/module-inventory";
 import cogsFixture from "../defaults/cogs-posted.fixture.json" with { type: "json" };
 import { costing, COSTING_ENTITIES } from "../index";
+import { COST_SOURCES, UNKNOWN_COST_MODES } from "../entities";
 import { cogsPayload } from "../processes/cost";
 
 // The costing manifest (plan 2B Task 8, design §8): three sistema entities, the consumer of inventory.movement.posted, the COGS event the
@@ -14,6 +15,12 @@ import { cogsPayload } from "../processes/cost";
 const migration = readFileSync(new URL("../../../../../supabase/migrations/0073_costing_core.sql", import.meta.url), "utf8");
 // Task 9 adds the landed cost, its lines and the settings view (migration 0077).
 const landedMigration = readFileSync(new URL("../../../../../supabase/migrations/0077_costing_landed.sql", import.meta.url), "utf8");
+
+// Task 44 adds unknown_cost_mode to the settings (migration 0130), which regenerates the settings view and widens the cost source check.
+const unknownMigration = readFileSync(new URL("../../../../../supabase/migrations/0130_costing_unknown_cost_mode.sql", import.meta.url), "utf8");
+
+// Fix round 1 adds the estimated marker to the cost_missing rows (migration 0131), which regenerates their view.
+const estimatedMigration = readFileSync(new URL("../../../../../supabase/migrations/0131_costing_cost_missing_estimated.sql", import.meta.url), "utf8");
 
 const loaded = () => {
   const registry = new Registry();
@@ -58,7 +65,7 @@ describe("costing manifest", () => {
     const registry = loaded();
     const declared = ["costing.cost_event.consult", "costing.cost_layer.consult", "costing.cost_missing.consult", "costing.movement.cost", "costing.movement.void_cost"];
     const landedCost = ["allocate", "void", "consult"].map((v) => `costing.landed_cost.${v}`);
-    const rest = ["costing.landed_cost_line.consult", "costing.settings.update", "costing.settings.consult"];
+    const rest = ["costing.landed_cost_line.consult", "costing.settings.update", "costing.unknown_cost.set", "costing.settings.consult"];
     const ids = registry.processes({ module: "costing" }).map((p) => p.id);
     // The loader adds the generic lifecycle verbs of the landed cost (Grabar and the rest) that the module does not declare.
     expect(ids).toEqual(expect.arrayContaining([...declared, ...landedCost, ...rest]));
@@ -79,7 +86,7 @@ describe("costing manifest", () => {
       ["costing.settings", "costing.parametros", "/costing/settings"],
     ]);
     expect(at("costing.landed_costs").processIds).toEqual(expect.arrayContaining(["costing.landed_cost.allocate", "costing.landed_cost.void"]));
-    expect(at("costing.settings").processIds).toEqual(expect.arrayContaining(["costing.settings.update"]));
+    expect(at("costing.settings").processIds).toEqual(expect.arrayContaining(["costing.settings.update", "costing.unknown_cost.set"]));
   });
 
   it("the COGS payload carries every field the 2A fixture of cogs-posted has (cogsId, number, date, lines[].cost, lines[].costCenterId) and the brief's", () => {
@@ -99,12 +106,31 @@ describe("costing manifest", () => {
 describe("costing masked views, migrations 0073 and 0077", () => {
   for (const entity of COSTING_ENTITIES) {
     it(`costing.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
-      expect(migration + landedMigration).toContain(maskedViewSql(defineEntity(entity)));
+      // The settings view is the one 0130 recreates (the older text no longer matches the entity).
+      const source = entity.id === "costing.settings" ? unknownMigration : entity.id === "costing.cost_missing" ? estimatedMigration : migration + landedMigration;
+      expect(source).toContain(maskedViewSql(defineEntity(entity)));
     });
   }
 
   it("settings accept only the average method; the layers carry the method and the FIFO columns", () => {
     expect(migration).toMatch(/create table costing\.settings[\s\S]*method\s+text not null default 'average' check \(method in \('average'\)\)/);
     expect(migration).toMatch(/create table costing\.cost_layers[\s\S]*method\s+text not null default 'average'[\s\S]*source_line_id\s+uuid,[\s\S]*opened_on\s+date,/);
+  });
+
+  it("Task 44, migration 0130: the unknown cost mode column and its check equal UNKNOWN_COST_MODES, the cost source check equals COST_SOURCES, the guard names the process", () => {
+    const list = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
+    expect(unknownMigration).toContain(`check (unknown_cost_mode in (${list(UNKNOWN_COST_MODES)}))`);
+    expect(unknownMigration).toContain(`default 'zero'`);
+    expect(unknownMigration).toContain(`check (cost_source in (${list(COST_SOURCES)}))`);
+    expect(unknownMigration).toContain("'costing.unknown_cost.set'");
+    const settings = COSTING_ENTITIES.find((e) => e.id === "costing.settings")!;
+    expect(settings.fields.map((f) => f.name).slice(0, 4)).toEqual(["seq", "method", "unknown_cost_mode", "extra"]);
+    expect(settings.fields.find((f) => f.name === "unknown_cost_mode")).toMatchObject({ type: "enum", enumValues: ["zero", "last_known"], valuesKey: "costing.values.unknown_cost_mode" });
+  });
+
+  it("fix round 1, migration 0131: the estimated marker is on the row and the entity, and average_costs hides estimated layers", () => {
+    expect(estimatedMigration).toContain("add column if not exists estimated boolean not null default false");
+    expect(estimatedMigration).toMatch(/m\.status = 'open' and m\.estimated/);
+    expect(COSTING_ENTITIES.find((e) => e.id === "costing.cost_missing")!.fields.find((f) => f.name === "estimated")).toMatchObject({ type: "boolean", required: true });
   });
 });

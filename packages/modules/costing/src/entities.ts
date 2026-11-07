@@ -46,10 +46,18 @@ export type EventKind = (typeof EVENT_KINDS)[number];
 /**
  * Where the unit cost of a cost event came from: the movement line's own cost (a receipt, an adjustment), the layer's weighted average (an
  * issue), the product's standard cost (the first cost of an empty layer), the original issue (a sale return), the traslado's out leg (its in
- * leg), a landed cost allocated to a receipt, or nothing (no cost known: valued at 0 and flagged in cost_missing).
+ * leg), a landed cost allocated to a receipt, or nothing (no cost known: valued at 0 and flagged in cost_missing). `last_known` (Task 44,
+ * R44-4) is an ESTIMATE: the product's last real cost, used under the company's `unknown_cost_mode = last_known` for a line with no cost of
+ * its own; the event is also flagged cost_missing, because it carries no real cost.
  */
-export const COST_SOURCES = ["line", "average", "standard", "original_issue", "transfer", "none", "landed_cost", "reversal"] as const;
+export const COST_SOURCES = ["line", "average", "standard", "original_issue", "transfer", "none", "landed_cost", "reversal", "last_known"] as const;
 export type CostSource = (typeof COST_SOURCES)[number];
+/**
+ * What a line with no known cost is valued at (Task 44, R44-1): `zero` (the default, as always) or `last_known` (the unit cost of the
+ * product's most recent real cost event, R44-3).
+ */
+export const UNKNOWN_COST_MODES = ["zero", "last_known"] as const;
+export type UnknownCostMode = (typeof UNKNOWN_COST_MODES)[number];
 export const MISSING_STATUSES = ["open", "resolved"] as const;
 /** A documento's lifecycle state (entity types spec §5.1). A landed cost is Contabilizado once allocated, Anulado once taken back. */
 export const LANDED_COST_STATUSES = ["draft", "saved", "pending", "rejected", "approved", "posted", "voided"];
@@ -134,6 +142,8 @@ export const costMissingEntity: EntityDef = entity("costing.cost_missing", "sist
   f("last_date", "date", { required: true }),
   f("resolved_at", "datetime"),
   f("resolved_movement_id", "ref", movement),
+  // Task 44: the row took an estimate (cost_source last_known), so the layer's average is an estimate too until a real cost resolves it.
+  f("estimated", "boolean", { required: true }),
   ...trailer(f),
 ], { defaultSort: { field: "seq", dir: "desc" } });
 
@@ -189,10 +199,12 @@ export const landedCostLineEntity: EntityDef = entity("costing.landed_cost_line"
   ...trailer(f),
 ]);
 
-// Parámetros de costos: the costing method of the company. 2B accepts `average` only (OD-5); FIFO joins in phase 3 as a second value.
+// Parámetros de costos: the costing method of the company (2B accepts `average` only, OD-5; FIFO joins in phase 3 as a second value) and
+// what a unit without a known cost is valued at (`unknown_cost_mode`, Task 44).
 export const costSettingsEntity: EntityDef = entity("costing.settings", "parametro", "settings", "seq", (f) => [
   f("seq", "number", { required: true }),
   f("method", "enum", { required: true, enumValues: [...COST_METHODS], valuesKey: "costing.values.method" }),
+  f("unknown_cost_mode", "enum", { required: true, enumValues: [...UNKNOWN_COST_MODES], valuesKey: "costing.values.unknown_cost_mode" }),
   ...trailer(f),
 ]);
 

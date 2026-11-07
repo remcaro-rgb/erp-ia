@@ -8,7 +8,8 @@ import { processDeps } from "@/lib/server/runtime";
 import { CostingSettingsForm } from "./settings-form";
 
 // Parámetros › Costeo (plan 2B Tasks 9–10, OD-5): the company's costing method, read with costing.settings.consult and saved with
-// costing.settings.update, a sensitive process (the form asks for the step-up code). Weighted average only; FIFO is phase 3.
+// costing.settings.update, a sensitive process (the form asks for the step-up code). Weighted average only; FIFO is phase 3. A second section
+// holds what a unit without a known cost is valued at (Task 44), saved with costing.unknown_cost.set, also step-up.
 async function Settings() {
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
@@ -20,9 +21,9 @@ async function Settings() {
     throw error;
   }
   const deps = processDeps();
-  let settings: { method: string; configured: boolean };
+  let settings: { method: string; configured: boolean; unknownCostMode: string };
   try {
-    settings = (await runProcess(deps, caller, "costing.settings.consult", {})) as { method: string; configured: boolean };
+    settings = (await runProcess(deps, caller, "costing.settings.consult", {})) as { method: string; configured: boolean; unknownCostMode: string };
   } catch (error) {
     if (error instanceof ProcessError && (error.code === "forbidden" || error.code === "not_entitled")) {
       const t = await getTranslations("grid.denied");
@@ -34,8 +35,16 @@ async function Settings() {
     }
     throw error;
   }
-  const runnable = await runnableProcesses(deps.sql, deps.registry, caller.claims, ["costing.settings.update"]);
-  return <CostingSettingsForm method={settings.method} configured={settings.configured} canSave={runnable.has("costing.settings.update")} />;
+  const runnable = await runnableProcesses(deps.sql, deps.registry, caller.claims, ["costing.settings.update", "costing.unknown_cost.set"]);
+  return (
+    <CostingSettingsForm
+      method={settings.method}
+      configured={settings.configured}
+      canSave={runnable.has("costing.settings.update")}
+      unknownCostMode={settings.unknownCostMode}
+      canSaveUnknownCost={runnable.has("costing.unknown_cost.set")}
+    />
+  );
 }
 
 export default function CostingSettingsPage() {

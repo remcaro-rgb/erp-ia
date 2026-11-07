@@ -95,3 +95,14 @@ export function reverse(layer: Layer, qty: number, amount: number): { qty: numbe
   const value = round2(layer.value + back.amount);
   return { ...back, after: { qty: qtyAfter, value, avgCost: snapshot(qtyAfter, value, layer.avgCost) } };
 }
+
+/**
+ * Whether an exit of `qty` (> 0) units valued at an ESTIMATED `unitCost` (Task 44, R44-6 as amended in fix round 1) is allowed: only when the
+ * layer holds no units. Units held at value 0 leave at 0 (the caller flags them): an estimate would take value that never entered the layer
+ * and dilute the next real receipt, the very effect the setting exists to avoid.
+ */
+export function exitEstimateFits(layer: Layer, qty: number, unitCost: number): boolean {
+  checkQty(qty);
+  checkCost(unitCost);
+  return layer.qty <= 0;
+}

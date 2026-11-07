@@ -1,7 +1,7 @@
 import { defineProcess, ProcessError, type EventConsumer, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { averageOf, CostError, enter, exit, round2, round4, type Layer } from "../average";
-import type { CostSource, EventKind } from "../entities";
+import { averageOf, CostError, enter, exit, exitEstimateFits, round2, round4, type Layer } from "../average";
+import type { CostSource, EventKind, UnknownCostMode } from "../entities";
 import { closeCostMissing, feedLockKey, raiseCostMissing } from "./common";
 
 // Costing of the inventory movements (plan 2B Task 8, design §8.1, OD-5 weighted average only).
@@ -19,9 +19,22 @@ import { closeCostMissing, feedLockKey, raiseCostMissing } from "./common";
 //  - receipt: the line's cost, else the layer's average, else the product's standard cost, else 0 (cost_missing);
 //  - sale_return: the cost of the sale issue line it returns (`return_of_line_id`), else as a receipt;
 //  - transfer_in: the cost of the traslado's out leg it follows;
-//  - adjustment: the line's cost, which inventory set from this layer's average or the standard cost, so the ledger entry of the adjustment
+//  - adjustment (never estimated, Task 44): the line's cost, which inventory set from this layer's average or the standard cost, so the ledger entry of the adjustment
 //    and the layer move by the same value; no cost: 0 (cost_missing, the event says costMissing);
 //  - issue, sale_issue, transfer_out: the layer's average; an empty layer is seeded with the standard cost; none: 0 (cost_missing).
+// Unknown-cost mode (Task 44, owner item 36, design §22.28): the company's `costing.settings.unknown_cost_mode`, read once per run in catchUp
+// under the feed lock. `zero` (the default, and a company without a settings row) is everything above. `last_known` changes ONE thing: a
+// line that would be valued at 0 for want of a cost (receipts, sale returns without an original, positive adjustments without a line
+// cost, issues, sale issues, transfer outs, negative adjustments without a line cost) is valued at the product's last known cost
+// (`lastKnownCost`): the unit cost of its most recent REAL cost event, the same bodega first, then any bodega of the company. The line
+// cost, the layer's average and the standard cost always win over the estimate; a transfer_in and a sale_return with an original follow
+// their leg and, when that leg was an estimate, are estimates too. An estimate is a cost event with cost_source `last_known` and
+// cost_missing true (cost_missing means «this line has no real cost», 0 or an estimate), so the cost_missing row, its recommendation, its
+// resolution and its void work unchanged, and an estimate is never a source of the next one. An exit is estimated only when the layer
+// holds no units (exitEstimateFits, R44-6: units held at value 0 leave at 0, flagged). A row that took an estimate is marked `estimated`
+// (cost_missing.estimated, item 76): while it is open the layer's average is an estimate, so a line valued at it is one too (source
+// last_known, cost_missing), and inventory's average_costs() publishes none (migration 0131). The estimate is the event's unit cost and amount, so the
+// COGS and the ledger entry made from them equal the layer's movement; a later real cost never rewrites it (an inventory adjustment does).
 // A missing cost never blocks anything and never touches invoice_ready (main §5.8b): the stock moved, the line is valued at 0 and one
 // open costing.cost_missing row per product and bodega counts it until an entry with a cost resolves it.
 // Uncosted units are deliberate policy: they enter at 0 and stay in the layer's quantity, so they dilute the average of later entries
@@ -133,19 +146,22 @@ export class Layers {
   }
 }
 
-/** Raises (or counts on) the open cost_missing row of the product in the bodega, and its kernel recommendation (Task 38). */
-async function raiseMissing(ctx: ProcessContext, movement: FeedMovement, productId: string, warehouseId: string, qty: number): Promise<void> {
+/**
+ * Raises (or counts on) the open cost_missing row of the product in the bodega, and its kernel recommendation (Task 38). `estimate`: the line
+ * took an estimate, so the row is marked `estimated` (it stays marked until a real cost resolves it or a void takes its last occurrence).
+ */
+async function raiseMissing(ctx: ProcessContext, movement: FeedMovement, productId: string, warehouseId: string, qty: number, estimate: boolean): Promise<void> {
   const [open] = await ctx.tx<{ id: string }[]>`
     select id from costing.cost_missing where company_id = ${ctx.companyId} and product_id = ${productId} and warehouse_id = ${warehouseId} and status = 'open' for update`;
   const [row] = open
     ? await ctx.tx<{ id: string; occurrences: number }[]>`
         update costing.cost_missing set occurrences = occurrences + 1, qty = qty + ${String(Math.abs(qty))}::numeric, last_movement_id = ${movement.id},
-          last_date = greatest(last_date, ${movement.date}::date)
+          last_date = greatest(last_date, ${movement.date}::date), estimated = estimated or ${estimate}
         where id = ${open.id} returning id, occurrences`
     : await ctx.tx<{ id: string; occurrences: number }[]>`
         insert into costing.cost_missing ${ctx.tx({
           company_id: ctx.companyId, product_id: productId, warehouse_id: warehouseId, qty: Math.abs(qty), first_movement_id: movement.id,
-          last_movement_id: movement.id, first_date: movement.date, last_date: movement.date,
+          last_movement_id: movement.id, first_date: movement.date, last_date: movement.date, estimated: estimate,
         })} returning id, occurrences`;
   await raiseCostMissing(ctx, { id: row!.id, productId, warehouseId, occurrences: row!.occurrences });
 }
@@ -159,8 +175,36 @@ async function resolveMissing(ctx: ProcessContext, movement: FeedMovement, produ
   for (const r of resolved) await closeCostMissing(ctx, r.id);
 }
 
+/**
+ * Task 44 (item 76): whether the open cost_missing row of the product in the bodega holds an estimate, so the layer's average is made of
+ * estimates and a line valued at it is an estimate too. The row closes (and the marker with it) only through a real cost.
+ */
+async function averageIsEstimate(ctx: ProcessContext, productId: string, warehouseId: string): Promise<boolean> {
+  const [row] = await ctx.tx`
+    select 1 from costing.cost_missing
+    where company_id = ${ctx.companyId} and product_id = ${productId} and warehouse_id = ${warehouseId} and status = 'open' and estimated`;
+  return row !== undefined;
+}
+
+/** The cost sources of a REAL cost event (R44-3): an estimate (`last_known`), a reversal, a landed cost or no cost are never a source. */
+const REAL_SOURCES = ["line", "average", "standard", "original_issue", "transfer"];
+
+/**
+ * The last known unit cost of a product (R44-3): the unit cost of its most recent real cost event (unit cost > 0, not cost_missing, a real
+ * source), newest movement first; the bodega's own events before any other bodega's of the company. null when there is none.
+ */
+async function lastKnownCost(ctx: ProcessContext, productId: string, warehouseId: string): Promise<number | null> {
+  const [row] = await ctx.tx<{ unit_cost: string }[]>`
+    select e.unit_cost from costing.cost_events e
+    where e.company_id = ${ctx.companyId} and e.product_id = ${productId} and e.unit_cost > 0 and e.cost_missing = false and e.cost_source = any(${REAL_SOURCES}::text[])
+      and not exists (select 1 from costing.cost_events r where r.company_id = e.company_id and r.kind = 'reversal' and r.source_line_id = e.movement_line_id)
+    order by (e.warehouse_id = ${warehouseId}) desc, e.movement_seq desc, e.seq desc
+    limit 1`;
+  return row ? Number(row.unit_cost) : null;
+}
+
 /** Values the lines of one movement, in line order, writing their cost events, the layers and the cost_missing rows. */
-async function valueMovement(ctx: ProcessContext, movement: FeedMovement, layers: Layers, facts: { categories: Map<string, string | null>; standard: Map<string, number> }, currency: string): Promise<void> {
+async function valueMovement(ctx: ProcessContext, movement: FeedMovement, layers: Layers, facts: { categories: Map<string, string | null>; standard: Map<string, number>; unknownCostMode: UnknownCostMode }, currency: string): Promise<void> {
   for (const line of movement.lines) {
     const qty = Number(line.qty);
     const lineCost = num(line.unit_cost);
@@ -172,27 +216,56 @@ async function valueMovement(ctx: ProcessContext, movement: FeedMovement, layers
     let amount: number;
     let source: CostSource;
     let after: Layer;
+    // The line carries an estimate (cost_source last_known): it is valued, and still counts as missing a real cost.
+    let estimate = false;
 
     if (qty > 0) {
       // An entry: find its cost.
       let found: { cost: number; source: CostSource } | null = null;
+      // A leg that was an estimate (cost_missing with a cost) passes the estimate on (R44-5); one at 0 stays 0 and flagged below.
+      let inheritedEstimate = false;
       if (movement.kind === "sale_return" && line.return_of_line_id) {
-        const [original] = await ctx.tx<{ unit_cost: string }[]>`
-          select unit_cost from costing.cost_events where company_id = ${ctx.companyId} and movement_line_id = ${line.return_of_line_id}`;
-        if (original) found = { cost: Number(original.unit_cost), source: "original_issue" };
+        const [original] = await ctx.tx<{ unit_cost: string; cost_missing: boolean }[]>`
+          select unit_cost, cost_missing from costing.cost_events where company_id = ${ctx.companyId} and movement_line_id = ${line.return_of_line_id}`;
+        if (original) {
+          found = { cost: Number(original.unit_cost), source: "original_issue" };
+          inheritedEstimate = original.cost_missing && Number(original.unit_cost) > 0;
+        }
       }
       if (!found && movement.kind === "transfer_in" && movement.sourceId) {
-        const [out] = await ctx.tx<{ unit_cost: string }[]>`
-          select unit_cost from costing.cost_events
+        const [out] = await ctx.tx<{ unit_cost: string; cost_missing: boolean }[]>`
+          select unit_cost, cost_missing from costing.cost_events
           where company_id = ${ctx.companyId} and source_id = ${movement.sourceId} and kind = 'transfer_out' and product_id = ${line.product_id}
             and movement_seq < ${movement.seq}
           order by movement_seq desc, seq limit 1`;
-        if (out) found = { cost: Number(out.unit_cost), source: "transfer" };
+        if (out) {
+          found = { cost: Number(out.unit_cost), source: "transfer" };
+          inheritedEstimate = out.cost_missing && Number(out.unit_cost) > 0;
+        }
       }
       if (!found && lineCost !== null) found = { cost: lineCost, source: "line" };
       if (!found && movement.kind !== "adjustment" && movement.kind !== "transfer_in") {
         if (average !== null) found = { cost: average, source: "average" };
         else if (standard !== null && standard > 0) found = { cost: standard, source: "standard" };
+      }
+      // A layer whose open row holds an estimate has an average made of estimates: a line valued at it is an estimate too (item 76).
+      if (found?.source === "average" && (await averageIsEstimate(ctx, line.product_id, movement.warehouseId))) inheritedEstimate = true;
+      // An adjustment valued by inventory at that estimated average (its line cost equals it) is an estimate too: it keeps the value the
+      // ledger posted but neither resolves the row nor becomes a real source.
+      if (found?.source === "line" && movement.kind === "adjustment" && average !== null && round4(found.cost) === round4(average)
+          && (await averageIsEstimate(ctx, line.product_id, movement.warehouseId))) inheritedEstimate = true;
+      // Still no cost (a transfer_in always follows its leg, so only the others get here): the estimate, when the company asks for it.
+      // An adjustment is never estimated: inventory's ledger posts only its line cost (none: 0), so the layer must move by the same 0.
+      if (!found && movement.kind !== "transfer_in" && movement.kind !== "adjustment" && facts.unknownCostMode === "last_known") {
+        const last = await lastKnownCost(ctx, line.product_id, movement.warehouseId);
+        if (last !== null) {
+          found = { cost: last, source: "last_known" };
+          estimate = true;
+        }
+      }
+      if (inheritedEstimate) {
+        found = { cost: found!.cost, source: "last_known" };
+        estimate = true;
       }
       const entry = enter(layer, qty, found?.cost ?? 0);
       unitCost = round4(found?.cost ?? 0);
@@ -203,13 +276,28 @@ async function valueMovement(ctx: ProcessContext, movement: FeedMovement, layers
       // An exit: at the adjustment's own cost, else at the layer's average (an empty layer takes the standard cost as its first average).
       const given = movement.kind === "adjustment" && lineCost !== null ? lineCost : undefined;
       const seed = given === undefined && average === null && standard !== null && standard > 0 ? standard : undefined;
-      const taken = exit(layer, -qty, given ?? seed);
+      // No line cost, no average, no standard cost: the estimate, when the company asks for it and the layer after stays valid (R44-6).
+      let guess: number | undefined;
+      if (given === undefined && seed === undefined && average === null && movement.kind !== "adjustment" && facts.unknownCostMode === "last_known") {
+        const last = await lastKnownCost(ctx, line.product_id, movement.warehouseId);
+        if (last !== null && exitEstimateFits(layer, -qty, last)) guess = last;
+      }
+      const taken = exit(layer, -qty, given ?? seed ?? guess);
       unitCost = taken.unitCost;
       amount = -taken.amount;
-      source = given !== undefined ? "line" : seed !== undefined ? "standard" : average !== null ? "average" : "none";
-      after = seed !== undefined ? { ...taken.after, avgCost: taken.after.avgCost ?? round4(seed) } : taken.after;
+      estimate = guess !== undefined;
+      source = given !== undefined ? "line" : seed !== undefined ? "standard" : guess !== undefined ? "last_known" : average !== null ? "average" : "none";
+      // An average made of estimates is an estimate (item 76): same value, flagged, counted on the open row.
+      if ((source === "average" || (source === "line" && movement.kind === "adjustment" && average !== null && round4(unitCost) === round4(average)))
+          && unitCost > 0 && (await averageIsEstimate(ctx, line.product_id, movement.warehouseId))) {
+        estimate = true;
+        source = "last_known";
+      }
+      // An estimate is not invented into the layer as its average: the layer keeps the average it had (none, or the last real one).
+      after = seed !== undefined ? { ...taken.after, avgCost: taken.after.avgCost ?? round4(seed) }
+        : guess !== undefined && taken.after.qty <= 0 ? { ...taken.after, avgCost: layer.avgCost } : taken.after;
     }
-    const missing = unitCost === 0;
+    const missing = unitCost === 0 || estimate;
 
     await ctx.tx`
       insert into costing.cost_events ${ctx.tx({
@@ -240,7 +328,7 @@ async function valueMovement(ctx: ProcessContext, movement: FeedMovement, layers
         return_of_line_id: line.return_of_line_id,
       })}`;
     await layers.set(layer, after, movement);
-    if (missing) await raiseMissing(ctx, movement, line.product_id, movement.warehouseId, qty);
+    if (missing) await raiseMissing(ctx, movement, line.product_id, movement.warehouseId, qty, estimate);
     else if (qty > 0) await resolveMissing(ctx, movement, line.product_id, movement.warehouseId);
   }
 }
@@ -322,9 +410,13 @@ export async function catchUp(ctx: ProcessContext, movementId: string): Promise<
     select id, category_id from core.v_product_stock where id = any(${productIds}::uuid[])`).map((r) => [r.id, r.category_id] as const));
   const standard = new Map((await ctx.tx<{ id: string; standard_cost: string | null }[]>`
     select id, standard_cost from core.product_standard_costs(${productIds}::uuid[])`).flatMap((r) => (r.standard_cost === null ? [] : [[r.id, Number(r.standard_cost)] as const])));
+  // The company's mode, read once per run under the feed lock and never cached across runs (R44-8): a change applies from the next
+  // movement costed. Costing reads its own table, never another module's view (R44-9); no row means the default, `zero`.
+  const [settings] = await ctx.tx<{ unknown_cost_mode: UnknownCostMode }[]>`select unknown_cost_mode from costing.settings where company_id = ${ctx.companyId}`;
+  const unknownCostMode = settings?.unknown_cost_mode ?? "zero";
   const layers = new Layers(ctx, currency);
   try {
-    for (const m of movements) await valueMovement(ctx, m, layers, { categories, standard }, currency);
+    for (const m of movements) await valueMovement(ctx, m, layers, { categories, standard, unknownCostMode }, currency);
   } catch (error) {
     // A negative cost cannot be valued: refused for good (the outbox dead-letters it), never retried.
     if (error instanceof CostError) throw new ProcessError("invalid_input", error.message);

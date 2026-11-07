@@ -2358,6 +2358,7 @@
         "last_date": "Última fecha",
         "resolved_at": "Resuelto",
         "resolved_movement_id": "Movimiento que lo resolvió",
+        "estimated": "Con estimación",
         "extra": "Datos adicionales",
         "extra_free": "Datos adicionales libres",
         "created_at": "Creado",
@@ -2406,6 +2407,7 @@
       "settings": {
         "seq": "ID",
         "method": "Método de costeo",
+        "unknown_cost_mode": "Costo de unidades sin costo conocido",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -3135,6 +3137,11 @@
       },
       "posting_mode": {
         "set": "Cambiar el modo de contabilización"
+      }
+    },
+    "costing": {
+      "unknown_cost": {
+        "set": "Cambiar el costo de las unidades sin costo conocido"
       }
     },
     "kernel": {
@@ -5211,6 +5218,10 @@
       "method": {
         "average": "Promedio ponderado"
       },
+      "unknown_cost_mode": {
+        "zero": "Cero (como hasta ahora)",
+        "last_known": "Último costo conocido"
+      },
       "event_kind": {
         "receipt": "Entrada",
         "issue": "Salida",
@@ -5230,7 +5241,8 @@
         "transfer": "Costo del traslado",
         "none": "Sin costo",
         "landed_cost": "Costo en destino",
-        "reversal": "Reversión"
+        "reversal": "Reversión",
+        "last_known": "Último costo conocido (estimado)"
       },
       "missing_status": {
         "open": "Abierto",
@@ -5282,7 +5294,16 @@
       "fifo": "PEPS (FIFO) · fase 3",
       "hint": "Guardar pide tu código de verificación. El método PEPS (FIFO) llega en la fase 3.",
       "saved": "Guardado",
-      "save": "Guardar"
+      "save": "Guardar",
+      "unknown_cost": {
+        "title": "Costo de unidades sin costo conocido",
+        "label": "Valorar las unidades sin costo conocido a",
+        "zero": "Cero (como hasta ahora)",
+        "last_known": "Último costo conocido",
+        "hint": "Con cero, las unidades sin costo entran valoradas en 0 y bajan el costo promedio de las entradas siguientes. Con el último costo conocido se usa una estimación para no diluirlo, pero el costo de ventas y el inventario llevan un valor que no es el real hasta que se corrija. En ambos modos el producto queda en Costos pendientes y se recomienda corregirlo. El cambio vale desde el siguiente movimiento; no recalcula nada.",
+        "read_only": "Tu rol puede ver este parámetro, pero no cambiarlo.",
+        "save": "Guardar opción"
+      }
     },
     "effects": {
       "delivery_cogs": "Costo de ventas: valora la salida al costo promedio ponderado y lleva el costo de ventas a contabilidad",

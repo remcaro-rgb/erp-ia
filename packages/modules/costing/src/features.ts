@@ -22,7 +22,7 @@ export const NAVIGATION: NavItem[] = menuSections("costing", {
     { id: "costing.missing", label: "nav.costing.missing", href: "/costing/missing", icon: "alert-triangle", feature: "costing.costs", entity: "costing.cost_missing" },
   ],
   parametros: [
-    { id: "costing.settings", label: "nav.costing.settings", href: "/costing/settings", icon: "sliders", feature: "costing.settings", entity: "costing.settings" },
+    { id: "costing.settings", label: "nav.costing.settings", href: "/costing/settings", icon: "sliders", feature: "costing.settings", entity: "costing.settings", runs: ["costing.unknown_cost."] },
   ],
 });
 

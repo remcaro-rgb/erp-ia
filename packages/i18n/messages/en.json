@@ -2358,6 +2358,7 @@
         "last_date": "Last date",
         "resolved_at": "Resolved",
         "resolved_movement_id": "Resolving movement",
+        "estimated": "Holds an estimate",
         "extra": "Additional data",
         "extra_free": "Free additional data",
         "created_at": "Created",
@@ -2406,6 +2407,7 @@
       "settings": {
         "seq": "ID",
         "method": "Costing method",
+        "unknown_cost_mode": "Cost of units without a known cost",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
@@ -3135,6 +3137,11 @@
       },
       "posting_mode": {
         "set": "Change the posting mode"
+      }
+    },
+    "costing": {
+      "unknown_cost": {
+        "set": "Change the cost of units without a known cost"
       }
     },
     "kernel": {
@@ -5211,6 +5218,10 @@
       "method": {
         "average": "Weighted average"
       },
+      "unknown_cost_mode": {
+        "zero": "Zero (as before)",
+        "last_known": "Last known cost"
+      },
       "event_kind": {
         "receipt": "Receipt",
         "issue": "Issue",
@@ -5230,7 +5241,8 @@
         "transfer": "Transfer cost",
         "none": "No cost",
         "landed_cost": "Landed cost",
-        "reversal": "Reversal"
+        "reversal": "Reversal",
+        "last_known": "Last known cost (estimate)"
       },
       "missing_status": {
         "open": "Open",
@@ -5282,7 +5294,16 @@
       "fifo": "FIFO · phase 3",
       "hint": "Saving asks for your verification code. FIFO arrives in phase 3.",
       "saved": "Saved",
-      "save": "Save"
+      "save": "Save",
+      "unknown_cost": {
+        "title": "Cost of units without a known cost",
+        "label": "Value units without a known cost at",
+        "zero": "Zero (as before)",
+        "last_known": "Last known cost",
+        "hint": "With zero, units without a cost enter valued at 0 and lower the average cost of later entries. With the last known cost an estimate is used so the average is not diluted, but the cost of sales and the inventory carry a value that is not the real one until it is corrected. In both modes the product stays in Pending costs and a correction is recommended. The change applies from the next movement; it recalculates nothing.",
+        "read_only": "Your role can see this setting but not change it.",
+        "save": "Save option"
+      }
     },
     "effects": {
       "delivery_cogs": "Cost of sales: values the issue at weighted average cost and sends the cost of sales to accounting",

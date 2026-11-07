@@ -2,7 +2,7 @@ import { defineProcess, dismissParkedEvents, ProcessError, type EventConsumer, t
 import { z } from "zod";
 import { CostError, reverse } from "../average";
 import type { EventKind } from "../entities";
-import { closeCostMissing, feedLockKey } from "./common";
+import { closeCostMissing, feedLockKey, raiseCostMissing } from "./common";
 import { catchUp, COGS_POSTED, COGS_RETURNED, currencyOf, Layers } from "./cost";
 
 // The cost of a voided inventory movement (plan 2B Task 14, the voids carried from the reviews of Tasks 6–9; design §8.1).
@@ -16,7 +16,8 @@ import { catchUp, COGS_POSTED, COGS_RETURNED, currencyOf, Layers } from "./cost"
 //     `reversal`, the same unit cost, the signed qty and amount negated, dated the void) and moves the layer by it (average.ts reverse):
 //     the layer's value stays the sum of its events' amounts. A sale return voided takes out its units at the original issue's cost it
 //     entered with;
-//  3. the cost_missing occurrences it counted are taken back (the last one resolves the row: nothing is missing any more);
+//  3. the cost_missing occurrences it counted are taken back (the last one resolves the row: nothing is missing any more); a real entry
+//     that had resolved an estimated row reopens it (Task 44: the layer is an average of estimates again);
 //  4. a sale issue (sale return) whose cost of sales already left (cogs_posted_at) sends costing.cogs.voided (costing.cogs.return_voided):
 //     the rule `reverseOf` reverses the ledger entry of that cost of sales (and dismisses its pending when it could not post: a closed
 //     period); any of its cost-of-sales events still parked in the outbox (accounting off) is dismissed so it never posts. A sale issue
@@ -143,6 +144,19 @@ export const movementVoidCost = defineProcess({
         })}`;
       await layers.set(layer, back.after, { id: movementId, seq: Number(e.movement_seq) });
       if (e.cost_missing) await undoMissing(ctx, movementId, e.product_id, e.warehouse_id, Number(e.qty));
+      // The real entry that resolved an ESTIMATED row is voided: the layer is back to an average made of estimates, so the row reopens (and
+      // its recommendation is raised again), or those estimates would turn into real costs for good (Task 44, re-review N2). Only when no
+      // other row of the product and bodega is open; a row that never held an estimate (zero mode) stays resolved.
+      else if (Number(e.qty) > 0) {
+        const [reopened] = await ctx.tx<{ id: string; occurrences: number }[]>`
+          update costing.cost_missing m set status = 'open', resolved_at = null, resolved_movement_id = null
+          where m.company_id = ${ctx.companyId} and m.product_id = ${e.product_id} and m.warehouse_id = ${e.warehouse_id}
+            and m.status = 'resolved' and m.estimated and m.resolved_movement_id = ${movementId}
+            and not exists (select 1 from costing.cost_missing o where o.company_id = m.company_id and o.product_id = m.product_id
+                            and o.warehouse_id = m.warehouse_id and o.status = 'open')
+          returning m.id, m.occurrences`;
+        if (reopened) await raiseCostMissing(ctx, { id: reopened.id, productId: e.product_id, warehouseId: e.warehouse_id, occurrences: reopened.occurrences });
+      }
     }
 
     const kind = own[0]!.kind;

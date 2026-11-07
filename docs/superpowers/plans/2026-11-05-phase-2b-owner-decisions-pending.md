@@ -224,3 +224,16 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept for 2B.2 and warn in the guide; if the accountant needs stable numbering by document date, number entries at document date in a later task.
 74. **Age alert for documents awaiting posting** (Task 33). Nothing alerts when a document stays «Pendiente de contabilizar» for long in asynchronous mode.
     Recommended: a kernel recommendation (Task 38 API) to the accounting role when a queued or failed posting is older than N minutes (N configurable, default 60); a small follow-up task.
+
+## K. Items met while expanding 2B.2 Task 44 (costing setting «Costo de unidades sin costo conocido»), 2026-11-07 · to decide
+
+75. **A later real cost does not revalue an estimate** (Task 44, R44-7). A `last_known` estimate stays in the cost event, the layer and the COGS entry; a real cost closes the Costos pendientes row but never rewrites past valuations (the owner's «never rewrites past valuations»); correction is an inventory adjustment.
+    Recommended: accept; if the owner wants a revaluation on resolve, it is a separate task (a revaluation event that moves the layer and posts the difference).
+76. **Estimated units feed the layer's average (solved in fix round 1)** (Task 44). Units entered at an estimate make the layer's average positive. It is now solved by the `estimated` marker on the open cost_missing row (migration 0131, R44-13): while the row is open, lines valued at that average stay estimates (`last_known`, flagged, counted), traslados and returns inherit it, no estimated line is a source, an adjustment valued at an estimated average is flagged (R44-14), and a real cost resolves the row and clears the marker.
+    Recommended: nothing to decide; a row whose estimated occurrence is voided while zero-valued ones remain stays marked until a real cost (it over-flags, never under-flags).
+77. **A line with an explicit cost of 0 is not estimated** (Task 44, R44-5). A receipt or adjustment whose line carries `unitCost = 0` keeps 0 (the line cost always wins), flagged as before.
+    Recommended: accept; a 0 typed on purpose is an answer.
+78. **Cost events have no screen** (Task 44). The estimate («Último costo conocido (estimado)») is visible only in the record of the cost event through exports and the assistant; Costos pendientes lists the product, not the events.
+    Recommended: a small read-only «Eventos de costo» report under Costos › Reportes in 2C, over `costing.v_cost_events`.
+79. **An adjustment typed at exactly the estimated average is treated as an estimate** (Task 44, fix round 2). Inventory's event does not say whether the line cost was typed or filled from costing's average, so costing flags an adjustment whose cost equals the estimated average (4 decimals) while the bodega's row is estimated; the row stays open, any other value resolves it.
+    Recommended: accept; the exact alternative is an inventory event field `costFrom: "user" | "costing"` (still rule 3 compliant), a small follow-up task.

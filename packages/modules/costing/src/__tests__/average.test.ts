@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { averageOf, CostError, EMPTY_LAYER, enter, exit, reverse } from "../average";
+import { averageOf, CostError, EMPTY_LAYER, enter, exit, exitEstimateFits, reverse } from "../average";
 
 // The weighted average as arithmetic (plan 2B Task 8 Step 1): the integration tests run the same cases through the inventory events.
 
@@ -102,3 +102,26 @@ describe("reverse (the void of a cost event, Task 14)", () => {
 });
 
 const round = (n: number) => Math.round(n * 100) / 100;
+
+describe("exitEstimateFits (Task 44, R44-6 as amended)", () => {
+  it("an estimated exit fits only when the layer holds no units", () => {
+    expect(exitEstimateFits({ qty: 0, value: 0, avgCost: null }, 3, 100)).toBe(true);
+    expect(exitEstimateFits({ qty: -2, value: -200, avgCost: null }, 1, 100)).toBe(true);
+  });
+
+  it("does not fit when the layer holds units, whatever their value (units held at value 0 leave at 0)", () => {
+    expect(exitEstimateFits({ qty: 5, value: 0, avgCost: null }, 5, 100)).toBe(false);
+    expect(exitEstimateFits({ qty: 5, value: 0, avgCost: null }, 2, 100)).toBe(false);
+    expect(exitEstimateFits({ qty: 5, value: 300, avgCost: null }, 3, 100)).toBe(false);
+  });
+
+  it("an exit at an estimate on an empty layer takes qty × cost and does not invent an average", () => {
+    const layer = { qty: 0, value: 0, avgCost: null };
+    expect(exit(layer, 3, 100)).toMatchObject({ unitCost: 100, amount: 300, after: { qty: -3, value: -300 } });
+  });
+
+  it("refuses a bad quantity or cost", () => {
+    expect(() => exitEstimateFits(EMPTY_LAYER, 0, 1)).toThrow(CostError);
+    expect(() => exitEstimateFits(EMPTY_LAYER, 1, -1)).toThrow(CostError);
+  });
+});

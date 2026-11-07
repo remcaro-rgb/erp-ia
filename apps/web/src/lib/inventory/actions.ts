@@ -77,3 +77,15 @@ export async function saveCostingMethodAction(method: string, stepUpToken?: stri
     return stepRefusal(error);
   }
 }
+
+/** Parámetros › Costeo: what a unit without a known cost is valued at, `zero` or `last_known` (step-up; Task 44, owner item 36). */
+export async function saveUnknownCostModeAction(mode: string, stepUpToken?: string): Promise<StepOutcome> {
+  if (mode !== "zero" && mode !== "last_known") return { ok: false, code: "invalid_input", messages: [] };
+  const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
+  try {
+    await runProcess(processDeps(), caller, "costing.unknown_cost.set", { mode });
+    return { ok: true };
+  } catch (error) {
+    return stepRefusal(error);
+  }
+}

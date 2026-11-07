@@ -13,6 +13,7 @@ processes:
   - costing.landed_cost.void
   - costing.landed_cost.consult
   - costing.settings.update
+  - costing.unknown_cost.set
   - costing.settings.consult
 ---
 
@@ -25,7 +26,7 @@ Sus pantallas están en la barra superior del módulo **Costos**:
 - **Documentos › Costos en destino**: el flete, los aranceles o el seguro que suben el costo de una entrada.
 - **Reportes › Capas de costo**: el costo promedio de cada producto en cada bodega.
 - **Reportes › Costos pendientes**: los productos que salieron sin costo.
-- **Parámetros › Costeo**: el método de costeo de la empresa.
+- **Parámetros › Costeo**: el método de costeo de la empresa y el costo de las unidades sin costo conocido.
 
 Los costos son datos confidenciales: si tu rol no puede verlos, salen enmascarados (••••••) en los listados, los registros, las exportaciones y el asistente, y no se pueden filtrar ni ordenar.
 
@@ -84,7 +85,24 @@ El valor se reparte entre las líneas al centavo (la suma da exactamente el valo
 
 ## Costeo: el método
 
-**Costos › Parámetros › Costeo** muestra el **Método** de la empresa. Hoy el único disponible es **Promedio ponderado**. **PEPS (FIFO)** aparece en la lista pero llega en la fase 3: si lo eliges, el sistema lo rechaza con «El método PEPS (FIFO) está disponible en la fase 3». **Guardar** pide tu **código de verificación**. Mientras nadie lo configure, la empresa costea por promedio ponderado.
+**Costos › Parámetros › Costeo** muestra el **Método** de la empresa. Hoy el único disponible es **Promedio ponderado**. **PEPS (FIFO)** aparece en la lista pero llega en la fase 3: si lo eliges, el sistema lo rechaza con «El método PEPS (FIFO) está disponible en la fase 3». **Guardar** pide tu **código de verificación**. Mientras nadie lo configure, la empresa costea por promedio ponderado. La sección de abajo, **Costo de unidades sin costo conocido**, se guarda aparte.
+
+## Costo de unidades sin costo conocido
+
+Cuando entra o sale mercancía de un producto que todavía no tiene costo, el sistema la valora con la opción que elijas en **Costos › Parámetros › Costeo**, en la sección **Costo de unidades sin costo conocido**:
+
+- **Cero (como hasta ahora)**: las unidades entran valoradas en $ 0,00. Es lo que se hace mientras nadie lo configure. Tiene un efecto que conviene conocer: esas unidades **bajan el costo promedio de las entradas siguientes**. Ejemplo: entran 10 unidades sin costo y luego 5 a $ 200,00; quedan 15 unidades que valen $ 1.000,00, promedio $ 66,67.
+- **Último costo conocido**: las unidades se valoran con una **estimación**, el costo de la última vez que ese producto tuvo un costo real. Se busca primero en la misma bodega y, si ahí no hay, en cualquier otra bodega de la empresa. Con el mismo ejemplo y un último costo de $ 100,00, las 15 unidades valen $ 2.000,00, promedio $ 133,33: el promedio no se diluye. A cambio, el **costo de ventas y el inventario llevan un valor que no es el real** hasta que se corrija. Si el producto nunca tuvo un costo, o su última entrada con costo fue anulada, queda en cero como siempre.
+
+En los dos modos el producto queda en **Costos pendientes** y el sistema recomienda corregirlo (el aviso «Falta el costo de un producto»).
+
+**Cómo se ve una estimación.** Su **Origen del costo** dice **Último costo conocido (estimado)** y la línea cuenta como pendiente de costo real, aunque su costo unitario sea mayor que cero. Un traslado o una devolución de venta de unidades estimadas heredan la estimación. El costo de lo estimado llega a la contabilidad como cualquier costo de ventas: débito costo de ventas y crédito inventarios por ese valor, y el asiento cuadra con la capa de costo.
+
+**Mientras la estimación siga abierta.** Mientras el producto siga en Costos pendientes con una estimación, el costo promedio de esa bodega está hecho de estimaciones: lo que salga de ahí (ventas, salidas, traslados, devoluciones) y las nuevas entradas sin costo se valoran a ese promedio y **también quedan marcados como estimados** y suman a la misma fila. Un **Ajuste** nunca se estima: sin costo queda en cero (inventario y contabilidad coinciden), y uno valorado a ese promedio también queda marcado como estimado. Solo una entrada con costo real cierra la fila y devuelve el promedio a la normalidad; si esa entrada se anula, la fila vuelve a abrirse. Las unidades que ya están en la bodega con valor cero salen en cero, aunque salgan todas.
+
+**Cómo se corrige.** Una entrada con costo real de ese producto en esa bodega marca la fila de Costos pendientes como **Resuelto**, pero **no recalcula** lo ya valorado. Para dejar el valor correcto, registra un **Ajuste** en Inventario (guía **Inventario**).
+
+**Desde cuándo vale.** El cambio vale **desde el siguiente movimiento** que se valore; lo anterior queda como estaba y no se recalcula nada. **Guardar opción** pide tu **código de verificación**, y solo puede cambiarlo quien tenga el permiso; sin él, la opción se ve pero no se puede modificar.
 
 ## Preguntarle al asistente
 
@@ -95,4 +113,5 @@ El valor se reparte entre las líneas al centavo (la suma da exactamente el valo
 - **«El costo promedio no cambió después de una venta»**: es lo esperado. Las salidas usan el promedio, no lo cambian.
 - **«Registré el flete y el costo de ventas de lo que ya vendí no subió»**: un costo en destino no recalcula lo ya vendido; sube el costo de las unidades que quedan.
 - **«No puedo desactivar Costos»**: Inventario lo necesita para valorar sus ajustes. Desactiva primero Inventario (guía **Administración**, sección Módulos); Costos puede quedar apagado con Inventario activo solo después de ese paso, y los ajustes usan entonces el costo estándar.
+- **«Cambié a Último costo conocido y el costo de ventas de ayer no cambió»**: es lo esperado. El cambio vale desde el siguiente movimiento y no recalcula lo anterior.
 - **«No veo los costos»**: tu rol los tiene enmascarados u ocultos. Pídeselo al administrador (guía **Administración**).
