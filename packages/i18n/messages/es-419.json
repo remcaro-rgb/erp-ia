@@ -1493,7 +1493,8 @@
       "note": "Nota de venta (crédito o débito)",
       "note_line": "Línea de nota",
       "note_tax": "Impuesto de nota",
-      "pending_line": "Línea por facturar"
+      "pending_line": "Línea por facturar",
+      "dian_check": "Verificación de un valor DIAN"
     },
     "payments": {
       "method": "Medio de pago",
@@ -2765,6 +2766,7 @@
         "created_at": "Creado",
         "updated_at": "Actualizado",
         "dian_defaults_confirmed": "Valores DIAN por defecto confirmados",
+        "dian_checklist_version": "Versión de la lista DIAN confirmada",
         "certificate_subject": "Titular del certificado",
         "certificate_tax_id": "NIT del certificado",
         "certificate_issuer": "Emisor del certificado",
@@ -2980,6 +2982,17 @@
         "delivered_qty": "Entregado",
         "invoiced_qty": "Facturado",
         "pending_qty": "Por facturar"
+      },
+      "dian_check": {
+        "seq": "ID",
+        "item_key": "Valor de la lista DIAN",
+        "ticked": "Verificado",
+        "ticked_by": "Verificado por",
+        "ticked_at": "Verificado el",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
       }
     },
     "payments": {
@@ -3176,6 +3189,15 @@
       "nested_failure": {
         "retry": "Reintentar una ejecución anidada fallida",
         "dismiss": "Descartar una ejecución anidada fallida"
+      }
+    },
+    "invoicing": {
+      "dian_checklist": {
+        "tick": "Marcar o desmarcar valores de la lista de verificación DIAN",
+        "consult": "Consultar la lista de verificación DIAN"
+      },
+      "dian_defaults": {
+        "confirm": "Confirmar los valores por defecto del documento electrónico"
       }
     }
   },
@@ -5815,7 +5837,10 @@
       "note_issued": "Esta nota ya se emitió.",
       "note_not_sent": "Esta nota aún no tiene su envío a la DIAN: espera unos segundos y vuelve a intentar.",
       "annulment_invoice_not_issued": "La DIAN aceptó la nota de anulación, pero la factura ya no está emitida (por ejemplo, se pagó mientras tanto): revísala con soporte.",
-      "no_sequence": "La empresa no tiene numeración para este tipo de nota: regístrala en Core › Parámetros › Secuencias de documentos (prefijo y siguiente número; las notas no llevan resolución DIAN)."
+      "no_sequence": "La empresa no tiene numeración para este tipo de nota: regístrala en Core › Parámetros › Secuencias de documentos (prefijo y siguiente número; las notas no llevan resolución DIAN).",
+      "dian_checklist_incomplete": "Faltan valores por verificar en la lista de verificación DIAN: la confirmación necesita todos marcados",
+      "dian_in_production": "La empresa está en producción: la verificación no se retira. Vuelve a habilitación para desmarcar valores",
+      "dian_defaults_unconfirmed": "Los valores por defecto del documento electrónico no están confirmados: verifica la lista DIAN antes de pasar a producción"
     },
     "note": {
       "own_flags": {
@@ -5866,11 +5891,7 @@
       },
       "issuer_department": "Código del departamento",
       "issuer_municipality": "Código del municipio",
-      "defaults_confirm": "Confirmo los valores por defecto del documento electrónico",
-      "defaults_credit_note_type": "Las notas crédito se envían con el tipo 91 (CreditNoteTypeCode)",
-      "defaults_export_customization": "Las facturas de exportación se envían con CustomizationID 10",
-      "defaults_notes_without_control": "Las notas crédito y débito se envían sin InvoiceControl (sin resolución de numeración)",
-      "production_hint": "Producción exige estos valores confirmados, el servidor configurado para producción, el software, el certificado y el PIN",
+      "production_hint": "Producción exige la lista de verificación DIAN confirmada, el servidor configurado para producción, el software, el certificado y el PIN",
       "save_connection": "Guardar conexión",
       "numbering_title": "Resolución y numeración",
       "numbering_hint": "La resolución DIAN de facturación (prefijo, rango, vigencia y clave técnica) y la numeración de las notas; el consecutivo nunca retrocede",
@@ -5925,7 +5946,11 @@
       "pending_hint": "{notConfigured} esperan el registro del software y {failed} se detuvieron",
       "resubmit_all": "Reintentar todos",
       "resubmit_none": "No había envíos por reintentar",
-      "resubmit_done": "Se volvieron a enviar {count}"
+      "resubmit_done": "Se volvieron a enviar {count}",
+      "dian_defaults_progress": "Valores por defecto DIAN: {done} de {total} verificados",
+      "dian_defaults_confirmed_status": "Valores por defecto DIAN: confirmados",
+      "dian_defaults_new": "{count, plural, one {Hay # valor nuevo por verificar} other {Hay # valores nuevos por verificar}}",
+      "open_checklist": "Abrir la lista de verificación"
     },
     "view": {
       "facts": "Datos de la factura",
@@ -6119,6 +6144,46 @@
         "einvoice_not_available": "el país no tiene facturación electrónica registrada",
         "refused": "la factura fue rechazada"
       }
+    },
+    "dian_checklist": {
+      "title": "Lista de verificación DIAN",
+      "subtitle": "Valores que los documentos llevan hoy y que la DIAN todavía puede pedir que cambien. Verifica cada uno en la habilitación de la DIAN y márcalo; con todos marcados puedes confirmar los valores por defecto, que la empresa necesita para pasar a producción",
+      "back": "Volver a Facturación electrónica",
+      "admins_only": "Solo los administradores de la empresa abren la lista de verificación DIAN",
+      "progress": "{done} de {total} verificados",
+      "progress_label": "Avance de la verificación",
+      "list_label": "Valores por verificar",
+      "groups": {
+        "notes_documents": "Notas y tipos de documento",
+        "signing_software": "Firma y software",
+        "dian_response": "Respuesta de la DIAN y reenvío",
+        "taxes_amounts": "Impuestos e importes",
+        "payment_buyers": "Medios de pago y compradores",
+        "issuer_profile": "Perfil fiscal del emisor",
+        "infrastructure": "Infraestructura",
+        "reference_tables": "Tablas de referencia"
+      },
+      "group_select": "Seleccionar el grupo {group}",
+      "group_clear": "Quitar el grupo {group}",
+      "verified_by": "Verificado por {name} el {date}",
+      "verified_on": "Verificado el {date}",
+      "new_badge": "Nuevo",
+      "doc_link": "Documentación de la DIAN",
+      "mark_selected": "Marcar los seleccionados",
+      "save_changes": "Guardar cambios",
+      "pending_changes": "{count, plural, one {# cambio sin guardar} other {# cambios sin guardar}}",
+      "saved": "Verificación guardada",
+      "saved_cleared": "Verificación guardada. Confirma de nuevo los valores por defecto cuando todos estén verificados",
+      "locked_in_production": "En producción no se puede desmarcar un valor: vuelve a habilitación en los parámetros de facturación electrónica para cambiar la verificación",
+      "confirm_button": "Confirmar valores por defecto",
+      "confirm_incomplete": "Marca todos los valores para poder confirmar",
+      "confirm_save_first": "Guarda los cambios antes de confirmar",
+      "confirmed_on": "Valores confirmados el {date} por {name}",
+      "confirmed_on_unknown": "Valores confirmados el {date}",
+      "confirmed": "Valores confirmados",
+      "not_confirmed": "Los valores por defecto aún no están confirmados",
+      "alert_new": "{count, plural, one {Hay # valor nuevo por verificar} other {Hay # valores nuevos por verificar}}",
+      "alert_new_hint": "La confirmación anterior ya no está vigente. Marca los valores nuevos y confirma de nuevo; el envío de documentos a la DIAN no cambia"
     }
   },
   "payments": {

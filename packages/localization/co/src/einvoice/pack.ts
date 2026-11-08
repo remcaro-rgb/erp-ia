@@ -7,6 +7,7 @@ import { inspectCertificate, loadCertificate, saveCertificate } from "./certific
 import { computeCUFE, computeCude, computeCufe } from "./cufe";
 import { computeNitDv } from "./nit";
 import { DOCUMENT_TYPES } from "../document-types";
+import { DIAN_CHECKLIST } from "./dian-checklist";
 import { signInvoice } from "./signer";
 import { assertTransportEnvironment, createEInvoiceTransport } from "./transport";
 import { certificateHolds, dianQrPayload, resolutionLegend } from "./representation";
@@ -73,6 +74,8 @@ function toNote(n: EInvoiceNoteInput): EInvoiceNote {
 const info = (r: Omit<Resolution, "technicalKey">): ResolutionInfo => ({ number: r.number, prefix: r.prefix, from: r.from, to: r.to, validFrom: r.validFrom, validTo: r.validTo });
 
 export const einvoicePack: EInvoicePack = {
+  // Task 35: the values the admin verifies against the DIAN's habilitación before producción (fiscal content: rule 5).
+  dianChecklist: DIAN_CHECKLIST,
   /**
    * Task 3's nextInvoiceNumber, answered as the kernel's contract (refusals carry the resolution's data, never thrown). An invoice needs
    * its resolution (the CUFE's technical key); a note is numbered by its plain sequence (Task 18 fix round 1).

@@ -4,10 +4,11 @@ import { withClaims } from "@erp/kernel";
 import { callerIsCompanyAdmin } from "@/lib/admin/company-admin";
 import { processDeps } from "@/lib/server/runtime";
 import { consultSettings, settingsCaller } from "../../_components/sales/settings-load";
+import type { ChecklistConsult } from "@/lib/invoicing/checklist-view";
 import { InvoicingSettingsForm, type NumberingRow, type SettingsView } from "./settings-form";
 
 // Parámetros › Facturación electrónica (plan 2B Task 19; prototype 2B /invoicing/settings): how invoices are created, the DIAN connection
-// (habilitación / producción, the confirmation of the DIAN defaults, the software and the issuer profile), the numbering (the DIAN resolution
+// (habilitación / producción, the progress of the DIAN verification checklist and its confirmation (the checklist is its own screen, Task 35), the software and the issuer profile), the numbering (the DIAN resolution
 // of invoices and the rows of the notes, core.document_sequence.register), the signing certificate and the software PIN (secret store only:
 // the page shows what the certificate says of itself, never its content) and «Reintentar todos». Only the company's administrators open it;
 // every save asks for the verification code (step-up) except «Reintentar todos».
@@ -42,13 +43,24 @@ async function Settings() {
     );
   }
   const row = consulted.row;
+  // Task 35: the checklist's progress and the items added since the confirmation (the settings consult carries the effective flag).
+  // An administrator whose role matrix lacks the checklist's consult still sees the rest of the Parámetros (the card then has no checklist line).
+  const listed = await consultSettings(caller, "invoicing.dian_checklist.consult");
+  const checklist = "denied" in listed ? null : (listed.row as unknown as ChecklistConsult);
   const text = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
   const when = (v: unknown): string | null => (v instanceof Date ? v.toISOString() : text(v));
   const settings: SettingsView = {
     invoiceCreation: text(row.invoice_creation) ?? "manual",
     dianEnvironment: text(row.dian_environment) ?? "habilitacion",
     creditDays: Number(row.credit_days ?? 30),
-    dianDefaultsConfirmed: row.dian_defaults_confirmed === true,
+    checklist: checklist
+      ? {
+          confirmed: row.dian_defaults_confirmed === true,
+          done: Number(checklist.progress.done),
+          total: Number(checklist.progress.total),
+          newCount: checklist.items.filter((i) => i.isNew).length,
+        }
+      : null,
     softwareId: text(row.software_id),
     softwareProviderTaxId: text(row.software_provider_tax_id),
     testSetId: text(row.test_set_id),

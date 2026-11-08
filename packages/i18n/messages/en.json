@@ -1493,7 +1493,8 @@
       "note": "Sales note (credit or debit)",
       "note_line": "Note line",
       "note_tax": "Note tax",
-      "pending_line": "Line to invoice"
+      "pending_line": "Line to invoice",
+      "dian_check": "Verification of a DIAN value"
     },
     "payments": {
       "method": "Payment method",
@@ -2765,6 +2766,7 @@
         "created_at": "Created",
         "updated_at": "Updated",
         "dian_defaults_confirmed": "DIAN defaults confirmed",
+        "dian_checklist_version": "Confirmed DIAN checklist version",
         "certificate_subject": "Certificate subject",
         "certificate_tax_id": "Certificate tax id",
         "certificate_issuer": "Certificate issuer",
@@ -2980,6 +2982,17 @@
         "delivered_qty": "Delivered",
         "invoiced_qty": "Invoiced",
         "pending_qty": "To invoice"
+      },
+      "dian_check": {
+        "seq": "ID",
+        "item_key": "DIAN checklist value",
+        "ticked": "Verified",
+        "ticked_by": "Verified by",
+        "ticked_at": "Verified on",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
       }
     },
     "payments": {
@@ -3176,6 +3189,15 @@
       "nested_failure": {
         "retry": "Retry a failed nested run",
         "dismiss": "Dismiss a failed nested run"
+      }
+    },
+    "invoicing": {
+      "dian_checklist": {
+        "tick": "Tick or untick values of the DIAN verification checklist",
+        "consult": "Consult the DIAN verification checklist"
+      },
+      "dian_defaults": {
+        "confirm": "Confirm the electronic document defaults"
       }
     }
   },
@@ -5815,7 +5837,10 @@
       "note_issued": "This note has already been issued.",
       "note_not_sent": "This note has no DIAN submission yet: wait a few seconds and try again.",
       "annulment_invoice_not_issued": "The DIAN accepted the annulment note, but the invoice is no longer issued (for example, it was paid meanwhile): review it with support.",
-      "no_sequence": "The company has no numbering for this kind of note: register it in Core › Settings › Document sequences (prefix and next number; notes carry no DIAN resolution)."
+      "no_sequence": "The company has no numbering for this kind of note: register it in Core › Settings › Document sequences (prefix and next number; notes carry no DIAN resolution).",
+      "dian_checklist_incomplete": "Values are still unverified in the DIAN checklist: the confirmation needs every one ticked",
+      "dian_in_production": "The company is in production: the verification is not withdrawn. Go back to habilitación to untick values",
+      "dian_defaults_unconfirmed": "The electronic document defaults are not confirmed: verify the DIAN checklist before going to production"
     },
     "note": {
       "own_flags": {
@@ -5866,11 +5891,7 @@
       },
       "issuer_department": "Department code",
       "issuer_municipality": "Municipality code",
-      "defaults_confirm": "I confirm the electronic document's default values",
-      "defaults_credit_note_type": "Credit notes are sent with type 91 (CreditNoteTypeCode)",
-      "defaults_export_customization": "Export invoices are sent with CustomizationID 10",
-      "defaults_notes_without_control": "Credit and debit notes are sent without InvoiceControl (no numbering resolution)",
-      "production_hint": "Production requires these values confirmed, the server configured for production, the software, the certificate and the PIN",
+      "production_hint": "Production requires the DIAN verification checklist confirmed, the server configured for production, the software, the certificate and the PIN",
       "save_connection": "Save connection",
       "numbering_title": "Resolution and numbering",
       "numbering_hint": "The DIAN invoicing resolution (prefix, range, validity and technical key) and the notes' numbering; the counter never goes back",
@@ -5925,7 +5946,11 @@
       "pending_hint": "{notConfigured} wait for the software to be registered and {failed} stopped",
       "resubmit_all": "Retry all",
       "resubmit_none": "There was nothing to retry",
-      "resubmit_done": "{count} sent again"
+      "resubmit_done": "{count} sent again",
+      "dian_defaults_progress": "DIAN defaults: {done} of {total} verified",
+      "dian_defaults_confirmed_status": "DIAN defaults: confirmed",
+      "dian_defaults_new": "{count, plural, one {# new value to verify} other {# new values to verify}}",
+      "open_checklist": "Open the verification checklist"
     },
     "view": {
       "facts": "Invoice details",
@@ -6119,6 +6144,46 @@
         "einvoice_not_available": "the country has no electronic invoicing registered",
         "refused": "the invoice was refused"
       }
+    },
+    "dian_checklist": {
+      "title": "DIAN verification checklist",
+      "subtitle": "Values the documents carry today that the DIAN may still ask to change. Verify each one in the DIAN habilitación and tick it; with all ticked you can confirm the defaults, which the company needs to go to production",
+      "back": "Back to Electronic invoicing",
+      "admins_only": "Only the company's administrators open the DIAN verification checklist",
+      "progress": "{done} of {total} verified",
+      "progress_label": "Verification progress",
+      "list_label": "Values to verify",
+      "groups": {
+        "notes_documents": "Notes and document types",
+        "signing_software": "Signature and software",
+        "dian_response": "DIAN response and resending",
+        "taxes_amounts": "Taxes and amounts",
+        "payment_buyers": "Payment means and buyers",
+        "issuer_profile": "Issuer fiscal profile",
+        "infrastructure": "Infrastructure",
+        "reference_tables": "Reference tables"
+      },
+      "group_select": "Select the group {group}",
+      "group_clear": "Clear the group {group}",
+      "verified_by": "Verified by {name} on {date}",
+      "verified_on": "Verified on {date}",
+      "new_badge": "New",
+      "doc_link": "DIAN documentation",
+      "mark_selected": "Tick the selected",
+      "save_changes": "Save changes",
+      "pending_changes": "{count, plural, one {# unsaved change} other {# unsaved changes}}",
+      "saved": "Verification saved",
+      "saved_cleared": "Verification saved. Confirm the defaults again once every value is verified",
+      "locked_in_production": "A value cannot be unticked in production: go back to habilitación in the electronic invoicing settings to change the verification",
+      "confirm_button": "Confirm the defaults",
+      "confirm_incomplete": "Tick every value to be able to confirm",
+      "confirm_save_first": "Save the changes before confirming",
+      "confirmed_on": "Values confirmed on {date} by {name}",
+      "confirmed_on_unknown": "Values confirmed on {date}",
+      "confirmed": "Values confirmed",
+      "not_confirmed": "The defaults are not confirmed yet",
+      "alert_new": "{count, plural, one {# new value to verify} other {# new values to verify}}",
+      "alert_new_hint": "The previous confirmation is no longer in force. Tick the new values and confirm again; sending documents to the DIAN does not change"
     }
   },
   "payments": {

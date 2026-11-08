@@ -317,6 +317,41 @@ describe("invoicing catalogue", () => {
   });
 });
 
+describe("DIAN checklist copy (plan 2B Task 35, R35-3)", () => {
+  const groups = ["notes_documents", "signing_software", "dian_response", "taxes_amounts", "payment_buyers", "issuer_profile", "infrastructure", "reference_tables"];
+  it("has the screen's texts, the eight group headings, the refusals and the processes' names, in both locales with the same arguments", () => {
+    const keys = [
+      "title", "subtitle", "back", "admins_only", "progress", "progress_label", "list_label", "group_select", "group_clear", "verified_by", "verified_on", "new_badge", "doc_link",
+      "mark_selected", "save_changes", "pending_changes", "saved", "saved_cleared", "locked_in_production", "confirm_button", "confirm_incomplete", "confirm_save_first",
+      "confirmed_on", "confirmed_on_unknown", "confirmed", "not_confirmed", "alert_new", "alert_new_hint", ...groups.map((g) => `groups.${g}`),
+    ].map((k) => `invoicing.dian_checklist.${k}`);
+    const more = [
+      "invoicing.settings_page.dian_defaults_progress", "invoicing.settings_page.dian_defaults_confirmed_status", "invoicing.settings_page.dian_defaults_new", "invoicing.settings_page.open_checklist",
+      "invoicing.errors.dian_checklist_incomplete", "invoicing.errors.dian_in_production", "invoicing.errors.dian_defaults_unconfirmed",
+      "process.invoicing.dian_checklist.tick", "process.invoicing.dian_checklist.consult", "process.invoicing.dian_defaults.confirm",
+      "entity.invoicing.dian_check", "field.invoicing.settings.dian_checklist_version", "field.invoicing.dian_check.ticked_by",
+    ];
+    for (const key of [...keys, ...more]) {
+      expect(valueAt(es, key), `es-419 ${key}`).toBeDefined();
+      expect(valueAt(en, key), `en ${key}`).toBeDefined();
+    }
+    expect(argumentsOf(valueAt(es, "invoicing.dian_checklist.verified_by")!)).toEqual(["date", "name"]);
+    expect(argumentsOf(valueAt(es, "invoicing.dian_checklist.progress")!)).toEqual(["done", "total"]);
+    expect(valueAt(es, "invoicing.dian_checklist.groups.notes_documents")).toBe("Notas y tipos de documento");
+  });
+
+  it("the old checkbox's copy is gone", () => {
+    for (const tree of [es, en]) expect(valueAt(tree, "invoicing.settings_page.defaults_confirm")).toBeUndefined();
+  });
+
+  it("every process of the invoicing checklist is named (the process kinds' namespace)", () => {
+    for (const id of ["invoicing.dian_checklist.tick", "invoicing.dian_checklist.consult", "invoicing.dian_defaults.confirm"]) {
+      expect(registry.process(id)).toBeDefined();
+      expect(valueAt(es, `process.${id}`), id).toBeTruthy();
+    }
+  });
+});
+
 describe("recommendation copy (plan 2B Task 38)", () => {
   it("names the texts and reasons the processes raise, the card's link and the bell, in both locales with the same arguments", () => {
     const reasons = ["invalid_party", "invalid_product", "over_invoicing", "order_cancelled", "order_not_confirmed", "delivery_voided", "delivery_not_shipped", "invalid_order_line", "price_not_found", "invalid_payment_means", "exchange_rate_required", "nothing_to_invoice", "einvoice_not_available", "refused"];

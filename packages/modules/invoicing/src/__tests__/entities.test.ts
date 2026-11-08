@@ -16,8 +16,9 @@ import { invoicing, INVOICING_ENTITIES, INVOICING_POSTING_RULES } from "../index
 const migrationFile = (name: string) => readFileSync(new URL(`../../../../../supabase/migrations/${name}`, import.meta.url), "utf8");
 // 0092 creates the views; 0094 recreates invoicing.v_invoices with service_date (fix round 1); 0095 recreates invoicing.v_settings with the
 // DIAN submission's Parámetros and creates invoicing.v_einvoice_submissions (Task 17); 0096 creates the notes' views and recreates
-// v_invoices (debited_amount) and v_einvoice_submissions (note_id) (Task 18): the latest definition of each view must match.
-const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql"].map(migrationFile).join("\n");
+// v_invoices (debited_amount) and v_einvoice_submissions (note_id) (Task 18); 0135 (Task 35) recreates v_settings with
+// dian_checklist_version and creates v_dian_checks: the latest definition of each view must match.
+const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql"].map(migrationFile).join("\n");
 
 const loaded = () => {
   const registry = new Registry();
@@ -57,6 +58,7 @@ describe("invoicing manifest", () => {
       "invoicing.note": "documento",
       "invoicing.note_line": "lines",
       "invoicing.note_tax": "sistema",
+      "invoicing.dian_check": "sistema",
     });
     const note = INVOICING_ENTITIES.find((e) => e.id === "invoicing.note")!;
     expect(note.typed).toMatchObject({ numbering: "on_save", lines: { entity: "invoicing.note_line", parentField: "note_id" } });
@@ -83,6 +85,8 @@ describe("invoicing manifest", () => {
       "invoicing.note.create", "invoicing.note.issue", "invoicing.note.issue_annulment", "invoicing.note.void", "invoicing.note.consult", "invoicing.note_line.consult",
       "invoicing.note_tax.consult", "invoicing.note.dian_result", "invoicing.note.resubmit", "invoicing.invoice.resubmit_failed",
       "invoicing.invoice.record_payments",
+      // Task 35: the DIAN verification checklist (ticks, the confirmation of the defaults, the consult).
+      "invoicing.dian_checklist.tick", "invoicing.dian_defaults.confirm", "invoicing.dian_checklist.consult",
     ]));
     const module = registry.module("invoicing");
     expect(module.features.flatMap((f) => f.processes).sort()).toEqual(module.processes.map((p) => p.id).sort());
@@ -107,6 +111,10 @@ describe("invoicing manifest", () => {
     expect(registry.process("invoicing.invoice.issue").sensitivity ?? "normal").toBe("normal");
     expect(registry.process("invoicing.invoice.void").sensitivity).toBe("step-up");
     expect(registry.process("invoicing.settings.update").sensitivity).toBe("step-up");
+    // Task 35: ticking the DIAN checklist and confirming its defaults are step-up too; the consult is not.
+    expect(registry.process("invoicing.dian_checklist.tick").sensitivity).toBe("step-up");
+    expect(registry.process("invoicing.dian_defaults.confirm").sensitivity).toBe("step-up");
+    expect(registry.process("invoicing.dian_checklist.consult").sensitivity ?? "normal").toBe("normal");
     expect(registry.process("invoicing.invoice.auto_create").origins).toEqual(["event"]);
     expect(registry.process("invoicing.invoice.recommend").origins).toEqual(["event"]);
     expect(registry.process("invoicing.invoice.record_payments").origins).toEqual(["event"]);
@@ -171,10 +179,22 @@ describe("invoicing manifest", () => {
   });
 });
 
-describe("invoicing masked views, migrations 0092, 0094, 0095, 0096, 0101, 0103, 0107 and 0121", () => {
+describe("invoicing masked views, migrations 0092, 0094, 0095, 0096, 0101, 0103, 0107, 0121 and 0135", () => {
   for (const entity of INVOICING_ENTITIES) {
     it(`invoicing.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       expect(migration).toContain(maskedViewSql(defineEntity(entity)));
     });
   }
+});
+
+describe("invoicing.dian_check (Task 35, R35-5/R35-10)", () => {
+  it("is a sistema entity of the settings feature whose view carries the settings' new column", () => {
+    const entity = INVOICING_ENTITIES.find((e) => e.id === "invoicing.dian_check")!;
+    expect(entity.table).toBe("dian_checks");
+    expect(entity.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["item_key", "ticked", "ticked_by", "ticked_at"]));
+    expect(invoicing.features.find((f) => f.id === "invoicing.settings")!.entities).toEqual(expect.arrayContaining(["invoicing.settings", "invoicing.dian_check"]));
+    expect(INVOICING_ENTITIES.find((e) => e.id === "invoicing.settings")!.fields.map((f) => f.name)).toContain("dian_checklist_version");
+    expect(migrationFile("0135_invoicing_dian_checklist.sql")).toContain("create or replace view invoicing.v_settings");
+    expect(migrationFile("0135_invoicing_dian_checklist.sql")).toContain("invoicing.v_dian_checks");
+  });
 });

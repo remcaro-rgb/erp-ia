@@ -6,14 +6,14 @@ import { MemoryFileStore } from "@erp/kernel/testing";
 import { pdfText } from "../../../../kernel/src/templates/__tests__/pdf-text";
 import { loadCertificate } from "@erp/loc-co/einvoice";
 import { generateTestCertP12 } from "../../../../localization/co/src/__tests__/helpers/test-cert";
-import { invoicingHarness, type Harness, type InvoiceOut } from "./helpers";
+import { DIAN_CHECKLIST_VERSION, invoicingHarness, tickAllAndConfirm, type Harness, type InvoiceOut } from "./helpers";
 
 // The Parámetros of electronic invoicing (plan 2B Task 19; rule 12; Tasks 5/17/18 carry-overs), through their processes:
 //   - core.document_sequence.register (STEP-UP, core owns the numbering: rule 3): the DIAN resolution of invoices (prefix, range, validity,
 //     technical key) in the shape Task 3 validates; the numbering rows of credit and debit notes (no resolution, Task 18); never rewinds;
-//   - invoicing.settings.update (STEP-UP): the creation mode, the DIAN environment and the explicit confirmation of the DIAN defaults that
-//     gates the switch to producción (CreditNoteTypeCode 91, CustomizationID 10 for exports, no InvoiceControl on notes: Task 18), and the
-//     production guard (the mock or habilitación never serve a company in producción);
+//   - invoicing.settings.update (STEP-UP): the creation mode and the DIAN environment, and the production guard (the mock or habilitación
+//     never serve a company in producción); the confirmation of the DIAN defaults that gates the switch is no longer an input of it: the
+//     checklist's (Task 35, dian-checklist.integration.test.ts), which the fixtures here go through (tickAllAndConfirm);
 //   - invoicing.certificate.upload and invoicing.software_pin.set (STEP-UP, screen only): the PKCS#12 validated (format, password, expiry,
 //     the NIT it names vs the company's) and kept ONLY in the secret store (Supabase Vault in production), its metadata on the settings; the
 //     PIN likewise; neither is ever returned, audited or logged;
@@ -175,16 +175,17 @@ describe("the certificate and the software PIN live only in the secret store (ru
 });
 
 describe("DIAN environment: the switch to producción is gated (Tasks 17/18 carry)", () => {
-  it("is refused while the DIAN defaults are unconfirmed (CreditNoteTypeCode 91, CustomizationID 10, no InvoiceControl on notes)", async () => {
+  it("is refused while the DIAN defaults are unconfirmed (the checklist of Task 35: CreditNoteTypeCode 91, CustomizationID 10, no InvoiceControl on notes…)", async () => {
     expect(await h.refusal(h.runStepUp("invoicing.settings.update", { dianEnvironment: "produccion" }))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/dian_defaults_unconfirmed/) });
     expect((await settings()).dian_environment).toBe("habilitacion");
-    // The flag is only the step-up settings update's, and it is false by default.
+    // The flag is only the checklist's confirm process (the settings update refuses the old input), and it is false by default.
     expect((await settings()).dian_defaults_confirmed).toBe(false);
-    expect(await h.refusal(h.run(h.admin, "invoicing.settings.update", { dianDefaultsConfirmed: true }))).toMatchObject({ code: "step_up_required" });
+    expect(await h.refusal(h.runStepUp("invoicing.settings.update", { dianDefaultsConfirmed: true }))).toMatchObject({ code: "invalid_input" });
+    expect(await h.refusal(h.run(h.admin, "invoicing.dian_defaults.confirm", { confirmed: true }))).toMatchObject({ code: "step_up_required" });
   });
 
   it("confirmed, the mock (EINVOICE_TRANSPORT unset) or habilitación still cannot serve producción", async () => {
-    await h.runStepUp("invoicing.settings.update", { dianDefaultsConfirmed: true });
+    await tickAllAndConfirm(h);
     expect((await settings()).dian_defaults_confirmed).toBe(true);
     delete process.env.EINVOICE_TRANSPORT;
     expect(await h.refusal(h.runStepUp("invoicing.settings.update", { dianEnvironment: "produccion" }))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/einvoice_environment_mismatch/) });
@@ -198,11 +199,11 @@ describe("DIAN environment: the switch to producción is gated (Tasks 17/18 carr
     await h.runStepUp("invoicing.settings.update", { softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0", softwareProviderTaxId: NIT });
     process.env.EINVOICE_TRANSPORT = "dian-produccion";
     try {
-      const out = await h.runStepUp<{ dianEnvironment: string; dianDefaultsConfirmed: boolean }>("invoicing.settings.update", { dianEnvironment: "produccion" });
-      expect(out).toMatchObject({ dianEnvironment: "produccion", dianDefaultsConfirmed: true });
-      expect(await h.refusal(h.runStepUp("invoicing.settings.update", { dianDefaultsConfirmed: false }))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/dian_defaults_unconfirmed/) });
+      const out = await h.runStepUp<{ dianEnvironment: string }>("invoicing.settings.update", { dianEnvironment: "produccion" });
+      expect(out).toMatchObject({ dianEnvironment: "produccion" });
+      expect(await h.refusal(h.runStepUp("invoicing.dian_defaults.confirm", { confirmed: false }))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/dian_defaults_unconfirmed/) });
       // The database holds the rule too.
-      await expect(h.sql`update invoicing.settings set dian_defaults_confirmed = false where company_id = ${h.companyId}`).rejects.toThrow(/dian_defaults/);
+      await expect(h.sql`update invoicing.settings set dian_defaults_confirmed = false, dian_checklist_version = null where company_id = ${h.companyId}`).rejects.toThrow(/dian_defaults/);
     } finally {
       delete process.env.EINVOICE_TRANSPORT;
     }
@@ -249,7 +250,7 @@ describe("fix round 1: the DIAN environment frozen at «Emitir»; the technical 
     await expect(h.sql`update invoicing.invoices set dian_environment = 'produccion' where id = ${draft.id}`).rejects.toThrow(/emitida no cambia/);
     const exportsStore = new MemoryFileStore();
     setExportsStore(exportsStore);
-    await h.sql`update invoicing.settings set software_id = coalesce(software_id, '56f2ae4e-9812-4fad-9255-08fcfcd5ccb0'), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_environment = 'produccion' where company_id = ${h.companyId}`;
+    await h.sql`update invoicing.settings set software_id = coalesce(software_id, '56f2ae4e-9812-4fad-9255-08fcfcd5ccb0'), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_checklist_version = ${DIAN_CHECKLIST_VERSION}, dian_environment = 'produccion' where company_id = ${h.companyId}`;
     try {
       const { fileId } = await h.run<{ fileId: string }>(h.admin, "kernel.doc_template.print", { entity: "invoicing.invoice", recordId: draft.id });
       const text = pdfText(Buffer.from(await exportsStore.get(`${h.companyId}/${fileId}.pdf`)));
@@ -367,7 +368,8 @@ describe("fix round 2: the technical key reaches no reader; the Parámetros are 
   }, 120_000);
 
   it("producción also needs a current certificate that is the one stored; the database holds the whole guard", async () => {
-    await h.runStepUp("invoicing.settings.update", { softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0", softwareProviderTaxId: NIT, dianDefaultsConfirmed: true });
+    await h.runStepUp("invoicing.settings.update", { softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0", softwareProviderTaxId: NIT });
+    await tickAllAndConfirm(h);
     await h.runStepUp("invoicing.software_pin.set", { pin: "75315" });
     await h.runStepUp("invoicing.certificate.upload", { file: cert.buffer.toString("base64"), password: cert.password });
     process.env.EINVOICE_TRANSPORT = "dian-produccion";

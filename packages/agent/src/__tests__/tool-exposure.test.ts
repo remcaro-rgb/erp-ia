@@ -9,7 +9,7 @@ import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
-import { agentCandidates, EXCLUDED_PROCESSES } from "../tools/from-registry";
+import { agentCandidates, EXCLUDED_PROCESSES, inputJsonSchema } from "../tools/from-registry";
 
 // Which registered processes the assistant may ever be offered (rules 1 and 17, plan 2B Task 25): derived from the registry, never from a
 // hand list. A process restricted to other origins (an event consumer's, a screen's), one that runs only nested inside another, and one
@@ -49,6 +49,9 @@ describe("the assistant's tool candidates", () => {
       "kernel.admin.nested_run.pair.set", "kernel.admin.nested_run.depth.set", "kernel.nested_failure.retry", "kernel.nested_failure.dismiss",
       // The posting mode (plan 2B Task 33, R33-5): the assistant cannot change the ledger's guarantee.
       "accounting.posting_mode.set",
+      // The DIAN verification checklist (plan 2B Task 35, R35-6e): the assistant cannot tick an item nor set the confirmation the production
+      // guard reads (rule 17, owner); invoicing.settings.update stays a tool (it cannot touch the flag any more).
+      "invoicing.dian_checklist.tick", "invoicing.dian_defaults.confirm",
     ];
     for (const id of never) {
       expect(() => registry.process(id), id).not.toThrow();
@@ -64,6 +67,8 @@ describe("the assistant's tool candidates", () => {
       expect(offered.has(id), id).toBe(true);
     }
     for (const id of ["invoicing.invoice.void", "payments.payment.void", "inventory.adjustment.post"]) expect(registry.process(id).sensitivity, id).toBe("step-up");
+    // Task 35: the settings update is still a tool, and its input no longer carries the DIAN defaults flag.
+    expect(JSON.stringify(inputJsonSchema(registry.process("invoicing.settings.update").input))).not.toContain("dianDefaultsConfirmed");
   });
 
   it("every exclusion names a registered process and says why", () => {

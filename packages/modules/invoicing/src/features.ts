@@ -36,7 +36,7 @@ export const NAVIGATION: NavItem[] = menuSections("invoicing", {
     { id: "invoicing.pending", label: "nav.invoicing.pending", href: "/invoicing/pending", icon: "list-checks", feature: "invoicing.invoices", entity: "invoicing.pending_line", runs: ["invoicing.invoice.from_orders"] },
   ],
   parametros: [
-    { id: "invoicing.settings", label: "nav.invoicing.settings", href: "/invoicing/settings", icon: "sliders", feature: "invoicing.settings", entity: "invoicing.settings", runs: ["invoicing.certificate.", "invoicing.software_pin.", "core.document_sequence.register"] },
+    { id: "invoicing.settings", label: "nav.invoicing.settings", href: "/invoicing/settings", icon: "sliders", feature: "invoicing.settings", entity: "invoicing.settings", runs: ["invoicing.certificate.", "invoicing.software_pin.", "invoicing.dian_checklist.", "invoicing.dian_defaults.", "core.document_sequence.register"] },
   ],
 });
 
@@ -57,7 +57,7 @@ export const FEATURES: FeatureDef[] = [
     id: "invoicing.settings",
     label: "feature.invoicing.settings",
     processes: ids(SETTINGS_PROCESSES),
-    entities: ["invoicing.settings"],
+    entities: ["invoicing.settings", "invoicing.dian_check"],
     nav: nav("invoicing.settings"),
   },
 ];

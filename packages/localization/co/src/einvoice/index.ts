@@ -17,3 +17,4 @@ export type { DianEnvironment, DIANResponse } from "./soap-client";
 export { assertTransportEnvironment, createEInvoiceTransport, DianSoapTransport, EInvoiceEnvironmentMismatchError } from "./transport";
 export type { DianSoapTransportOptions, EInvoiceTransportKind } from "./transport";
 export { einvoicePack } from "./pack";
+export { DIAN_CHECKLIST, DIAN_CHECKLIST_GROUPS } from "./dian-checklist";

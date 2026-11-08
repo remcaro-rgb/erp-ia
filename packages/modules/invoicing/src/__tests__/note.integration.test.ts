@@ -6,7 +6,7 @@ import { loadModules, registry as appRegistry, setEInvoiceTransport, setFileStor
 import { MemoryFileStore } from "@erp/kernel/testing";
 import { einvoicePack, saveCertificate, verifySignedInvoice } from "@erp/loc-co/einvoice";
 import { generateTestCertP12 } from "../../../../localization/co/src/__tests__/helpers/test-cert";
-import { invoicingHarness, MODULES, type Harness, type InvoiceOut } from "./helpers";
+import { DIAN_CHECKLIST_VERSION, invoicingHarness, MODULES, type Harness, type InvoiceOut } from "./helpers";
 import noteAnnulmentRule from "../rules/note-annulment-issued.json" with { type: "json" };
 import noteCreditRule from "../rules/note-credit-issued.json" with { type: "json" };
 import noteDebitRule from "../rules/note-debit-issued.json" with { type: "json" };
@@ -714,7 +714,7 @@ describe("a note follows its invoice's DIAN environment (Task 19 fix round 2)", 
     const invoice = await acceptedInvoice();
     const [cafeLine] = await linesOfInvoice(invoice.id);
     const draft = await creditNote(invoice.id, [{ invoiceLineId: cafeLine!.id, qty: 1 }]);
-    await h.sql`update invoicing.settings set software_id = coalesce(software_id, '56f2ae4e-9812-4fad-9255-08fcfcd5ccb0'), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_environment = 'produccion' where company_id = ${h.companyId}`;
+    await h.sql`update invoicing.settings set software_id = coalesce(software_id, '56f2ae4e-9812-4fad-9255-08fcfcd5ccb0'), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_checklist_version = ${DIAN_CHECKLIST_VERSION}, dian_environment = 'produccion' where company_id = ${h.companyId}`;
     try {
       const issued = await h.run<NoteOut>(h.admin, "invoicing.note.issue", { id: draft.id });
       const [row] = await h.sql<{ dian_environment: string }[]>`select dian_environment from invoicing.notes where id = ${issued.id}`;

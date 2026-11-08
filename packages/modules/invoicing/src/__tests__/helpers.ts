@@ -38,6 +38,18 @@ export interface InvoiceOut { id: string; number: string | null; cufe: string | 
 
 export type Harness = Awaited<ReturnType<typeof invoicingHarness>>;
 
+/**
+ * Plan 2B Task 35 (R35-13): the DIAN defaults are confirmed through the checklist, never by an input of the settings update: one `tick` run
+ * for every item of the pack's list, then `confirm(true)`, each behind its own step-up code (the fixtures that need the confirmation).
+ */
+export async function tickAllAndConfirm(h: Pick<Harness, "runStepUp">): Promise<void> {
+  await h.runStepUp("invoicing.dian_checklist.tick", { items: einvoicePack.dianChecklist.items.map((item) => ({ itemKey: item.key, ticked: true })) });
+  await h.runStepUp("invoicing.dian_defaults.confirm", { confirmed: true });
+}
+
+/** The list version the confirmation stamps (for the fixtures that set the column by service SQL to reach producción quickly). */
+export const DIAN_CHECKLIST_VERSION = einvoicePack.dianChecklist.version;
+
 export async function invoicingHarness(options: { entitlements?: string[] } = {}) {
   const sql = testDb();
   registerCountryPack({ ...co, einvoice: einvoicePack });

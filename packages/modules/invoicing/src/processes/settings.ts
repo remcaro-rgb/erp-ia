@@ -3,33 +3,29 @@ import { z } from "zod";
 import { DIAN_ENVIRONMENTS, INVOICE_CREATION } from "../entities";
 import { softwarePinSecret } from "../einvoice-secrets";
 import { FEATURE_SETTINGS, id, packOf, refuseState, requireCompanyAdmin, settingsOf } from "./common";
+import { DIAN_CHECKLIST_PROCESSES, effectiveConfirmation, pendingMessage } from "./dian-checklist";
 import { ADMIN_ONLY, certificateStatus, PARAMETROS_PROCESSES } from "./parametros";
 
 // Parámetros de facturación (plan 2B Task 16; the page is Task 19): how invoices are created (OD-2: manual, on_delivery,
 // on_order_confirmation; default manual), the DIAN environment the CUFE names, the default cost center of the revenue line and the days of
 // credit of a sale on credit. STEP-UP: switching to an automatic mode makes invoices that post by themselves.
 // Producción (Task 19; Tasks 17/18 carry-overs) is reached only when everything the real DIAN needs is in place, checked here:
-//   1. the DIAN defaults confirmed (dian_defaults_confirmed, false by default and set only here): CreditNoteTypeCode 91 on every credit note,
-//      CustomizationID 10 on export invoices and no InvoiceControl on notes are what the documents carry until the DIAN asks otherwise;
+//   1. the DIAN defaults confirmed (Task 35: the confirmation of the DIAN verification checklist, set only by invoicing.dian_defaults.confirm
+//      once every item of the pack's list is ticked, effective while the list has not grown; see processes/dian-checklist.ts): the values the
+//      documents carry (CreditNoteTypeCode 91, CustomizationID 10 on exports, no InvoiceControl on notes…) until the DIAN asks otherwise;
 //   2. the configured transport serves producción (EINVOICE_TRANSPORT=dian-produccion, or an installed override that says so): the mock, the
 //      default of CI and Docker, and habilitación never send a producción document (the workflow checks it again on every sending);
 //   3. the software registered with the DIAN, the signing certificate and the software PIN (both in the secret store).
 // Back to habilitación is always allowed; while in producción the confirmation cannot be withdrawn (the database holds it too: 0101).
 
-/** The DIAN defaults the company confirms before producción (Task 18: what the DIAN may still ask to change). */
-const DIAN_DEFAULTS = [
-  "Las notas crédito se envían con el tipo 91 (CreditNoteTypeCode)",
-  "Las facturas de exportación se envían con CustomizationID 10",
-  "Las notas crédito y débito se envían sin InvoiceControl (sin resolución de numeración)",
-];
-
 /** Producción only with the defaults confirmed, a transport that serves it, the software, the certificate and the PIN. */
-async function assertProductionReady(ctx: ProcessContext, confirmed: boolean, softwareId: string | null): Promise<void> {
-  if (!confirmed) {
-    refuseState("dian_defaults_unconfirmed", [
-      "Confirma los valores por defecto del documento electrónico antes de pasar a producción: " + DIAN_DEFAULTS.join("; "),
-      ...DIAN_DEFAULTS,
-    ]);
+async function assertProductionReady(ctx: ProcessContext, softwareId: string | null, alreadyInProduction: boolean): Promise<void> {
+  // The effective confirmation (R35-7). A company already in producción when the list grows keeps operating (R35-8): the stored flag it
+  // cannot lower (0101) stands for the checks that follow every save, and the screen asks for the new items; reaching producción needs the
+  // effective one.
+  const confirmation = await effectiveConfirmation(ctx);
+  if (!confirmation.effective && !(alreadyInProduction && confirmation.stored)) {
+    refuseState("dian_defaults_unconfirmed", [pendingMessage(confirmation), ...confirmation.pending.map((item) => item.es)]);
   }
   const { einvoice } = await packOf(ctx);
   const secrets = secretStore();
@@ -83,8 +79,6 @@ export const settingsUpdate = defineProcess({
     issuerTaxScheme: z.enum(["01", "04", "ZA", "ZZ"]).optional(),
     issuerDepartmentCode: z.string().regex(/^[0-9]{2}$/).nullable().optional(),
     issuerMunicipalityCode: z.string().regex(/^[0-9]{5}$/).nullable().optional(),
-    /** The DIAN defaults confirmed (Task 18's list): required for producción. */
-    dianDefaultsConfirmed: z.boolean().optional(),
   }).strict(),
   output: z.object({
     id: z.string(),
@@ -99,14 +93,12 @@ export const settingsUpdate = defineProcess({
     issuerTaxScheme: z.string(),
     issuerDepartmentCode: z.string().nullable(),
     issuerMunicipalityCode: z.string().nullable(),
-    dianDefaultsConfirmed: z.boolean(),
   }),
   handler: async (ctx, input) => {
     await requireCompanyAdmin(ctx, ADMIN_ONLY);
     const current = await settingsOf(ctx);
     const [stored] = await ctx.tx<Record<string, unknown>[]>`
-      select software_id, software_provider_tax_id, test_set_id, issuer_tax_responsibilities, issuer_tax_scheme, issuer_department_code, issuer_municipality_code,
-             dian_defaults_confirmed
+      select software_id, software_provider_tax_id, test_set_id, issuer_tax_responsibilities, issuer_tax_scheme, issuer_department_code, issuer_municipality_code
       from invoicing.settings where company_id = ${ctx.companyId}`;
     const keep = <T>(given: T | undefined, column: string, fallback: unknown = null) => (given === undefined ? (stored?.[column] ?? fallback) : given);
     const submission = {
@@ -123,9 +115,9 @@ export const settingsUpdate = defineProcess({
       dian_environment: input.dianEnvironment ?? current.dianEnvironment,
       default_cost_center_id: input.defaultCostCenterId === undefined ? current.defaultCostCenterId : input.defaultCostCenterId,
       credit_days: input.creditDays ?? current.creditDays,
-      dian_defaults_confirmed: input.dianDefaultsConfirmed ?? ((stored?.dian_defaults_confirmed as boolean | undefined) ?? false),
     };
-    if (next.dian_environment === "produccion") await assertProductionReady(ctx, next.dian_defaults_confirmed, submission.software_id as string | null);
+    // The confirmation of the DIAN defaults is no input and no column of this update (Task 35): only the checklist's processes write it.
+    if (next.dian_environment === "produccion") await assertProductionReady(ctx, submission.software_id as string | null, current.dianEnvironment === "produccion");
     // An upsert's CHECK runs on the row it proposes to insert (no certificate there), so the row is made first and then updated: the
     // database's producción guard (0105) judges the row as it ends up.
     await ctx.tx`insert into invoicing.settings ${ctx.tx({ company_id: ctx.companyId } as never)} on conflict (company_id) do nothing`;
@@ -138,7 +130,6 @@ export const settingsUpdate = defineProcess({
       testSetId: submission.test_set_id as string | null, issuerTaxResponsibilities: submission.issuer_tax_responsibilities as string[],
       issuerTaxScheme: submission.issuer_tax_scheme as string, issuerDepartmentCode: submission.issuer_department_code as string | null,
       issuerMunicipalityCode: submission.issuer_municipality_code as string | null,
-      dianDefaultsConfirmed: next.dian_defaults_confirmed,
     };
   },
 });
@@ -154,10 +145,19 @@ export const settingsConsult = defineProcess({
   handler: async (ctx) => {
     const [row] = await ctx.tx`select * from invoicing.v_settings where company_id = ${ctx.companyId}`;
     const defaults = await settingsOf(ctx);
+    const confirmation = await effectiveConfirmation(ctx);
+    // Task 35 (R35-7): the confirmation as it counts (the stored flag at the list's current version with every item ticked), the stored
+    // version and the list's current one. A hidden flag stays hidden (rule 14).
+    const checklist = { dian_checklist_current_version: confirmation.list.version };
     // Task 19 fix round 1: the metadata reconciled with the certificate actually stored (see processes/parametros.ts).
-    if (row) return { ...row, configured: true, certificate_status: await certificateStatus(ctx, (row.certificate_fingerprint as string | null) ?? null) };
-    return { configured: false, invoice_creation: defaults.invoiceCreation, dian_environment: defaults.dianEnvironment, default_cost_center_id: null, credit_days: defaults.creditDays };
+    if (row) {
+      return {
+        ...row, configured: true, certificate_status: await certificateStatus(ctx, (row.certificate_fingerprint as string | null) ?? null),
+        dian_defaults_confirmed: row.dian_defaults_confirmed === null ? null : confirmation.effective, ...checklist,
+      };
+    }
+    return { configured: false, dian_defaults_confirmed: false, dian_checklist_version: null, ...checklist, invoice_creation: defaults.invoiceCreation, dian_environment: defaults.dianEnvironment, default_cost_center_id: null, credit_days: defaults.creditDays };
   },
 });
 
-export const SETTINGS_PROCESSES = [settingsUpdate, settingsConsult, ...PARAMETROS_PROCESSES];
+export const SETTINGS_PROCESSES = [settingsUpdate, settingsConsult, ...DIAN_CHECKLIST_PROCESSES, ...PARAMETROS_PROCESSES];

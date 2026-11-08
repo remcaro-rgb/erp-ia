@@ -13,6 +13,9 @@ processes:
   - invoicing.note.issue
   - invoicing.note.resubmit
   - invoicing.settings.update
+  - invoicing.dian_checklist.tick
+  - invoicing.dian_checklist.consult
+  - invoicing.dian_defaults.confirm
   - invoicing.certificate.upload
   - invoicing.software_pin.set
   - core.document_sequence.register
@@ -151,14 +154,11 @@ Cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar 
 - El **ambiente DIAN**: **Habilitación** mientras se hacen las pruebas con la DIAN, **Producción** después.
 - El **identificador del software** que la empresa registró ante la DIAN, el **NIT del proveedor del software** (sin dígito de verificación) y, en habilitación, el **identificador del set de pruebas**.
 - El perfil fiscal del emisor: **responsabilidades fiscales** (códigos separados por comas), **tributo**, y los códigos DANE del **departamento** y el **municipio**.
-- **Confirmo los valores por defecto del documento electrónico**: el sistema envía hoy estos valores, que la DIAN podría pedir cambiar al revisar la habilitación:
-  - las notas crédito van con el tipo **91** (CreditNoteTypeCode);
-  - las facturas de exportación van con **CustomizationID 10**;
-  - las notas crédito y débito van **sin InvoiceControl** (no llevan resolución de numeración).
+- **Valores por defecto DIAN: n de 23 verificados** (o **confirmados**) y el enlace **Abrir la lista de verificación**: los valores por defecto ya no se confirman con una casilla, sino en la **Lista de verificación DIAN** (más abajo).
 
 **Pasar a producción** solo se permite cuando todo está listo; si falta algo, el cambio se rechaza, la empresa sigue en habilitación y el mensaje dice qué falta:
 
-1. los valores por defecto confirmados (la casilla anterior; mientras la empresa esté en producción no se puede desmarcar);
+1. la **lista de verificación DIAN** confirmada y vigente (sección siguiente; mientras la empresa esté en producción no se puede retirar). Si falta, el mensaje dice cuántos valores quedan por verificar;
 2. el servidor configurado para enviar a la DIAN en producción (lo configura quien administra el servidor). El **simulador** de la DIAN y la conexión de **habilitación** nunca envían documentos de una empresa en producción: si el servidor no coincide con el ambiente de la empresa, el envío se detiene antes de mandar nada, con el error **«einvoice_environment_mismatch»**;
 3. el software registrado, el **certificado** y el **PIN**;
 4. el certificado **vigente** y el mismo que está guardado (si la página avisa que el certificado guardado no coincide, súbelo de nuevo).
@@ -166,6 +166,52 @@ Cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar 
 Volver a habilitación siempre se permite.
 
 Las **notas** crédito y débito se emiten en el ambiente de la factura que corrigen: una nota de una factura emitida en habilitación es también de habilitación, aunque la empresa ya esté en producción.
+
+### Lista de verificación DIAN
+
+Se abre desde **Conexión DIAN › Abrir la lista de verificación** (**Facturación › Parámetros › Facturación electrónica › Lista de verificación DIAN**; no tiene opción propia en el menú). Solo la abren los **administradores de la empresa**. Son los **23 valores** que los documentos llevan hoy, escritos según los anexos de la DIAN y probados con el simulador, que **nadie ha verificado todavía en la habilitación de la DIAN**. Antes de pasar a producción, el administrador verifica cada uno en la habilitación y lo marca; con los 23 marcados puede **Confirmar valores por defecto**, y solo así la empresa puede pasar a producción (además del servidor, el software, el certificado y el PIN).
+
+**Cómo se usa.** Marca las casillas (o usa **Seleccionar el grupo** para marcar un grupo entero) y pulsa **Marcar los seleccionados**: una sola ejecución, con **un** código de verificación, marca todo lo seleccionado. Bajo cada valor marcado verás **Verificado por** quién y cuándo. La barra muestra el avance (**n de 23 verificados**). **Confirmar valores por defecto** se habilita solo con los 23 marcados y sin cambios pendientes de guardar, y también pide el código; después la página dice **Valores confirmados el** (fecha) **por** (nombre).
+
+**Desmarcar.** Desmarcar cualquier valor (el botón pasa a **Guardar cambios**) deja sin efecto la confirmación en el mismo paso: la página avisa **Confirma de nuevo los valores por defecto** y, cuando vuelvan a estar los 23 marcados, se confirma otra vez. **En producción no se puede desmarcar** (la confirmación no se retira ahí): para cambiar la verificación, vuelve primero a habilitación. Cada marca y cada desmarca queda en la **auditoría** con quién, cuándo y desde dónde.
+
+**Cuando llega un valor nuevo.** Si una versión del sistema agrega un valor a la lista, la confirmación anterior **deja de valer en ese momento**: el valor nuevo aparece con la etiqueta **Nuevo** y un aviso rojo (**Hay n valores nuevos por verificar**). Marca los nuevos y confirma de nuevo. Una empresa que **ya está en producción** sigue enviando documentos con normalidad (el aviso solo le pide verificar los valores nuevos); pasar a producción otra empresa necesita la confirmación vigente.
+
+**Qué verifica el administrador en cada valor.** En la habilitación de la DIAN, comprueba que el documento que el sistema arma sea aceptado con:
+
+1. **Notas y tipos de documento**
+   - **Tipo 91 en las notas crédito** (CreditNoteTypeCode nacional): que la DIAN acepte una nota crédito nacional con ese tipo.
+   - **CustomizationID 10 en las exportaciones**: que acepte ese valor en facturas y notas de exportación (el ejemplo de la DIAN v1.9 usa 04 y 11).
+   - **Sin DebitNoteTypeCode en exportación**: que acepte una nota débito de exportación sin ese código.
+   - **Sin InvoiceControl en las notas**: que acepte notas crédito y débito sin esa extensión.
+   - **Numeración de las notas con la forma de una resolución**: que acepte la numeración de notas que el sistema reutiliza.
+2. **Firma y software**
+   - **SoftwareSecurityCode con el número del documento**: que acepte el tercer elemento como número del documento (otro sistema usaba el NIT).
+   - **Sin sts:QRCode**: que acepte las extensiones sin ese elemento (el Anexo 1.8 o posterior puede exigirlo).
+   - **Canonicalización de la firma**: que valide la firma tal como se escribe.
+3. **Respuesta de la DIAN y reenvío**
+   - **Mapa de códigos 00 / 66 / 90 / 98 / 99**: que cada código signifique lo que el sistema supone, y si el 90 es «nunca recibido».
+   - **GetStatus con el CUFE como trackId**: que la consulta con el CUFE devuelva el estado.
+   - **Reenvío de un rechazado con el mismo número y CUFE**: que lo reciba como el mismo documento corregido.
+   - **Pérdida del ZipKey en el set de pruebas asíncrono**: que el envío quede **en duda** (aviso «submission_in_doubt») y se pueda verificar en el portal.
+   - **Espera entre consultas**: que 20 consultas (cerca de 2,5 horas) alcancen para recibir la respuesta.
+4. **Impuestos e importes**
+   - **Muestras gratis**: que acepte el TaxTotal y el AlternativeConditionPrice de una línea de muestra.
+   - **Otros impuestos por unidad**: que acepte PerUnitAmount y BaseUnitMeasure.
+   - **TaxExclusiveAmount con líneas excluidas y ZZ**: que el total sin impuestos cuadre.
+5. **Medios de pago y compradores**
+   - **Subconjunto de la tabla 13.3.4.2** (1, 10, 20, 42, 47, 48, 49, 71, ZZZ): que los medios que usa la empresa estén aceptados.
+   - **Documentos de compradores extranjeros reducidos a dígitos**: que acepte esos números.
+   - **Exportación = país del cliente distinto del de la empresa**: que la DIAN trate así esas facturas.
+6. **Perfil fiscal del emisor**
+   - **Perfil del emisor** (O-13 / R-99-PN, tributo 01 o ZZ, códigos DANE): que coincida con el RUT de la empresa; el sistema lo revisa solo al armar el documento.
+7. **Infraestructura**
+   - **Estado de las ejecuciones durables** en los entornos de Vercel y de Postgres: lo verifica quien administra el servidor (solo se probó en el entorno de pruebas en proceso).
+8. **Tablas de referencia**
+   - **Valores de la UVT 2023 y 2024**: se escribieron de memoria y hoy no se usan; confirma que ninguna regla de la empresa los necesite.
+   - **Tarifas de otros impuestos** (bolsas, ICL, IBUA, ICUI, carbono): no están cargadas; confirma que la empresa no los facture, o pide cargarlas.
+
+El asistente **no** marca estos valores ni confirma los valores por defecto: es una decisión del administrador, con su código de verificación, en esta página.
 
 ### Resolución y numeración
 

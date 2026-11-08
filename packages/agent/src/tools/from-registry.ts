@@ -40,6 +40,10 @@ export const EXCLUDED_PROCESSES: ReadonlyMap<string, string> = new Map([
   ["kernel.nested_failure.dismiss", "closes a queued nested failure chosen on the failure queue screen; the chat does not see the queue"],
   // Plan 2B Task 33 (R33-5): the posting mode decides whether a documento may exist without its entry; the assistant cannot change that guarantee.
   ["accounting.posting_mode.set", "changes whether documents post inline and strict or asynchronously; only the Mapeo de cuentas screen sets it, under step-up"],
+  // Plan 2B Task 35 (R35-6e, owner): the confirmation of the DIAN defaults gates producción and is a person's, behind a fresh code on the
+  // screen; the assistant can neither tick the checklist nor set the flag (settings.update no longer carries it).
+  ["invoicing.dian_checklist.tick", "ticks or unticks the DIAN verification checklist; only the admin on the checklist screen, under step-up, verifies a value against the DIAN"],
+  ["invoicing.dian_defaults.confirm", "sets the confirmation of the DIAN defaults that gates producción; only the admin on the checklist screen, under step-up"],
 ]);
 
 /**

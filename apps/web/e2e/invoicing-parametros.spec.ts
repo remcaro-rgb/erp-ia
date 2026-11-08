@@ -9,12 +9,14 @@ import { generateTestCertP12 } from "../../../packages/localization/co/src/__tes
 // resolution of invoices and the numbering of credit notes, uploads the signing certificate (a self-signed test certificate generated here,
 // written only to the test's own output folder, never committed) and the software PIN, each behind the verification code; the page shows
 // what the certificate says of itself (subject, serial, expiry), never its content; producción is refused while the DIAN defaults are not
-// confirmed; «Reintentar todos» sweeps the invoices that waited for the software. A user who is not an administrator cannot open the page.
+// confirmed (the checklist's own spec, invoicing-dian-checklist, ticks and confirms them: Task 35); «Reintentar todos» sweeps the invoices that waited for the software. A user who is not an administrator cannot open the page.
 
 const NIT = "900373115";
 const PROCESSES = [
   "invoicing.settings.consult", "invoicing.settings.update", "invoicing.certificate.upload", "invoicing.software_pin.set",
   "invoicing.invoice.resubmit_failed", "core.document_sequence.register",
+  // Task 35: the DIAN verification checklist.
+  "invoicing.dian_checklist.tick", "invoicing.dian_checklist.consult", "invoicing.dian_defaults.confirm",
 ];
 
 const grantAll = async (fixture: AuthFixture, roleName: "admin" | "member") => {
@@ -129,11 +131,16 @@ test.describe("Parámetros de facturación electrónica", () => {
     await expect(pin.getByRole("status")).toHaveText("PIN guardado");
     await expect(pin.getByLabel("PIN del software")).toHaveValue("");
 
-    // Producción while the DIAN defaults are not confirmed: refused, the company stays in habilitación.
+    // Task 35: the old checkbox is gone; the card shows the checklist's progress and a link to it.
+    await expect(dian.getByRole("checkbox")).toHaveCount(0);
+    await expect(dian.getByText("Valores por defecto DIAN: 0 de 23 verificados")).toBeVisible();
+    await expect(dian.getByRole("link", { name: "Abrir la lista de verificación" })).toHaveAttribute("href", "/invoicing/settings/checklist");
+
+    // Producción while the DIAN defaults are not confirmed: refused (naming the checklist), the company stays in habilitación.
     await dian.getByLabel("Ambiente DIAN").selectOption({ label: "Producción" });
     await dian.getByRole("button", { name: "Guardar conexión" }).click();
     await confirmStepUp(page, secret);
-    await expect(dian.getByRole("alert")).toContainText("Confirma los valores por defecto");
+    await expect(dian.getByRole("alert")).toContainText("Verifica los 23 valores pendientes en la lista de verificación DIAN");
     const [settings] = await admin.sql<{ dian_environment: string; dian_defaults_confirmed: boolean }[]>`
       select dian_environment, dian_defaults_confirmed from invoicing.settings where company_id = ${companyId}`;
     expect(settings).toEqual({ dian_environment: "habilitacion", dian_defaults_confirmed: false });

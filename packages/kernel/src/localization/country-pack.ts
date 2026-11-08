@@ -201,7 +201,29 @@ export type DrawnDocumentNumber =
 /** A postgres.js-style transaction (tagged template). */
 export type PackTx = (strings: TemplateStringsArray, ...values: never[]) => PromiseLike<readonly Record<string, unknown>[]>;
 
+/**
+ * One row of the DIAN verification checklist (plan 2B Task 35): a value the documents carry that was written against the DIAN's annexes and
+ * never verified in habilitación. The company's admin ticks it once verified. `since` is the list version that introduced it (the list's
+ * `version` is the highest `since`), `es` and `en` its text, `docUrl` an optional https link to the DIAN's documentation.
+ */
+export interface DianChecklistItem {
+  key: string;
+  group: string;
+  since: number;
+  es: string;
+  en: string;
+  docUrl?: string;
+}
+
+/** The checklist of a country pack; adding a row raises `version`, which clears every confirmation made at an earlier one. */
+export interface DianChecklist {
+  version: number;
+  items: readonly DianChecklistItem[];
+}
+
 export interface EInvoicePack {
+  /** The DIAN verification checklist the company's admin ticks before producción (plan 2B Task 35, R35-2). */
+  dianChecklist: DianChecklist;
   /**
    * Draws the next consecutive number of the company's resolution for `type`, valid on `issuedAt`, in the caller's transaction (the
    * increment commits or rolls back with it: a refused issue leaves no gap). Refusals carry the resolution's data.

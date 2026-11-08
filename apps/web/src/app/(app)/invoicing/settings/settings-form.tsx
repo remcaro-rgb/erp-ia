@@ -1,11 +1,9 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { StepUpPrompt } from "@erp/ui";
-import { requestStepUp } from "@/lib/auth/step-up-client";
-import { runInvoicingSettingsAction, type InvoicingSettingsAction } from "@/lib/invoicing/actions";
+import { useAction } from "./use-action";
 
 // Parámetros › Facturación electrónica (plan 2B Task 19). One card per concern, each saved by its own button through its own process; every
 // save but «Reintentar todos» asks for the verification code (StepUpPrompt) and sends the same input again with the token. The certificate
@@ -15,7 +13,8 @@ export interface SettingsView {
   invoiceCreation: string;
   dianEnvironment: string;
   creditDays: number;
-  dianDefaultsConfirmed: boolean;
+  /** The DIAN verification checklist (Task 35): the confirmation as it counts (effective), the ticks and the items added since it was made. */
+  checklist: { confirmed: boolean; done: number; total: number; newCount: number } | null;
   softwareId: string | null;
   softwareProviderTaxId: string | null;
   testSetId: string | null;
@@ -34,8 +33,6 @@ export interface NumberingRow {
   nextNumber: number;
   resolution: { number: string; from: number; to: number; validFrom: string; validTo: string; technicalKeyEnding: string } | null;
 }
-
-type Message = { ok: boolean; text: string } | null;
 
 function Card({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   const id = useId();
@@ -78,7 +75,6 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
 
   // Conexión DIAN
   const [environment, setEnvironment] = useState(settings.dianEnvironment);
-  const [confirmed, setConfirmed] = useState(settings.dianDefaultsConfirmed);
   const [softwareId, setSoftwareId] = useState(settings.softwareId ?? "");
   const [providerTaxId, setProviderTaxId] = useState(settings.softwareProviderTaxId ?? "");
   const [testSetId, setTestSetId] = useState(settings.testSetId ?? "");
@@ -118,7 +114,6 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
   const saveConnection = () =>
     void connection.run({
       dianEnvironment: environment,
-      dianDefaultsConfirmed: confirmed,
       softwareId: orNull(softwareId),
       softwareProviderTaxId: orNull(providerTaxId),
       testSetId: orNull(testSetId),
@@ -220,16 +215,17 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
             <input id={`${f}-muni`} value={municipality} inputMode="numeric" maxLength={5} onChange={(e) => setMunicipality(e.target.value)} autoComplete="off" />
           </Field>
         </div>
-        <div className="erp-field">
-          <label className="erp-row">
-            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
-            <span>{t("defaults_confirm")}</span>
-          </label>
-          <ul className="erp-small erp-muted">
-            <li>{t("defaults_credit_note_type")}</li>
-            <li>{t("defaults_export_customization")}</li>
-            <li>{t("defaults_notes_without_control")}</li>
-          </ul>
+        {/* Task 35: the DIAN defaults are confirmed on the checklist's own screen (the settings update no longer carries the flag). */}
+        <div className="erp-field" data-testid="dian-defaults">
+          {settings.checklist && (
+            <p>
+              <b>{settings.checklist.confirmed ? t("dian_defaults_confirmed_status") : t("dian_defaults_progress", { done: settings.checklist.done, total: settings.checklist.total })}</b>
+            </p>
+          )}
+          {settings.checklist && settings.checklist.newCount > 0 && (
+            <div role="alert" className="erp-dian erp-dian--bad">{t("dian_defaults_new", { count: settings.checklist.newCount })}</div>
+          )}
+          <Link className="erp-link" href="/invoicing/settings/checklist">{t("open_checklist")}</Link>
           <p className="erp-small erp-muted">{t("production_hint")}</p>
         </div>
         {connection.feedback}
@@ -371,52 +367,4 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
       </Card>
     </div>
   );
-}
-
-/** One process behind one button: the step-up round trip, the busy flag and the card's message. */
-function useAction(action: InvoicingSettingsAction, okText: (data: Record<string, unknown>) => string) {
-  const te = useTranslations("errors");
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [stepUp, setStepUp] = useState<{ input: Record<string, unknown>; then?: (data: Record<string, unknown>) => void } | null>(null);
-  const [stepUpError, setStepUpError] = useState<string | null>(null);
-  const [message, setMessage] = useState<Message>(null);
-  const run = async (input: Record<string, unknown>, then?: (data: Record<string, unknown>) => void, token?: string) => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const outcome = await runInvoicingSettingsAction(action, input, token);
-      if (outcome.ok) {
-        setStepUp(null);
-        setMessage({ ok: true, text: okText(outcome.data) });
-        then?.(outcome.data);
-        router.refresh();
-      } else if (outcome.code === "step_up_required") {
-        setStepUp({ input, ...(then ? { then } : {}) });
-      } else {
-        setStepUp(null);
-        setMessage({ ok: false, text: outcome.messages.length > 0 ? outcome.messages.join(" · ") : te.has(outcome.code) ? te(outcome.code) : te("unknown") });
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-  const confirm = async (code: string) => {
-    if (!stepUp) return;
-    setStepUpError(null);
-    const answer = await requestStepUp(code);
-    if ("error" in answer) setStepUpError(answer.error);
-    else await run(stepUp.input, stepUp.then, answer.token);
-  };
-  const feedback = (
-    <>
-      {stepUp && <StepUpPrompt onConfirm={(code) => void confirm(code)} onCancel={() => setStepUp(null)} error={stepUpError} busy={busy} />}
-      {message && (
-        <div className={message.ok ? "erp-dian erp-dian--ok" : "erp-dian erp-dian--bad"} role={message.ok ? "status" : "alert"}>
-          {message.text}
-        </div>
-      )}
-    </>
-  );
-  return { run, busy: busy || stepUp !== null, feedback };
 }

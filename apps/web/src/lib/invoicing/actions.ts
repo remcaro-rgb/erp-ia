@@ -7,7 +7,7 @@ import { issuesOf } from "@/lib/records/issues";
 import { processDeps } from "@/lib/server/runtime";
 
 // Parámetros › Facturación electrónica (plan 2B Task 19, rule 1): every button of the page runs a registered process as the session's user,
-// with the step-up token when the user just verified one (all but «Reintentar todos» are sensitive, rule 15). The page names WHAT it saves;
+// with the step-up token when the user just verified one (all but «Reintentar todos» are sensitive, rule 15; the checklist's tick and confirm too). The page names WHAT it saves;
 // the server picks the process from this list (the client never names a process). A refusal comes back as data for the form, its messages
 // in Spanish; `step_up_required` makes the page ask for the code and send the same input again. The certificate and the PIN go from the
 // form to their process and no further: nothing here logs or answers them (rule 12).
@@ -18,6 +18,9 @@ const ACTIONS = {
   certificate: "invoicing.certificate.upload",
   pin: "invoicing.software_pin.set",
   resubmit: "invoicing.invoice.resubmit_failed",
+  // Task 35: the DIAN verification checklist (its screen) and the confirmation of the defaults.
+  tick: "invoicing.dian_checklist.tick",
+  confirm: "invoicing.dian_defaults.confirm",
 } as const;
 
 export type InvoicingSettingsAction = keyof typeof ACTIONS;

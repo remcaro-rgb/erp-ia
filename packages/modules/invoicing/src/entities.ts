@@ -88,6 +88,9 @@ export const settingsEntity: EntityDef = entity("invoicing.settings", "parametro
   // InvoiceControl on notes); the signing certificate and the software PIN live in the secret store (rule 12): the settings keep only what
   // the certificate says of itself (subject, NIT, issuer, serial, validity) and when each was uploaded, never their content.
   f("dian_defaults_confirmed", "boolean", { required: true }),
+  // Task 35 (R35-7): the version of the DIAN checklist the confirmation was made at (null when not confirmed). The confirmation counts only
+  // while it equals the pack's current version and every item is ticked.
+  f("dian_checklist_version", "number"),
   f("certificate_subject", "text"),
   f("certificate_tax_id", "text"),
   f("certificate_issuer", "text"),
@@ -237,6 +240,17 @@ export const submissionEntity: EntityDef = entity("invoicing.einvoice_submission
   ...trailer(f),
 ], { defaultSort: { field: "seq", dir: "desc" } });
 
+// invoicing.dian_check (sistema, plan 2B Task 35): one row per item of the pack's DIAN checklist ever ticked in the company: who verified it and
+// when. An untick keeps the row (ticked false, nobody, no time): the row audit holds every change. Only invoicing.dian_checklist.tick writes it.
+export const dianCheckEntity: EntityDef = entity("invoicing.dian_check", "sistema", "dian_checks", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("item_key", "text", { required: true, searchable: true }),
+  f("ticked", "boolean", { required: true }),
+  f("ticked_by", "uuid"),
+  f("ticked_at", "datetime"),
+  ...trailer(f),
+], { defaultSort: { field: "seq", dir: "asc" } });
+
 /** Credit or debit (DIAN tables 13.1.5.2 / 13.1.5.3). */
 export const NOTE_KINDS = ["credit", "debit"] as const;
 export type NoteKind = (typeof NOTE_KINDS)[number];
@@ -366,5 +380,5 @@ export const pendingLineEntity: EntityDef = {
 
 export const INVOICING_ENTITIES: EntityDef[] = [
   settingsEntity, invoiceEntity, invoiceLineEntity, invoiceTaxEntity, recommendationEntity, submissionEntity, noteEntity, noteLineEntity, noteTaxEntity,
-  pendingLineEntity,
+  pendingLineEntity, dianCheckEntity,
 ];

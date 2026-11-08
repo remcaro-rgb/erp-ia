@@ -8,7 +8,7 @@ import { generateTestCertP12 } from "../../../../localization/co/src/__tests__/h
 import { pdfText } from "../../../../kernel/src/templates/__tests__/pdf-text";
 import { softwarePinSecret } from "../einvoice-secrets";
 import { einvoiceSubmission } from "../workflows/einvoice.workflow";
-import { invoicingHarness, MODULES, registry, type Harness, type InvoiceOut } from "./helpers";
+import { DIAN_CHECKLIST_VERSION, invoicingHarness, MODULES, registry, type Harness, type InvoiceOut } from "./helpers";
 
 // The DIAN submission of an issued invoice (plan 2B Task 17; design §18a, §19, OD-1; Review Focus 2), on the MOCK transport only (the owner
 // has supplied no habilitación credentials): invoicing.invoice.issued → the e-invoice workflow builds the UBL document from the frozen
@@ -425,7 +425,7 @@ describe("e-invoice workflow on the mock DIAN", () => {
 
 describe("the transport serves the company's DIAN environment (Task 19)", () => {
   it("a company in producción is never sent through a mock or habilitación transport: the run fails with einvoice_environment_mismatch before anything is sent", async () => {
-    await h.sql`update invoicing.settings set software_id = coalesce(software_id, '56f2ae4e-9812-4fad-9255-08fcfcd5ccb0'), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_environment = 'produccion' where company_id = ${h.companyId}`;
+    await h.sql`update invoicing.settings set software_id = coalesce(software_id, '56f2ae4e-9812-4fad-9255-08fcfcd5ccb0'), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_checklist_version = ${DIAN_CHECKLIST_VERSION}, dian_environment = 'produccion' where company_id = ${h.companyId}`;
     try {
       const invoice = await issue();
       expect(await h.drain()).toEqual([]);
