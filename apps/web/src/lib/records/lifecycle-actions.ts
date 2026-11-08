@@ -65,7 +65,7 @@ export async function runRecordAction(
   entity: string,
   verb: GenericVerb,
   id: string,
-  input: { reason?: string; expectedUpdatedAt?: string },
+  input: { reason?: string; option?: boolean; expectedUpdatedAt?: string },
   stepUpToken?: string,
   idempotencyKey?: string,
 ): Promise<RecordActionOutcome & { status?: string; updatedAt?: string }> {
@@ -73,12 +73,16 @@ export async function runRecordAction(
   const body = {
     id,
     ...(verb === "reject" || verb === "void" ? { reason: input.reason?.trim() ?? "" } : {}),
+    // The void's optional question (Task 43: a shipped entrega's «¿Reservar de nuevo…?»): the entity's void process takes it as `reReserve`.
+    ...(verb === "void" && typeof input.option === "boolean" ? { reReserve: input.option } : {}),
     ...(typeof input.expectedUpdatedAt === "string" && input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}),
   };
-  const result = await perform(stepUpToken, (caller) => runProcess(processDeps(), caller, `${entity}.${verb}`, body, keyed(idempotencyKey)) as Promise<{ status?: string; number?: string; updatedAt?: string }>);
+  const result = await perform(stepUpToken, (caller) => runProcess(processDeps(), caller, `${entity}.${verb}`, body, keyed(idempotencyKey)) as Promise<{ status?: string; number?: string; updatedAt?: string; reReserve?: string }>);
   if (!result.ok) return result;
   const t = await getTranslations("common.record.actions");
-  return { ok: true, message: t("done"), ...(result.value.status ? { status: result.value.status } : {}), ...(result.value.updatedAt ? { updatedAt: result.value.updatedAt } : {}) };
+  // The promise of a re-reservation only when the server asked inventory for it (not_permitted and none read the neutral «Listo»).
+  const message = verb === "void" && input.option === true && result.value.reReserve === "asked" ? t("done_re_reserve") : t("done");
+  return { ok: true, message, ...(result.value.status ? { status: result.value.status } : {}), ...(result.value.updatedAt ? { updatedAt: result.value.updatedAt } : {}) };
 }
 
 /** Imprimir: the record's PDF with its template, as an export job the caller downloads by its signed link. */

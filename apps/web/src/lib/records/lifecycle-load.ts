@@ -58,6 +58,11 @@ export interface LoadedLifecycle {
   versionLabels: { header: Record<string, string>; lines: Record<string, string> };
   /** Admins: the record's access rules and who can get one; null for anyone else. */
   access: AccessView | null;
+  /**
+   * The question the void's reason row adds (plan 2B.2 Task 43, R43-7): only a shipped entrega, not yet voided, whose pedido is not cancelled
+   * offers «¿Reservar de nuevo las existencias para el pedido?», ticked by default. Absent for every other record.
+   */
+  voidOption?: { label: string; defaultChecked: boolean };
 }
 
 type Translate = (key: string) => string;
@@ -131,7 +136,12 @@ export async function loadLifecycle(caller: Caller, entity: EntityDef, record: (
         options: [...roles.map((r) => ({ kind: "role" as const, id: r.id, name: r.name })), ...users.map((u) => ({ kind: "user" as const, id: u.id, name: u.name }))],
       };
     }
-    return { menu, status, flags, access, authors, recipients, snapshots, headerNames, lineNames, accessView };
+    // Task 43 (R43-7): a shipped entrega's pedido, to know whether the void may offer to reserve the stock again (sales' own masked view).
+    const [order] =
+      entity.id === "sales.delivery" && record && typeof record.order_id === "string"
+        ? await tx<{ stage: string | null; status: string | null }[]>`select stage, status from sales.v_orders where id = ${record.order_id}::uuid`
+        : [];
+    return { menu, status, flags, access, authors, recipients, snapshots, headerNames, lineNames, accessView, order };
   });
 
   const show = (value: unknown, field: FieldDef | undefined): string => {
@@ -196,5 +206,8 @@ export async function loadLifecycle(caller: Caller, entity: EntityDef, record: (
       lines: Object.fromEntries((linesEntity?.fields ?? []).filter((f) => facts.lineNames.includes(f.name)).map((f) => [f.name, label(f)])),
     },
     access: facts.accessView,
+    ...(entity.id === "sales.delivery" && record?.stage === "shipped" && facts.status !== "voided" && facts.order && facts.order.stage !== "cancelled" && facts.order.status !== "voided"
+      ? { voidOption: { label: t("sales.view.void_reserve_question"), defaultChecked: true } }
+      : {}),
   };
 }

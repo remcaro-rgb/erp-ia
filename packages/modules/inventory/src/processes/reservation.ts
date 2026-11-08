@@ -2,6 +2,7 @@ import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { entityId, id, idInput, num, productFacts, qtyText, quantity, refuse } from "./common";
 import { lockStock } from "./movement";
+import { ORDER_LINE_SOURCE } from "./sales-orders";
 
 // Reservations (plan 2B Task 6, used by the sales orders of Task 13 through their events): stock promised to a source line until it is
 // delivered or released. inventory.reservation.create reserves `qty` of a product in a bodega for (sourceEntity, sourceLineId) and refuses
@@ -22,6 +23,15 @@ import { lockStock } from "./movement";
 // that has no reservation (a cancellation consumed before its confirmation, or a short line that reserved nothing) writes a released row
 // of the line, so a confirmation delivered after it finds a released reservation and, with `once`, reserves nothing. Events may arrive in
 // any order (a retried confirmation after its cancellation): the line ends unreserved either way.
+//
+// inventory.reservation.reserve_again (plan 2B.2 Task 43): the one run nested in inventory.sale.void_issue (the consumer of a voided
+// entrega that asked for it). The stock the voided issue brought back is promised again to the pedido lines by what the entrega had used up,
+// all or nothing per entrega: availability is summed per product over the entrega's lines (on hand of the bodega minus every active
+// reservation), and when any product is short NOTHING is reserved and the answer names each short product (a throw would roll back the stock
+// return of the void; the void itself never fails for this). A line's active reservation is topped up (one active row per source line); a
+// line whose reservation was released gets a new active row (the released one stays as history). A service or a product that keeps no stock
+// is skipped. R43-14: only the event's bodega is checked and locked, so a line whose active reservation is in another bodega is never topped up
+// (answered short). See docs/superpowers/plans/2026-11-03-phase-2b-sales-stock-chain.md, Task 43 (R43-1..R43-12).
 
 const FEATURE = "inventory.stock";
 
@@ -192,4 +202,76 @@ export const reservationConsult = defineProcess({
   },
 });
 
-export const RESERVATION_PROCESSES = [reservationCreate, reservationRelease, reservationConsult];
+const reserveAgainOutput = z.object({
+  status: z.enum(["reserved", "insufficient", "nothing"]),
+  lines: z.array(z.object({ orderLineId: z.string(), productId: z.string(), qty: z.number() })),
+  short: z.array(z.object({ productId: z.string(), sku: z.string(), needed: z.number(), available: z.number() })),
+});
+
+const round4 = (n: number) => Math.round(n * 1e4) / 1e4;
+
+export const reservationReserveAgain = defineProcess({
+  id: "inventory.reservation.reserve_again",
+  module: "inventory",
+  kind: "update",
+  recordAccess: "none",
+  feature: FEATURE,
+  origins: ["event"],
+  nestedOnlyFrom: ["inventory.sale.void_issue"],
+  description:
+    "Reserva de nuevo, para las líneas del pedido, las existencias que una entrega anulada devolvió a la bodega: todo o nada, solo si alcanzan. Solo corre dentro de la anulación de la salida de inventario de la entrega",
+  input: z.object({
+    deliveryId: id,
+    warehouseId: id,
+    lines: z.array(z.object({ orderLineId: id, productId: id, qty: positive }).strict()).max(500),
+  }).strict(),
+  output: reserveAgainOutput,
+  handler: async (ctx, input) => {
+    const facts = await productFacts(ctx, input.lines.map((l) => l.productId));
+    const tracked = input.lines.filter((l) => {
+      const p = facts.get(l.productId);
+      return p && p.kind !== "service" && p.trackStock;
+    });
+    if (tracked.length === 0) return { status: "nothing" as const, lines: [], short: [] };
+    const products = [...new Set(tracked.map((l) => l.productId))].sort();
+    // The same lock order as every movement and reservation (lockStock sorts the products).
+    await lockStock(ctx, input.warehouseId, products);
+    const stock = await ctx.tx<{ product_id: string; on_hand: string; reserved: string }[]>`
+      select p as product_id,
+             coalesce((select sum(on_hand) from inventory.stock_levels where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p), 0)::text as on_hand,
+             coalesce((select sum(qty - released_qty) from inventory.reservations where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p and status = 'active'), 0)::text as reserved
+      from unnest(${products}::uuid[]) as p`;
+    const short: z.output<typeof reserveAgainOutput>["short"] = [];
+    for (const s of stock) {
+      const needed = round4(tracked.filter((l) => l.productId === s.product_id).reduce((sum, l) => sum + l.qty, 0));
+      const available = round4(num(s.on_hand) - num(s.reserved));
+      if (needed > available) short.push({ productId: s.product_id, sku: facts.get(s.product_id)!.sku, needed, available: Math.max(available, 0) });
+    }
+    // R43-14: a reservation is only ever topped up in the bodega whose stock was checked and locked above. A line whose active reservation sits
+    // in another bodega (its entrega shipped from a different one) cannot be covered there without checking and locking that stock, and the
+    // one-active-row-per-line index forbids a second row: it is answered as short (available 0) and nothing is reserved.
+    const elsewhere = await ctx.tx<{ source_line_id: string }[]>`
+      select source_line_id from inventory.reservations
+      where company_id = ${ctx.companyId} and source_entity = ${ORDER_LINE_SOURCE} and status = 'active'
+        and source_line_id = any(${tracked.map((l) => l.orderLineId)}::uuid[]) and warehouse_id <> ${input.warehouseId}`;
+    for (const row of elsewhere) {
+      const line = tracked.find((l) => l.orderLineId === row.source_line_id)!;
+      const known = short.find((x) => x.productId === line.productId);
+      if (known) continue;
+      short.push({ productId: line.productId, sku: facts.get(line.productId)!.sku, needed: round4(tracked.filter((l) => l.productId === line.productId).reduce((sum, l) => sum + l.qty, 0)), available: 0 });
+    }
+    if (short.length > 0) return { status: "insufficient" as const, lines: [], short };
+    for (const line of tracked) {
+      const active = await reservationOf(ctx, ORDER_LINE_SOURCE, line.orderLineId, true);
+      if (active?.status === "active") {
+        await ctx.tx`update inventory.reservations set qty = qty + ${line.qty} where id = ${active.id}`;
+      } else {
+        await ctx.tx`
+          insert into inventory.reservations ${ctx.tx({ company_id: ctx.companyId, source_entity: ORDER_LINE_SOURCE, source_line_id: line.orderLineId, product_id: line.productId, warehouse_id: input.warehouseId, qty: line.qty })}`;
+      }
+    }
+    return { status: "reserved" as const, lines: tracked.map((l) => ({ orderLineId: l.orderLineId, productId: l.productId, qty: l.qty })), short: [] };
+  },
+});
+
+export const RESERVATION_PROCESSES = [reservationCreate, reservationRelease, reservationReserveAgain, reservationConsult];

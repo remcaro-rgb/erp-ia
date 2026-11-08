@@ -2,7 +2,7 @@ import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { SALES_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
-import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onSaleIssueRefused } from "./processes/delivery";
+import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onSaleIssueRefused } from "./processes/delivery";
 import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, orderHooks } from "./processes/order";
 import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
 import { PRICING_PROCESSES } from "./processes/pricing";
@@ -17,7 +17,8 @@ import { onReturnVoidRefused, RETURN_PROCESSES, RETURN_RECEIVED, RETURN_VOIDED, 
  * sales.return.received / .voided, which inventory consumes by name to issue, re-enter or give back the stock (costing values it and sends
  * the cost of sales to the ledger); sales consumes inventory.movement.posted by name to record which entrega lines inventory has issued,
  * and inventory's refusals (inventory.sale_issue.refused, inventory.sale_return_void.refused) to put the entrega back to open or the
- * devolución back to received with the reason.
+ * devolución back to received with the reason. A voided entrega may ask inventory to reserve the stock again for the pedido (Task 43:
+ * a flag on sales.delivery.voided); sales consumes inventory.delivery_reservation.restored to record the outcome on the entrega.
  *
  * Two reads are not declared in `dependsOn` (published views, read only, rule 3): a pedido's bodega is checked in inventory's
  * inventory.v_warehouses, and sales.order.from_quote reads the accepted cotización in crm's crm.v_quote_offers / v_quote_offer_lines
@@ -47,6 +48,8 @@ export const sales: ModuleDef = defineModule({
       // Inventory could not issue a despacho / take back a devolución's stock: the document goes back with the reason (Task 14 review).
       "inventory.sale_issue.refused": onSaleIssueRefused,
       "inventory.sale_return_void.refused": onReturnVoidRefused,
+      // The outcome of the re-reservation a voided entrega asked for (Task 43): recorded on the entrega, «Reserva al anular».
+      "inventory.delivery_reservation.restored": onReReservation,
       // What an issued invoice billed of each entrega line (Task 16: sales never imports invoicing; it reads invoicing's published view).
       "invoicing.invoice.issued": onInvoiceIssued,
       // An invoice voided by its accepted annulment note (Task 18): the entregas get back what it invoiced.
@@ -60,6 +63,7 @@ export const sales: ModuleDef = defineModule({
     "inventory.movement.posted": ["sales.effects.movement_posted"],
     "inventory.sale_issue.refused": ["sales.effects.issue_refused"],
     "inventory.sale_return_void.refused": ["sales.effects.return_void_refused"],
+    "inventory.delivery_reservation.restored": ["sales.effects.re_reserve_recorded"],
     "invoicing.invoice.issued": ["sales.effects.invoice_issued"],
     "invoicing.invoice.annulled": ["sales.effects.invoice_annulled"],
   },

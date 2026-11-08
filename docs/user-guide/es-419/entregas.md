@@ -52,7 +52,16 @@ Si la fecha de la entrega cae en un **periodo cerrado**, la mercancía sale igua
 
 ## Anular una entrega
 
-Anula una entrega con **Anular** en la barra de acciones y un **motivo**. Una entrega sin despachar se anula sin más. Una entrega despachada se anula solo si **nada de ella se ha facturado** (ninguna factura emitida la incluye, aunque se haya emitido hace un instante; ver la guía **Facturas de venta**) y no tiene devoluciones recibidas: las existencias vuelven a la bodega, el costo vuelve a la capa de costo y el asiento de costo de ventas se **reversa**. Si el costo de ventas aún estaba pendiente (periodo cerrado), el pendiente se descarta y no se registra después. El pedido vuelve a **Confirmado** (o **Entregado en parte**) y puedes hacer otra entrega. Las existencias que vuelven no quedan reservadas de nuevo para el pedido.
+Anula una entrega con **Anular** en la barra de acciones y un **motivo**. Una entrega sin despachar se anula sin más. Una entrega despachada se anula solo si **nada de ella se ha facturado** (ninguna factura emitida la incluye, aunque se haya emitido hace un instante; ver la guía **Facturas de venta**) y no tiene devoluciones recibidas: las existencias vuelven a la bodega, el costo vuelve a la capa de costo y el asiento de costo de ventas se **reversa**. Si el costo de ventas aún estaba pendiente (periodo cerrado), el pendiente se descarta y no se registra después. El pedido vuelve a **Confirmado** (o **Entregado en parte**) y puedes hacer otra entrega.
+
+### ¿Reservar de nuevo las existencias para el pedido?
+
+Al anular una entrega **despachada**, la barra de acciones pide el motivo y pregunta **«¿Reservar de nuevo las existencias para el pedido?»**, marcada por defecto. La pregunta aparece solo si el pedido sigue abierto (no está cancelado); una entrega sin despachar no la muestra porque no había sacado nada.
+
+- **Con la casilla marcada**: el inventario devuelve las existencias a la bodega y, **solo si alcanzan**, las reserva de nuevo para las líneas del pedido, de modo que otro pedido no se las lleve. Si falta existencia de **algún** producto no se reserva **nada** (nunca queda un pedido reservado a medias) y la entrega anulada lo explica nombrando el producto, lo que se necesitaba y lo que hay.
+- **Con la casilla desmarcada**: igual que siempre; las existencias vuelven a la bodega sin quedar reservadas para el pedido.
+
+La anulación **nunca se rechaza** por falta de existencias: lo único que depende de ellas es la reserva. El resultado aparece en la entrega anulada, en **Reserva al anular** (reservado de nuevo, no alcanzaron las existencias, sin permiso para reservar, o no aplica); el inventario lo confirma unos segundos después de anular. Para reservar de nuevo necesitas también el permiso de **reservar existencias** (Inventario); sin él la entrega se anula igual y el resultado dice que no tenías permiso. El asistente y la API anulan sin reservar de nuevo, salvo que se les pida.
 
 Lo **facturado** de una entrega solo baja cuando su factura se **anula** (la DIAN aceptó la nota crédito de anulación): entonces vuelve a **por facturar**. Una **nota crédito parcial** de la factura (una devolución, una rebaja) no cambia lo facturado de la entrega (guía **Facturación electrónica**).
 

@@ -237,3 +237,14 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: a small read-only «Eventos de costo» report under Costos › Reportes in 2C, over `costing.v_cost_events`.
 79. **An adjustment typed at exactly the estimated average is treated as an estimate** (Task 44, fix round 2). Inventory's event does not say whether the line cost was typed or filled from costing's average, so costing flags an adjustment whose cost equals the estimated average (4 decimals) while the bodega's row is estimated; the row stays open, any other value resolves it.
     Recommended: accept; the exact alternative is an inventory event field `costFrom: "user" | "costing"` (still rule 3 compliant), a small follow-up task.
+
+## L. Items met while expanding 2B.2 Task 43 (void delivery offers re-reserving the stock), 2026-11-07 · to decide
+
+80. **A cancel consumed before the re-reservation can leave a stale reservation** (Task 43, R43-10). If the pedido is cancelled between the void and inventory's consumer (events out of order), `reserve_again` has no way to know the order line was released after the void event: the reservation stays on a cancelled pedido until released by hand. The window is the outbox delay, and a pedido with a living entrega cannot be cancelled by the processes; the closed-order rule is enforced at void time.
+    Recommended: accept for now; if wanted, `reserve_again` refuses a line whose reservation history holds a tombstone released after the void event (a small change in the process and one test).
+81. **The re-reservation is not a trail node** (Task 43, R43-12). It is a nested audit row on the void's chain (visible in the audit chain), not a row of the document-links trail (Task 31): a reservation is not a document, so «Documentos relacionados» does not list it.
+    Recommended: accept; the entrega's «Reserva al anular» note and the audit chain answer «what happened to the stock». A trail node would need reservations to become linkable documents.
+82. **The migration was split in two files (0133, 0134)** (Task 43, process note). 0133 adds the columns and drops the old `sales.v_deliveries`; 0134 recreates the view from the entity. 0133 was applied alone once by a scripting slip and applied migrations are never edited (rule 34), so the view creation sits in its own file; both apply in order on any database.
+    Recommended: accept as is (nothing to decide; recorded for the reviewer).
+83. **The outcome reaches the screen a few seconds after the void** (Task 43, R43-8). The click answers «Inventario reservará de nuevo… si alcanzan»; the real result is written when inventory's consumer answers by event, so a refresh right after may still read «Inventario confirma en unos segundos».
+    Recommended: accept; a live refresh of the entrega page when the answer lands would be a UI follow-up for the whole outbox-driven screens, not only this one.

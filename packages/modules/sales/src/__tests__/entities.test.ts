@@ -12,8 +12,12 @@ import { sales, SALES_ENTITIES } from "../index";
 const migration = readFileSync(new URL("../../../../../supabase/migrations/0082_sales_quotes.sql", import.meta.url), "utf8");
 const orders = readFileSync(new URL("../../../../../supabase/migrations/0084_sales_orders.sql", import.meta.url), "utf8");
 const deliveries = readFileSync(new URL("../../../../../supabase/migrations/0085_sales_deliveries.sql", import.meta.url), "utf8");
+// The entrega's view was regenerated for the void's re-reservation columns (Task 43: 0133 adds them, 0134 recreates the view).
+const reReserveColumns = readFileSync(new URL("../../../../../supabase/migrations/0133_sales_delivery_re_reserve.sql", import.meta.url), "utf8");
+const reReserveView = readFileSync(new URL("../../../../../supabase/migrations/0134_sales_delivery_re_reserve_view.sql", import.meta.url), "utf8");
 /** The migration holding the latest masked view of each entity. */
-const viewMigration = (entityId: string) => (/^sales\.(delivery|delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders);
+const viewMigration = (entityId: string) =>
+  entityId === "sales.delivery" ? reReserveView : /^sales\.(delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders;
 
 const loaded = () => {
   const registry = new Registry();
@@ -36,7 +40,7 @@ describe("sales manifest", () => {
     ]);
     // The sale issue inventory posted for an entrega is recorded on its lines, and what inventory refused (a despacho it could not issue,
     // the Anular of a devolución it could not take back) puts the document back with the reason: by event, sales never calls inventory (rule 3).
-    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "invoicing.invoice.issued", "invoicing.invoice.annulled"]);
+    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "invoicing.invoice.issued", "invoicing.invoice.annulled"]);
   });
 
   it("the pedido numbers on save, sets its own approval flag, never posts, and lists its lines", () => {
@@ -71,7 +75,7 @@ describe("sales manifest", () => {
         "sales.order.consult", "sales.order_line.consult",
         // The kernel's generic lifecycle verbs the module does not declare itself (void is its own: it releases the reservations).
         "sales.order.save", "sales.order.submit", "sales.order.approve", "sales.order.reject", "sales.order.delete",
-        "sales.delivery.create", "sales.delivery.update", "sales.delivery.ship", "sales.delivery.void", "sales.delivery.record_stock", "sales.delivery.record_invoiced", "sales.delivery.reopen",
+        "sales.delivery.create", "sales.delivery.update", "sales.delivery.ship", "sales.delivery.void", "sales.delivery.record_stock", "sales.delivery.record_invoiced", "sales.delivery.reopen", "sales.delivery.record_re_reservation",
         "sales.delivery.consult", "sales.delivery_line.consult",
         "sales.delivery.save", "sales.delivery.submit", "sales.delivery.approve", "sales.delivery.reject", "sales.delivery.delete",
         "sales.return.create", "sales.return.receive", "sales.return.void", "sales.return.restore", "sales.return.consult", "sales.return_line.consult",
@@ -126,6 +130,19 @@ describe("sales masked views, migrations 0082, 0084 and 0085", () => {
       expect(sql).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
     });
   }
+
+  it("0133 adds the three re-reservation columns of the entrega (result checked) and 0134 recreates its masked view with them (Task 43)", () => {
+    const entity = SALES_ENTITIES.find((e) => e.id === "sales.delivery")!;
+    expect(entity.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["re_reserve_requested", "re_reserve_result", "re_reserve_note"]));
+    for (const column of ["re_reserve_requested", "re_reserve_result", "re_reserve_note"]) {
+      expect(reReserveColumns).toContain(`add column if not exists ${column}`);
+      expect(reReserveView).toContain(`as "${column}"`);
+    }
+    expect(reReserveColumns).toMatch(/re_reserve_result in \('reserved', 'insufficient', 'not_permitted', 'none'\)/);
+    expect(reReserveColumns).not.toMatch(/references (core|crm|inventory|accounting|costing)\./);
+    // A clone starts without the original's outcome.
+    expect(entity.cloneReset).toEqual(expect.arrayContaining(["re_reserve_requested", "re_reserve_result", "re_reserve_note"]));
+  });
 
   it("0085 references no other schema by foreign key and writes only through the sales processes (rule 3)", () => {
     expect(deliveries).not.toMatch(/references (core|crm|inventory|accounting|costing)\./);

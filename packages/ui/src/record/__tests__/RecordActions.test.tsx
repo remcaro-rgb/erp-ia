@@ -99,6 +99,52 @@ describe("RecordActions", () => {
     await waitFor(() => expect(onAction).toHaveBeenCalledWith("void", { reason: "Pago duplicado" }, undefined));
   });
 
+  // Task 43 (R43-13): the void's reason row offers an optional checkbox the entity names (a shipped entrega: «¿Reservar de nuevo…?»).
+  it("voidOption: the void's reason row shows the checkbox with the prop's default, and the answer travels as option", async () => {
+    const onAction = vi.fn(ok);
+    const question = "¿Reservar de nuevo las existencias para el pedido?";
+    renderEs(<RecordActions entityType="documento" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} voidOption={{ label: question, defaultChecked: true }} onAction={onAction} />);
+    expect(screen.queryByLabelText(question)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    const box = screen.getByLabelText(question) as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "Error de despacho" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith("void", { reason: "Error de despacho", option: true }, undefined));
+  });
+
+  it("voidOption: unticking sends option false; defaultChecked false starts unticked", async () => {
+    const onAction = vi.fn(ok);
+    const question = "¿Reservar de nuevo las existencias para el pedido?";
+    renderEs(<RecordActions entityType="documento" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} voidOption={{ label: question, defaultChecked: false }} onAction={onAction} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    const box = screen.getByLabelText(question) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith("void", { reason: "x", option: true }, undefined));
+    const again = vi.fn(ok);
+    cleanup();
+    renderEs(<RecordActions entityType="documento" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} voidOption={{ label: question, defaultChecked: true }} onAction={again} />);
+    fireEvent.click(screen.getByRole("button", { name: "Anular" }));
+    fireEvent.click(screen.getByLabelText(question));
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "y" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    await waitFor(() => expect(again).toHaveBeenCalledWith("void", { reason: "y", option: false }, undefined));
+  });
+
+  it("without voidOption the void row has no checkbox and the input is the reason alone; No aprobar never shows it", async () => {
+    const onAction = vi.fn(ok);
+    renderEs(<RecordActions entityType="documento" status="pending" flags={{ requiresApproval: true, posts: false }} rights={ALL} dirty={false} onAction={onAction} />);
+    fireEvent.click(screen.getByRole("button", { name: "No aprobar" }));
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    cleanup();
+    const voided = vi.fn(ok);
+    renderEs(<RecordActions entityType="documento" status="saved" flags={{ requiresApproval: false, posts: false }} rights={ALL} dirty={false} voidOption={{ label: "¿Reservar?", defaultChecked: true }} onAction={voided} />);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
   it("Eliminar asks to confirm", async () => {
     const onAction = vi.fn(ok);
     renderEs(<RecordActions entityType="documento" status="draft" flags={{ requiresApproval: false, posts: true }} rights={ALL} dirty={false} onAction={onAction} />);

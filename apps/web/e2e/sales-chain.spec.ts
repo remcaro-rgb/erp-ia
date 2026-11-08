@@ -259,4 +259,61 @@ test.describe("the sale chain on the demo company", () => {
     expect(exogenaXml).toContain('raz="CUANTÍAS MENORES"');
     await expect(page.getByRole("alert").filter({ hasText: "No se generó el archivo:" })).toHaveCount(0);
   });
+
+  // Task 43 (void offers re-reserving the stock): a pedido of the demo confirmed, delivered and the entrega voided with the box ticked.
+  test("Anular una entrega despachada con «¿Reservar de nuevo las existencias para el pedido?» marcada: el pedido queda reservado otra vez y la entrega lo anota", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+    await page.goto("/r/sales.order/new");
+    await page.getByRole("combobox", { name: "Cliente" }).fill("Distribuidora Caribe");
+    await page.getByRole("option", { name: new RegExp(CUSTOMER) }).first().click();
+    await page.getByLabel(/^Bodega/).first().selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: "Producto, línea 1" }).fill(SKU);
+    await page.getByRole("option", { name: new RegExp(SKU) }).first().click();
+    await page.getByLabel("Cantidad, línea 1").fill("2");
+    await bar(page).getByRole("button", { name: /^Guardar/ }).first().click();
+    await expect(page).toHaveURL(/\/r\/sales\.order\/[0-9a-f-]{36}$/);
+    const orderId = page.url().split("/").pop()!;
+    await frame(page).getByRole("button", { name: "Confirmar pedido", exact: true }).click();
+    await expect(frame(page).getByTestId("order-stage")).toHaveText("Confirmado");
+    await deliver("sales.order.confirmed", "orderId", orderId, "inventory");
+    const reserved = async () =>
+      Number((await sql<{ n: string }[]>`
+        select coalesce(sum(r.qty - r.released_qty), 0)::text as n from inventory.reservations r join sales.order_lines l on l.id = r.source_line_id
+        where r.company_id = ${DEMO_COMPANY_ID} and l.order_id = ${orderId} and r.status = 'active'`)[0]!.n);
+    expect(await reserved()).toBe(2);
+
+    await frame(page).getByRole("button", { name: "Crear entrega", exact: true }).click();
+    await expect(page).toHaveURL(/\/r\/sales\.delivery\/[0-9a-f-]{36}$/);
+    const deliveryId = page.url().split("/").pop()!;
+    await frame(page).getByRole("button", { name: "Despachar", exact: true }).click();
+    await expect(frame(page).getByTestId("delivery-stage")).toHaveText("Despachada");
+    await deliver("sales.delivery.shipped", "deliveryId", deliveryId, "inventory");
+    expect(await reserved()).toBe(0);
+
+    // Anular: the reason row asks the question, ticked by default.
+    await page.goto(`/r/sales.delivery/${deliveryId}`);
+    await bar(page).getByRole("button", { name: "Anular", exact: true }).click();
+    const question = bar(page).getByLabel("¿Reservar de nuevo las existencias para el pedido?");
+    await expect(question).toBeChecked();
+    await bar(page).getByRole("textbox", { name: "Motivo" }).fill("Despacho equivocado");
+    await bar(page).getByRole("button", { name: "Confirmar", exact: true }).click();
+    await expect(bar(page).getByRole("status")).toContainText("Inventario reservará de nuevo las existencias para el pedido si alcanzan");
+    await expect.poll(async () => (await sql<{ status: string }[]>`select status from sales.deliveries where id = ${deliveryId}`)[0]?.status).toBe("voided");
+    // Inventory's consumer voids the issue and reserves again; sales records its answer.
+    await deliver("sales.delivery.voided", "deliveryId", deliveryId, "inventory");
+    expect(await reserved()).toBe(2);
+    await deliver("inventory.delivery_reservation.restored", "deliveryId", deliveryId, "sales");
+    await page.goto(`/r/sales.delivery/${deliveryId}`);
+    await expect(page.getByTestId("delivery-re-reserve")).toContainText("Se reservaron de nuevo las existencias para el pedido");
+
+    // Tidy the demo: the pedido is cancelled and its reservation released.
+    await page.goto(`/r/sales.order/${orderId}`);
+    await frame(page).getByLabel("Motivo de la cancelación").fill("Prueba de reserva al anular");
+    await frame(page).getByRole("button", { name: "Cancelar pedido", exact: true }).click();
+    await expect(frame(page).getByTestId("order-stage")).toHaveText("Cancelado");
+    await deliver("sales.order.cancelled", "orderId", orderId, "inventory");
+    expect(await reserved()).toBe(0);
+  });
 });

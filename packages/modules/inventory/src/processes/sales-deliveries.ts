@@ -16,7 +16,10 @@ import { ORDER_LINE_SOURCE } from "./sales-orders";
 //     refusal of the movement) nothing moves and inventory emits inventory.sale_issue.refused { deliveryId, deliveryLineId, code, reason }:
 //     sales puts the entrega back to open with the reason (never a silent dead letter, Task 14 review). A concurrent run of the same source
 //     lines that committed first (duplicate_source_line) is the same movement.
-//   - sales.delivery.voided → inventory.sale.void_issue: inventory.movement.void of that sale issue. When there is no issue: nothing to do
+//   - sales.delivery.voided → inventory.sale.void_issue: inventory.movement.void of that sale issue; then, when the event asks (reReserve,
+//     Task 43: the owner's «¿Reservar de nuevo las existencias para el pedido?»), the nested inventory.reservation.reserve_again promises
+//     the stock back to the pedido lines by what the entrega had used up (all or nothing, only if it suffices; a shortage never fails the
+//     void) and inventory.delivery_reservation.restored tells sales the outcome. When there is no issue: nothing to do
 //     if every despacho of the entrega was refused (its refused events answer its shipped events), else the shipped event is still on its
 //     way and the run fails retryably (handler_failed), so the outbox retries after the issue is posted.
 //   - sales.return.received → inventory.sale.return: the sale return (kind sale_return, source `sales.return`, each line `returnOf` the
@@ -31,6 +34,8 @@ export const DELIVERY_SOURCE = "sales.delivery";
 export const RETURN_SOURCE = "sales.return";
 export const SALE_ISSUE_REFUSED = "inventory.sale_issue.refused";
 export const SALE_RETURN_VOID_REFUSED = "inventory.sale_return_void.refused";
+/** The outcome of the re-reservation a voided entrega asked for (Task 43): { deliveryId, status, short, lines }; sales records it on the entrega. */
+export const DELIVERY_RESERVATION_RESTORED = "inventory.delivery_reservation.restored";
 
 const FEATURE = "inventory.stock";
 const round4 = (n: number) => Math.round(n * 1e4) / 1e4;
@@ -46,7 +51,15 @@ const shippedInput = z.object({
   costCenterId: uuid.optional(),
   lines: z.array(z.object({ lineId: uuid, orderLineId: uuid.optional(), productId: uuid, qty: z.number().positive() })).min(1),
 });
-const voidedInput = z.object({ eventId, deliveryId: uuid, reason: z.string().min(1), lines: z.array(z.object({ productId: uuid })) });
+const voidedInput = z.object({
+  eventId,
+  deliveryId: uuid,
+  reason: z.string().min(1),
+  /** Task 43: sales asks to reserve the stock again for the pedido's lines (only when it checked the pedido is open and the caller may reserve). */
+  reReserve: z.boolean().optional(),
+  warehouseId: uuid.optional(),
+  lines: z.array(z.object({ productId: uuid, orderLineId: uuid.optional(), qty: z.number().positive().optional() })),
+});
 const receivedInput = z.object({
   eventId,
   returnId: uuid,
@@ -225,26 +238,52 @@ export const saleVoidIssue = defineProcess({
   recordAccess: "none",
   feature: FEATURE,
   origins: ["event"],
-  emits: [MOVEMENT_VOIDED],
-  description: "Anula la salida de inventario de una entrega anulada y reintegra sus existencias. Solo lo ejecuta el evento de anulación",
+  emits: [MOVEMENT_VOIDED, DELIVERY_RESERVATION_RESTORED],
+  description:
+    "Anula la salida de inventario de una entrega anulada y reintegra sus existencias; si se pidió, vuelve a reservarlas para el pedido cuando alcanzan. Solo lo ejecuta el evento de anulación",
   input: voidedInput,
   output: outcome,
   idempotencyKey: (input) => `sale_void_issue:${input.eventId}`,
   handler: async (ctx, d): Promise<Outcome> => {
+    /** The re-reservation the event asked for, in this transaction after the stock is back, and its outcome for sales (Task 43, R43-1..R43-3). */
+    const reReserve = async (nothingUsedUp = false): Promise<void> => {
+      if (!d.reReserve) return;
+      // R43-15 (review I-2, M-1): an entrega whose issue never posted (all its despachos refused, no tracked line) or was already voided used
+      // nothing up: it answers `nothing` without reserving anything, so the entrega's result always resolves and a reservation never doubles.
+      if (nothingUsedUp) {
+        await ctx.emit(DELIVERY_RESERVATION_RESTORED, { deliveryId: d.deliveryId, voidedEventId: d.eventId, status: "nothing", short: [], lines: [] });
+        return;
+      }
+      const lines = d.lines.flatMap((l) => (l.orderLineId && l.qty !== undefined ? [{ orderLineId: l.orderLineId, productId: l.productId, qty: l.qty }] : []));
+      const result = d.warehouseId && lines.length > 0
+        ? ((await run(ctx)("inventory.reservation.reserve_again", { deliveryId: d.deliveryId, warehouseId: d.warehouseId, lines })) as { status: string; lines: unknown[]; short: unknown[] })
+        : { status: "nothing", lines: [], short: [] };
+      await ctx.emit(DELIVERY_RESERVATION_RESTORED, { deliveryId: d.deliveryId, voidedEventId: d.eventId, status: result.status, short: result.short, lines: result.lines });
+    };
     const [movement] = await movementsOf(ctx, DELIVERY_SOURCE, d.deliveryId, "sale_issue");
     if (!movement) {
       const goods = await goodsOf(ctx, d.lines.map((l) => l.productId));
-      if (goods.size === 0) return { status: "nothing", movementId: null };
+      if (goods.size === 0) {
+        await reReserve(true);
+        return { status: "nothing", movementId: null };
+      }
       // Every despacho of the entrega was refused (each shipped event answered by a refused one): no issue ever existed.
       const [count] = await ctx.tx<{ shipped: number; refused: number }[]>`
         select count(*) filter (where event = 'sales.delivery.shipped')::int as shipped, count(*) filter (where event = ${SALE_ISSUE_REFUSED})::int as refused
         from kernel.outbox where company_id = ${ctx.companyId} and event in ('sales.delivery.shipped', ${SALE_ISSUE_REFUSED}) and payload->>'deliveryId' = ${d.deliveryId}`;
-      if (count && count.shipped > 0 && count.refused >= count.shipped) return { status: "nothing", movementId: null };
+      if (count && count.shipped > 0 && count.refused >= count.shipped) {
+        await reReserve(true);
+        return { status: "nothing", movementId: null };
+      }
       // Its sale issue is not posted yet (the shipped event is still on its way): retried by the outbox, never lost.
       throw new ProcessError("handler_failed", `sales.delivery.voided: the sale issue of delivery ${d.deliveryId} is not posted yet`);
     }
-    if (movement.status === "voided") return { status: "voided", movementId: movement.id };
+    if (movement.status === "voided") {
+      await reReserve(true);
+      return { status: "voided", movementId: movement.id };
+    }
     await run(ctx)("inventory.movement.void", { id: movement.id, reason: `Entrega anulada: ${d.reason}` });
+    await reReserve();
     return { status: "voided", movementId: movement.id };
   },
 });

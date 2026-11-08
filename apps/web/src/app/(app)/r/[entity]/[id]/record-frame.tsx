@@ -61,6 +61,8 @@ export interface FrameLifecycle {
   flags: LifecycleFlags;
   rights: RecordRights;
   tools: { new: boolean; print: boolean; notify: boolean };
+  /** The question of the void's reason row (a shipped entrega: «¿Reservar de nuevo las existencias para el pedido?»); its answer is sent as `option`. */
+  voidOption?: { label: string; defaultChecked: boolean };
   updatedAt: string | null;
   createdAt: string | null;
   createdBy: string | null;
@@ -272,7 +274,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
     return message ? { ok: true, message } : { ok: true };
   };
 
-  const act = async (bridge: RecordBridge, lc: FrameLifecycle, action: RecordBarAction, input: { reason?: string }, token?: string): Promise<RecordActionOutcome> => {
+  const act = async (bridge: RecordBridge, lc: FrameLifecycle, action: RecordBarAction, input: { reason?: string; option?: boolean }, token?: string): Promise<RecordActionOutcome> => {
     setSent(null);
     if (action !== "notify") chain.current.disarm();
     switch (action) {
@@ -306,6 +308,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
       if (reversed.ok) finish(recordId, null, reversed.message, reversed.link);
       return reversed;
     }
+    // The void's optional question (Task 43) travels as `option` only where the entity offered it (a shipped entrega: process input `reReserve`).
     const outcome = await runRecordAction(entity, action, recordId, { ...input, ...(lc.updatedAt ? { expectedUpdatedAt: lc.updatedAt } : {}) }, token, actionKey(`${entity}.${action}`));
     if (!outcome.ok) return outcome;
     if (action === "delete") {
@@ -349,6 +352,7 @@ export function AppRecordFrame({ entity, recordId, canDuplicate = false, newTitl
                   reverse: lc.reverse === true && recordId !== null,
                   saveTemplate: lc.saveTemplate === true && recordId !== null,
                 }}
+                {...(lc.voidOption ? { voidOption: lc.voidOption } : {})}
                 onSaveTemplate={() => setTemplateOpen(true)}
                 onClose={() => closePage(lc.listHref)}
                 initialProblem={flash}

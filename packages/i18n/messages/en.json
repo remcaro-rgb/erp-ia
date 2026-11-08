@@ -160,6 +160,7 @@
         "stale": "Someone else changed this record while you had it open. Reload the page to see the current version.",
         "reload": "Reload",
         "done": "Done",
+        "done_re_reserve": "Delivery voided. Inventory will reserve the stock for the order again if it suffices.",
         "print_failed": "Could not print: {reason}"
       },
       "ids": {
@@ -2687,7 +2688,10 @@
         "order_id": "Order",
         "shipped_at": "Shipped",
         "stock_refusal": "Inventory refusal reason",
-        "stock_refused_at": "Refused by inventory on"
+        "stock_refused_at": "Refused by inventory on",
+        "re_reserve_requested": "Reserve again on void",
+        "re_reserve_result": "Result of the reservation on void",
+        "re_reserve_note": "Reservation on void"
       },
       "delivery_line": {
         "seq": "ID",
@@ -5209,6 +5213,7 @@
       "order_release": "Inventory: releases the stock the order had reserved",
       "delivery_issue": "Inventory: takes the delivered stock out of the warehouse and uses up its reservation",
       "delivery_reentry": "Inventory: puts the stock of the voided delivery back in the warehouse",
+      "delivery_reserve_again": "Inventory: when asked, reserves the voided delivery's stock for the order again, if it suffices",
       "return_reentry": "Inventory: puts the returned stock back in the warehouse",
       "return_void": "Inventory: takes the stock of the voided return out of the warehouse again"
     }
@@ -5529,6 +5534,12 @@
         "open": "To ship",
         "shipped": "Shipped"
       },
+      "delivery_re_reserve": {
+        "reserved": "Reserved again",
+        "insufficient": "Stock did not suffice",
+        "not_permitted": "Not allowed to reserve",
+        "none": "Not applicable"
+      },
       "return_stage": {
         "open": "To receive",
         "received": "Received"
@@ -5661,7 +5672,8 @@
         "convert": "Convert"
       },
       "credit_limit": "Credit limit",
-      "credit_value": "{limit} · Available {available}"
+      "credit_value": "{limit} · Available {available}",
+      "void_reserve_question": "Reserve the stock for the order again?"
     },
     "settings_page": {
       "title": "Sales settings",
@@ -5689,6 +5701,7 @@
       "movement_posted": "Sales: marks on each delivery line what Inventory issued",
       "issue_refused": "Sales: if Inventory cannot issue the stock, the delivery goes back with the reason",
       "return_void_refused": "Sales: if Inventory cannot give the stock back, the return goes back with the reason",
+      "re_reserve_recorded": "Sales: records on the voided delivery whether inventory reserved the stock for the order again",
       "invoice_annulled": "Sales: the deliveries get back what the annulled invoice had invoiced"
     },
     "print": {

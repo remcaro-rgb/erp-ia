@@ -114,6 +114,7 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
         ...(form.kind === "invoicing" && record && form.view ? { extraActions: <InvoicingBarActions entity={entity.id} recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
         ...(form.kind === "payments" && record && form.view ? { extraActions: <ReceiptBarActions recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
         tools: lc.tools,
+        ...(lc.voidOption ? { voidOption: lc.voidOption } : {}),
         updatedAt: lc.updatedAt,
         createdAt: lc.createdAt,
         createdBy: lc.createdBy,

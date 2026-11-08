@@ -153,6 +153,9 @@ export const orderLineEntity: EntityDef = entity("sales.order_line", "lines", "o
 /** Where an entrega stands beside its lifecycle status: open (written, Grabado) or shipped (the goods left; stock and cost follow by event). */
 export const DELIVERY_STAGES = ["open", "shipped"] as const;
 export type DeliveryStage = (typeof DELIVERY_STAGES)[number];
+/** What became of the re-reservation a voided entrega asked for (Task 43): `reserved`, `insufficient` (stock did not cover it), `not_permitted` (the user may not reserve), `none` (not asked, or nothing to reserve). */
+export const RE_RESERVE_RESULTS = ["reserved", "insufficient", "not_permitted", "none"] as const;
+export type ReReserveResult = (typeof RE_RESERVE_RESULTS)[number];
 /** Where a devolución stands: open (written) or received (the goods are back; stock re-enters at the original issue cost). */
 export const RETURN_STAGES = ["open", "received"] as const;
 
@@ -178,6 +181,11 @@ export const deliveryEntity: EntityDef = entity("sales.delivery", "documento", "
   // Why inventory could not issue the last despacho (the entrega went back to open, Task 14 review): code and detail, and when.
   f("stock_refusal", "text"),
   f("stock_refused_at", "datetime"),
+  // The void's re-reservation (Task 43): whether the user asked, what became of it, and the note in words («Reserva al anular»); written by
+  // sales.delivery.void and by sales.delivery.record_re_reservation (inventory's answer by event), read-only everywhere else.
+  f("re_reserve_requested", "boolean"),
+  f("re_reserve_result", "enum", { enumValues: [...RE_RESERVE_RESULTS], valuesKey: "sales.values.delivery_re_reserve" }),
+  f("re_reserve_note", "text"),
   f("cost_center_id", "uuid"),
   f("notes", "text", { searchable: true }),
   ...trailer(f),
@@ -189,7 +197,7 @@ export const deliveryEntity: EntityDef = entity("sales.delivery", "documento", "
   typed: { numbering: "on_save", lines: { entity: "sales.delivery_line", parentField: "delivery_id" }, ownFlags: deliveryFlags("sales.delivery") },
   processIds: { create: "sales.delivery.create" },
   recordPage: true,
-  cloneReset: ["seq", "number", "stage", "shipped_at", "stock_refusal", "stock_refused_at"],
+  cloneReset: ["seq", "number", "stage", "shipped_at", "stock_refusal", "stock_refused_at", "re_reserve_requested", "re_reserve_result", "re_reserve_note"],
   defaultSort: { field: "seq", dir: "desc" },
 });
 

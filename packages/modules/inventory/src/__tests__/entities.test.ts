@@ -79,7 +79,7 @@ describe("inventory manifest", () => {
         "inventory.location.create", "inventory.location.update", "inventory.location.consult",
         "inventory.movement.post", "inventory.movement.void", "inventory.movement.consult",
         "inventory.movement_line.consult", "inventory.stock_level.consult",
-        "inventory.reservation.create", "inventory.reservation.release", "inventory.reservation.consult",
+        "inventory.reservation.create", "inventory.reservation.release", "inventory.reservation.reserve_again", "inventory.reservation.consult",
         // What the entregas and devoluciones of sales move (Task 14 review): each event consumer runs a registered process.
         "inventory.sale.issue", "inventory.sale.void_issue", "inventory.sale.return", "inventory.sale.void_return",
         "inventory.transfer.create", "inventory.transfer.ship", "inventory.transfer.receive", "inventory.transfer.void", "inventory.transfer.consult", "inventory.transfer_line.consult",
@@ -90,7 +90,7 @@ describe("inventory manifest", () => {
       ].sort(),
     );
     // A despacho, or the Anular of a devolución, inventory cannot apply is never dead-lettered silently: it says so to sales by event.
-    expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_return_void.refused"]);
+    expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored"]);
     // The importer, the clone and Nuevo create a movement through movement.post.
     expect(registry.entity("inventory.movement").processIds?.create).toBe("inventory.movement.post");
   });

@@ -1,6 +1,6 @@
 import { defineProcess, ProcessError, runLifecycle, writeSnapshot, type EventConsumer, type ProcessContext, type TypedHooks } from "@erp/kernel";
 import { z } from "zod";
-import { deliveryEntity, type DeliveryStage, type OrderStage } from "../entities";
+import { deliveryEntity, RE_RESERVE_RESULTS, type DeliveryStage, type OrderStage, type ReReserveResult } from "../entities";
 import { assertSaleReady } from "../readiness";
 import { linkDeliveryToOrder, markLinksVoided } from "./common";
 import { assertWarehouse, FIRM_STAGES, refuse, refuseState, today } from "./order";
@@ -35,8 +35,16 @@ import { lockShipStock, pendingShipped, qtyText } from "./stock";
 // event is recorded, invoicing's published invoicing.delivery_invoiced, read under the entrega's lock that «Emitir» also takes) or a
 // devolución of it is not voided. A shipped entrega emits
 // sales.delivery.voided: inventory voids the sale issue (origin event), costing reverses its cost events and, when its cost of sales left,
-// emits costing.cogs.voided, whose rule (reverseOf) reverses the entry. The pedido's stage steps back. A voided entrega does not
-// re-reserve the stock it had used up (the remainder of the pedido is delivered from what is on hand, checked at ship).
+// emits costing.cogs.voided, whose rule (reverseOf) reverses the entry. The pedido's stage steps back.
+//
+// Reservar de nuevo (Task 43, owner decisions item 34, R43-1..R43-12): the void screen asks «¿Reservar de nuevo las existencias para el
+// pedido?» (default yes) and sends `reReserve`. Without it (assistant, API, the box unticked) the voided entrega does not re-reserve the stock
+// it had used up, exactly as before (the remainder of the pedido is delivered from what is on hand, checked at ship). With it, sales sets
+// `reReserve: true` on sales.delivery.voided only when the entrega was shipped, the pedido is not cancelled and the caller may reserve stock
+// (kernel.can_run_process('inventory.reservation.create'): the nested run is the system's, so the user's own right is read here, rule 13);
+// otherwise the entrega records why (none, not_permitted) and the void goes through all the same. Inventory re-reserves in its own void run
+// (all or nothing, only when the stock suffices) and answers by event: sales.delivery.record_re_reservation writes re_reserve_result and the
+// note «Reserva al anular» on the entrega. A shortage never refuses the void. Sales never calls inventory (rule 3).
 //
 // A pedido's stage follows what shipped (not voided): nothing → confirmed, part → partially_delivered, every line in full → delivered.
 
@@ -45,6 +53,8 @@ export const DELIVERY_SHIPPED = "sales.delivery.shipped";
 export const DELIVERY_VOIDED = "sales.delivery.voided";
 /** Inventory could not issue a despacho (Task 14 review): the entrega goes back to open with the reason. */
 const SALE_ISSUE_REFUSED = "inventory.sale_issue.refused";
+/** Inventory's answer to the re-reservation a voided entrega asked for (Task 43). */
+export const DELIVERY_RESERVATION_RESTORED = "inventory.delivery_reservation.restored";
 /** The source entity of the inventory movements of an entrega (inventory.movements.source_entity; the lines are its lines). */
 export const DELIVERY_SOURCE = "sales.delivery";
 /** The source entity of a pedido line's reservation (Task 13). */
@@ -71,6 +81,8 @@ const deliveryOutput = z.object({
   date: z.string(),
   shippedAt: z.string().nullable(),
   lines: z.array(z.object({ id: z.string(), lineNo: z.number(), orderLineId: z.string(), productId: z.string(), qty: z.number() })),
+  /** Only the void's answer (Task 43): what was decided about re-reserving: `asked` (inventory answers by event), `none` or `not_permitted`. */
+  reReserve: z.enum(["asked", "none", "not_permitted"]).optional(),
 });
 type DeliveryOutput = z.output<typeof deliveryOutput>;
 
@@ -433,6 +445,8 @@ export const deliveryVoid = defineProcess({
     id,
     reason: z.string().trim().min(1, "Indica por qué se anula la entrega").max(500),
     expectedUpdatedAt: z.string().optional(),
+    /** Reserve the stock again for the pedido (Task 43); the screen sends it (ticked by default), the assistant and the API leave it out: today's behaviour. */
+    reReserve: z.boolean().optional(),
   }).strict(),
   output: deliveryOutput,
   handler: async (ctx, input) => {
@@ -454,6 +468,9 @@ export const deliveryVoid = defineProcess({
     await runLifecycle(ctx, ctx.registry.entity(deliveryEntity.id), delivery.id, "void", { reason: input.reason, ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}) });
     // The void keeps its link, marked (Task 31).
     await markLinksVoided(ctx, "sales.delivery", delivery.id, input.reason);
+    // Whether inventory is asked to reserve again (Task 43, R43-5..R43-7), decided before the pedido's stage steps back.
+    const asked = await reReserveDecision(ctx, input.reReserve, delivery, order);
+    if (asked) await ctx.tx`update sales.deliveries set re_reserve_requested = ${asked.requested}, re_reserve_result = ${asked.result}, re_reserve_note = ${asked.note} where id = ${delivery.id}`;
     if (delivery.stage === "shipped") {
       await refreshOrderStage(ctx, order.id);
       await ctx.emit(DELIVERY_VOIDED, {
@@ -463,12 +480,97 @@ export const deliveryVoid = defineProcess({
         warehouseId: delivery.warehouse_id,
         date: await today(ctx),
         reason: input.reason,
+        ...(asked?.send ? { reReserve: true } : {}),
         lines: lines.map((l) => ({ lineId: l.id, lineNo: l.line_no, orderLineId: l.order_line_id, productId: l.product_id, qty: num(l.qty) })),
       });
     }
-    return outputOf(ctx, delivery.id);
+    const out = await outputOf(ctx, delivery.id);
+    return asked ? { ...out, reReserve: asked.send ? ("asked" as const) : asked.result === "not_permitted" ? ("not_permitted" as const) : ("none" as const) } : out;
   },
 });
+
+/** The words of the entrega's «Reserva al anular» (stored text, Spanish like stock_refusal). */
+const RE_RESERVE_NOTES = {
+  pending: "Inventario confirma en unos segundos si reserva de nuevo las existencias para el pedido.",
+  declined: "No se pidió reservar de nuevo las existencias para el pedido.",
+  unshipped: "La entrega no se había despachado: no hay existencias que reservar de nuevo.",
+  cancelled: "El pedido está cancelado: no se reservan de nuevo las existencias.",
+  not_permitted: "No se reservaron de nuevo las existencias: tu rol no puede reservar existencias.",
+  inventory_off: "El inventario no está activo en la empresa: no hay existencias que reservar de nuevo.",
+  reserved: "Se reservaron de nuevo las existencias para el pedido.",
+  nothing: "No había existencias que reservar de nuevo: la entrega no movió inventario.",
+} as const;
+
+/**
+ * What the void does about re-reserving (R43-5..R43-7): null when the caller said nothing (today's behaviour, nothing written); else the
+ * columns of the entrega and whether the event carries the flag. Only a shipped entrega of a pedido that is not cancelled whose caller may
+ * reserve stock is sent to inventory; anything else records why and the void goes through.
+ */
+async function reReserveDecision(ctx: ProcessContext, asked: boolean | undefined, delivery: DeliveryRow, order: OrderRow): Promise<{ requested: boolean; result: ReReserveResult | null; note: string; send: boolean } | null> {
+  if (asked === undefined) return null;
+  if (!asked) return { requested: false, result: "none", note: RE_RESERVE_NOTES.declined, send: false };
+  if (delivery.stage !== "shipped") return { requested: true, result: "none", note: RE_RESERVE_NOTES.unshipped, send: false };
+  if (order.stage === "cancelled" || order.status === "voided") return { requested: true, result: "none", note: RE_RESERVE_NOTES.cancelled, send: false };
+  // A company with the inventory module switched off has nobody to answer: the entrega resolves at once (review M-1).
+  const [inventory] = await ctx.tx<{ enabled: boolean }[]>`select enabled from kernel.v_company_modules where company_id = ${ctx.companyId} and module_id = 'inventory'`;
+  if (inventory && !inventory.enabled) return { requested: true, result: "none", note: RE_RESERVE_NOTES.inventory_off, send: false };
+  // The nested run is the system's (origin event): the user's own right to reserve is read here, as data (no import of inventory).
+  const [right] = await ctx.tx<{ allowed: boolean }[]>`select kernel.can_run_process('inventory.reservation.create') as allowed`;
+  if (!right?.allowed) return { requested: true, result: "not_permitted", note: RE_RESERVE_NOTES.not_permitted, send: false };
+  return { requested: true, result: null, note: RE_RESERVE_NOTES.pending, send: true };
+}
+
+/** What sales reads of inventory.delivery_reservation.restored (Task 43): the outcome of the re-reservation. */
+const restoredPayload = z.looseObject({
+  deliveryId: id,
+  status: z.enum(["reserved", "insufficient", "nothing"]),
+  short: z.array(z.looseObject({ sku: z.string().optional(), needed: z.number(), available: z.number() })).default([]),
+});
+
+export const deliveryRecordReReservation = defineProcess({
+  id: "sales.delivery.record_re_reservation",
+  module: "sales",
+  kind: "update",
+  // The entrega named by inventory's answer: no record of the caller's is changed.
+  recordAccess: "none",
+  feature: FEATURE,
+  origins: ["event"],
+  description: "Registra en la entrega anulada si el inventario reservó de nuevo las existencias para el pedido (y por qué no, si no alcanzaron); solo lo ejecuta el evento del inventario",
+  // Keyed on the result event (R43-11): a redelivery answers the first run.
+  idempotencyKey: (input) => `re_reserve:${input.eventId}`,
+  input: z.object({
+    deliveryId: id,
+    /** The outbox row of inventory's answer. */
+    eventId: id,
+    status: z.enum(["reserved", "insufficient", "nothing"]),
+    short: z.array(z.object({ sku: z.string().optional(), needed: z.number(), available: z.number() })).max(500).optional(),
+  }).strict(),
+  output: z.object({ recorded: z.boolean() }),
+  handler: async (ctx, { deliveryId, status, short }) => {
+    const result: ReReserveResult = status === "nothing" ? "none" : status;
+    if (!RE_RESERVE_RESULTS.includes(result)) throw new ProcessError("invalid_input", `unknown re-reservation result ${status}`);
+    const note =
+      status === "reserved"
+        ? RE_RESERVE_NOTES.reserved
+        : status === "nothing"
+          ? RE_RESERVE_NOTES.nothing
+          : `No se reservaron de nuevo las existencias, no alcanzan: ${(short ?? []).map((s) => `${s.sku ?? "producto"} (se necesitan ${qtyText(s.needed)}, hay ${qtyText(s.available)})`).join("; ")}.`;
+    // Once: only an entrega still waiting for the answer (a redelivered event changes nothing more).
+    const rows = await ctx.tx`
+      update sales.deliveries set re_reserve_result = ${result}, re_reserve_note = ${note.slice(0, 2000)}
+      where id = ${deliveryId} and re_reserve_requested and re_reserve_result is null
+      returning id`;
+    return { recorded: rows.length > 0 };
+  },
+});
+
+/** Consumer of inventory.delivery_reservation.restored: the outcome is recorded on the voided entrega («Reserva al anular»). */
+export const onReReservation: EventConsumer = async (ctx, payload) => {
+  const parsed = restoredPayload.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `${DELIVERY_RESERVATION_RESTORED} payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  const { deliveryId, status, short } = parsed.data;
+  await ctx.runProcess("sales.delivery.record_re_reservation", { deliveryId, eventId: ctx.event.id, status, short: short.map((s) => ({ ...(s.sku ? { sku: s.sku } : {}), needed: s.needed, available: s.available })) });
+};
 
 /** What sales reads of invoicing.invoice.issued: the invoice (its lines are read in invoicing's published view). */
 const invoiceIssued = z.looseObject({ invoiceId: id });
@@ -650,4 +752,4 @@ export const deliveryHooks: TypedHooks = {
   },
 };
 
-export const DELIVERY_PROCESSES = [deliveryCreate, deliveryUpdate, deliveryShip, deliveryVoid, deliveryRecordStock, deliveryRecordInvoiced, deliveryReopen, deliveryConsult, deliveryLineConsult];
+export const DELIVERY_PROCESSES = [deliveryCreate, deliveryUpdate, deliveryShip, deliveryVoid, deliveryRecordStock, deliveryRecordInvoiced, deliveryReopen, deliveryRecordReReservation, deliveryConsult, deliveryLineConsult];

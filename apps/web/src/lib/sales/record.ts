@@ -371,7 +371,7 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
       relatedEntity = "sales.delivery";
       break;
     case "sales.delivery":
-      facts.push(ref("order_id", "sales.order"), ref("party_id", "core.party"), ref("warehouse_id", "inventory.warehouse"), plain("date"), plain("shipped_at"), plain("stock_refusal"), plain("notes"));
+      facts.push(ref("order_id", "sales.order"), ref("party_id", "core.party"), ref("warehouse_id", "inventory.warehouse"), plain("date"), plain("shipped_at"), plain("stock_refusal"), plain("re_reserve_note", { testId: "delivery-re-reserve" }), plain("notes"));
       allow("ship", live && stage === "open" && (record.status === "saved" || record.status === "approved"));
       allow("to_return", live && stage === "shipped");
       relatedLabel = t("sales.view.returns");

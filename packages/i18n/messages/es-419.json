@@ -160,6 +160,7 @@
         "stale": "Otra persona cambió este registro mientras lo tenías abierto. Recarga la página para ver la versión actual.",
         "reload": "Recargar",
         "done": "Listo",
+        "done_re_reserve": "Entrega anulada. Inventario reservará de nuevo las existencias para el pedido si alcanzan.",
         "print_failed": "No se pudo imprimir: {reason}"
       },
       "ids": {
@@ -2687,7 +2688,10 @@
         "order_id": "Pedido",
         "shipped_at": "Despachada",
         "stock_refusal": "Motivo del rechazo de inventario",
-        "stock_refused_at": "Rechazado por inventario el"
+        "stock_refused_at": "Rechazado por inventario el",
+        "re_reserve_requested": "Reservar de nuevo al anular",
+        "re_reserve_result": "Resultado de la reserva al anular",
+        "re_reserve_note": "Reserva al anular"
       },
       "delivery_line": {
         "seq": "ID",
@@ -5209,6 +5213,7 @@
       "order_release": "Inventario: libera el stock que el pedido tenía reservado",
       "delivery_issue": "Inventario: saca de la bodega el stock entregado y consume su reserva",
       "delivery_reentry": "Inventario: devuelve a la bodega el stock de la entrega anulada",
+      "delivery_reserve_again": "Inventario: si se pidió, vuelve a reservar para el pedido las existencias de la entrega anulada, cuando alcanzan",
       "return_reentry": "Inventario: reingresa a la bodega el stock devuelto",
       "return_void": "Inventario: vuelve a sacar de la bodega el stock de la devolución anulada"
     }
@@ -5529,6 +5534,12 @@
         "open": "Por despachar",
         "shipped": "Despachada"
       },
+      "delivery_re_reserve": {
+        "reserved": "Reservado de nuevo",
+        "insufficient": "No alcanzaron las existencias",
+        "not_permitted": "Sin permiso para reservar",
+        "none": "No aplica"
+      },
       "return_stage": {
         "open": "Por recibir",
         "received": "Recibida"
@@ -5661,7 +5672,8 @@
         "convert": "Convertir"
       },
       "credit_limit": "Límite de crédito",
-      "credit_value": "{limit} · Disponible {available}"
+      "credit_value": "{limit} · Disponible {available}",
+      "void_reserve_question": "¿Reservar de nuevo las existencias para el pedido?"
     },
     "settings_page": {
       "title": "Parámetros de ventas",
@@ -5689,6 +5701,7 @@
       "movement_posted": "Ventas: marca en cada línea de la entrega lo que Inventario despachó",
       "issue_refused": "Ventas: si Inventario no puede despachar, la entrega vuelve atrás con el motivo",
       "return_void_refused": "Ventas: si Inventario no puede devolver el stock, la devolución vuelve atrás con el motivo",
+      "re_reserve_recorded": "Ventas: anota en la entrega anulada si el inventario reservó de nuevo las existencias para el pedido",
       "invoice_annulled": "Ventas: las entregas recuperan lo que la factura anulada había facturado"
     },
     "print": {

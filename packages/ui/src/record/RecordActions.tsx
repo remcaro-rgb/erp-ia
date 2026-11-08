@@ -40,7 +40,13 @@ export interface RecordActionsProps {
   /** Cerrar, the last button of the bar: closes the page (its tab). With unsaved edits the bar asks first. Absent: no Cerrar. */
   onClose?: () => void;
   /** Runs the action; `stepUp` is the token of a fresh verification when the process asked for one. */
-  onAction: (action: RecordBarAction, input: { reason?: string }, stepUp?: string) => Promise<RecordActionOutcome>;
+  onAction: (action: RecordBarAction, input: { reason?: string; option?: boolean }, stepUp?: string) => Promise<RecordActionOutcome>;
+  /**
+   * An optional question on the void's reason row (plan 2B.2 Task 43: «¿Reservar de nuevo las existencias para el pedido?» on a shipped
+   * entrega). When present the row shows the checkbox, ticked per `defaultChecked`, and the void runs with `option` set to its answer.
+   * Absent: no checkbox and the input is the reason alone.
+   */
+  voidOption?: { label: string; defaultChecked: boolean };
   requestStepUp?: (code: string) => Promise<{ token: string } | { error: string }>;
   /** Busy elsewhere (the form is saving). */
   disabled?: boolean;
@@ -61,19 +67,20 @@ export interface RecordActionsProps {
 
 const ICONS: Record<BarAction, typeof Save> = { save: Save, save_submit: Send, submit: Send, approve: CheckCircle2, reject: XCircle, void: Ban, delete: Trash2 };
 
-export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, initialNoticeLink = null, registerShortcut, onSaveTemplate, onClose, extra }: RecordActionsProps) {
+export function RecordActions({ entityType, status, flags, rights, dirty, saveBlocked = false, tools = {}, onAction, requestStepUp, disabled = false, initialProblem = null, initialNotice = null, initialNoticeLink = null, registerShortcut, onSaveTemplate, onClose, extra, voidOption }: RecordActionsProps) {
   const t = useTranslations("common.record.actions");
   const te = useTranslations("errors");
   const id = useId();
   const [asking, setAsking] = useState<RecordBarAction | "close" | null>(null);
   const [reason, setReason] = useState("");
+  const [option, setOption] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(initialProblem);
   const [notice, setNotice] = useState<string | null>(initialNotice);
   const [noticeLink, setNoticeLink] = useState<RecordNoticeLink | null>(initialNoticeLink);
   // Minor 2: one run at a time, whatever React has rendered yet (a double click lands before the buttons disable).
   const running = useRef(false);
-  const [stepUp, setStepUp] = useState<{ action: RecordBarAction; reason?: string } | null>(null);
+  const [stepUp, setStepUp] = useState<{ action: RecordBarAction; reason?: string; option?: boolean } | null>(null);
   const [stepUpError, setStepUpError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLSpanElement>(null);
@@ -90,7 +97,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
   const off = disabled || busy;
   const isDocumento = entityType === "documento";
 
-  const run = async (action: RecordBarAction, input: { reason?: string }, token?: string) => {
+  const run = async (action: RecordBarAction, input: { reason?: string; option?: boolean }, token?: string) => {
     if (running.current) return;
     running.current = true;
     setBusy(true);
@@ -109,7 +116,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
         // The form already shows why (its fields, its step-up prompt).
         setStepUp(null);
       } else if (outcome.code === "step_up_required" && requestStepUp) {
-        setStepUp({ action, ...(input.reason ? { reason: input.reason } : {}) });
+        setStepUp({ action, ...(input.reason ? { reason: input.reason } : {}), ...(input.option !== undefined ? { option: input.option } : {}) });
       } else {
         setStepUp(null);
         const why = outcome.messages.length > 0 ? outcome.messages.join(" · ") : te.has(outcome.code) ? te(outcome.code) : te("unknown");
@@ -130,6 +137,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
     if (NEEDS_REASON.has(action) || action === "delete") {
       setAsking(action);
       setReason("");
+      setOption(voidOption?.defaultChecked ?? false);
       setProblem(null);
       return;
     }
@@ -154,7 +162,7 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
       setBusy(false);
     }
     if ("error" in answer) setStepUpError(answer.error);
-    else await run(stepUp.action, stepUp.reason ? { reason: stepUp.reason } : {}, answer.token);
+    else await run(stepUp.action, { ...(stepUp.reason ? { reason: stepUp.reason } : {}), ...(stepUp.option !== undefined ? { option: stepUp.option } : {}) }, answer.token);
   };
 
   const tool = (action: "new" | "print" | "notify" | "duplicate" | "reverse" | "save_template", Icon: typeof Save, extra: { blockedBy?: string | null; className?: string } = {}) => (
@@ -285,7 +293,18 @@ export function RecordActions({ entityType, status, flags, rights, dirty, saveBl
             {t("reason")}
           </label>
           <input id={`${id}-reason`} value={reason} maxLength={1000} autoFocus onChange={(e) => setReason(e.target.value)} />
-          <button type="button" className="erp-btn erp-btn--primary erp-touch" disabled={busy || reason.trim() === ""} onClick={() => void run(asking, { reason: reason.trim() })}>
+          {asking === "void" && voidOption && (
+            <label className="erp-small erp-row erp-touch">
+              <input type="checkbox" checked={option} onChange={(e) => setOption(e.target.checked)} />
+              {voidOption.label}
+            </label>
+          )}
+          <button
+            type="button"
+            className="erp-btn erp-btn--primary erp-touch"
+            disabled={busy || reason.trim() === ""}
+            onClick={() => void run(asking, { reason: reason.trim(), ...(asking === "void" && voidOption ? { option } : {}) })}
+          >
             {t("confirm")}
           </button>
           <button type="button" className="erp-btn erp-touch" onClick={() => setAsking(null)}>

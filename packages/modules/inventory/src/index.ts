@@ -5,7 +5,7 @@ import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { INVENTORY_PROCESSES } from "./processes";
 import { MOVEMENT_POSTED, MOVEMENT_VOIDED, movementHooks } from "./processes/movement";
 import { countHooks } from "./processes/count";
-import { onDeliveryShipped, onDeliveryVoided, onReturnReceived, onReturnVoided, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
+import { DELIVERY_RESERVATION_RESTORED, onDeliveryShipped, onDeliveryVoided, onReturnReceived, onReturnVoided, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
 import { INVENTORY_POSTING_RULES } from "./rules";
 import { onOrderCancelled, onOrderConfirmed } from "./processes/sales-orders";
 import { transferHooks } from "./processes/transfer";
@@ -18,7 +18,8 @@ import { locationHooks, warehouseHooks } from "./processes/warehouse";
  * schema writes it (rule 3). The pedidos of sales reserve and release stock the same way: inventory consumes sales.order.confirmed and
  * sales.order.cancelled (processes/sales-orders.ts), and the entregas and devoluciones (Task 14, processes/sales-deliveries.ts):
  * sales.delivery.shipped posts the sale issue and uses up the reservation, sales.delivery.voided voids it, sales.return.received posts
- * the sale return at the issue's cost, sales.return.voided voids it. Lots and serials, picking and put-away arrive in 2B.2 (OD-8).
+ * the sale return at the issue's cost, sales.return.voided voids it. A voided entrega may also promise its stock back to the pedido's lines
+ * (Task 43: the nested inventory.reservation.reserve_again, answered to sales as inventory.delivery_reservation.restored). Lots and serials, picking and put-away arrive in 2B.2 (OD-8).
  *
  * One read is declared in `needs`, not `dependsOn` (costing depends on inventory; Task 41): an adjustment is valued at costing's weighted average of its bodega through the published
  * definer function costing.average_costs() (migrations 0073 and 0075; processes/common.ts productCosts). It is a read of a published
@@ -39,7 +40,7 @@ export const inventory: ModuleDef = defineModule({
   // Its Inicio cards (plan 2B Task 26).
   homeKpis: HOME_KPIS,
   // The pedidos (Task 13), entregas and devoluciones (Task 14) of sales, by event name (processes/sales-orders.ts, sales-deliveries.ts).
-  events: { emits: [MOVEMENT_POSTED, MOVEMENT_VOIDED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED], consumes: {
+  events: { emits: [MOVEMENT_POSTED, MOVEMENT_VOIDED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED, DELIVERY_RESERVATION_RESTORED], consumes: {
       "sales.order.confirmed": onOrderConfirmed,
       "sales.order.cancelled": onOrderCancelled,
       "sales.delivery.shipped": onDeliveryShipped,
@@ -56,7 +57,7 @@ export const inventory: ModuleDef = defineModule({
     "sales.order.confirmed": ["inventory.effects.order_reserve"],
     "sales.order.cancelled": ["inventory.effects.order_release"],
     "sales.delivery.shipped": ["inventory.effects.delivery_issue"],
-    "sales.delivery.voided": ["inventory.effects.delivery_reentry"],
+    "sales.delivery.voided": ["inventory.effects.delivery_reentry", "inventory.effects.delivery_reserve_again"],
     "sales.return.received": ["inventory.effects.return_reentry"],
     "sales.return.voided": ["inventory.effects.return_void"],
   },
@@ -76,6 +77,6 @@ export { INVENTORY_ENTITIES, KIND_PREFIX, KIND_SIGN, MOVEMENT_KINDS, POSTABLE_KI
 export type { MovementKind } from "./entities";
 export { postAdjustment } from "./processes/adjustment";
 export { onOrderCancelled, onOrderConfirmed, ORDER_LINE_SOURCE } from "./processes/sales-orders";
-export { SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
+export { DELIVERY_RESERVATION_RESTORED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
 export { applyStock, lockStockLegs, MOVEMENT_POSTED, MOVEMENT_VOIDED, postMovement } from "./processes/movement";
 export type { MovementEvent, MovementEventLine, MovementInput, PostedMovement } from "./processes/movement";
