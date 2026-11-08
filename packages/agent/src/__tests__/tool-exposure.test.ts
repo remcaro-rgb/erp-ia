@@ -63,10 +63,13 @@ describe("the assistant's tool candidates", () => {
     for (const id of [
       "crm.quote.create", "sales.order.confirm", "sales.delivery.ship", "invoicing.invoice.from_orders", "invoicing.invoice.issue", "payments.payment.receive",
       "invoicing.invoice.void", "payments.payment.void", "inventory.adjustment.post", "invoicing.settings.update",
+      // Task 36: applying an advance and undoing it are registry processes like the receipt's; their consult is a tool too (masked, capped).
+      "payments.advance.apply", "payments.advance.undo", "payments.advance.open",
     ]) {
       expect(offered.has(id), id).toBe(true);
     }
-    for (const id of ["invoicing.invoice.void", "payments.payment.void", "inventory.adjustment.post"]) expect(registry.process(id).sensitivity, id).toBe("step-up");
+    for (const id of ["invoicing.invoice.void", "payments.payment.void", "inventory.adjustment.post", "payments.advance.undo"]) expect(registry.process(id).sensitivity, id).toBe("step-up");
+    expect(registry.process("payments.advance.apply").sensitivity ?? "normal").toBe("normal");
     // Task 35: the settings update is still a tool, and its input no longer carries the DIAN defaults flag.
     expect(JSON.stringify(inputJsonSchema(registry.process("invoicing.settings.update").input))).not.toContain("dianDefaultsConfirmed");
   });

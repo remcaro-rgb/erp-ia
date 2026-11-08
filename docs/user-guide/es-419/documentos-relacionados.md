@@ -6,6 +6,7 @@ routes:
   - /sales/deliveries
   - /invoicing/invoices
   - /payments/receipts
+  - /payments/advance-applications
 processes:
   - kernel.document_link.trail
 ---
@@ -27,7 +28,7 @@ La lista tiene dos partes, siempre en este orden:
 
 Cada renglón dice qué tipo de documento es, su número y el paso que lo une con el anterior (por ejemplo **Pedido → Entrega**). Un documento más lejano se muestra con sangría: el recibo de una factura que viene de un pedido aparece más adentro que la factura. Cada número es un enlace: al hacer clic abres ese documento, y con **Ctrl** o **⌘** lo abres en otra pestaña del navegador.
 
-Los pasos que se relacionan son: Cotización → Pedido, Pedido → Entrega, Entrega → Factura, Pedido → Factura (una factura creada sobre el pedido, sin entrega) y Factura → Recibo. Una cotización que se pidió dos veces (porque el primer pedido se canceló) muestra los dos pedidos; una factura de dos entregas muestra las dos.
+Los pasos que se relacionan son: Cotización → Pedido, Pedido → Entrega, Entrega → Factura, Pedido → Factura (una factura creada sobre el pedido, sin entrega), Factura → Recibo y, cuando un anticipo se aplica a una factura, **Factura → Aplicación de anticipo** y **Recibo → Aplicación de anticipo** (la aplicación de anticipo AP-n que une el recibo del anticipo con la factura que saldó; guía **Pagos de clientes**). Una cotización que se pidió dos veces (porque el primer pedido se canceló) muestra los dos pedidos; una factura de dos entregas muestra las dos.
 
 ## «Anulado»
 

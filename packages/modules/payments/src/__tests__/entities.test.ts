@@ -7,14 +7,21 @@ import receivedFixture from "../../../accounting/src/rules/fixtures/payment-rece
 import voidedFixture from "../../../accounting/src/rules/fixtures/payment-voided.json" with { type: "json" };
 import accountingReceived from "../../../accounting/src/rules/defaults/payment-received.json" with { type: "json" };
 import accountingVoided from "../../../accounting/src/rules/defaults/payment-voided.json" with { type: "json" };
+import accountingAdvanceApplied from "../../../accounting/src/rules/defaults/advance-applied.json" with { type: "json" };
+import accountingAdvanceUnapplied from "../../../accounting/src/rules/defaults/advance-unapplied.json" with { type: "json" };
 import { payments, PAYMENTS_ENTITIES, PAYMENTS_POSTING_RULES } from "../index";
 import { receiptTotals, receivedPayload, voidedPayload } from "../processes/receipt";
+import { ACCOUNTING_DEFAULT_RULES } from "../../../accounting/src/rules/defaults";
 
 // The payments manifest (plan 2B Task 21, design §8 and §8.1 step 7): two maestros (medios de pago, cajas), the recibo de caja (documento
 // that posts) with its allocations, the events the 2A rules post (payments.received, payments.payment.voided), the rules it ships (one copy
 // per company: byte-identical to accounting's defaults) and the masked views of migration 0109 generated from the entity definitions.
 
-const migration = readFileSync(new URL("../../../../../supabase/migrations/0109_payments_core.sql", import.meta.url), "utf8");
+const migrationOf = (file: string) => readFileSync(new URL(`../../../../../supabase/migrations/${file}`, import.meta.url), "utf8");
+const migration = migrationOf("0109_payments_core.sql");
+/** The masked views of the application entities are pasted in migration 0137 (plan 2B.2 Task 36). */
+const advanceMigration = migrationOf("0137_payments_advance_applications.sql");
+const ADVANCE_ENTITIES = ["payments.advance_application", "payments.advance_application_line"];
 
 const loaded = () => {
   const registry = new Registry();
@@ -28,8 +35,9 @@ describe("payments manifest", () => {
     expect(payments.dependsOn).toEqual(["core"]);
     expect(payments.navigation.map((n) => n.id)).toEqual(["payments.maestros", "payments.documentos", "payments.reportes", "payments.parametros"]);
     expect(payments.features.map((f) => f.id)).toEqual(["payments.methods", "payments.receipts"]);
+    expect(payments.features[1]!.processes).toEqual(expect.arrayContaining(["payments.advance.apply", "payments.advance.undo", "payments.advance.open", "payments.advance_application.consult", "payments.advance_application_line.consult", "payments.advance_application.delete"]));
     expect(payments.features.flatMap((f) => f.entities).sort()).toEqual(PAYMENTS_ENTITIES.map((e) => e.id).sort());
-    expect(payments.events.emits).toEqual(["payments.received", "payments.payment.voided"]);
+    expect(payments.events.emits).toEqual(["payments.received", "payments.payment.voided", "payments.advance.applied", "payments.advance.unapplied"]);
   });
 
   it("types the methods and cash boxes as maestros, the receipt as a documento that numbers on save, its allocations as lines", () => {
@@ -38,7 +46,12 @@ describe("payments manifest", () => {
       "payments.cash_box": "maestro",
       "payments.receipt": "documento",
       "payments.receipt_allocation": "lines",
+      "payments.advance_application": "documento",
+      "payments.advance_application_line": "lines",
     });
+    const application = PAYMENTS_ENTITIES.find((e) => e.id === "payments.advance_application")!;
+    expect(application.typed).toMatchObject({ numbering: "on_save", lines: { entity: "payments.advance_application_line", parentField: "application_id" } });
+    expect(application.processIds).toEqual({ create: "payments.advance.apply" });
     const receipt = PAYMENTS_ENTITIES.find((e) => e.id === "payments.receipt")!;
     expect(receipt.typed).toMatchObject({ numbering: "on_save", lines: { entity: "payments.receipt_allocation", parentField: "receipt_id" } });
     expect(receipt.processIds).toEqual({ create: "payments.payment.receive" });
@@ -58,6 +71,7 @@ describe("payments manifest", () => {
       "payments.method.create", "payments.method.update", "payments.method.consult",
       "payments.cash_box.create", "payments.cash_box.update", "payments.cash_box.consult",
       "payments.payment.receive", "payments.payment.void", "payments.receipt.consult", "payments.receipt_allocation.consult",
+      "payments.advance.apply", "payments.advance.undo", "payments.advance.open", "payments.advance_application.consult", "payments.advance_application_line.consult", "payments.advance_application.delete",
     ]));
     const module = registry.module("payments");
     expect(module.features.flatMap((f) => f.processes).sort()).toEqual(module.processes.map((p) => p.id).sort());
@@ -67,23 +81,38 @@ describe("payments manifest", () => {
     expect(receive.kind).toBe("create");
     expect(receive.sensitivity ?? "normal").toBe("normal");
     expect(voiding.sensitivity).toBe("step-up");
+    // Task 36: applying an advance has no step-up (the receipt's creation has none), undoing it has (the receipt's void has).
+    const byId = (id: string) => registry.processes({ module: "payments" }).find((p) => p.id === id)!;
+    expect(byId("payments.advance.apply").kind).toBe("create");
+    expect(byId("payments.advance.apply").sensitivity ?? "normal").toBe("normal");
+    expect(byId("payments.advance.undo").kind).toBe("update");
+    expect(byId("payments.advance.undo").sensitivity).toBe("step-up");
+    expect(byId("payments.advance.open").kind).toBe("consult");
   });
 
-  it("menu: Medios de pago and Cajas in Maestros, Recibos de caja in Documentos (pages come later)", () => {
+  it("menu: Medios de pago and Cajas in Maestros, Recibos de caja and Aplicaciones de anticipo in Documentos", () => {
     const rows = menuItemsOf(loaded().module("payments")).filter((r) => r.href && !r.href.startsWith("/payments/parametros/"));
     expect(rows.map((r) => [r.navKey, r.parentKey, r.href])).toEqual([
       ["payments.methods", "payments.maestros", "/payments/methods"],
       ["payments.cash_boxes", "payments.maestros", "/payments/cash-boxes"],
       ["payments.receipts", "payments.documentos", "/payments/receipts"],
+      ["payments.advance_applications", "payments.documentos", "/payments/advance-applications"],
     ]);
   });
 
   it("ships the 2A rules unchanged from accounting's defaults (one copy per company): the receipt and its reversal", () => {
-    expect(PAYMENTS_POSTING_RULES).toEqual([accountingReceived, accountingVoided]);
+    expect(PAYMENTS_POSTING_RULES).toEqual([accountingReceived, accountingVoided, accountingAdvanceApplied, accountingAdvanceUnapplied]);
     expect(PAYMENTS_POSTING_RULES.map((r) => [r.event, r.name, r.journalCode])).toEqual([
       ["payments.received", "Recibo de caja", "RC"],
       ["payments.payment.voided", "Anulación de recibo de caja", "RC"],
+      ["payments.advance.applied", "Aplicación de anticipo", "RC"],
+      ["payments.advance.unapplied", "Anulación de aplicación de anticipo", "RC"],
     ]);
+    // Byte for byte: the JSON files are the same text (the sync matches by event and name, never adds one twice).
+    for (const file of ["advance-applied.json", "advance-unapplied.json"]) {
+      expect(readFileSync(new URL(`../rules/${file}`, import.meta.url), "utf8")).toBe(readFileSync(new URL(`../../../accounting/src/rules/defaults/${file}`, import.meta.url), "utf8"));
+    }
+    expect(ACCOUNTING_DEFAULT_RULES).toEqual(expect.arrayContaining([accountingAdvanceApplied, accountingAdvanceUnapplied]));
   });
 });
 
@@ -185,10 +214,35 @@ describe("receipt totals", () => {
   });
 });
 
-describe("payments masked views, migration 0109", () => {
+describe("the application rules (plan 2B.2 Task 36, R36-2): the ledger shape", () => {
+  const customer = { partyId: "0192b4c0-0000-7000-8000-00000000c001", legalName: "Tiendas D1 S.A.S." };
+  const applicationId = "0192b4c0-0000-7000-8000-00000000f036";
+  const payload = {
+    date: "2026-11-06", number: "AP-1", applicationId, paymentId: applicationId, customer, total: 300000, currency: "COP",
+    allocations: [{ invoiceId: "0192b4c0-0000-7000-8000-00000000a001", invoiceNumber: "FE-1", amount: 300000 }],
+    advances: [{ receiptId: "0192b4c0-0000-7000-8000-00000000f005", receiptNumber: "RC-1", amount: 300000 }],
+  };
+
+  it("Dr customer_advances / Cr receivable for the whole total, the customer as party, the application as source", () => {
+    const template = accountingAdvanceApplied.template as RuleTemplate;
+    expect(template.source).toEqual({ entity: "payments.advance_application", id: "$.applicationId" });
+    const composed = composeEntry(template, { id: "e1", event: "payments.advance.applied", payload, createdAt: new Date(), chainId: "c1" }, { tolerance: 0, companyCurrency: "COP" });
+    expect(composed.ok).toBe(true);
+    if (!composed.ok) return;
+    expect(composed.entry.lines.map((l) => [l.role, l.side, l.amountCompany])).toEqual([["customer_advances", "debit", 300000], ["receivable", "credit", 300000]]);
+    expect(composed.entry.partyId ?? composed.entry.lines[0]!.partyId).toBe(customer.partyId);
+  });
+
+  it("the reversal rule finds the application's entry by its source", () => {
+    expect((accountingAdvanceUnapplied.template as RuleTemplate).reverseOf).toEqual({ event: "payments.advance.applied", sourceId: "$.applicationId" });
+    expect(accountingAdvanceUnapplied.event).toBe("payments.advance.unapplied");
+  });
+});
+
+describe("payments masked views, migrations 0109 and 0137", () => {
   for (const entity of PAYMENTS_ENTITIES) {
     it(`payments.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
-      expect(migration).toContain(maskedViewSql(defineEntity(entity)));
+      expect(ADVANCE_ENTITIES.includes(entity.id) ? advanceMigration : migration).toContain(maskedViewSql(defineEntity(entity)));
     });
   }
 });

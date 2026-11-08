@@ -1,0 +1,14 @@
+{
+  "event": "payments.advance.unapplied",
+  "name": "Anulación de aplicación de anticipo",
+  "journalCode": "RC",
+  "template": {
+    "date": "$.date",
+    "description": "Anulación de la aplicación de anticipo {{number}}",
+    "lines": [],
+    "reverseOf": {
+      "event": "payments.advance.applied",
+      "sourceId": "$.applicationId"
+    }
+  }
+}

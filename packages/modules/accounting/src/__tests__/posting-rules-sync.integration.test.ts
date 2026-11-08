@@ -57,7 +57,8 @@ describe("accounting.posting_rule.sync", () => {
     const rules = await rulesOf("invoicing");
     expect(rules.map((r) => r.name)).toEqual(NAMES);
     expect(rules.every((r) => r.is_active && !r.is_modified)).toBe(true);
-    expect((await rulesOf("accounting")).length).toBe(7);
+    // Seven of design §5.4 plus the two of the advance application (plan 2B.2 Task 36, byte for byte payments' own).
+    expect((await rulesOf("accounting")).length).toBe(9);
   });
 
   it("is event-only (a user is forbidden) and a second run changes nothing", async () => {

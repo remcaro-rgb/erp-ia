@@ -103,7 +103,9 @@
           "order_to_delivery": "Pedido → Entrega",
           "delivery_to_invoice": "Entrega → Factura",
           "order_to_invoice": "Pedido → Factura",
-          "invoice_to_receipt": "Factura → Recibo"
+          "invoice_to_receipt": "Factura → Recibo",
+          "invoice_to_application": "Factura → Aplicación de anticipo",
+          "receipt_to_application": "Recibo → Aplicación de anticipo"
         }
       },
       "contributed": {
@@ -1317,7 +1319,8 @@
       "payments": {
         "method": "medio de pago",
         "cash_box": "caja",
-        "receipt": "recibo de caja"
+        "receipt": "recibo de caja",
+        "advance_application": "aplicación de anticipo"
       }
     },
     "support": {
@@ -1395,7 +1398,8 @@
     "payments": {
       "methods": "Medios de pago",
       "cash_boxes": "Cajas",
-      "receipts": "Recibos de caja"
+      "receipts": "Recibos de caja",
+      "advance_applications": "Aplicaciones de anticipo"
     }
   },
   "entity": {
@@ -1500,7 +1504,9 @@
       "method": "Medio de pago",
       "cash_box": "Caja",
       "receipt": "Recibo de caja",
-      "receipt_allocation": "Aplicación del recibo"
+      "receipt_allocation": "Aplicación del recibo",
+      "advance_application": "Aplicación de anticipo",
+      "advance_application_line": "Línea de la aplicación de anticipo"
     }
   },
   "field": {
@@ -3064,6 +3070,38 @@
         "extra_free": "Datos libres",
         "created_at": "Creado",
         "updated_at": "Actualizado"
+      },
+      "advance_application": {
+        "seq": "ID",
+        "number": "Número",
+        "date": "Fecha",
+        "party_id": "Cliente",
+        "currency": "Moneda",
+        "total": "Total aplicado",
+        "applied_at": "Aplicado el",
+        "voided_at": "Anulado el",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación",
+        "posts": "Contabiliza",
+        "void_reason": "Motivo de anulación"
+      },
+      "advance_application_line": {
+        "seq": "ID",
+        "application_id": "Aplicación",
+        "line_no": "Línea",
+        "receipt_id": "Recibo del anticipo",
+        "receipt_number": "N.º del recibo",
+        "invoice_id": "Factura",
+        "invoice_number": "N.º de la factura",
+        "amount": "Valor aplicado",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
       }
     }
   },
@@ -3198,6 +3236,13 @@
       },
       "dian_defaults": {
         "confirm": "Confirmar los valores por defecto del documento electrónico"
+      }
+    },
+    "payments": {
+      "advance": {
+        "apply": "Aplicar anticipo a facturas",
+        "undo": "Deshacer aplicación de anticipo",
+        "open": "Consultar anticipos por aplicar"
       }
     }
   },
@@ -6121,7 +6166,9 @@
       "void_annulment": "Nota crédito DIAN: una factura emitida se anula con su nota crédito de anulación, que se envía a la DIAN y lleva su asiento; la factura queda anulada cuando la DIAN la acepta. Un Borrador solo se elimina: sin nota crédito ni asiento",
       "resubmit_dian": "Facturación DIAN: vuelve a enviar el documento a la DIAN con el mismo número y CUFE",
       "payment_applied": "Facturación: abona lo pagado a cada factura y la marca pagada cuando queda saldada",
-      "payment_voided": "Facturación: las facturas recuperan el saldo que pagaba el recibo anulado"
+      "payment_voided": "Facturación: las facturas recuperan el saldo que pagaba el recibo anulado",
+      "advance_applied": "Facturación: abona lo aplicado del anticipo a cada factura y la marca pagada cuando queda saldada",
+      "advance_unapplied": "Facturación: las facturas recuperan el saldo que cubría la aplicación deshecha"
     },
     "recommendation": {
       "auto_skipped": {
@@ -6232,7 +6279,19 @@
       "receipt_in_future": "El recibo no puede tener fecha posterior a hoy",
       "void_before_receipt": "La anulación no puede ser anterior al recibo",
       "invalid_receipt": "Un recibo de caja se registra con «Registrar pago»",
-      "receipt_posted": "Un recibo de caja registrado no cambia: anúlalo y registra otro"
+      "receipt_posted": "Un recibo de caja registrado no cambia: anúlalo y registra otro",
+      "advance_exceeds_open": "El anticipo del recibo no tiene saldo suficiente para lo que se le saca",
+      "advance_other_customer": "El recibo del anticipo es de otro cliente",
+      "advance_not_found": "El recibo del anticipo no existe o no es visible",
+      "advance_not_posted": "Solo se aplica el anticipo de un recibo contabilizado",
+      "duplicate_pair": "Un anticipo va una sola vez por factura en la aplicación",
+      "application_in_future": "La aplicación no puede tener fecha posterior a hoy",
+      "application_before_receipt": "La aplicación no puede ser anterior al recibo del anticipo",
+      "nothing_applied": "La aplicación no tiene valor: indica cuánto del anticipo se aplica a cada factura",
+      "receipt_has_applications": "El recibo tiene aplicaciones de anticipo vigentes: deshazlas antes de anularlo",
+      "invalid_application": "Una aplicación de anticipo se registra con «Aplicar a facturas»",
+      "application_posted": "Una aplicación de anticipo registrada no cambia: deshazla y aplica de nuevo",
+      "undo_before_application": "La anulación no puede ser anterior a la aplicación"
     },
     "form": {
       "section": {
@@ -6348,7 +6407,80 @@
     "effects": {
       "receipt_applied": "Pagos: numera el recibo de caja y aplica el pago a las facturas; lo no aplicado queda como anticipo del cliente",
       "receipt_withholdings": "Retenciones: las que practicó el cliente quedan registradas como retenciones sufridas",
-      "receipt_voided": "Pagos: el recibo queda anulado (nunca se borra) y su asiento se revierte"
+      "receipt_voided": "Pagos: el recibo queda anulado (nunca se borra) y su asiento se revierte",
+      "advance_applied": "Pagos: numera la aplicación y descuenta el anticipo del recibo y el saldo de cada factura; el asiento pasa el valor de anticipos de clientes a cuentas por cobrar",
+      "advance_undone": "Pagos: la aplicación queda anulada (nunca se borra), el anticipo y las facturas recuperan su saldo y el asiento de la aplicación se revierte"
+    },
+    "advance_application": {
+      "own_flags": {
+        "requires_approval": "No requiere aprobación: una aplicación de anticipo se registra y contabiliza al aplicarla.",
+        "posts": "Contabiliza siempre: Dr anticipos de clientes / Cr clientes, desde el evento de la aplicación."
+      }
+    },
+    "pages": {
+      "advance": {
+        "section": "Anticipos",
+        "intro": "El dinero que este recibo recibió y no aplicó a facturas es un anticipo del cliente. Aplícalo cuando la factura esté lista: el comprobante pasa el valor de anticipos de clientes a cuentas por cobrar.",
+        "advance": "Anticipo recibido",
+        "applied": "Aplicado",
+        "remaining": "Por aplicar",
+        "applications": "Aplicaciones de este anticipo",
+        "applications_none": "Este anticipo aún no se ha aplicado a ninguna factura.",
+        "application": "Aplicación",
+        "date": "Fecha",
+        "amount": "Valor de este anticipo",
+        "status": "Estado",
+        "invoices": "Facturas",
+        "apply": "Aplicar a facturas",
+        "apply_title": "Aplicar el anticipo a facturas",
+        "apply_hint": "Se aplica como máximo lo que queda del anticipo ({remaining}) y, por factura, su saldo. Puedes repartirlo entre varias facturas o aplicar solo una parte.",
+        "loading": "Buscando las facturas del cliente…",
+        "none_open": "El cliente no tiene facturas con saldo.",
+        "invoice": "Factura",
+        "open": "Saldo",
+        "apply_col": "Aplicar",
+        "apply_to": "Aplicar a {invoice}",
+        "fill": "Máximo",
+        "fill_hint": "Aplica lo máximo posible: el saldo de la factura o lo que queda del anticipo.",
+        "not_payable": "No se puede pagar",
+        "over_open": "Supera el saldo de la factura ({open})",
+        "exceeds": "Lo que aplicas ({total}) supera lo que queda del anticipo ({remaining})",
+        "total": "Total a aplicar",
+        "left": "Quedaría del anticipo",
+        "confirm": "Aplicar anticipo",
+        "applying": "Aplicando…",
+        "cancel": "Cancelar",
+        "missing": "Indica cuánto aplicar a al menos una factura.",
+        "no_access": "Sin acceso a los anticipos de este recibo.",
+        "undo": "Deshacer aplicación",
+        "undo_hint": "Anula la aplicación y revierte su comprobante; pide el código de verificación.",
+        "undo_dialog": {
+          "title": "Deshacer la aplicación {number}",
+          "explain": "Deshacer <b>{number}</b> revierte su comprobante contable: el anticipo y las facturas recuperan su saldo. La aplicación queda Anulada; no se borra.",
+          "invoices": "Facturas que vuelven a deberse",
+          "reason": "Motivo",
+          "step_up": "Al confirmar te pediremos tu <b>código de verificación</b>.",
+          "cancel": "Cancelar",
+          "confirm": "Deshacer aplicación"
+        },
+        "view": {
+          "facts": "Datos de la aplicación",
+          "lines": "Qué se aplicó",
+          "receipt": "Recibo del anticipo",
+          "invoice": "Factura",
+          "amount": "Valor aplicado",
+          "total": "Total aplicado",
+          "note_posted": "Aplicación contabilizada: Dr anticipos de clientes (280505) / Cr cuentas por cobrar (130505) por el total.",
+          "note_voided": "Aplicación deshecha: su comprobante se revirtió y el anticipo y las facturas recuperaron su saldo.",
+          "this_application": "esta aplicación"
+        },
+        "new_info": "Una aplicación se crea desde el recibo que tiene el anticipo: abre el recibo y pulsa «Aplicar a facturas».",
+        "go_receipts": "Ir a los recibos de caja",
+        "applications_no_access": "Sin acceso al detalle de las aplicaciones de este anticipo."
+      }
+    },
+    "hints": {
+      "invoice_not_accepted_advance": "Esta factura aún no ha sido aceptada por la DIAN; puede registrar el dinero como anticipo y aplicarlo después."
     }
   }
 }

@@ -72,10 +72,12 @@ describe("record entities", () => {
     expect(recordEntity("payments.method")).toMatchObject({ consult: "payments.method.consult", create: "payments.method.create", update: "payments.method.update", titleField: "name" });
     expect(recordEntity("payments.cash_box")).toMatchObject({ consult: "payments.cash_box.consult", create: "payments.cash_box.create", update: "payments.cash_box.update", titleField: "name" });
     expect(recordEntity("payments.receipt")).toMatchObject({ consult: "payments.receipt.consult", create: "payments.payment.receive", update: "", titleField: "number", importable: false });
+    // An application of an advance (plan 2B.2 Task 36) is written only by «Aplicar a facturas» (payments.advance.apply), never edited nor imported.
+    expect(recordEntity("payments.advance_application")).toMatchObject({ consult: "payments.advance_application.consult", create: "payments.advance.apply", update: "", titleField: "number", importable: false });
     const registry = new Registry();
     loadModules(registry, [kernelModule, core, payments]);
     const pages = [...recordPageEntities(registry.entities())].filter((id) => id.startsWith("payments.")).sort();
-    expect(pages).toEqual(["payments.cash_box", "payments.method", "payments.receipt"]);
+    expect(pages).toEqual(["payments.advance_application", "payments.cash_box", "payments.method", "payments.receipt"]);
     for (const id of pages) expect(recordEntity(id)).not.toBeNull();
   });
 

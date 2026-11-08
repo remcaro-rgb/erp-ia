@@ -14,6 +14,7 @@ import { EntityLookup } from "../lookup/EntityLookup";
 import { formatMoney } from "../money/format";
 import { recordHref } from "../record/record-model";
 import type { LookupSource } from "../inventory/StockForms";
+import { hasNotAcceptedInvoice } from "./advance-apply-model";
 import {
   addWithholding,
   receiptDraft,
@@ -199,6 +200,7 @@ const day = (iso: string | null) => (iso ? iso.slice(0, 10).replaceAll("-", "/")
 export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable = false, initial: copy, labels = {}, readOnly = false, loadInvoices, process, save, requestStepUp, onSaved }: ReceiptFormProps) {
   const t = useTranslations("payments.form");
   const tv = useTranslations("payments.values");
+  const th = useTranslations("payments.hints");
   const errorText = useErrorText();
   const [draft, setDraft] = useState<ReceiptDraft>(() => receiptDraft(today, copy ?? null, labels));
   // One «Registrar pago» per form: a retry (a double click, a lost answer) answers the first receipt (kernel idempotency).
@@ -368,6 +370,12 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {/* An invoice the DIAN has not accepted yet is listed but not payable: the money can be registered as an advance (owner 2026-11-06, item 23). */}
+            {hasNotAcceptedInvoice(rows) && (
+              <div className="erp-dian erp-dian--info" data-testid="advance-hint">
+                {th("invoice_not_accepted_advance")}
               </div>
             )}
             {rows

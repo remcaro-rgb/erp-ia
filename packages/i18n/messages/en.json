@@ -103,7 +103,9 @@
           "order_to_delivery": "Order → Delivery",
           "delivery_to_invoice": "Delivery → Invoice",
           "order_to_invoice": "Order → Invoice",
-          "invoice_to_receipt": "Invoice → Receipt"
+          "invoice_to_receipt": "Invoice → Receipt",
+          "invoice_to_application": "Invoice → Advance application",
+          "receipt_to_application": "Receipt → Advance application"
         }
       },
       "contributed": {
@@ -1317,7 +1319,8 @@
       "payments": {
         "method": "payment method",
         "cash_box": "cash box",
-        "receipt": "cash receipt"
+        "receipt": "cash receipt",
+        "advance_application": "advance application"
       }
     },
     "support": {
@@ -1395,7 +1398,8 @@
     "payments": {
       "methods": "Payment methods",
       "cash_boxes": "Cash boxes",
-      "receipts": "Cash receipts"
+      "receipts": "Cash receipts",
+      "advance_applications": "Advance applications"
     }
   },
   "entity": {
@@ -1500,7 +1504,9 @@
       "method": "Payment method",
       "cash_box": "Cash box",
       "receipt": "Cash receipt",
-      "receipt_allocation": "Receipt allocation"
+      "receipt_allocation": "Receipt allocation",
+      "advance_application": "Advance application",
+      "advance_application_line": "Advance application line"
     }
   },
   "field": {
@@ -3064,6 +3070,38 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated"
+      },
+      "advance_application": {
+        "seq": "ID",
+        "number": "Number",
+        "date": "Date",
+        "party_id": "Customer",
+        "currency": "Currency",
+        "total": "Total applied",
+        "applied_at": "Applied on",
+        "voided_at": "Voided on",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "advance_application_line": {
+        "seq": "ID",
+        "application_id": "Application",
+        "line_no": "Line",
+        "receipt_id": "Advance receipt",
+        "receipt_number": "Receipt no.",
+        "invoice_id": "Invoice",
+        "invoice_number": "Invoice no.",
+        "amount": "Amount applied",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
       }
     }
   },
@@ -3198,6 +3236,13 @@
       },
       "dian_defaults": {
         "confirm": "Confirm the electronic document defaults"
+      }
+    },
+    "payments": {
+      "advance": {
+        "apply": "Apply advance to invoices",
+        "undo": "Undo advance application",
+        "open": "Consult advances to apply"
       }
     }
   },
@@ -6121,7 +6166,9 @@
       "void_annulment": "DIAN credit note: an issued invoice is annulled by its annulment credit note, sent to the DIAN and posted; the invoice is voided once the DIAN accepts it. A Draft is just deleted: no credit note, no entry",
       "resubmit_dian": "DIAN e-invoicing: sends the document to the DIAN again with the same number and CUFE",
       "payment_applied": "Invoicing: credits what was paid to each invoice and marks it paid when settled",
-      "payment_voided": "Invoicing: the invoices get back the balance the voided receipt paid"
+      "payment_voided": "Invoicing: the invoices get back the balance the voided receipt paid",
+      "advance_applied": "Invoicing: credits what was applied from the advance to each invoice and marks it paid when it is settled",
+      "advance_unapplied": "Invoicing: the invoices get back the balance the undone application covered"
     },
     "recommendation": {
       "auto_skipped": {
@@ -6232,7 +6279,19 @@
       "receipt_in_future": "The receipt cannot be dated after today",
       "void_before_receipt": "The void cannot be dated before the receipt",
       "invalid_receipt": "A cash receipt is recorded with «Registrar pago»",
-      "receipt_posted": "A recorded cash receipt does not change: void it and record another"
+      "receipt_posted": "A recorded cash receipt does not change: void it and record another",
+      "advance_exceeds_open": "The receipt's advance does not have enough balance for what is drawn from it",
+      "advance_other_customer": "The advance's receipt belongs to another customer",
+      "advance_not_found": "The advance's receipt does not exist or is not visible",
+      "advance_not_posted": "Only the advance of a posted receipt can be applied",
+      "duplicate_pair": "An advance goes once per invoice in the application",
+      "application_in_future": "The application cannot be dated after today",
+      "application_before_receipt": "The application cannot be dated before the advance's receipt",
+      "nothing_applied": "The application has no value: say how much of the advance goes to each invoice",
+      "receipt_has_applications": "The receipt has live advance applications: undo them before voiding it",
+      "invalid_application": "An advance application is recorded with «Apply to invoices»",
+      "application_posted": "A recorded advance application does not change: undo it and apply again",
+      "undo_before_application": "The undo cannot be dated before the application"
     },
     "form": {
       "section": {
@@ -6348,7 +6407,80 @@
     "effects": {
       "receipt_applied": "Payments: numbers the cash receipt and applies the payment to the invoices; what is not applied stays as a customer advance",
       "receipt_withholdings": "Withholdings: those the customer applied are recorded as withholdings suffered",
-      "receipt_voided": "Payments: the receipt is voided (never deleted) and its entry is reversed"
+      "receipt_voided": "Payments: the receipt is voided (never deleted) and its entry is reversed",
+      "advance_applied": "Payments: numbers the application and draws the receipt's advance and each invoice's balance down; the entry moves the amount from customer advances to receivables",
+      "advance_undone": "Payments: the application is voided (never deleted), the advance and the invoices get their balance back and the application's entry is reversed"
+    },
+    "advance_application": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: an advance application is recorded and posted when it is applied.",
+        "posts": "Always posts: Dr customer advances / Cr receivables, from the application's event."
+      }
+    },
+    "pages": {
+      "advance": {
+        "section": "Advances",
+        "intro": "The money this receipt received and did not apply to invoices is a customer advance. Apply it when the invoice is ready: the entry moves the amount from customer advances to accounts receivable.",
+        "advance": "Advance received",
+        "applied": "Applied",
+        "remaining": "Left to apply",
+        "applications": "Applications of this advance",
+        "applications_none": "This advance has not been applied to any invoice yet.",
+        "application": "Application",
+        "date": "Date",
+        "amount": "Amount from this advance",
+        "status": "Status",
+        "invoices": "Invoices",
+        "apply": "Apply to invoices",
+        "apply_title": "Apply the advance to invoices",
+        "apply_hint": "At most what is left of the advance ({remaining}) is applied and, per invoice, its balance. You can split it between several invoices or apply only a part.",
+        "loading": "Looking up the customer's invoices…",
+        "none_open": "The customer has no invoices with a balance.",
+        "invoice": "Invoice",
+        "open": "Balance",
+        "apply_col": "Apply",
+        "apply_to": "Apply to {invoice}",
+        "fill": "Maximum",
+        "fill_hint": "Applies as much as possible: the invoice's balance or what is left of the advance.",
+        "not_payable": "Cannot be paid",
+        "over_open": "Exceeds the invoice's balance ({open})",
+        "exceeds": "What you apply ({total}) exceeds what is left of the advance ({remaining})",
+        "total": "Total to apply",
+        "left": "Would be left of the advance",
+        "confirm": "Apply advance",
+        "applying": "Applying…",
+        "cancel": "Cancel",
+        "missing": "Enter how much to apply to at least one invoice.",
+        "no_access": "No access to this receipt's advances.",
+        "undo": "Undo application",
+        "undo_hint": "Voids the application and reverses its entry; asks for the verification code.",
+        "undo_dialog": {
+          "title": "Undo application {number}",
+          "explain": "Undoing <b>{number}</b> reverses its accounting entry: the advance and the invoices get their balance back. The application is marked Voided; it is not deleted.",
+          "invoices": "Invoices owed again",
+          "reason": "Reason",
+          "step_up": "When you confirm we will ask for your <b>verification code</b>.",
+          "cancel": "Cancel",
+          "confirm": "Undo application"
+        },
+        "view": {
+          "facts": "Application details",
+          "lines": "What was applied",
+          "receipt": "Advance receipt",
+          "invoice": "Invoice",
+          "amount": "Amount applied",
+          "total": "Total applied",
+          "note_posted": "Posted application: Dr customer advances (280505) / Cr accounts receivable (130505) for the total.",
+          "note_voided": "Application undone: its entry was reversed and the advance and the invoices got their balance back.",
+          "this_application": "this application"
+        },
+        "new_info": "An application is created from the receipt that holds the advance: open the receipt and press \"Apply to invoices\".",
+        "go_receipts": "Go to the cash receipts",
+        "applications_no_access": "No access to the details of this advance's applications."
+      }
+    },
+    "hints": {
+      "invoice_not_accepted_advance": "This invoice has not been accepted by the DIAN yet; you can record the money as an advance and apply it afterwards."
     }
   }
 }

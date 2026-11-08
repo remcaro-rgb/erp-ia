@@ -32,9 +32,15 @@ describe("the manifest's rules", () => {
   it("the company holds one copy of each payments rule, with the advance line and the receipt as source", async () => {
     const rules = await h.sql<{ event: string; name: string; template: { source?: { entity: string }; lines: { role: string }[] } }[]>`
       select event, name, template from accounting.posting_rules where company_id = ${h.companyId} and event like 'payments.%' order by event`;
-    expect(rules.map((r) => [r.event, r.name])).toEqual([["payments.payment.voided", "Anulación de recibo de caja"], ["payments.received", "Recibo de caja"]]);
-    expect(rules[1]!.template.source).toEqual({ entity: "payments.receipt", id: "$.paymentId" });
-    expect(rules[1]!.template.lines.map((l) => l.role)).toContain("customer_advances");
+    expect(rules.map((r) => [r.event, r.name])).toEqual([
+      ["payments.advance.applied", "Aplicación de anticipo"], ["payments.advance.unapplied", "Anulación de aplicación de anticipo"],
+      ["payments.payment.voided", "Anulación de recibo de caja"], ["payments.received", "Recibo de caja"],
+    ]);
+    expect(rules[3]!.template.source).toEqual({ entity: "payments.receipt", id: "$.paymentId" });
+    expect(rules[3]!.template.lines.map((l) => l.role)).toContain("customer_advances");
+    // Plan 2B.2 Task 36: the application's rule books the reclass from advances to receivables, the application as its source.
+    expect(rules[0]!.template.source).toEqual({ entity: "payments.advance_application", id: "$.applicationId" });
+    expect(rules[0]!.template.lines.map((l) => l.role)).toEqual(["customer_advances", "receivable"]);
   });
 
   it("the demo chart maps every kind of method: efectivo and cheque to the cash account, transferencia and tarjeta to the bank (role cash, dimension payment_method:<kind>)", async () => {

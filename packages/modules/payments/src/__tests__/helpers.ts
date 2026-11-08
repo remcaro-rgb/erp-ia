@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncModuleManifest, type Caller, type ProcessError } from "@erp/kernel";
+import { buildConsumerContext, consumers, kernelModule, loadModules, registerCountryPack, Registry, runProcess, syncModuleManifest, type Caller, type ProcessError } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { einvoicePack } from "@erp/loc-co/einvoice";
@@ -32,6 +32,12 @@ export interface ReceiptOut {
   id: string; number: string | null; status: string; date: string; partyId: string; methodId: string; amount: number; applied: number; withholdingTotal: number; advance: number;
   allocations: { invoiceId: string; invoiceNumber: string | null; amount: number; cashAmount: number; withholdingTotal: number }[];
 }
+
+export interface ApplicationOut {
+  id: string; number: string | null; status: string; date: string; partyId: string; total: number;
+  lines: { receiptId: string; receiptNumber: string | null; invoiceId: string; invoiceNumber: string | null; amount: number }[];
+}
+export interface ApplyLine { receiptId: string; invoiceId: string; amount: number }
 
 export type Harness = Awaited<ReturnType<typeof paymentsHarness>>;
 
@@ -138,6 +144,51 @@ export async function paymentsHarness() {
     events: Number((await sql`select count(*)::int as n from kernel.outbox where company_id = ${companyId} and event like 'payments.%'`)[0]!.n),
     numbers: (await sql<{ next: string }[]>`select next::text from payments.document_numbers where company_id = ${companyId}`).map((r) => r.next),
   });
+  /** An advance: a receipt that applies nothing (all advance). */
+  const advanceReceipt = (amount: number, options: { partyId?: string; date?: string; method?: keyof typeof methods } = {}) => receive({ amount, ...options });
+  /** «Aplicar anticipo»: the process payments.advance.apply as `caller` (the admin by default). */
+  const apply = (lines: ApplyLine[], options: { partyId?: string; date?: string; idempotencyKey?: string } = {}, caller: Caller = admin) =>
+    run<ApplicationOut>(caller, "payments.advance.apply", {
+      partyId: options.partyId ?? partyId, lines, ...(options.date ? { date: options.date } : {}), ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+    });
+  /** The advance's open balance and the applications drawn on it, as the consult answers. */
+  const openAdvances = async (forParty: string = partyId, caller: Caller = admin) =>
+    (await run<{ advances: { receiptId: string; number: string | null; date: string; method: string | null; advance: number; applied: number; remaining: number }[] }>(caller, "payments.advance.open", { partyId: forParty })).advances;
+  const stageOf = async (invoiceId: string) => (await sql<{ stage: string; paid_amount: string }[]>`select stage, paid_amount::text from invoicing.invoices where id = ${invoiceId}`)[0]!;
+  /** Hands the company's events to the consumers of the modules, as the dispatch workflow does (one delivery per module). */
+  const drain = async (moduleIds: string[] = ["invoicing"]) => {
+    const failures: { event: string; moduleId: string; message: string }[] = [];
+    for (let round = 0; round < 10; round++) {
+      const rows = await sql<{ id: string; event: string; payload: Record<string, unknown>; created_at: Date; chain_id: string }[]>`
+        select id, event, payload, created_at, chain_id from kernel.outbox where company_id = ${companyId} order by created_at, id`;
+      let ran = 0;
+      for (const row of rows) {
+        for (const consumer of consumers.for(row.event).filter((c) => moduleIds.includes(c.moduleId))) {
+          const [done] = await sql`select 1 from kernel.outbox_deliveries where outbox_id = ${row.id} and module_id = ${consumer.moduleId}`;
+          if (done) continue;
+          ran += 1;
+          try {
+            await consumer.fn(buildConsumerContext(sql, { id: row.id, event: row.event, createdAt: row.created_at, companyId, chainId: row.chain_id }, registry), row.payload);
+            await sql`insert into kernel.outbox_deliveries (outbox_id, module_id) values (${row.id}, ${consumer.moduleId}) on conflict do nothing`;
+          } catch (error) {
+            failures.push({ event: row.event, moduleId: consumer.moduleId, message: error instanceof Error ? error.message : String(error) });
+          }
+        }
+      }
+      if (ran === 0 || failures.length > 0) return failures;
+    }
+    throw new Error("drain did not settle");
+  };
+  /** Everything a refused application could have left behind, to compare before and after. */
+  const applicationFootprint = async () => ({
+    applications: Number((await sql`select count(*)::int as n from payments.advance_applications where company_id = ${companyId}`)[0]!.n),
+    lines: Number((await sql`select count(*)::int as n from payments.advance_application_lines where company_id = ${companyId}`)[0]!.n),
+    entries: Number((await sql`select count(*)::int as n from accounting.entries where company_id = ${companyId}`)[0]!.n),
+    failures: Number((await sql`select count(*)::int as n from accounting.posting_failures where company_id = ${companyId}`)[0]!.n),
+    events: Number((await sql`select count(*)::int as n from kernel.outbox where company_id = ${companyId} and event like 'payments.advance.%'`)[0]!.n),
+    links: Number((await sql`select count(*)::int as n from kernel.document_links where company_id = ${companyId} and kind like '%\_to\_application'`)[0]!.n),
+    numbers: (await sql<{ next: string }[]>`select next::text from payments.document_numbers where company_id = ${companyId} order by prefix`).map((r) => r.next),
+  });
   const setAccounting = (enabled: boolean) => sql`
     insert into kernel.company_modules (company_id, module_id, enabled, enabled_at) values (${companyId}, 'accounting', ${enabled}, now())
     on conflict (company_id, module_id) do update set enabled = ${enabled}`;
@@ -163,6 +214,6 @@ export async function paymentsHarness() {
 
   return {
     sql, seed, admin, companyId, otherCompanyId, year, today, costCenterId, partyId, servicio, methods,
-    run, runStepUp, refusal, markReady, newCustomer, issuedInvoice, receive, eventsOf, entriesOfSource, linesOf, paidOf, footprint, setAccounting, cleanup,
+    run, runStepUp, refusal, markReady, newCustomer, issuedInvoice, receive, advanceReceipt, apply, openAdvances, stageOf, drain, applicationFootprint, eventsOf, entriesOfSource, linesOf, paidOf, footprint, setAccounting, cleanup,
   };
 }

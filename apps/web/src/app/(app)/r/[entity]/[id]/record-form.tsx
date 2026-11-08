@@ -37,6 +37,7 @@ import type { FormData } from "@/lib/records/load";
 import { useRecordClone, useSaveHold } from "./record-frame";
 import { SalesRecordView } from "./sales-view";
 import { InvoicingRecordView } from "./invoicing-view";
+import { AdvanceApplicationNew, ApplicationRecordView } from "./advance-view";
 import { ReceiptRecordView } from "./payments-view";
 import { openInvoicesAction } from "@/lib/payments/actions";
 import { StockRecordView } from "./stock-view";
@@ -235,7 +236,9 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
       const processes = recordEntity(entity);
       return <PaymentMasterForm key={key} kind={form.payments} {...common} meansCodes={form.meansCodes} processes={{ create: processes?.create ?? "", update: processes?.update ?? "" }} />;
     }
-    if (record && form.view) return <ReceiptRecordView view={form.view} />;
+    // An application of an advance is written from the receipt that holds it (Aplicar a facturas): its page shows the stored one, read only.
+    if (form.payments === "advance_application") return record && form.application ? <ApplicationRecordView view={form.application} /> : <AdvanceApplicationNew />;
+    if (record && form.view) return <ReceiptRecordView view={form.view} recordId={record.id} />;
     return (
       <ReceiptForm
         key={key}

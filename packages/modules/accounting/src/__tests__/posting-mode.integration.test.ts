@@ -90,6 +90,20 @@ describe("(2) asynchronous: each documento commits without its entry, the consum
     await postsLater(receipt.id, "payments.payment.voided", "paymentId", { entries: 1, reversal: true });
   });
 
+  asyncCase(["payments.advance.apply", "payments.advance.undo"], "an advance application and its undo post when the consumer runs", async () => {
+    const invoice = await h.issuedInvoice();
+    expect(await h.drain()).toEqual([]);
+    const advance = await h.run<{ id: string }>(h.admin, "payments.payment.receive", { partyId: h.customerId, methodId: h.transfer, amount: invoice.total, date: h.today, allocations: [] });
+    await postsLater(advance.id, "payments.received", "paymentId");
+    const application = await h.run<{ id: string; number: string }>(h.admin, "payments.advance.apply", {
+      partyId: h.customerId, lines: [{ receiptId: advance.id, invoiceId: invoice.id, amount: invoice.total }],
+    });
+    expect(await h.entriesOf(application.id)).toEqual([]);
+    await postsLater(application.id, "payments.advance.applied", "applicationId");
+    await h.runStepUp("payments.advance.undo", { id: application.id, reason: "Aplicación equivocada" });
+    await postsLater(application.id, "payments.advance.unapplied", "applicationId", { entries: 1, reversal: true });
+  });
+
   asyncCase(["invoicing.invoice.void", "invoicing.note.issue_annulment"], "an invoice voided by its annulment note posts the note when the consumer runs", async () => {
     const invoice = await h.issuedInvoice();
     expect(await h.drain()).toEqual([]);

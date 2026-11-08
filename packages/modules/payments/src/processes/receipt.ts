@@ -37,7 +37,10 @@ export const RECEIPT_PREFIX = "RC-";
 export const FEATURE_RECEIPTS = "payments.receipts";
 /** Every refusal code of the payments processes (the text after `invalid_input:` / `invalid_state:`); payments.errors.<code> names each one. */
 export const PAYMENTS_REFUSAL_CODES = [
-  "allocation_exceeds_open", "invoice_other_customer", "invoice_not_issued", "invoice_voided", "invoice_annulment_pending", "invoice_not_accepted", "currency_not_supported", "invoice_after_receipt", "invoice_not_found", "duplicate_invoice", "cash_short", "invalid_withholding", "nothing_received", "not_invoice_ready", "invalid_party", "invalid_method", "invalid_cash_box", "cash_box_not_cash", "method_kind_unmapped", "invalid_means_code", "means_code_kind_mismatch", "receipt_in_future", "void_before_receipt", "invalid_receipt", "receipt_posted"
+  "allocation_exceeds_open", "invoice_other_customer", "invoice_not_issued", "invoice_voided", "invoice_annulment_pending", "invoice_not_accepted", "currency_not_supported", "invoice_after_receipt", "invoice_not_found", "duplicate_invoice", "cash_short", "invalid_withholding", "nothing_received", "not_invoice_ready", "invalid_party", "invalid_method", "invalid_cash_box", "cash_box_not_cash", "method_kind_unmapped", "invalid_means_code", "means_code_kind_mismatch", "receipt_in_future", "void_before_receipt", "invalid_receipt", "receipt_posted",
+  // Applying an advance to invoices (plan 2B.2 Task 36): the application's own refusals, and Anular's guard (processes/advance.ts).
+  "advance_exceeds_open", "advance_other_customer", "advance_not_found", "advance_not_posted", "duplicate_pair", "application_in_future", "application_before_receipt", "nothing_applied",
+  "receipt_has_applications", "invalid_application", "application_posted", "undo_before_application"
 ] as const;
 
 /** How far a withholding's amount may be from base × rate: the certificate's rounding to the peso ($ 0,50). */
@@ -237,7 +240,7 @@ function readinessReasons(row: Readiness): string[] {
 }
 
 /** The customer as core publishes it (core.v_party_sales, core.v_party_fiscal; rule 3): a customer, invoice_ready, with its name. */
-async function readyCustomer(ctx: ProcessContext, partyId: string): Promise<{ partyId: string; legalName: string }> {
+export async function readyCustomer(ctx: ProcessContext, partyId: string): Promise<{ partyId: string; legalName: string }> {
   const [party] = await ctx.tx<(Readiness & { kind: string[] | null })[]>`
     select kind, invoice_ready, is_active, dian_missing, missing_files, usable, status, requires_approval from core.v_party_sales where id = ${partyId}`;
   if (!party) refuse("invalid_party", ["El cliente no existe o no es visible"]);
@@ -248,7 +251,7 @@ async function readyCustomer(ctx: ProcessContext, partyId: string): Promise<{ pa
   return { partyId, legalName };
 }
 
-interface InvoiceFacts {
+export interface InvoiceFacts {
   id: string; party_id: string; number: string | null; issue_date: string; currency: string; total: string; credited_amount: string; debited_amount: string;
   stage: string; status: string; dian_status: string; annulment_pending: boolean;
 }
@@ -276,8 +279,28 @@ export function payability(
 }
 
 /** What is open of an invoice: total + debit notes − credit notes − what the posted receipts settled (to the cent). */
-const openOf = (inv: Pick<InvoiceFacts, "total" | "debited_amount" | "credited_amount">, settled: number): number =>
+export const openOf = (inv: Pick<InvoiceFacts, "total" | "debited_amount" | "credited_amount">, settled: number): number =>
   (cents(num(inv.total)) + cents(num(inv.debited_amount)) - cents(num(inv.credited_amount)) - cents(settled)) / 100;
+
+/**
+ * The invoices named by `ids` (in the order of the lines, a repeated one is read once), checked visible to the caller (invoicing's published
+ * view, security_invoker: an invoice the user cannot read cannot be paid by id; `invoice_not_found` names the lines), locked in id order
+ * (invoicing.lock_invoices_for_payment: one lock order, no deadlock between receipts and applications) and read again as they stand under the
+ * lock, with what the posted receipts and applications already settled of each (payments.allocated_amounts, read after the lock: a document
+ * that committed meanwhile counts).
+ */
+export async function lockInvoices(ctx: ProcessContext, ids: readonly string[]): Promise<{ locked: Map<string, InvoiceFacts>; settled: Map<string, number> }> {
+  const unique = [...new Set(ids)].sort();
+  const visible = new Set((await ctx.tx<{ id: string }[]>`select id from invoicing.v_receivable_invoices where id = any(${unique}::uuid[])`).map((r) => r.id));
+  const missing = ids.flatMap((invoiceId, i) => (visible.has(invoiceId) ? [] : [`Línea ${i + 1}: la factura no existe o no es visible`]));
+  if (missing.length > 0) refuse("invoice_not_found", missing);
+  const locked = new Map((await ctx.tx<InvoiceFacts[]>`
+    select id, party_id, number, issue_date::text as issue_date, currency, total::text, credited_amount::text, debited_amount::text, stage, status, dian_status, annulment_pending
+    from invoicing.lock_invoices_for_payment(${unique}::uuid[])`).map((r) => [r.id, r]));
+  const settled = new Map((await ctx.tx<{ invoice_id: string; allocated: string }[]>`
+    select invoice_id, allocated::text from payments.allocated_amounts(${unique}::uuid[])`).map((r) => [r.invoice_id, num(r.allocated)]));
+  return { locked, settled };
+}
 
 /**
  * The invoices of the allocations, locked (invoicing.lock_invoices_for_payment) and checked: the customer's own, issued, accepted by the
@@ -289,18 +312,7 @@ async function checkAllocations(ctx: ProcessContext, partyId: string, receiptDat
   const ids = allocations.map((a) => a.invoiceId);
   const repeated = ids.filter((v, i) => ids.indexOf(v) !== i);
   if (repeated.length > 0) refuse("duplicate_invoice", ["Una factura va una sola vez en el recibo: suma lo que se le aplica en una línea"]);
-  const unique = [...new Set(ids)].sort();
-  // Visible to the caller first (invoicing's published view, security_invoker): an invoice the user cannot read cannot be paid by id.
-  const visible = new Set((await ctx.tx<{ id: string }[]>`select id from invoicing.v_receivable_invoices where id = any(${unique}::uuid[])`).map((r) => r.id));
-  const missing = allocations.flatMap((a, i) => (visible.has(a.invoiceId) ? [] : [`Línea ${i + 1}: la factura no existe o no es visible`]));
-  if (missing.length > 0) refuse("invoice_not_found", missing);
-  // Then locked in id order and read again as they stand under the lock (one lock order: no deadlock between receipts).
-  const locked = new Map((await ctx.tx<InvoiceFacts[]>`
-    select id, party_id, number, issue_date::text as issue_date, currency, total::text, credited_amount::text, debited_amount::text, stage, status, dian_status, annulment_pending
-    from invoicing.lock_invoices_for_payment(${unique}::uuid[])`).map((r) => [r.id, r]));
-  // What the posted receipts already settled of each, read after the lock (a receipt that committed meanwhile counts).
-  const settled = new Map((await ctx.tx<{ invoice_id: string; allocated: string }[]>`
-    select invoice_id, allocated::text from payments.allocated_amounts(${unique}::uuid[])`).map((r) => [r.invoice_id, num(r.allocated)]));
+  const { locked, settled } = await lockInvoices(ctx, ids);
 
   const errors: { code: string; message: string }[] = [];
   const planned = allocations.map((a, i): PlannedAllocation => {
@@ -499,6 +511,12 @@ export const paymentVoid = defineProcess({
     // The lifecycle's own table (D3) refuses a void from posted; a posted receipt is undone here, through the reversal path.
     if (receipt.status !== "posted") {
       throw new ProcessError("invalid_state", `payments.receipt ${receiptId}: void is not allowed in status ${receipt.status}`, { details: { from: receipt.status, action: "void" } });
+    }
+    // A live application draws on this receipt's advance: undoing it first keeps the advance from going below what the applications moved and the
+    // reclass from being orphaned (Task 36, R36-8; the posted applications of the company whoever may read them).
+    const [drawn] = await ctx.tx<{ applied: string }[]>`select applied::text from payments.advance_applied_amounts(array[${receiptId}]::uuid[])`;
+    if (cents(num(drawn?.applied)) > 0) {
+      refuseState("receipt_has_applications", [`El recibo ${receipt.number ?? receiptId} tiene aplicaciones de anticipo vigentes (${pesos(num(drawn!.applied))}): deshaz las aplicaciones antes de anularlo`]);
     }
     const on = given ?? (await today(ctx));
     if (on < receipt.date) refuse("void_before_receipt", [`La anulación (${on}) no puede ser anterior al recibo (${receipt.date})`]);

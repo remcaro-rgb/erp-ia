@@ -18,6 +18,7 @@ import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
 import { InvoicingBarActions } from "./invoicing-bar";
 import { InvoicingDianTab, InvoicingLinesTab } from "./invoicing-tabs";
+import { ApplicationBarActions } from "./advance-view";
 import { ReceiptAllocationsTab, ReceiptBarActions } from "./payments-view";
 import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
@@ -99,6 +100,8 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   // A recibo de caja (plan 2B Task 24b): «Registrar pago» is its create and posts at once, so the bar's Guardar only registers a new one
   // (never edits a stored one) and «Anular recibo» (step-up, its own dialog) is the bar's own button; no generic Enviar, Anular or Eliminar.
   const receipt = form.kind === "payments" && form.payments === "receipt";
+  // An application of an advance (plan 2B.2 Task 36) is written from the receipt and never edited: «Deshacer aplicación» (step-up) is its own button.
+  const application = form.kind === "payments" && form.payments === "advance_application";
   const frameLifecycle = lc
     ? {
         entityType: lc.entityType,
@@ -109,10 +112,13 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
           ? { ...lc.rights, modify: canSave && (record === null || form.editable), submit: false, approve: false, reject: false, void: false }
           : receipt
             ? { ...lc.rights, modify: canSave && record === null, submit: false, approve: false, reject: false, void: false, delete: false }
-            : lc.rights,
-        ...(invoicing || receipt ? { saveOnly: true } : {}),
+            : application
+              ? { ...lc.rights, modify: false, submit: false, approve: false, reject: false, void: false, delete: false }
+              : lc.rights,
+        ...(invoicing || receipt || application ? { saveOnly: true } : {}),
         ...(form.kind === "invoicing" && record && form.view ? { extraActions: <InvoicingBarActions entity={entity.id} recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
         ...(form.kind === "payments" && record && form.view ? { extraActions: <ReceiptBarActions recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
+        ...(form.kind === "payments" && record && form.application ? { extraActions: <ApplicationBarActions recordId={record.id} view={form.application} updatedAt={lc.updatedAt} /> } : {}),
         tools: lc.tools,
         ...(lc.voidOption ? { voidOption: lc.voidOption } : {}),
         updatedAt: lc.updatedAt,

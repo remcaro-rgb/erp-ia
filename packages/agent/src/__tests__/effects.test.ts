@@ -54,6 +54,8 @@ const chainLedger = defineModule({
         "invoicing.note.issued": ["Contabilidad: asiento en Ventas"],
         "payments.received": ["Contabilidad: asiento en Recibos de caja"],
         "payments.payment.voided": ["Contabilidad: asiento en Recibos de caja"],
+        "payments.advance.applied": ["Contabilidad: asiento en Recibos de caja"],
+        "payments.advance.unapplied": ["Contabilidad: asiento en Recibos de caja"],
       })[event] ?? [],
   } as unknown as PostingProvider,
 });
@@ -99,6 +101,17 @@ describe("module effects on the confirmation card (2B)", () => {
     expect(lines).toContain("Contabilidad: asiento en Recibos de caja");
     expect(labels(lines)).toEqual(expect.arrayContaining(["Retenciones", "Facturación"]));
     expect(labels(await card("payments.payment.void"))).toEqual(expect.arrayContaining(["Pagos", "Facturación", "Contabilidad"]));
+  });
+
+  it("applying an advance to invoices (Task 36): Pagos names the reclass from customer advances to receivables, Facturación pays the invoices, the ledger's entry; undoing it gives the balances back", async () => {
+    const lines = await card("payments.advance.apply");
+    expect(labels(lines)).toEqual(expect.arrayContaining(["Pagos", "Facturación", "Contabilidad"]));
+    expect(lines.find((l) => l.startsWith("Pagos"))).toMatch(/anticipos de clientes a cuentas por cobrar/);
+    expect(lines).toContain("Contabilidad: asiento en Recibos de caja");
+    const undone = await card("payments.advance.undo");
+    expect(labels(undone)).toEqual(expect.arrayContaining(["Pagos", "Facturación", "Contabilidad"]));
+    expect(undone.find((l) => l.startsWith("Pagos"))).toMatch(/nunca se borra/);
+    expect(labels(await card("payments.advance.apply", "en"))).toEqual(expect.arrayContaining(["Payments", "Invoicing"]));
   });
 
   it("a stock adjustment is valued by costing; a voided delivery gives the stock back and reverses its cost of sales", async () => {

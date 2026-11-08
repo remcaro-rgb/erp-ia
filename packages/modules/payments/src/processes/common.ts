@@ -121,3 +121,22 @@ export async function syncReceiptLinks(ctx: ProcessContext, receiptId: string, i
 export async function markReceiptLinksVoided(ctx: ProcessContext, receiptId: string, reason: string): Promise<void> {
   await linksOf(ctx).markVoided({ entity: RECEIPT, id: receiptId, reason: reason.slice(0, 500) });
 }
+
+// The links of an advance application (plan 2B.2 Task 36, R36-11): invoice_to_application (one per invoice a line names, from the invoice) and
+// receipt_to_application (one per advance receipt a line draws on, from the receipt), written while the application is a Borrador, in the
+// transaction that writes its lines. Undo keeps them, marked; a Borrador's delete takes them away. (A kind is `<a>_to_<b>` in lowercase words
+// with no underscore inside a word, LINK_KIND: `application` stands for the advance application.)
+
+const APPLICATION = "payments.advance_application";
+
+/** Makes the application's upstream links equal the invoices and the advance receipts its lines name. */
+export async function syncApplicationLinks(ctx: ProcessContext, applicationId: string, invoiceIds: readonly string[], receiptIds: readonly string[]): Promise<void> {
+  const links = linksOf(ctx);
+  await links.sync({ to: { entity: APPLICATION, id: applicationId }, kind: "invoice_to_application", from: [...new Set(invoiceIds)].map((id) => ({ entity: "invoicing.invoice", id })) });
+  await links.sync({ to: { entity: APPLICATION, id: applicationId }, kind: "receipt_to_application", from: [...new Set(receiptIds)].map((id) => ({ entity: RECEIPT, id })) });
+}
+
+/** The application was undone: every link touching it is marked (kept, never deleted). */
+export async function markApplicationLinksVoided(ctx: ProcessContext, applicationId: string, reason: string): Promise<void> {
+  await linksOf(ctx).markVoided({ entity: APPLICATION, id: applicationId, reason: reason.slice(0, 500) });
+}

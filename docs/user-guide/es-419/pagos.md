@@ -2,6 +2,7 @@
 title: "Pagos de clientes: recibos de caja, medios de pago, retenciones, anticipos y anular"
 routes:
   - /payments/receipts
+  - /payments/advance-applications
   - /payments/methods
   - /payments/cash-boxes
 processes:
@@ -9,6 +10,11 @@ processes:
   - payments.payment.void
   - payments.payment.open_invoices
   - payments.receipt.consult
+  - payments.advance.apply
+  - payments.advance.undo
+  - payments.advance.open
+  - payments.advance_application.consult
+  - payments.advance_application.delete
   - payments.method.create
   - payments.method.update
   - payments.cash_box.create
@@ -90,7 +96,26 @@ El valor de cada retención debe ser la base por la tarifa (se admite hasta $ 0,
 
 ## Anticipos: lo que sobra
 
-Si el valor recibido es mayor que lo que se aplica en efectivo a las facturas, la diferencia queda como **anticipo del cliente** (crédito a **280505 Anticipos y avances recibidos de clientes**). Un recibo sin facturas es todo anticipo. El cruce de un anticipo con facturas futuras llega en una próxima entrega.
+Si el valor recibido es mayor que lo que se aplica en efectivo a las facturas, la diferencia queda como **anticipo del cliente** (crédito a **280505 Anticipos y avances recibidos de clientes**). Un recibo sin facturas es todo anticipo.
+
+**Si la factura aún no está aceptada.** Al registrar un pago, una factura que la DIAN todavía no aceptó aparece en la lista pero no recibe valor: debajo de la tabla el formulario te dice que *esta factura aún no ha sido aceptada por la DIAN; puede registrar el dinero como anticipo y aplicarlo después*. Registra el recibo sin aplicarlo y, cuando la DIAN acepte la factura, aplica el anticipo como se explica abajo.
+
+### Aplicar un anticipo a facturas
+
+1. Abre el recibo que tiene el anticipo (**Pagos › Documentos › Recibos de caja**). Si está contabilizado y le queda anticipo, la sección **Anticipos** muestra el **anticipo recibido**, lo **aplicado** y lo que **queda por aplicar**, y las aplicaciones que ya salieron de él.
+2. Pulsa **Aplicar a facturas**. El panel lista las facturas del cliente con su saldo; solo las que se pueden pagar (aceptadas por la DIAN, no anuladas y sin una nota crédito de anulación en curso) reciben valor, las demás dicen por qué no.
+3. Escribe cuánto aplicar a cada factura, o pulsa **Máximo** para aplicar lo más que se puede: el saldo de la factura o lo que queda del anticipo, lo que sea menor. Puedes aplicar **solo una parte** del anticipo o **repartirlo entre varias facturas**; el panel te avisa si una factura recibe más que su saldo o si el total supera lo que queda del anticipo.
+4. Pulsa **Aplicar anticipo**. La aplicación se numera (**AP-1**, **AP-2**…) y se contabiliza en el mismo momento (diario **RC**): débito a **280505 Anticipos y avances recibidos de clientes** y crédito a la cuenta por cobrar del cliente, por el total. Las facturas bajan su saldo y una factura saldada pasa a **Pagada** (en unos segundos, cuando Facturación lee la aplicación). Si algo falla (por ejemplo, el periodo de la fecha está cerrado), no se aplica nada.
+
+La aplicación lleva la fecha de hoy y no puede ser anterior al recibo ni posterior a hoy. Cada aplicación sale de **un** recibo: para usar el anticipo de **dos recibos** en una factura, aplica el primero y luego el segundo, desde cada recibo. Las aplicaciones están en **Pagos › Documentos › Aplicaciones de anticipo**; al abrir una ves el cliente, qué recibo y qué factura intervienen, y el valor de cada línea. Una aplicación no se edita ni se borra.
+
+### Deshacer una aplicación
+
+Si te equivocaste de factura o de valor, abre la aplicación (o el recibo) y pulsa **Deshacer aplicación**: la ventana te dice qué facturas vuelven a deberse; escribe el **motivo** y confirma con tu **código de verificación** (guía **Ingresar y verificación en dos pasos**). La aplicación queda **Anulada** (nunca se borra), su comprobante se **revierte**, el anticipo recupera lo que se le había sacado y las facturas recuperan su saldo (una **Pagada** vuelve a **Emitida**). Deshacer una aplicación ya deshecha no es posible. Mientras un recibo tenga aplicaciones vigentes **no se puede anular**: deshaz primero sus aplicaciones.
+
+Las aplicaciones aparecen en **Documentos relacionados** de la factura y del recibo, con los pasos **Factura → Aplicación de anticipo** y **Recibo → Aplicación de anticipo**. Con el modo de contabilización **Asíncrona con reintentos** (guía **Reglas contables**), la aplicación se guarda antes de que su comprobante exista y un periodo cerrado se ve en **Pendientes de contabilizar**; en el modo por defecto la aplicación y su comprobante nacen juntos o no nacen.
+
+**Empresas que ya existían.** La aplicación necesita dos reglas contables nuevas, **Aplicación de anticipo** y **Anulación de aplicación de anticipo**. Una empresa creada antes de esta versión no las tiene: un administrador debe sincronizar las reglas contables por defecto una vez; las formas de hacerlo (repetir **Configurar contabilidad**, volver a activar el módulo de contabilidad o pedírselo al asistente) están en la guía **Reglas contables**. Hasta entonces, aplicar un anticipo se rechaza y no cambia nada.
 
 ## La contabilidad y el periodo
 

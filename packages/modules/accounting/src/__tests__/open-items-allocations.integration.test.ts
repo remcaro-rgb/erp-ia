@@ -175,6 +175,32 @@ describe("a company with payments: open items follow the allocations", () => {
     expect(items.filter((i) => i.kind === "document").length).toBe(3);
   });
 
+  it("an advance application is aimed at its invoices like a receipt (0138): the newer invoice is settled, not the older one, the advance falls by the same amount, and an undo restores both", async () => {
+    const party = await newCustomer("Cliente Aplicacion Anticipo S.A.S.");
+    const older = await h.issuedInvoice(1, { partyId: party });
+    const newer = await h.issuedInvoice(2, { partyId: party });
+    const advance = await h.advanceReceipt(300000, { partyId: party });
+    const [entryOlder, entryNewer] = [await entryOf(older.id), await entryOf(newer.id)];
+    // One application over both invoices, the whole credit on the receivable one line: split over the invoices it names, not FIFO.
+    const application = await h.apply([{ receiptId: advance.id, invoiceId: newer.id, amount: 200000 }, { receiptId: advance.id, invoiceId: older.id, amount: 19000 }], { partyId: party });
+    let items = await openItems(party);
+    expect([openOf(items, entryOlder), openOf(items, entryNewer)]).toEqual([100000, 38000]);
+    expect(items.filter((i) => i.kind === "credit")).toEqual([]);
+    // The advance fell by what the application drew; the party's total is unchanged by an application.
+    expect(items.filter((i) => i.kind === "advance").map((i) => [i.account, i.open])).toEqual([["280505", -81000]]);
+    expect(items.filter((i) => i.kind === "document").reduce((sum, i) => sum + i.open, 0)).toBe(138000);
+    expect(await balanceOf(party, "130505")).toBe(357000 - 219000);
+    expect(await balanceOf(party, "280505")).toBe(-81000);
+    // The aging report sees it.
+    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 138000, credits: -81000, total: 57000 });
+
+    await h.runStepUp("payments.advance.undo", { id: application.id, reason: "Se aplicó a facturas equivocadas" });
+    items = await openItems(party);
+    expect([openOf(items, entryOlder), openOf(items, entryNewer)]).toEqual([119000, 238000]);
+    expect(items.filter((i) => i.kind === "advance").map((i) => [i.account, i.open])).toEqual([["280505", -300000]]);
+    expect(items.filter((i) => i.kind === "credit")).toEqual([]);
+  });
+
   it("an invoice with a partial credit note cannot be annulled (invoicing refuses it); its open amount is what the note left", async () => {
     const party = await newCustomer("Cliente Anulación S.A.S.");
     const invoice = await h.issuedInvoice(3, { partyId: party });

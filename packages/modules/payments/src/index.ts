@@ -3,6 +3,7 @@ import { defineModule, type ModuleDef } from "@erp/kernel";
 import { PAYMENTS_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
 import { cashBoxHooks, MASTER_PROCESSES, methodHooks } from "./processes/masters";
+import { ADVANCE_APPLIED, ADVANCE_PROCESSES, ADVANCE_UNAPPLIED, applicationHooks } from "./processes/advance";
 import { PAYMENT_RECEIVED, PAYMENT_VOIDED, RECEIPT_PROCESSES, receiptHooks } from "./processes/receipt";
 import { receiptRecordTemplate } from "./print";
 import { PAYMENTS_POSTING_RULES } from "./rules";
@@ -24,19 +25,22 @@ export const payments: ModuleDef = defineModule({
   dependsOn: ["core"],
   icon: "wallet",
   entities: PAYMENTS_ENTITIES,
-  processes: [...MASTER_PROCESSES, ...RECEIPT_PROCESSES],
+  processes: [...MASTER_PROCESSES, ...RECEIPT_PROCESSES, ...ADVANCE_PROCESSES],
   features: FEATURES,
   // Its Inicio cards (plan 2B Task 26).
   homeKpis: HOME_KPIS,
   homeCharts: HOME_CHARTS,
-  events: { emits: [PAYMENT_RECEIVED, PAYMENT_VOIDED], consumes: {} },
+  events: { emits: [PAYMENT_RECEIVED, PAYMENT_VOIDED, ADVANCE_APPLIED, ADVANCE_UNAPPLIED], consumes: {} },
   navigation: NAVIGATION,
-  typedHooks: { "payments.method": methodHooks, "payments.cash_box": cashBoxHooks, "payments.receipt": receiptHooks },
+  typedHooks: { "payments.method": methodHooks, "payments.cash_box": cashBoxHooks, "payments.receipt": receiptHooks, "payments.advance_application": applicationHooks },
   postingRules: PAYMENTS_POSTING_RULES,
   // What the assistant's confirmation card tells about a receipt (plan 2B Task 25); the ledger's own line comes from the posting provider.
   effects: {
     "payments.payment.receive": ["payments.effects.receipt_applied", "payments.effects.receipt_withholdings"],
     "payments.payment.void": ["payments.effects.receipt_voided"],
+    // Aplicar anticipo a factura (plan 2B.2 Task 36, R36-12): the card names the ledger reclass; the ledger's own line comes from the posting provider.
+    "payments.advance.apply": ["payments.effects.advance_applied"],
+    "payments.advance.undo": ["payments.effects.advance_undone"],
   },
   // Imprimir of a receipt with no company template (Task 24b).
   printTemplates: { "payments.receipt": { record: receiptRecordTemplate } },
@@ -44,6 +48,8 @@ export const payments: ModuleDef = defineModule({
 
 export { DOCUMENT_STATES, MAESTRO_STATES, METHOD_KINDS, PAYMENTS_ENTITIES, WITHHOLDING_KINDS } from "./entities";
 export type { WithholdingKind } from "./entities";
+export { ADVANCE_APPLIED, ADVANCE_UNAPPLIED, APPLICATION_PREFIX, applicationPlan, appliedPayload, unappliedPayload } from "./processes/advance";
+export type { ApplicationOutput, ApplicationPlan } from "./processes/advance";
 export { payability, PAYMENT_RECEIVED, PAYMENT_VOIDED, PAYMENTS_REFUSAL_CODES, RECEIPT_PREFIX, receiptTotals, receivedPayload, voidedPayload } from "./processes/receipt";
 export { RECEIPT_PRINT_FIELDS, RECEIPT_PRINT_LINE_COLUMNS, receiptRecordTemplate } from "./print";
 export type { ReceivedPayload, ReceiptOutput } from "./processes/receipt";

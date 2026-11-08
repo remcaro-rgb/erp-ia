@@ -64,7 +64,7 @@ describe("posting", () => {
       // cogs-posted and inventory-adjustment are the manifests of costing and inventory (Task 50.14), not accounting's own.
       "invoicing.invoice.issued", "invoicing.invoice.voided",
       // The note's rule is three, one per kind of note (plan 2B Task 18 fix round 1).
-      "invoicing.note.issued", "invoicing.note.issued", "invoicing.note.issued", "payments.payment.voided", "payments.received",
+      "invoicing.note.issued", "invoicing.note.issued", "invoicing.note.issued", "payments.advance.applied", "payments.advance.unapplied", "payments.payment.voided", "payments.received",
     ]);
     expect(rules.every((r) => r.module === "accounting" && r.is_default)).toBe(true);
   });

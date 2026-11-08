@@ -93,6 +93,9 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
   { id: "payments.method", consult: "payments.method.consult", create: "payments.method.create", update: "payments.method.update", titleField: "name", nounKey: "nav.create.payments.method" },
   { id: "payments.cash_box", consult: "payments.cash_box.consult", create: "payments.cash_box.create", update: "payments.cash_box.update", titleField: "name", nounKey: "nav.create.payments.cash_box" },
   { id: "payments.receipt", consult: "payments.receipt.consult", create: "payments.payment.receive", update: "", titleField: "number", nounKey: "nav.create.payments.receipt", importable: false },
+  // Aplicar anticipo a factura (plan 2B.2 Task 36): an application is written by «Aplicar a facturas» on the receipt that holds the advance
+  // (payments.advance.apply: applied, numbered and posted in one action), never edited (Deshacer aplicación is its own step) nor imported.
+  { id: "payments.advance_application", consult: "payments.advance_application.consult", create: "payments.advance.apply", update: "", titleField: "number", nounKey: "nav.create.payments.advance_application", importable: false },
 ];
 
 /** The id of a record not created yet: `/r/<entity>/new` opens the empty form. */

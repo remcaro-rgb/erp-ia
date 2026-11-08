@@ -1,6 +1,6 @@
 import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
-import { INVOICE_PAID, onPaymentReceived, onPaymentVoided } from "./consumers/payments";
+import { INVOICE_PAID, onAdvanceApplied, onAdvanceUnapplied, onPaymentReceived, onPaymentVoided } from "./consumers/payments";
 import { INVOICING_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { INVOICING_PROCESSES } from "./processes";
@@ -51,6 +51,9 @@ export const invoicing: ModuleDef = defineModule({
       // Task 23: what the recibos de caja settled of each invoice (paid_amount, the paid stage), recomputed from payments' published facts.
       "payments.received": onPaymentReceived,
       "payments.payment.voided": onPaymentVoided,
+      // Plan 2B.2 Task 36: an advance applied to invoices (and undone) settles them like a receipt: the same recomputation.
+      "payments.advance.applied": onAdvanceApplied,
+      "payments.advance.unapplied": onAdvanceUnapplied,
     },
   },
   navigation: NAVIGATION,
@@ -72,6 +75,8 @@ export const invoicing: ModuleDef = defineModule({
     [NOTE_ISSUED]: ["invoicing.effects.note_dian"],
     "payments.received": ["invoicing.effects.payment_applied"],
     "payments.payment.voided": ["invoicing.effects.payment_voided"],
+    "payments.advance.applied": ["invoicing.effects.advance_applied"],
+    "payments.advance.unapplied": ["invoicing.effects.advance_unapplied"],
   },
   // Task 19: the graphic representation of the electronic invoice and its notes (CUFE / CUDE, the DIAN's QR, the numbering legend).
   printTemplates: { "invoicing.invoice": { record: invoiceRecordTemplate }, "invoicing.note": { record: noteRecordTemplate } },

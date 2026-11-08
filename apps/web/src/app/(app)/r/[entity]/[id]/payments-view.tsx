@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@erp/ui/c
 import { runPaymentsStepAction } from "@/lib/payments/actions";
 import type { ReceiptView } from "@/lib/payments/record";
 import { useStepRunner } from "@/lib/records/use-step-runner";
+import { AdvancesSection } from "./advance-view";
 
 // A stored recibo de caja (plan 2B Task 24b, prototype 2B «Recibo de caja RC-0088»). Datos: its state (Contabilizado, Anulado), its facts
 // (the customer, the medio de pago and the caja link to their records, rule 21), the money in the money format (rule 23; masked reads
@@ -27,7 +28,7 @@ function Section({ title, extra, children }: { title: string; extra?: ReactNode;
   );
 }
 
-export function ReceiptRecordView({ view }: { view: ReceiptView }) {
+export function ReceiptRecordView({ view, recordId }: { view: ReceiptView; recordId: string }) {
   const t = useTranslations("payments.view");
   const toneClass = (tone: string) => (tone === "ok" ? "erp-dian erp-dian--ok" : tone === "danger" ? "erp-dian erp-dian--bad" : tone === "info" ? "erp-dian erp-dian--info" : "erp-dian");
   return (
@@ -86,6 +87,7 @@ export function ReceiptRecordView({ view }: { view: ReceiptView }) {
           </div>
         ))}
       </Section>
+      {view.advances && <AdvancesSection section={view.advances} recordId={recordId} />}
     </div>
   );
 }

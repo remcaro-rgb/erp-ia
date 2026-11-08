@@ -105,7 +105,7 @@ export const invoiceRecordPayments = defineProcess({
   },
 });
 
-/** What invoicing reads of payments.received and payments.payment.voided: the invoices of the allocations. */
+/** What invoicing reads of payments.received, payments.payment.voided and the advance applications' events: the invoices of the allocations. */
 const allocationsPayload = z.looseObject({ paymentId: id, allocations: z.array(z.looseObject({ invoiceId: id })).default([]) });
 
 const onAllocations = (event: string): EventConsumer => async (ctx, payload) => {
@@ -121,5 +121,14 @@ const onAllocations = (event: string): EventConsumer => async (ctx, payload) => 
 export const onPaymentReceived: EventConsumer = onAllocations("payments.received");
 /** Consumer of payments.payment.voided: the invoices it had settled get the amount back (recomputed; paid → issued). */
 export const onPaymentVoided: EventConsumer = onAllocations("payments.payment.voided");
+
+/**
+ * Consumer of payments.advance.applied (plan 2B.2 Task 36, R36-4): the invoices an advance was applied to are recomputed, with the same function
+ * and the same refreshPaid as a receipt (the payload carries `paymentId` = the application's id and `allocations` per invoice; the application's
+ * lines count in payments.allocated_amounts, so paid_amount and the paid stage follow with no second status logic).
+ */
+export const onAdvanceApplied: EventConsumer = onAllocations("payments.advance.applied");
+/** Consumer of payments.advance.unapplied: an undone application gives its amounts back to the invoices (recomputed; paid → issued). */
+export const onAdvanceUnapplied: EventConsumer = onAllocations("payments.advance.unapplied");
 
 export const PAYMENT_PROCESSES = [invoiceRecordPayments];

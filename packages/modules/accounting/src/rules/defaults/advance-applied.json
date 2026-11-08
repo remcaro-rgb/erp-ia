@@ -1,0 +1,27 @@
+{
+  "event": "payments.advance.applied",
+  "name": "Aplicación de anticipo",
+  "journalCode": "RC",
+  "template": {
+    "date": "$.date",
+    "description": "Aplicación de anticipo {{number}} · {{customer.legalName}}",
+    "party": "$.customer.partyId",
+    "source": {
+      "entity": "payments.advance_application",
+      "id": "$.applicationId"
+    },
+    "lines": [
+      {
+        "role": "customer_advances",
+        "side": "debit",
+        "amount": "$.total"
+      },
+      {
+        "role": "receivable",
+        "side": "credit",
+        "amount": "$.total"
+      }
+    ],
+    "reverseOf": null
+  }
+}

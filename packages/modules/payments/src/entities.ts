@@ -15,6 +15,10 @@ import type { EntityDef, EntityType, FieldDef, FieldType } from "@erp/kernel";
 //    receivable (cash + the withholdings the customer practised on it), `withholdings` the certificates' lines (kind, code, rate, base,
 //    amount), `cash_amount` what of the money received went to it. The invoice is invoicing's (its id and number are named, never
 //    referenced across schemas, rule 3).
+//  - payments.advance_application (documento, contabiliza; plan 2B.2 Task 36): one act of the user over one customer that applies the advance
+//    of one or more of its receipts to one or more of its invoices (Dr customer_advances / Cr receivable). It is written already applied by
+//    payments.advance.apply, numbered AP-n on save and posted inline and strict; payments.advance.undo (step-up) voids it, never deletes it.
+//  - payments.advance_application_line (lines): (advance receipt, invoice, amount); many to many falls out of the lines.
 
 type FieldOptions = Omit<FieldDef, "name" | "type" | "label">;
 
@@ -143,4 +147,45 @@ export const allocationEntity: EntityDef = entity("payments.receipt_allocation",
   ...trailer(f),
 ]);
 
-export const PAYMENTS_ENTITIES: EntityDef[] = [methodEntity, cashBoxEntity, receiptEntity, allocationEntity];
+export const applicationEntity: EntityDef = entity("payments.advance_application", "documento", "advance_applications", "number", (f) => [
+  f("seq", "number", { required: true }),
+  f("number", "text", { searchable: true }),
+  f("date", "date", { required: true }),
+  f("party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
+  f("currency", "text", { required: true }),
+  /** What the application moves from the customer's advances to its invoices: the sum of its lines (Dr customer_advances / Cr receivable). */
+  f("total", "money", { required: true }),
+  f("applied_at", "datetime"),
+  f("voided_at", "datetime"),
+  ...trailer(f),
+  f("status", "enum", { required: true, enumValues: DOCUMENT_STATES, valuesKey: "grid.values.record_status" }),
+  f("requires_approval", "boolean"),
+  f("posts", "boolean"),
+  f("void_reason", "text"),
+], {
+  typed: {
+    numbering: "on_save",
+    lines: { entity: "payments.advance_application_line", parentField: "application_id" },
+    ownFlags: { requiresApproval: "payments.advance_application.own_flags.requires_approval", posts: "payments.advance_application.own_flags.posts" },
+  },
+  processIds: { create: "payments.advance.apply" },
+  // An application is written by «Aplicar a facturas» with its own lines: a copy has no meaning, nothing but the customer is kept.
+  cloneReset: ["seq", "number", "date", "total", "applied_at", "voided_at", "void_reason"],
+  defaultSort: { field: "seq", dir: "desc" },
+  recordPage: true,
+});
+
+export const applicationLineEntity: EntityDef = entity("payments.advance_application_line", "lines", "advance_application_lines", "line_no", (f) => [
+  f("seq", "number", { required: true }),
+  f("application_id", "ref", { required: true, ...ref("payments.advance_application", "number") }),
+  f("line_no", "number", { required: true }),
+  f("receipt_id", "ref", { required: true, ...ref("payments.receipt", "number") }),
+  f("receipt_number", "text", { searchable: true }),
+  f("invoice_id", "uuid", { required: true }),
+  f("invoice_number", "text", { searchable: true }),
+  /** What the line draws from the receipt's advance and settles of the invoice. */
+  f("amount", "money", { required: true }),
+  ...trailer(f),
+]);
+
+export const PAYMENTS_ENTITIES: EntityDef[] = [methodEntity, cashBoxEntity, receiptEntity, allocationEntity, applicationEntity, applicationLineEntity];
