@@ -14,3 +14,5 @@ dist/
 eval-report.json
 # swc plugin caches of any package (final review M-6)
 .swc/
+# Obsidian per-user UI state
+docs/brain/.obsidian/workspace*.json

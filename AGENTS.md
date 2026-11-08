@@ -26,3 +26,9 @@ These instructions apply to every task in this repository, whichever model or to
 
 ## Project facts
 Stack: pnpm monorepo, Next.js 16 App Router, Supabase (Postgres, Auth, Storage), Vercel AI SDK + Workflow DevKit, shadcn + Tailwind v4, TanStack Table, Vitest + Playwright. Demo company: Café del Norte S.A.S., NIT 900373115-3. Default locale `es-419`, country pack `co`, currency COP. Reusable code to port from `/Volumes/SATECHI2TB/Serena/serena-app` (DIAN, Bold, Siigo, exports) per the design §18a.
+
+## Second Brain (Obsidian vault at `docs/brain`)
+- CRITICAL RULE: Every time a significant feature is implemented, a technical decision is made, an error is solved, or architecture changes, the model MUST automatically draft or append a concise Markdown note about it inside the project's Obsidian Vault folder (`docs/brain`, PARA layout; see `docs/brain/000_Index.md`).
+- CRITICAL RULE: Always format links inside notes using standard Obsidian wikilinks [[Note Name]].
+- CRITICAL RULE: Include metadata frontmatter (tags, date, status) at the top of every generated note.
+- `scripts/sync-brain.sh` appends recent commits and an architecture summary to `docs/brain/00_Inbox/Inbox Log.md`. Vault notes are docs, not scratch work; design decisions still go to the design §22 by the owner.
