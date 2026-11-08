@@ -5982,6 +5982,7 @@
       "certificate_status_mismatch": "El certificado guardado no es el que describen estos datos (una subida quedó a medias): súbelo de nuevo",
       "certificate_status_missing": "No hay certificado en el almacén de secretos: súbelo de nuevo",
       "certificate_status_unverified": "Certificado subido antes de la verificación de huella: súbelo de nuevo para verificarlo",
+      "certificate_status_unreadable": "No se pudo verificar el certificado guardado (el almacén de secretos no respondió): inténtalo de nuevo en unos minutos",
       "pin_title": "PIN del software",
       "pin_none": "Sin PIN guardado",
       "pin_set_at": "PIN guardado el {date}; no se muestra",

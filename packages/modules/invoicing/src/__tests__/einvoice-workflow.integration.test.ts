@@ -1,13 +1,16 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getRun, start } from "workflow/api";
 import { EInvoiceTransportError, InMemorySecretStore, MockEInvoiceTransport, mockTrackId, type EInvoiceResult, type EInvoiceSubmitMeta, type EInvoiceTransport, type MockScenario } from "@erp/infra";
-import { buildConsumerContext, consumers, loadModules, registry as appRegistry, setEInvoiceTransport, setFileStore, setSecretStore } from "@erp/kernel";
+import { buildConsumerContext, consumers, loadModules, registry as appRegistry, setEInvoiceTransport, setExportsStore, setFileStore, setSecretStore } from "@erp/kernel";
 import { MemoryFileStore } from "@erp/kernel/testing";
 import { saveCertificate, verifySignedInvoice } from "@erp/loc-co/einvoice";
 import { generateTestCertP12 } from "../../../../localization/co/src/__tests__/helpers/test-cert";
 import { pdfText } from "../../../../kernel/src/templates/__tests__/pdf-text";
 import { softwarePinSecret } from "../einvoice-secrets";
+import { invoicing } from "../index";
+import { FE } from "../pdf/invoice-template";
 import { einvoiceSubmission } from "../workflows/einvoice.workflow";
+import { transportFor } from "../workflows/transport-for";
 import { DIAN_CHECKLIST_VERSION, invoicingHarness, MODULES, registry, type Harness, type InvoiceOut } from "./helpers";
 
 // The DIAN submission of an issued invoice (plan 2B Task 17; design §18a, §19, OD-1; Review Focus 2), on the MOCK transport only (the owner
@@ -587,5 +590,222 @@ describe("the document is the invoice as issued", () => {
     const s = await resubmit(invoice.id);
     expect(s).toMatchObject({ status: "accepted" });
     expect(s.run_id).not.toBe(finished.run_id);
+  });
+});
+
+// Task 37 (R37-1, R37-2): the document keeps the DIAN environment it was issued in: its XML, its CUFE, its QR and the transport that sends it
+// read the frozen `dian_environment` of the document, never the company's current setting; an issued document without one fails the run.
+describe("task 37: the document keeps the DIAN environment it was issued in", () => {
+  const SOFTWARE = "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0";
+  const setEnvironment = (environment: "habilitacion" | "produccion") => h.sql`update invoicing.settings set software_id = coalesce(software_id, ${SOFTWARE}), certificate_uploaded_at = coalesce(certificate_uploaded_at, now()), software_pin_set_at = coalesce(software_pin_set_at, now()), dian_defaults_confirmed = true, dian_checklist_version = ${DIAN_CHECKLIST_VERSION}, dian_environment = ${environment} where company_id = ${h.companyId}`;
+  const frozenOf = async (table: "invoices" | "notes", id: string) => (await h.sql.unsafe(`select dian_environment from invoicing.${table} where id = $1`, [id]) as { dian_environment: string | null }[])[0]!.dian_environment;
+  const keptXml = async (kind: "factura" | "nota", number: string) => {
+    const key = [...store.files.keys()].filter((k) => k.endsWith(`/${kind}-${number}.xml`)).at(-1);
+    return key ? new TextDecoder().decode(await store.get(key)) : null;
+  };
+  /** An invoice issued while the software is not registered (its submission waits), the software registered back afterwards. */
+  async function issueWaiting(): Promise<InvoiceOut> {
+    await h.sql`update invoicing.settings set software_id = null where company_id = ${h.companyId}`;
+    try {
+      const invoice = await issue();
+      expect(await h.drain()).toEqual([]);
+      expect((await submissionOf(invoice.id))!.status).toBe("not_configured");
+      return invoice;
+    } finally {
+      await h.sql`update invoicing.settings set software_id = ${SOFTWARE} where company_id = ${h.companyId}`;
+    }
+  }
+  const resubmitInvoice = async (invoiceId: string) => {
+    await h.run(h.admin, "invoicing.invoice.resubmit", { id: invoiceId });
+    expect(await h.drain()).toEqual([]);
+    return settle(invoiceId, ["accepted", "rejected", "failed"]);
+  };
+  /** The print variables of an issued document as the PDF renders them (the module's resolver, observed). */
+  async function printedValues(entity: "invoicing.invoice" | "invoicing.note", recordId: string): Promise<Record<string, string>> {
+    const resolver = (entity === "invoicing.invoice" ? invoicing.printVariables!["invoicing.invoice"] : invoicing.printVariables!["invoicing.note"])!;
+    const spy = vi.spyOn(resolver, "resolve");
+    setExportsStore(new MemoryFileStore());
+    try {
+      await h.run(h.admin, "kernel.doc_template.print", { entity, recordId });
+      expect(spy).toHaveBeenCalled();
+      return await (spy.mock.results[0]!.value as Promise<Record<string, string>>);
+    } finally {
+      spy.mockRestore();
+      setExportsStore(undefined);
+    }
+  }
+  const auditsOfDocuments = (since: string) => h.sql<{ n: string }[]>`
+    select count(*)::text n from kernel.audit_log where company_id = ${h.companyId} and occurred_at > ${since}::timestamptz
+      and entity in ('invoicing.invoice', 'invoicing.note') and diff::text like '%dian_environment%'`;
+
+  it("(a) issued under habilitación, the company moves to producción: the resend names habilitación (ProfileExecutionID 2, same CUFE), its QR is habilitación's and it is sent on the habilitación transport; no document row changes (f)", async () => {
+    const invoice = await issueWaiting();
+    expect(await frozenOf("invoices", invoice.id)).toBe("habilitacion");
+    const [clock] = await h.sql<{ now: string }[]>`select clock_timestamp()::text as now`;
+    const now = clock!.now;
+    await setEnvironment("produccion");
+    try {
+      const s = await resubmitInvoice(invoice.id);
+      expect(s).toMatchObject({ status: "accepted", cufe: invoice.cufe });
+      expect(dian.sentFor(invoice.cufe!)).toHaveLength(1);
+      const xml = new TextDecoder().decode(await store.get(s.xml_path!));
+      expect(xml).toContain("<cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>");
+      expect(xml).toContain(`schemeName="CUFE-SHA384">${invoice.cufe}</cbc:UUID>`);
+      const values = await printedValues("invoicing.invoice", invoice.id);
+      expect(values[FE.qrText]).toBe(`https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey=${invoice.cufe}`);
+      // (f) the company's setting moved and no issued document's environment did (row audit has no dian_environment entry for them).
+      expect(await frozenOf("invoices", invoice.id)).toBe("habilitacion");
+      expect((await auditsOfDocuments(now))[0]!.n).toBe("0");
+      // Positive control: the same switch IS row-audited on the settings (so the zero above is a real absence, not a blind audit).
+      const [settingsAudit] = await h.sql<{ n: string }[]>`select count(*)::text n from kernel.audit_log where company_id = ${h.companyId} and occurred_at > ${now}::timestamptz and entity = 'invoicing.settings' and diff::text like '%dian_environment%'`;
+      expect(Number(settingsAudit!.n)).toBeGreaterThan(0);
+    } finally {
+      await setEnvironment("habilitacion");
+    }
+  }, 90_000);
+
+  it("(b) issued under producción, the company goes back to habilitación: the XML names producción (ProfileExecutionID 1), the QR is producción's and the transport required is producción's (mismatch on the mock, nothing sent)", async () => {
+    await setEnvironment("produccion");
+    let invoice: InvoiceOut;
+    try {
+      invoice = await issue();
+      expect(await h.drain()).toEqual([]);
+      expect(await settle(invoice.id)).toMatchObject({ status: "failed" });
+      expect(await frozenOf("invoices", invoice.id)).toBe("produccion");
+    } finally {
+      await setEnvironment("habilitacion");
+    }
+    const s = await resubmitInvoice(invoice.id);
+    expect(s.status).toBe("failed");
+    expect(s.last_error).toMatch(/einvoice_environment_mismatch/);
+    expect(dian.submits).toEqual([]);
+    const xml = await keptXml("factura", invoice.number!);
+    expect(xml).toContain("<cbc:ProfileExecutionID>1</cbc:ProfileExecutionID>");
+    const values = await printedValues("invoicing.invoice", invoice.id);
+    expect(values[FE.qrText]).toBe(`https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${invoice.cufe}`);
+  }, 90_000);
+
+  it("(c) a note follows its own frozen environment the same way", async () => {
+    const invoice = await issue();
+    expect(await h.drain()).toEqual([]);
+    expect(await settle(invoice.id)).toMatchObject({ status: "accepted" });
+    const [line] = await h.sql<{ id: string }[]>`select id from invoicing.invoice_lines where invoice_id = ${invoice.id} order by line_no limit 1`;
+    const [numbered] = await h.sql<{ n: string }[]>`select count(*)::text n from core.document_sequences where company_id = ${h.companyId} and document_type = 'credit_note'`;
+    if (numbered!.n === "0") await h.runStepUp("core.document_sequence.register", { documentType: "credit_note", prefix: "NC", nextNumber: 1 });
+    await h.sql`update invoicing.settings set software_id = null where company_id = ${h.companyId}`;
+    let note: { id: string; number: string };
+    try {
+      const draft = await h.run<{ id: string }>(h.admin, "invoicing.note.create", { invoiceId: invoice.id, kind: "credit", concept: "1", reason: "Devolución parcial del cliente", lines: [{ invoiceLineId: line!.id, qty: 1 }] });
+      note = await h.run<{ id: string; number: string }>(h.admin, "invoicing.note.issue", { id: draft.id });
+      expect(await h.drain()).toEqual([]);
+    } finally {
+      await h.sql`update invoicing.settings set software_id = ${SOFTWARE} where company_id = ${h.companyId}`;
+    }
+    expect(await frozenOf("notes", note.id)).toBe("habilitacion");
+    await setEnvironment("produccion");
+    try {
+      await h.run(h.admin, "invoicing.note.resubmit", { id: note.id });
+      expect(await h.drain()).toEqual([]);
+      const deadline = Date.now() + 45_000;
+      let s: SubmissionRow | undefined;
+      for (;;) {
+        s = (await h.sql<SubmissionRow[]>`select * from invoicing.einvoice_submissions where note_id = ${note.id}`)[0];
+        if (s && ["accepted", "rejected", "failed"].includes(s.status)) break;
+        if (Date.now() > deadline) throw new Error("note submission did not settle");
+        if (s?.run_id) await getRun(s.run_id).wakeUp().catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      expect(s!.status).toBe("accepted");
+      const xml = new TextDecoder().decode(await store.get(s!.xml_path!));
+      expect(xml).toContain("<cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>");
+      const values = await printedValues("invoicing.note", note.id);
+      expect(values[FE.qrText]).toMatch(/^https:\/\/catalogo-vpfe-hab\.dian\.gov\.co\/document\/searchqr\?documentkey=/);
+    } finally {
+      await setEnvironment("habilitacion");
+    }
+  }, 120_000);
+
+  it("(d) an issued invoice whose frozen environment is null (impossible by the check, forced here) fails the run document_environment_missing and never reads the company's", async () => {
+    const invoice = await issueWaiting();
+    await h.sql`alter table invoicing.invoices drop constraint invoices_issued_environment`;
+    try {
+      await h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update invoicing.invoices set dian_environment = null where id = ${invoice.id}`;
+      });
+      const s = await resubmitInvoice(invoice.id);
+      expect(s.status).toBe("failed");
+      expect(s.last_error).toMatch(/document_environment_missing/);
+      expect(dian.submits).toEqual([]);
+      // The PDF of an issued document says the same instead of reading the company's.
+      const error = await h.refusal(h.run(h.admin, "kernel.doc_template.print", { entity: "invoicing.invoice", recordId: invoice.id }));
+      expect(error).toBeTruthy();
+      expect(`${(error as Error).message} ${JSON.stringify((error as { details?: unknown }).details ?? "")}`).toMatch(/document_environment_missing/);
+    } finally {
+      await h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update invoicing.invoices set dian_environment = 'habilitacion' where id = ${invoice.id}`;
+      });
+      await h.sql`alter table invoicing.invoices add constraint invoices_issued_environment check (stage = 'draft' or dian_environment is not null)`;
+    }
+  }, 90_000);
+
+  it("(d2) transportFor refuses an issued document without its frozen environment (document_environment_missing) and serves the frozen one otherwise", async () => {
+    const invoice = await issueWaiting();
+    const args = { companyId: h.companyId, invoiceId: invoice.id, submissionId: "00000000-0000-7000-8000-000000000001", chainId: "00000000-0000-7000-8000-000000000002" };
+    // The company says producción; the document says habilitación: the mock serves habilitación, so the transport is the installed one.
+    await setEnvironment("produccion");
+    try {
+      expect((await transportFor(args)).name).toBe("scripted-mock");
+    } finally {
+      await setEnvironment("habilitacion");
+    }
+    await h.sql`alter table invoicing.invoices drop constraint invoices_issued_environment`;
+    try {
+      await h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update invoicing.invoices set dian_environment = null where id = ${invoice.id}`;
+      });
+      await expect(transportFor(args)).rejects.toThrow(/document_environment_missing/);
+    } finally {
+      await h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update invoicing.invoices set dian_environment = 'habilitacion' where id = ${invoice.id}`;
+      });
+      await h.sql`alter table invoicing.invoices add constraint invoices_issued_environment check (stage = 'draft' or dian_environment is not null)`;
+    }
+  }, 90_000);
+
+  it("(d3) a note's «Emitir» refuses document_environment_missing when its issued invoice has no frozen environment, never reading the company's", async () => {
+    const invoice = await issue();
+    expect(await h.drain()).toEqual([]);
+    expect(await settle(invoice.id)).toMatchObject({ status: "accepted" });
+    const [line] = await h.sql<{ id: string }[]>`select id from invoicing.invoice_lines where invoice_id = ${invoice.id} order by line_no limit 1`;
+    const [numbered] = await h.sql<{ n: string }[]>`select count(*)::text n from core.document_sequences where company_id = ${h.companyId} and document_type = 'credit_note'`;
+    if (numbered!.n === "0") await h.runStepUp("core.document_sequence.register", { documentType: "credit_note", prefix: "NC", nextNumber: 1 });
+    const draft = await h.run<{ id: string }>(h.admin, "invoicing.note.create", { invoiceId: invoice.id, kind: "credit", concept: "1", reason: "Devolución parcial del cliente", lines: [{ invoiceLineId: line!.id, qty: 1 }] });
+    await h.sql`alter table invoicing.invoices drop constraint invoices_issued_environment`;
+    try {
+      await h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update invoicing.invoices set dian_environment = null where id = ${invoice.id}`;
+      });
+      expect(await h.refusal(h.run(h.admin, "invoicing.note.issue", { id: draft.id }))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/document_environment_missing/) });
+      const [row] = await h.sql<{ stage: string }[]>`select stage from invoicing.notes where id = ${draft.id}`;
+      expect(row!.stage).toBe("draft");
+    } finally {
+      await h.sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`update invoicing.invoices set dian_environment = 'habilitacion' where id = ${invoice.id}`;
+      });
+      await h.sql`alter table invoicing.invoices add constraint invoices_issued_environment check (stage = 'draft' or dian_environment is not null)`;
+    }
+  }, 90_000);
+
+  it("(e) a Borrador prints without a frozen environment (it has none yet): no error, no QR", async () => {
+    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, lines: [{ productId: h.servicio, qty: 1 }] });
+    expect(await frozenOf("invoices", draft.id)).toBeNull();
+    const values = await printedValues("invoicing.invoice", draft.id);
+    for (const name of [FE.qr, FE.qrText, FE.code]) expect(values[name]).toBe("");
   });
 });

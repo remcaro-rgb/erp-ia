@@ -10,6 +10,7 @@ import { refuse, type InvoiceParty, type InvoiceProduct } from "../readiness";
 export { refuse };
 export const FEATURE_INVOICES = "invoicing.invoices";
 export const FEATURE_SETTINGS = "invoicing.settings";
+export { DOCUMENT_ENVIRONMENT_MISSING } from "../document-environment";
 export const INVOICE_CREATED = "invoicing.invoice.created";
 export const INVOICE_ISSUED = "invoicing.invoice.issued";
 

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { InMemorySecretStore, VaultSecretStore } from "@erp/infra";
 import { setExportsStore, setSecretStore, type Caller, type Tx } from "@erp/kernel";
@@ -240,6 +240,68 @@ describe("«Reintentar todos»: the bulk sweep covers the invoices that waited f
   });
 });
 
+describe("task 37: «Reintentar todos» is the company admin's (R37-4)", () => {
+  const ADMIN_RESUBMIT = "Solo el administrador de la empresa puede reintentar todos los envíos";
+  const asUser = <T>(caller: Caller, statement: (tx: Tx) => Promise<T>) => h.sql.begin(async (tx) => {
+    await tx`select set_config('request.jwt.claims', ${JSON.stringify(caller.claims)}, true), set_config('role', 'authenticated', true)`;
+    return statement(tx);
+  });
+
+  it("a member holding the process is refused (forbidden, audited as a denial) and nothing is requeued; the admin requeues; sensitivity stays normal", async () => {
+    await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${h.memberRoleId}, 'invoicing.invoice.resubmit_failed') on conflict do nothing`;
+    await h.runStepUp("invoicing.settings.update", { softwareId: null });
+    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, lines: [{ productId: h.servicio, qty: 1 }] });
+    await h.run(h.admin, "invoicing.invoice.issue", { id: draft.id });
+    expect(await h.drain()).toEqual([]);
+    await h.runStepUp("invoicing.settings.update", { softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0" });
+    await h.sql`update invoicing.einvoice_submissions set status = 'failed', last_error = 'einvoice_transport: caída' where invoice_id = ${draft.id} and note_id is null`;
+    const requests = async () => (await h.sql<{ n: string }[]>`select count(*)::text n from kernel.outbox where company_id = ${h.companyId} and event = 'invoicing.invoice.resubmit_requested' and payload->>'invoiceId' = ${draft.id}`)[0]!.n;
+    const denials = async () => (await h.sql<{ n: string }[]>`select count(*)::text n from kernel.audit_log where company_id = ${h.companyId} and process_id = 'invoicing.invoice.resubmit_failed' and action = 'denied'`)[0]!.n;
+    const before = { requests: await requests(), denials: await denials() };
+    const refused = await h.refusal(h.run(h.member, "invoicing.invoice.resubmit_failed", {}));
+    expect(refused).toMatchObject({ code: "forbidden", message: ADMIN_RESUBMIT });
+    expect(await requests()).toBe(before.requests);
+    expect(Number(await denials())).toBe(Number(before.denials) + 1);
+    const [still] = await h.sql<{ status: string }[]>`select status from invoicing.einvoice_submissions where invoice_id = ${draft.id} and note_id is null`;
+    expect(still!.status).toBe("failed");
+    const [audit] = await h.sql<{ origin: string; actor_user_id: string | null; row_id: string | null }[]>`select origin, actor_user_id, row_id from kernel.audit_log where company_id = ${h.companyId} and process_id = 'invoicing.invoice.resubmit_failed' and action = 'denied' order by occurred_at desc limit 1`;
+    expect(audit).toMatchObject({ origin: "ui", row_id: null });
+    expect(audit!.actor_user_id).not.toBeNull();
+
+    // RLS unchanged: what a member reads of the submissions through the published view is the same before and after the refused run.
+    const viewRows = () => asUser(h.member, (tx) => tx<{ id: string; status: string }[]>`select id, status from invoicing.v_einvoice_submissions order by id`);
+    const baseRows = () => asUser(h.member, (tx) => tx`select id from invoicing.einvoice_submissions`.then((r) => r.length, () => "denied"));
+    const viewBefore = await viewRows();
+    const baseBefore = await baseRows();
+    expect(viewBefore.length).toBeGreaterThan(0);
+    await h.refusal(h.run(h.member, "invoicing.invoice.resubmit_failed", {}));
+    expect(await viewRows()).toEqual(viewBefore);
+    expect(await baseRows()).toEqual(baseBefore);
+
+    const chainId = randomUUID();
+    const swept = await h.run<{ requeued: { invoiceId: string; submissionId: string }[] }>({ ...h.admin, chainId }, "invoicing.invoice.resubmit_failed", {});
+    expect(swept.requeued.map((r) => r.invoiceId)).toContain(draft.id);
+    expect(Number(await requests())).toBe(Number(before.requests) + 1);
+    // This run's own audit rows: on its chain, by the process, carrying the requeued submission's id.
+    const mine = await h.sql<{ row_id: string | null; action: string }[]>`select row_id, action from kernel.audit_log where chain_id = ${chainId} and process_id = 'invoicing.invoice.resubmit_failed' and action <> 'denied'`;
+    const ids = swept.requeued.map((r) => r.submissionId);
+    expect(ids.length).toBeGreaterThan(0);
+    for (const id of ids) expect(mine.map((m) => m.row_id)).toContain(id);
+    await h.sql`delete from kernel.process_permissions where company_id = ${h.companyId} and role_id = ${h.memberRoleId} and process_id = 'invoicing.invoice.resubmit_failed'`;
+  });
+
+  it("a member without software registered learns nothing: forbidden, not einvoice_not_configured", async () => {
+    await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${h.memberRoleId}, 'invoicing.invoice.resubmit_failed') on conflict do nothing`;
+    await h.runStepUp("invoicing.settings.update", { softwareId: null });
+    try {
+      expect(await h.refusal(h.run(h.member, "invoicing.invoice.resubmit_failed", {}))).toMatchObject({ code: "forbidden" });
+    } finally {
+      await h.runStepUp("invoicing.settings.update", { softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0" });
+      await h.sql`delete from kernel.process_permissions where company_id = ${h.companyId} and role_id = ${h.memberRoleId} and process_id = 'invoicing.invoice.resubmit_failed'`;
+    }
+  });
+});
+
 describe("fix round 1: the DIAN environment frozen at «Emitir»; the technical key out of core.v_document_sequences", () => {
   it("an invoice keeps the environment it was issued in: its PDF prints habilitación's notice after the company moved to producción", async () => {
     await h.runStepUp("invoicing.settings.update", { softwareId: null });
@@ -320,6 +382,74 @@ describe("fix round 1: the certificate's secret is written before its metadata, 
     await upload(cert.buffer, cert.password);
     expect(await status()).toBe("ok");
   }, 120_000);
+});
+
+describe("task 37: a failed Vault read is «unreadable», never a false mismatch nor an error (R37-6)", () => {
+  const SENTINEL = "postgres://secret-user:SENTINEL-9d41@vault.internal:5432/db";
+  const status = async () => (await h.run<Record<string, unknown>>(h.admin, "invoicing.settings.consult", {})).certificate_status;
+
+  it("answers ok, mismatch, missing, unverified and unknown with a healthy store", async () => {
+    await h.runStepUp("invoicing.certificate.upload", { file: cert.buffer.toString("base64"), password: cert.password });
+    expect(await status()).toBe("ok");
+    const stored = await secrets.get(`dian/${h.companyId}/certificate`);
+    await secrets.set(`dian/${h.companyId}/certificate`, "otro");
+    expect(await status()).toBe("mismatch");
+    await secrets.delete(`dian/${h.companyId}/certificate`);
+    expect(await status()).toBe("missing");
+    await secrets.set(`dian/${h.companyId}/certificate`, stored!);
+    const meta = await settings();
+    await h.sql`update invoicing.settings set certificate_fingerprint = null where company_id = ${h.companyId}`;
+    expect(await status()).toBe("unverified");
+    await h.sql`update invoicing.settings set certificate_fingerprint = ${meta.certificate_fingerprint as string} where company_id = ${h.companyId}`;
+    setSecretStore(undefined);
+    try {
+      expect(await status()).toBe("unknown");
+    } finally {
+      setSecretStore(secrets);
+    }
+  }, 120_000);
+
+  const failing = (where: "fingerprint" | "get") => {
+    const thrower = async () => { throw new Error(SENTINEL); };
+    return where === "fingerprint"
+      ? { get: secrets.get.bind(secrets), set: secrets.set.bind(secrets), delete: secrets.delete.bind(secrets), fingerprint: thrower }
+      : { get: thrower, set: secrets.set.bind(secrets), delete: secrets.delete.bind(secrets) };
+  };
+
+  for (const where of ["fingerprint", "get"] as const) {
+    it(`a store whose ${where} throws makes the consult answer unreadable; the error text reaches no output`, async () => {
+      setSecretStore(failing(where));
+      try {
+        const consult = await h.run<Record<string, unknown>>(h.admin, "invoicing.settings.consult", {});
+        expect(consult.certificate_status).toBe("unreadable");
+        const json = JSON.stringify(consult);
+        for (const bad of [SENTINEL, "SENTINEL-9d41", "BEGIN", cert.buffer.toString("base64").slice(0, 40), cert.password]) expect(json).not.toContain(bad);
+      } finally {
+        setSecretStore(secrets);
+      }
+    });
+  }
+
+  for (const where of ["fingerprint", "get"] as const) {
+    it(`settings.update to producción with a store whose ${where} throws is refused certificate_unverified (no mismatch claim); never handler_failed; no sentinel`, async () => {
+      await h.runStepUp("invoicing.settings.update", { softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0", softwareProviderTaxId: NIT });
+      await tickAllAndConfirm(h);
+      await h.runStepUp("invoicing.software_pin.set", { pin: "75315" });
+      await h.runStepUp("invoicing.certificate.upload", { file: cert.buffer.toString("base64"), password: cert.password });
+      process.env.EINVOICE_TRANSPORT = "dian-produccion";
+      setSecretStore(failing(where));
+      try {
+        const refused = await h.refusal(h.runStepUp("invoicing.settings.update", { dianEnvironment: "produccion" }));
+        expect(refused).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^certificate_unverified: No se pudo verificar el certificado guardado: el almacén de secretos no respondió/) });
+        expect(refused!.message).not.toMatch(/no es el que describen/);
+        expect(JSON.stringify({ m: refused!.message, d: refused!.details })).not.toContain("SENTINEL");
+        expect((await settings()).dian_environment).toBe("habilitacion");
+      } finally {
+        setSecretStore(secrets);
+        delete process.env.EINVOICE_TRANSPORT;
+      }
+    }, 120_000);
+  }
 });
 
 describe("fix round 2: the technical key reaches no reader; the Parámetros are the company admin's only", () => {

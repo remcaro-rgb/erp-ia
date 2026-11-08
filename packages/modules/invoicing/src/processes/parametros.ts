@@ -42,13 +42,13 @@ export function secretValueFingerprint(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-export const CERTIFICATE_STATUSES = ["ok", "mismatch", "missing", "unverified", "unknown"] as const;
+export const CERTIFICATE_STATUSES = ["ok", "mismatch", "missing", "unverified", "unknown", "unreadable"] as const;
 export type CertificateStatus = (typeof CERTIFICATE_STATUSES)[number];
 
 /**
  * Whether the certificate in the secret store is the one the settings describe: 'ok'; 'mismatch' (another certificate is stored: a run
  * failed after its secret write, or the store was changed outside the app); 'missing' (none stored); 'unverified' (uploaded before the
- * fingerprint existed, migration 0103); 'unknown' (no secret store installed). Vault hashes the secret in the database (fix round 2: the
+ * fingerprint existed, migration 0103); 'unknown' (no secret store installed); 'unreadable' (the store failed to answer: the error text is dropped, a store's error can carry a connection string, and nothing is logged with it). Vault hashes the secret in the database (fix round 2: the
  * consult never reads the certificate back); another store's value is hashed here. Never answers the value.
  */
 export async function certificateStatus(ctx: ProcessContext, fingerprint: string | null): Promise<CertificateStatus> {
@@ -56,10 +56,15 @@ export async function certificateStatus(ctx: ProcessContext, fingerprint: string
   if (!secrets) return "unknown";
   const name = `dian/${ctx.companyId}/certificate`;
   let stored: string | null;
-  if (secrets.fingerprint) stored = await secrets.fingerprint(name);
-  else {
-    const body = await secrets.get(name);
-    stored = body === null ? null : secretValueFingerprint(body);
+  try {
+    if (secrets.fingerprint) stored = await secrets.fingerprint(name);
+    else {
+      const body = await secrets.get(name);
+      stored = body === null ? null : secretValueFingerprint(body);
+    }
+  } catch {
+    // Task 37 (R37-6): a failed read is not a mismatch and not a 500; the error is dropped on purpose (rule 12).
+    return "unreadable";
   }
   if (!stored) return "missing";
   if (!fingerprint) return "unverified";

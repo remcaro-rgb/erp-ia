@@ -325,9 +325,15 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
           <p className="erp-small">{t("certificate_none")}</p>
         )}
         {/* Task 19 fix round 1: the metadata above reconciled with the certificate actually stored (invoicing.settings.consult). */}
-        {cert && (cert.status === "mismatch" || cert.status === "missing" || cert.status === "unverified") && (
-          <div role="alert" className="erp-dian erp-dian--bad" data-testid="certificate-status">
-            {cert.status === "mismatch" ? t("certificate_status_mismatch") : cert.status === "missing" ? t("certificate_status_missing") : t("certificate_status_unverified")}
+        {cert && (cert.status === "mismatch" || cert.status === "missing" || cert.status === "unverified" || cert.status === "unreadable") && (
+          <div role="alert" className="erp-dian erp-dian--bad" data-testid="certificate-status" data-status={cert.status}>
+            {cert.status === "mismatch"
+              ? t("certificate_status_mismatch")
+              : cert.status === "missing"
+                ? t("certificate_status_missing")
+                : cert.status === "unreadable"
+                  ? t("certificate_status_unreadable")
+                  : t("certificate_status_unverified")}
           </div>
         )}
         <div className="erp-form2">

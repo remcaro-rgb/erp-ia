@@ -18,6 +18,9 @@ import { ADMIN_ONLY, certificateStatus, PARAMETROS_PROCESSES } from "./parametro
 //   3. the software registered with the DIAN, the signing certificate and the software PIN (both in the secret store).
 // Back to habilitación is always allowed; while in producción the confirmation cannot be withdrawn (the database holds it too: 0101).
 
+/** The refusal for a certificate that could not be read back (Task 37 fix round 1, I2): it claims no mismatch. */
+const CERTIFICATE_UNVERIFIED = "No se pudo verificar el certificado guardado: el almacén de secretos no respondió; inténtalo de nuevo";
+
 /** Producción only with the defaults confirmed, a transport that serves it, the software, the certificate and the PIN. */
 async function assertProductionReady(ctx: ProcessContext, softwareId: string | null, alreadyInProduction: boolean): Promise<void> {
   // The effective confirmation (R35-7). A company already in producción when the list grows keeps operating (R35-8): the stored flag it
@@ -42,7 +45,14 @@ async function assertProductionReady(ctx: ProcessContext, softwareId: string | n
   }
   if (!softwareId) refuseState("einvoice_not_configured", ["Registra el software de facturación electrónica (su identificador ante la DIAN) antes de pasar a producción"]);
   if (!secrets) refuseState("secret_store_not_configured", ["El servidor no tiene configurado el almacén de secretos (Supabase Vault)"]);
-  const [certificate, pin] = await Promise.all([secrets.get(`dian/${ctx.companyId}/certificate`), secrets.get(softwarePinSecret(ctx.companyId))]);
+  // A Vault that does not answer (Task 37 fix round 1, I1) is «no se pudo verificar», never a handler failure; the error text is dropped.
+  let certificate: string | null;
+  let pin: string | null;
+  try {
+    [certificate, pin] = await Promise.all([secrets.get(`dian/${ctx.companyId}/certificate`), secrets.get(softwarePinSecret(ctx.companyId))]);
+  } catch {
+    refuseState("certificate_unverified", [CERTIFICATE_UNVERIFIED]);
+  }
   if (!certificate) refuseState("certificate_missing", ["Sube el certificado de firma digital (.p12) de la empresa antes de pasar a producción"]);
   if (!pin) refuseState("software_pin_missing", ["Guarda el PIN del software de facturación electrónica antes de pasar a producción"]);
   // Task 19 fix round 2: a current certificate, and the one the Parámetros describe (not a half-finished upload).
@@ -51,7 +61,12 @@ async function assertProductionReady(ctx: ProcessContext, softwareId: string | n
   if (!meta?.valid_to || new Date(meta.valid_to).getTime() < Date.now()) {
     refuseState("certificate_expired", ["El certificado de firma digital está vencido: sube el certificado vigente antes de pasar a producción"]);
   }
-  if ((await certificateStatus(ctx, meta.fingerprint)) !== "ok") {
+  const certificate_status = await certificateStatus(ctx, meta.fingerprint);
+  if (certificate_status === "unreadable") {
+    // Task 37 (R37-6): the store did not answer; the existing refusal plus the reason, never the store's error text.
+    refuseState("certificate_unverified", [CERTIFICATE_UNVERIFIED]);
+  }
+  if (certificate_status !== "ok") {
     refuseState("certificate_mismatch", ["El certificado guardado no es el que describen los Parámetros: súbelo de nuevo antes de pasar a producción"]);
   }
 }

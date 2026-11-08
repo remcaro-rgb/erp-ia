@@ -3,7 +3,7 @@ import { z } from "zod";
 import { NOTE_KINDS, noteEntity, type NoteKind } from "../entities";
 import { readInvoiceFacts } from "../readiness";
 import {
-  assertDianAccepted, companyAmounts, FEATURE_INVOICES, id, money, num, packOf, qty, refuse, refuseState, round2, round4, settingsOf, today,
+  assertDianAccepted, companyAmounts, DOCUMENT_ENVIRONMENT_MISSING, FEATURE_INVOICES, id, money, num, packOf, qty, refuse, refuseState, round2, round4, settingsOf, today,
 } from "./common";
 import { INVOICE_PAID, refreshPaid } from "../consumers/payments";
 import { ANNULMENT_PROCESS, assertNoPayments, label, readInvoice, type InvoiceRow } from "./invoice";
@@ -514,9 +514,11 @@ export const noteHooks: TypedHooks = {
       throw new ProcessError("invalid_input", `${drawn.code}: ${message}`, { details: [message, ...(drawn.resolution ? [JSON.stringify(drawn.resolution)] : [])] });
     }
     // The DIAN environment the note is issued in is frozen here (Task 19 fix round 1): its CUDE, its QR and its sending follow it. It is
-    // its invoice's (fix round 2): a note corrects a document of that environment (only an invoice of before 0102 falls back to the settings).
+    // its invoice's (fix round 2): a note corrects a document of that environment.
     const [frozen] = await ctx.tx<{ dian_environment: string | null }[]>`select dian_environment from invoicing.invoices where id = ${note.invoice_id}`;
-    const dianEnvironment = frozen?.dian_environment ?? (await settingsOf(ctx)).dianEnvironment;
+    // Task 37 fix round 1 (M2): never the company's current one; an invoice without it (impossible by the check) refuses.
+    const dianEnvironment = frozen?.dian_environment;
+    if (!dianEnvironment) refuseState("document_environment_missing", [DOCUMENT_ENVIRONMENT_MISSING]);
     await ctx.tx`
       update invoicing.notes set number = ${drawn.full}, prefix = ${drawn.prefix}, consecutive = ${drawn.number}, issue_time = ${await issueTime(ctx)},
              resolution = ${drawn.resolution ? ctx.tx.json(drawn.resolution as never) : null}, dian_environment = ${dianEnvironment}

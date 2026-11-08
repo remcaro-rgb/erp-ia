@@ -5982,6 +5982,7 @@
       "certificate_status_mismatch": "The stored certificate is not the one these details describe (an upload did not finish): upload it again",
       "certificate_status_missing": "No certificate in the secret store: upload it again",
       "certificate_status_unverified": "Certificate uploaded before fingerprint checking: upload it again to verify it",
+      "certificate_status_unreadable": "The stored certificate could not be verified (the secret store did not answer): try again in a few minutes",
       "pin_title": "Software PIN",
       "pin_none": "No PIN saved",
       "pin_set_at": "PIN saved on {date}; not shown",

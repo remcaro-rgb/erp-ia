@@ -1,7 +1,7 @@
 import { defaultTemplate, ProcessError, translatorFor, type Block, type DefaultPresentation, type EInvoicePack, type EntityDef, type PrintVariables, type ProcessContext, type ResolutionInfo, type Template, type Translate } from "@erp/kernel";
 import QRCode from "qrcode";
 import { invoiceEntity, noteEntity } from "../entities";
-import { packOf, settingsOf } from "../processes/common";
+import { DOCUMENT_ENVIRONMENT_MISSING, packOf, refuseState, settingsOf } from "../processes/common";
 
 // The graphic representation of an electronic invoice and of its notes (plan 2B Task 19; entity types spec §6; design §8.1 step 5): the
 // template they print with when the company chose none (ModuleDef.printTemplates, Task 12's seam) and what the print adds to the
@@ -123,11 +123,16 @@ const asResolution = (v: unknown): ResolutionInfo | null => {
 
 /** The document as the caller reads it (its masked view: what they may not see is not printed). */
 async function factsOf(ctx: ProcessContext, entity: "invoicing.invoice" | "invoicing.note", recordId: string): Promise<EInvoicePrintFacts> {
-  // The environment frozen at «Emitir» (Task 19 fix round 1): a reprint after a switch to producción still points to the catalogue the
-  // CUFE names. A Borrador has none yet (it prints no QR).
+  // The environment frozen at «Emitir» (Task 19 fix round 1) is the only source of an issued document (Task 37, R37-2): a reprint after a
+  // switch to producción still points to the catalogue the CUFE names. A Borrador has none yet (it prints no QR): the company's current one.
   const table = entity === "invoicing.invoice" ? "invoicing.invoices" : "invoicing.notes";
-  const [frozen] = await ctx.tx.unsafe(`select dian_environment from ${table} where id = $1`, [recordId]) as { dian_environment: "habilitacion" | "produccion" | null }[];
-  const dianEnvironment = frozen?.dian_environment ?? (await settingsOf(ctx)).dianEnvironment;
+  const [frozen] = await ctx.tx.unsafe(`select dian_environment, stage from ${table} where id = $1`, [recordId]) as { dian_environment: "habilitacion" | "produccion" | null; stage: string }[];
+  const environmentOf = async (): Promise<"habilitacion" | "produccion"> => {
+    if (frozen?.stage === "draft" || !frozen) return (await settingsOf(ctx)).dianEnvironment;
+    if (!frozen.dian_environment) refuseState("document_environment_missing", [DOCUMENT_ENVIRONMENT_MISSING]);
+    return frozen.dian_environment;
+  };
+  const dianEnvironment = await environmentOf();
   if (entity === "invoicing.invoice") {
     const [row] = await ctx.tx<{ cufe: string | null; resolution: unknown; dian_status: string | null; stage: string | null }[]>`
       select cufe, resolution, dian_status, stage from invoicing.v_invoices where id = ${recordId}`;

@@ -2,7 +2,7 @@ import { infra } from "@erp/infra";
 import { defineProcess, fileStore, ProcessError, renderPrint, translatorFor, type EventConsumer, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { SUBMISSION_STATUSES, type SubmissionStatus } from "../entities";
-import { FEATURE_INVOICES, id, markInvoiceLinksVoided, num, packOf, refuseState, round2, settingsOf } from "./common";
+import { DOCUMENT_ENVIRONMENT_MISSING, FEATURE_INVOICES, id, markInvoiceLinksVoided, num, packOf, refuseState, requireCompanyAdmin, round2 } from "./common";
 import { label, readInvoice } from "./invoice";
 import { noteLabel, readNote } from "./note";
 import { einvoiceSubmission } from "../workflows/einvoice.workflow";
@@ -35,6 +35,7 @@ import { einvoiceSubmission } from "../workflows/einvoice.workflow";
 export const INVOICE_ACCEPTED = "invoicing.invoice.accepted";
 export const INVOICE_REJECTED = "invoicing.invoice.rejected";
 export const RESUBMIT_REQUESTED = "invoicing.invoice.resubmit_requested";
+const RESUBMIT_ALL_ADMIN_ONLY = "Solo el administrador de la empresa puede reintentar todos los envíos";
 export const NOTE_ACCEPTED = "invoicing.note.accepted";
 export const NOTE_REJECTED = "invoicing.note.rejected";
 /** An invoice voided by its accepted annulment note (OD-7): sales gives the entregas back (invoiced_qty). */
@@ -266,8 +267,10 @@ async function documentFrame(ctx: ProcessContext, partyId: string, numbering: { 
     select software_id, software_provider_tax_id, test_set_id, issuer_tax_responsibilities, issuer_tax_scheme, issuer_department_code, issuer_municipality_code
     from invoicing.settings where company_id = ${ctx.companyId}`;
   if (!settings?.software_id) return fail("einvoice_not_configured", NOT_CONFIGURED);
-  // The environment frozen at «Emitir» (Task 19 fix round 1; the CUFE / CUDE names it), the Parámetros' for a document issued before.
-  const dianEnvironment = numbering.environment ?? (await settingsOf(ctx)).dianEnvironment;
+  // The environment frozen at «Emitir» (Task 19 fix round 1; the CUFE / CUDE names it) is the only source (Task 37, R37-2): the company's
+  // current setting is never read for an issued document. A null (the database's check makes it impossible) fails the run.
+  const dianEnvironment = numbering.environment;
+  if (!dianEnvironment) return fail("document_environment_missing", DOCUMENT_ENVIRONMENT_MISSING);
   const [company] = await ctx.tx<{ tax_id: string | null; legal_name: string; trade_name: string | null; country_code: string; currency_code: string; address_line: string | null; phone_cc: string | null; phone: string | null }[]>`
     select tax_id, legal_name, trade_name, country_code, currency_code, address_line, phone_cc, phone from kernel.companies where id = ${ctx.companyId}`;
   if (!company?.tax_id) return fail("issuer_tax_id_missing", "La empresa no tiene su número de identificación tributaria registrado");
@@ -597,10 +600,13 @@ export const invoiceResubmitFailed = defineProcess({
   feature: FEATURE_INVOICES,
   emits: [RESUBMIT_REQUESTED],
   description:
-    "Reintentar todos: vuelve a enviar a la DIAN todas las facturas (emitidas o pagadas) y notas emitidas cuyo envío se detuvo o que esperaban el registro del software (o solo las detenidas por su moneda, o solo las que esperaban el software), sin reenviar lo que la DIAN ya recibió",
+    "Reintentar todos (solo el administrador de la empresa): vuelve a enviar a la DIAN todas las facturas (emitidas o pagadas) y notas emitidas cuyo envío se detuvo o que esperaban el registro del software (o solo las detenidas por su moneda, o solo las que esperaban el software), sin reenviar lo que la DIAN ya recibió",
   input: z.object({ only: z.enum(["currency_not_supported", "not_configured"]).optional(), limit: z.number().int().min(1).max(500).optional() }).strict(),
   output: z.object({ requeued: z.array(z.object({ invoiceId: z.string(), noteId: z.string().nullable(), submissionId: z.string() })) }),
   handler: async (ctx, { only, limit }) => {
+    // Task 37 (R37-4): the company admin's only, before anything about the configuration is learned. No step-up (it resends the same
+    // document with the same number and CUFE).
+    await requireCompanyAdmin(ctx, RESUBMIT_ALL_ADMIN_ONLY);
     if (!(await softwareRegistered(ctx))) refuseState("einvoice_not_configured", [NOT_CONFIGURED]);
     const stuck = await ctx.tx<SubmissionRow[]>`
       select s.* from invoicing.einvoice_submissions s

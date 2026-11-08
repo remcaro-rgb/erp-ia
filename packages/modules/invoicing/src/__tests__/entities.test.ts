@@ -44,7 +44,9 @@ describe("invoicing manifest", () => {
     // Task 17: its own issued event starts the DIAN submission; «Reintentar envío» resumes it. Task 18: an issued note is sent too.
     expect(Object.keys(invoicing.events.consumes)).toEqual(["sales.delivery.shipped", "sales.order.confirmed", "invoicing.invoice.issued", "invoicing.invoice.resubmit_requested", "invoicing.note.issued",
       // Task 23: the receipts and their voids recompute paid_amount and the paid stage.
-      "payments.received", "payments.payment.voided"]);
+      "payments.received", "payments.payment.voided",
+      // Task 36: an advance applied to invoices (and undone) settles them like a receipt.
+      "payments.advance.applied", "payments.advance.unapplied"]);
   });
 
   it("types the invoice as a documento numbered on save with its lines, the taxes and recommendations as sistema, the settings as parametro", () => {
@@ -130,6 +132,8 @@ describe("invoicing manifest", () => {
     // Task 23: issuing a note recomputes the paid status, so a credit note can make the invoice paid.
     expect(registry.process("invoicing.note.issue").emits).toEqual(["invoicing.note.issued", "invoicing.invoice.paid"]);
     expect(registry.process("invoicing.invoice.resubmit_failed").sensitivity ?? "normal").toBe("normal");
+    // Task 37 (R37-4): the bulk sweep is the company admin's only (the guard is in the handler; the description says so); no step-up.
+    expect(registry.process("invoicing.invoice.resubmit_failed").description).toMatch(/solo el administrador/i);
     expect(registry.process("invoicing.note.issue_annulment").sensitivity ?? "normal").toBe("normal");
     expect(registry.process("invoicing.note.issue_annulment").nestedOnlyFrom).toEqual(["invoicing.invoice.void"]);
     expect(registry.process("invoicing.note.dian_result").origins).toEqual(["event"]);

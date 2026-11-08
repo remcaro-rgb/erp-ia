@@ -67,7 +67,7 @@ No se puede reintentar una factura **Aceptada** (corrígela con una nota crédit
 
 Lo que cambia el CUFE (la fecha, el cliente, los valores o los impuestos) no se corrige reenviando: la factura emitida queda como está y se corrige con una nota.
 
-**Reintentar todos** (en **Parámetros de facturación**, tarjeta **Envíos pendientes**, o pidiéndolo al asistente) hace lo mismo, de una vez, con todas las facturas y notas emitidas cuyo envío quedó **Envío detenido** o **Sin configurar** (las que se emitieron antes de registrar el software). Puedes limitarlo a las que esperaban el software o a las que se detuvieron por un motivo (por ejemplo, por la moneda, después de que se habilitó el envío en moneda extranjera). Lo que la DIAN ya recibió no se reenvía.
+**Reintentar todos** (en **Parámetros de facturación**, tarjeta **Envíos pendientes**, o pidiéndolo al asistente) hace lo mismo, de una vez, con todas las facturas y notas emitidas cuyo envío quedó **Envío detenido** o **Sin configurar** (las que se emitieron antes de registrar el software). Puedes limitarlo a las que esperaban el software o a las que se detuvieron por un motivo (por ejemplo, por la moneda, después de que se habilitó el envío en moneda extranjera). Lo que la DIAN ya recibió no se reenvía. **Solo el administrador de la empresa** puede usar Reintentar todos. Quien no lo es ni siquiera abre **Parámetros de facturación**; si lo pide al asistente, este responde «Solo el administrador de la empresa puede reintentar todos los envíos» y no se reenvía nada. El **Reintentar envío** de una factura o nota, en cambio, sigue disponible para quien tenga permiso sobre ese documento.
 
 ## Notas crédito y débito
 
@@ -137,7 +137,7 @@ Cuando la DIAN **acepta** una factura o una nota, el sistema guarda su **PDF** j
 - en la nota, la factura que corrige (su número y su CUFE);
 - en habilitación, el aviso **«Documento de prueba (habilitación DIAN): sin validez fiscal»**; un documento que la DIAN aún no acepta dice que está pendiente de validación.
 
-El **ambiente** de cada factura y de cada nota queda fijo al **emitirla**: su CUFE o CUDE se calculó con él. Su PDF, su QR y su envío siguen ese ambiente aunque la empresa pase después a producción: una factura emitida en habilitación siempre se imprime como documento de prueba.
+El **ambiente** de cada factura y de cada nota queda fijo al **emitirla**: su CUFE o CUDE se calculó con él. Su PDF, su QR y su envío siguen ese ambiente aunque la empresa pase después a producción: una factura emitida en habilitación siempre se imprime como documento de prueba. Lo mismo vale al **reenviar**: Reintentar envío y Reintentar todos mandan el mismo documento, con el mismo número y CUFE y con el ambiente en que se emitió, y su QR sigue siendo el de ese ambiente, aunque hoy la empresa esté en otro. Si un documento emitido no tuviera registrado su ambiente (no debería pasar), el sistema no lo adivina con el de la empresa: el envío y la impresión se detienen con el aviso «El documento no tiene registrado el ambiente DIAN en que se emitió».
 
 El PDF guardado no se reemplaza nunca. **Imprimir** desde la factura arma el mismo documento con la plantilla de la empresa (o la del sistema, si la empresa no eligió una; guía **Plantillas PDF e Imprimir**). Un borrador se imprime sin QR, sin CUFE y sin leyenda.
 
@@ -235,6 +235,8 @@ Elige el **archivo .p12** de la empresa, escribe su **contraseña** y pulsa **Su
 El certificado y su contraseña se guardan **cifrados en el almacén de secretos** (Supabase Vault) y no se pueden volver a ver ni descargar: la página muestra solo el **titular**, su **NIT**, el **emisor**, el **serial**, el **vencimiento** y la fecha en que se subió. Para cambiarlo, sube el nuevo: reemplaza al anterior. Subir el certificado solo se hace desde esta página (el asistente no lo recibe).
 
 La página revisa, cada vez que la abres, que el certificado guardado sea el que describen esos datos. Si una subida quedó a medias (el certificado nuevo alcanzó a guardarse pero sus datos no), o si en el almacén de secretos no hay certificado, la página lo avisa en rojo: **súbelo de nuevo**. Un certificado subido antes de esta revisión también pide subirse de nuevo para verificarlo.
+
+Si el almacén de secretos **no responde** en ese momento, la página no marca el certificado como equivocado: avisa en rojo **«No se pudo verificar el certificado guardado (el almacén de secretos no respondió): inténtalo de nuevo en unos minutos»**. Vuelve a abrir la página pasados unos minutos; no hace falta subir el certificado otra vez. Mientras no se pueda verificar, el sistema tampoco deja pasar a producción: al guardar el cambio de ambiente responde «No se pudo verificar el certificado guardado: el almacén de secretos no respondió; inténtalo de nuevo» (no es un aviso de que el certificado esté mal). Cuando el almacén responde y el certificado coincide, no aparece ningún aviso.
 
 ### PIN del software
 

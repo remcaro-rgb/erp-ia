@@ -1,9 +1,10 @@
 import { FatalError, RetryableError, getStepMetadata, getWorkflowMetadata, sleep } from "workflow";
-import type { EInvoiceResult, EInvoiceSubmitMeta, EInvoiceTransport } from "@erp/infra";
+import type { EInvoiceResult, EInvoiceSubmitMeta } from "@erp/infra";
 import {
-  buildConsumerContext, countryPack, fileStore, getServiceDb, installedEInvoiceTransport, secretStore, type EInvoiceDocumentInput, type EInvoiceNoteInput,
+  buildConsumerContext, countryPack, fileStore, getServiceDb, secretStore, type EInvoiceDocumentInput, type EInvoiceNoteInput,
 } from "@erp/kernel";
 import { softwarePinSecret } from "../einvoice-secrets";
+import { transportFor } from "./transport-for";
 
 // The e-invoice workflow (plan 2B Task 17; design §18a, §19, OD-1; rule 6: durable work only through `workflow`, started by the
 // DurableRunner from the consumer of invoicing.invoice.issued or of «Reintentar envío»). One run per sending of one invoice:
@@ -106,35 +107,6 @@ export async function einvoiceSubmission(args: EInvoiceRunArgs): Promise<EInvoic
 /** Runs a process of the module as the event's system user, on the issue's chain (what the outbox consumers do). */
 function runAsEvent<T>(args: EInvoiceRunArgs, processId: string, input: unknown): Promise<T> {
   return buildConsumerContext(getServiceDb(), { companyId: args.companyId, chainId: args.chainId }).runProcess(processId, input) as Promise<T>;
-}
-
-/**
- * Workflow-level transport: the installed override (tests) or the pack's, from configuration (the mock unless configured otherwise). Either
- * must serve the company's DIAN environment (Task 19): the mock or habilitación never send the document of a company in producción, nor
- * the production transport a habilitación one. A mismatch stops the run before anything is sent (not retried: configuration, not network).
- */
-async function transportFor(args: EInvoiceRunArgs): Promise<EInvoiceTransport> {
-  const companyId = args.companyId;
-  const db = getServiceDb();
-  // The document's environment, frozen at «Emitir» (Task 19 fix round 1), else the company's.
-  const [company] = await db<{ country_code: string; dian_environment: "habilitacion" | "produccion" | null }[]>`
-    select c.country_code,
-           coalesce(${args.noteId ? db`(select dian_environment from invoicing.notes where id = ${args.noteId})` : db`(select dian_environment from invoicing.invoices where id = ${args.invoiceId})`},
-                    s.dian_environment) as dian_environment
-    from kernel.companies c left join invoicing.settings s on s.company_id = c.id where c.id = ${companyId}`;
-  const einvoice = countryPack(company!.country_code).einvoice;
-  if (!einvoice) throw new FatalError("einvoice_not_available: el paquete del país no tiene facturación electrónica registrada");
-  const environment = company!.dian_environment ?? "habilitacion";
-  try {
-    const installed = installedEInvoiceTransport();
-    if (installed) {
-      einvoice.assertTransportEnvironment(installed, environment);
-      return installed;
-    }
-    return einvoice.transport({ secrets: secretStore(), companyId, environment });
-  } catch (error) {
-    throw new FatalError(error instanceof Error ? error.message : String(error));
-  }
 }
 
 /** A transport failure is not a verdict (network, HTTP, timeout): retried with backoff. Matched by name: the step bundle may load a second copy of infra. */
