@@ -91,7 +91,8 @@ export type RecommendationOut = z.infer<typeof recommendation>;
 
 /**
  * The caller's open recommendations, newest first (at most `limit`, 20 by default), and how many are open (`total`, not capped), read in
- * `tx` as the caller through kernel.v_recommendations (masked params and subject) and the table's policies. The list process answers
+ * `tx` as the caller through kernel.v_recommendations (masked params and subject, no row about a subject the caller may not read, 0141)
+ * and the table's policies; the total counts the same view. The list process answers
  * this; the shell's bell reads it too, as a plain read under RLS (no audit row on every page load).
  */
 export async function openRecommendations(
@@ -108,7 +109,7 @@ export async function openRecommendations(
     order by coalesce(last_raised_at, created_at) desc, id desc
     limit ${limit}`;
   const [count] = await tx<{ n: number }[]>`
-    select count(*)::int as n from kernel.recommendations
+    select count(*)::int as n from kernel.v_recommendations
     where status = 'new' and company_id = ${options.companyId} and (${module}::text is null or module = ${module})`;
   const translate = translatorFor(options.locale);
   return {
@@ -197,6 +198,8 @@ export const recommendationDecide = defineProcess({
       update kernel.recommendations
       set status = ${input.decision}, decided_at = now(), decided_by = ${ctx.userId}
       where id = ${input.id} and company_id = ${ctx.companyId} and status = 'new'
+        -- Only a row the caller sees (0141: not one about a subject they may not read, which they could otherwise dismiss for everyone).
+        and exists (select 1 from kernel.v_recommendations v where v.id = ${input.id})
       returning suggested_actions`;
     let stored = updated[0]?.suggested_actions;
     // Only the call that takes the decision opens the action; a repeat (or somebody else of the audience later) gets the status.

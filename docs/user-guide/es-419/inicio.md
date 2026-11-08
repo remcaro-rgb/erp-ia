@@ -95,7 +95,7 @@ Además de las sugerencias de los agentes, **los propios procesos** dejan avisos
 
 **Valores ocultos.** Si tu rol no puede ver un dato que el aviso menciona (por ejemplo, el número de la entrega), el aviso lo muestra como «—».
 
-**El enlace.** **Abrir registro** lleva al registro del que habla el aviso. Si tu rol no puede consultarlo, el aviso dice **Sin acceso al registro** y en la campana te lleva a Inicio.
+**El enlace.** **Abrir registro** lleva al registro del que habla el aviso. Si el aviso habla de un registro que tu rol no puede ver (por ejemplo, el pedido de otro vendedor), el aviso no aparece en tu lista. Si tu rol no puede consultar la entidad pero el registro no tiene pantalla propia, el aviso dice **Sin acceso al registro** y en la campana te lleva a Inicio.
 
 **Descartar.** Pulsa **Descartar** si ya no te sirve: sale de tu lista, de la campana y del Inicio del módulo para todas las personas que lo veían, y queda registrado en la auditoría. Si la misma causa vuelve a pasar, aparece un aviso nuevo.
 

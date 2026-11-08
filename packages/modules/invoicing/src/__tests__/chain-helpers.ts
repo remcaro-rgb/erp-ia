@@ -5,7 +5,7 @@ import {
   buildConsumerContext, consumers, kernelModule, loadModules, registerCountryPack, Registry, registry as appRegistry, runProcess, setEInvoiceTransport, setFileStore, setSecretStore,
   syncModuleManifest, withClaims, type Caller, type ProcessError,
 } from "@erp/kernel";
-import { MemoryFileStore, seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
+import { MemoryFileStore, seedTenant, testDb, type JwtClaims, type SeededTenant, type SeedOptions } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { einvoicePack, saveCertificate } from "@erp/loc-co/einvoice";
 import { accounting } from "@erp/module-accounting";
@@ -44,13 +44,14 @@ const FINAL = ["accepted", "rejected", "failed", "not_configured"];
 
 export type ChainHarness = Awaited<ReturnType<typeof chainHarness>>;
 
-export async function chainHarness() {
+/** `users`: extra users of the company (seedTenant's), e.g. the salespeople of the order owner isolation (plan 2B Task 39). */
+export async function chainHarness(options: { users?: NonNullable<SeedOptions["users"]> } = {}) {
   const sql = testDb();
   registerCountryPack({ ...co, einvoice: einvoicePack });
   for (const m of [core, inventory, costing, sales, crm, invoicing, payments]) await syncModuleManifest(sql, m);
   // The workflow's steps run processes through the app's registry, as the dispatch workflow's consumers do.
   loadModules(appRegistry, MODULES);
-  const seed: SeededTenant = await seedTenant(sql, { companies: 1, entitlements: MODULE_IDS.map((m) => `module:${m}`) });
+  const seed: SeededTenant = await seedTenant(sql, { companies: 1, entitlements: MODULE_IDS.map((m) => `module:${m}`), ...(options.users ? { users: options.users } : {}) });
   const companyId = seed.companies[0]!.id;
   for (const id of PROCESS_IDS) {
     await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${seed.companies[0]!.adminRoleId}, ${id}) on conflict do nothing`;
@@ -293,7 +294,7 @@ export async function chainHarness() {
   };
 
   return {
-    sql, admin, companyId, year, today, plusDays, costCenterId, partyId, cafe, warehouseId, locationId, pipelineId, transferId, resolution,
+    sql, seed, admin, companyId, year, today, plusDays, costCenterId, partyId, cafe, warehouseId, locationId, pipelineId, transferId, resolution,
     run, runStepUp, refusal, act, drain, parkedRows, redeliver, markReady, settleDian, audit, whatHappened, outboxOf, outboxSince, auditChainsSince, entriesOf, linesOf, trialBalance,
     partyBalance, stock, costLayer, creditExposure, openItems, cleanup,
   };

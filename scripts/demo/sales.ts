@@ -390,10 +390,11 @@ async function mockDianAccepts(sql: Sql, deps: RunProcessDeps, store: FileStore 
 export function salesGrants(processIds: string[]): { roleId: string; processId: string }[] {
   const sells = processIds.filter((id) =>
     /^crm\.(lead|opportunity|activity|quote)\.(create|update|convert|stage_move|send|accept|expire)$/.test(id) ||
-    /^sales\.(order\.(create|update|from_quote|confirm|cancel)|delivery\.(create|update|ship)|return\.(create|receive)|price\.resolve|discount\.resolve)$/.test(id) ||
+    /^sales\.(order\.(create|update|from_quote|confirm|cancel|reassign)|delivery\.(create|update|ship)|return\.(create|receive)|price\.resolve|discount\.resolve)$/.test(id) ||
     /^invoicing\.(invoice\.(from_orders|create|update|issue)|pending_line\.list)$/.test(id));
   const collects = processIds.filter((id) => /^payments\.payment\.(receive|open_invoices)$/.test(id));
-  const accountant = processIds.filter((id) => /^invoicing\.(invoice\.(issue|resubmit)|note\.(create|issue))$/.test(id) || /^payments\.payment\.(receive|open_invoices)$/.test(id));
+  // The accountant bills (issues invoices): it sees every pedido (sales.order.reassign, the «all orders» permission of Task 39, R39-7).
+  const accountant = processIds.filter((id) => /^invoicing\.(invoice\.(issue|resubmit)|note\.(create|issue))$/.test(id) || /^payments\.payment\.(receive|open_invoices)$/.test(id) || id === "sales.order.reassign");
   return [
     ...sells.map((processId) => ({ roleId: DEMO_ROLE_IDS.gerente_comercial, processId })),
     ...collects.map((processId) => ({ roleId: DEMO_ROLE_IDS.cajero, processId })),

@@ -4,6 +4,7 @@ import { SALES_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onSaleIssueRefused } from "./processes/delivery";
 import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, orderHooks } from "./processes/order";
+import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
 import { PRICING_PROCESSES } from "./processes/pricing";
 import { onReturnVoidRefused, RETURN_PROCESSES, RETURN_RECEIVED, RETURN_VOIDED, returnHooks } from "./processes/return";
@@ -36,7 +37,8 @@ export const sales: ModuleDef = defineModule({
   dependsOn: ["core"],
   icon: "shopping-cart",
   entities: SALES_ENTITIES,
-  processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES],
+  // sales.order.reassign (Task 39): the «all orders» permission of the owner isolation (migration 0139) and the owner change.
+  processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES],
   features: FEATURES,
   // Its Inicio cards (plan 2B Task 26).
   homeKpis: HOME_KPIS,

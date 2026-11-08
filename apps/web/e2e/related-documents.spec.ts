@@ -54,7 +54,8 @@ test.describe("related documents tab", () => {
     tsx(DIAN, ["invoice", sale.invoice.id, "accepted"]);
     receipt = lastJson<{ receipt: Doc }>(tsx(RELATED, [companyId, fixture.userId, "pay", sale.invoice.id])).receipt;
 
-    // A seller who consults quotes, orders, deliveries and receipts but not invoices.
+    // A seller who consults quotes, orders, deliveries and receipts but not invoices. The pedido is the administrator's, so the seller reads it only
+    // with the «all orders» permission (sales.order.reassign, Task 39); the order's own isolation is order-owner-isolation.spec.ts.
     const suffix = randomUUID().slice(0, 8);
     viewer.email = `viewer-${suffix}@test.local`;
     viewer.password = `pw-${randomUUID()}`;
@@ -65,7 +66,7 @@ test.describe("related documents tab", () => {
     const [role] = await fixture.sql<{ id: string }[]>`insert into kernel.roles(company_id, name) values (${companyId}, 'vendedor') returning id`;
     const [membership] = await fixture.sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${viewer.userId}, ${companyId}) returning id`;
     await fixture.sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${role!.id})`;
-    for (const process of ["crm.quote.consult", "sales.order.consult", "sales.delivery.consult", "payments.receipt.consult", "core.party.consult", "core.product.consult", "inventory.warehouse.consult", "kernel.document_link.trail"]) {
+    for (const process of ["crm.quote.consult", "sales.order.consult", "sales.order.reassign", "sales.delivery.consult", "payments.receipt.consult", "core.party.consult", "core.product.consult", "inventory.warehouse.consult", "kernel.document_link.trail"]) {
       await fixture.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${role!.id}, ${process}) on conflict do nothing`;
     }
   });

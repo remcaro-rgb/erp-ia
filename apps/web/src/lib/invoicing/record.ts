@@ -10,6 +10,7 @@ import { linkableEntities } from "@/lib/grid/links";
 import { receiptsOfInvoice } from "@/lib/payments/record";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
+import { memberNames, orderOwners } from "@/lib/sales/order-owner";
 import { priceDateWarning } from "./price-date";
 
 // What the pages of an invoice and a note need besides the record (plan 2B Task 20, prototype 2B «Factura FE-1234»), read as the caller
@@ -44,6 +45,8 @@ export interface InvoicingFact {
   link?: { entity: string; id: string };
   /** Several records (an invoice's pedidos and entregas). */
   links?: { entity: string; id: string; label: string }[];
+  /** How many of the records the caller cannot read: each reads «Pedido no disponible» after the links, without number, id or link. */
+  unavailable?: number;
   mono?: boolean;
   testId?: string;
 }
@@ -235,6 +238,17 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
     const orderIds = [...new Set(stored.map((l) => l.order_id).filter((v): v is string => typeof v === "string"))];
     const deliveryIds = [...new Set(stored.map((l) => l.delivery_id).filter((v): v is string => typeof v === "string"))];
     const orders = orderIds.length > 0 ? await tx<{ id: string; number: string | null }[]>`select id, number from sales.v_orders where id = any(${orderIds}::uuid[]) order by seq` : [];
+    // A salesperson reads only their own pedidos (Task 39): one the caller cannot read is «Pedido no disponible», never named, and each pedido it
+    // can read gets its salesperson (sales.v_order_owners as the caller, masked by field visibility).
+    const readable = new Set(orders.map((o) => o.id));
+    const unavailableOrders = orderIds.filter((id) => !readable.has(id)).length;
+    const ownerOf = await orderOwners(tx, orders.map((o) => o.id));
+    const ownerName = await memberNames(tx, [...ownerOf.values()].filter((v): v is string => v !== null));
+    const orderOwnerNames = orders.flatMap((o) => {
+      const owner = ownerOf.get(o.id);
+      const name = owner ? ownerName.get(owner) : undefined;
+      return name ? [{ number: o.number ?? o.id, name }] : [];
+    });
     const deliveries = deliveryIds.length > 0 ? await tx<{ id: string; number: string | null }[]>`select id, number from sales.v_deliveries where id = any(${deliveryIds}::uuid[]) order by seq` : [];
     const notes =
       kind === "invoice"
@@ -251,7 +265,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
         ? await tx<{ prefix: string | null; next_number: string | null }[]>`
             select prefix, next_number::text from core.v_document_sequences where document_type = 'credit_note' order by seq desc limit 1`
         : [];
-    return { today: company?.today ?? new Date().toISOString().slice(0, 10), timeZone: company?.timezone, companyCurrency: company?.currency ?? null, submission: submission ?? null, orders, deliveries, notes, invoice: invoice ?? null, creditSequence: creditSequence ?? null };
+    return { today: company?.today ?? new Date().toISOString().slice(0, 10), timeZone: company?.timezone, companyCurrency: company?.currency ?? null, submission: submission ?? null, orders, unavailableOrders, orderOwnerNames, deliveries, notes, invoice: invoice ?? null, creditSequence: creditSequence ?? null };
   });
   const gridDef = gridEntity(deps.registry, entityId);
   const [linesGrid, taxesGrid, runnable, linkable, access] = await Promise.all([
@@ -346,7 +360,12 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
 
   if (kind === "invoice") {
     facts.push(ref("party_id", "core.party"));
-    if (named.orders.length > 0) facts.push({ label: tv("orders"), value: named.orders.map((o) => o.number ?? o.id).join(", "), links: named.orders.map((o) => ({ entity: "sales.order", id: o.id, label: o.number ?? o.id })).filter(() => linkable.has("sales.order")), mono: true });
+    if (named.orders.length > 0 || named.unavailableOrders > 0) {
+      const value = [...named.orders.map((o) => o.number ?? o.id), ...Array.from({ length: named.unavailableOrders }, () => tv("order_unavailable"))].join(", ");
+      facts.push({ label: tv("orders"), value, links: named.orders.map((o) => ({ entity: "sales.order", id: o.id, label: o.number ?? o.id })).filter(() => linkable.has("sales.order")), unavailable: named.unavailableOrders, mono: named.unavailableOrders === 0, testId: "invoice-orders" });
+    }
+    // «Vendedor del pedido»: the salesperson of each pedido the caller can read (an invoice may cover several, so not one field; owner item 94).
+    if (named.orderOwnerNames.length > 0) facts.push({ label: tv("order_owner"), value: named.orderOwnerNames.map((o) => `${o.number}: ${o.name}`).join(" · "), testId: "invoice-order-owners" });
     if (named.deliveries.length > 0) facts.push({ label: tv("deliveries"), value: named.deliveries.map((d) => d.number ?? d.id).join(", "), links: named.deliveries.map((d) => ({ entity: "sales.delivery", id: d.id, label: d.number ?? d.id })).filter(() => linkable.has("sales.delivery")), mono: true });
     // The recibos de caja that paid it (plan 2B Task 24b), as payments publishes them (payments.v_invoice_allocations): each links to its receipt.
     const receipts = (await receiptsOfInvoice(caller, record.id)).filter((r) => r.status === "posted");

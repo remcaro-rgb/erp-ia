@@ -13,6 +13,8 @@ export interface FieldPresentation {
   /** See `GridColumn.marked`; the label is the value `value` under `valuesKey`. */
   marked?: { field: string; whenValue: string; value: string; tone: PillTone };
   display?: "mono" | "dian";
+  /** i18n key of the text a reference reads as when the viewer cannot read its record (no name, no id, no link). */
+  unavailableKey?: string;
 }
 
 export interface GridPresentation {
@@ -30,6 +32,8 @@ export interface GridPresentation {
 
 const ready: FieldPresentation = { valuesKey: "grid.values.ready", pills: { true: "ok", false: "danger" } };
 const active: FieldPresentation = { valuesKey: "grid.values.active", pills: { true: "ok", false: "gray" } };
+/** A pedido reference of a delivery or return: a pedido the viewer cannot read (another salesperson's, Task 39) reads as plain text. */
+const orderUnavailable: FieldPresentation = { unavailableKey: "sales.view.order_unavailable" };
 const dian: FieldPresentation = { display: "dian" };
 const recordStatus: FieldPresentation = { valuesKey: "grid.values.record_status", pills: { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok" } };
 const documentStatus: FieldPresentation = { valuesKey: "grid.values.record_status", pills: { draft: "gray", saved: "ok", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" } };
@@ -287,10 +291,12 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "sales.order": {
     title: "number",
-    shown: ["number", "party_id", "issue_date", "delivery_date", "stage", "total", "status"],
-    exclude: ["extra", "extra_free", "owner_id", "quote_id", "opportunity_id", "warehouse_id", "requires_approval", "posts", "exchange_rate"],
+    shown: ["number", "party_id", "owner_id", "issue_date", "delivery_date", "stage", "total", "status"],
+    exclude: ["extra", "extra_free", "quote_id", "opportunity_id", "warehouse_id", "requires_approval", "posts", "exchange_rate"],
     fields: {
       number: { display: "mono" },
+      // The salesperson (Task 39): a column the user filters by name (the grid's table of members).
+      owner_id: { table: "members" },
       stage: { valuesKey: "sales.values.order_stage", pills: { open: "info", confirmed: "ok", partially_delivered: "warn", delivered: "ok", cancelled: "gray" } },
       currency: { display: "mono" },
       status: documentStatus,
@@ -306,19 +312,27 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     title: "number",
     shown: ["number", "order_id", "party_id", "warehouse_id", "date", "stage", "shipped_at", "status"],
     exclude: ["extra", "extra_free", "cost_center_id", "requires_approval", "posts"],
-    fields: { number: { display: "mono" }, stage: { valuesKey: "sales.values.delivery_stage", pills: { open: "info", shipped: "ok" } }, status: documentStatus },
+    fields: {
+      number: { display: "mono" },
+      order_id: orderUnavailable,
+      // The pedido's salesperson (Task 39): named by the members table.
+      order_owner_id: { table: "members" },
+      stage: { valuesKey: "sales.values.delivery_stage", pills: { open: "info", shipped: "ok" } },
+      status: documentStatus,
+    },
   },
   "sales.delivery_line": {
     title: "line_no",
     shown: ["line_no", "product_id", "description", "qty", "invoiced_qty"],
-    exclude: ["extra", "extra_free", "delivery_id", "movement_id"],
+    // order_line_id: a line of the pedido, possibly another salesperson's (Task 39, final review m1); the entrega's pedido is its header's.
+    exclude: ["extra", "extra_free", "delivery_id", "movement_id", "order_line_id"],
     fields: {},
   },
   "sales.return": {
     title: "number",
     shown: ["number", "delivery_id", "party_id", "warehouse_id", "date", "reason", "stage", "received_at", "status"],
     exclude: ["extra", "extra_free", "cost_center_id", "requires_approval", "posts"],
-    fields: { number: { display: "mono" }, stage: { valuesKey: "sales.values.return_stage", pills: { open: "info", received: "ok" } }, status: documentStatus },
+    fields: { number: { display: "mono" }, order_id: orderUnavailable, stage: { valuesKey: "sales.values.return_stage", pills: { open: "info", received: "ok" } }, status: documentStatus },
   },
   "sales.return_line": {
     title: "line_no",

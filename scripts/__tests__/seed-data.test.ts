@@ -137,3 +137,13 @@ describe("the compose files", () => {
     expect(test).toMatch(/ALLOW_MOCK_MODEL: "1"/);
   });
 });
+
+describe("the demo grants of the sale chain (salesGrants)", () => {
+  it("gives sales.order.reassign (all orders, plan 2B Task 39) to the sales manager and the billing accountant, not to the cashier", async () => {
+    const { salesGrants } = await import("../demo/sales");
+    const grants = salesGrants(["sales.order.reassign", "sales.order.create", "invoicing.invoice.issue", "payments.payment.receive"]);
+    const holders = grants.filter((g) => g.processId === "sales.order.reassign").map((g) => g.roleId).sort();
+    expect(holders).toEqual([DEMO_ROLE_IDS.gerente_comercial, DEMO_ROLE_IDS.contador].sort());
+    expect(holders).not.toContain(DEMO_ROLE_IDS.cajero);
+  });
+});

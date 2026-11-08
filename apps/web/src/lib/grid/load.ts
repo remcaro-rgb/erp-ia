@@ -7,7 +7,7 @@ import { recordEntity } from "@/lib/records/entities";
 import { gridTables } from "@/lib/records/tables";
 import { processDeps } from "@/lib/server/runtime";
 import { gridDenial, gridEntity, type GridDenial } from "./access";
-import { categoryOptions } from "./options";
+import { categoryOptions, memberOptions } from "./options";
 import { defaultMovementsState, type MovementsPeriod } from "./movements";
 import { buildColumns, type CodeTables } from "./columns";
 import { linkableEntities, refTargets } from "./links";
@@ -106,17 +106,18 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
   if (denial) return { ok: false, denial };
 
   const record = recordEntity(entity.id);
-  const [access, views, runnable, t, locale, categories, linkable, initialState] = await Promise.all([
+  const [access, views, runnable, t, locale, categories, members, linkable, initialState] = await Promise.all([
     gridPageAccess(deps.sql, caller.claims, entity),
     savedViews(caller, entity.id),
     runnableProcesses(deps.sql, deps.registry, caller.claims, [...(record ? [record.create, IMPORT_PROCESS] : []), PRINT_PROCESS]),
     getTranslations(),
     getLocale(),
     entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([]),
+    (entity.id === "sales.order" || entity.id === "sales.delivery") ? memberOptions(caller) : Promise.resolve([]),
     linkableEntities(deps, caller.claims, refTargets(entity)),
     ENTITY_DEFAULT_STATES[entity.id]?.(caller, deps),
   ]);
-  const tables: CodeTables = { ...gridTables(locale), categories };
+  const tables: CodeTables = { ...gridTables(locale), categories, members };
   return {
     ok: true,
     data: {

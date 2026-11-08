@@ -11,6 +11,7 @@ import { presentationOf } from "@/lib/grid/presentation";
 import { creditVisibleTo } from "@/lib/sales/credit";
 import { partyTables } from "@/lib/records/tables";
 import { processDeps } from "@/lib/server/runtime";
+import { activeMembers, memberNames, readableOrderIds } from "./order-owner";
 
 // What the Datos tab of a CRM or sales record needs besides the record (plan 2B Task 14b, prototype 2B), read as the caller: the lookup
 // boxes' fields (customer, product, prospecto, oportunidad, the pedido or entrega a new entrega or devolución comes from), the bodegas
@@ -37,7 +38,7 @@ export const SALES_FORMS: Readonly<Record<string, SalesFormKind>> = {
  */
 export const SALES_STEPS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   "crm.quote": { send: "crm.quote.send", accept: "crm.quote.accept", expire: "crm.quote.expire", to_order: "sales.order.from_quote" },
-  "sales.order": { confirm: "sales.order.confirm", cancel: "sales.order.cancel", to_delivery: "sales.delivery.create" },
+  "sales.order": { confirm: "sales.order.confirm", cancel: "sales.order.cancel", to_delivery: "sales.delivery.create", reassign: "sales.order.reassign" },
   "sales.delivery": { ship: "sales.delivery.ship", to_return: "sales.return.create" },
   "sales.return": { receive: "sales.return.receive" },
   "crm.lead": { convert: "crm.lead.convert" },
@@ -69,6 +70,8 @@ export interface SalesView {
   /** An oportunidad's etapas (the Mover de etapa select) and the one it stands in. */
   stages: (CodeOption & { kind: string })[];
   stageId: string | null;
+  /** A pedido's «Cambiar vendedor» (Task 39): the active members to hand it to and its current owner; null for the callers who may not run sales.order.reassign. */
+  reassign: { members: CodeOption[]; ownerId: string | null } | null;
 }
 
 export interface SalesFormData {
@@ -249,6 +252,13 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
           : entityId === "sales.delivery"
             ? await tx<{ id: string; number: string | null }[]>`select id, number from sales.v_returns where delivery_id = ${record.id} and status <> 'voided' order by seq`
             : [];
+    // The salesperson of a pedido (masked by field visibility, null for who may not see it) and of the pedido an entrega came from; whether the
+    // pedido an entrega or devolución names is one the caller can read at all (a salesperson reads only their own pedidos, Task 39): else it
+    // is «Pedido no disponible», never its number, its id or a link.
+    const ownerIds = [record.owner_id, record.order_owner_id].filter((v): v is string => typeof v === "string");
+    const owners = await memberNames(tx, ownerIds);
+    const sourceOrder = (entityId === "sales.delivery" || entityId === "sales.return") && typeof record.order_id === "string" ? record.order_id : null;
+    const orderReadable = sourceOrder ? (await readableOrderIds(tx, [sourceOrder])).has(sourceOrder) : true;
     const stages =
       entityId === "crm.opportunity" && typeof record.pipeline_id === "string"
         ? await tx<{ id: string; name: string | null; kind: string }[]>`select id, name, kind from crm.v_stages where pipeline_id = ${record.pipeline_id} order by line_no`
@@ -282,6 +292,8 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
       deal: deal?.number ?? null,
       related,
       stages,
+      owners,
+      orderReadable,
     };
   });
   const gridDef = gridEntity(deps.registry, entityId);
@@ -325,6 +337,17 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
     return { label: label(field), value: name ?? raw, mono: true, ...(name && linkable.has(target) ? { link: { entity: target, id: raw } } : {}) };
   };
   const plain = (field: string, extra: Partial<SalesFact> = {}): SalesFact => ({ label: label(field), value: value(field), ...extra });
+  /** The pedido an entrega or devolución comes from: its link, or, when the caller cannot read it, plain text without number, id or link. */
+  const orderRef = (): SalesFact =>
+    named.orderReadable ? ref("order_id", "sales.order") : typeof record.order_id === "string" ? { label: label("order_id"), value: t("sales.view.order_unavailable"), testId: "order-unavailable" } : { label: label("order_id"), value: "—" };
+  /** A salesperson (an owner uuid as a member's name, masked by field visibility; no owner reads «Sin vendedor» on the pedido itself). */
+  const ownerFact = (field: string, testId: string): SalesFact => {
+    const raw = record[field];
+    if (modes[field] === "hidden") return { label: label(field), value: "—" };
+    if (modes[field] === "masked") return { label: label(field), value: MASKED, testId };
+    if (typeof raw !== "string" || !raw) return entityId === "sales.order" ? { label: label(field), value: t("sales.view.no_owner"), testId } : { label: label(field), value: "—" };
+    return { label: label(field), value: named.owners.get(raw) ?? "—", testId };
+  };
 
   const facts: SalesFact[] = [];
   const can: string[] = [];
@@ -351,6 +374,7 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
     case "sales.order":
       facts.push(
         ref("party_id", "core.party"),
+        ownerFact("owner_id", "order-owner"),
         namedRef("quote_id", "crm.quote", named.quote),
         namedRef("opportunity_id", "crm.opportunity", named.deal),
         namedRef("warehouse_id", "inventory.warehouse", named.warehouse),
@@ -367,18 +391,30 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
       allow("confirm", live && stage === "open" && goesOn(record));
       allow("cancel", live && (stage === "open" || stage === "confirmed") && named.related.length === 0);
       allow("to_delivery", live && (stage === "confirmed" || stage === "partially_delivered"));
+      // Cambiar vendedor: any stage (it moves who sees the pedido, not the document), only for who may run sales.order.reassign.
+      allow("reassign", true);
       relatedLabel = t("sales.view.deliveries");
       relatedEntity = "sales.delivery";
       break;
     case "sales.delivery":
-      facts.push(ref("order_id", "sales.order"), ref("party_id", "core.party"), ref("warehouse_id", "inventory.warehouse"), plain("date"), plain("shipped_at"), plain("stock_refusal"), plain("re_reserve_note", { testId: "delivery-re-reserve" }), plain("notes"));
+      facts.push(
+        orderRef(),
+        ownerFact("order_owner_id", "order-owner"),
+        ref("party_id", "core.party"),
+        ref("warehouse_id", "inventory.warehouse"),
+        plain("date"),
+        plain("shipped_at"),
+        plain("stock_refusal"),
+        plain("re_reserve_note", { testId: "delivery-re-reserve" }),
+        plain("notes"),
+      );
       allow("ship", live && stage === "open" && (record.status === "saved" || record.status === "approved"));
       allow("to_return", live && stage === "shipped");
       relatedLabel = t("sales.view.returns");
       relatedEntity = "sales.return";
       break;
     case "sales.return":
-      facts.push(ref("delivery_id", "sales.delivery"), ref("order_id", "sales.order"), ref("party_id", "core.party"), ref("warehouse_id", "inventory.warehouse"), plain("date"), plain("reason"), plain("received_at"), plain("stock_refusal"), plain("notes"));
+      facts.push(ref("delivery_id", "sales.delivery"), orderRef(), ref("party_id", "core.party"), ref("warehouse_id", "inventory.warehouse"), plain("date"), plain("reason"), plain("received_at"), plain("stock_refusal"), plain("notes"));
       allow("receive", live && stage === "open" && (record.status === "saved" || record.status === "approved"));
       break;
     case "crm.lead":
@@ -399,6 +435,7 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
       break;
   }
   const stageDef = entity.fields.find((f) => f.name === stageField);
+  const members = can.includes("reassign") ? await withClaims(deps.sql, caller.claims, (tx) => activeMembers(tx)) : [];
   // A money the role does not see (masked, or null in the masked view) reads as the masked marker, never «$ 0,00».
   const money = (field: string) => moneyText(modes[field], record[field], currency);
   return {
@@ -412,5 +449,6 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
     related: relatedEntity && named.related.length > 0 ? { label: relatedLabel, items: named.related.map((r) => ({ entity: relatedEntity, id: r.id, number: r.number ?? r.id })) } : null,
     stages: named.stages.map((s) => ({ code: s.id, name: s.name ?? s.id, kind: s.kind })),
     stageId: typeof record.stage_id === "string" ? record.stage_id : null,
+    reassign: can.includes("reassign") ? { members: members.map((m) => ({ code: m.id, name: m.name })), ownerId: typeof record.owner_id === "string" ? record.owner_id : null } : null,
   };
 }

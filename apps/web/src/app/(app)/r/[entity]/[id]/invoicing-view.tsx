@@ -144,6 +144,11 @@ export function InvoicingRecordView({ entity, recordId, view, editForm }: Invoic
                   {f.links.map((l) => (
                     <RecordLink key={l.id} entity={l.entity} id={l.id} label={l.label} mono />
                   ))}
+                  {Array.from({ length: f.unavailable ?? 0 }, (_, i) => (
+                    <span key={`unavailable-${i}`} className="erp-muted" data-testid="order-unavailable">
+                      {t("order_unavailable")}
+                    </span>
+                  ))}
                 </span>
               ) : f.link ? (
                 <RecordLink entity={f.link.entity} id={f.link.id} label={f.value} {...(f.mono ? { mono: true } : {})} />

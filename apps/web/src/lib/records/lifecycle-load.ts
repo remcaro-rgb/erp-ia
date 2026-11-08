@@ -1,5 +1,6 @@
 import { runnableProcesses, withClaims, type Caller, type EntityDef, type FieldDef } from "@erp/kernel";
 import type { LifecycleFlags, RecordStatus } from "@erp/kernel/lifecycle";
+import { unreadableOrderIds } from "@/lib/sales/order-owner";
 import { processDeps } from "@/lib/server/runtime";
 
 // What the record frame's action bar, Versiones and Acceso need of a maestro or documento (Task 15). Rights = the processes the
@@ -141,7 +142,10 @@ export async function loadLifecycle(caller: Caller, entity: EntityDef, record: (
       entity.id === "sales.delivery" && record && typeof record.order_id === "string"
         ? await tx<{ stage: string | null; status: string | null }[]>`select stage, status from sales.v_orders where id = ${record.order_id}::uuid`
         : [];
-    return { menu, status, flags, access, authors, recipients, snapshots, headerNames, lineNames, accessView, order };
+    // A pedido of another salesperson, or a line of one, that a snapshot names (an entrega, devolución or factura) reads as «Pedido no
+    // disponible» (Task 39, R39-9, final review m1).
+    const hiddenOrders = await unreadableOrderIds(tx, snapshots);
+    return { menu, status, flags, access, authors, recipients, snapshots, hiddenOrders, headerNames, lineNames, accessView, order };
   });
 
   const show = (value: unknown, field: FieldDef | undefined): string => {
@@ -153,8 +157,16 @@ export async function loadLifecycle(caller: Caller, entity: EntityDef, record: (
     }
     return typeof value === "object" ? JSON.stringify(value) : String(value);
   };
+  const unavailable = t("sales.view.order_unavailable");
   const shown = (row: Record<string, unknown> | undefined, names: string[], fields: FieldDef[]) =>
-    Object.fromEntries(names.map((n) => [n, row?.[n] === MASKED ? MASKED : show(row?.[n], fields.find((f) => f.name === n))]));
+    Object.fromEntries(
+      names.map((n) => {
+        const raw = row?.[n];
+        if (raw === MASKED) return [n, MASKED];
+        if ((n === "order_id" || n === "order_line_id") && typeof raw === "string" && facts.hiddenOrders.has(raw)) return [n, unavailable];
+        return [n, show(raw, fields.find((f) => f.name === n))];
+      }),
+    );
   const snapshots =
     facts.snapshots?.map(
       (s): SnapshotView => ({

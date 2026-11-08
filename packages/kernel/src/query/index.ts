@@ -4,7 +4,7 @@
 export { buildQuery, ROW_MASKED } from "./build-query";
 export type { BuildQueryOptions, BuiltQuery } from "./build-query";
 export { QueryError } from "./errors";
-export { labelText, refLabelKey } from "./ref-label";
+export { labelText, refFoundKey, refLabelKey } from "./ref-label";
 export type { QueryErrorCode } from "./errors";
 export {
   AGGREGATE_FNS,

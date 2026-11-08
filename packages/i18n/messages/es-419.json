@@ -2698,7 +2698,8 @@
         "stock_refused_at": "Rechazado por inventario el",
         "re_reserve_requested": "Reservar de nuevo al anular",
         "re_reserve_result": "Resultado de la reserva al anular",
-        "re_reserve_note": "Reserva al anular"
+        "re_reserve_note": "Reserva al anular",
+        "order_owner_id": "Vendedor del pedido"
       },
       "delivery_line": {
         "seq": "ID",
@@ -3243,6 +3244,11 @@
         "apply": "Aplicar anticipo a facturas",
         "undo": "Deshacer aplicación de anticipo",
         "open": "Consultar anticipos por aplicar"
+      }
+    },
+    "sales": {
+      "order": {
+        "reassign": "Cambiar el vendedor de un pedido"
       }
     }
   },
@@ -5582,7 +5588,8 @@
       "return_not_saved": "La devolución no está grabada",
       "return_voided": "La devolución está anulada",
       "negative_stock_refused": "La bodega no tiene las existencias que la entrega despacha",
-      "split_location": "Una línea de la entrega sale de una sola ubicación y ninguna tiene toda la cantidad: divide la línea o traslada la mercancía"
+      "split_location": "Una línea de la entrega sale de una sola ubicación y ninguna tiene toda la cantidad: divide la línea o traslada la mercancía",
+      "invalid_owner": "El vendedor no pertenece a la empresa"
     },
     "values": {
       "price_source": {
@@ -5740,7 +5747,19 @@
       },
       "credit_limit": "Límite de crédito",
       "credit_value": "{limit} · Disponible {available}",
-      "void_reserve_question": "¿Reservar de nuevo las existencias para el pedido?"
+      "void_reserve_question": "¿Reservar de nuevo las existencias para el pedido?",
+      "order_unavailable": "Pedido no disponible",
+      "no_owner": "Sin vendedor",
+      "handed_over": "Pedido creado, asignado a {owner}",
+      "handed_over_unknown": "Pedido creado, asignado a otro vendedor",
+      "reassigned": "Pedido asignado a {owner}",
+      "reassigned_unknown": "Pedido reasignado",
+      "reassign": "Cambiar vendedor",
+      "reassign_hint": "El pedido pasa al vendedor que elijas: quien lo recibe lo ve y lo trabaja; quien puede cambiar vendedor sigue viendo todos los pedidos.",
+      "reassign_owner": "Vendedor",
+      "reassign_pick": "Elige un vendedor",
+      "reassign_cancel": "Cancelar",
+      "reassign_submit": "Asignar"
     },
     "settings_page": {
       "title": "Parámetros de ventas",
@@ -6130,7 +6149,9 @@
         "cancel": "Cancelar",
         "confirm": "Emitir nota crédito"
       },
-      "receipts": "Recibos de caja"
+      "receipts": "Recibos de caja",
+      "order_unavailable": "Pedido no disponible",
+      "order_owner": "Vendedor del pedido"
     },
     "form": {
       "section": "Factura de venta",

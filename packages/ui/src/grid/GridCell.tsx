@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { refLabelKey, ROW_MASKED } from "@erp/kernel/query";
+import { refFoundKey, refLabelKey, ROW_MASKED } from "@erp/kernel/query";
 import { cn } from "@erp/ui/lib/utils";
 import { RecordLink } from "../record/RecordLink";
 import { shortId } from "../record/record-model";
@@ -71,6 +71,14 @@ export function GridCell({ column, row, className, render }: { column: GridColum
     // to the record's page when the viewer may open it (rule 21).
     const named = row[refLabelKey(column.field)];
     const label = typeof named === "string" && named !== "" ? named : column.options?.some((o) => o.value === value) ? text(column, value) : null;
+    if (label === null && column.unavailable) {
+      // «Pedido no disponible» only for a record the viewer cannot read; a readable one whose name they do not see is «—» (Task 39 m2).
+      return (
+        <td className={base}>
+          <span className="erp-muted">{row[refFoundKey(column.field)] === true ? "—" : column.unavailable}</span>
+        </td>
+      );
+    }
     const shown = label ?? shortId(value);
     return (
       <td className={base}>

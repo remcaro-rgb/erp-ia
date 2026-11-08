@@ -2698,7 +2698,8 @@
         "stock_refused_at": "Refused by inventory on",
         "re_reserve_requested": "Reserve again on void",
         "re_reserve_result": "Result of the reservation on void",
-        "re_reserve_note": "Reservation on void"
+        "re_reserve_note": "Reservation on void",
+        "order_owner_id": "Order salesperson"
       },
       "delivery_line": {
         "seq": "ID",
@@ -3243,6 +3244,11 @@
         "apply": "Apply advance to invoices",
         "undo": "Undo advance application",
         "open": "Consult advances to apply"
+      }
+    },
+    "sales": {
+      "order": {
+        "reassign": "Change the salesperson of an order"
       }
     }
   },
@@ -5582,7 +5588,8 @@
       "return_not_saved": "The return is not saved",
       "return_voided": "The return is voided",
       "negative_stock_refused": "The warehouse does not have the stock the delivery ships",
-      "split_location": "A delivery line leaves from a single location and none holds the whole quantity: split the line or transfer the goods"
+      "split_location": "A delivery line leaves from a single location and none holds the whole quantity: split the line or transfer the goods",
+      "invalid_owner": "The salesperson does not belong to the company"
     },
     "values": {
       "price_source": {
@@ -5740,7 +5747,19 @@
       },
       "credit_limit": "Credit limit",
       "credit_value": "{limit} · Available {available}",
-      "void_reserve_question": "Reserve the stock for the order again?"
+      "void_reserve_question": "Reserve the stock for the order again?",
+      "order_unavailable": "Order not available",
+      "no_owner": "No salesperson",
+      "handed_over": "Order created, assigned to {owner}",
+      "handed_over_unknown": "Order created, assigned to another salesperson",
+      "reassigned": "Order assigned to {owner}",
+      "reassigned_unknown": "Order reassigned",
+      "reassign": "Change salesperson",
+      "reassign_hint": "The order goes to the salesperson you pick: whoever receives it sees and works it; whoever may change salesperson keeps seeing every order.",
+      "reassign_owner": "Salesperson",
+      "reassign_pick": "Pick a salesperson",
+      "reassign_cancel": "Cancel",
+      "reassign_submit": "Assign"
     },
     "settings_page": {
       "title": "Sales settings",
@@ -6130,7 +6149,9 @@
         "cancel": "Cancel",
         "confirm": "Issue credit note"
       },
-      "receipts": "Cash receipts"
+      "receipts": "Cash receipts",
+      "order_unavailable": "Order not available",
+      "order_owner": "Order salesperson"
     },
     "form": {
       "section": "Sale invoice",

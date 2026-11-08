@@ -79,6 +79,21 @@ const orderOutput = z.object({
 });
 type OrderOutput = z.output<typeof orderOutput>;
 
+/**
+ * What sales.order.from_quote answers a converter who will not see the pedido (Task 39, R39-4): it belongs to the cotización's owner and the
+ * converter neither owns it nor holds sales.order.reassign. Only what the converter already knew or just wrote; the UI says «Pedido creado,
+ * asignado a <vendedor>» without opening it.
+ */
+const handedOverOutput = z.object({
+  id: z.string(),
+  number: z.string().nullable(),
+  status: z.string(),
+  stage: z.string(),
+  /** The salesperson it was handed to; null when the caller's role may not see sales.order.owner_id (rule 14). */
+  ownerId: z.string().nullable(),
+  visible: z.literal(false),
+}).strict();
+
 /** A refusal whose message leads with its code; `details` lists every message. */
 export function refuse(code: string, details: readonly string[]): never {
   throw new ProcessError("invalid_input", `${code}: ${details[0] ?? code}`, { details: [...details] });
@@ -346,11 +361,28 @@ interface NewOrder {
   notes?: string;
   quoteId?: string;
   opportunityId?: string | null;
+  /** The salesperson who owns it (Task 39): the creator, or the cotización's owner (else the converter). */
+  ownerId: string;
+  /** How the owner was set (sales.orders.owner_source, migration 0139). */
+  ownerSource: "direct" | "quote";
   lines: LineInput[];
 }
 
-/** Writes a new pedido (header, priced lines), Grabar and, when it needs it, Enviar a aprobación; emits sales.order.created. */
-async function createOrder(ctx: ProcessContext, input: NewOrder): Promise<OrderOutput> {
+interface CreatedOrder {
+  id: string;
+  number: string | null;
+  status: string;
+  /** The owner the pedido was handed to at the end of the run because the caller will not see it (R39-4); null when the caller does. */
+  handedTo: string | null;
+}
+
+/**
+ * Writes a new pedido (header, priced lines), Grabar and, when it needs it, Enviar a aprobación; emits sales.order.created. The pedido is
+ * written as its owner's when the caller will read it (the owner is the caller, or the caller holds sales.order.reassign); otherwise it is
+ * written as the caller's, so every step of the run reads it under the caller's own RLS, and handed to its owner as the last step through
+ * sales.order_hand_over (only sales.order.from_quote's run, only to the cotización's owner; the row audit records the diff).
+ */
+async function createOrder(ctx: ProcessContext, input: NewOrder): Promise<CreatedOrder> {
   const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
   const companyCurrency = company!.currency_code.trim();
   const currency = input.currency ?? companyCurrency;
@@ -362,13 +394,19 @@ async function createOrder(ctx: ProcessContext, input: NewOrder): Promise<OrderO
 
   const priced = await priceLines(ctx, input.partyId, input.lines, issueDate, currency);
   const approval = await approvalOf(ctx, input.partyId, null, priced, exchangeRate);
+  let handOver = false;
+  if (input.ownerId !== ctx.userId) {
+    const [seesAll] = await ctx.tx<{ ok: boolean }[]>`select kernel.can_run_process('sales.order.reassign') as ok`;
+    handOver = seesAll?.ok !== true;
+  }
   const [header] = await oneLivePerQuote(input.quoteId, () => ctx.tx<{ id: string }[]>`
     insert into sales.orders ${ctx.tx({
       company_id: ctx.companyId,
       party_id: input.partyId,
       quote_id: input.quoteId ?? null,
       opportunity_id: input.opportunityId ?? null,
-      owner_id: ctx.userId,
+      owner_id: handOver ? ctx.userId : input.ownerId,
+      owner_source: input.ownerSource,
       warehouse_id: input.warehouseId ?? null,
       issue_date: issueDate,
       delivery_date: input.deliveryDate ?? null,
@@ -395,7 +433,8 @@ async function createOrder(ctx: ProcessContext, input: NewOrder): Promise<OrderO
     ...(input.quoteId ? { quoteId: input.quoteId } : {}),
     ...(input.opportunityId ? { opportunityId: input.opportunityId } : {}),
   });
-  return outputOf(ctx, header!.id);
+  if (handOver) await ctx.tx`select sales.order_hand_over(${header!.id}::uuid, ${input.ownerId}::uuid)`;
+  return { id: header!.id, number: state.number, status: state.status, handedTo: handOver ? input.ownerId : null };
 }
 
 const headerInput = {
@@ -421,7 +460,8 @@ export const orderCreate = defineProcess({
     "Crea un pedido de venta para un cliente listo para facturar: precia cada línea con la lista de precios del cliente (o la predeterminada, o el precio de lista), calcula impuestos y totales, le asigna su número y lo deja en aprobación si supera el cupo de crédito del cliente o un descuento supera el tope",
   input: z.object({ ...headerInput, lines: z.array(orderLineInput).min(1, "El pedido lleva al menos una línea").max(200) }).strict(),
   output: orderOutput,
-  handler: (ctx, input) => createOrder(ctx, input),
+  // A direct pedido is its creator's (Task 39).
+  handler: async (ctx, input) => outputOf(ctx, (await createOrder(ctx, { ...input, ownerId: ctx.userId, ownerSource: "direct" })).id),
 });
 
 /** A cotización as crm publishes it for its pedido (crm.v_quote_offers, migration 0084). */
@@ -430,6 +470,8 @@ interface QuoteOffer {
   number: string | null;
   party_id: string;
   opportunity_id: string | null;
+  /** The cotización's salesperson (Task 39): the pedido's owner when set. */
+  owner_id: string | null;
   stage: string;
   status: string;
   currency: string;
@@ -446,7 +488,7 @@ export const orderFromQuote = defineProcess({
   feature: FEATURE,
   emits: [ORDER_CREATED],
   description:
-    "Convierte una cotización aceptada en un pedido de venta: copia sus líneas con los precios, listas y descuentos que el cliente aceptó (no vuelve a buscar precios), su moneda y su oportunidad; una cotización da un solo pedido",
+    "Convierte una cotización aceptada en un pedido de venta: copia sus líneas con los precios, listas y descuentos que el cliente aceptó (no vuelve a buscar precios), su moneda y su oportunidad; el pedido queda del vendedor de la cotización (o de quien convierte, si no tiene); una cotización da un solo pedido",
   input: z.object({
     quoteId: id,
     issueDate: date.optional(),
@@ -454,10 +496,11 @@ export const orderFromQuote = defineProcess({
     warehouseId: id.optional(),
     notes: z.string().trim().max(2000).optional(),
   }).strict(),
-  output: orderOutput,
+  // The pedido, or the trimmed answer when it was handed to a salesperson the converter does not see (R39-4).
+  output: z.union([orderOutput, handedOverOutput]),
   handler: async (ctx, input) => {
     const [quote] = await ctx.tx<QuoteOffer[]>`
-      select id, number, party_id, opportunity_id, stage, status, currency, exchange_rate::text, notes from crm.v_quote_offers where id = ${input.quoteId}`;
+      select id, number, party_id, opportunity_id, owner_id, stage, status, currency, exchange_rate::text, notes from crm.v_quote_offers where id = ${input.quoteId}`;
     if (!quote) throw new ProcessError("not_found", `quote ${input.quoteId} not found`);
     const quoteLabel = quote.number ?? quote.id;
     if (quote.status === "voided") refuseState("quote_voided", [`La cotización ${quoteLabel} está anulada`]);
@@ -468,7 +511,7 @@ export const orderFromQuote = defineProcess({
     const lines = await ctx.tx<{ id: string; product_id: string; description: string | null; qty: string; unit_price: string; price_list_id: string | null; discount_pct: string }[]>`
       select id, product_id, description, qty::text, unit_price::text, price_list_id, discount_pct::text from crm.v_quote_offer_lines where quote_id = ${quote.id} order by line_no`;
     if (lines.length === 0) refuse("invalid_quote", [`La cotización ${quoteLabel} no tiene líneas`]);
-    return createOrder(ctx, {
+    const created = await createOrder(ctx, {
       partyId: quote.party_id,
       ...(input.issueDate ? { issueDate: input.issueDate } : {}),
       ...(input.deliveryDate ? { deliveryDate: input.deliveryDate } : {}),
@@ -478,6 +521,9 @@ export const orderFromQuote = defineProcess({
       notes: input.notes ?? quote.notes ?? undefined,
       quoteId: quote.id,
       opportunityId: quote.opportunity_id,
+      // The cotización's salesperson owns the pedido; without one, whoever converts it (Task 39, R39-3).
+      ownerId: quote.owner_id ?? ctx.userId,
+      ownerSource: quote.owner_id ? "quote" : "direct",
       lines: lines.map((l) => ({
         productId: l.product_id,
         qty: num(l.qty),
@@ -488,6 +534,11 @@ export const orderFromQuote = defineProcess({
         ...(l.description ? { description: l.description } : {}),
       })),
     });
+    if (created.handedTo) {
+      const [shown] = await ctx.tx<{ ok: boolean }[]>`select kernel.field_visible('sales.order', 'owner_id') as ok`;
+      return { id: created.id, number: created.number, status: created.status, stage: "open", ownerId: shown?.ok === true ? created.handedTo : null, visible: false as const };
+    }
+    return outputOf(ctx, created.id);
   },
 });
 

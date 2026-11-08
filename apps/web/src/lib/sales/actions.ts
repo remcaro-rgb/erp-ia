@@ -1,11 +1,13 @@
 "use server";
 
-import { runProcess } from "@erp/kernel";
+import { runProcess, withClaims } from "@erp/kernel";
 import { requireCaller } from "@/lib/auth/claims";
 import { clickKey as key, defined, num, text } from "@/lib/records/step-helpers";
 import { stepRefusal as refusal } from "@/lib/records/step-refusal";
 import { processDeps } from "@/lib/server/runtime";
+import { memberNames } from "./order-owner";
 import { SALES_STEPS } from "./record";
+import { stepResult } from "./step-result";
 
 // The CRM and sales screens' server side (plan 2B Task 14b, rule 1): every button runs a registered process as the session's user, with
 // the step-up token when the user just verified one (rule 15). The process comes from an allowlist keyed by entity and step name
@@ -14,7 +16,7 @@ import { SALES_STEPS } from "./record";
 // same step again.
 
 export type SalesStepOutcome =
-  | { ok: true; created?: { entity: string; id: string; number: string | null } }
+  | { ok: true; created?: { entity: string; id: string; number: string | null }; handedOver?: { ownerName: string | null } }
   | { ok: false; code: string; messages: string[] };
 
 /** What each step's process takes, built from the record and the fields the step's screen sends. */
@@ -26,6 +28,8 @@ function stepInput(process: string, id: string, input: Record<string, unknown>):
     case "sales.delivery.ship":
     case "sales.return.receive":
       return defined({ id, idempotencyKey: key(input.idempotencyKey) });
+    case "sales.order.reassign":
+      return { id, ownerId: text(input.ownerId) ?? "" };
     case "sales.order.cancel":
       return { id, reason: text(input.reason) ?? "" };
     case "sales.delivery.create":
@@ -54,13 +58,6 @@ function stepInput(process: string, id: string, input: Record<string, unknown>):
   }
 }
 
-/** The record a creating step opens next. */
-const CREATES: Readonly<Record<string, string>> = {
-  "sales.order.from_quote": "sales.order",
-  "sales.delivery.create": "sales.delivery",
-  "sales.return.create": "sales.return",
-};
-
 /** A step of a stored cotización, pedido, entrega, devolución, prospecto or oportunidad (SALES_STEPS). */
 export async function runSalesStepAction(entity: string, step: string, recordId: string, input: Record<string, unknown> = {}, stepUpToken?: string): Promise<SalesStepOutcome> {
   const steps = Object.hasOwn(SALES_STEPS, entity) ? SALES_STEPS[entity]! : null;
@@ -68,9 +65,16 @@ export async function runSalesStepAction(entity: string, step: string, recordId:
   if (!process || typeof recordId !== "string" || !recordId || typeof input !== "object" || input === null) return { ok: false, code: "invalid_input", messages: [] };
   const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
   try {
-    const result = (await runProcess(processDeps(), caller, process, stepInput(process, recordId, input))) as { id?: unknown; number?: unknown } | null;
-    const created = CREATES[process];
-    if (created && result && typeof result.id === "string") return { ok: true, created: { entity: created, id: result.id, number: typeof result.number === "string" ? result.number : null } };
+    const result = await runProcess(processDeps(), caller, process, stepInput(process, recordId, input));
+    const done = stepResult(process, result);
+    if (done.created) return { ok: true, created: done.created };
+    // A conversion whose pedido the converter may not read (R39-4): nothing to open, only who it went to (as the caller's members view names them).
+    if (done.handedOver) {
+      const owner = done.handedOver.ownerId;
+      const names = owner ? await withClaims(processDeps().sql, caller.claims, (tx) => memberNames(tx, [owner])) : new Map<string, string>();
+      // Only who it went to: the pedido's number is not the converter's to read.
+      return { ok: true, handedOver: { ownerName: owner ? (names.get(owner) ?? null) : null } };
+    }
     return { ok: true };
   } catch (error) {
     return refusal(error);

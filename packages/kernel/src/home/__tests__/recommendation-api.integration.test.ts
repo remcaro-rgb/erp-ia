@@ -95,13 +95,61 @@ const peek = defineProcess({
     ctx.recommendations!.raise({ audienceProcess: "recprobe.doc.flag", subject: { entity: "recprobe.doc", id: input.id }, reason: "late", titleKey: "t", bodyKey: "b" }),
 });
 
+/**
+ * A maestro with a real read view (recprobe.v_secrets, created in beforeAll) whose RLS hides a `secret` row from whoever cannot run
+ * recprobe.doc.fix: a recommendation about it shows only to a viewer who reads that row (kernel.document_visible, 0141).
+ */
+const secretDoc = defineEntity({
+  entityType: "maestro",
+  id: "recprobe.secret",
+  module: "recprobe",
+  schema: "recprobe",
+  table: "secrets",
+  label: "entity.recprobe.secret",
+  displayField: "number",
+  defaultSort: { field: "number", dir: "asc" },
+  fields: [{ name: "number", type: "text", label: "field.recprobe.number" }],
+});
+const secretFlag = defineProcess({
+  id: "recprobe.secret.flag",
+  module: "recprobe",
+  kind: "update",
+  recordAccess: "none",
+  description: "Marca un documento de prueba con vista de lectura",
+  input: z.object({ id: z.uuid(), number: z.string().default("SEC-1") }),
+  output: z.object({ id: z.string(), merged: z.boolean() }),
+  handler: async (ctx, input) =>
+    ctx.recommendations!.raise({
+      audienceProcess: "recprobe.secret.flag",
+      subject: { entity: "recprobe.secret", id: input.id },
+      reason: "late",
+      titleKey: "recprobe.flag.title",
+      bodyKey: "recprobe.flag.body",
+      params: { number: { value: input.number, entity: "recprobe.secret", field: "number" } },
+    }),
+});
+const secretConsult = defineProcess({
+  id: "recprobe.secret.consult",
+  module: "recprobe",
+  kind: "consult",
+  description: "Consulta un documento de prueba con vista de lectura",
+  input: z.object({}),
+  output: z.object({}),
+  handler: async () => ({}),
+});
+
 const probe = defineModule({
   id: "recprobe",
   version: "0.0.1",
   dependsOn: [],
-  entities: [doc],
-  processes: [flag, fix, consultDoc, peek],
-  features: [{ id: "recprobe.docs", label: "feature.recprobe.docs", processes: [flag.id, fix.id, consultDoc.id, peek.id], entities: ["recprobe.doc"] }],
+  entities: [doc, secretDoc],
+  processes: [flag, fix, consultDoc, peek, secretFlag, secretConsult],
+  features: [{
+    id: "recprobe.docs",
+    label: "feature.recprobe.docs",
+    processes: [flag.id, fix.id, consultDoc.id, peek.id, secretFlag.id, secretConsult.id],
+    entities: ["recprobe.doc", "recprobe.secret"],
+  }],
   events: { emits: [], consumes: {} },
   navigation: [],
 });
@@ -126,6 +174,7 @@ describe("kernel recommendation API (0123)", () => {
   /** Holds neither the process nor the role. */
   let outsider: Caller;
   let roleViewer: string;
+  let roleMasked: string;
   const run = <T = unknown>(caller: Caller, id: string, input: unknown = {}) => runProcess({ sql, registry }, caller, id, input) as Promise<T>;
   const list = (caller: Caller, input: unknown = {}) => run<ListOut>(caller, "kernel.recommendation.list", input);
   const rows = (subject: string) =>
@@ -163,12 +212,23 @@ describe("kernel recommendation API (0123)", () => {
     registry = new Registry();
     loadModules(registry, [kernelModule, probe]);
     await syncModuleManifest(sql, probe);
+    // The read view of recprobe.secret: a secret row only for the holders of recprobe.doc.fix (as a record rule would hide it).
+    await sql.unsafe(`
+      create schema if not exists recprobe;
+      create table if not exists recprobe.secrets (id uuid primary key, company_id uuid not null, number text not null, secret boolean not null);
+      alter table recprobe.secrets enable row level security;
+      drop policy if exists probe_read on recprobe.secrets;
+      create policy probe_read on recprobe.secrets for select to authenticated
+        using (company_id = kernel.current_company_id() and (not secret or kernel.can_run_process('recprobe.doc.fix')));
+      create or replace view recprobe.v_secrets with (security_invoker = true) as select id, company_id, number from recprobe.secrets;
+      grant usage on schema recprobe to authenticated;
+      grant select on recprobe.secrets, recprobe.v_secrets to authenticated;`);
 
     const role = async (name: string) => (await sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${companyA}, ${name}, false) returning id`)[0]!.id;
     const grant = (company: string, roleId: string, processId: string) =>
       sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${company}, ${roleId}, ${processId}) on conflict do nothing`;
     roleViewer = await role("Facturación");
-    const roleMasked = await role("Facturación sin montos");
+    roleMasked = await role("Facturación sin montos");
     const rolePlain = await role("Bodega");
     const callerWith = async (user: string, roleId: string): Promise<Caller> => {
       await seed.holdRoles(user, companyA, [roleId]);
@@ -189,6 +249,12 @@ describe("kernel recommendation API (0123)", () => {
     await grant(companyA, roleViewer, flag.id);
     await grant(companyA, roleViewer, consultDoc.id);
     await grant(companyA, roleMasked, flag.id);
+    await grant(companyA, roleViewer, secretFlag.id);
+    await grant(companyA, roleViewer, secretConsult.id);
+    await grant(companyA, roleMasked, secretFlag.id);
+    for (const [company, roleId] of [[companyA, seed.companies[0]!.adminRoleId], [companyB, seed.companies[1]!.adminRoleId]] as const) {
+      for (const id of [secretFlag.id, secretConsult.id]) await grant(company, roleId, id);
+    }
     await sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode) values (${companyA}, ${roleMasked}, 'recprobe.doc', 'amount', 'masked')`;
   });
   afterAll(async () => {
@@ -198,6 +264,8 @@ describe("kernel recommendation API (0123)", () => {
     await seed.cleanup();
     await sql`delete from kernel.registered_processes where module_id = 'recprobe'`;
     await sql`delete from kernel.module_features where module_id = 'recprobe'`;
+    await sql`delete from kernel.entity_tables where module_id = 'recprobe'`;
+    await sql.unsafe("drop schema if exists recprobe cascade");
     await sql.end();
   });
 
@@ -329,6 +397,66 @@ describe("kernel recommendation API (0123)", () => {
       expect((await list(adminInB)).recommendations.map((r) => r.id)).not.toContain(id);
       expect((await list(admin)).recommendations.map((r) => r.id)).not.toContain(other);
       expect((await rows(subject)).map((r) => r.occurrences)).toEqual([1, 1]);
+    });
+  });
+
+  describe("a subject the viewer may not read (0141)", () => {
+    let open: string;
+    let secret: string;
+    let gone: string;
+    let openRec: string;
+    let secretRec: string;
+    let goneRec: string;
+    beforeAll(async () => {
+      open = randomUUID();
+      secret = randomUUID();
+      gone = randomUUID();
+      await sql`insert into recprobe.secrets (id, company_id, number, secret) values (${open}, ${companyA}, 'SEC-OPEN', false), (${secret}, ${companyA}, 'SEC-HIDDEN', true)`;
+      openRec = (await run<{ id: string }>(admin, secretFlag.id, { id: open, number: "SEC-OPEN" })).id;
+      secretRec = (await run<{ id: string }>(admin, secretFlag.id, { id: secret, number: "SEC-HIDDEN" })).id;
+      goneRec = (await run<{ id: string }>(admin, secretFlag.id, { id: gone, number: "SEC-GONE" })).id;
+    });
+    const viewIds = (caller: Caller) => asUser(caller, null, (tx) => tx<{ id: string }[]>`select id from kernel.v_recommendations`).then((r) => r.map((x) => x.id));
+
+    it("the audience member who reads the subject sees it, with its number; one whose read view hides the row does not", async () => {
+      const shown = (await list(viewer)).recommendations.find((r) => r.id === openRec)!;
+      expect(shown).toMatchObject({ params: { number: "SEC-OPEN" }, subject: { entity: "recprobe.secret", id: open } });
+      const ids = (await list(viewer)).recommendations.map((r) => r.id);
+      expect(ids).not.toContain(secretRec);
+      expect(await viewIds(viewer)).not.toContain(secretRec);
+      expect(JSON.stringify(await list(viewer))).not.toContain("SEC-HIDDEN");
+    });
+
+    it("the holder who reads the hidden row (here the admin) sees it", async () => {
+      const shown = (await list(admin)).recommendations.find((r) => r.id === secretRec)!;
+      expect(shown).toMatchObject({ params: { number: "SEC-HIDDEN" }, subject: { entity: "recprobe.secret", id: secret } });
+    });
+
+    it("an audience member who may not consult a subject with a read view does not see it; a subject no longer in the view is hidden", async () => {
+      const ids = await viewIds(masked);
+      expect(ids).not.toContain(openRec);
+      expect(ids).not.toContain(secretRec);
+      expect(ids).not.toContain(goneRec);
+      expect(await viewIds(admin)).not.toContain(goneRec);
+    });
+
+    it("the total counts only what the caller sees, and a hidden row cannot be decided", async () => {
+      const all = await list(viewer);
+      const [visible] = await asUser(viewer, null, (tx) => tx<{ n: number }[]>`select count(*)::int as n from kernel.v_recommendations where status = 'new' and company_id = ${companyA}`);
+      expect(all.total).toBe(visible!.n);
+      await expect(run(viewer, "kernel.recommendation.decide", { id: secretRec, decision: "dismissed" })).rejects.toMatchObject({ code: "not_found" });
+      expect((await sql<{ status: string }[]>`select status from kernel.recommendations where id = ${secretRec}`)[0]!.status).toBe("new");
+    });
+
+    it("a subject without a read view (recprobe.doc) and an agent row without a subject still show, as in 0123", async () => {
+      const subject = randomUUID();
+      const id = (await run<{ id: string }>(admin, flag.id, { id: subject })).id;
+      expect(await viewIds(viewer)).toContain(id);
+      expect(await viewIds(masked)).toContain(id);
+      const [row] = await sql<{ id: string }[]>`
+        insert into kernel.recommendations (company_id, audience_role_id, agent_profile, title, body)
+        values (${companyA}, ${roleMasked}, 'seed', 'Sin sujeto', 'Cuerpo') returning id`;
+      expect(await viewIds(masked)).toContain(row!.id);
     });
   });
 

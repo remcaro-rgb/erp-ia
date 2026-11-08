@@ -368,3 +368,25 @@ describe("recommendation copy (plan 2B Task 38)", () => {
     expect(valueAt(es, "home.module.pending")).toBe("Pendientes");
   });
 });
+
+describe("order owner isolation copy (plan 2B Task 39)", () => {
+  it("names the reassign process, the dialog, the facts and the refusal in both locales", () => {
+    expect(registry.process("sales.order.reassign")).toBeDefined();
+    const keys = [
+      "process.sales.order.reassign", "sales.errors.invalid_owner", "sales.view.reassign", "sales.view.reassign_hint", "sales.view.reassign_owner", "sales.view.reassign_pick",
+      "sales.view.reassign_cancel", "sales.view.reassign_submit", "sales.view.reassigned", "sales.view.reassigned_unknown", "sales.view.handed_over", "sales.view.handed_over_unknown", "sales.view.order_unavailable",
+      "sales.view.no_owner", "invoicing.view.order_unavailable", "invoicing.view.order_owner", "field.sales.order.owner_id", "field.sales.delivery.order_owner_id",
+    ];
+    for (const tree of [es, en]) for (const key of keys) expect(valueAt(tree, key), key).toBeTruthy();
+    expect(argumentsOf(valueAt(es, "sales.view.handed_over")!)).toEqual(["owner"]);
+    expect(argumentsOf(valueAt(en, "sales.view.handed_over")!)).toEqual(["owner"]);
+    expect(argumentsOf(valueAt(es, "sales.view.reassigned")!)).toEqual(["owner"]);
+    expect(valueAt(es, "sales.view.reassign")).toBe("Cambiar vendedor");
+    expect(valueAt(es, "sales.view.reassign_hint")).not.toMatch(/\bél\b/);
+    expect(valueAt(es, "sales.view.order_unavailable")).toBe("Pedido no disponible");
+    expect(valueAt(es, "sales.view.handed_over")).toBe("Pedido creado, asignado a {owner}");
+    expect(valueAt(es, "field.sales.order.owner_id")).toBe("Vendedor");
+    expect(valueAt(es, "field.sales.delivery.order_owner_id")).toBe("Vendedor del pedido");
+    expect(valueAt(es, "sales.errors.invalid_owner")).toBe("El vendedor no pertenece a la empresa");
+  });
+});

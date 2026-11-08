@@ -1,8 +1,10 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@erp/ui/components/ui/dialog";
+import { toast } from "@erp/ui/components/ui/sonner";
 import { convertDraft, convertInput, DataGrid, Pill, RecordLink, StepUpPrompt, useTabs, type CodeOption, type ConvertDraft } from "@erp/ui";
 import { useStepRunner } from "@/lib/records/use-step-runner";
 import { runSalesStepAction } from "@/lib/sales/actions";
@@ -88,8 +90,26 @@ export function SalesRecordView({ entity, recordId, view, warehouses = [], editF
   const openTab = useTabs((s) => s.open);
   const [editing, setEditing] = useState(false);
   const [converting, setConverting] = useState(false);
+  // Cambiar vendedor (Task 39): the dialog, the member picked and the name the confirmation toast says.
+  const [reassigning, setReassigning] = useState(false);
+  const [newOwner, setNewOwner] = useState("");
+  const reassigned = useRef<string | null>(null);
+  const closeReassign = () => {
+    reassigned.current = null;
+    setReassigning(false);
+    step.clear();
+  };
   const step = useStepRunner((step: string, input, token) => runSalesStepAction(entity, step, recordId, input, token), (outcome) => {
-    if (outcome.created) {
+    if (outcome.handedOver) {
+      // The converter does not own the new pedido and may not read it: nothing opens, only who it went to.
+      toast.success(outcome.handedOver.ownerName ? t("handed_over", { owner: outcome.handedOver.ownerName }) : t("handed_over_unknown"));
+      router.refresh();
+    } else if (reassigned.current !== null) {
+      toast.success(reassigned.current ? t("reassigned", { owner: reassigned.current }) : t("reassigned_unknown"));
+      reassigned.current = null;
+      setReassigning(false);
+      router.refresh();
+    } else if (outcome.created) {
       // The document the step created opens in its own tab (Crear pedido, Crear entrega, Crear devolución).
       const href = `/r/${outcome.created.entity}/${outcome.created.id}`;
       openTab({ title: outcome.created.number ?? t(`created.${outcome.created.entity.slice(outcome.created.entity.indexOf(".") + 1)}`), href, kind: "record" });
@@ -196,12 +216,12 @@ export function SalesRecordView({ entity, recordId, view, warehouses = [], editF
       {lead && converting && <ConvertPanel record={lead.record} documentTypes={lead.documentTypes} busy={step.busy} onCancel={() => setConverting(false)} onConvert={(draft) => step.run("convert", convertInput(recordId, draft))} />}
       {lead && !converting && lead.form}
 
-      {failureText && (
+      {failureText && !reassigning && (
         <div className="erp-dian erp-dian--bad" role="alert">
           <b>{failureText}</b>
         </div>
       )}
-      {step.stepUp && <StepUpPrompt onConfirm={(code) => void step.confirm(code)} onCancel={step.cancel} error={step.stepUpError} busy={step.busy} />}
+      {step.stepUp && <StepUpPrompt onConfirm={(code) => void step.confirm(code)} onCancel={() => { reassigned.current = null; setReassigning(false); step.cancel(); }} error={step.stepUpError} busy={step.busy} />}
       {view.steps.length > 0 && !converting && (
         <div className="erp-form__actions">
           {has("to_order") && (
@@ -305,6 +325,11 @@ export function SalesRecordView({ entity, recordId, view, warehouses = [], editF
                 {t("convert")}
               </button>
             )}
+            {has("reassign") && view.reassign && (
+              <button type="button" className="erp-btn" disabled={step.busy} onClick={() => { step.clear(); setNewOwner(""); setReassigning(true); }}>
+                {t("reassign")}
+              </button>
+            )}
             {has("stage_move") && (
               <button type="button" className="erp-btn erp-btn--primary" disabled={step.busy || !stageId || stageId === view.stageId || (targetStage?.kind === "lost" && lostReason.trim() === "")} onClick={() => step.run("stage_move", { stageId, ...(lostReason.trim() ? { lostReason } : {}) })}>
                 {t("stage_move")}
@@ -312,6 +337,52 @@ export function SalesRecordView({ entity, recordId, view, warehouses = [], editF
             )}
           </div>
         </div>
+      )}
+      {view.reassign && (
+        <Dialog open={reassigning && !step.stepUp} onOpenChange={(open) => !open && closeReassign()}>
+          <DialogContent showCloseButton={false} className="erp-dialog" style={{ maxWidth: 480 }} aria-describedby={undefined}>
+            <div className="erp-dialog__head">
+              <DialogTitle className="erp-dialog__title">{t("reassign")}</DialogTitle>
+              <DialogDescription className="sr-only">{t("reassign_hint")}</DialogDescription>
+            </div>
+            <div className="erp-dialog__body">
+              <p className="erp-small erp-muted">{t("reassign_hint")}</p>
+              <Labelled label={t("reassign_owner")}>
+                {(id) => (
+                  <select id={id} value={newOwner} onChange={(e) => setNewOwner(e.target.value)}>
+                    <option value="">{t("reassign_pick")}</option>
+                    {view.reassign!.members.map((m) => (
+                      <option key={m.code} value={m.code}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Labelled>
+              {failureText && (
+                <div className="erp-dian erp-dian--bad" role="alert">
+                  <b>{failureText}</b>
+                </div>
+              )}
+            </div>
+            <div className="erp-dialog__foot">
+              <button type="button" className="erp-btn" disabled={step.busy} onClick={closeReassign}>
+                {t("reassign_cancel")}
+              </button>
+              <button
+                type="button"
+                className="erp-btn erp-btn--primary"
+                disabled={step.busy || newOwner === "" || newOwner === view.reassign.ownerId}
+                onClick={() => {
+                  reassigned.current = view.reassign!.members.find((m) => m.code === newOwner)?.name ?? "";
+                  step.run("reassign", { ownerId: newOwner });
+                }}
+              >
+                {t("reassign_submit")}
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

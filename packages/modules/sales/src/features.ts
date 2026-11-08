@@ -1,6 +1,7 @@
 import { menuSections, type FeatureDef, type NavItem } from "@erp/kernel";
 import { DELIVERY_PROCESSES } from "./processes/delivery";
 import { ORDER_PROCESSES } from "./processes/order";
+import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { RETURN_PROCESSES } from "./processes/return";
 import { PRICING_PROCESSES } from "./processes/pricing";
 
@@ -30,7 +31,7 @@ const nav = (feature: string) => NAVIGATION.flatMap((item) => item.children ?? [
 
 export const FEATURES: FeatureDef[] = [
   { id: "sales.pricing", label: "feature.sales.pricing", processes: PRICING_PROCESSES.map((p) => p.id), entities: ["sales.settings", "sales.customer_terms"], nav: nav("sales.pricing") },
-  { id: "sales.orders", label: "feature.sales.orders", processes: ORDER_PROCESSES.map((p) => p.id), entities: ["sales.order", "sales.order_line"], nav: nav("sales.orders") },
+  { id: "sales.orders", label: "feature.sales.orders", processes: [...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES].map((p) => p.id), entities: ["sales.order", "sales.order_line"], nav: nav("sales.orders") },
   { id: "sales.deliveries", label: "feature.sales.deliveries", processes: DELIVERY_PROCESSES.map((p) => p.id), entities: ["sales.delivery", "sales.delivery_line"], nav: nav("sales.deliveries") },
   { id: "sales.returns", label: "feature.sales.returns", processes: RETURN_PROCESSES.map((p) => p.id), entities: ["sales.return", "sales.return_line"], nav: nav("sales.returns") },
 ];

@@ -15,9 +15,13 @@ const deliveries = readFileSync(new URL("../../../../../supabase/migrations/0085
 // The entrega's view was regenerated for the void's re-reservation columns (Task 43: 0133 adds them, 0134 recreates the view).
 const reReserveColumns = readFileSync(new URL("../../../../../supabase/migrations/0133_sales_delivery_re_reserve.sql", import.meta.url), "utf8");
 const reReserveView = readFileSync(new URL("../../../../../supabase/migrations/0134_sales_delivery_re_reserve_view.sql", import.meta.url), "utf8");
+// Order owner isolation (Task 39): 0139 regenerates the entrega's view with order_owner_id appended.
+const ownerIsolation = readFileSync(new URL("../../../../../supabase/migrations/0139_sales_order_owner_isolation.sql", import.meta.url), "utf8");
+// Review fix round 1 (0140): the approver branch of owner_scope and the owner rule in sales.lock_orders_for_invoice.
+const ownerFixes = readFileSync(new URL("../../../../../supabase/migrations/0140_sales_order_owner_isolation_fixes.sql", import.meta.url), "utf8");
 /** The migration holding the latest masked view of each entity. */
 const viewMigration = (entityId: string) =>
-  entityId === "sales.delivery" ? reReserveView : /^sales\.(delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders;
+  entityId === "sales.delivery" ? ownerIsolation : /^sales\.(delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders;
 
 const loaded = () => {
   const registry = new Registry();
@@ -71,7 +75,7 @@ describe("sales manifest", () => {
     expect(registry.processes({ module: "sales" }).map((p) => p.id).sort()).toEqual(
       [
         "sales.settings.update", "sales.settings.consult", "sales.customer_terms.set", "sales.customer_terms.consult", "sales.price.resolve", "sales.discount.resolve",
-        "sales.order.create", "sales.order.from_quote", "sales.order.update", "sales.order.confirm", "sales.order.cancel", "sales.order.void",
+        "sales.order.create", "sales.order.from_quote", "sales.order.update", "sales.order.confirm", "sales.order.cancel", "sales.order.void", "sales.order.reassign",
         "sales.order.consult", "sales.order_line.consult",
         // The kernel's generic lifecycle verbs the module does not declare itself (void is its own: it releases the reservations).
         "sales.order.save", "sales.order.submit", "sales.order.approve", "sales.order.reject", "sales.order.delete",
@@ -130,6 +134,44 @@ describe("sales masked views, migrations 0082, 0084 and 0085", () => {
       expect(sql).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
     });
   }
+
+  it("0139 isolates the pedidos by owner: restrictive owner_scope on the pedido and its lines, the owners view, the entrega's order_owner_id (Task 39)", () => {
+    expect(ownerIsolation).toContain(
+      "create policy owner_scope on sales.orders as restrictive for select to authenticated\n  using (owner_id = (select kernel.current_user_id()) or (select kernel.can_run_process('sales.order.reassign')));",
+    );
+    expect(ownerIsolation).toContain(
+      "create policy owner_scope on sales.order_lines as restrictive for select to authenticated\n  using (exists (select 1 from sales.orders o where o.id = order_id));",
+    );
+    // A pedido without owner is not visible to everyone (unlike the cotizaciones): no `owner_id is null` branch.
+    expect(ownerIsolation).not.toMatch(/owner_id is null or/);
+    expect(ownerIsolation).toMatch(/owner_source in \('direct', 'quote', 'reassigned', 'backfill_quote', 'backfill_audit', 'backfill_none'\)/);
+    expect(ownerIsolation).toContain("case when (select kernel.field_visible('sales.order', 'owner_id')) then o.owner_id else null end as owner_id");
+    expect(ownerIsolation).not.toMatch(/references (core|crm|inventory|invoicing|accounting|costing)\./);
+    const order = SALES_ENTITIES.find((e) => e.id === "sales.order")!;
+    // owner_source is internal provenance: not a field of the pedido, not in v_orders.
+    expect(order.fields.map((f) => f.name)).not.toContain("owner_source");
+    expect(order.fields.find((f) => f.name === "owner_id")).toMatchObject({ type: "uuid", filterable: true });
+    const delivery = SALES_ENTITIES.find((e) => e.id === "sales.delivery")!;
+    expect(delivery.fields.at(-1)).toMatchObject({ name: "order_owner_id", type: "uuid", viewExpr: expect.stringContaining("sales.v_order_owners") });
+    expect(delivery.cloneReset).toContain("order_owner_id");
+  });
+
+  it("0140 lets the approvers read a pedido that needs approval and keeps the owner rule in the definer lock of invoicing (Task 39 fix round 1)", () => {
+    expect(ownerFixes).toContain("drop policy owner_scope on sales.orders;");
+    expect(ownerFixes).toContain("or (requires_approval and ((select kernel.can_run_process('sales.order.approve')) or (select kernel.can_run_process('sales.order.reject'))))");
+    expect(ownerFixes).toContain("and (v_all or o.owner_id = v_user or (o.requires_approval and v_approver))");
+    expect(ownerFixes).not.toMatch(/owner_id is null or/);
+  });
+
+  it("sales.order.reassign is the «all orders» permission: an update of the pedido feature, not step-up, taking only the id and the owner (Task 39)", () => {
+    const registry = loaded();
+    const reassign = registry.process("sales.order.reassign");
+    expect(reassign).toMatchObject({ module: "sales", kind: "update", feature: "sales.orders" });
+    expect(reassign.sensitivity ?? "normal").toBe("normal");
+    expect(Object.keys((reassign.input as unknown as { shape: Record<string, unknown> }).shape).sort()).toEqual(["id", "ownerId"]);
+    // The owner changes only through it: sales.order.update takes no owner.
+    expect(Object.keys((registry.process("sales.order.update").input as unknown as { shape: Record<string, unknown> }).shape)).not.toContain("ownerId");
+  });
 
   it("0133 adds the three re-reservation columns of the entrega (result checked) and 0134 recreates its masked view with them (Task 43)", () => {
     const entity = SALES_ENTITIES.find((e) => e.id === "sales.delivery")!;

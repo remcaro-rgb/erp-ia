@@ -50,6 +50,11 @@ export interface GridColumn {
    * own record. Absent: the name is plain text.
    */
   linkable?: boolean;
+  /**
+   * A reference column whose target the viewer may not be able to read (a pedido of another salesperson): when the row carries no name for it,
+   * the cell reads this text, plain and muted, never the id and never a link.
+   */
+  unavailable?: string;
 }
 
 export type GridRow = Record<string, unknown> & { id: string };

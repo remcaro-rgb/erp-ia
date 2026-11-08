@@ -88,7 +88,9 @@ export const orderEntity: EntityDef = entity("sales.order", "documento", "orders
   f("party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
   f("quote_id", "uuid"),
   f("opportunity_id", "uuid"),
-  f("owner_id", "uuid"),
+  // The salesperson (Task 39, migration 0139): only they and whoever may run sales.order.reassign read the pedido (owner_scope). Filterable
+  // in the grid; it changes only through sales.order.reassign.
+  f("owner_id", "uuid", { filterable: true }),
   f("warehouse_id", "uuid"),
   f("issue_date", "date", { required: true }),
   f("delivery_date", "date"),
@@ -193,11 +195,14 @@ export const deliveryEntity: EntityDef = entity("sales.delivery", "documento", "
   f("requires_approval", "boolean"),
   f("posts", "boolean"),
   f("void_reason", "text"),
+  // The pedido's salesperson (Task 39, R39-8, migration 0139, appended to the view): read-only, computed through sales.v_order_owners as the
+  // caller, so it is empty when the caller cannot read the pedido (or its owner is masked for them). Deliveries are not isolated by it.
+  f("order_owner_id", "uuid", { viewExpr: "(select oo.owner_id from sales.v_order_owners oo where oo.order_id = deliveries.order_id)" }),
 ], {
   typed: { numbering: "on_save", lines: { entity: "sales.delivery_line", parentField: "delivery_id" }, ownFlags: deliveryFlags("sales.delivery") },
   processIds: { create: "sales.delivery.create" },
   recordPage: true,
-  cloneReset: ["seq", "number", "stage", "shipped_at", "stock_refusal", "stock_refused_at", "re_reserve_requested", "re_reserve_result", "re_reserve_note"],
+  cloneReset: ["seq", "number", "stage", "shipped_at", "stock_refusal", "stock_refused_at", "re_reserve_requested", "re_reserve_result", "re_reserve_note", "order_owner_id"],
   defaultSort: { field: "seq", dir: "desc" },
 });
 

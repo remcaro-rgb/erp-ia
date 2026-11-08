@@ -6,6 +6,12 @@
 export const refLabelKey = (field: string): string => `${field}_label`;
 
 /**
+ * The row key that says a `ref` field's record is readable to the caller although it has no name to show (its display field masked,
+ * hidden or empty): `order_id` → `order_id_found`, set only then. A cell that has neither key names a record the caller cannot read.
+ */
+export const refFoundKey = (field: string): string => `${field}_found`;
+
+/**
  * The text a display field gives a record's title or reference label. A `date` the driver returns as a `Date` (UTC midnight)
  * becomes `YYYY-MM-DD` (`YYYY-MM` for `displayFormat: "month"`), never the runtime's `toString`, so no time zone shifts the
  * day; a `datetime` becomes its ISO instant. The UI turns these into the company's reading (`formatLabel`).
