@@ -39,7 +39,7 @@ export { KERNEL_PARAMETER_PAGES, MENU_SECTIONS, menuItemsOf, menuSections, uncov
 export type { MenuItemRow, ParameterPage } from "./module/menu";
 export { menuHiddenKeys, menuPathAllowed } from "./typed";
 export type { MenuAccessRule } from "./typed";
-export { entitled, entitlementLimit, enableModule, gateOf, moduleGate, replayParkedEvents, syncModuleManifest, syncModuleManifestIfChanged } from "./entitlements/resolver";
+export { entitled, entitlementLimit, enableModule, disableModule, gateOf, moduleGate, replayParkedEvents, syncModuleManifest, syncModuleManifestIfChanged } from "./entitlements/resolver";
 export type { EntitledFn, ModuleGate } from "./entitlements/resolver";
 export { CODE_TABLES, registerCountryPack, countryPack } from "./localization/country-pack";
 export { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "./validation";

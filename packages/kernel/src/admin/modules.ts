@@ -3,7 +3,7 @@ import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
 import { countryPackOf } from "../registry/labels";
 import { ADMIN_FEATURE, invalid, requireAdmin } from "./common";
-import { moduleStates } from "./modules-state";
+import { disableBlocker, moduleStates } from "./modules-state";
 import { parkedNotEntitled } from "./parked-events";
 
 // Modules on and off per company (design §5.12, rule 4). Switching a module off keeps its data and events; its
@@ -79,11 +79,11 @@ export const moduleDisable = defineProcess({
     if (moduleId === "kernel") throw invalid("the kernel cannot be disabled", "El núcleo de la plataforma no se puede desactivar");
     if (!ctx.registry.hasModule(moduleId)) throw invalid(`unknown module ${moduleId}`, `El módulo ${moduleId} no existe`);
     const states = await moduleStates(ctx.tx, ctx.registry);
-    const dependent = states.find((m) => m.enabled && m.dependsOn.includes(moduleId));
-    if (dependent) throw invalid(`module ${dependent.id} depends on ${moduleId}`, `El módulo ${dependent.id} depende de este; desactívalo primero`);
-    // `ModuleDef.needs` (Ruling R41-1): only disabling is refused; enabling the needer never forces the needed module on.
-    const needer = states.find((m) => m.enabled && m.needs.includes(moduleId));
-    if (needer) throw invalid(`module ${needer.id} needs ${moduleId}`, `El módulo ${needer.id} necesita este módulo; desactívalo primero`);
+    // `ModuleDef.needs` (Ruling R41-1): only disabling is refused; enabling the needer never forces the needed module on. A needer the module
+    // itself depends on does not block (owner item 112): Costos goes off while Inventario is on.
+    const blocker = disableBlocker(states, moduleId);
+    if (blocker?.kind === "dependsOn") throw invalid(`module ${blocker.by} depends on ${moduleId}`, `El módulo ${blocker.by} depende de este; desactívalo primero`);
+    if (blocker?.kind === "needs") throw invalid(`module ${blocker.by} needs ${moduleId}`, `El módulo ${blocker.by} necesita este módulo; desactívalo primero`);
     await ctx.tx`
       insert into kernel.company_modules (company_id, module_id, enabled, enabled_at)
       values (${ctx.companyId}, ${moduleId}, false, now())

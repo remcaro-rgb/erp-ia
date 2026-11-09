@@ -132,7 +132,7 @@ describe("order owner isolation (Task 39, migration 0139)", () => {
     // A salesperson never approves their own pedido (as crm's helpers): approve and reject are the approver's.
     const approvals = new Set([REASSIGN, "sales.order.approve", "sales.order.reject"]);
     const orderProcesses = PROCESS_IDS.filter((p) => (p.startsWith("sales.order.") || p.startsWith("sales.order_line.")) && !approvals.has(p));
-    const reading = ["kernel.data.query", "kernel.home.kpis", "kernel.document_link.trail", "sales.delivery.create", "sales.delivery.consult", "sales.delivery_line.consult"];
+    const reading = ["kernel.data.query", "kernel.home.kpis", "kernel.document_link.trail", "sales.delivery.create", "sales.delivery.consult", "sales.delivery_line.consult", "sales.return.create", "sales.return.receive", "sales.return.void", "sales.return.consult"];
     const salesRole = await role("vendedor");
     await grant(salesRole, [...orderProcesses, ...reading]);
     const managerRole = await role("gerente_comercial");
@@ -144,7 +144,7 @@ describe("order owner isolation (Task 39, migration 0139)", () => {
     jefeCrmRole = crmRole;
     await grant(crmRole, ["crm.opportunity.reassign", "sales.order.from_quote", "sales.order.consult"]);
     const approverRole = await role("aprobador");
-    await grant(approverRole, ["sales.order.approve", "sales.order.reject", "sales.order.consult", "sales.order_line.consult"]);
+    await grant(approverRole, ["sales.order.approve", "sales.order.reject", "sales.order.consult", "sales.order_line.consult", "sales.order.cancel"]);
     for (const [user, r] of [[userA, salesRole], [userB, salesRole], [seed.users.gerente!, managerRole], [seed.users.bodega!, warehouseRole], [seed.users.jefeCrm!, crmRole], [seed.users.aprobador!, approverRole]] as const) {
       await seed.holdRoles(user, companyId, [r]);
     }
@@ -167,7 +167,7 @@ describe("order owner isolation (Task 39, migration 0139)", () => {
     const companyIds = [companyId, otherCompanyId];
     await sql.begin(async (tx) => {
       await tx`set local session_replication_role = replica`;
-      for (const table of ["sales.delivery_lines", "sales.deliveries", "sales.order_lines", "sales.orders", "sales.document_numbers", "sales.customer_terms", "sales.settings", "crm.quote_lines", "crm.quotes"]) {
+      for (const table of ["sales.return_lines", "sales.returns", "sales.delivery_lines", "sales.deliveries", "sales.order_lines", "sales.orders", "sales.document_numbers", "sales.customer_terms", "sales.settings", "crm.quote_lines", "crm.quotes"]) {
         await tx`delete from ${tx(table)} where company_id = any(${companyIds}::uuid[])`;
       }
       for (const table of ["reservations", "stock_levels", "movement_lines", "movements", "movement_numbers", "locations", "warehouses"]) {
@@ -354,6 +354,53 @@ describe("order owner isolation (Task 39, migration 0139)", () => {
     } finally {
       await run(admin, "sales.settings.update", { orderApprovalDiscountPct: null });
     }
+  });
+
+  it("the approver of 0140 writes only a pedido still pending approval: reads stay, cancelling an approved pedido is not found (owner item 119(b), 0146)", async () => {
+    await run(admin, "sales.settings.update", { orderApprovalDiscountPct: 5 });
+    try {
+      const pending = await create(b, { lines: [{ productId: cafe, qty: 1, discountPct: 10 }] });
+      const decided = await create(b, { lines: [{ productId: cafe, qty: 1, discountPct: 10 }] });
+      await run(aprobador, "sales.order.approve", { id: decided.id });
+      // Read stays open on both (item 98); the write is open only while pending.
+      expect(await visibleIds(aprobador, [pending.id, decided.id])).toEqual([pending.id, decided.id].sort());
+      expect(await run(aprobador, "sales.order.consult", { id: decided.id })).toMatchObject({ id: decided.id });
+      expect((await refusal(run(aprobador, "sales.order.cancel", { id: decided.id, reason: "No me corresponde" })))?.code).toBe("not_found");
+      expect((await sql<{ stage: string; status: string }[]>`select stage, status from sales.orders where id = ${decided.id}`)[0]).toMatchObject({ status: "approved" });
+      expect(await run(aprobador, "sales.order.cancel", { id: pending.id, reason: "Descuento no aprobado" })).toMatchObject({ stage: "cancelled" });
+    } finally {
+      await run(admin, "sales.settings.update", { orderApprovalDiscountPct: null });
+    }
+  });
+
+  it("R-1: sales.order.void and cancel with the record's updatedAt as expectedUpdatedAt succeed when current and answer stale_record when the pedido changed", async () => {
+    const stamp = async (id: string) => (await sql<{ u: string }[]>`select to_char(updated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as u from sales.orders where id = ${id}`)[0]!.u;
+    const one = await create(a);
+    expect(await run(a, "sales.order.void", { id: one.id, reason: "Duplicado", expectedUpdatedAt: await stamp(one.id) })).toMatchObject({ status: "voided" });
+    const two = await create(a);
+    const old = await stamp(two.id);
+    await run(a, "sales.order.update", { id: two.id, notes: "cambió" });
+    expect((await refusal(run(a, "sales.order.cancel", { id: two.id, reason: "x", expectedUpdatedAt: old })))?.code).toBe("stale_record");
+    expect(await run(a, "sales.order.cancel", { id: two.id, reason: "x", expectedUpdatedAt: await stamp(two.id) })).toMatchObject({ status: "voided" });
+  });
+
+  it("a salesperson cannot register a devolución against another's pedido; its owner and a holder of sales.order.reassign can (owner item 119(a))", async () => {
+    const free = (await run<{ id: string }>(admin, "inventory.warehouse.create", { code: "DEV", name: "Bodega con pendientes", allowBackorders: true })).id;
+    const theirs = await create(b, { warehouseId: free, lines: [{ productId: cafe, qty: 3 }] });
+    await run(b, "sales.order.confirm", { id: theirs.id });
+    const delivery = await run<{ id: string; lines: { id: string }[] }>(bodega, "sales.delivery.create", { orderId: theirs.id });
+    await run(bodega, "sales.delivery.ship", { id: delivery.id });
+    const lineId = delivery.lines[0]!.id;
+    const input = { deliveryId: delivery.id, reason: "Empaque dañado", lines: [{ deliveryLineId: lineId, qty: 1 }] };
+    const refused = await refusal(run(a, "sales.return.create", input));
+    expect(refused?.code).toBe("not_found");
+    expect(await sql`select 1 from sales.returns where delivery_id = ${delivery.id}`).toHaveLength(0);
+    const mine = await run<{ id: string }>(b, "sales.return.create", input);
+    // Receive and void of that devolución are the owner's too.
+    expect((await refusal(run(a, "sales.return.receive", { id: mine.id })))?.code).toBe("not_found");
+    expect((await refusal(run(a, "sales.return.void", { id: mine.id, reason: "x" })))?.code).toBe("not_found");
+    expect(await run(b, "sales.return.receive", { id: mine.id })).toMatchObject({ stage: "received" });
+    expect(await run(gerente, "sales.return.create", { ...input, reason: "Reasignado" })).toMatchObject({ stage: "open" });
   });
 
   it("sales.lock_orders_for_invoice answers and locks only the pedidos the caller may read (review M-3, 0140)", async () => {

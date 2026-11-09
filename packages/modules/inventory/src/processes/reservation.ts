@@ -236,41 +236,51 @@ export const reservationReserveAgain = defineProcess({
     const products = [...new Set(tracked.map((l) => l.productId))].sort();
     // The same lock order as every movement and reservation (lockStock sorts the products).
     await lockStock(ctx, input.warehouseId, products);
+    // Owner item 119(c) (F-4.7): each line gets back at most what its reservation released at ship (released_qty), never what the entrega
+    // shipped: a pedido without bodega, a line that reserved short (backorder) or nothing, gets only what it had. The reservation is put
+    // back by un-releasing that quantity (so a second ship and void cannot grow it past the original).
+    const plan: { line: (typeof tracked)[number]; row: { id: string; warehouse_id: string; status: string }; qty: number }[] = [];
+    const leftOf = new Map<string, number>();
+    for (const line of tracked) {
+      const [row] = await ctx.tx<{ id: string; warehouse_id: string; status: string; qty: string; released_qty: string }[]>`
+        select id, warehouse_id, status, qty::text, released_qty::text from inventory.reservations
+        where company_id = ${ctx.companyId} and source_entity = ${ORDER_LINE_SOURCE} and source_line_id = ${line.orderLineId}
+        order by (status = 'active') desc, seq desc limit 1 for update`;
+      if (!row) continue;
+      // The row is the line's active one, else its latest released one (it comes back to life: one active row per line).
+      const qty = Math.min(line.qty, round4(num(row.released_qty) - (leftOf.get(row.id) ?? 0)));
+      if (qty <= 0) continue;
+      leftOf.set(row.id, round4((leftOf.get(row.id) ?? 0) + qty));
+      plan.push({ line, row, qty });
+    }
+    if (plan.length === 0) return { status: "nothing" as const, lines: [], short: [] };
     const stock = await ctx.tx<{ product_id: string; on_hand: string; reserved: string }[]>`
       select p as product_id,
              coalesce((select sum(on_hand) from inventory.stock_levels where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p), 0)::text as on_hand,
              coalesce((select sum(qty - released_qty) from inventory.reservations where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p and status = 'active'), 0)::text as reserved
-      from unnest(${products}::uuid[]) as p`;
+      from unnest(${[...new Set(plan.map((x) => x.line.productId))].sort()}::uuid[]) as p`;
     const short: z.output<typeof reserveAgainOutput>["short"] = [];
+    const neededOf = (productId: string) => round4(plan.filter((x) => x.line.productId === productId).reduce((sum, x) => sum + x.qty, 0));
     for (const s of stock) {
-      const needed = round4(tracked.filter((l) => l.productId === s.product_id).reduce((sum, l) => sum + l.qty, 0));
+      const needed = neededOf(s.product_id);
       const available = round4(num(s.on_hand) - num(s.reserved));
       if (needed > available) short.push({ productId: s.product_id, sku: facts.get(s.product_id)!.sku, needed, available: Math.max(available, 0) });
     }
-    // R43-14: a reservation is only ever topped up in the bodega whose stock was checked and locked above. A line whose active reservation sits
-    // in another bodega (its entrega shipped from a different one) cannot be covered there without checking and locking that stock, and the
-    // one-active-row-per-line index forbids a second row: it is answered as short (available 0) and nothing is reserved.
-    const elsewhere = await ctx.tx<{ source_line_id: string }[]>`
-      select source_line_id from inventory.reservations
-      where company_id = ${ctx.companyId} and source_entity = ${ORDER_LINE_SOURCE} and status = 'active'
-        and source_line_id = any(${tracked.map((l) => l.orderLineId)}::uuid[]) and warehouse_id <> ${input.warehouseId}`;
-    for (const row of elsewhere) {
-      const line = tracked.find((l) => l.orderLineId === row.source_line_id)!;
-      const known = short.find((x) => x.productId === line.productId);
-      if (known) continue;
-      short.push({ productId: line.productId, sku: facts.get(line.productId)!.sku, needed: round4(tracked.filter((l) => l.productId === line.productId).reduce((sum, l) => sum + l.qty, 0)), available: 0 });
+    // R43-14: a reservation is only ever restored in the bodega whose stock was checked and locked above. A line whose reservation sits in
+    // another bodega (its entrega shipped from a different one) cannot be covered there without checking and locking that stock: it is
+    // answered as short (available 0) and nothing is reserved.
+    for (const x of plan) {
+      if (x.row.warehouse_id === input.warehouseId || short.some((k) => k.productId === x.line.productId)) continue;
+      short.push({ productId: x.line.productId, sku: facts.get(x.line.productId)!.sku, needed: neededOf(x.line.productId), available: 0 });
     }
     if (short.length > 0) return { status: "insufficient" as const, lines: [], short };
-    for (const line of tracked) {
-      const active = await reservationOf(ctx, ORDER_LINE_SOURCE, line.orderLineId, true);
-      if (active?.status === "active") {
-        await ctx.tx`update inventory.reservations set qty = qty + ${line.qty} where id = ${active.id}`;
-      } else {
-        await ctx.tx`
-          insert into inventory.reservations ${ctx.tx({ company_id: ctx.companyId, source_entity: ORDER_LINE_SOURCE, source_line_id: line.orderLineId, product_id: line.productId, warehouse_id: input.warehouseId, qty: line.qty })}`;
-      }
+    for (const x of plan) {
+      await ctx.tx`
+        update inventory.reservations
+           set released_qty = released_qty - ${x.qty}, status = 'active', released_at = null
+         where id = ${x.row.id}`;
     }
-    return { status: "reserved" as const, lines: tracked.map((l) => ({ orderLineId: l.orderLineId, productId: l.productId, qty: l.qty })), short: [] };
+    return { status: "reserved" as const, lines: plan.map((x) => ({ orderLineId: x.line.orderLineId, productId: x.line.productId, qty: x.qty })), short: [] };
   },
 });
 

@@ -48,6 +48,7 @@ import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { SupabaseAuthAdmin, SupabaseFileStore, type FileStore } from "@erp/infra";
 import {
+  disableModule,
   enableModule,
   getServiceDb,
   kernelModule,
@@ -443,8 +444,10 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
     // Pagos stays switched off while the 2A history is seeded and its periods close: with it entitled, receivable open items follow payment
-    // allocations only (0112) and the history's receipts have none, so period 2 would not close (owner item 57). enableSalesChain switches it on.
-    await sql`insert into kernel.company_modules (company_id, module_id, enabled) values (${DEMO_COMPANY_ID}, 'payments', false) on conflict do nothing`;
+    // allocations only (0112) and the history's receipts have none, so period 2 would not close. Owner items 57 and 113, decided 2026-11-09:
+    // demo only; the real rule (FIFO for documents older than the first allocation) is 2C. Through the kernel's module helper;
+    // enableSalesChain switches it on.
+    await disableModule(sql, DEMO_COMPANY_ID, "payments", registry);
 
     step("auth users");
     const admin = createClient(env.supabaseUrl, env.serviceKey, noSession);

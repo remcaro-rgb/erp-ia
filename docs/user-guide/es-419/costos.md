@@ -112,6 +112,6 @@ En los dos modos el producto queda en **Costos pendientes** y el sistema recomie
 
 - **«El costo promedio no cambió después de una venta»**: es lo esperado. Las salidas usan el promedio, no lo cambian.
 - **«Registré el flete y el costo de ventas de lo que ya vendí no subió»**: un costo en destino no recalcula lo ya vendido; sube el costo de las unidades que quedan.
-- **«No puedo desactivar Costos»**: Inventario lo necesita para valorar sus ajustes. Desactiva primero Inventario (guía **Administración**, sección Módulos); Costos puede quedar apagado con Inventario activo solo después de ese paso, y los ajustes usan entonces el costo estándar.
+- **«No puedo desactivar Inventario»**: Costos depende de Inventario. Desactiva primero Costos (guía **Administración**, sección Módulos): se puede aunque Inventario esté activo, y mientras Costos esté apagado los ajustes de Inventario usan el costo estándar. Después puedes desactivar Inventario.
 - **«Cambié a Último costo conocido y el costo de ventas de ayer no cambió»**: es lo esperado. El cambio vale desde el siguiente movimiento y no recalcula lo anterior.
 - **«No veo los costos»**: tu rol los tiene enmascarados u ocultos. Pídeselo al administrador (guía **Administración**).

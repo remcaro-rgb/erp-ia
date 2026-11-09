@@ -127,12 +127,12 @@ interface OrderRow {
 }
 
 /** The pedido locked for the step, or `not_found` (one of another company, or hidden by a record rule, is as if it did not exist). */
-async function lockOrder(ctx: ProcessContext, orderId: string): Promise<OrderRow> {
+async function lockOrder(ctx: ProcessContext, orderId: string, lock = true): Promise<OrderRow> {
   const [row] = await ctx.tx<OrderRow[]>`
     select id, number, status, stage, requires_approval, credit_exceeded, discount_exceeded, party_id, quote_id, opportunity_id, warehouse_id,
            issue_date::text, delivery_date::text, currency, exchange_rate::text, subtotal::text, tax_total::text, total::text, total_company::text,
            to_char(confirmed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as confirmed_at
-    from sales.orders where id = ${orderId} for update`;
+    from sales.orders where id = ${orderId} ${lock ? ctx.tx`for update` : ctx.tx``}`;
   if (!row) throw new ProcessError("not_found", `order ${orderId} not found`);
   return row;
 }
@@ -310,9 +310,12 @@ async function saveAndRoute(ctx: ProcessContext, orderId: string, from: string, 
   return { status, number: row?.number ?? null };
 }
 
-/** The pedido as the processes answer it, read after the step. */
+/**
+ * The pedido as the processes answer it, read after the step. No lock: the step holds it already, and a step that moves the pedido out of
+ * what the caller may write (an approver cancelling a pedido that was pending, owner item 119(b)) must still answer it.
+ */
 async function outputOf(ctx: ProcessContext, orderId: string): Promise<OrderOutput> {
-  const row = await lockOrder(ctx, orderId);
+  const row = await lockOrder(ctx, orderId, false);
   return {
     id: row.id,
     number: row.number,
@@ -688,6 +691,12 @@ const cancelInput = z.object({
 /** Cancels (voids) a pedido; when it was confirmed, emits sales.order.cancelled so its reservations are released. */
 async function cancelOrder(ctx: ProcessContext, input: z.output<typeof cancelInput>): Promise<OrderOutput> {
   const order = await lockOrder(ctx, input.id);
+  // The version the screen read is checked here, on the locked row and before the stage write below bumps updated_at (the void then runs without it).
+  if (input.expectedUpdatedAt) {
+    const [stale] = await ctx.tx<{ stale: boolean; updated_at: string }[]>`
+      select date_trunc('milliseconds', updated_at) is distinct from date_trunc('milliseconds', ${input.expectedUpdatedAt}::timestamptz) as stale, updated_at::text from sales.orders where id = ${order.id}`;
+    if (stale?.stale) throw new ProcessError("stale_record", `sales.order ${order.id} changed after ${input.expectedUpdatedAt}`, { details: { expectedUpdatedAt: input.expectedUpdatedAt, updatedAt: stale.updated_at } });
+  }
   if (order.stage === "cancelled" || order.status === "voided") refuseState("order_cancelled", [`El pedido ${label(order)} ya está cancelado`]);
   // Task 14 (ruling): a pedido with any entrega that is not voided is not cancelled, not even its remainder: the entrega is voided first
   // (which gives its stock back), or the remainder simply stays undelivered.
@@ -705,8 +714,10 @@ async function cancelOrder(ctx: ProcessContext, input: z.output<typeof cancelInp
   // a cancel waits for an «Emitir» in flight and then sees its invoice.
   const [billed] = await ctx.tx<{ invoiced: boolean }[]>`select invoicing.order_invoiced(${order.id}::uuid) as invoiced`;
   if (billed?.invoiced) refuseState("order_invoiced", [`El pedido ${label(order)} ya está facturado: anula primero la factura (nota crédito)`]);
-  await runLifecycle(ctx, ctx.registry.entity(orderEntity.id), order.id, "void", { reason: input.reason, ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}) });
+  // The stage first, then the void: an approver cancelling a pedido that is still pending approval (owner item 119(b), migration 0146) may
+  // write the row only while it is pending, and the void leaves that state.
   await ctx.tx`update sales.orders set stage = 'cancelled', cancelled_at = now() where id = ${order.id}`;
+  await runLifecycle(ctx, ctx.registry.entity(orderEntity.id), order.id, "void", { reason: input.reason });
   // The void keeps its links, marked (Task 31): a cotización ordered again shows the cancelled pedido and the new one.
   await markLinksVoided(ctx, "sales.order", order.id, input.reason);
   if (FIRM_STAGES.has(order.stage)) {

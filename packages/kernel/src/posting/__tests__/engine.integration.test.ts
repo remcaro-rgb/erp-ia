@@ -80,10 +80,11 @@ describe("posting engine", () => {
     expect(calls.failures[0]).toMatchObject({ code: "unbalanced", ruleId: "r" });
   });
 
-  it("a reverseOf rule calls provider.reverse with the referenced event and source id", async () => {
+  it("a reverseOf rule calls provider.reverse with the referenced event, source id and its own rule id", async () => {
     const { provider, calls } = fakeProvider({ rules: [rule("v", 1, { template: { description: "Anulación", lines: [], reverseOf: { event: "invoicing.invoice.issued", sourceId: "$.invoiceId" } } })] });
     await deliver(provider);
-    expect(calls.reversed).toEqual([{ event: "invoicing.invoice.issued", sourceId: "inv-1" }]);
+    // The rule id lets a refused reversal be recorded as a retryable pending (review F-2.1).
+    expect(calls.reversed).toEqual([{ event: "invoicing.invoice.issued", sourceId: "inv-1", ruleId: "v" }]);
     expect(calls.posted).toHaveLength(0);
   });
 

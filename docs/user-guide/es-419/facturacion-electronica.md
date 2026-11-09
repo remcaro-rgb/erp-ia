@@ -165,7 +165,7 @@ Cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar 
 
 Volver a habilitación siempre se permite.
 
-Las **notas** crédito y débito se emiten en el ambiente de la factura que corrigen: una nota de una factura emitida en habilitación es también de habilitación, aunque la empresa ya esté en producción.
+Las **notas** crédito y débito se emiten en el ambiente de la factura que corrigen: una nota de una factura emitida en habilitación es también de habilitación, aunque la empresa ya esté en producción. Lo mismo al revés: la nota de una factura emitida en **producción** va a la DIAN de **producción**, aunque después se retire la confirmación de la lista de verificación DIAN o la empresa vuelva a habilitación; una factura de producción se corrige en producción, donde se emitió.
 
 ### Lista de verificación DIAN
 

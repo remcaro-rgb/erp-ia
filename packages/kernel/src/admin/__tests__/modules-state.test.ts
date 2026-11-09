@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Registry } from "../../registry";
 import type { ModuleDef } from "../../registry/types";
 import type { Tx } from "../../db/client";
-import { moduleStates, neededBy } from "../modules-state";
+import { disableBlocker, moduleStates, neededBy } from "../modules-state";
 
 // Plan 2B Task 41 (Ruling R41-1): ModuleState carries `needs` and `neededBy` lists the modules that depend on or need a module.
 
@@ -22,6 +22,26 @@ describe("moduleStates needs", () => {
     expect(neededBy(states, "costing")).toEqual(["inventory"]);
     expect(neededBy(states, "inventory")).toEqual(["costing"]);
     expect(neededBy(states, "core")).toEqual(["inventory", "costing"]);
+  });
+});
+
+// Owner item 112 (2026-11-09, F-4.1): a `needs` edge does not block disabling a module that itself `dependsOn` the needer.
+describe("disableBlocker", () => {
+  const states = async (enabled: Record<string, boolean>) => {
+    const registry = { modules: () => [mod("core"), mod("inventory", ["core"], ["costing"]), mod("costing", ["core", "inventory"]), mod("buyer", ["core"], ["costing"])] } as unknown as Registry;
+    const tx = (async () => Object.entries(enabled).map(([id, on]) => ({ id, purchased: true, disabled: !on }))) as unknown as Tx;
+    return moduleStates(tx, registry);
+  };
+
+  it("ignores a needer the module depends on, keeps every other needer and every dependent", async () => {
+    const all = await states({ core: true, inventory: true, costing: true, buyer: false });
+    expect(disableBlocker(all, "costing")).toBeNull();
+    expect(disableBlocker(all, "inventory")).toEqual({ kind: "dependsOn", by: "costing" });
+    expect(disableBlocker(all, "core")).toEqual({ kind: "dependsOn", by: "inventory" });
+    const withBuyer = await states({ core: true, inventory: true, costing: true, buyer: true });
+    expect(disableBlocker(withBuyer, "costing")).toEqual({ kind: "needs", by: "buyer" });
+    const costingOff = await states({ core: true, inventory: true, costing: false, buyer: false });
+    expect(disableBlocker(costingOff, "inventory")).toBeNull();
   });
 });
 

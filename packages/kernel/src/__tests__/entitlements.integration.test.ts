@@ -3,7 +3,7 @@ import { GENERIC_VERBS } from "../typed/processes";
 import { z } from "zod";
 import { withClaims, type JwtClaims } from "../db/client";
 import { seedTenant, testDb } from "../db/test-db";
-import { enableModule, entitled, entitlementLimit, syncModuleManifest, syncModuleManifestIfChanged } from "../entitlements/resolver";
+import { disableModule, enableModule, entitled, entitlementLimit, syncModuleManifest, syncModuleManifestIfChanged } from "../entitlements/resolver";
 import { defineModule, type ModuleDef } from "../module/define";
 import { loadModules } from "../module/loader";
 import { defineProcess } from "../process/define";
@@ -267,6 +267,21 @@ describe("entitlements", () => {
     expect(again!.enabled).toBe(true);
     // Another company is unaffected.
     expect(await sql`select 1 from kernel.company_modules where company_id = ${companyB}`).toHaveLength(0);
+  });
+
+  it("disableModule (the service connection) switches a module off keeping its row, refuses while an enabled module depends on it, and creates the off row of a never-enabled one", async () => {
+    await enableModule(sql, companyId, "core", registry);
+    await enableModule(sql, companyId, "support", registry);
+    await expect(disableModule(sql, companyId, "core", registry)).rejects.toThrow(/support depends on core/);
+    await disableModule(sql, companyId, "support", registry);
+    await disableModule(sql, companyId, "support", registry);
+    const [off] = await sql`select enabled from kernel.company_modules where company_id = ${companyId} and module_id = 'support'`;
+    expect(off!.enabled).toBe(false);
+    await disableModule(sql, companyId, "core", registry);
+    await enableModule(sql, companyId, "core", registry);
+    const [back] = await sql`select enabled from kernel.company_modules where company_id = ${companyId} and module_id = 'core'`;
+    expect(back!.enabled).toBe(true);
+    await expect(disableModule(sql, companyId, "nope", registry)).rejects.toThrow(/unknown module: nope/);
   });
 
   it("enableModule rejects a module the registry does not know and a company that does not exist", async () => {

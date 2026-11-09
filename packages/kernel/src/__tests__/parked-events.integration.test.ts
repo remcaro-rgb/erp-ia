@@ -37,8 +37,8 @@ describe("events parked for a module that was not bought", () => {
     const ids: string[] = [];
     for (let i = 0; i < n; i++) {
       const [row] = await sql<{ id: string }[]>`
-        insert into kernel.outbox_dead_letter (company_id, event, payload, chain_id, last_error)
-        values (${companyId}, 'test.parked.event', ${sql.json({ i })}, ${randomUUID()}, ${`not_entitled:${moduleId}`}) returning id`;
+        insert into kernel.outbox_dead_letter (company_id, event, payload, chain_id, last_error, parked_module)
+        values (${companyId}, 'test.parked.event', ${sql.json({ i })}, ${randomUUID()}, ${`not_entitled:${moduleId}`}, ${moduleId}) returning id`;
       ids.push(row!.id);
     }
     return ids;
@@ -113,8 +113,8 @@ describe("events parked for a module that was not bought", () => {
     const unb = `pk_unb_${run}`;
     const parkWith = async () => {
       const [row] = await sql<{ id: string }[]>`
-        insert into kernel.outbox_dead_letter (company_id, event, payload, chain_id, last_error, delivered_modules)
-        values (${companyId}, 'test.parked.trio', '{}', ${randomUUID()}, ${`not_entitled:${unb}`}, ${[mods.a, mods.c]}) returning id`;
+        insert into kernel.outbox_dead_letter (company_id, event, payload, chain_id, last_error, delivered_modules, parked_module)
+        values (${companyId}, 'test.parked.trio', '{}', ${randomUUID()}, ${`not_entitled:${unb}`}, ${[mods.a, mods.c]}, ${unb}) returning id`;
       return row!.id;
     };
     const dismissedId = await parkWith();
@@ -128,6 +128,27 @@ describe("events parked for a module that was not bought", () => {
     const restored = await sql`select module_id from kernel.outbox_deliveries where outbox_id = ${replayedId} order by module_id`;
     expect(restored.map((r) => r.module_id)).toEqual([mods.a, mods.c].sort());
     // The dismissed row is not replayed.
+    expect(await sql`select 1 from kernel.outbox where id = ${dismissedId}`).toHaveLength(0);
+  });
+  // Owner item 119 (e) (2026-11-09, F-1.5, 0145): the parked module has its own column; a later consumer's failure rewrote last_error.
+  it("a row parked for a module whose last_error a later consumer's failure rewrote is still counted, dismissed and swept by parked_module", async () => {
+    const mod = `pk_fail_${run}`;
+    const parkFailed = async () => {
+      const [row] = await sql<{ id: string }[]>`
+        insert into kernel.outbox_dead_letter (company_id, event, payload, chain_id, last_error, parked_module)
+        values (${companyId}, 'test.parked.failed', '{}', ${randomUUID()}, 'invalid_input: otro consumidor lo rechazó', ${mod}) returning id`;
+      return row!.id;
+    };
+    const dismissedId = await parkFailed();
+    const listed = await call<{ modules: { moduleId: string; count: number }[] }>(admin, "kernel.admin.module.parked_events", {});
+    expect(listed.modules).toContainEqual({ moduleId: mod, count: 1 });
+    expect(await call(admin, "kernel.admin.module.parked_events.dismiss", { moduleId: mod })).toEqual({ moduleId: mod, dismissed: 1 });
+
+    const sweptId = await parkFailed();
+    expect(await sql`select kernel.parked_events_sweep(${[companyId]}::uuid[]) as n`).toEqual([{ n: 0 }]); // not bought yet
+    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${mod}`}, 'manual')`;
+    expect(await sql`select kernel.parked_events_sweep(${[companyId]}::uuid[]) as n`).toEqual([{ n: 1 }]);
+    expect(await sql`select 1 from kernel.outbox where id = ${sweptId}`).toHaveLength(1);
     expect(await sql`select 1 from kernel.outbox where id = ${dismissedId}`).toHaveLength(0);
   });
 });

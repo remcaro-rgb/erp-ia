@@ -202,6 +202,35 @@ describe("void delivery: re-reserve the stock for the pedido", () => {
     expect(await reserved(order.lineIds[0]!)).toBe(0);
   });
 
+  it("owner item 119(c): the re-reservation is capped at what the pedido line released at ship, not at what the entrega shipped (partial reservation, no reservation)", async () => {
+    const cafe = await stocked(10);
+    // A rival pedido holds 8: the pedido reserves only the 2 left (a short line, backorder), and a third one finds nothing to reserve.
+    const rival = await confirmedOrder([{ productId: cafe, qty: 8 }]);
+    const partial = await confirmedOrder([{ productId: cafe, qty: 5 }]);
+    const bare = await confirmedOrder([{ productId: cafe, qty: 3 }]);
+    expect(await reserved(partial.lineIds[0]!)).toBe(2);
+    expect(await reserved(bare.lineIds[0]!)).toBe(0);
+    await run(admin, "sales.order.cancel", { id: rival.id, reason: "Cliente desiste" });
+    expect(await drain()).toEqual([]);
+    const shippedPartial = await shippedDelivery(partial.id);
+    const shippedBare = await shippedDelivery(bare.id);
+    expect(await reserved(partial.lineIds[0]!)).toBe(0);
+    // Void both with «Reservar de nuevo»: the line that had reserved 2 gets 2 back (not the 5 shipped), the one that had nothing gets nothing.
+    await voidDelivery(shippedPartial.id, { reReserve: true });
+    await voidDelivery(shippedBare.id, { reReserve: true });
+    expect(await drain()).toEqual([]);
+    expect(await reserved(partial.lineIds[0]!)).toBe(2);
+    expect(await reserved(bare.lineIds[0]!)).toBe(0);
+    expect(await stock(cafe)).toEqual({ onHand: 10, reserved: 2 });
+    expect(await reState(shippedPartial.id)).toMatchObject({ re_reserve_requested: true, re_reserve_result: "reserved" });
+    expect(await reState(shippedBare.id)).toMatchObject({ re_reserve_requested: true, re_reserve_result: "none" });
+    // Shipped and voided again, the cap holds: what is back is what was released, never more.
+    const second = await shippedDelivery(partial.id, [{ orderLineId: partial.lineIds[0]!, qty: 4 }]);
+    await voidDelivery(second.id, { reReserve: true });
+    expect(await drain()).toEqual([]);
+    expect(await reserved(partial.lineIds[0]!)).toBe(2);
+  });
+
   it("yes + one product short: the void stands, nothing is reserved, the entrega records «insufficient» naming the product", async () => {
     const cafe = await stocked(10);
     const order = await confirmedOrder([{ productId: cafe, qty: 4 }]);

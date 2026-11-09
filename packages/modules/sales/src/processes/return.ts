@@ -47,8 +47,16 @@ interface ReturnLineRow { id: string; line_no: number; delivery_line_id: string;
 
 const label = (r: { number: string | null; id: string }) => r.number ?? r.id;
 
-/** The entrega locked (every devolución of it is created and received under this lock), or `not_found`. */
+/**
+ * The entrega's pedido locked first, then the entrega (the lock order of delivery.ts), or `not_found`. The pedido is read under its owner
+ * isolation (migration 0139, owner item 119(a)): a salesperson who neither owns it nor may run sales.order.reassign finds no pedido, so no
+ * devolución of its entregas is created, received or voided (every devolución of an entrega is made under this lock).
+ */
 async function lockDelivery(ctx: ProcessContext, deliveryId: string): Promise<DeliveryRow> {
+  const [head] = await ctx.tx<{ order_id: string }[]>`select order_id from sales.deliveries where id = ${deliveryId}`;
+  if (!head) throw new ProcessError("not_found", `delivery ${deliveryId} not found`);
+  const [order] = await ctx.tx<{ id: string }[]>`select id from sales.orders where id = ${head.order_id} for update`;
+  if (!order) throw new ProcessError("not_found", `delivery ${deliveryId} not found`);
   const [row] = await ctx.tx<DeliveryRow[]>`
     select id, number, status, stage, order_id, party_id, warehouse_id, date::text, cost_center_id from sales.deliveries where id = ${deliveryId} for update`;
   if (!row) throw new ProcessError("not_found", `delivery ${deliveryId} not found`);

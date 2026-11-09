@@ -58,7 +58,7 @@ Anula una entrega con **Anular** en la barra de acciones y un **motivo**. Una en
 
 Al anular una entrega **despachada**, la barra de acciones pide el motivo y pregunta **«¿Reservar de nuevo las existencias para el pedido?»**, marcada por defecto. La pregunta aparece solo si el pedido sigue abierto (no está cancelado); una entrega sin despachar no la muestra porque no había sacado nada.
 
-- **Con la casilla marcada**: el inventario devuelve las existencias a la bodega y, **solo si alcanzan**, las reserva de nuevo para las líneas del pedido, de modo que otro pedido no se las lleve. Si falta existencia de **algún** producto no se reserva **nada** (nunca queda un pedido reservado a medias) y la entrega anulada lo explica nombrando el producto, lo que se necesitaba y lo que hay.
+- **Con la casilla marcada**: el inventario devuelve las existencias a la bodega y, **solo si alcanzan**, las reserva de nuevo para las líneas del pedido, de modo que otro pedido no se las lleve. Se reserva de nuevo **solo lo que la línea del pedido tenía reservado** y la entrega usó: si la línea había reservado menos de lo que se entregó (faltaban existencias al confirmar) o no tenía nada reservado (por ejemplo, un pedido sin bodega), recupera solo esa parte, no todo lo que salió. Si falta existencia de **algún** producto no se reserva **nada** (nunca queda un pedido reservado a medias) y la entrega anulada lo explica nombrando el producto, lo que se necesitaba y lo que hay.
 - **Con la casilla desmarcada**: igual que siempre; las existencias vuelven a la bodega sin quedar reservadas para el pedido.
 
 La anulación **nunca se rechaza** por falta de existencias: lo único que depende de ellas es la reserva. El resultado aparece en la entrega anulada, en **Reserva al anular** (reservado de nuevo, no alcanzaron las existencias, sin permiso para reservar, o no aplica); el inventario lo confirma unos segundos después de anular. Para reservar de nuevo necesitas también el permiso de **reservar existencias** (Inventario); sin él la entrega se anula igual y el resultado dice que no tenías permiso. El asistente y la API anulan sin reservar de nuevo, salvo que se les pida.
@@ -67,7 +67,7 @@ Lo **facturado** de una entrega solo baja cuando su factura se **anula** (la DIA
 
 ## Devoluciones
 
-En una entrega **Despachada** escribe el **Motivo de la devolución** (por ejemplo, producto averiado) y pulsa **Crear devolución**, o en **Devoluciones** pulsa **Nuevo** y elige la **Entrega**. Si no indicas las líneas, se devuelve todo lo que salió; nunca más de lo que salió, contando las otras devoluciones de la entrega. La devolución se abre **Por recibir**; al pulsar **Recibir**:
+En una entrega **Despachada** escribe el **Motivo de la devolución** (por ejemplo, producto averiado) y pulsa **Crear devolución**, o en **Devoluciones** pulsa **Nuevo** y elige la **Entrega**. Si no indicas las líneas, se devuelve todo lo que salió; nunca más de lo que salió, contando las otras devoluciones de la entrega. Un vendedor solo registra, recibe o anula devoluciones de entregas de **sus** pedidos: la de otro vendedor responde **No encontrado**, salvo que su rol pueda cambiar vendedor (guía [Visibilidad de pedidos](ventas-visibilidad-de-pedidos.md)). La devolución se abre **Por recibir**; al pulsar **Recibir**:
 
 - Las existencias vuelven a la bodega y ubicación de donde salieron, al **costo de la salida original** (no al promedio de hoy).
 - Contabilidad devuelve ese costo de ventas (débito inventarios, crédito costo de ventas con el centro de costo).

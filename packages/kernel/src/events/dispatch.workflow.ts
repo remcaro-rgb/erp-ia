@@ -28,14 +28,15 @@ const DETERMINISTIC: ReadonlySet<ProcessErrorCode> = new Set(["invalid_input", "
  * - a module the company switched off is skipped silently; after the loop the row stays undispatched with
  *   `last_error = 'module_disabled'`, its claim released (design §5.12). This wins over a never-bought module: the park is deferred,
  *   the row is re-dispatched once the module is switched on and meets the never-bought one again;
- * - otherwise a module the tenant never bought (an explicit consumer, not `"*"` nor a `kernel.*` event, which are skipped silently)
- *   dead-letters the row as `not_entitled:<module id>` without running that consumer, after the other consumers ran, so it stays
+ * - otherwise a module the tenant never bought (an explicit consumer, or the `"*"` consumer of the module that provides posting, owner
+ *   item 111; not another `"*"` consumer nor a `kernel.*` event, which are skipped silently) dead-letters the row as
+ *   `not_entitled:<module id>` (and `parked_module = <module id>`, owner item 119 (e)) without running that consumer, after the other consumers ran, so it stays
  *   visible on Admin › Módulos (owner 2026-11-06) and its `delivered_modules` hold every consumer that ran: a replay once the module is
  *   bought runs only that one, and Descartar loses nothing for the others (owner 2026-11-08, items 47 and 52). With two never-bought
  *   modules the row parks under the first; once that one is bought and replayed, it parks under the second (Ruling R52-2);
  * - otherwise the row is marked dispatched.
  * A `FatalError`, or a consumer that keeps failing after its retries, sends the row to `kernel.outbox_dead_letter` with its message at
- * once. A worker with no modules loaded fails the run instead, leaving the row undispatched (its claim lapses and a worker that has the
+ * once; a never-bought module met earlier in the loop stays its `parked_module`, so the sweep still replays it once bought. A worker with no modules loaded fails the run instead, leaving the row undispatched (its claim lapses and a worker that has the
  * modules picks it up).
  */
 export async function dispatchOutboxRow(outboxId: string): Promise<void> {
@@ -53,12 +54,13 @@ export async function dispatchOutboxRow(outboxId: string): Promise<void> {
       if (result === "module_disabled") paused = true;
       else if (result === "not_purchased") unentitled ??= moduleId;
     } catch (error) {
-      await deadLetter(outboxId, error instanceof Error ? error.message : String(error));
+      // A module parked earlier in the loop stays the row's `parked_module` (owner item 119 (e)): the sweep replays it once bought.
+      await deadLetter(outboxId, error instanceof Error ? error.message : String(error), unentitled);
       return;
     }
   }
   if (paused) await pauseRow(outboxId);
-  else if (unentitled !== null) await deadLetter(outboxId, `not_entitled:${unentitled}`);
+  else if (unentitled !== null) await deadLetter(outboxId, `not_entitled:${unentitled}`, unentitled);
   else await markDispatched(outboxId);
 }
 
@@ -100,10 +102,12 @@ async function runConsumer(outboxId: string, moduleId: string): Promise<Consumer
   const gate = await moduleGate(sql, row.companyId, moduleId);
   if (gate === "switched_off") return "module_disabled";
   if (gate === "not_purchased") {
-    // A module the tenant never bought is skipped silently, as before, for its `"*"` (posting) consumer and for the platform's own
-    // `kernel.*` events: every company emits events and none of them is a failure of the module it does not have. Only an explicit
-    // consumer of another module's event dead-letters, visibly (owner 2026-11-06, decision item 9).
-    if (consumers.isWildcard(row.event, moduleId) || row.event.startsWith("kernel.")) return "done";
+    // A module the tenant never bought is skipped silently for the platform's own `kernel.*` events, and for a `"*"` consumer of a module
+    // that provides no posting: every company emits events and none of them is a failure of the module it does not have. An explicit
+    // consumer of another module's event dead-letters, visibly (owner 2026-11-06, decision item 9), and so does the `"*"` consumer of the
+    // posting module (owner item 111, 2026-11-09, item 9 (b)): what the inline poster left `not_entitled` is posted once the module is bought.
+    if (row.event.startsWith("kernel.")) return "done";
+    if (consumers.isWildcard(row.event, moduleId) && registry.module(moduleId).postingProvider === undefined) return "done";
     return "not_purchased";
   }
 
@@ -149,14 +153,17 @@ async function markDispatched(outboxId: string): Promise<void> {
     where id = ${outboxId} and dispatched_at is null`;
 }
 
-/** Moves the row to `kernel.outbox_dead_letter` (same id, `failed_at = now()`, `last_error = error`), keeping the modules that had handled it (`delivered_modules`, restored on a replay). */
-async function deadLetter(outboxId: string, error: string): Promise<void> {
+/**
+ * Moves the row to `kernel.outbox_dead_letter` (same id, `failed_at = now()`, `last_error = error`), keeping the modules that had handled it
+ * (`delivered_modules`, restored on a replay) and the never-bought module it waits for (`parked_module`, 0145; null when none).
+ */
+async function deadLetter(outboxId: string, error: string, parkedModule: string | null): Promise<void> {
   "use step";
   await getServiceDb()`
     with moved as (delete from kernel.outbox where id = ${outboxId} returning *)
-    insert into kernel.outbox_dead_letter (id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, last_error, failed_at, delivered_modules)
+    insert into kernel.outbox_dead_letter (id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, last_error, failed_at, delivered_modules, parked_module)
     select id, company_id, event, payload, chain_id, created_at, dispatched_at, attempts, ${error}, now(),
-           coalesce((select array_agg(d.module_id) from kernel.outbox_deliveries d where d.outbox_id = moved.id), '{}')
+           coalesce((select array_agg(d.module_id) from kernel.outbox_deliveries d where d.outbox_id = moved.id), '{}'), ${parkedModule}
     from moved`;
 }
 

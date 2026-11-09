@@ -252,6 +252,24 @@ export async function enableModule(sql: Sql, companyId: string, moduleId: string
   await replayParkedEvents(sql, companyId, moduleId);
 }
 
+/**
+ * Switches the module off for the company, keeping its row and data (the service-connection twin of `kernel.admin.module.disable`, same
+ * dependsOn rule: refused while another enabled module depends on it). Idempotent; a module never enabled gets its off row. Service connection.
+ */
+export async function disableModule(sql: Sql, companyId: string, moduleId: string, registry: Registry): Promise<void> {
+  registry.module(moduleId);
+  const dependents = registry.modules().filter((m) => m.dependsOn.includes(moduleId)).map((m) => m.id);
+  if (dependents.length > 0) {
+    const [on] = await sql<{ module_id: string }[]>`
+      select module_id from kernel.company_modules where company_id = ${companyId} and enabled and module_id = any(${dependents}::text[]) limit 1`;
+    if (on) throw new Error(`module ${on.module_id} depends on ${moduleId}, which cannot be disabled while it is enabled for company ${companyId}`);
+  }
+  await sql`
+    insert into kernel.company_modules (company_id, module_id, enabled, enabled_at)
+    values (${companyId}, ${moduleId}, false, now())
+    on conflict (company_id, module_id) do update set enabled = false`;
+}
+
 /** Sends the module's open `not_entitled` dead letters of the company back to the outbox; answers how many (`kernel.parked_events_replay`, 0120). */
 export async function replayParkedEvents(sql: Sql, companyId: string, moduleId: string): Promise<number> {
   const [row] = await sql<{ n: number }[]>`select kernel.parked_events_replay(${companyId}, ${moduleId}) as n`;

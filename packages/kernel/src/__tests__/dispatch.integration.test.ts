@@ -11,6 +11,7 @@ import { loadModules } from "../module/loader";
 import { defineProcess } from "../process/define";
 import { registry } from "../registry";
 import type { EventConsumer } from "../registry/types";
+import type { PostingProvider } from "../posting/provider";
 
 const sql = testDb();
 const WAIT = { timeout: 30_000, interval: 100 };
@@ -557,6 +558,79 @@ describe("outbox dispatch", () => {
       expect(await deadLetter(chainId)).toBeUndefined();
     } finally {
       await sql`delete from kernel.tenant_entitlements where tenant_id = ${seed.tenantId} and key = ${`module:${ids.unbought}`}`;
+    }
+  });
+
+  // Owner item 119 (e) (2026-11-09, F-1.5): the parked module has its own dead-letter column, so a later consumer's failure that writes its
+  // own message into last_error does not hide the event from the sweep.
+  it("a row parked for a never-bought module and then failed by a later consumer keeps parked_module; buying the module replays it (item 119 e)", async () => {
+    const calls: string[] = [];
+    let failing = true;
+    expect(consumers.for("test.probe.ba").map((c) => c.moduleId).slice(0, 2)).toEqual([ids.tb, ids.tc]);
+    handlers[`${ids.tb}/test.probe.ba`] = async () => void calls.push("tb");
+    handlers[`${ids.tc}/test.probe.ba`] = async () => {
+      if (failing) throw new FatalError("tc refused it");
+      calls.push("tc");
+    };
+    const chainId = await enqueue("test.probe.ba");
+    expect(await drain()).toBe(1);
+    await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
+    const dead = (await deadLetter(chainId))!;
+    expect(dead.last_error).toMatch(/tc refused it/);
+    expect(dead.parked_module).toBe(ids.tb);
+    expect(calls).toEqual([]);
+
+    failing = false;
+    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${ids.tb}`}, 'manual')`;
+    try {
+      expect(await drain()).toBe(1); // the sweep found it by parked_module and put it back
+      await vi.waitFor(isDispatched(chainId), WAIT);
+      expect(calls).toEqual(["tb", "tc"]);
+      expect(await deadLetter(chainId)).toBeUndefined();
+    } finally {
+      await sql`delete from kernel.tenant_entitlements where tenant_id = ${seed.tenantId} and key = ${`module:${ids.tb}`}`;
+    }
+  });
+
+  // Owner item 111 (2026-11-09, F-1.2; item 9 (b)): the "*" consumer of a never-bought module that provides posting dead-letters the event
+  // `not_entitled:<module>` (visible on Admin › Módulos, replayed on purchase); every other never-bought "*" consumer stays silent (item 52).
+  // Registered last: a never-bought wildcard that parks would dead-letter the events of every test after it.
+  it("a never-bought posting module's \"*\" consumer parks an invoice event not_entitled:<module>; buying it replays the event and the entry posts (item 111)", async () => {
+    const posted: string[] = [];
+    const ledger = `dsp_ledger_${run}`;
+    loadModules(registry, [defineModule({
+      id: ledger,
+      version: "1",
+      dependsOn: [],
+      entities: [],
+      processes: [],
+      features: [],
+      events: { emits: [], consumes: { "*": async (ctx) => void posted.push(`${ctx.event.name}:${ctx.chainId}`) } },
+      navigation: [],
+      postingProvider: {} as PostingProvider,
+    })]);
+    handlers[`${ids.wild}/*`] = async () => undefined;
+    const invoice = await enqueue("invoicing.invoice.issued", { invoiceId: randomUUID() });
+    const platform = await enqueue("kernel.module.enabled", { moduleId: "x" });
+    expect(await drain()).toBe(2);
+    await vi.waitFor(async () => expect(await deadLetter(invoice)).toBeDefined(), WAIT);
+    const dead = (await deadLetter(invoice))!;
+    expect(dead.last_error).toBe(`not_entitled:${ledger}`);
+    expect(dead.parked_module).toBe(ledger);
+    expect(dead.delivered_modules).toContain(ids.wild);
+    // The platform's own events stay silent, and so does the never-bought "*" consumer without a posting provider (wild2).
+    await vi.waitFor(isDispatched(platform), WAIT);
+    expect(await deadLetter(platform)).toBeUndefined();
+    expect(posted).toEqual([]);
+
+    await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${ledger}`}, 'manual')`;
+    try {
+      expect(await drain()).toBe(1); // the sweep put it back, then it was claimed
+      await vi.waitFor(isDispatched(invoice), WAIT);
+      expect(posted).toEqual([`invoicing.invoice.issued:${invoice}`]);
+      expect(await deadLetter(invoice)).toBeUndefined();
+    } finally {
+      await sql`delete from kernel.tenant_entitlements where tenant_id = ${seed.tenantId} and key = ${`module:${ledger}`}`;
     }
   });
 });

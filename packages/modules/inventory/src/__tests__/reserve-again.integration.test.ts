@@ -79,7 +79,7 @@ describe("void_issue → reserve_again", () => {
     expect(event).toMatchObject({ deliveryId: s.deliveryId, status: "reserved", short: [], lines: [{ orderLineId: s.made[0]!.orderLineId, qty: 4 }, { orderLineId: s.made[1]!.orderLineId, qty: 2 }] });
   });
 
-  it("an active partial reservation of the line is topped up, not duplicated; a released one stays as history and a new active row is made", async () => {
+  it("an active partial reservation of the line gets back what it released, not duplicated; a fully released one is brought back to life (same row, owner item 119(c))", async () => {
     // Line 1 reserved 6 of 10, 4 shipped: 2 stay reserved (one active row). Line 2 reserved exactly what shipped: its row is released.
     const s = await shipped([{ sku: "RB1", stock: 10, reserved: 6, qty: 4 }, { sku: "RB2", stock: 5, reserved: 2, qty: 2 }]);
     await consume(voidEvent(s, { reReserve: true }));
@@ -88,8 +88,19 @@ describe("void_issue → reserve_again", () => {
     expect(first).toHaveLength(1);
     expect(Number(first[0]!.qty) - Number(first[0]!.released_qty)).toBe(6);
     const second = await reservationsOf(s.made[1]!.orderLineId);
-    expect(second.map((r) => r.status)).toEqual(["released", "active"]);
-    expect(Number(second[1]!.qty)).toBe(2);
+    expect(second.map((r) => r.status)).toEqual(["active"]);
+    expect(Number(second[0]!.qty) - Number(second[0]!.released_qty)).toBe(2);
+  });
+
+  it("owner item 119(c): a line gets back at most what its reservation released at ship; a line without reservation gets nothing", async () => {
+    // Line 1 reserved only 2 of the 5 it shipped (backorder); line 2 had no reservation at all.
+    const s = await shipped([{ sku: "RP1", stock: 10, reserved: 2, qty: 5 }, { sku: "RP2", stock: 5, reserved: 0, qty: 3 }]);
+    await consume(voidEvent(s, { reReserve: true }));
+    const [event] = await restored(s.deliveryId);
+    expect(event!.status).toBe("reserved");
+    const first = await reservationsOf(s.made[0]!.orderLineId);
+    expect(first.filter((r) => r.status === "active").map((r) => Number(r.qty) - Number(r.released_qty))).toEqual([2]);
+    expect(await reservationsOf(s.made[1]!.orderLineId)).toEqual([]);
   });
 
   it("yes + one product short: nothing is reserved, the void's stock return stands, result insufficient naming the product with needed and available", async () => {
@@ -116,6 +127,11 @@ describe("void_issue → reserve_again", () => {
     await post({ kind: "receipt", date: today, warehouseId, lines: [{ productId, locationId, qty: 8 }] });
     const deliveryId = newId();
     const lines = [{ orderLineId: newId(), lineId: newId(), qty: 3 }, { orderLineId: newId(), lineId: newId(), qty: 3 }];
+    // Each pedido line had reserved its 3, and shipping used the reservation up (owner item 119(c): only what was released comes back).
+    for (const l of lines) {
+      await h.run(h.admin, "inventory.reservation.create", { sourceEntity: ORDER_LINE, sourceLineId: l.orderLineId, productId, warehouseId, qty: 3 });
+      await h.run(h.admin, "inventory.reservation.release", { sourceEntity: ORDER_LINE, sourceLineId: l.orderLineId, qty: 3 });
+    }
     await h.consumer().runProcess("inventory.movement.post", {
       kind: "sale_issue", date: today, warehouseId, sourceEntity: "sales.delivery", sourceId: deliveryId,
       lines: lines.map((l) => ({ productId, locationId, qty: -l.qty, sourceLineId: l.lineId })),
@@ -129,7 +145,7 @@ describe("void_issue → reserve_again", () => {
     });
     const [event] = await restored(deliveryId);
     expect(event).toMatchObject({ status: "insufficient", short: [{ productId, needed: 6, available: 4 }] });
-    for (const l of lines) expect(await reservationsOf(l.orderLineId)).toEqual([]);
+    for (const l of lines) expect((await reservationsOf(l.orderLineId)).filter((r) => r.status === "active")).toEqual([]);
   });
 
   it("no (reReserve false or absent): nothing is reserved and no result event, as before this task", async () => {
