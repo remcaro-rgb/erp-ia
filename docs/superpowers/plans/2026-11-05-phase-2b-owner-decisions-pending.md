@@ -364,4 +364,4 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved: add `"accounting.posting_mode."` to the posting menu item's `runs`, in plan Task 53.
 110. **The load-time ref check is one-directional** (Task 53.2, item 105). `loadModules` checks, for the modules it loads, that every `ref` whose target module is loaded names an existing entity. A ref held by a module already loaded into a module loaded later (A refs an unloaded B; B is loaded afterwards without that entity) is not re-checked at startup; A's documents then fail closed at runtime (`unknown entity`). The app loads every module in one call, so it cannot happen today.
     Recommended: leave as is; add the symmetric check (registry refs into the modules being loaded) only if modules ever load in separate calls.
-    **Decide**.
+    **Decided by the owner, 2026-11-09 (in chat, as recommended):** accepted.

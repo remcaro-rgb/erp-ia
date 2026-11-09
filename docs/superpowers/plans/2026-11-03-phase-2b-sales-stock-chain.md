@@ -393,8 +393,8 @@ Outlined here so 2B.1 leaves the seams; each task is detailed and approved when 
 - The per-action chain id is unchanged.
 - **Expanded 2026-11-07: see «Expanded task of the trail batch (Task 31)» below.**
 
-### Tasks 32–50: scope added by the owner's decisions of 2026-11-06 (design §22.28)
-Each is detailed and approved when 2B.2 starts (stubs only; source: `2026-11-05-phase-2b-owner-decisions-pending.md`, item numbers in brackets). Test first, per rule 31.
+### Tasks 32–53: scope added by the owner's decisions of 2026-11-06 and 2026-11-08 (design §22.28)
+Each is detailed and approved before it runs. Status 2026-11-09: built and committed: 31, 32, 33, 35–44, 46–48, 50–53 (the expanded ones carry their «expanded» note; 40, 41, 42, 46, 47, 48 and 50 were expanded in their batch commits). Still stubs: 34 (needs its own design), 45 (waits for the accountant), 49 (hosted run), and Part G (28–30). Source: source: `2026-11-05-phase-2b-owner-decisions-pending.md`, item numbers in brackets). Test first, per rule 31.
 - **32** (expanded 2026-11-07, see «Expanded task of the nested-runs batch») Configurable nested runs [1]: per pair (parent → nested) «parent TOTP covers it» (default off) and «on failure: roll back all | continue and queue»; continue via savepoint and a visible failure queue (retry, admins and granted roles), never for ledger or stock processes; global depth, default 4, hard max 8.
 - **33** (expanded 2026-11-07, see «Expanded task of the posting-mode batch») Posting mode setting [5]: per company, inline strict (default) or asynchronous with the retry queue; warning in Mapeo de cuentas; amend entity-types §5.2; tests of the asynchronous path.
 - **34** Foreign currency [19]: needs its own design section first (XML rate, TRM source, posting at rate, exchange differences, receipts, aging in both currencies).
@@ -410,7 +410,7 @@ Each is detailed and approved when 2B.2 starts (stubs only; source: `2026-11-05-
 - **44** (expanded 2026-11-07, see «Expanded task of the unknown-cost batch») Costing setting for units without a known cost: 0 (default) or last known cost [36].
 - **45** Landed cost arriving late: sold units' share booked as a COGS adjustment in the current period, void reverses both; accountant confirms the policy first [37].
 - **46** Exógena demo fix: tercero on the NC-18 line, rerun 2A tests, e2e downloads the real 1007 XML [38].
-- **47** Demo seed: price list, resolution with origin `seed`, `db:reset` plus `DEMO_SEED=1 pnpm db:seed` from zero, rerun the e2e [39].
+- **47** Demo seed: price list, resolution registered through the Parámetros process with origin `ui` (item 56: no `seed` origin), `db:reset` plus `DEMO_SEED=1 pnpm db:seed` from zero, rerun the e2e [39].
 - **48** Worker startup module-list check [40].
 - **49** Hosted migration pre-check, CLI dry run, local tracking repair [41].
 - **50** Small fixes batch: test that every subscribed event has an effect line [3]; warning for a `when` rule that never matched [6]; dry-run denials not audited, counted as telemetry (needs rule 16 wording) [7]; never-bought modules visible, one entitlement resolver, inline poster aligned [9]; move cogs-posted and inventory-adjustment rules into their own manifests [14]; «Recalcular precios» action, Emitir no longer re-prices, warning on a stale price date [17]; delivery PDF title «Remisión de entrega» [33].
