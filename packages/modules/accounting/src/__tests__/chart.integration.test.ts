@@ -26,7 +26,7 @@ describe("chart.seed", () => {
     expect(first.accounts).toBe(pack.chartOfAccounts().length + pack.extraAccounts().length);
     expect(first.journals).toBe(7);
     expect(first.mappings).toBe(pack.defaultRoleMappings().length + pack.defaultConceptMappings().length);
-    expect(first.rules).toBe(9); // the default rules of design §5.4 the module ships (the note's split in three by kind, plan 2B Task 18; cogs-posted and inventory-adjustment live in costing and inventory, Task 50.14) and the two of the advance application (plan 2B.2 Task 36)
+    expect(first.rules).toBe(8); // the default rules of design §5.4 the module ships (the note's split in three by kind, plan 2B Task 18; cogs-posted and inventory-adjustment live in costing and inventory, Task 50.14) and the two of the advance application (plan 2B.2 Task 36)
     expect(first.year).toBe(1);
     expect(await count("accounts")).toBe(first.accounts);
     expect(await count("account_role_mappings")).toBe(pack.defaultRoleMappings().length);

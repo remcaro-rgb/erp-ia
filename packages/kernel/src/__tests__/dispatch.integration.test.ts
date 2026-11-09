@@ -16,7 +16,9 @@ const sql = testDb();
 const WAIT = { timeout: 30_000, interval: 100 };
 // The registry is process-wide: every run of this file registers modules under fresh ids.
 const run = randomUUID().slice(0, 8);
-const ids = { main: `dsp_main_${run}`, paused: `dsp_paused_${run}`, a: `dsp_a_${run}`, b: `dsp_b_${run}`, wild: `dsp_wild_${run}`, wild2: `dsp_wild2_${run}`, unbought: `dsp_unbought_${run}` };
+const ids = { main: `dsp_main_${run}`, paused: `dsp_paused_${run}`, a: `dsp_a_${run}`, b: `dsp_b_${run}`, wild: `dsp_wild_${run}`, wild2: `dsp_wild2_${run}`, unbought: `dsp_unbought_${run}`,
+  // Task 52.1: `ta` and `tc` are bought, `tb` never is; registered in the order ta, tb, tc.
+  ta: `dsp_ta_${run}`, tb: `dsp_tb_${run}`, tc: `dsp_tc_${run}` };
 
 /** Consumer behaviour set by each test, by event or (more specific) by `<module>/<event>`; the stub modules forward to it. */
 let handlers: Record<string, EventConsumer> = {};
@@ -99,9 +101,13 @@ describe("outbox dispatch", () => {
       stub(ids.a, ["test.probe.partial", "test.probe.deliv"]),
       stub(ids.b, ["test.probe.partial"]),
       stub(ids.unbought, ["test.probe.unbought", "test.probe.deliv"]),
+      // Task 52.1: test.probe.trio → [ta, tb, tc]; test.probe.ba → [tb, tc] (the unbought one first).
+      stub(ids.ta, ["test.probe.trio"]),
+      stub(ids.tb, ["test.probe.trio", "test.probe.ba"]),
+      stub(ids.tc, ["test.probe.trio", "test.probe.ba"]),
     ]);
-    // Task 50.9: the dispatcher asks the entitlement resolver, so every consumer module but `unbought` is bought.
-    for (const id of [ids.main, ids.paused, ids.a, ids.b]) {
+    // Task 50.9: the dispatcher asks the entitlement resolver, so every consumer module but `unbought` and `tb` is bought.
+    for (const id of [ids.main, ids.paused, ids.a, ids.b, ids.ta, ids.tc]) {
       await sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${id}`}, 'manual')`;
     }
     await sql`insert into kernel.process_permissions(company_id, role_id, process_id)
@@ -278,6 +284,111 @@ describe("outbox dispatch", () => {
     expect(await deadLetter(chainId)).toBeUndefined();
   });
 
+  describe("an unbought consumer parks the event only after every other consumer ran (Task 52.1, R52-1)", () => {
+    let calls: string[] = [];
+    const record = (name: string, event: string, moduleId: string) => {
+      handlers[`${moduleId}/${event}`] = async () => void calls.push(name);
+    };
+    const buyTb = () => sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${seed.tenantId}, ${`module:${ids.tb}`}, 'manual')`;
+    const unbuyTb = () => sql`delete from kernel.tenant_entitlements where tenant_id = ${seed.tenantId} and key = ${`module:${ids.tb}`}`;
+    const parkedAs = async (chainId: string, moduleId: string) => {
+      await vi.waitFor(async () => expect(await deadLetter(chainId)).toBeDefined(), WAIT);
+      const dead = (await deadLetter(chainId))!;
+      expect(dead.last_error).toBe(`not_entitled:${moduleId}`);
+      return dead;
+    };
+
+    afterEach(() => {
+      calls = [];
+    });
+
+    it("(1) [A bought, B never bought, C bought]: A and C run once, the row parks as not_entitled:B with delivered_modules {A, C}", async () => {
+      expect(consumers.for("test.probe.trio").map((c) => c.moduleId)).toEqual([ids.ta, ids.tb, ids.tc]);
+      record("a", "test.probe.trio", ids.ta);
+      record("b", "test.probe.trio", ids.tb);
+      record("c", "test.probe.trio", ids.tc);
+      const chainId = await enqueue("test.probe.trio");
+      expect(await drain()).toBe(1);
+      const dead = await parkedAs(chainId, ids.tb);
+      expect([...dead.delivered_modules].sort()).toEqual([ids.ta, ids.tc].sort());
+      expect(calls).toEqual(["a", "c"]);
+      expect(await outboxRow(chainId)).toBeUndefined();
+    });
+
+    it("(2) Descartar: the effects of A and C stay, nothing else runs", async () => {
+      record("a", "test.probe.trio", ids.ta);
+      record("b", "test.probe.trio", ids.tb);
+      record("c", "test.probe.trio", ids.tc);
+      const chainId = await enqueue("test.probe.trio");
+      expect(await drain()).toBe(1);
+      await parkedAs(chainId, ids.tb);
+      expect((await sql`select kernel.parked_events_dismiss(${companyId}, ${ids.tb}) as n`)[0]!.n).toBe(1);
+      expect(await drain()).toBe(0);
+      const dead = (await deadLetter(chainId))!;
+      expect(dead.dismissed_at).not.toBeNull();
+      expect([...dead.delivered_modules].sort()).toEqual([ids.ta, ids.tc].sort());
+      expect(calls).toEqual(["a", "c"]);
+    });
+
+    it("(3) a replay after B is bought runs only B; the row is dispatched", async () => {
+      record("a", "test.probe.trio", ids.ta);
+      record("b", "test.probe.trio", ids.tb);
+      record("c", "test.probe.trio", ids.tc);
+      const chainId = await enqueue("test.probe.trio");
+      expect(await drain()).toBe(1);
+      await parkedAs(chainId, ids.tb);
+      expect(calls).toEqual(["a", "c"]);
+      await buyTb();
+      try {
+        expect(await drain()).toBe(1); // the sweep replayed it, then it was claimed
+        await vi.waitFor(isDispatched(chainId), WAIT);
+        expect(calls).toEqual(["a", "c", "b"]);
+        expect(await deadLetter(chainId)).toBeUndefined();
+      } finally {
+        await unbuyTb();
+      }
+    });
+
+    it("(4) [B never bought, C bought]: the unbought one first gives the same result", async () => {
+      expect(consumers.for("test.probe.ba").map((c) => c.moduleId)).toEqual([ids.tb, ids.tc]);
+      record("b", "test.probe.ba", ids.tb);
+      record("c", "test.probe.ba", ids.tc);
+      const chainId = await enqueue("test.probe.ba");
+      expect(await drain()).toBe(1);
+      const dead = await parkedAs(chainId, ids.tb);
+      expect(dead.delivered_modules).toEqual([ids.tc]);
+      expect(calls).toEqual(["c"]);
+
+      await buyTb();
+      try {
+        expect(await drain()).toBe(1);
+        await vi.waitFor(isDispatched(chainId), WAIT);
+        expect(calls).toEqual(["c", "b"]);
+      } finally {
+        await unbuyTb();
+      }
+    });
+
+    it("(5) one module switched off plus one unbought: the row pauses, nothing parked; once enabled the row parks", async () => {
+      record("a", "test.probe.trio", ids.ta);
+      record("b", "test.probe.trio", ids.tb);
+      record("c", "test.probe.trio", ids.tc);
+      await sql`insert into kernel.company_modules(company_id, module_id, enabled) values (${companyId}, ${ids.tc}, false)`;
+      const chainId = await enqueue("test.probe.trio");
+      expect(await drain()).toBe(1);
+      await vi.waitFor(async () => expect((await outboxRow(chainId))!.last_error).toBe("module_disabled"), WAIT);
+      expect(await deadLetter(chainId)).toBeUndefined();
+      expect(calls).toEqual(["a"]);
+      expect(await drain()).toBe(0);
+
+      await sql`update kernel.company_modules set enabled = true where company_id = ${companyId} and module_id = ${ids.tc}`;
+      expect(await drain()).toBe(1);
+      const dead = await parkedAs(chainId, ids.tb);
+      expect([...dead.delivered_modules].sort()).toEqual([ids.ta, ids.tc].sort());
+      expect(calls).toEqual(["a", "c"]);
+    });
+  });
+
   it("overlapping drains do not start a second workflow for a claimed row", async () => {
     let calls = 0;
     let release!: () => void;
@@ -323,6 +434,31 @@ describe("outbox dispatch", () => {
       expect(left).toEqual({ claimed_at: null, dispatched_at: null });
     } finally {
       await sql`delete from kernel.outbox where id = ${stray!.id}`;
+    }
+  });
+
+  it("a failing parked-event sweep is logged and does not stop the drain (Task 52.2, R52-3)", async () => {
+    handlers["test.probe.created"] = async () => {};
+    const chainId = await enqueue("test.probe.created");
+    // A client whose sweep call raises; every other statement goes to the real client.
+    const failing = new Proxy(sql, {
+      apply: (target, thisArg, args: unknown[]) => {
+        const strings = args[0] as readonly string[] | undefined;
+        if (Array.isArray(strings) && strings.join("?").includes("parked_events_sweep")) return Promise.reject(new Error("sweep boom"));
+        return Reflect.apply(target as unknown as (...a: unknown[]) => unknown, thisArg, args);
+      },
+      get: (target, prop) => {
+        const value = Reflect.get(target, prop, target) as unknown;
+        return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await drainOutbox(failing, 100, { companyIds: [companyId] })).toBe(1);
+      expect(logged).toHaveBeenCalledWith("outbox: parked-event sweep failed", expect.objectContaining({ message: "sweep boom" }));
+      await vi.waitFor(isDispatched(chainId), WAIT);
+    } finally {
+      logged.mockRestore();
     }
   });
 

@@ -308,7 +308,8 @@ export const invoiceUpdate = defineProcess({
 
 /**
  * «Recalcular precios» (owner item 17, ruling R50-17): the Borrador keeps its prices until the user asks. This sets every line's unit price
- * from its product's list price of today (a product with no list price keeps the line's price; the discount stays), taxes the lines again
+ * from its product's list price of today (a product with no list price keeps the line's price; the discount stays; a line billed from a
+ * pedido, one with `orderLineId`, keeps the price agreed in the pedido), taxes the lines again
  * with the country pack on the invoice's own date (the issue date is moved to today by «Emitir», which taxes again then) and writes
  * price_date = the company's today. A Borrador only.
  */
@@ -327,7 +328,8 @@ export const invoiceReprice = defineProcess({
     const drafts = (await linesOf(ctx, invoice.id)).map(draftOf);
     if (drafts.length === 0) refuse("nothing_to_invoice", ["La factura no tiene líneas"]);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
-    const repriced = drafts.map((l) => ({ ...l, unitPrice: facts.products.get(l.productId)!.listPrice ?? l.unitPrice }));
+    // A line billed from a pedido keeps the price agreed there (owner item 50, 2026-11-08); only free lines take today's list.
+    const repriced = drafts.map((l) => (l.orderLineId ? l : { ...l, unitPrice: facts.products.get(l.productId)!.listPrice ?? l.unitPrice }));
     await writeParts(ctx, invoice.id, await priceLines(ctx, facts.party, facts.products, repriced, invoice.issue_date), num(invoice.exchange_rate));
     await ctx.tx`update invoicing.invoices set price_date = ${await today(ctx)} where id = ${invoice.id}`;
     return outputOf(ctx, invoice.id);

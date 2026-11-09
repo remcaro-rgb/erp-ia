@@ -15,6 +15,7 @@ processes:
   - accounting.settings.update
   - accounting.settings.consult
   - accounting.posting_mode.set
+  - accounting.posting.age_check
 ---
 
 # Reglas contables
@@ -44,6 +45,8 @@ Arriba de **Mapeo de cuentas** está el **Modo de contabilización**, que dice c
 
 **Los dos contadores.** Debajo del control: cuántos **documentos esperan su asiento** (el comprobante todavía no se registró) y cuántos **fallos hay en la cola de reintentos** (**Ver pendientes**). Se muestran en los dos modos, porque al volver a **Inmediata y estricta** puede quedar una cola de la etapa asíncrona: se vacía sola cuando el sistema registra los comprobantes que faltan, y los fallos se resuelven en **Pendientes de contabilizar**.
 
+**El aviso de asientos atrasados.** En el modo asíncrono, si un documento espera su asiento más de los minutos de **Configuración › Minutos para avisar de un asiento pendiente** (por defecto 60), el sistema avisa a quienes pueden reintentar contabilizaciones (el permiso **Reintentar** de **Pendientes de contabilizar**; el administrador también lo ve): aparece en **Inicio › Recomendaciones para ti**, en **Pendientes** del inicio de Contabilidad y en la campana como «Documento sin asiento contable hace más de N minutos», con un enlace al documento y los minutos que llevaba esperando cuando se dio el aviso. Cuenta tanto un documento cuyo asiento aún no se registró como uno cuyo asiento falló y está en la cola de reintentos. Hay un solo aviso por documento: mientras el documento sigue esperando igual, el aviso no se repite ni cambia; si su situación cambia (por ejemplo, el asiento que esperaba falla), el aviso se actualiza con la nueva situación. Se cierra solo cuando el asiento queda registrado (porque el sistema lo registró o porque reintentaste el fallo), o al volver a **Inmediata y estricta**. Si lo **Descartas**, no vuelve mientras el documento siga esperando en la misma situación; si la situación cambia, llega un aviso nuevo. El sistema revisa los documentos periódicamente (como mucho una vez por minuto; en la demostración publicada puede ser una vez al día), así que el aviso puede tardar un poco en aparecer o en cerrarse. Solo ves el aviso si puedes ver el documento.
+
 **En el documento.** Mientras el comprobante no existe, la ficha de la factura, la nota, el recibo o el costo en destino muestra **Pendiente de contabilizar**; si falló, **Contabilización fallida · ver pendientes** (lleva a la lista). Si la contabilidad está apagada para la empresa, dice **Contabilidad desactivada**, y si nunca se contrató, **Módulo contable no contratado**. La insignia desaparece sola cuando el comprobante existe.
 
 ## Reglas de anticipos
@@ -69,6 +72,7 @@ Para cambiarla: edita las líneas, pruébalas y pulsa **Guardar** (pide el códi
 - **Comprobantes manuales**: **Exigir aprobación de otra persona**, **Exigir un archivo adjunto** y **Fuente de los comprobantes manuales**.
 - **Grupo NIIF** (1, 2 o 3) y **Tolerancia de ajuste al peso**: la diferencia máxima que se absorbe al cuadrar un comprobante automático.
 - **Días para marcar una regla sin coincidencias** (N, por defecto 30): el plazo de la advertencia anterior; es un número entero de días, de 1 en adelante.
+- **Minutos para avisar de un asiento pendiente** (por defecto 60, entre 5 y 10.080, una semana): en el modo asíncrono, cuánto puede esperar un documento su asiento antes del aviso de asientos atrasados (ver **Modo de contabilización**).
 - **El libro empieza el**: los eventos anteriores a esa fecha se reconocen sin contabilizar.
 
 Guarda con **Guardar**; pide el código de verificación.

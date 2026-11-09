@@ -16,6 +16,7 @@ import { OPENING_PROCESSES } from "./opening";
 import { PERIOD_PROCESSES } from "./period";
 import { PERMISSION_PROCESSES } from "./permission";
 import { POST_FROM_EVENT_PROCESSES } from "./post-from-event";
+import { POSTING_AGE_PROCESSES } from "./posting-age";
 import { POSTING_FAILURE_PROCESSES } from "./posting-failure";
 import { POSTING_RULE_PROCESSES } from "./posting-rule";
 import { SETTINGS_PROCESSES } from "./settings";
@@ -41,6 +42,7 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...POST_FROM_EVENT_PROCESSES,
   ...POSTING_RULE_PROCESSES,
   ...POSTING_FAILURE_PROCESSES,
+  ...POSTING_AGE_PROCESSES,
   ...PERIOD_PROCESSES,
   ...YEAR_PROCESSES,
   ...REPORT_PROCESSES,

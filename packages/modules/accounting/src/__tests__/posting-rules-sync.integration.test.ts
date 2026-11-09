@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildConsumerContext, consumers, defineModule, runProcess, type DefaultPostingRule, type ModuleDef } from "@erp/kernel";
 import { accountingHarness, type AccountingHarness } from "./helpers";
 import invoiceIssued from "../rules/defaults/invoice-issued.json" with { type: "json" };
-import invoiceVoided from "../rules/defaults/invoice-voided.json" with { type: "json" };
+import invoiceVoided from "../rules/fixtures/invoice-voided-rule.json" with { type: "json" };
 import noteIssued from "../rules/defaults/note-credit-issued.json" with { type: "json" };
 import { COSTING_POSTING_RULES } from "../../../costing/src/rules";
 import { INVENTORY_POSTING_RULES } from "../../../inventory/src/rules";
@@ -57,8 +57,8 @@ describe("accounting.posting_rule.sync", () => {
     const rules = await rulesOf("invoicing");
     expect(rules.map((r) => r.name)).toEqual(NAMES);
     expect(rules.every((r) => r.is_active && !r.is_modified)).toBe(true);
-    // Seven of design §5.4 plus the two of the advance application (plan 2B.2 Task 36, byte for byte payments' own).
-    expect((await rulesOf("accounting")).length).toBe(9);
+    // Six of design §5.4 (invoice-voided retired, Task 52.5) plus the two of the advance application (plan 2B.2 Task 36, byte for byte payments' own).
+    expect((await rulesOf("accounting")).length).toBe(8);
   });
 
   it("is event-only (a user is forbidden) and a second run changes nothing", async () => {
@@ -161,5 +161,92 @@ describe("rules moved to their owners (migration 0117)", () => {
     await h.runStepUp(h.admin, "kernel.admin.module.enable", { moduleId: "costing" });
     await sync();
     expect((await rule("costing", COGS))[0]).toMatchObject({ is_active: false, is_modified: true });
+  });
+});
+
+// Owner item 48 (Task 52.5): the `invoice-voided` default is retired as 0115 retired the combined note rule: an invoice is annulled by its
+// credit note of annulment (OD-7), invoicing.invoice.voided is never emitted. Never deleted (entries may reference it).
+describe("retired default rule invoice-voided (migration 0142)", () => {
+  const OLD = invoiceVoided.name;
+  const EVENT = invoiceVoided.event;
+  const migration = readFileSync(new URL("../../../../../supabase/migrations/0142_accounting_retire_invoice_voided_rule.sql", import.meta.url), "utf8");
+  const migrate = async () => {
+    await h.sql.begin(async (tx) => {
+      await tx.unsafe(migration);
+    });
+  };
+  const oldRows = () => h.sql<{ id: string; is_active: boolean; is_modified: boolean }[]>`
+    select id, is_active, is_modified from accounting.posting_rules where company_id = ${h.companyId} and event = ${EVENT} and name = ${OLD} order by seq`;
+  const install = async (state: { active?: boolean; modified?: boolean } = {}) => {
+    const [model] = await h.sql<{ module: string; journal_id: string }[]>`
+      select r.module, j.id as journal_id from accounting.posting_rules r, accounting.journals j
+      where r.company_id = ${h.companyId} and r.event = 'invoicing.invoice.issued' and j.company_id = ${h.companyId} and j.code = ${invoiceVoided.journalCode} limit 1`;
+    await h.sql`
+      insert into accounting.posting_rules (company_id, event, name, module, journal_id, template, priority, is_default, is_active, is_modified)
+      values (${h.companyId}, ${EVENT}, ${OLD}, ${model!.module}, ${model!.journal_id}, ${h.sql.json(invoiceVoided.template as never)}, 100, true, ${state.active ?? true}, ${state.modified ?? false})`;
+  };
+  const clear = () => h.sql`delete from accounting.posting_rules where company_id = ${h.companyId} and event = ${EVENT} and name = ${OLD}`;
+
+  it("a company's sync does not install it: the accounting rules are the other eight", async () => {
+    expect(await oldRows()).toEqual([]);
+    expect(await sync()).toEqual({ inserted: 0, activated: 0, deactivated: 0 });
+    expect(await oldRows()).toEqual([]);
+  });
+
+  it("a company holding the unmodified default: the sync retires it (inactive, marked modified, kept); a second sync and the migration change nothing", async () => {
+    await install();
+    const out = await sync();
+    expect(out.deactivated).toBe(1);
+    const [row] = await oldRows();
+    expect(row).toMatchObject({ is_active: false, is_modified: true });
+    const once = await oldRows();
+    expect(await sync()).toEqual({ inserted: 0, activated: 0, deactivated: 0 });
+    await migrate();
+    await migrate();
+    expect(await oldRows()).toEqual(once);
+    await clear();
+  });
+
+  it("the migration file, run twice, retires the unmodified default of every company without the sync", async () => {
+    await install();
+    await migrate();
+    const once = await oldRows();
+    expect(once).toHaveLength(1);
+    expect(once[0]).toMatchObject({ is_active: false, is_modified: true });
+    await migrate();
+    expect(await oldRows()).toEqual(once);
+    await clear();
+  });
+
+  it("a copy the admin modified stays active under the sync and the migration; the migration names the company in a notice", async () => {
+    await install({ modified: true });
+    await migrate();
+    await migrate();
+    // The notice itself is not capturable through the shared pool; the file must carry it (companies left are named, not silent).
+    expect(migration).toContain("raise notice 'invoice-voided rule left active (modified by the admin) for companies: %', kept");
+    await sync();
+    const [row] = await oldRows();
+    expect(row).toMatchObject({ is_active: true, is_modified: true });
+    await clear();
+  });
+
+  it("a retired copy is never deleted: an entry that references it keeps pointing at it", async () => {
+    await install();
+    const [rule] = await oldRows();
+    // An entry the rule "posted": a draft made here and repointed at it (a retired rule must stay referenceable).
+    const [cc] = await h.sql<{ id: string }[]>`
+      insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, ${`R${Date.now() % 100000}`}, 'Centro de prueba 52.5', 'leaf') returning id`;
+    const made = await h.run<{ id: string }>(h.admin, "accounting.entry.create", {
+      date: "2026-10-15", description: "Asiento de prueba 52.5",
+      lines: [{ accountCode: "510506", debit: 100, credit: 0, costCenterId: cc!.id }, { accountCode: "111005", debit: 0, credit: 100 }],
+    });
+    const entry = { id: made.id };
+    await h.sql`update accounting.entries set posting_rule_id = ${rule!.id} where id = ${entry.id}`;
+    await sync();
+    await migrate();
+    expect(await oldRows()).toEqual([{ id: rule!.id, is_active: false, is_modified: true }]);
+    expect((await h.sql`select posting_rule_id from accounting.entries where id = ${entry.id}`)[0]!.posting_rule_id).toBe(rule!.id);
+    await h.sql`update accounting.entries set posting_rule_id = null where id = ${entry.id}`;
+    await clear();
   });
 });

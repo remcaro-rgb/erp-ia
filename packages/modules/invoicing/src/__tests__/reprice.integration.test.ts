@@ -44,6 +44,21 @@ describe("invoicing.invoice.reprice", () => {
     }
   });
 
+  it("a line billed from a pedido keeps the agreed price; a free line takes the list; totals are recomputed and price_date is today (Task 52.4, item 50)", async () => {
+    const order = await h.confirmedOrder([{ productId: h.cafe, qty: 1 }]);
+    const draft = await draftOf([{ productId: h.cafe, qty: 2, unitPrice: 18000 }, { productId: h.servicio, qty: 1, unitPrice: 40000 }]);
+    // Link the first line to the pedido's line, as «Facturar pedidos» does (the processes do not let a Borrador mix both).
+    await h.sql`update invoicing.invoice_lines set order_id = ${order.id}, order_line_id = ${order.lineIds[0]!} where invoice_id = ${draft.id} and line_no = 1`;
+    const [cafe] = await h.sql<{ list_price: string | null }[]>`select list_price::text from core.products where id = ${h.cafe}`;
+    expect(Number(cafe!.list_price)).not.toBe(18000);
+    await h.sql`update invoicing.invoices set price_date = ${h.day(1, 2)} where id = ${draft.id}`;
+    const out = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.reprice", { id: draft.id });
+    // The pedido's line stays at 18.000; the free one goes to the list (50.000).
+    expect(await unitPrices(draft.id)).toEqual([18000, 50000]);
+    expect(await priceDate(draft.id)).toBe(h.today);
+    expect(out.subtotal).toBe(2 * 18000 + 50000);
+  });
+
   it("an issued invoice is refused and nothing changes", async () => {
     const draft = await draftOf([{ productId: h.servicio, qty: 1 }]);
     await h.run(h.admin, "invoicing.invoice.issue", { id: draft.id });

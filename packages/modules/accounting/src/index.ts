@@ -98,3 +98,5 @@ export { accountBalances, listPeriods, listYears, nodeFigures, yearPreview } fro
 export type { AccountBalanceRow, AccountBalances, NodeAccountRow, NodeFigures, PeriodRef, PeriodSummary, YearPreview, YearSummary } from "./masters/figures";
 export { HOME_CHARTS, HOME_KPIS } from "./home";
 export { ASYNC_BY_DESIGN, POSTING_MODES } from "./posting/mode";
+export { POSTING_AGE_REASON, postingAgePlan } from "./processes/posting-age";
+export type { PostingAgePlan } from "./processes/posting-age";

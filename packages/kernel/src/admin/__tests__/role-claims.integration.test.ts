@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDb, withClaims, type JwtClaims } from "../../db/client";
+import { createDb, isSystemSub, withClaims, type JwtClaims } from "../../db/client";
 import { ensureRoleProbe, seedTenant, testDb } from "../../db/test-db";
 import { Registry } from "../../registry";
 import { loadModules } from "../../module/loader";
@@ -27,6 +27,7 @@ describe("kernel role claims: revocation applies before the token refresh", () =
   /** The claims `boss` received while holding admin + member: reused after the admin role is taken away. */
   let oldBossClaims: JwtClaims;
 
+  // The kernel's system user is read only through this helper's flag (withClaims refuses its claims otherwise, plan 2B Task 52.3).
   const probe = async (claims: JwtClaims) => {
     const [row] = await withClaims(
       sql,
@@ -37,6 +38,7 @@ describe("kernel role claims: revocation applies before the token refresh", () =
                kernel.can_run_process('kernel.admin.permission.set') as can,
                kernel.field_mode('kernel.role_probe', 'secret') as mode,
                (select secret from kernel.v_role_probe limit 1) as secret`,
+      { allowSystem: isSystemSub(claims.sub) },
     );
     return row!;
   };

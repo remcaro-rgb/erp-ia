@@ -146,28 +146,39 @@ Numbers continue this file's own list. Each has the build's current behaviour an
 
 42. **Rule 3 scope of «sales never names crm»** (Task 42). `sales.order.from_quote` reads CRM's published views `crm.v_quote_offers` / `crm.v_quote_offer_lines` by name (allowed by rule 3), so the plan's literal check «sales source never contains `crm`» cannot hold. The test checks the sales manifest (no `crm`, no `shortcuts`).
     Recommended: «Sales may read CRM's published views; it never declares CRM in its manifest, menu or dependencies.»
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 43. **`ModuleDef.needs` and `ModuleDef.shortcuts`** (Tasks 41, 42) are two new manifest fields. `needs`: a module that must stay enabled while this one is, not part of load order (inventory needs costing; enabling inventory does not force costing on, costing only blocks being switched off). `shortcuts`: a module contributes a menu item under a section of a module it depends on (CRM → Ventas › Documentos).
     Recommended: «Manifests may declare `needs` and `shortcuts` (kernel §5.2).»
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 44. **Unmasked-view guard is best-effort** (Task 40). It is file-level: any file under `apps/web/src` that reads a listed view or runs `payments.payment.open_invoices` must contain `gridPageAccess(`, `creditVisibleTo(`, `linkableEntities(` or `kernel.field_visible(`. A marker inside a string literal satisfies it, and `linkableEntities(` only proves entity visibility. `openInvoicesAction` was gated (a masked amount field now answers `forbidden`, so a role with masked amounts cannot open «Registrar pago»), and the receipt form shows the generic error text for it.
     Recommended: accept as is; add a dedicated Spanish message for the `forbidden` case if masked amounts are expected in practice.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 45. **Worker module check** (Task 48). Default refuse when `NODE_ENV=production` (the worker image sets it), warn otherwise, override `WORKER_MODULE_CHECK=refuse|warn|off`. A rollback image with fewer modules refuses in production until the override is set, and the check has no connection retry (compose restarts the worker; a hosted worker may not).
     Recommended: keep refuse in production; put the override and a DB-connect retry on the hosted checklist.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 46. **Dry-run denial telemetry** (Task 50.7). The `telemetry` process kind of rule 16 does not exist in code; denials are counted in `kernel.dry_run_denial_counters` (per company, day, process, code; written by a security-definer function; read by service role only; nothing reads it yet). Any authenticated user can raise their own company's counter outside a process run.
     Recommended: accept; add a read-only admin report when repeated probing needs to be seen.
 47. **Module gating dead-letter details** (Task 50.9). A never-bought module's consumer dead-letters the event as `not_entitled:<module id>`; Admin › Módulos shows «módulo no contratado» with the parked count, Descartar (rows kept, no un-dismiss) and automatic replay when the module is enabled. Dead-lettering deletes the outbox row and its deliveries, so a replay re-runs the other consumers of the same event, and until then the bought consumers do not receive it.
     Recommended: keep the deliveries on dead-letter (or dead-letter before any consumer runs) so replay re-runs only the unentitled consumer.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): keep the deliveries on dead-letter so replay re-runs only the unentitled consumer (see 52).
 48. **Moved posting rules** (Task 50.14). Migration 0117 re-tags unmodified default rows (`module = costing | inventory`); an admin-modified row stays tagged `accounting`. With costing off, no COGS entry posts any more (the rule follows costing's switch). Also, `invoice-voided` is still in accounting's defaults although item 15 says no such rule is shipped.
     Recommended: accept the behaviour change; retire `invoice-voided` through the same mechanism as migration 0115, or confirm it stays.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): accepted, and `invoice-voided` is retired through the same mechanism as migration 0115.
 49. **Stale posting-rule warning** (Task 50.6). `accounting.settings.rule_stale_days` (default 30) feeds a badge «Sin coincidencias en N días» on the rule record (not a grid column); the scan is capped at 5000 outbox rows per rule.
     Recommended: accept; add a grid column only if the list needs it.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 50. **«Recalcular precios»** (Task 50.17). The action re-prices the whole draft at the product list price of today, including lines billed from an order (the order's agreed price is replaced when the user presses it). New drafts get `price_date = today`; the warning at «Emitir» reaches the user only in the draft banner (the process output also carries it). Migration 0121 adds `invoicing.invoices.price_date`.
     Recommended: keep order-billed lines at the order's price (a one-line filter on `orderLineId`) unless the owner wants the list price.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): keep order-billed lines at the order's price (filter on `orderLineId`).
 51. **Delivery PDF title** (Task 50.33). `DefaultPresentation` gained an optional translator `t` so a module template can use a catalogue key (`sales.print.delivery_title`): es «Remisión de entrega», en «Delivery note».
     Recommended: accept.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 52. **Never-bought consumers and the rest of the event** (Task 50.9, review round 2). The dispatcher stops at the first explicit consumer whose module was never bought and dead-letters the event (`not_entitled:<module>`); consumers of bought modules that come later in the order do not receive the event until the module is bought, and never do if the parked event is dismissed. Wildcard (`"*"`, posting) consumers and `kernel.*` events of a never-bought module are skipped silently as before. Replay keeps the record of consumers that already ran (`delivered_modules`), and a sweep at the start of each outbox drain replays parked events once the module is entitled.
     Recommended: run the other consumers and park only the unbought one's delivery (so dismiss loses nothing), or dead-letter before any consumer runs; until then keep the current behaviour.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): run the other consumers and park only the unbought one's delivery.
 53. **Replay of old events after a late purchase** (Task 50.9). An event skipped for a never-bought accounting (wildcard consumer, no delivery row) can post when it is later replayed for another module, while its contemporaries never posted. The sweep also is not wrapped in a try/catch, so an error in it would stop that drain tick.
     Recommended: accept; wrap the sweep and, if the ledger start date is later than the event, rely on the existing «before ledger start» skip.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): accepted, and the replay sweep is wrapped in a try/catch.
 54. **Migrations applied by hand** (Tasks 50.x). Migrations 0115–0122 were applied to the local stack with psql because `supabase migration up` fails at 0061 (item 41); 0120 was edited in place before any commit. Before committing, re-apply them with the Supabase CLI after the Task 49 repair (all are idempotent).
     Recommended: do Task 49 before the first commit of this batch.
 55. **Demo price list cannot be created through a process** (Task 47). `core.price_list` has no create process and `core.price_list_item` has no process at all: the generic Grabar only writes an existing row, and the UI cannot create the first row either. The demo seed therefore cannot seed a price list without raw SQL (rule 1). **Decide** (owner OK needed).
@@ -185,10 +196,13 @@ Numbers continue this file's own list. Each has the build's current behaviour an
 
 58. **Raw params in the row audit of `kernel.recommendations`** (Task 38). The view, the list process, the assistant's consult and the bell mask each param by its `entity.field` for the viewer, but the row audit trigger stores the whole row, so the before/after diff of a recommendation in `kernel.audit_log` holds the unmasked values (a document number, a product name). Whoever reads the audit log today is an administrator, who sees every field anyway.
     Recommended: accept while only administrators read the audit log; mask `params` in the audit viewer (or exclude the column from the row diff) before a non-admin audit reader exists.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 59. **i18n namespace of the recommendation copy** (Task 38). The brief names `recommendation.*` and `shell.*` keys; the catalogue's top-level namespaces are fixed (rule 24, `catalogue.test.ts`), so the copy lives in the raising module's namespace (`invoicing.recommendation.*`, `costing.recommendation.*`, the reasons under `<module>.recommendation.reason.<code>`), the card's strings in `home.recommendations.*` / `home.module.pending`, and the bell's in `nav.shell.*`.
     Recommended: accept; a module that raises recommendations owns its copy.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 60. **The audience is a process, the administrator is in every one** (Task 38). A process-raised recommendation is shown to whoever may run its audience process (`kernel.can_run_process`), so a company administrator sees every notice of every module. With many modules raising, an admin's bell may get noisy.
     Recommended: accept for 2B; if it gets noisy, add a per-user mute by module in 2C.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 
 ## I. Items met while expanding 2B.2 Task 31 (document links), 2026-11-07 · to decide
 
@@ -196,16 +210,22 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept the five kinds now; add `invoice_to_note`, `delivery_to_return` and `advance_to_invoice` as one small task in 2C (each is one `ctx.links.sync` line in its creating process plus one backfill source and a kind name in the catalogue).
 62. **Hidden documents are walked through, counted, never named** (Task 31). A viewer who cannot see the invoice between a quote and a receipt still sees both ends and «Y 1 documento más que no puedes ver». The count tells them N more documents exist; it names nothing.
     Recommended: accept (it is what §22.27's masking line asks for); if you prefer the trail to stop at the first hidden document, say so and it is one flag.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 63. **Migration numbers** (Task 31). The task text said 0123 was the next free number; Task 38 had already taken it, so the links use 0124 (table and functions) and 0125 (backfill).
     Recommended: nothing to decide; recorded so the numbering in the roadmap stays honest.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 64. **Every record page now runs one trail consult, and each writes a consult audit row** (Task 31). Opening any record (parties and products included) calls `kernel.document_link.trail`; the pipeline writes a second audit row for the consult. Empty answers are quick but the audit log grows by one row per page view.
     Recommended: accept for 2B (consults are already audited); if the volume matters, load the tab only for entities that carry links (documents) or mark the process as a telemetry-kind consult (an exception to rule 16 that needs your wording).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 65. **Feature-level entitlement in the trail** (Task 31, R-F1). The trail checks that the company is entitled to the document's module, not to a feature inside it. A document of a disabled feature appears as a short-id link.
     Recommended: accept; the link opens a page the feature gate already refuses.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 66. **Trail cap per direction** (Task 31). With direction «both» the 100-document cap is shared: when upstream fills it, no downstream is returned (and the trail says it was truncated). A very wide sale could hide its downstream.
     Recommended: accept for 2B (the guide says so); switch to a cap per direction (50 + 50) if a real sale hits it.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 67. **The order's «Cotización» field shows the quote's raw UUID** (found by Task 31's e2e). On the order record the field `quote_id` is rendered as the id, not as the quote's number with a link (rule 21 asks every reference to a record to be a link). It is the order's own field, not the trail.
     Recommended: fix it as a small task in 2C (declare `quote_id` as a `ref` to `crm.quote` so the frame shows the number and links to it).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): declare `quote_id` as a `ref` to `crm.quote`, so the frame shows the number and links to it.
 
 ## J. Items met while expanding 2B.2 Task 32 (configurable nested runs), 2026-11-07 · to decide
 
@@ -213,30 +233,40 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept for 2B; when the owner wants a real `continue` on a named pair, make that parent handle `undefined` in its own small task (and decide what the parent does without the nested result).
 69. **The failure queue stores the nested run's validated input** (Task 32) so a retry can replay it. The row audit of `kernel.nested_run_failures` records the row, `input` included, in `kernel.audit_log` (as item 58 for recommendations); users have no grant on the column and the view omits it.
     Recommended: accept while only administrators read the audit log; exclude `input` from the row diff before a non-admin audit reader exists.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 70. **Retry is permission-checked for the retrying user, not the original actor** (Task 32). The owner's text speaks of the original actor's permission check. The build checks the retrying user (who must be an admin or a role granted `kernel.nested_failure.retry`, with a fresh step-up), keeps the original actor id on the row and in the retry's audit rows, and does not impersonate anyone.
     Recommended: accept; if both checks are wanted, add `kernel.user_can_run_process(user, company, process)` and call it in the retry.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 71. **`ledger or stock` derivation over-refuses** (Task 32). A nested process counts when its `emits` hit a posting rule or any module's declared `effects`, or at run time when its subtree emits such an event; a harmless process whose event has a declared consumer effect cannot be set to `continue`.
     Recommended: accept; a manifest can narrow it by not declaring the effect, or a later explicit `ProcessDef` flag can replace the derivation.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 72. **All nested-run configuration processes are step-up, also when narrowing** (Task 32); the process id is static, so «only widening is sensitive» would need two processes.
     Recommended: accept (rule 15: admin processes are sensitive by default).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 
 73. **Asynchronous posting: ordering and late replay** (Task 33). The consumer is not serialized per company; the entry number follows posting order, not document order; a replay that posts late lands on the event's own date, so in an open period the reports of that period change retroactively, and in a closed period it becomes a `closed_period` pending that needs a reopen. A void racing its own queued original is safe (`reverse_source` dismisses the original).
     Recommended: accept for 2B.2 and warn in the guide; if the accountant needs stable numbering by document date, number entries at document date in a later task.
 74. **Age alert for documents awaiting posting** (Task 33). Nothing alerts when a document stays «Pendiente de contabilizar» for long in asynchronous mode.
     Recommended: a kernel recommendation (Task 38 API) to the accounting role when a queued or failed posting is older than N minutes (N configurable, default 60); a small follow-up task.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): a kernel recommendation to the accounting role when a queued or failed posting is older than N minutes (N configurable, default 60).
 
 ## K. Items met while expanding 2B.2 Task 44 (costing setting «Costo de unidades sin costo conocido»), 2026-11-07 · to decide
 
 75. **A later real cost does not revalue an estimate** (Task 44, R44-7). A `last_known` estimate stays in the cost event, the layer and the COGS entry; a real cost closes the Costos pendientes row but never rewrites past valuations (the owner's «never rewrites past valuations»); correction is an inventory adjustment.
     Recommended: accept; if the owner wants a revaluation on resolve, it is a separate task (a revaluation event that moves the layer and posts the difference).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 76. **Estimated units feed the layer's average (solved in fix round 1)** (Task 44). Units entered at an estimate make the layer's average positive. It is now solved by the `estimated` marker on the open cost_missing row (migration 0131, R44-13): while the row is open, lines valued at that average stay estimates (`last_known`, flagged, counted), traslados and returns inherit it, no estimated line is a source, an adjustment valued at an estimated average is flagged (R44-14), and a real cost resolves the row and clears the marker.
     Recommended: nothing to decide; a row whose estimated occurrence is voided while zero-valued ones remain stays marked until a real cost (it over-flags, never under-flags).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 77. **A line with an explicit cost of 0 is not estimated** (Task 44, R44-5). A receipt or adjustment whose line carries `unitCost = 0` keeps 0 (the line cost always wins), flagged as before.
     Recommended: accept; a 0 typed on purpose is an answer.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 78. **Cost events have no screen** (Task 44). The estimate («Último costo conocido (estimado)») is visible only in the record of the cost event through exports and the assistant; Costos pendientes lists the product, not the events.
     Recommended: a small read-only «Eventos de costo» report under Costos › Reportes in 2C, over `costing.v_cost_events`.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 79. **An adjustment typed at exactly the estimated average is treated as an estimate** (Task 44, fix round 2). Inventory's event does not say whether the line cost was typed or filled from costing's average, so costing flags an adjustment whose cost equals the estimated average (4 decimals) while the bodega's row is estimated; the row stays open, any other value resolves it.
     Recommended: accept; the exact alternative is an inventory event field `costFrom: "user" | "costing"` (still rule 3 compliant), a small follow-up task.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 
 ## L. Items met while expanding 2B.2 Task 43 (void delivery offers re-reserving the stock), 2026-11-07 · to decide
 
@@ -244,43 +274,82 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept for now; if wanted, `reserve_again` refuses a line whose reservation history holds a tombstone released after the void event (a small change in the process and one test).
 81. **The re-reservation is not a trail node** (Task 43, R43-12). It is a nested audit row on the void's chain (visible in the audit chain), not a row of the document-links trail (Task 31): a reservation is not a document, so «Documentos relacionados» does not list it.
     Recommended: accept; the entrega's «Reserva al anular» note and the audit chain answer «what happened to the stock». A trail node would need reservations to become linkable documents.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 82. **The migration was split in two files (0133, 0134)** (Task 43, process note). 0133 adds the columns and drops the old `sales.v_deliveries`; 0134 recreates the view from the entity. 0133 was applied alone once by a scripting slip and applied migrations are never edited (rule 34), so the view creation sits in its own file; both apply in order on any database.
     Recommended: accept as is (nothing to decide; recorded for the reviewer).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 83. **The outcome reaches the screen a few seconds after the void** (Task 43, R43-8). The click answers «Inventario reservará de nuevo… si alcanzan»; the real result is written when inventory's consumer answers by event, so a refresh right after may still read «Inventario confirma en unos segundos».
     Recommended: accept; a live refresh of the entrega page when the answer lands would be a UI follow-up for the whole outbox-driven screens, not only this one.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 
 ## M. Items met while expanding 2B.2 Task 35 (DIAN verification checklist), 2026-11-07 · to decide
 
 84. **The e2e cannot switch to producción on the mock** (Task 35, R35-14). The brief asked for «switch to producción on the mock», but by the Task 5/17 ruling the mock transport never serves producción (a mock verdict has no fiscal value). The e2e ticks all items, confirms the defaults, attempts producción and sees the refusal is now the transport's (`einvoice_environment_mismatch`), then unticks one and sees the confirmation cleared. The real switch with the flag effective is an integration test with an installed `dian-produccion` transport.
     Recommended: accept; a test-only producción-shaped mock would weaken the Task 5/17 guard.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 85. **A company already in producción when the list grows keeps the stored flag** (Task 35, R35-8). The database check (0101) forbids lowering the flag in producción, so the confirmation is effectively false (screen alert, new items listed) but sending is not blocked.
     Recommended: accept; blocking sending of a live company because a list grew would stop its invoicing. If wanted, the owner changes rule 0101 and the guard to block producción sending until the new items are ticked.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 86. **A list version bump is not an audited event** (Task 35, R35-12). Adding an item ships with a deploy and runs nothing, so the confirmation stops being effective without an audit row; the next tick run (or a confirm run, which re-stamps) lowers or re-stamps the stored flag with an audit entry; in producción the stored flag stays (0101). A refused confirm cannot lower it (its refusal rolls the run back).
     Recommended: accept; a deploy-time sweep that writes an audited clear for each company is a small follow-up if the owner wants the trail.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 87. **A company in producción whose list grew can still save its other Parámetros** (Task 35, R35-8/R35-9). `assertProductionReady` runs on every save while the environment is `produccion`; with the confirmation no longer effective (new items) it would refuse even a change of the credit days, which R35-8 says must not stop a live company. The guard therefore accepts the stored flag when the company is already in producción and needs the effective confirmation only to reach producción. This covers every company already in producción before migration 0135 too: it stamps them version 1 with no tick, so their confirmation is not effective from the day of the deploy, with no list growth at all.
     Recommended: accept; the alternative blocks routine edits of a live company until every new item is ticked.
 88. **A closed period under the asynchronous posting mode** (Task 36, R36-6). An advance application is a contabiliza documento like a receipt: inline strict refuses it in a closed period; with the Task 33 asynchronous mode it commits and the closed period shows in the posting-failures retry queue, and the invoice shows paid before its reclass entry exists. Recommended: accept (the documented trade of the asynchronous mode, the same as receipts).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 89. **Anular recibo is refused while an application draws on its advance** (Task 36, R36-8). The user undoes the applications first («Deshacer aplicación», step-up) and then voids the receipt. The alternative (voiding cascades and undoes the applications) hides several ledger reversals behind one click. Recommended: accept the refusal.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 90. **The «Anticipos» section is on the receipt's page, not on the customer's** (Task 36, R36-9). The customer record belongs to core and a section fed by payments there would need a published extension point (design change). Recommended: accept for now; a later task adds a core extension point «secciones de otros módulos» if the owner wants it on the customer.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 91. **Existing companies get the two advance rules by the posting-rule sync, not a migration** (Task 36). A company seeded before this release refuses «Aplicar anticipo» with `no_rule` (nothing written) until `accounting.posting_rule.sync` runs (Reglas contables › sincronizar, or the next module enable). Recommended: accept and run the sync once at deploy; a backfill migration would duplicate the JSON templates in SQL.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 92. **The QR environment was already frozen; no provenance column** (Task 37, R37-1). Items 24's second open point is stale: migration `0102` (Task 19 fix round 1) froze `dian_environment` on every issued invoice and note and filled older ones from the company's setting of that time; the transport environment «recorded at send» does not exist (`einvoice_submissions` stores none). Task 37 removes the code's fallbacks to the company's current environment and proves the freeze with tests, and writes no migration (a `dian_environment_source` column would invent a provenance the database cannot tell apart for old rows). Recommended: accept; if provenance matters, add the column now for new documents only (`issue`), leaving old rows null.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 93. **Single «Reintentar envío» stays unguarded** (Task 37, R37-3). Item 24 guards the bulk `resubmit_failed` (admin, no step-up: it resends the same document with the same number and CUFE). The record's `invoice.resubmit` and `note.resubmit` act on one visible document and keep the normal permission. Recommended: accept; guarding them would stop the biller from retrying their own rejected invoice. This is an explicit exception to rule 15 («admin processes are sensitive by default»): the process is admin-only but not step-up, because it resends unchanged documents; the admin can still raise it in `kernel.sensitive_processes`.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 
 ## N. Items met while expanding 2B.2 Task 39 (order owner isolation), 2026-11-08 · to decide
 
 94. **An invoice shows the owner per order, not as one field** (Task 39, R39-8). An invoice can cover several orders, so a single «owner of the order» column does not fit; the invoice record lists each visible order with its salesperson. **Decide**.
     Recommended: accept; the delivery (one order) has the field, the invoice shows the owner next to each order it names.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 95. **Deliveries and invoices of another salesperson's order stay readable to roles that already read them** (Task 39, R39-8). The owner decision lets warehouse and billing work regardless; a salesperson whose role consults deliveries can still read a neighbour's delivery lines (not the order, which is isolated, nor a link to it). **Decide**.
     Recommended: accept; if wanted, isolate deliveries and invoices by order owner later with the same all-orders permission lifting it. The demo `contador` (billing) role also holds `sales.order.reassign` on a fresh seed, because issuing an invoice reads its order (amends the plan's R39-12 first wording).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 96. **A converter who cannot see the resulting order** (Task 39, R39-4). Converting a quote owned by another salesperson makes that salesperson the owner; a converter holding the quote's reassign permission but not `sales.order.reassign` gets a trimmed result (number, status) and cannot open the new order. **Decide**.
     Recommended: accept; managers hold both permissions (the migration grants the new one to every role holding `crm.opportunity.reassign`). Mechanism: the order is inserted as the converter's (RLS refuses an insert the converter could not read) and handed to the quote owner at the end of the run by the guarded definer `sales.order_hand_over` (callable only inside `sales.order.from_quote`), so the audit shows insert-then-update under that process with the converter as first owner; the trimmed result's `ownerId` is null when the field `sales.order.owner_id` is masked or hidden for the converter. The quote frame of the converter still shows «Crear pedido» afterwards (the quote cannot see the order it made); pressing it is refused as `quote_already_ordered` without naming the order.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 97. **A null owner is visible only to «all orders» holders, unlike quotes** (Task 39, R39-2, R39-6). After the backfill an order whose owner cannot be determined (neither the quote nor the audit row names one) is seen only by holders; the backfill's source column lists them. **Decide**.
     Recommended: accept as ordered; review the `backfill_none` rows once after the migration.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 98. **Approvers of pending orders keep seeing them** (Task 39, review I-1). A role holding `sales.order.approve` sees every order that requires approval, whoever owns it, as for quotes (item 28 precedent, migration 0083); without it approval would answer `not_found`. **Decide**.
     Recommended: accept (built in migration 0140, mirrors the quote rule). The flag `requires_approval` is never cleared, so approvers keep read access to a decided order too (same compromise as quotes, 0083).
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 99. **Aggregates and raw audit stay outside the owner rule** (Task 39, review M-10, M-11). The credit exposure an approval message quotes sums every salesperson's firm orders for the customer, and `kernel.audit_log` / `kernel.outbox` are readable at SQL level by company members; no screen or assistant output reads them raw. Also `kernel.record_snapshots` and `kernel.mail_log` (narrowed only by the record-access rule), and an inactive member can be made owner (`sales.is_company_member` copies crm's helper). At SQL level an `authenticated` session can read a recommendation id from the raw table and call `kernel.recommendation_safe(id)` for its number param (no API exposes the `kernel` schema). Roles created after migration 0139 that work deliveries or invoices (warehouse, billing) need `sales.order.reassign` granted by the admin, or shipping and «Emitir» answer `not_found` (extends item 95). **Decide**.
     Recommended: accept; document the grant in the user guide.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
 100. **`runProcess` does not refuse the system user's claims for a user origin** (found by Task 39's fix round, pre-existing, kernel, outside Task 39). A server-side call with origin `ui` and claims `sub = 00000000-0000-0000-0000-000000000000` plus the company's system admin role id runs as company admin (`kernel.data.query` succeeded, `is_company_admin` true); the order owner rule, like every permission check, is bypassed. Today it is unreachable by a user: web claims come from a verified Supabase JWT, and PostgREST runs as `authenticator`, where the forged roles are dropped (pinned by a test). **Decide**.
     Recommended: refuse the system sub in `runProcess` / `withClaims` unless the origin is `event` or `scheduler`, with a kernel test; a defence in depth, not a live hole.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** approved, as part of the small-fixes task (plan Task 52): refuse the system sub in `runProcess` / `withClaims` unless the origin is `event` or `scheduler`, with a kernel test.
 101. **A recommendation about a record the viewer cannot read is dropped, not shown with the subject hidden** (Task 39, migration 0141, amends Task 38's R38-2). When the subject's entity has a read view, `kernel.v_recommendations` filters by `kernel.document_visible`; a deleted subject's recommendation disappears for everyone. **Decide**.
     Recommended: accept; showing the notice with the subject hidden named the order's number to people who may not read it.
+    **Decided by the owner, 2026-11-08 (in chat, as recommended):** accepted.
+
+## Items met while executing Task 52 (2B.2 review-fixes batch), 2026-11-08 · to decide
+
+102. **Two unbought modules on one event** (Task 52.1, ruling R52-2). The event parks under the first unbought module only. If only the second is bought, it never gets the event, and Descartar on the first loses its delivery too; «Descartar loses nothing» holds for one unbought module.
+    Recommended: accept (rare); or park one delivery per unbought module in a later task.
+103. **A consumer refused with `not_entitled` parks as a bogus module** (found by the 52.1 review, pre-existing). A consumer whose process raises `not_entitled` dead-letters as «not_entitled: <message>», which the parked-events filters (migration 0120, `admin/parked-events.ts`) read as a module id.
+    Recommended: dead-letter such a refusal with its own prefix, or exclude it from the module filters; small follow-up.
+104. **Other system-claims contexts outside the dispatcher** (found by the 52.3 review, pre-existing). `packages/agent/src/runtime/confirm.ts` (~l. 194) builds a system-claims context for the posting providers' `effectsFor` during an assistant request (reads only today); the origin guard of item 100 cannot catch it because no `runProcess` is involved. `invoicing/src/workflows/einvoice.workflow.ts` (~l. 109) is legitimate.
+    Recommended: accept (read-only); route `effectsFor` through a read-only helper if it ever writes.
+105. **`quote_id` as a `ref` to `crm.quote` needs a kernel change** (Task 52.6, item 67; BLOCKED, left unstarted). The label itself works through `crm.v_quotes` and the viewer's consult gate, but `maestroRefs` (`packages/kernel/src/typed/runner.ts`) and import validation (`import/validate.ts`) call `registry.entity("crm.quote")`, which throws `unknown entity` when crm is not loaded (a deliberate fail-closed), so every `sales.order.create` fails in a company or test without crm (30 of 76 sales integration tests). Rule 3 and item 42 keep sales from depending on crm.
+    Recommended: let those two lookups skip a ref whose module is not loaded and add a load-time check that the target exists when its module is loaded; then 52.6 is the one `entities.ts` line, two tests and the `pedidos.md` guide (record link is `/r/crm.quote/<id>`).
+106. **Demo seed still emits `invoicing.invoice.voided`** (Task 52.5). `scripts/demo/accounting.ts` ~l. 416 sends it for FE-1015; with the default rule retired it posts nothing.
+    Recommended: annul FE-1015 through a credit note of annulment in the seed.
+107. **The posting age check and the audit volume** (Task 52.7, item 74). As first built, the 30 s tick ran `accounting.posting.age_check` for every asynchronous company on every tick: one process audit row per run (about 2,880 a day per company) plus a row-audit entry per merge. **Fixed in Task 52.7 fix round 1:** the scheduler checks a company at most once per 60 s (in-memory, per server process) and runs the process only when a cheap read through the published views (`accounting.v_posting_mode`, which gains `posting_alert_minutes` in migration 0144, `accounting.v_pending_postings`, `kernel.v_recommendations`) finds a document to raise or a row to close; an open row is re-raised only when its document's state changes (queued, dead, failed). A quiet company writes nothing; a stuck, unchanged document writes nothing after its first raise. **Remains:** on Vercel Hobby the cron is daily, so on the hosted demo the alert can appear (or close) up to a day late; the throttle is in-memory, so two server instances may each check a company once a minute. **Decide**.
+    Recommended: accept; move the tick to every minute when the account is on Pro (apps/web/vercel.json), and the throttle to phase 3's scheduler table.
+108. **R52-5 built through the audience process, not a role id** (Task 52.7). Migration 0123 requires `audience_process_id` on every process recommendation, and one open row per document and reason cannot be raised once per role (R38-2), so the alert is addressed to the holders of `accounting.posting.retry` (`audienceProcess`), evaluated per read; the company admin also sees it. **Decide**.
+    Recommended: accept (same reader set as «the roles that hold the retry», and a role that gains or loses the retry sees or stops seeing the alert at once).
+109. **`accounting` unit test `module.test.ts` fails: `accounting.posting_mode.set` is covered by no menu item** (found by Task 52.7, from Task 33, not Task 52). `features.ts` and the test are unchanged by Task 52; the process exists at HEAD.
+    Recommended: add `"accounting.posting_mode."` to the posting menu item's `runs` in `packages/modules/accounting/src/features.ts` (one line), before CI runs.

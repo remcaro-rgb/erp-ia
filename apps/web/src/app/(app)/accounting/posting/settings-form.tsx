@@ -20,6 +20,7 @@ export function SettingsForm({ settings, canEdit }: { settings: SettingsData; ca
     manualJournalId: settings.manualJournalId ?? settings.journals[0]?.id ?? "",
     niifGroup: settings.niifGroup,
     ruleStaleDays: settings.ruleStaleDays,
+    postingAlertMinutes: settings.postingAlertMinutes,
   });
   const set = <K extends keyof SettingsEdit>(key: K, value: SettingsEdit[K]) => setForm((f) => ({ ...f, [key]: value }));
   const check = (key: "useOpenAuxiliaries" | "useItems" | "useBusinessUnits" | "requireApprovalOnManual" | "requireAttachmentOnManual", label: string) => (
@@ -34,7 +35,7 @@ export function SettingsForm({ settings, canEdit }: { settings: SettingsData; ca
         <h2>{t("tab.settings")}</h2>
         <span className="erp-grow" />
         {canEdit && (
-          <button type="button" className="erp-btn erp-btn--primary" disabled={busy || form.manualJournalId === "" || !(form.ruleStaleDays >= 1)} onClick={() => void execute((token) => saveSettingsAction(form, token))}>
+          <button type="button" className="erp-btn erp-btn--primary" disabled={busy || form.manualJournalId === "" || !(form.ruleStaleDays >= 1) || !(form.postingAlertMinutes >= 5 && form.postingAlertMinutes <= 10080)} onClick={() => void execute((token) => saveSettingsAction(form, token))}>
             {t("save")}
           </button>
         )}
@@ -80,6 +81,11 @@ export function SettingsForm({ settings, canEdit }: { settings: SettingsData; ca
           <label htmlFor="set-stale">{t("rule_stale_days")}</label>
           <input id="set-stale" type="number" min={1} max={3650} step={1} disabled={!canEdit} value={form.ruleStaleDays} onChange={(e) => set("ruleStaleDays", Math.trunc(Number(e.target.value)))} />
           <div className="erp-small erp-muted">{t("rule_stale_hint")}</div>
+        </div>
+        <div className="erp-field">
+          <label htmlFor="set-alert">{t("posting_alert_minutes")}</label>
+          <input id="set-alert" type="number" min={5} max={10080} step={1} disabled={!canEdit} value={form.postingAlertMinutes} onChange={(e) => set("postingAlertMinutes", Math.trunc(Number(e.target.value)))} />
+          <div className="erp-small erp-muted">{t("posting_alert_hint")}</div>
         </div>
       </div>
       <dl className="erp-kv" aria-label={t("ledger_facts")}>

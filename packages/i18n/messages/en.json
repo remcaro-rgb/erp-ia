@@ -4970,6 +4970,8 @@
         "rounding_hint": "Largest difference, in pesos, absorbed when balancing an automatic entry.",
         "rule_stale_days": "Days before a rule is flagged as having no matches",
         "rule_stale_hint": "A rule with a condition that matched no event in this many days shows the warning «No matches in N days».",
+        "posting_alert_minutes": "Minutes before alerting about a pending entry",
+        "posting_alert_hint": "In asynchronous mode, when a document waits for its entry longer than this, whoever may retry postings gets an alert in Home › Recommendations for you. Between 5 and 10,080 (one week).",
         "ledger_facts": "Start of the ledger",
         "ledger_starts_on": "The ledger starts on",
         "skipped_events": "Events before the start of the ledger",
@@ -5157,6 +5159,12 @@
       "parked": "Pending posting",
       "reason_accounting_disabled": "Accounting switched off",
       "reason_not_entitled": "Accounting module not purchased"
+    },
+    "recommendations": {
+      "posting_age": {
+        "title": "Document without its journal entry for more than {minutes} minutes",
+        "body": "When this alert was raised, the document had been waiting {waited} minutes for its journal entry (the alert fires at {minutes}). Review it in Accounting › Posting rules › Pending to post: fix the cause and retry. The alert closes by itself once the entry is posted."
+      }
     }
   },
   "inventory": {
@@ -6117,7 +6125,7 @@
       "errors_pending": "Resent to the DIAN: these are the errors of the last rejection; the new verdict has not arrived yet.",
       "unsaved_issue": "Save your changes before issuing",
       "reprice": "Recalculate prices",
-      "reprice_hint": "Sets each product's list price of today on the draft and works out its taxes again",
+      "reprice_hint": "Sets each product's list price of today on the draft and works out its taxes again; lines billed from an order keep the agreed price",
       "price_warning": "Prices are from {date}; use Recalculate prices to update them",
       "duplicate": "Duplicate",
       "duplicate_hint": "Opens the invoice with «Create note» filled with this note's concept, reason and lines",

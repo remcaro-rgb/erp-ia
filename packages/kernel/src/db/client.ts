@@ -1,4 +1,5 @@
 import postgres, { type Sql, type TransactionSql } from "postgres";
+import { ProcessError } from "../process/errors";
 
 /** The transaction handle processes and kernel helpers receive from `withClaims` / `sql.begin`. */
 export type Tx = TransactionSql;
@@ -25,11 +26,39 @@ export function createDb(url: string): Sql {
   });
 }
 
+/** Actor of every process an event consumer or a scheduled check runs; audit rows of `event` origin carry it (re-exported by events/consumers). */
+export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Whether `sub` names the kernel's system user in any spelling Postgres reads as the nil uuid (`uuid_in` accepts braces, no hyphens, a
+ * hyphen after any group of four digits, either case): the database sees the claim through `(sub)::uuid`, so the guards compare the
+ * same way (plan 2B Task 52.3, fix round 1, review I-1).
+ */
+export function isSystemSub(sub: string): boolean {
+  return sub.replace(/[{}-]/g, "").toLowerCase() === "0".repeat(32);
+}
+
+/** `details.reason` of the refusal of the system user's claims where they are not allowed (plan 2B Task 52.3, owner item 100). */
+export const SYSTEM_CLAIMS_REFUSED = "system_claims_refused";
+
+export interface WithClaimsOptions {
+  /**
+   * The claims may be the kernel's system user (`SYSTEM_USER_ID`). Off by default: only the callers that act as the system user on
+   * purpose pass it (runProcess for origin `event` or `scheduler`, tests through their helper). Ruling R52-4.
+   */
+  allowSystem?: boolean;
+}
+
 /**
  * Runs `fn` in a transaction as the `authenticated` role with `claims` as the request JWT, so
  * `auth.uid()` and the `kernel.current_*` helpers see them and RLS applies exactly as for a user.
+ * Claims naming the system user are refused (`forbidden`, `details.reason` SYSTEM_CLAIMS_REFUSED) unless `options.allowSystem`:
+ * a defence in depth, user claims come from a verified JWT (plan 2B Task 52.3).
  */
-export async function withClaims<T>(sql: Sql, claims: JwtClaims, fn: (tx: Tx) => Promise<T>): Promise<T> {
+export async function withClaims<T>(sql: Sql, claims: JwtClaims, fn: (tx: Tx) => Promise<T>, options: WithClaimsOptions = {}): Promise<T> {
+  if (isSystemSub(claims.sub) && options.allowSystem !== true) {
+    throw new ProcessError("forbidden", "the system user's claims are not allowed here", { details: { reason: SYSTEM_CLAIMS_REFUSED }, stage: "gate" });
+  }
   const result = await sql.begin(async (tx) => {
     // One statement sets the claims and the role (`set_config('role', ..., true)` is `set local role`), and it is sent without waiting
     // for its answer: the first query of `fn` goes right behind it in the same round trip. If it failed the transaction would be

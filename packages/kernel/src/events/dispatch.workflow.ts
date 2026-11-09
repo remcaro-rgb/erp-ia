@@ -23,12 +23,20 @@ const DETERMINISTIC: ReadonlySet<ProcessErrorCode> = new Set(["invalid_input", "
 /**
  * Delivers one outbox row to the consumers registered for its event (design §5.5): each consumer is a
  * durable step with retries; once all ran the row is marked dispatched. A consumer that already has
- * a row in `kernel.outbox_deliveries` is not run again. The entitlement resolver (`moduleGate`) decides per consumer module: a module the
- * company switched off is skipped silently and the row stays undispatched with `last_error = 'module_disabled'`, its claim released
- * (design §5.12); a module the tenant never bought dead-letters the row as `not_entitled:<module id>` without running the consumer, so it
- * stays visible on Admin › Módulos (owner 2026-11-06). A `FatalError`, or a consumer that keeps failing after its retries, sends the row to
- * `kernel.outbox_dead_letter`. A worker with no modules loaded fails the run instead, leaving the row
- * undispatched (its claim lapses and a worker that has the modules picks it up).
+ * a row in `kernel.outbox_deliveries` is not run again. The entitlement resolver (`moduleGate`) decides per consumer module, and every
+ * consumer of the event is tried before the row's fate is decided (Task 52.1, Ruling R52-1):
+ * - a module the company switched off is skipped silently; after the loop the row stays undispatched with
+ *   `last_error = 'module_disabled'`, its claim released (design §5.12). This wins over a never-bought module: the park is deferred,
+ *   the row is re-dispatched once the module is switched on and meets the never-bought one again;
+ * - otherwise a module the tenant never bought (an explicit consumer, not `"*"` nor a `kernel.*` event, which are skipped silently)
+ *   dead-letters the row as `not_entitled:<module id>` without running that consumer, after the other consumers ran, so it stays
+ *   visible on Admin › Módulos (owner 2026-11-06) and its `delivered_modules` hold every consumer that ran: a replay once the module is
+ *   bought runs only that one, and Descartar loses nothing for the others (owner 2026-11-08, items 47 and 52). With two never-bought
+ *   modules the row parks under the first; once that one is bought and replayed, it parks under the second (Ruling R52-2);
+ * - otherwise the row is marked dispatched.
+ * A `FatalError`, or a consumer that keeps failing after its retries, sends the row to `kernel.outbox_dead_letter` with its message at
+ * once. A worker with no modules loaded fails the run instead, leaving the row undispatched (its claim lapses and a worker that has the
+ * modules picks it up).
  */
 export async function dispatchOutboxRow(outboxId: string): Promise<void> {
   "use workflow";
@@ -38,20 +46,19 @@ export async function dispatchOutboxRow(outboxId: string): Promise<void> {
   const moduleIds = await consumersFor(outboxId, row.event);
 
   let paused = false;
+  let unentitled: string | null = null;
   for (const moduleId of moduleIds) {
     try {
       const result = await runConsumer(outboxId, moduleId);
       if (result === "module_disabled") paused = true;
-      else if (result === "not_purchased") {
-        await deadLetter(outboxId, `not_entitled:${moduleId}`);
-        return;
-      }
+      else if (result === "not_purchased") unentitled ??= moduleId;
     } catch (error) {
       await deadLetter(outboxId, error instanceof Error ? error.message : String(error));
       return;
     }
   }
   if (paused) await pauseRow(outboxId);
+  else if (unentitled !== null) await deadLetter(outboxId, `not_entitled:${unentitled}`);
   else await markDispatched(outboxId);
 }
 

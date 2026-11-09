@@ -107,4 +107,27 @@ describe("events parked for a module that was not bought", () => {
     expect(await sql`select 1 from kernel.outbox where id = ${own!}`).toHaveLength(1);
     expect(await sql`select 1 from kernel.outbox_dead_letter where id = ${other!}`).toHaveLength(1);
   });
+
+  it("a row parked after the other consumers ran (Task 52.1): Descartar keeps delivered_modules; a replay restores every one of them", async () => {
+    // As the dispatcher parks it now: consumers a and c ran, the unbought module (here `unb`) is the one in last_error.
+    const unb = `pk_unb_${run}`;
+    const parkWith = async () => {
+      const [row] = await sql<{ id: string }[]>`
+        insert into kernel.outbox_dead_letter (company_id, event, payload, chain_id, last_error, delivered_modules)
+        values (${companyId}, 'test.parked.trio', '{}', ${randomUUID()}, ${`not_entitled:${unb}`}, ${[mods.a, mods.c]}) returning id`;
+      return row!.id;
+    };
+    const dismissedId = await parkWith();
+    expect((await sql`select kernel.parked_events_dismiss(${companyId}, ${unb}) as n`)[0]!.n).toBe(1);
+    const [dismissed] = await sql`select dismissed_at, delivered_modules from kernel.outbox_dead_letter where id = ${dismissedId}`;
+    expect(dismissed!.dismissed_at).not.toBeNull();
+    expect([...dismissed!.delivered_modules].sort()).toEqual([mods.a, mods.c].sort());
+
+    const replayedId = await parkWith();
+    expect((await sql`select kernel.parked_events_replay(${companyId}, ${unb}) as n`)[0]!.n).toBe(1);
+    const restored = await sql`select module_id from kernel.outbox_deliveries where outbox_id = ${replayedId} order by module_id`;
+    expect(restored.map((r) => r.module_id)).toEqual([mods.a, mods.c].sort());
+    // The dismissed row is not replayed.
+    expect(await sql`select 1 from kernel.outbox where id = ${dismissedId}`).toHaveLength(0);
+  });
 });

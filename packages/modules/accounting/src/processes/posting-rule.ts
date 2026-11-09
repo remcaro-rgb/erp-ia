@@ -235,6 +235,7 @@ export async function syncPostingRules(ctx: ProcessContext): Promise<PostingRule
     }
   }
   out.deactivated += await retireSupersededRules(ctx);
+  out.deactivated += await retireRetiredRules(ctx);
   return out;
 }
 
@@ -246,6 +247,31 @@ export async function syncPostingRules(ctx: ProcessContext): Promise<PostingRule
 const SUPERSEDED_RULES: readonly { event: string; name: string; by: readonly string[] }[] = [
   { event: "invoicing.note.issued", name: "Nota crédito o débito de venta", by: ["Nota crédito de anulación de venta", "Nota crédito de venta", "Nota débito de venta"] },
 ];
+
+/**
+ * Default rules no module ships any more (owner item 48, Task 52.5, migration 0142): `invoice-voided`, whose event is never emitted since an
+ * invoice is annulled by its credit note of annulment (OD-7).
+ */
+const RETIRED_RULES: readonly { event: string; name: string }[] = [{ event: "invoicing.invoice.voided", name: "Anulación de factura de venta" }];
+
+/**
+ * Retires the copies of `RETIRED_RULES` nobody touched, as migration 0142 does (so the order of the sync and the migration never matters):
+ * inactive and marked modified, as an admin's disable, never deleted (entries may reference them); one the admin modified stays as it is.
+ * Answers how many active rules it deactivated.
+ */
+async function retireRetiredRules(ctx: ProcessContext): Promise<number> {
+  let deactivated = 0;
+  for (const old of RETIRED_RULES) {
+    const off = await ctx.tx<{ was_active: boolean }[]>`
+      update accounting.posting_rules r set is_active = false, is_modified = true
+      from (select id, is_active as was_active from accounting.posting_rules
+            where company_id = ${ctx.companyId} and event = ${old.event} and name = ${old.name} and is_default and not is_modified for update) o
+      where r.id = o.id
+      returning o.was_active`;
+    deactivated += off.filter((r) => r.was_active).length;
+  }
+  return deactivated;
+}
 
 /**
  * Keeps exactly one effective set where a company has both an old default rule and every rule that replaces it (the same as migration

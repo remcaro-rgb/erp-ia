@@ -3,7 +3,7 @@ import type { JSONValue, Sql } from "postgres";
 import type { z } from "zod";
 import "../zod-locale";
 import { countDryRunDenial, setAuditContext, writeAudit, type AuditAction } from "../audit/audit";
-import { withClaims, type JwtClaims, type Tx } from "../db/client";
+import { isSystemSub, SYSTEM_CLAIMS_REFUSED, withClaims, type JwtClaims, type Tx, type WithClaimsOptions } from "../db/client";
 import { entitled as resolveEntitled, type EntitledFn } from "../entitlements/resolver";
 import { enqueueEvent } from "../events/outbox";
 import { makeRecommendations } from "../home/recommend";
@@ -146,10 +146,11 @@ export async function runProcess<O extends z.ZodTypeAny = UntypedOutput>(
       const denial = { ...auditDefaults(def, caller, chainId), action: "denied" as const, input: { code: error.code, process_id: def.id } };
       // A deactivated membership's company is no longer in the caller's company_ids (0027), so their own session cannot
       // write that company's audit: the refusal is recorded on the service connection, still on their name.
-      const asService = isMembershipInactive(error);
+      // So is the refusal of the system user's claims from a user origin (52.3): those claims never open a transaction of their own.
+      const asService = isMembershipInactive(error) || isSystemClaimsRefusal(error);
       const record = (tx: Tx) => (options.dryRun === true && options.preflight === "assistant" ? countDryRunDenial(tx, caller.claims.active_company_id, def.id, error.code) : writeAudit(tx, denial));
       if (asService) await deps.sql.begin(record);
-      else await withClaims(deps.sql, caller.claims, record);
+      else await withClaims(deps.sql, caller.claims, record, systemAllowed(caller));
     }
     throw error;
   }
@@ -166,6 +167,14 @@ async function execute<O extends z.ZodTypeAny>(
   const { claims } = caller;
   const dryRun = options.dryRun === true;
   const companyId = claims.active_company_id;
+
+  // The kernel's system user (holding the company's system admin role) acts only for event consumers and scheduled checks: claims
+  // naming it from any other origin are refused before anything else (plan 2B Task 52.3, owner item 100, ruling R52-4). A defence
+  // in depth: web and assistant claims come from a verified JWT. Audited as a denial (counted in the assistant's preflight).
+  if (isSystemSub(claims.sub) && !SYSTEM_ORIGINS.has(caller.origin)) {
+    throw new ProcessError("forbidden", `the system user's claims may not run ${def.id} from origin ${caller.origin}`, { details: { reason: SYSTEM_CLAIMS_REFUSED }, stage: "gate" });
+  }
+  const asClaims = systemAllowed(caller);
 
   const entitled = deps.entitled ?? resolveEntitled;
   // The process key already resolves through its feature and module (and a module the company disabled).
@@ -197,7 +206,7 @@ async function execute<O extends z.ZodTypeAny>(
             and v.verified_at > now() - interval '5 minutes' and v.consumed_at is null
         ) as verified`;
     return row!;
-  });
+  }, asClaims);
   // A deactivated membership (design §22.16) runs nothing, whatever the claims say: not a self-service process, not an
   // admin's (whose admin bypass already ends with the membership, 0025), checked here before anything else.
   if (gate.inactive) throw new ProcessError("forbidden", `the caller's membership in company ${companyId} is inactive`, { details: { reason: MEMBERSHIP_INACTIVE }, stage: "gate" });
@@ -222,7 +231,7 @@ async function execute<O extends z.ZodTypeAny>(
 
   const key = options.idempotencyKey ?? def.idempotencyKey?.(parsed.data);
   if (key !== undefined) {
-    const stored = await storedResult(deps.sql, claims, def, key);
+    const stored = await storedResult(deps.sql, claims, def, key, asClaims);
     if (stored) return stored.result as z.infer<O>;
   }
 
@@ -290,13 +299,13 @@ async function execute<O extends z.ZodTypeAny>(
         if (inserted.length === 0) throw new ProcessError("idempotent_replay", `${def.id} already ran with key ${key}`, GATE);
       }
       return output as z.infer<O>;
-    });
+    }, asClaims);
     // Committed: the effects the handler deferred (outside the database), each in its own transaction as the caller.
     const asCaller = <T>(work: (tx: Tx) => Promise<T>): Promise<T> =>
       withClaims(deps.sql, claims, async (tx) => {
         await setAuditContext(tx, { origin: caller.origin, processId: def.id, chainId, actorUserId: claims.sub, conversationId: caller.conversationId });
         return work(tx);
-      });
+      }, asClaims);
     // The run is committed: a post-commit step that throws never turns it into an error for the caller. It is audited on the run's
     // chain in a transaction of its own (rule 16: `post_commit_failed`, the process, origin and actor), and the later steps still run.
     for (const fn of after) {
@@ -314,7 +323,7 @@ async function execute<O extends z.ZodTypeAny>(
   } catch (error) {
     if (error instanceof DryRunRollback) return error.output as z.infer<O>;
     if (key !== undefined && error instanceof ProcessError && error.code === "idempotent_replay") {
-      const stored = await storedResult(deps.sql, claims, def, key);
+      const stored = await storedResult(deps.sql, claims, def, key, asClaims);
       if (stored) return stored.result as z.infer<O>;
     }
     throw error;
@@ -444,14 +453,28 @@ function resolve(registry: Registry, processId: string): ProcessDef {
   }
 }
 
-async function storedResult(sql: Sql, claims: JwtClaims, def: ProcessDef, key: string) {
+async function storedResult(sql: Sql, claims: JwtClaims, def: ProcessDef, key: string, asClaims: WithClaimsOptions) {
   return withClaims(sql, claims, async (tx) => {
     const [row] = await tx<{ result: unknown }[]>`
       select result from kernel.process_idempotency
       where company_id = ${claims.active_company_id} and process_id = ${def.id} and key = ${key}`;
     if (row && def.replay) row.result = await def.replay(tx, row.result as never);
     return row;
-  });
+  }, asClaims);
+}
+
+/** The origins whose runs may act as the kernel's system user (event consumers, scheduled checks; plan 2B Task 52.3). */
+const SYSTEM_ORIGINS: ReadonlySet<Caller["origin"]> = new Set(["event", "scheduler"]);
+
+/** Whether `error` is the gate's refusal of the system user's claims from an origin other than `event` or `scheduler` (52.3). */
+function isSystemClaimsRefusal(error: ProcessError): boolean {
+  const details = error.details as { reason?: unknown } | undefined;
+  return error.code === "forbidden" && error.stage === "gate" && typeof details === "object" && details !== null && details.reason === SYSTEM_CLAIMS_REFUSED;
+}
+
+/** The withClaims options of a run's own transactions: the system user's claims are allowed for origin `event` or `scheduler` only. */
+function systemAllowed(caller: Caller): WithClaimsOptions {
+  return { allowSystem: SYSTEM_ORIGINS.has(caller.origin) };
 }
 
 /** Marks the caller's verification consumed; a concurrent run that consumed it first wins. */

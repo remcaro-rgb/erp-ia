@@ -13,7 +13,7 @@ export const settingsUpdate = defineProcess({
   recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
-  description: "Cambia la configuración contable: dimensiones en uso, aprobación de comprobantes manuales, tolerancia de redondeo y fuente manual",
+  description: "Cambia la configuración contable: dimensiones en uso, aprobación de comprobantes manuales, tolerancia de redondeo, fuente manual y minutos para avisar de un asiento pendiente",
   input: z
     .object({
       useOpenAuxiliaries: z.boolean(),
@@ -25,6 +25,7 @@ export const settingsUpdate = defineProcess({
       manualJournalId: id,
       niifGroup: z.enum(["1", "2", "3"]),
       ruleStaleDays: z.number().int().min(1).max(3650),
+      postingAlertMinutes: z.number().int().min(5).max(10080),
     })
     .partial()
     .strict(),
@@ -48,6 +49,7 @@ export const settingsUpdate = defineProcess({
       manual_journal_id: input.manualJournalId,
       niif_group: input.niifGroup,
       rule_stale_days: input.ruleStaleDays,
+      posting_alert_minutes: input.postingAlertMinutes,
     });
     if (Object.keys(set).length > 0) await ctx.tx`update accounting.settings set ${ctx.tx(set)} where id = ${current.id}`;
     return { id: current.id };
@@ -102,7 +104,7 @@ export const settingsConsult = defineProcess({
     if (!settings) {
       return {
         configured: false, ledgerStartsOn: null, roundingTolerance: 1, manualJournalId: null, requireAttachmentOnManual: false, niifGroup: "2",
-        requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false, ruleStaleDays: 30, skippedEvents: 0,
+        requireApprovalOnManual: false, useOpenAuxiliaries: false, useItems: false, useBusinessUnits: false, ruleStaleDays: 30, postingAlertMinutes: 60, skippedEvents: 0,
         postingMode: "inline_strict", pendingDocuments: 0, pendingFailures: 0,
       };
     }

@@ -3,6 +3,7 @@ import { buildConsumerContext, consumers, enqueueEvent, runReport } from "@erp/k
 import { withClaims } from "@erp/kernel/testing";
 // The payments harness (core, accounting on the demo chart, invoicing and payments, plan 2B Task 21): accounting cannot list payments or
 // invoicing as dependencies (they depend on it), so the test reads the harness from the payments package's own tests.
+import { installVoidedTestRule } from "./helpers";
 import { paymentsHarness, registry, type Harness } from "../../../payments/src/__tests__/helpers";
 // The demo ledger of Café del Norte (scripts/demo/accounting.ts, what `pnpm db:seed` posts): its invoices, receipts, notes and voids.
 import { CREDIT_NOTES, INVOICES, OPENING_LINES } from "../../../../../scripts/demo/ledger-data";
@@ -67,6 +68,8 @@ const retefuente = (base: number) => [{ kind: "income" as const, code: "RTEFTE_S
 
 beforeAll(async () => {
   h = await paymentsHarness();
+  // The default invoice-voided rule was retired (Task 52.5): the invoice void below runs on a test-owned copy of its template so the branch stays exercised.
+  await installVoidedTestRule(h);
   // The notes' numbering (credit notes, an Anular's annulment note, debit notes): plain sequence rows.
   await h.sql`insert into core.document_sequences(company_id, document_type, prefix, next_number) values (${h.companyId}, 'credit_note', 'NC', 1), (${h.companyId}, 'debit_note', 'ND', 1)`;
 }, 300_000);
@@ -324,7 +327,8 @@ describe("with or without payments", () => {
         taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -note.subtotal }],
       });
     }
-    // The voids: the receipt of FE-1013 (its reversal, a debit with no allocation behind it) and the invoice FE-1015.
+    // The voids: the receipt of FE-1013 (its reversal, a debit with no allocation behind it) and the invoice FE-1015 (reversed by the test-owned
+    // invoice-voided rule of installVoidedTestRule; the default rule is retired, an invoice is annulled by its credit note in production).
     const fe1013 = INVOICES.findIndex((s) => s.number === "FE-1013") + 1;
     const r1013 = INVOICES[fe1013 - 1]!;
     await send("payments.payment.voided", { date: addDays(r1013.date, r1013.receipt!.days + 3), number: `RC-${run}-${fe1013}`, paymentId: ids("b", run * 100 + fe1013) });

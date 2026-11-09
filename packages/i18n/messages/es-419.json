@@ -4970,6 +4970,8 @@
         "rounding_hint": "Diferencia máxima, en pesos, que se absorbe al cuadrar un comprobante automático.",
         "rule_stale_days": "Días para marcar una regla sin coincidencias",
         "rule_stale_hint": "Una regla con condición que no coincidió con ningún evento en este número de días muestra la advertencia «Sin coincidencias en N días».",
+        "posting_alert_minutes": "Minutos para avisar de un asiento pendiente",
+        "posting_alert_hint": "En el modo asíncrono, si un documento espera su asiento más de estos minutos, quienes pueden reintentar contabilizaciones reciben un aviso en Inicio › Recomendaciones para ti. Entre 5 y 10.080 (una semana).",
         "ledger_facts": "Inicio del libro",
         "ledger_starts_on": "El libro empieza el",
         "skipped_events": "Eventos anteriores al inicio del libro",
@@ -5157,6 +5159,12 @@
       "parked": "Pendiente de contabilizar",
       "reason_accounting_disabled": "Contabilidad desactivada",
       "reason_not_entitled": "Módulo contable no contratado"
+    },
+    "recommendations": {
+      "posting_age": {
+        "title": "Documento sin asiento contable hace más de {minutes} minutos",
+        "body": "Al dar el aviso, este documento llevaba {waited} minutos esperando su asiento contable (el aviso salta a los {minutes}). Revísalo en Contabilidad › Reglas contables › Pendientes de contabilizar: corrige la causa y reintenta. El aviso se cierra solo cuando el asiento queda registrado."
+      }
     }
   },
   "inventory": {
@@ -6117,7 +6125,7 @@
       "errors_pending": "Se reenvió a la DIAN: estos son los errores del último rechazo; el nuevo resultado aún no llega.",
       "unsaved_issue": "Guarda los cambios antes de emitir",
       "reprice": "Recalcular precios",
-      "reprice_hint": "Pone los precios de hoy de la lista de cada producto y vuelve a calcular los impuestos del borrador",
+      "reprice_hint": "Pone los precios de hoy de la lista de cada producto y vuelve a calcular los impuestos del borrador; las líneas facturadas desde un pedido conservan el precio acordado",
       "price_warning": "Los precios son del {date}; usa Recalcular precios para actualizarlos",
       "duplicate": "Duplicar",
       "duplicate_hint": "Abre la factura con «Crear nota» lleno con el concepto, el motivo y las líneas de esta nota",

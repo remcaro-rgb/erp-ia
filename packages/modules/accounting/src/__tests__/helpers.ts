@@ -1,3 +1,4 @@
+import voidedRule from "../rules/fixtures/invoice-voided-rule.json" with { type: "json" };
 import { randomUUID } from "node:crypto";
 import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, runProcess, type Caller, type ModuleDef, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
@@ -150,4 +151,16 @@ export async function markInvoiceReady(h: AccountingHarness, partyId: string, pe
       values (${h.companyId}, 'core.party', ${partyId}, ${tag}, ${`${tag}.pdf`}, 'application/pdf', 1024,
         ${`${h.seed.tenantId}/${h.companyId}/core.party/${partyId}/${randomUUID()}-${tag}.pdf`})`;
   }
+}
+
+/**
+ * Installs, for the harness company, the template of the retired `invoice-voided` default (Task 52.5) as a rule of the test's own (not a
+ * default, so the sync never retires it): the posting engine's `reverseOf` machinery still needs a rule to exercise.
+ */
+export async function installVoidedTestRule(h: Pick<AccountingHarness, "sql" | "companyId">): Promise<void> {
+  const rule = voidedRule;
+  const [journal] = await h.sql<{ id: string }[]>`select id from accounting.journals where company_id = ${h.companyId} and code = ${rule.journalCode}`;
+  await h.sql`
+    insert into accounting.posting_rules (company_id, event, name, module, journal_id, template, priority, is_default)
+    values (${h.companyId}, ${rule.event}, ${`${rule.name} (prueba)`}, 'accounting', ${journal!.id}, ${h.sql.json(rule.template as never)}, 100, false)`;
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildConsumerContext, consumers, enqueueEvent, matrixProcesses } from "@erp/kernel";
-import { accountingHarness, newId, type AccountingHarness, markInvoiceReady } from "./helpers";
+import { accountingHarness, installVoidedTestRule, newId, type AccountingHarness, markInvoiceReady } from "./helpers";
 import invoiceFixture from "../rules/fixtures/invoice-issued.json" with { type: "json" };
 import voidedFixture from "../rules/fixtures/invoice-voided.json" with { type: "json" };
 import paymentFixture from "../rules/fixtures/payment-received.json" with { type: "json" };
@@ -16,6 +16,7 @@ let partyId: string;
 beforeAll(async () => {
   h = await accountingHarness({ companies: 2 });
   await h.runStepUp(h.admin, "accounting.chart.seed", {});
+  await installVoidedTestRule(h);
   year = (await h.sql<{ year: number }[]>`select year from accounting.fiscal_years where company_id = ${h.companyId}`)[0]!.year;
   await h.sql`update accounting.settings set ledger_starts_on = ${`${year}-01-01`} where company_id = ${h.companyId}`;
   ccId = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
@@ -59,10 +60,11 @@ const ruleOf = async (event: string) => (await h.sql<{ id: string; journal_id: s
 
 describe("posting", () => {
   it("chart.seed installs the default rules of the module for every event of design §5.4", async () => {
-    const rules = await h.sql<{ event: string; module: string; is_default: boolean }[]>`select event, module, is_default from accounting.posting_rules where company_id = ${h.companyId} order by event`;
+    const rules = await h.sql<{ event: string; module: string; is_default: boolean }[]>`select event, module, is_default from accounting.posting_rules where company_id = ${h.companyId} and is_default order by event`;
     expect(rules.map((r) => r.event)).toEqual([
       // cogs-posted and inventory-adjustment are the manifests of costing and inventory (Task 50.14), not accounting's own.
-      "invoicing.invoice.issued", "invoicing.invoice.voided",
+      "invoicing.invoice.issued",
+      // invoice-voided was retired (Task 52.5, migration 0142); the voids below run on a test-owned copy (installVoidedTestRule).
       // The note's rule is three, one per kind of note (plan 2B Task 18 fix round 1).
       "invoicing.note.issued", "invoicing.note.issued", "invoicing.note.issued", "payments.advance.applied", "payments.advance.unapplied", "payments.payment.voided", "payments.received",
     ]);
