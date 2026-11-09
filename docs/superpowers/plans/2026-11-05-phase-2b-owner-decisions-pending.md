@@ -353,3 +353,4 @@ Numbers continue this file's own list. Each has the build's current behaviour an
     Recommended: accept (same reader set as «the roles that hold the retry», and a role that gains or loses the retry sees or stops seeing the alert at once).
 109. **`accounting` unit test `module.test.ts` fails: `accounting.posting_mode.set` is covered by no menu item** (found by Task 52.7, from Task 33, not Task 52). `features.ts` and the test are unchanged by Task 52; the process exists at HEAD.
     Recommended: add `"accounting.posting_mode."` to the posting menu item's `runs` in `packages/modules/accounting/src/features.ts` (one line), before CI runs.
+    **Resolved 2026-11-08:** `"accounting.posting_mode."` added to the posting menu item's `runs`; `module.test.ts` passes.

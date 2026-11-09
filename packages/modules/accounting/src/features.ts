@@ -38,7 +38,7 @@ export const NAVIGATION: NavItem[] = menuSections("accounting", {
       icon: "workflow",
       feature: "accounting.posting",
       entity: "accounting.posting_rule",
-      runs: ["accounting.posting.", "accounting.posting_failure.", "accounting.account_role_mapping.", "accounting.fiscal_concept_mapping.", "accounting.settings.update", "accounting.chart.seed"],
+      runs: ["accounting.posting.", "accounting.posting_failure.", "accounting.posting_mode.", "accounting.account_role_mapping.", "accounting.fiscal_concept_mapping.", "accounting.settings.update", "accounting.chart.seed"],
     },
   ],
 });
