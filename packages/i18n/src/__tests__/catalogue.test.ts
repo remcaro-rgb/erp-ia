@@ -44,7 +44,7 @@ describe("locales", () => {
   });
 
   it("has the namespaces of the design in every catalogue", () => {
-    const namespaces = ["accounting", "agent", "auth", "common", "costing", "crm", "entity", "errors", "feature", "field", "grid", "home", "inventory", "invoicing", "nav", "payments", "process", "report", "sales"];
+    const namespaces = ["accounting", "agent", "auth", "common", "core", "costing", "crm", "entity", "errors", "feature", "field", "grid", "home", "inventory", "invoicing", "nav", "payments", "process", "report", "sales"];
     expect(Object.keys(es).sort()).toEqual(namespaces);
     expect(Object.keys(en).sort()).toEqual(namespaces);
   });

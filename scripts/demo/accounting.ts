@@ -11,7 +11,7 @@
  *     the revenue accounts of the categories bebidas and comida.
  *  3. The analytic masters: 3 centros de costo (Tiendas is a group of Chapinero and Usaquén), 2 auxiliares abiertos, 2 ítems,
  *     4 unidades de negocio; `settings.update` turns the three optional dimensions on.
- *  4. Grants: the accounting processes of the contador and the cajero, `entry.approve` raised to step-up, and the security by
+ *  4. Grants: the accounting processes of the contador (and the exchange-rate set and import, Task 34.1) and the cajero, `entry.approve` raised to step-up, and the security by
  *     account (5105, class 3, Davivienda).
  *  5. The 2026 opening balances (`opening.create` + `opening.post`), 40 posted entries January to October from the posting
  *     fixtures of design §5.4 (synthetic outbox rows delivered to the accounting consumer, as the dispatch workflow does),
@@ -258,7 +258,9 @@ async function grantAccounting(run: Run, laura: DemoSession): Promise<void> {
   const ids = accounting.processes.map((p) => ({ id: p.id, kind: p.kind }));
   const consults = ids.filter((p) => p.kind === "consult").map((p) => p.id);
   const entries = ids.filter((p) => /^accounting\.(entry|entry_template|entry_line)\./.test(p.id)).map((p) => p.id);
-  const contador = [...new Set([...consults, ...entries, "accounting.opening.create"])];
+  // Tasas de cambio (plan 2B.2 Task 34.1): the accountant registers manual rates and brings the TRM; replacing a TRM stays the admin's.
+  const rates = ["core.exchange_rate.set", "core.exchange_rate.import_official", "core.exchange_rate.for_date"];
+  const contador = [...new Set([...consults, ...entries, "accounting.opening.create", ...rates])];
   const cajero = [...new Set([...consults, ...entries.filter((id) => /^accounting\.entry\.(create|update|void|delete|submit|from_template)$/.test(id))])];
   const attachments = ATTACHMENT_PROCESSES.map((p) => p.id);
   const changes = [

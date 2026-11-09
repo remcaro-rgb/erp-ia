@@ -22,6 +22,7 @@ Guías para quien usa Goliatt todos los días, en español latinoamericano. El a
 - [Pedir ayuda: tickets de soporte](soporte.md): reportar un problema o hacer una pregunta.
 - [El asistente: preguntar, pedir acciones y confirmar](asistente.md): consultar datos, tarjetas de confirmación, código de verificación y qué hacer con los resultados.
 - [Parámetros de maestros y documentos](parametros.md): aprobación y contabilización por tipo, destinatarios de correo por estado, plantillas PDF (bloques, fondo, logo, versiones) e Imprimir un listado.
+- [Tasas de cambio](tasas-de-cambio.md): la TRM del dólar que se trae cada mañana, tasas manuales (euro y otras monedas), reemplazar una TRM con el segundo factor y qué hace un documento sin tasa.
 - [Administración de la empresa](administracion.md): roles, usuarios (editar y desactivar), permisos y visibilidad de campos con cambios en lote, procesos sensibles, módulos, archivos obligatorios, datos adicionales, verificadores, empresa (membrete), acceso al menú, uso de IA y auditoría con el antes y el después de cada cambio.
 - [CRM: prospectos, embudos, oportunidades y actividades](crm.md): convertir un prospecto en cliente con validación DIAN, mover oportunidades por el embudo y ver solo las propias.
 - [Cotizaciones: precios, impuestos, aprobación y aceptación](cotizaciones.md): cotizar a clientes listos para facturar, descuentos que piden aprobación, enviar, aceptar (las líneas quedan fijas) e imprimir.

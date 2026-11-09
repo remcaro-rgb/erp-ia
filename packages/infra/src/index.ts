@@ -21,6 +21,8 @@ export { EInvoiceTransportError, MockEInvoiceTransport, mockTrackId, resetMockEI
 export type { EInvoiceResult, EInvoiceStatus, EInvoiceSubmitMeta, EInvoiceTransport, MockEInvoiceOptions, MockScenario } from "./einvoice-transport";
 export { EnvSecretStore, InMemorySecretStore, VaultSecretStore } from "./secret-store";
 export type { SecretSql, SecretStore } from "./secret-store";
+export { fixtureRateFeed, httpRateFeed, RATE_FEED_TIMEOUT_MS, rateFeedFixtureName, rateFeedFromEnv } from "./rate-feed";
+export type { RateFeed } from "./rate-feed";
 export { target } from "./target";
 export type { Env, Target } from "./target";
 

@@ -1237,7 +1237,8 @@
       "parties": "Terceros",
       "products": "Productos",
       "categories": "Categorías",
-      "import": "Importar datos"
+      "import": "Importar datos",
+      "exchange_rates": "Tasas de cambio"
     },
     "modules": {
       "accounting": "Contabilidad",
@@ -1433,7 +1434,9 @@
       "uom": "Unidad de medida",
       "price_list": "Lista de precios",
       "price_list_item": "Ítem de lista de precios",
-      "document_sequence": "Secuencia de documentos"
+      "document_sequence": "Secuencia de documentos",
+      "exchange_rate": "Tasa de cambio",
+      "exchange_rate_import": "Importación de tasa oficial"
     },
     "kernel": {
       "import": "Importación",
@@ -2028,6 +2031,32 @@
         "next_number": "Próximo número",
         "padding": "Relleno con ceros",
         "resolution": "Resolución",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "exchange_rate": {
+        "seq": "ID",
+        "currency": "Moneda",
+        "rate_date": "Fecha",
+        "rate": "Tasa",
+        "source": "Origen",
+        "official_rate": "TRM publicada",
+        "note": "Nota",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "exchange_rate_import": {
+        "seq": "ID",
+        "currency": "Moneda",
+        "rate_date": "Fecha",
+        "status": "Estado",
+        "attempts": "Intentos",
+        "written": "Tasas registradas",
+        "error": "Error",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -6513,6 +6542,46 @@
     },
     "hints": {
       "invoice_not_accepted_advance": "Esta factura aún no ha sido aceptada por la DIAN; puede registrar el dinero como anticipo y aplicarlo después."
+    }
+  },
+  "core": {
+    "exchange_rates": {
+      "title": "Tasas de cambio",
+      "intro": "Pesos por unidad de cada moneda extranjera, un valor por día. La TRM del dólar se trae sola cada mañana; las demás monedas se registran a mano.",
+      "import": "Traer TRM",
+      "set": "Registrar tasa",
+      "override": "Reemplazar TRM",
+      "manual_over_trm": "Tasa manual; la TRM publicada es {rate}",
+      "values": {
+        "source": {
+          "trm": "TRM",
+          "manual": "Manual"
+        },
+        "import_status": {
+          "imported": "Importada",
+          "failed": "Fallida"
+        }
+      },
+      "errors": {
+        "official_rate_exists": "Ese día ya tiene la TRM. Para cambiarla usa «Reemplazar TRM», que pide el segundo factor.",
+        "official_rate_missing": "Ese día no tiene TRM para reemplazar; registra la tasa con «Registrar tasa».",
+        "official_rate_unavailable": "El país de la empresa no publica una tasa oficial: registra las tasas a mano."
+      },
+      "imported": "TRM traída: {written, plural, =0 {ninguna tasa nueva} one {# tasa nueva} other {# tasas nuevas}}{skipped, plural, =0 {} one {; # día con tasa manual se dejó igual} other {; # días con tasa manual se dejaron igual}}.",
+      "import_failed": "No se pudo traer la tasa oficial de {currencies}; se avisó al administrador. Inténtalo más tarde o registra la tasa a mano.",
+      "currency": "Moneda",
+      "date": "Fecha",
+      "rate": "Tasa (pesos por unidad)",
+      "note": "Nota",
+      "close": "Cerrar",
+      "saved": "Tasa guardada.",
+      "override_hint": "Ese día ya tiene la TRM. Para reemplazarla escribe una nota con el motivo y pulsa «Reemplazar TRM»: pide el segundo factor."
+    },
+    "recommendation": {
+      "trm_import_failed": {
+        "title": "No se pudo traer la TRM",
+        "body": "La fuente oficial no respondió la tasa de {currency} para el {date}. Vuelve a intentarlo con «Traer TRM» en Tasas de cambio o registra la tasa a mano."
+      }
     }
   }
 }

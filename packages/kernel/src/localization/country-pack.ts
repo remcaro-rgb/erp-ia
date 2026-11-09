@@ -1,7 +1,7 @@
 // Country pack contract (design §5.8). The kernel owns the interface and the registry;
 // each pack (packages/localization/<country>) implements it and the app registers it at boot.
 // The kernel never imports a pack.
-import type { EInvoiceTransport, SecretStore } from "@erp/infra";
+import { rateFeedFromEnv, type EInvoiceTransport, type RateFeed, type SecretStore } from "@erp/infra";
 
 /** DIAN document type codes (design §5.8a). */
 export type DocumentType = "11" | "12" | "13" | "21" | "22" | "31" | "41" | "42" | "47" | "48" | "50" | "91";
@@ -451,7 +451,42 @@ export interface CountryPack {
   taxes: TaxesPack;
   /** Electronic invoicing (plan 2B Task 16): present only where the server registered the pack's server entry. */
   einvoice?: EInvoicePack;
+  /** The country's official exchange rates (plan 2B.2 Task 34.1, FX §2): absent where the pack publishes none. */
+  exchangeRates?: ExchangeRatesPack;
   // phase 2 adds payroll hooks
+}
+
+/** The official rate of a currency on a date, in the company currency per unit, with the days it is valid (inclusive, YYYY-MM-DD). */
+export interface OfficialRate {
+  rate: number;
+  validFrom: string;
+  validTo: string;
+}
+
+/**
+ * The country's official exchange-rate source (FX §2; rule 5: the source is fiscal, so it lives in the pack). The fetch goes through the
+ * infra RateFeed (rule 6), which the caller hands in. Colombia: the Superfinanciera TRM, USD only.
+ */
+export interface ExchangeRatesPack {
+  /** The currencies with an official rate. */
+  officialCurrencies: readonly string[];
+  /** The rate valid on `date`, `null` for a currency without one or a date the source has no row for; throws when the source fails. */
+  officialRate(currency: string, date: string, feed: RateFeed): Promise<OfficialRate | null>;
+}
+
+// The rate feed the official-rate import reads through (plan 2B.2 Task 34.1): the one RATE_FEED names (fixture unless RATE_FEED=http),
+// or the one a test installs. Kept on globalThis, like the packs.
+const RATE_FEED_KEY = Symbol.for("erp.kernel.rateFeed");
+const feedGlobals = globalThis as { [RATE_FEED_KEY]?: RateFeed };
+
+/** Installs the rate feed the import reads through (tests); `undefined` goes back to the one RATE_FEED names. */
+export function setRateFeed(feed: RateFeed | undefined): void {
+  feedGlobals[RATE_FEED_KEY] = feed;
+}
+
+/** The installed rate feed, else the one RATE_FEED names. */
+export function rateFeed(): RateFeed {
+  return feedGlobals[RATE_FEED_KEY] ?? rateFeedFromEnv(process.env);
 }
 
 // Kept on globalThis, like the registry: a workflow step bundle loads this module a second time and must see the

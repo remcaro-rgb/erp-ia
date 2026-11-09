@@ -2,6 +2,7 @@ import { menuSections, type FeatureDef, type NavItem } from "@erp/kernel";
 import { CATEGORY_PROCESSES } from "./processes/category";
 import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
+import { EXCHANGE_RATE_PROCESSES } from "./processes/exchange-rate";
 import { PARTY_PROCESSES } from "./processes/party";
 import { PRICE_LIST_LIFECYCLE } from "./processes/price-list";
 import { PRICE_LIST_WRITE_PROCESSES } from "./processes/price-list-write";
@@ -21,15 +22,18 @@ export const NAVIGATION: NavItem[] = [
   { id: "core.categories", label: "nav.core.categories", href: "/categories", icon: "tags", feature: "core.products", entity: "core.product_category", runs: ["core.category."] },
   // Mass import of parties, products and categories (kernel.import.*): shown to whoever may import. The import is the kernel's, shared by
   // every grid: hiding this item hides this page only; an import into an entity whose item is hidden is refused through its create process.
+  // Tasas de cambio (plan 2B.2 Task 34.1): a parametro, so the loader places it under Parámetros.
+  { id: "core.exchange_rates", label: "nav.core.exchange_rates", href: "/exchange-rates", icon: "coins", feature: "core.settings", entity: "core.exchange_rate", runs: ["core.exchange_rate."] },
   { id: "core.import", label: "nav.core.import", href: "/import", icon: "upload", process: "kernel.import.run" },
 ];
 
 /**
  * Processes no menu item guards (ModuleDef.menuShared): numbering and the units every product screen reads, and the price lists, which
  * have no screen yet (their item will guard them). core.document_sequence.register (plan 2B Task 19) is run from invoicing's Parámetros de
- * facturación page, whose menu item names it.
+ * facturación page, whose menu item names it. core.exchange_rate.for_date (Task 34.1) is the rate every foreign-currency document form reads;
+ * the import log (core.exchange_rate_import) has no screen: it is the subject of the TRM-failure recommendation.
  */
-export const MENU_SHARED = ["core.sequence.next", "core.document_sequence.consult", "core.document_sequence.register", "core.uom.consult", "core.price_list.", "core.price_list_item."];
+export const MENU_SHARED = ["core.sequence.next", "core.document_sequence.consult", "core.document_sequence.register", "core.uom.consult", "core.price_list.", "core.price_list_item.", "core.exchange_rate.for_date", "core.exchange_rate_import.consult"];
 
 const nav = (feature: string) => NAVIGATION.filter((item) => item.feature === feature);
 
@@ -51,7 +55,8 @@ export const FEATURES: FeatureDef[] = [
   {
     id: "core.settings",
     label: "feature.core.settings",
-    processes: [...ids(SEQUENCE_PROCESSES), ...ids(CONSULT_PROCESSES.settings)],
-    entities: ["core.document_sequence"],
+    processes: [...ids(SEQUENCE_PROCESSES), ...ids(CONSULT_PROCESSES.settings), ...ids(EXCHANGE_RATE_PROCESSES)],
+    entities: ["core.document_sequence", "core.exchange_rate", "core.exchange_rate_import"],
+    nav: nav("core.settings"),
   },
 ];

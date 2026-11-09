@@ -2,7 +2,7 @@ import { drainOutbox } from "@erp/kernel/workflows";
 import { infra } from "@erp/infra";
 import { secretMatches } from "@/lib/server/internal-auth";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
-import { runScheduledChecks, scheduledChecks, tickWithChecks } from "@/lib/server/scheduled-checks";
+import { runScheduledChecks, runTrmImport, scheduledChecks, trmImportChecks, tickWithChecks } from "@/lib/server/scheduled-checks";
 
 // The outbox tick (design §5.5, §5.10, §21): claims the undispatched outbox rows and starts one `dispatchOutboxRow`
 // workflow run per row, through the service connection (rule 12: route handler). Machine to machine, never a user's:
@@ -26,7 +26,9 @@ async function tick(): Promise<Response> {
     // The checks raise kernel recommendations, which name their process from kernel.registered_processes: the manifests first.
     async () => {
       await registrySynced();
-      return runScheduledChecks(scheduledChecks(deps));
+      // Each runner catches its own failures, so the TRM import (Task 34.1) runs whatever the posting age check did.
+      await runScheduledChecks(scheduledChecks(deps));
+      return runTrmImport(trmImportChecks(deps));
     },
   );
   return outcome.ok ? Response.json(outcome.result) : Response.json({ code: "handler_failed", details: null }, { status: 500 });
