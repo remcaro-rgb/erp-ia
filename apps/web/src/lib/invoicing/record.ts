@@ -11,7 +11,9 @@ import { receiptsOfInvoice } from "@/lib/payments/record";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
 import { memberNames, orderOwners } from "@/lib/sales/order-owner";
+import { defaultRate } from "@erp/module-invoicing";
 import { priceDateWarning } from "./price-date";
+import { rateWarning } from "./rate-warning";
 
 // What the pages of an invoice and a note need besides the record (plan 2B Task 20, prototype 2B «Factura FE-1234»), read as the caller
 // through the masked views and the grid (rule 14): the Datos tab's facts (references link to their records, rule 21), its totals in the
@@ -96,6 +98,8 @@ export interface InvoicingView {
   submission: DianSubmissionView | null;
   /** A Borrador whose prices are from another day than today: «Los precios son del <fecha>…» (null: none). */
   priceWarning: string | null;
+  /** An issued foreign-currency invoice whose rate is more than 0,005 % off the TRM of its issue date (R34-8; null: none). */
+  rateWarning: string | null;
   /** The record bar's own buttons (Task 20 fix round 1, prototype 2B): Emitir, Reintentar envío, «Anular (nota crédito)», a note's Duplicar. */
   bar: InvoicingBar;
   /** A note's concept, reason and lines as Duplicar copies them (its identity is never copied). */
@@ -273,7 +277,14 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
         ? await tx<{ prefix: string | null; next_number: string | null }[]>`
             select prefix, next_number::text from core.v_document_sequences where document_type = 'credit_note' order by seq desc limit 1`
         : [];
-    return { today: company?.today ?? new Date().toISOString().slice(0, 10), timeZone: company?.timezone, companyCurrency: company?.currency ?? null, submission: submission ?? null, orders, unavailableOrders, orderOwnerNames, deliveries, notes, invoice: invoice ?? null, creditSequence: creditSequence ?? null };
+    // The TRM of an issued foreign-currency invoice's issue date (R34-8: the record's chip), read through core.v_exchange_rates (rule 3).
+    const docCurrency = typeof record.currency === "string" ? record.currency.trim() : "";
+    const issueDay = typeof record.issue_date === "string" ? record.issue_date.slice(0, 10) : record.issue_date instanceof Date ? record.issue_date.toISOString().slice(0, 10) : null;
+    const trm =
+      kind === "invoice" && record.stage !== "draft" && docCurrency && issueDay && docCurrency !== (company?.currency ?? "").trim()
+        ? await defaultRate(tx, docCurrency, issueDay)
+        : null;
+    return { trm, today: company?.today ?? new Date().toISOString().slice(0, 10), timeZone: company?.timezone, companyCurrency: company?.currency ?? null, submission: submission ?? null, orders, unavailableOrders, orderOwnerNames, deliveries, notes, invoice: invoice ?? null, creditSequence: creditSequence ?? null };
   });
   const gridDef = gridEntity(deps.registry, entityId);
   const [linesGrid, taxesGrid, runnable, linkable, access] = await Promise.all([
@@ -479,6 +490,7 @@ async function invoicingView(caller: Caller, entityId: string, record: Row, coun
     notes: named.notes.map((n) => ({ id: n.id, number: n.number ?? n.id, kind: n.kind })),
     steps: can,
     priceWarning: kind === "invoice" && stage === "draft" ? priceDateWarning(record.price_date, named.today, (date) => tv("price_warning", { date })) : null,
+    rateWarning: kind === "invoice" && stage !== "draft" ? rateWarning(record.exchange_rate, named.trm, (trm) => tv("rate_warning", { trm })) : null,
     noteBlock,
     invoiceLines: kind === "invoice" ? stored : [],
     // The annulment concept is Anular's own: a note written by hand never takes it (annulment_by_void).

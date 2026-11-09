@@ -4,7 +4,7 @@ import { enrolTotp, seedAuthUser, type AuthFixture } from "../test-support/auth-
 import { confirmStepUp, signInWithCode } from "../test-support/accounting-fixture";
 
 // Parámetros › Facturación electrónica › Lista de verificación DIAN (plan 2B Task 35; R35-11, R35-14): the company's administrator opens the
-// checklist from Conexión DIAN, ticks the 23 values (by group), saves them with one verification code, confirms the defaults, and then
+// checklist from Conexión DIAN, ticks the 24 values by group (23 of item 20 and Task 34.4's «Moneda extranjera»), saves them with one verification code, confirms the defaults, and then
 // attempts producción: the refusal is now the transport's (the e2e server runs the mock, which never serves producción: Task 5/17 ruling,
 // owner item 84), not the checklist's. Unticking one item clears the confirmation. A user who is not an administrator cannot open it.
 
@@ -46,7 +46,7 @@ test.describe("Lista de verificación DIAN", () => {
     await cleanup(admin);
   });
 
-  test("the administrator ticks the 23 values, confirms the defaults, finds producción refused by the transport, and unticking one clears the confirmation", async ({ page }) => {
+  test("the administrator ticks the 24 values, confirms the defaults, finds producción refused by the transport, and unticking one clears the confirmation", async ({ page }) => {
     test.setTimeout(180_000);
     const companyId = admin.companyIds[0]!;
     const state = async () => (await admin.sql<{ environment: string; confirmed: boolean; version: number | null; ticked: number }[]>`
@@ -59,37 +59,37 @@ test.describe("Lista de verificación DIAN", () => {
     // From Conexión DIAN: no checkbox any more, the progress and the link.
     await page.goto("/invoicing/settings");
     const dian = page.getByRole("region", { name: "Conexión DIAN" });
-    await expect(dian.getByText("Valores por defecto DIAN: 0 de 23 verificados")).toBeVisible();
+    await expect(dian.getByText("Valores por defecto DIAN: 0 de 24 verificados")).toBeVisible();
     await dian.getByRole("link", { name: "Abrir la lista de verificación" }).click();
     await expect(page.getByRole("heading", { name: "Lista de verificación DIAN" })).toBeVisible();
     await expect(page).toHaveURL(/\/invoicing\/settings\/checklist$/);
     const progress = page.getByRole("progressbar");
     await expect(progress).toHaveAttribute("aria-valuenow", "0");
-    await expect(page.getByText("0 de 23 verificados").first()).toBeVisible();
+    await expect(page.getByText("0 de 24 verificados").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Confirmar valores por defecto", exact: true })).toBeDisabled();
     for (const group of ["Notas y tipos de documento", "Firma y software", "Respuesta de la DIAN y reenvío", "Impuestos e importes", "Medios de pago y compradores", "Perfil fiscal del emisor", "Infraestructura", "Tablas de referencia"]) {
       await expect(page.getByRole("heading", { name: group })).toBeVisible();
     }
-    await expect(page.getByRole("checkbox")).toHaveCount(23);
+    await expect(page.getByRole("checkbox")).toHaveCount(24);
 
     // Select every group, one code for the one run.
     const select = page.getByRole("button", { name: /^Seleccionar el grupo/ });
     await expect(select).toHaveCount(8);
     for (let i = 0; i < 8; i++) await select.first().click();
-    await expect(page.getByText("23 cambios sin guardar")).toBeVisible();
+    await expect(page.getByText("24 cambios sin guardar")).toBeVisible();
     await page.getByRole("button", { name: "Marcar los seleccionados" }).click();
     await confirmStepUp(page, secret);
     await expect(page.getByText("Verificación guardada", { exact: true })).toBeVisible();
-    await expect(page.getByText("23 de 23 verificados").first()).toBeVisible();
-    await expect(progress).toHaveAttribute("aria-valuenow", "23");
+    await expect(page.getByText("24 de 24 verificados").first()).toBeVisible();
+    await expect(progress).toHaveAttribute("aria-valuenow", "24");
     await expect(page.getByText(/Verificado por .+ el \d{4}\/\d{2}\/\d{2}/).first()).toBeVisible();
-    expect(await state()).toMatchObject({ environment: "habilitacion", confirmed: false, version: null, ticked: 23 });
+    expect(await state()).toMatchObject({ environment: "habilitacion", confirmed: false, version: null, ticked: 24 });
 
     // Confirm the defaults.
     await page.getByRole("button", { name: "Confirmar valores por defecto", exact: true }).click();
     await confirmStepUp(page, secret);
     await expect(page.getByTestId("confirmed")).toContainText("Valores confirmados el");
-    expect(await state()).toMatchObject({ confirmed: true, version: 1, ticked: 23 });
+    expect(await state()).toMatchObject({ confirmed: true, version: 2, ticked: 24 });
 
     // Producción with the checklist confirmed: the refusal is the transport's (the mock never serves producción), not the checklist's.
     await page.goto("/invoicing/settings");
@@ -107,11 +107,11 @@ test.describe("Lista de verificación DIAN", () => {
     await page.getByRole("checkbox", { name: /La espera entre consultas de la respuesta/ }).uncheck();
     await page.getByRole("button", { name: "Guardar cambios" }).click();
     await confirmStepUp(page, secret);
-    await expect(page.getByText("22 de 23 verificados").first()).toBeVisible();
+    await expect(page.getByText("23 de 24 verificados").first()).toBeVisible();
     await expect(page.getByText(/Confirma de nuevo los valores por defecto/)).toBeVisible();
     await expect(page.getByTestId("confirmed")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Confirmar valores por defecto", exact: true })).toBeDisabled();
-    expect(await state()).toMatchObject({ confirmed: false, version: null, ticked: 22 });
+    expect(await state()).toMatchObject({ confirmed: false, version: null, ticked: 23 });
   });
 });
 

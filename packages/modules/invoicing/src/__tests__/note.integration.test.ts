@@ -589,10 +589,21 @@ describe("the note's posting rules (fix round 1)", () => {
     const ofCompany = (tx: typeof h.sql) => tx<{ name: string; template: unknown; is_default: boolean; is_modified: boolean; is_active: boolean }[]>`
       select name, template, is_default, is_modified, is_active from accounting.posting_rules where company_id = ${h.companyId} and event = 'invoicing.note.issued' order by name`;
     const byName = (rows: { name: string }[]) => Object.fromEntries(rows.map((r) => [r.name, r]));
+    // 0098 ships the 2A rules (no currency, every amount the company field); 0149 (Task 34.4) brings an unmodified copy to both amounts, a
+    // modified one keeps its 2A shape.
+    const currencyMigration = readFileSync(new URL("../../../../../supabase/migrations/0149_invoicing_rules_currency.sql", import.meta.url), "utf8");
+    type Template = { lines: { amount: string; amountCompany?: string }[] } & Record<string, unknown>;
+    const legacy = (template: Template): Template => {
+      const rest: Template = { ...template };
+      delete rest.currency;
+      delete rest.exchangeRate;
+      return { ...rest, lines: template.lines.map(({ amountCompany, ...line }) => ({ ...line, amount: amountCompany ?? line.amount })) };
+    };
     const rollback = new Error("rollback");
     await h.sql.begin(async (tx) => {
       await seedOld(tx as never, false);
       await tx.unsafe(migration);
+      await tx.unsafe(currencyMigration);
       const split = await ofCompany(tx as never);
       expect(split.map((r) => r.name).sort()).toEqual(RULES.map((r) => r.name).sort());
       for (const rule of RULES) expect(byName(split)[rule.name]).toMatchObject({ template: rule.template, is_default: true, is_modified: false, is_active: true });
@@ -604,7 +615,7 @@ describe("the note's posting rules (fix round 1)", () => {
       await tx.unsafe(migration);
       const kept = byName(await ofCompany(tx as never));
       expect(kept[OLD]).toMatchObject({ template: old, is_modified: true, is_active: true });
-      for (const rule of RULES) expect(kept[rule.name]).toMatchObject({ template: rule.template, is_modified: true, is_active: false });
+      for (const rule of RULES) expect(kept[rule.name]).toMatchObject({ template: legacy(rule.template as Template), is_modified: true, is_active: false });
       throw rollback;
     }).catch((e: unknown) => { if (e !== rollback) throw e; });
     expect(await rules()).toHaveLength(3);

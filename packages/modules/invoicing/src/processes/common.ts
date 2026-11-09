@@ -182,15 +182,42 @@ export async function priceLines(ctx: ProcessContext, party: InvoiceParty, produ
 }
 
 /**
- * The invoice's amounts in the company currency, the ledger's ONE rounding rule (fix round 1): each revenue line (its base, free samples
- * aside) and each tax converted and rounded to the cent; the receivable is their sum, so the entry balances and invoices.total_company is
- * exactly what the ledger owes (sales' credit exposure and the open invoices read it).
+ * `amount` (document currency) × `rate` in the company currency, half-up to the cent on the exact decimal product (FX §4): the value
+ * migration 0148's `round(amount * exchange_rate, 2)` gives, never one cent off by binary noise (`12,37 × 4.123,45`).
  */
-export function companyAmounts<L extends { base: number | string; free_sample: boolean }, T extends { amount: number | string; base: number | string }>(lines: L[], taxes: T[], rate: number) {
-  const revenue = lines.filter((l) => !l.free_sample && num(l.base) > 0).map((l) => ({ line: l, subtotal: round2(num(l.base) * rate) }));
-  const taxLines = taxes.filter((t) => num(t.amount) > 0).map((t) => ({ tax: t, amount: round2(num(t.amount) * rate), base: round2(num(t.base) * rate) }));
+export function toCompany(amount: number, rate: number): number {
+  const exact = Number((amount * rate).toFixed(8));
+  const sign = exact < 0 ? -1 : 1;
+  return (sign * Math.round(Number(`${Math.abs(exact)}e2`))) / 100 || 0;
+}
+
+/**
+ * The invoice's (or note's) amounts in the company currency, the ledger's ONE rounding rule (fix round 1; Task 34.4, FX §4): each revenue
+ * line (its base, free samples aside) and each tax converted and rounded to the cent; the receivable is their sum, so the entry balances and
+ * total_company is exactly what the ledger owes (sales' credit exposure and the open invoices read it). A line or tax that already stores
+ * its company amount (`subtotal_company`, `amount_company`, written at «Emitir», rule 8) is read as stored. Beside each company amount, its
+ * document amount (`*Doc`, R34-4): the same parts in the document's currency, whose sum is `totalDoc`.
+ */
+export function companyAmounts<
+  L extends { base: number | string; free_sample: boolean; subtotal_company?: number | string | null },
+  T extends { amount: number | string; base: number | string; amount_company?: number | string | null },
+>(lines: L[], taxes: T[], rate: number) {
+  const stored = (value: number | string | null | undefined, amount: number) => (value === undefined || value === null ? toCompany(amount, rate) : num(value));
+  const revenue = lines.filter((l) => !l.free_sample && num(l.base) > 0)
+    .map((l) => ({ line: l, subtotal: stored(l.subtotal_company, num(l.base)), subtotalDoc: round2(num(l.base)) }));
+  const taxLines = taxes.filter((t) => num(t.amount) > 0)
+    .map((t) => ({ tax: t, amount: stored(t.amount_company, num(t.amount)), amountDoc: round2(num(t.amount)), base: toCompany(num(t.base), rate) }));
   const total = round2(revenue.reduce((s, l) => s + l.subtotal, 0) + taxLines.reduce((s, t) => s + t.amount, 0));
-  return { revenue, taxLines, total };
+  const totalDoc = round2(revenue.reduce((s, l) => s + l.subtotalDoc, 0) + taxLines.reduce((s, t) => s + t.amountDoc, 0));
+  return { revenue, taxLines, total, totalDoc };
+}
+
+/** The company amount each line and tax stores (Task 34.4, 0148): its document amount at the document's rate, per line half-up. */
+export function withCompanyAmounts<L extends { base: number }, T extends { amount: number }>(lines: L[], taxes: T[], rate: number) {
+  return {
+    lines: lines.map((l) => ({ ...l, subtotal_company: toCompany(l.base, rate) })),
+    taxes: taxes.map((t) => ({ ...t, amount_company: toCompany(t.amount, rate) })),
+  };
 }
 
 // The document links invoicing writes (design §22.27, plan 2B Task 31): through ctx.links only (rule 1), in the transaction of the write of
@@ -231,10 +258,12 @@ export async function markInvoiceLinksVoided(ctx: ProcessContext, invoiceId: str
 export async function writeParts(ctx: ProcessContext, invoiceId: string, priced: Priced, exchangeRate: number): Promise<void> {
   await ctx.tx`delete from invoicing.invoice_taxes where invoice_id = ${invoiceId}`;
   await ctx.tx`delete from invoicing.invoice_lines where invoice_id = ${invoiceId}`;
-  await ctx.tx`insert into invoicing.invoice_lines ${ctx.tx(priced.lines.map((l) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...l })))}`;
+  // Each line and tax with its company amount at the invoice's rate (Task 34.4): «Emitir» rewrites them at the frozen rate (validate hook).
+  const stored = withCompanyAmounts(priced.lines, priced.taxes, exchangeRate);
+  await ctx.tx`insert into invoicing.invoice_lines ${ctx.tx(stored.lines.map((l) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...l })))}`;
   await syncInvoiceLinks(ctx, invoiceId, priced.lines);
-  if (priced.taxes.length > 0) {
-    await ctx.tx`insert into invoicing.invoice_taxes ${ctx.tx(priced.taxes.map((t) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...t })))}`;
+  if (stored.taxes.length > 0) {
+    await ctx.tx`insert into invoicing.invoice_taxes ${ctx.tx(stored.taxes.map((t) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...t })))}`;
   }
   await ctx.tx`
     update invoicing.invoices set subtotal = ${priced.subtotal}, discount_total = ${priced.discountTotal}, tax_total = ${priced.taxTotal},
@@ -392,6 +421,12 @@ export async function defaultRate(tx: Tx, currency: string, date: string): Promi
     order by rate_date desc limit 1`;
   return row?.rate ? Number(row.rate) : null;
 }
+
+/** How far an invoice's rate may stand from the TRM of its issue date before «Emitir» warns (R34-8): 0,005 % of the TRM. */
+export const RATE_WARNING_TOLERANCE = 0.00005;
+
+/** Whether `rate` differs from `trm` by more than RATE_WARNING_TOLERANCE of it (R34-8; the issue output and the record's chip). */
+export const rateDiffers = (rate: number, trm: number): boolean => trm > 0 && Math.abs(rate - trm) > trm * RATE_WARNING_TOLERANCE;
 
 /** The refusal's detail when a foreign-currency document has no rate (FX §2). */
 export const exchangeRateMissing = (currency: string, date: string): string =>

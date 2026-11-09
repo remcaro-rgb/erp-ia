@@ -236,7 +236,47 @@ export async function syncPostingRules(ctx: ProcessContext): Promise<PostingRule
   }
   out.deactivated += await retireSupersededRules(ctx);
   out.deactivated += await retireRetiredRules(ctx);
+  await recommendRulesWithoutCurrency(ctx, enabled);
   return out;
+}
+
+/** The reason of the R34-5 recommendation (catalogue accounting.recommendations.rule_without_currency.*). */
+export const RULE_WITHOUT_CURRENCY = "rule_without_currency";
+/** Who may act on it: the holders of the rule editor (the accounting role and the admin). */
+const RULE_AUDIENCE = "accounting.posting_rule.update";
+
+/**
+ * R34-5 (Task 34.4, FX §4): a shipped rule that now posts the document currency (its template has `currency`) whose company copy the admin
+ * edited before that (is_modified, active, no `currency` key) keeps posting correct company amounts at rate 1, but a foreign-currency
+ * document then carries debit_doc = debit. The accounting role is told once per rule: one open recommendation per copy (a second sync merges
+ * into it); editing the copy is the user's call, never the sync's.
+ */
+async function recommendRulesWithoutCurrency(ctx: ProcessContext, enabled: Set<string>): Promise<void> {
+  if (!ctx.recommendations) return;
+  for (const module of ctx.registry.modules()) {
+    if (!enabled.has(module.id)) continue;
+    for (const rule of module.postingRules ?? []) {
+      if ((rule.template as { currency?: unknown }).currency === undefined) continue;
+      const copies = await ctx.tx<{ id: string; name: string; stale: boolean }[]>`
+        select id, name, (is_modified and is_active and not (template ? 'currency')) as stale from accounting.posting_rules
+        where company_id = ${ctx.companyId} and event = ${rule.event} and name = ${rule.name}`;
+      for (const copy of copies) {
+        // A copy that now carries the currency (the admin edited it, or put it back to the default) closes what was raised for it.
+        if (!copy.stale) {
+          await ctx.recommendations.close({ subject: { entity: "accounting.posting_rule", id: copy.id }, reason: RULE_WITHOUT_CURRENCY });
+          continue;
+        }
+        await ctx.recommendations.raise({
+          audienceProcess: RULE_AUDIENCE,
+          subject: { entity: "accounting.posting_rule", id: copy.id },
+          reason: RULE_WITHOUT_CURRENCY,
+          titleKey: "accounting.recommendations.rule_without_currency.title",
+          bodyKey: "accounting.recommendations.rule_without_currency.body",
+          params: { rule: { value: copy.name } },
+        });
+      }
+    }
+  }
 }
 
 /**

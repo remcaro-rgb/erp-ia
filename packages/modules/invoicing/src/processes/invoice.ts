@@ -5,7 +5,7 @@ import { allocatedTo } from "../consumers/payments";
 import { resolveLinePrice } from "@erp/module-sales";
 import { assertInvoiceReady, readInvoiceFacts } from "../readiness";
 import {
-  assertDianAccepted, checkSources, companyAmounts, date, defaultRate, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
+  assertDianAccepted, checkSources, companyAmounts, date, defaultRate, rateDiffers, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
   refuse, refuseState, settingsOf, today, unlinkInvoice, writeParts, type DraftLine,
 } from "./common";
 
@@ -79,6 +79,11 @@ export const invoiceOutput = z.object({
   issueDate: z.string(),
   /** Set by «Emitir» only: the Borrador's prices are from another day than the issue date (owner item 17); null/absent: they are from the issue date. */
   priceWarning: z.string().nullable().optional(),
+  /**
+   * Set by «Emitir» only (R34-8, owner item 123): the invoice's rate differs from the rate table's (the TRM) of the issue date by more than
+   * 0,005 %; null when it does not, when the invoice is in the company currency or the table has no rate. It issues all the same.
+   */
+  rateWarning: z.object({ trm: z.number(), rate: z.number() }).nullable().optional(),
   /** The date of what the invoice bills (entrega, pedido or the Borrador's own date); «Emitir» dates the invoice today. */
   serviceDate: z.string().nullable(),
   dueDate: z.string().nullable(),
@@ -98,7 +103,7 @@ export interface InvoiceRow {
 }
 export interface LineRow {
   line_no: number; product_id: string; description: string | null; qty: string; unit_price: string; discount_pct: string; base: string; free_sample: boolean;
-  category_id: string | null; order_id: string | null; order_line_id: string | null; delivery_id: string | null; delivery_line_id: string | null;
+  subtotal_company: string; category_id: string | null; order_id: string | null; order_line_id: string | null; delivery_id: string | null; delivery_line_id: string | null;
 }
 
 export const label = (row: { number: string | null; id: string }) => row.number ?? row.id;
@@ -129,7 +134,8 @@ export async function outputOf(ctx: ProcessContext, invoiceId: string): Promise<
 
 async function linesOf(ctx: ProcessContext, invoiceId: string): Promise<LineRow[]> {
   return ctx.tx<LineRow[]>`
-    select line_no, product_id, description, qty::text, unit_price::text, discount_pct::text, base::text, free_sample, category_id, order_id, order_line_id, delivery_id, delivery_line_id
+    select line_no, product_id, description, qty::text, unit_price::text, discount_pct::text, base::text, free_sample, subtotal_company::text, category_id,
+           order_id, order_line_id, delivery_id, delivery_line_id
     from invoicing.invoice_lines where invoice_id = ${invoiceId} order by line_no`;
 }
 
@@ -496,9 +502,22 @@ export const invoiceIssue = defineProcess({
     // Owner item 17: «Emitir» keeps the prices; it only says when they are from another day than the issue date.
     const [dates] = await ctx.tx<{ price_date: string | null; issue_date: string }[]>`select price_date::text, issue_date::text from invoicing.invoices where id = ${invoiceId}`;
     const priceWarning = dates?.price_date && dates.price_date !== dates.issue_date ? `Los precios son del ${dates.price_date}, no de la fecha de emisión (${dates.issue_date})` : null;
-    return { ...(await outputOf(ctx, invoiceId)), priceWarning };
+    return { ...(await outputOf(ctx, invoiceId)), priceWarning, rateWarning: await rateWarningOf(ctx, invoiceId) };
   },
 });
+
+/**
+ * R34-8 (owner item 123): the issued invoice's rate against the rate table's (the TRM, R34-2) of its issue date; a difference over
+ * RATE_WARNING_TOLERANCE of the TRM is a warning, never a refusal. The record's chip asks the same question (rateDiffers).
+ */
+async function rateWarningOf(ctx: ProcessContext, invoiceId: string): Promise<{ trm: number; rate: number } | null> {
+  const invoice = await readInvoice(ctx, invoiceId);
+  const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+  if (invoice.currency === (company?.currency_code ?? "COP")) return null;
+  const trm = await defaultRate(ctx.tx, invoice.currency, invoice.issue_date);
+  const rate = num(invoice.exchange_rate);
+  return trm !== null && rateDiffers(rate, trm) ? { trm, rate } : null;
+}
 
 /**
  * Anular is refused while receipts settle the invoice (Task 23: void the receipt first). The allocations of the posted receipts are read
@@ -704,13 +723,14 @@ export const invoiceHooks: TypedHooks = {
     const costCenterId = invoice.cost_center_id ?? settings.defaultCostCenterId;
     const rate = num(invoice.exchange_rate);
     const lines = await linesOf(ctx, invoice.id);
-    const taxes = await ctx.tx<{ ledger_code: string; rate: string | null; base: string; amount: string }[]>`
-      select ledger_code, rate::text, base::text, amount::text from invoicing.invoice_taxes where invoice_id = ${invoice.id} order by seq`;
+    const taxes = await ctx.tx<{ ledger_code: string; rate: string | null; base: string; amount: string; amount_company: string }[]>`
+      select ledger_code, rate::text, base::text, amount::text, amount_company::text from invoicing.invoice_taxes where invoice_id = ${invoice.id} order by seq`;
     const facts = await readInvoiceFacts(ctx, invoice.party_id, []);
     // Amounts in the company currency (the ledger's), the one rounding rule: the receivable is their sum and is the invoice's total_company.
+    // They are the ones the lines and taxes stored at this «Emitir» (Task 34.4, rule 8); each carries its document twin (R34-4).
     const company = companyAmounts(lines, taxes, rate);
-    const revenue = company.revenue.map(({ line, subtotal }) => ({ subtotal, categoryId: line.category_id, ...(costCenterId ? { costCenterId } : {}) }));
-    const taxLines = company.taxLines.map(({ tax, amount, base }) => ({ code: tax.ledger_code, rate: tax.rate === null ? null : num(tax.rate), amount, base }));
+    const revenue = company.revenue.map(({ line, subtotal, subtotalDoc }) => ({ subtotal, subtotalDoc, categoryId: line.category_id, ...(costCenterId ? { costCenterId } : {}) }));
+    const taxLines = company.taxLines.map(({ tax, amount, amountDoc, base }) => ({ code: tax.ledger_code, rate: tax.rate === null ? null : num(tax.rate), amount, amountDoc, base }));
     const total = company.total;
     await ctx.tx`update invoicing.invoices set stage = 'issued', issued_at = now(), total_company = ${total} where id = ${invoice.id}`;
     await emitAndPostStrict(ctx, INVOICE_ISSUED, {
@@ -720,7 +740,7 @@ export const invoiceHooks: TypedHooks = {
       dueDate: invoice.due_date,
       customer: { partyId: invoice.party_id, legalName: facts.party.name },
       ...(costCenterId ? { costCenterId } : {}),
-      totals: { total },
+      totals: { total, totalDoc: company.totalDoc },
       lines: revenue,
       taxes: taxLines,
       currency: invoice.currency,

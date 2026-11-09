@@ -10,7 +10,7 @@ import { DOCUMENT_TYPES } from "../document-types";
 import { DIAN_CHECKLIST } from "./dian-checklist";
 import { signInvoice } from "./signer";
 import { assertTransportEnvironment, createEInvoiceTransport } from "./transport";
-import { certificateHolds, dianQrPayload, resolutionLegend } from "./representation";
+import { certificateHolds, currencyLegend, dianQrPayload, resolutionLegend } from "./representation";
 import { assertEInvoiceDocument, buildInvoiceXml, buildNoteXml, type EInvoiceDocument, type EInvoiceNote } from "./xml-builder";
 import { ANNULMENT_CONCEPT, CREDIT_NOTE_CONCEPTS, CURRENCIES, DEBIT_NOTE_CONCEPTS, EXPORT_INVOICE_TYPE, NATIONAL_INVOICE_TYPE } from "./tables/dian-tables";
 import { isResolutionData, nextInvoiceNumber, ResolutionError, type NumberingTx, type Resolution } from "./resolution";
@@ -138,6 +138,8 @@ export const einvoicePack: EInvoicePack = {
   assertTransportEnvironment,
   // Task 19: the graphic representation (QR, numbering legend) and the certificate of Parámetros.
   representation: { qrPayload: dianQrPayload, resolutionLegend },
+  // Task 34.4: the peso equivalent of a foreign-currency document, below its totals.
+  currencyLegend,
   inspectCertificate,
   certificateHolds,
   async storeCertificate(secrets, companyId, file, password) {

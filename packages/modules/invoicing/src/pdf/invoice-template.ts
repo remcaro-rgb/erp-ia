@@ -1,4 +1,4 @@
-import { defaultTemplate, ProcessError, translatorFor, type Block, type DefaultPresentation, type EInvoicePack, type EntityDef, type PrintVariables, type ProcessContext, type ResolutionInfo, type Template, type Translate } from "@erp/kernel";
+import { defaultTemplate, ProcessError, translatorFor, type Block, type CurrencyLegendInput, type DefaultPresentation, type EInvoicePack, type EntityDef, type PrintVariables, type ProcessContext, type ResolutionInfo, type Template, type Translate } from "@erp/kernel";
 import QRCode from "qrcode";
 import { invoiceEntity, noteEntity } from "../entities";
 import { DOCUMENT_ENVIRONMENT_MISSING, packOf, refuseState, settingsOf } from "../processes/common";
@@ -13,7 +13,9 @@ import { DOCUMENT_ENVIRONMENT_MISSING, packOf, refuseState, settingsOf } from ".
 //   fe.representacion   «Representación gráfica de la factura electrónica de venta» (or of the note);
 //   fe.aviso            a test document of habilitación says it has no fiscal value (the mock's verdicts are not fiscal); a document the
 //                       tax authority has not accepted yet says so;
-//   fe.referencia       a note names the invoice it corrects (number and CUFE).
+//   fe.referencia       a note names the invoice it corrects (number and CUFE);
+//   fe.moneda           a foreign-currency document (Task 34.4, FX §3): its total in pesos at its TRM and the TRM's date, the pack's legend
+//                       (EInvoicePack.currencyLegend); its own money fields print in its currency (`USD 12.500,00`, the kernel's print).
 // The copy is the app's catalogue (`invoicing.print.*`, rule 24), the fiscal text the pack's. A Borrador prints no QR, code or legend.
 // The same template and values are what the e-invoice workflow stores as the accepted document's PDF (pdf_path, Task 17's slot).
 
@@ -26,8 +28,9 @@ export const FE = {
   representation: "fe.representacion",
   notice: "fe.aviso",
   reference: "fe.referencia",
+  currency: "fe.moneda",
 } as const;
-export const EINVOICE_TEXT_VARIABLES: readonly string[] = [FE.qrText, FE.code, FE.legend, FE.representation, FE.notice, FE.reference];
+export const EINVOICE_TEXT_VARIABLES: readonly string[] = [FE.qrText, FE.code, FE.legend, FE.representation, FE.notice, FE.reference, FE.currency];
 export const EINVOICE_IMAGE_VARIABLES: readonly string[] = [FE.qr];
 
 /** The header fields an invoice prints, in this order (what the customer reads; the CUFE goes in the footer). */
@@ -42,6 +45,8 @@ const WIDTH = 595.28;
 /** Where the footer of the electronic document starts (A4 portrait); the lines table stops above it and flows to the next page. */
 const FOOTER_TOP = 660;
 const QR_SIZE = 96;
+/** The currency legend's line, right above the footer (the lines table stops above it). */
+const LEGEND_TOP = FOOTER_TOP - 16;
 
 function footer(note: boolean): Block[] {
   const x = MARGIN + QR_SIZE + 12;
@@ -61,8 +66,9 @@ function template(entity: EntityDef, fieldNames: readonly string[], columns: rea
   const byName = new Map(entity.fields.map((f) => [f.name, f]));
   const fields = fieldNames.map((name) => byName.get(name)!);
   const base = defaultTemplate({ ...entity, fields }, "record", presentation);
-  const blocks = base.blocks.map((block): Block => (block.kind === "lines" ? { ...block, columns: [...columns], h: FOOTER_TOP - 12 - block.y } : block));
-  return { ...base, blocks: [...blocks, ...footer(note)] };
+  const blocks = base.blocks.map((block): Block => (block.kind === "lines" ? { ...block, columns: [...columns], h: LEGEND_TOP - 6 - block.y } : block));
+  const legend: Block = { kind: "variable", x: MARGIN, y: LEGEND_TOP, w: WIDTH - 2 * MARGIN, h: 12, font: { size: 8, bold: true }, value: FE.currency };
+  return { ...base, blocks: [...blocks, legend, ...footer(note)] };
 }
 
 export function invoiceRecordTemplate(presentation: DefaultPresentation): Template {
@@ -82,6 +88,8 @@ export interface EInvoicePrintFacts {
   dianStatus: string;
   /** A note's invoice. */
   reference?: { number: string; code: string } | null;
+  /** The document's currency, frozen rate, the rate's date and total in the company currency (Task 34.4); absent or masked: no legend. */
+  currency?: CurrencyLegendInput | null;
 }
 
 type Copy = (key: string, params?: Record<string, string | number>) => string | undefined;
@@ -95,7 +103,7 @@ const fill = (t: Copy | Translate, key: string, params: Record<string, string | 
 /** The values of the print variables of one document (EINVOICE_TEXT_VARIABLES and EINVOICE_IMAGE_VARIABLES). */
 export async function einvoicePrintValues(
   facts: EInvoicePrintFacts,
-  deps: { representation: EInvoicePack["representation"]; t: Copy | Translate; locale: string },
+  deps: { representation: EInvoicePack["representation"]; currencyLegend: EInvoicePack["currencyLegend"]; t: Copy | Translate; locale: string },
 ): Promise<Record<string, string>> {
   const { t } = deps;
   const values: Record<string, string> = Object.fromEntries([...EINVOICE_TEXT_VARIABLES, ...EINVOICE_IMAGE_VARIABLES].map((name) => [name, ""]));
@@ -110,6 +118,7 @@ export async function einvoicePrintValues(
     else if (facts.dianStatus !== "accepted") values[FE.notice] = fill(t, "invoicing.print.pending_notice");
   }
   if (facts.kind === "invoice" && facts.resolution) values[FE.legend] = deps.representation.resolutionLegend(facts.resolution, deps.locale);
+  if (facts.currency) values[FE.currency] = deps.currencyLegend(facts.currency, deps.locale).join("\n");
   if (facts.kind !== "invoice" && facts.reference) values[FE.reference] = fill(t, "invoicing.print.reference", { number: facts.reference.number, code: facts.reference.code });
   return values;
 }
@@ -134,22 +143,32 @@ async function factsOf(ctx: ProcessContext, entity: "invoicing.invoice" | "invoi
   };
   const dianEnvironment = await environmentOf();
   if (entity === "invoicing.invoice") {
-    const [row] = await ctx.tx<{ cufe: string | null; resolution: unknown; dian_status: string | null; stage: string | null }[]>`
-      select cufe, resolution, dian_status, stage from invoicing.v_invoices where id = ${recordId}`;
+    const [row] = await ctx.tx<({ cufe: string | null; resolution: unknown; dian_status: string | null; stage: string | null } & CurrencyRow)[]>`
+      select cufe, resolution, dian_status, stage, currency, exchange_rate::text, issue_date::text, total_company::text from invoicing.v_invoices where id = ${recordId}`;
     if (!row) throw new ProcessError("not_found", `invoicing.invoice ${recordId} not found`);
     const issued = row.stage !== "draft" && !!row.cufe;
-    return { kind: "invoice", code: issued ? row.cufe : null, environment: dianEnvironment, resolution: issued ? asResolution(row.resolution) : null, dianStatus: row.dian_status ?? "draft" };
+    return { kind: "invoice", code: issued ? row.cufe : null, environment: dianEnvironment, resolution: issued ? asResolution(row.resolution) : null, dianStatus: row.dian_status ?? "draft", currency: currencyOf(row) };
   }
-  const [row] = await ctx.tx<{ kind: "credit" | "debit"; cude: string | null; dian_status: string | null; stage: string | null; invoice_number: string | null; invoice_cufe: string | null }[]>`
-    select n.kind, n.cude, n.dian_status, n.stage, i.number as invoice_number, i.cufe as invoice_cufe
+  // A note's rate is its invoice's, of the invoice's issue date (OD-7).
+  const [row] = await ctx.tx<({ kind: "credit" | "debit"; cude: string | null; dian_status: string | null; stage: string | null; invoice_number: string | null; invoice_cufe: string | null } & CurrencyRow)[]>`
+    select n.kind, n.cude, n.dian_status, n.stage, i.number as invoice_number, i.cufe as invoice_cufe,
+           n.currency, n.exchange_rate::text, i.issue_date::text, n.total_company::text
     from invoicing.v_notes n left join invoicing.v_invoices i on i.id = n.invoice_id where n.id = ${recordId}`;
   if (!row) throw new ProcessError("not_found", `invoicing.note ${recordId} not found`);
   const issued = row.stage !== "draft" && !!row.cude;
   return {
     kind: row.kind, code: issued ? row.cude : null, environment: dianEnvironment, resolution: null, dianStatus: row.dian_status ?? "draft",
     reference: row.invoice_number && row.invoice_cufe ? { number: row.invoice_number, code: row.invoice_cufe } : null,
+    currency: currencyOf(row),
   };
 }
+
+/** The currency facts as the caller reads them (the masked view): any of them masked, no legend (rule 14). */
+interface CurrencyRow { currency: string | null; exchange_rate: string | null; issue_date: string | null; total_company: string | null }
+const currencyOf = (row: CurrencyRow): CurrencyLegendInput | null =>
+  row.currency && row.exchange_rate && row.issue_date && row.total_company
+    ? { currency: row.currency, rate: Number(row.exchange_rate), rateDate: row.issue_date, totalCompany: Number(row.total_company) }
+    : null;
 
 function printVariablesFor(entity: "invoicing.invoice" | "invoicing.note"): PrintVariables {
   return {
@@ -157,7 +176,7 @@ function printVariablesFor(entity: "invoicing.invoice" | "invoicing.note"): Prin
     images: EINVOICE_IMAGE_VARIABLES,
     async resolve(ctx, recordId, { locale }) {
       const { einvoice } = await packOf(ctx);
-      return einvoicePrintValues(await factsOf(ctx, entity, recordId), { representation: einvoice.representation, t: translatorFor(locale), locale });
+      return einvoicePrintValues(await factsOf(ctx, entity, recordId), { representation: einvoice.representation, currencyLegend: einvoice.currencyLegend, t: translatorFor(locale), locale });
     },
   };
 }

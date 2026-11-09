@@ -8,15 +8,18 @@
     "legalName": "Tiendas D1 S.A.S."
   },
   "totals": {
-    "total": 1190000
+    "total": 1190000,
+    "totalDoc": 1190000
   },
   "lines": [
     {
       "subtotal": 600000,
+      "subtotalDoc": 600000,
       "categoryId": "bebidas"
     },
     {
       "subtotal": 400000,
+      "subtotalDoc": 400000,
       "categoryId": "comida"
     }
   ],
@@ -25,7 +28,10 @@
       "code": "IVA19",
       "rate": 19,
       "amount": 190000,
+      "amountDoc": 190000,
       "base": 1000000
     }
-  ]
+  ],
+  "currency": "COP",
+  "exchangeRate": 1
 }

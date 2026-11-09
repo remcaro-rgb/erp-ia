@@ -3,7 +3,7 @@ import { z } from "zod";
 import { NOTE_KINDS, noteEntity, type NoteKind } from "../entities";
 import { readInvoiceFacts } from "../readiness";
 import {
-  assertDianAccepted, companyAmounts, DOCUMENT_ENVIRONMENT_MISSING, FEATURE_INVOICES, id, money, num, packOf, qty, refuse, refuseState, round2, round4, settingsOf, today,
+  assertDianAccepted, companyAmounts, withCompanyAmounts, DOCUMENT_ENVIRONMENT_MISSING, FEATURE_INVOICES, id, money, num, packOf, qty, refuse, refuseState, round2, round4, settingsOf, today,
 } from "./common";
 import { INVOICE_PAID, refreshPaid } from "../consumers/payments";
 import { ANNULMENT_PROCESS, assertNoPayments, label, readInvoice, type InvoiceRow } from "./invoice";
@@ -301,9 +301,11 @@ async function writeNote(ctx: ProcessContext, args: WriteNoteArgs): Promise<stri
       requires_approval: false,
       posts: true,
     })} returning id`;
-  await ctx.tx`insert into invoicing.note_lines ${ctx.tx(args.parts.lines.map((l) => ({ company_id: ctx.companyId, note_id: row!.id, ...l })))}`;
-  if (args.parts.taxes.length > 0) {
-    await ctx.tx`insert into invoicing.note_taxes ${ctx.tx(args.parts.taxes.map((t) => ({ company_id: ctx.companyId, note_id: row!.id, ...t })))}`;
+  // Each line and tax with its company amount at the invoice's rate (Task 34.4, FX §9): a note reverses at the carrying rate, never an fx.
+  const stored = withCompanyAmounts(args.parts.lines as (Record<string, unknown> & { base: number })[], args.parts.taxes, rate);
+  await ctx.tx`insert into invoicing.note_lines ${ctx.tx(stored.lines.map((l) => ({ company_id: ctx.companyId, note_id: row!.id, ...l })))}`;
+  if (stored.taxes.length > 0) {
+    await ctx.tx`insert into invoicing.note_taxes ${ctx.tx(stored.taxes.map((t) => ({ company_id: ctx.companyId, note_id: row!.id, ...t })))}`;
   }
   return row!.id;
 }
@@ -531,10 +533,10 @@ export const noteHooks: TypedHooks = {
     const settings = await settingsOf(ctx);
     const costCenterId = note.cost_center_id ?? settings.defaultCostCenterId;
     const rate = num(note.exchange_rate);
-    const lines = await ctx.tx<{ base: string; free_sample: boolean; category_id: string | null }[]>`
-      select base::text, free_sample, category_id from invoicing.note_lines where note_id = ${note.id} order by line_no`;
-    const taxes = await ctx.tx<{ ledger_code: string; rate: string | null; base: string; amount: string }[]>`
-      select ledger_code, rate::text, base::text, amount::text from invoicing.note_taxes where note_id = ${note.id} order by seq`;
+    const lines = await ctx.tx<{ base: string; free_sample: boolean; subtotal_company: string; category_id: string | null }[]>`
+      select base::text, free_sample, subtotal_company::text, category_id from invoicing.note_lines where note_id = ${note.id} order by line_no`;
+    const taxes = await ctx.tx<{ ledger_code: string; rate: string | null; base: string; amount: string; amount_company: string }[]>`
+      select ledger_code, rate::text, base::text, amount::text, amount_company::text from invoicing.note_taxes where note_id = ${note.id} order by seq`;
     const facts = await readInvoiceFacts(ctx, note.party_id, []);
     const company = companyAmounts(lines, taxes, rate);
     // A credit note reverses the invoice's sides: its amounts are negative (the posting engine flips the side of a negative amount).
@@ -562,9 +564,10 @@ export const noteHooks: TypedHooks = {
       invoiceCufe: invoice.cufe,
       customer: { partyId: note.party_id, legalName: facts.party.name },
       ...(costCenterId ? { costCenterId } : {}),
-      totals: { total: signed(company.total) },
-      lines: company.revenue.map(({ line, subtotal }) => ({ subtotal: signed(subtotal), categoryId: line.category_id, ...(costCenterId ? { costCenterId } : {}) })),
-      taxes: company.taxLines.map(({ tax, amount, base }) => ({ code: tax.ledger_code, rate: tax.rate === null ? null : num(tax.rate), amount: signed(amount), base: signed(base) })),
+      // Company amounts in the fields they always had, the document twins with Doc (R34-4), both signed.
+      totals: { total: signed(company.total), totalDoc: signed(company.totalDoc) },
+      lines: company.revenue.map(({ line, subtotal, subtotalDoc }) => ({ subtotal: signed(subtotal), subtotalDoc: signed(subtotalDoc), categoryId: line.category_id, ...(costCenterId ? { costCenterId } : {}) })),
+      taxes: company.taxLines.map(({ tax, amount, amountDoc, base }) => ({ code: tax.ledger_code, rate: tax.rate === null ? null : num(tax.rate), amount: signed(amount), amountDoc: signed(amountDoc), base: signed(base) })),
       currency: note.currency,
       exchangeRate: rate,
       orderIds: [...new Set(invoiceLines.flatMap((l) => (l.order_id ? [l.order_id] : [])))],

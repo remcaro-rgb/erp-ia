@@ -2871,6 +2871,7 @@
         "inc": "Consumption tax",
         "other_taxes": "Other taxes",
         "total": "Total",
+        "subtotal_company": "Subtotal in pesos",
         "free_sample": "Free sample",
         "category_id": "Category",
         "order_id": "Order",
@@ -2891,6 +2892,7 @@
         "rate": "Rate",
         "base": "Base",
         "amount": "Amount",
+        "amount_company": "Amount in pesos",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
@@ -2985,6 +2987,7 @@
         "inc": "Consumption tax",
         "other_taxes": "Other taxes",
         "total": "Total",
+        "subtotal_company": "Subtotal in pesos",
         "free_sample": "Free sample",
         "category_id": "Category",
         "extra": "Additional data",
@@ -3001,6 +3004,7 @@
         "rate": "Rate",
         "base": "Base",
         "amount": "Amount",
+        "amount_company": "Amount in pesos",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
@@ -5195,6 +5199,10 @@
       "posting_age": {
         "title": "Document without its journal entry for more than {minutes} minutes",
         "body": "When this alert was raised, the document had been waiting {waited} minutes for its journal entry (the alert fires at {minutes}). Review it in Accounting › Posting rules › Pending to post: fix the cause and retry. The alert closes by itself once the entry is posted."
+      },
+      "rule_without_currency": {
+        "title": "The rule {rule} has no currency",
+        "body": "The rule {rule} has no currency; foreign-currency invoices will be posted in COP only (their document-currency debit and credit equal the COP ones). It was modified before the rules carried the document currency: review it in Accounting › Posting rules and add the currency and rate, or go back to the default rule."
       }
     }
   },
@@ -6173,6 +6181,7 @@
       "reprice": "Recalculate prices",
       "reprice_hint": "Sets each product's list price of today on the draft and works out its taxes again; lines billed from an order keep the agreed price",
       "price_warning": "Prices are from {date}; use Recalculate prices to update them",
+      "rate_warning": "The rate differs from the day's TRM ({trm})",
       "duplicate": "Duplicate",
       "duplicate_hint": "Opens the invoice with «Create note» filled with this note's concept, reason and lines",
       "resubmit_block": {

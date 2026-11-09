@@ -70,8 +70,17 @@ function systemVariables(ctx: PrintContext): Record<string, string> {
 }
 
 /** One value of `column` as the page prints it: empty when the caller sees it masked. */
-export const printedCell = (column: ExportColumn, value: unknown, ctx: Pick<PrintContext, "locale" | "timeZone">): string =>
-  column.masked ? "" : cellText(column, value, { locale: ctx.locale, timeZone: ctx.timeZone, paper: true });
+export const printedCell = (column: ExportColumn, value: unknown, ctx: Pick<PrintContext, "locale" | "timeZone">, currency?: string): string =>
+  column.masked ? "" : cellText(column, value, { locale: ctx.locale, timeZone: ctx.timeZone, paper: true, currency });
+
+/**
+ * The currency a record's money prints in (Task 34.4, item 129): its own `currency` field when it has one (an ISO code the caller sees),
+ * so a USD invoice prints `USD 12.500,00`; none, the company's (`$ 1.234.567,00`, rule 23).
+ */
+export function recordCurrency(record: ExportRow): string | undefined {
+  const value = record.currency;
+  return typeof value === "string" && /^[A-Z]{3}$/.test(value) ? value : undefined;
+}
 
 /**
  * The variables of a template printing `data`: one record (its fields by name, every field of the entity the caller does not see
@@ -82,7 +91,8 @@ export function resolveVariables(ctx: PrintContext, entity: EntityDef, data: Exp
   const record = data as ExportRow;
   const vars: Record<string, string> = systemVariables(ctx);
   for (const field of entity.fields) vars[field.name] = "";
-  for (const column of ctx.columns) vars[column.field] = printedCell(column, record[column.field], ctx);
+  const currency = recordCurrency(record);
+  for (const column of ctx.columns) vars[column.field] = printedCell(column, record[column.field], ctx, currency);
   return vars;
 }
 

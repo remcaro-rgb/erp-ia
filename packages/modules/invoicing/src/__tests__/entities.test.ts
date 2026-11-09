@@ -17,8 +17,9 @@ const migrationFile = (name: string) => readFileSync(new URL(`../../../../../sup
 // 0092 creates the views; 0094 recreates invoicing.v_invoices with service_date (fix round 1); 0095 recreates invoicing.v_settings with the
 // DIAN submission's Parámetros and creates invoicing.v_einvoice_submissions (Task 17); 0096 creates the notes' views and recreates
 // v_invoices (debited_amount) and v_einvoice_submissions (note_id) (Task 18); 0135 (Task 35) recreates v_settings with
-// dian_checklist_version and creates v_dian_checks: the latest definition of each view must match.
-const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql"].map(migrationFile).join("\n");
+// dian_checklist_version and creates v_dian_checks; 0148 (Task 34.4) recreates the lines' and taxes' views with their company amounts: the latest
+// definition of each view must match.
+const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql", "0148_invoicing_company_amounts.sql"].map(migrationFile).join("\n");
 
 const loaded = () => {
   const registry = new Registry();
@@ -183,7 +184,20 @@ describe("invoicing manifest", () => {
   });
 });
 
-describe("invoicing masked views, migrations 0092, 0094, 0095, 0096, 0101, 0103, 0107, 0121 and 0135", () => {
+describe("invoicing masked views, migrations 0092, 0094, 0095, 0096, 0101, 0103, 0107, 0121, 0135 and 0148", () => {
+  // Task 34.4 (FX §10, rule 14): each company amount is shown only where its document twin is (the same field rule masks both), read-only.
+  it("lists the company amounts of lines and taxes, each masked with its document twin", () => {
+    const twins = { "invoicing.invoice_line": ["subtotal_company", "base"], "invoicing.invoice_tax": ["amount_company", "amount"], "invoicing.note_line": ["subtotal_company", "base"], "invoicing.note_tax": ["amount_company", "amount"] } as const;
+    for (const [id, [column, twin]] of Object.entries(twins)) {
+      const entity = INVOICING_ENTITIES.find((e) => e.id === id)!;
+      const field = entity.fields.find((f) => f.name === column);
+      expect(field?.type, `${id}.${column}`).toBe("money");
+      expect(field?.sensitivity, `${id}.${column}`).toBe(entity.fields.find((f) => f.name === twin)!.sensitivity);
+      const view = maskedViewSql(defineEntity(entity));
+      expect(view).toContain(`case when (select kernel.field_visible('${id}', '${column}')) then case when (select kernel.field_visible('${id}', '${twin}')) then "${column}" else null end else null end as "${column}"`);
+    }
+  });
+
   for (const entity of INVOICING_ENTITIES) {
     it(`invoicing.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       expect(migration).toContain(maskedViewSql(defineEntity(entity)));

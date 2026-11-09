@@ -57,6 +57,18 @@ describe("posting compose", () => {
     const r = run(t, { cur: "USD", rate: 4000, a: 10, fixed: 40000 });
     expect(r.ok && r.entry.lines.map((l) => [l.amountDoc, l.amountCompany])).toEqual([[10, 40000], [10, 40000]]);
   });
+  // Task 34.4 (FX §4): the rounding cent of an entry in another currency than the company's is a company amount only (its document amount is
+  // 0: the document side balances by itself); an entry in the company currency keeps amountDoc = amountCompany, as before.
+  it("a USD entry's rounding line has amountDoc 0; a COP entry's is unchanged", () => {
+    const t: RuleTemplate = { description: "t", currency: "$.cur", exchangeRate: "$.rate", lines: [
+      { role: "receivable", side: "debit", amount: "$.total", amountCompany: "$.totalCompany" },
+      { role: "revenue", side: "credit", amount: "$.total", amountCompany: "$.revenueCompany" },
+    ] };
+    const usd = run(t, { cur: "USD", rate: 4123.45, total: 12.5, totalCompany: 51543.13, revenueCompany: 51543.12 });
+    expect(usd.ok && usd.entry.roundingLine).toEqual({ role: "rounding", side: "credit", amountDoc: 0, amountCompany: 0.01 });
+    const cop = run(t, { cur: "COP", rate: 1, total: 100.5, totalCompany: 100.5, revenueCompany: 100 });
+    expect(cop.ok && cop.entry.roundingLine).toEqual({ role: "rounding", side: "credit", amountDoc: 0.5, amountCompany: 0.5 });
+  });
   it("reports an invalid template or a non-numeric amount", () => {
     expect(run({ description: "t", lines: [{ role: "cash", side: "debit", amount: "$.x" }, { role: "revenue", side: "credit", amount: "$.y" }] }, { x: "abc", y: 1 })).toMatchObject({ ok: false, code: "invalid_template" });
     expect(composeEntry({ description: "t", lines: [] } as never, invoiceEvent, options)).toMatchObject({ ok: false, code: "invalid_template" });

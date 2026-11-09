@@ -351,6 +351,25 @@ async function partyIds(sql: Sql): Promise<Map<string, { id: string; name: strin
 /** The annulment concept of the Colombian pack's table 13.2.4 (packages/localization/co: ANNULMENT_CONCEPT). */
 const ANNULMENT_REASON_CODE = "2";
 
+interface SalePayload extends Record<string, unknown> {
+  totals: { total: number };
+  lines: { subtotal: number }[];
+  taxes: { amount: number }[];
+}
+
+/**
+ * A peso sale payload as invoicing emits it since Task 34.4 (R34-4): each company amount beside its document twin (`*Doc`, equal in COP),
+ * the currency and the rate (1). The rules post `amount` from the twin and `amountCompany` from the field, so a peso entry is as before.
+ */
+export function inPesos<T extends SalePayload>(payload: T): Record<string, unknown> {
+  return {
+    ...payload, currency: "COP", exchangeRate: 1,
+    totals: { ...payload.totals, totalDoc: payload.totals.total },
+    lines: payload.lines.map((l) => ({ ...l, subtotalDoc: l.subtotal })),
+    taxes: payload.taxes.map((t) => ({ ...t, amountDoc: t.amount })),
+  };
+}
+
 /**
  * The invoicing.note.issued payload of an annulment, mirroring what invoicing.invoice.void / note.issue_annulment emits (processes/note.ts):
  * a credit note whose amounts are the invoice's, negative (the posting engine flips the side of a negative amount). R53-2: the seed's
@@ -363,13 +382,13 @@ export function annulmentPayload(
 ): Record<string, unknown> {
   const base = spec.beverages + spec.food;
   const tax = money(base * 0.19);
-  return {
+  return inPesos({
     date: note.date, number: note.number, noteId: ids.noteId, kind: "credit", annulment: true, reasonCode: ANNULMENT_REASON_CODE, dueDate: note.date,
     invoiceId: ids.invoiceId, invoiceNumber: spec.number, customer: ids.customer, costCenterId: ids.costCenterId,
     totals: { total: -(base + tax) },
     lines: [{ subtotal: -spec.beverages, categoryId: "bebidas", costCenterId: ids.costCenterId }, { subtotal: -spec.food, categoryId: "comida", costCenterId: ids.costCenterId }],
     taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -base }],
-  };
+  });
 }
 
 async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
@@ -391,12 +410,12 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
     const base = spec.beverages + spec.food;
     const tax = money(base * 0.19);
     issued.set(spec.number, { index: i + 1, spec, base, total: base + tax });
-    await send("invoicing.invoice.issued", {
+    await send("invoicing.invoice.issued", inPesos({
       date: spec.date, number: spec.number, invoiceId: documentId("a", i + 1), dueDate: addDays(spec.date, 30), customer: customer(spec.customer),
       costCenterId: costCenters.get(spec.costCenter), businessUnitId: units.get(spec.businessUnit), totals: { total: base + tax },
       lines: [{ subtotal: spec.beverages, categoryId: "bebidas" }, { subtotal: spec.food, categoryId: "comida" }],
       taxes: [{ code: "IVA19", rate: 19, amount: tax, base }],
-    });
+    }));
   }
 
   // Receipts: the customer withholds retefuente 2.5 % and ICA Bogotá 0.966 % on the base it pays.
@@ -430,11 +449,11 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
 
   for (const [i, note] of CREDIT_NOTES.entries()) {
     const tax = money(note.subtotal * 0.19);
-    await send("invoicing.note.issued", {
+    await send("invoicing.note.issued", inPesos({
       date: note.date, number: note.number, noteId: documentId("e", i + 1), reasonCode: "return", dueDate: note.date, customer: customer(note.customer),
       costCenterId: costCenters.get(note.costCenter), totals: { total: -(note.subtotal + tax) }, lines: [{ subtotal: -note.subtotal }],
       taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -note.subtotal }],
-    });
+    }));
   }
   for (const [i, cogs] of COGS.entries()) {
     await send("costing.cogs.posted", { date: cogs.date, number: cogs.number, cogsId: documentId("c", i + 1), lines: [{ cost: cogs.cost, costCenterId: costCenters.get(cogs.costCenter) }] });

@@ -10,7 +10,7 @@ const KEYS = [
   "credit_note_type_91", "export_customization_10", "no_export_debit_type_code", "no_invoice_control_on_notes", "notes_resolution_row",
   "software_security_code_doc_number", "no_sts_qrcode", "signature_canonicalization",
   "status_code_map", "getstatus_cufe_track_id", "resend_rejected_same_number_cufe", "async_zipkey_loss_in_doubt", "poll_backoff",
-  "free_sample_tax_total", "per_unit_other_taxes", "tax_exclusive_amount_excluded_zz",
+  "free_sample_tax_total", "per_unit_other_taxes", "tax_exclusive_amount_excluded_zz", "moneda_extranjera",
   "payment_means_subset", "foreign_buyer_ids_digits", "export_detection_country",
   "issuer_fiscal_profile_builder_only",
   "durable_runner_status_worlds",
@@ -19,10 +19,10 @@ const KEYS = [
 const GROUPS = ["notes_documents", "signing_software", "dian_response", "taxes_amounts", "payment_buyers", "issuer_profile", "infrastructure", "reference_tables"];
 
 describe("DIAN_CHECKLIST", () => {
-  it("has the 23 items of owner item 20, in this order, with unique snake_case keys", () => {
-    expect(DIAN_CHECKLIST.items).toHaveLength(23);
+  it("has the 23 items of owner item 20 and Task 34.4's moneda_extranjera, in this order, with unique snake_case keys", () => {
+    expect(DIAN_CHECKLIST.items).toHaveLength(24);
     expect(DIAN_CHECKLIST.items.map((i) => i.key)).toEqual(KEYS);
-    expect(new Set(DIAN_CHECKLIST.items.map((i) => i.key)).size).toBe(23);
+    expect(new Set(DIAN_CHECKLIST.items.map((i) => i.key)).size).toBe(24);
     for (const item of DIAN_CHECKLIST.items) expect(item.key).toMatch(/^[a-z][a-z0-9_]*$/);
   });
 
@@ -33,7 +33,7 @@ describe("DIAN_CHECKLIST", () => {
     // The items of a group are contiguous (the order is the display order).
     const groups = DIAN_CHECKLIST.items.map((i) => i.group);
     expect(groups).toEqual([...groups].sort((a, b) => GROUPS.indexOf(a) - GROUPS.indexOf(b)));
-    expect(GROUPS.map((g) => DIAN_CHECKLIST.items.filter((i) => i.group === g).length)).toEqual([5, 3, 5, 3, 3, 1, 1, 2]);
+    expect(GROUPS.map((g) => DIAN_CHECKLIST.items.filter((i) => i.group === g).length)).toEqual([5, 3, 5, 4, 3, 1, 1, 2]);
   });
 
   it("has Spanish and English text for every item", () => {
@@ -52,6 +52,19 @@ describe("DIAN_CHECKLIST", () => {
       expect(Number.isInteger(item.since), item.key).toBe(true);
       if (item.docUrl !== undefined) expect(item.docUrl, item.key).toMatch(/^https:\/\//);
     }
+  });
+
+  // Task 34.4 (FX §3): the foreign-currency export invoice was built from the annex, never sent to habilitación: a new row (since 2) clears every
+  // confirmation of version 1, so the production guard waits until the admin verified it.
+  it("moneda_extranjera is new in version 2 and names what habilitación must accept: the USD document, its totals and the CUFE, the rate's decimals", () => {
+    expect(DIAN_CHECKLIST.version).toBe(2);
+    const item = DIAN_CHECKLIST.items.find((i) => i.key === "moneda_extranjera")!;
+    expect(item).toMatchObject({ group: "taxes_amounts", since: 2 });
+    expect(item.es).toMatch(/DocumentCurrencyCode/);
+    expect(item.es).toMatch(/PaymentExchangeRate/);
+    expect(item.es).toMatch(/CUFE/);
+    expect(item.es).toMatch(/CalculationRate/);
+    for (const other of DIAN_CHECKLIST.items.filter((i) => i.key !== "moneda_extranjera")) expect(other.since, other.key).toBe(1);
   });
 
   it("names the claims verbatim from the item: the codes and extensions it asks the admin to check", () => {

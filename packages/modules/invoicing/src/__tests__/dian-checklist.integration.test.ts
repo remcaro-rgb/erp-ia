@@ -7,7 +7,7 @@ import { einvoicePack } from "@erp/loc-co/einvoice";
 import { generateTestCertP12 } from "../../../../localization/co/src/__tests__/helpers/test-cert";
 import { invoicingHarness, tickAllAndConfirm, type Harness } from "./helpers";
 
-// The DIAN verification checklist (plan 2B Task 35, owner item 20; R35-1..R35-15): the 23 values the documents carry that the DIAN may still ask
+// The DIAN verification checklist (plan 2B Task 35, owner item 20; R35-1..R35-15): the 24 values the documents carry (23 of item 20, moneda_extranjera of Task 34.4) that the DIAN may still ask
 // to change, ticked one by one by the company's admin against the DIAN habilitación; the confirmation of the defaults (the flag the
 // production guard of Task 19 reads) is possible only with every item ticked, is cleared by unticking any, and stops being effective when
 // the list grows. Everything goes through processes (step-up, admin only, never an assistant tool); the database holds the same rules.
@@ -62,10 +62,10 @@ afterAll(async () => {
 });
 
 describe("the list the screen shows", () => {
-  it("consult: 23 items in 8 groups, none ticked, no one's name, the effective confirmation false", async () => {
+  it("consult: 24 items in 8 groups, none ticked, no one's name, the effective confirmation false", async () => {
     const out = await consult();
-    expect(out).toMatchObject({ version: VERSION, storedVersion: null, confirmed: false, progress: { done: 0, total: 23 } });
-    expect(out.items).toHaveLength(23);
+    expect(out).toMatchObject({ version: VERSION, storedVersion: null, confirmed: false, progress: { done: 0, total: 24 } });
+    expect(out.items).toHaveLength(24);
     expect(out.items[0]).toMatchObject({ key: "credit_note_type_91", group: "notes_documents", ticked: false, tickedBy: null, tickedAt: null, isNew: false });
     expect(out.items.every((i) => i.es.length > 10 && i.en.length > 10)).toBe(true);
     const settingsOut = await h.run<Record<string, unknown>>(h.admin, "invoicing.settings.consult", {});
@@ -74,7 +74,7 @@ describe("the list the screen shows", () => {
 });
 
 describe("confirm: only with every item ticked", () => {
-  it("refuses dian_checklist_incomplete with the unticked texts for each of the 23 items left out in turn; the flag stays false", async () => {
+  it("refuses dian_checklist_incomplete with the unticked texts for each of the 24 items left out in turn; the flag stays false", async () => {
     await tickAll(true);
     for (const item of ITEMS) {
       await tick([{ itemKey: item.key, ticked: false }]);
@@ -90,7 +90,7 @@ describe("confirm: only with every item ticked", () => {
     expect(await confirm(true)).toMatchObject({ confirmed: true, version: VERSION });
     expect(await settings()).toMatchObject({ dian_defaults_confirmed: true, dian_checklist_version: VERSION });
     const out = await consult();
-    expect(out).toMatchObject({ confirmed: true, storedVersion: VERSION, progress: { done: 23, total: 23 } });
+    expect(out).toMatchObject({ confirmed: true, storedVersion: VERSION, progress: { done: 24, total: 24 } });
     expect(out.items.every((i: { ticked: boolean; isNew: boolean; tickedBy: string | null }) => i.ticked && !i.isNew && typeof i.tickedBy === "string")).toBe(true);
     expect(await h.run<Record<string, unknown>>(h.admin, "invoicing.settings.consult", {})).toMatchObject({ dian_defaults_confirmed: true, dian_checklist_version: VERSION });
   });
@@ -98,7 +98,7 @@ describe("confirm: only with every item ticked", () => {
   it("unticking one clears the flag and the version in the same run, audited (item true→false, flag true→false) with actor, origin and chain", async () => {
     const before = await check("poll_backoff");
     const out = await tick<{ confirmationCleared: boolean; progress: { done: number; total: number } }>([{ itemKey: "poll_backoff", ticked: false }]);
-    expect(out).toMatchObject({ confirmationCleared: true, progress: { done: 22, total: 23 } });
+    expect(out).toMatchObject({ confirmationCleared: true, progress: { done: 23, total: 24 } });
     expect(await settings()).toMatchObject({ dian_defaults_confirmed: false, dian_checklist_version: null });
     const itemAudit = await h.sql<{ before: string; after: string; actor: string; origin: string; chain_id: string; process_id: string }[]>`
       select diff->'ticked'->>'old' as before, diff->'ticked'->>'new' as after, actor_user_id as actor, origin, chain_id, process_id from kernel.audit_log
@@ -176,7 +176,7 @@ describe("the list grows (R35-7, R35-8)", () => {
     withGrownList();
     try {
       const out = await consult();
-      expect(out).toMatchObject({ version: VERSION + 1, storedVersion: VERSION, confirmed: false, progress: { done: 23, total: 24 } });
+      expect(out).toMatchObject({ version: VERSION + 1, storedVersion: VERSION, confirmed: false, progress: { done: 24, total: 25 } });
       expect(out.items.filter((i: { isNew: boolean }) => i.isNew).map((i: { key: string }) => i.key)).toEqual([NEW_KEY]);
       expect(await h.run<Record<string, unknown>>(h.admin, "invoicing.settings.consult", {})).toMatchObject({ dian_defaults_confirmed: false, dian_checklist_version: VERSION, dian_checklist_current_version: VERSION + 1 });
       // The stored flag lags (nothing ran), the effective one does not.
@@ -191,7 +191,7 @@ describe("the list grows (R35-7, R35-8)", () => {
     } finally {
       withOriginalList();
     }
-    expect(await consult()).toMatchObject({ confirmed: false, progress: { done: 23, total: 23 } });
+    expect(await consult()).toMatchObject({ confirmed: false, progress: { done: 24, total: 24 } });
   });
 });
 
@@ -277,7 +277,7 @@ describe("producción (Task 19's guard on top of the checklist)", () => {
     await tick([{ itemKey: "poll_backoff", ticked: true }]);
     const refused = await h.refusal(h.runStepUp("invoicing.settings.update", { dianEnvironment: "produccion" }));
     expect(refused).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/dian_defaults_unconfirmed/) });
-    expect(refused!.message).toMatch(/22 valores pendientes/);
+    expect(refused!.message).toMatch(/23 valores pendientes/);
     expect(refused!.message).toMatch(/lista de verificación DIAN/);
     expect((await settings()).dian_environment).toBe("habilitacion");
   });
@@ -307,7 +307,7 @@ describe("producción (Task 19's guard on top of the checklist)", () => {
       withGrownList();
       try {
         const out = await consult();
-        expect(out).toMatchObject({ confirmed: false, storedVersion: VERSION, progress: { done: 23, total: 24 } });
+        expect(out).toMatchObject({ confirmed: false, storedVersion: VERSION, progress: { done: 24, total: 25 } });
         expect(out.items.filter((i: { isNew: boolean }) => i.isNew).map((i: { key: string }) => i.key)).toEqual([NEW_KEY]);
         expect((await settings()).dian_defaults_confirmed).toBe(true);
         expect(await h.runStepUp("invoicing.settings.update", { creditDays: 45 })).toMatchObject({ dianEnvironment: "produccion", creditDays: 45 });

@@ -37,6 +37,8 @@ export interface RenderOptions {
    * (Task 12: a retried state e-mail sends the identical body); absent, now.
    */
   printedAt?: Date;
+  /** The currency of the printed record's money (its `currency` field, Task 34.4): the lines table prints `USD 12.500,00`; absent, `$`. */
+  currency?: string | undefined;
 }
 
 /** A page number when the caller gives no words: numbers only, no copy in the kernel. */

@@ -54,6 +54,8 @@ interface PdfOptions extends WriterOptions {
 
 interface TableOptions extends WriterOptions {
   totalFields?: readonly string[];
+  /** Every money cell and total is in this currency (one document's lines, Task 34.4); absent: the company's (`$`). */
+  currency?: string | undefined;
 }
 
 /** What the table prints, cell by cell, as text: the body and the totals row of the money columns (null: none). */
@@ -77,7 +79,7 @@ export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource
     );
   }
   const summed = columns.map((column) => !column.masked && (options.totalFields ? options.totalFields.includes(column.field) : column.type === "money"));
-  const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? (columns[i]!.type === "money" ? moneyText(sums[i] ?? 0) : String(sums[i] ?? 0)) : i === 0 ? text.total : "")) : null;
+  const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? (columns[i]!.type === "money" ? moneyText(sums[i] ?? 0, options.currency) : String(sums[i] ?? 0)) : i === 0 ? text.total : "")) : null;
   return { body, totals: grouped ? null : totals, kinds };
 }
 

@@ -2871,6 +2871,7 @@
         "inc": "INC",
         "other_taxes": "Otros impuestos",
         "total": "Total",
+        "subtotal_company": "Subtotal en pesos",
         "free_sample": "Muestra gratis",
         "category_id": "Categoría",
         "order_id": "Pedido",
@@ -2891,6 +2892,7 @@
         "rate": "Tarifa",
         "base": "Base",
         "amount": "Valor",
+        "amount_company": "Valor en pesos",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -2985,6 +2987,7 @@
         "inc": "INC",
         "other_taxes": "Otros impuestos",
         "total": "Total",
+        "subtotal_company": "Subtotal en pesos",
         "free_sample": "Muestra gratis",
         "category_id": "Categoría",
         "extra": "Datos adicionales",
@@ -3001,6 +3004,7 @@
         "rate": "Tarifa",
         "base": "Base",
         "amount": "Valor",
+        "amount_company": "Valor en pesos",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -5195,6 +5199,10 @@
       "posting_age": {
         "title": "Documento sin asiento contable hace más de {minutes} minutos",
         "body": "Al dar el aviso, este documento llevaba {waited} minutos esperando su asiento contable (el aviso salta a los {minutes}). Revísalo en Contabilidad › Reglas contables › Pendientes de contabilizar: corrige la causa y reintenta. El aviso se cierra solo cuando el asiento queda registrado."
+      },
+      "rule_without_currency": {
+        "title": "La regla {rule} no lleva moneda",
+        "body": "La regla {rule} no lleva moneda; las facturas en moneda extranjera se contabilizarán solo en COP (el débito y el crédito en moneda del documento quedan iguales a los de COP). Se modificó antes de que las reglas llevaran la moneda del documento: revísala en Contabilidad › Reglas contables y agrégale la moneda y la tasa, o vuelve a la regla por defecto."
       }
     }
   },
@@ -6173,6 +6181,7 @@
       "reprice": "Recalcular precios",
       "reprice_hint": "Pone los precios de hoy de la lista de cada producto y vuelve a calcular los impuestos del borrador; las líneas facturadas desde un pedido conservan el precio acordado",
       "price_warning": "Los precios son del {date}; usa Recalcular precios para actualizarlos",
+      "rate_warning": "La tasa difiere de la TRM del día ({trm})",
       "duplicate": "Duplicar",
       "duplicate_hint": "Abre la factura con «Crear nota» lleno con el concepto, el motivo y las líneas de esta nota",
       "resubmit_block": {

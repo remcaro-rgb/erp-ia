@@ -8,6 +8,15 @@ import { paymentsHarness, registry, type Harness } from "../../../payments/src/_
 // The demo ledger of Café del Norte (scripts/demo/accounting.ts, what `pnpm db:seed` posts): its invoices, receipts, notes and voids.
 import { CREDIT_NOTES, INVOICES, OPENING_LINES } from "../../../../../scripts/demo/ledger-data";
 
+/** A peso document's payload with the document twins of R34-4 (Task 34.4): the posting rules read `*Doc` and the company amount. */
+type PesoPayload = { totals: { total: number }; lines: { subtotal: number }[]; taxes: { amount: number }[] };
+const inPesos = <T extends PesoPayload>(payload: T): Record<string, unknown> => ({
+  ...payload, currency: "COP", exchangeRate: 1,
+  totals: { ...payload.totals, totalDoc: payload.totals.total },
+  lines: payload.lines.map((l) => ({ ...l, subtotalDoc: l.subtotal })),
+  taxes: payload.taxes.map((t) => ({ ...t, amountDoc: t.amount })),
+});
+
 // Open items from allocations (plan 2B Task 22; accounting design §4.12, §5.11): for a company with the payments module, the receivable
 // open items follow what each recibo de caja applied to each invoice (payments' published allocations) and the notes of each invoice
 // (invoicing's published note → invoice link), not FIFO by due date. What no allocation explains still applies FIFO; what an invoice
@@ -298,12 +307,13 @@ describe("with or without payments", () => {
       const base = spec.beverages + spec.food;
       const tax = money(base * 0.19);
       totals.set(spec.number, { base, total: base + tax, index: i + 1 });
-      await send("invoicing.invoice.issued", {
+      // The payloads as invoicing emits them since Task 34.4 (R34-4: the peso document twins).
+      await send("invoicing.invoice.issued", inPesos({
         date: spec.date, number: `${spec.number}-${run}`, invoiceId: ids("a", run * 100 + i + 1), dueDate: addDays(spec.date, 30), customer: await customer(spec.customer),
         costCenterId: h.costCenterId, totals: { total: base + tax },
         lines: [{ subtotal: spec.beverages, categoryId: "bebidas" }, { subtotal: spec.food, categoryId: "comida" }],
         taxes: [{ code: "IVA19", rate: 19, amount: tax, base }],
-      });
+      }));
     }
     for (const [i, spec] of INVOICES.entries()) {
       if (!spec.receipt) continue;
@@ -321,11 +331,11 @@ describe("with or without payments", () => {
     }
     for (const [i, note] of CREDIT_NOTES.entries()) {
       const tax = money(note.subtotal * 0.19);
-      await send("invoicing.note.issued", {
+      await send("invoicing.note.issued", inPesos({
         date: note.date, number: `${note.number}-${run}`, noteId: ids("e", run * 100 + i + 1), kind: "credit", annulment: false, reasonCode: "1", dueDate: note.date,
         customer: await customer(note.customer), costCenterId: h.costCenterId, totals: { total: -(note.subtotal + tax) }, lines: [{ subtotal: -note.subtotal }],
         taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -note.subtotal }],
-      });
+      }));
     }
     // The voids: the receipt of FE-1013 (its reversal, a debit with no allocation behind it) and the invoice FE-1015 (reversed by the test-owned
     // invoice-voided rule of installVoidedTestRule; the default rule is retired, an invoice is annulled by its credit note in production).

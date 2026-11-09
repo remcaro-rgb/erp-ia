@@ -7,6 +7,8 @@
     "description": "Nota {{number}} · {{customer.legalName}}",
     "party": "$.customer.partyId",
     "costCenter": "$.costCenterId",
+    "currency": "$.currency",
+    "exchangeRate": "$.exchangeRate",
     "source": {
       "entity": "invoicing.note",
       "id": "$.noteId"
@@ -25,14 +27,16 @@
       {
         "role": "receivable",
         "side": "debit",
-        "amount": "$.totals.total",
+        "amount": "$.totals.totalDoc",
+        "amountCompany": "$.totals.total",
         "dueDate": "$.dueDate"
       },
       {
         "role": "sales_returns",
         "side": "credit",
         "forEach": "$.lines[*]",
-        "amount": "$.subtotal",
+        "amount": "$.subtotalDoc",
+        "amountCompany": "$.subtotal",
         "dimension": "note_reason:{{$$.reasonCode}}",
         "costCenter": "$.costCenterId"
       },
@@ -40,7 +44,8 @@
         "role": "vat_out",
         "side": "credit",
         "forEach": "$.taxes[*]",
-        "amount": "$.amount",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount",
         "dimension": "tax:{{code}}",
         "taxCode": "$.code",
         "taxRate": "$.rate",

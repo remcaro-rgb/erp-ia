@@ -87,7 +87,7 @@ export {
   DIAN_ENVIRONMENTS, DIAN_STATUSES, INVOICE_CREATION, INVOICE_ORIGINS, INVOICE_STAGES, INVOICING_ENTITIES, NOTE_KINDS, NOTE_STAGES, RECOMMENDATION_STATUSES, SUBMISSION_STATUSES, TAX_FAMILIES,
 } from "./entities";
 export type { InvoiceCreation, InvoiceStage } from "./entities";
-export { INVOICE_CREATED, INVOICE_ISSUED } from "./processes/common";
+export { INVOICE_CREATED, INVOICE_ISSUED, defaultRate, rateDiffers, RATE_WARNING_TOLERANCE } from "./processes/common";
 export { INVOICE_ACCEPTED, INVOICE_ANNULLED, INVOICE_REJECTED, NOTE_ACCEPTED, NOTE_REJECTED, RESUBMIT_REQUESTED } from "./processes/einvoice";
 export { NOTE_ISSUED } from "./processes/note";
 export type { NoteOutput } from "./processes/note";

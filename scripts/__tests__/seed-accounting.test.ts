@@ -64,9 +64,14 @@ describe("the demo ledger data", () => {
     expect(payload).toMatchObject({ number: "NC-303", kind: "credit", annulment: true, reasonCode: "2", invoiceNumber: "FE-1015", date: "2026-10-20" });
     const base = invoice.beverages + invoice.food;
     expect(base).toBe(3_000_000);
-    expect(payload.totals).toEqual({ total: -3_570_000 });
-    expect(payload.lines).toEqual([{ subtotal: -invoice.beverages, categoryId: "bebidas", costCenterId: "cc" }, { subtotal: -invoice.food, categoryId: "comida", costCenterId: "cc" }]);
-    expect(payload.taxes).toEqual([{ code: "IVA19", rate: 19, amount: -570_000, base: -base }]);
+    // Task 34.4 (R34-4): in pesos, each amount's document twin equals it, with currency COP at rate 1.
+    expect(payload).toMatchObject({ currency: "COP", exchangeRate: 1 });
+    expect(payload.totals).toEqual({ total: -3_570_000, totalDoc: -3_570_000 });
+    expect(payload.lines).toEqual([
+      { subtotal: -invoice.beverages, subtotalDoc: -invoice.beverages, categoryId: "bebidas", costCenterId: "cc" },
+      { subtotal: -invoice.food, subtotalDoc: -invoice.food, categoryId: "comida", costCenterId: "cc" },
+    ]);
+    expect(payload.taxes).toEqual([{ code: "IVA19", rate: 19, amount: -570_000, amountDoc: -570_000, base: -base }]);
     // Balanced: the total is the lines plus the tax.
     expect(-(payload.totals as { total: number }).total).toBe(base + 570_000);
   });

@@ -51,6 +51,15 @@ const trailer = (f: F): FieldDef[] => [
 
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
 
+/**
+ * A company-currency amount stored beside its document amount (Task 34.4, FX §4, rule 8; owner item 120): written by «Emitir» (never by
+ * a form, so read-only), at the twin's sensitivity and shown only where the twin is: a role that masks the document amount reads its
+ * peso equivalent masked too (FX §10, rule 14).
+ */
+const companyTwin = (entityId: string, column: string, twin: string): Pick<FieldDef, "viewExpr"> => ({
+  viewExpr: `case when (select kernel.field_visible('${entityId}', '${twin}')) then "${column}" else null end`,
+});
+
 /** How invoices are created (OD-2, main design §22.25). */
 export const INVOICE_CREATION = ["manual", "on_delivery", "on_order_confirmation"] as const;
 export type InvoiceCreation = (typeof INVOICE_CREATION)[number];
@@ -176,6 +185,7 @@ export const invoiceLineEntity: EntityDef = entity("invoicing.invoice_line", "li
   f("inc", "money", { required: true }),
   f("other_taxes", "money", { required: true }),
   f("total", "money", { required: true }),
+  f("subtotal_company", "money", companyTwin("invoicing.invoice_line", "subtotal_company", "base")),
   f("free_sample", "boolean", { required: true }),
   f("category_id", "uuid"),
   f("order_id", "uuid"),
@@ -195,6 +205,7 @@ export const invoiceTaxEntity: EntityDef = entity("invoicing.invoice_tax", "sist
   f("rate", "number"),
   f("base", "money", { required: true }),
   f("amount", "money", { required: true }),
+  f("amount_company", "money", companyTwin("invoicing.invoice_tax", "amount_company", "amount")),
   ...trailer(f),
 ]);
 
@@ -328,6 +339,7 @@ export const noteLineEntity: EntityDef = entity("invoicing.note_line", "lines", 
   f("inc", "money", { required: true }),
   f("other_taxes", "money", { required: true }),
   f("total", "money", { required: true }),
+  f("subtotal_company", "money", companyTwin("invoicing.note_line", "subtotal_company", "base")),
   f("free_sample", "boolean", { required: true }),
   f("category_id", "uuid"),
   ...trailer(f),
@@ -343,6 +355,7 @@ export const noteTaxEntity: EntityDef = entity("invoicing.note_tax", "sistema", 
   f("rate", "number"),
   f("base", "money", { required: true }),
   f("amount", "money", { required: true }),
+  f("amount_company", "money", companyTwin("invoicing.note_tax", "amount_company", "amount")),
   ...trailer(f),
 ]);
 

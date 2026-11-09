@@ -115,6 +115,8 @@ Si el cliente es del exterior, la factura sale como **factura de exportación** 
 
 En esta versión la moneda extranjera es solo para **exportaciones**: una factura en dólares a un cliente en Colombia no se crea ni se emite (guía **Facturas de venta**, «En moneda extranjera»).
 
+El **PDF** de una factura en otra moneda muestra los precios, los impuestos y los totales en esa moneda (`USD 1.250,00`) y, sobre el pie, la leyenda **«Equivalente en COP a TRM 4.123,45 del 2026-11-09: $ 5.154.312,50»**: la tasa de la factura, la fecha de la factura y su total en pesos. La nota de una factura en dólares lleva la tasa y la fecha de la factura que corrige. Una factura en pesos no lleva leyenda.
+
 ## Errores frecuentes y qué hacer
 
 - **La facturación electrónica no está configurada**: registra el software, el PIN y el certificado de la empresa (ver abajo) y pulsa Reintentar envío.
@@ -156,7 +158,7 @@ Cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar 
 - El **ambiente DIAN**: **Habilitación** mientras se hacen las pruebas con la DIAN, **Producción** después.
 - El **identificador del software** que la empresa registró ante la DIAN, el **NIT del proveedor del software** (sin dígito de verificación) y, en habilitación, el **identificador del set de pruebas**.
 - El perfil fiscal del emisor: **responsabilidades fiscales** (códigos separados por comas), **tributo**, y los códigos DANE del **departamento** y el **municipio**.
-- **Valores por defecto DIAN: n de 23 verificados** (o **confirmados**) y el enlace **Abrir la lista de verificación**: los valores por defecto ya no se confirman con una casilla, sino en la **Lista de verificación DIAN** (más abajo).
+- **Valores por defecto DIAN: n de 24 verificados** (o **confirmados**) y el enlace **Abrir la lista de verificación**: los valores por defecto ya no se confirman con una casilla, sino en la **Lista de verificación DIAN** (más abajo).
 
 **Pasar a producción** solo se permite cuando todo está listo; si falta algo, el cambio se rechaza, la empresa sigue en habilitación y el mensaje dice qué falta:
 
@@ -171,11 +173,11 @@ Las **notas** crédito y débito se emiten en el ambiente de la factura que corr
 
 ### Lista de verificación DIAN
 
-Se abre desde **Conexión DIAN › Abrir la lista de verificación** (**Facturación › Parámetros › Facturación electrónica › Lista de verificación DIAN**; no tiene opción propia en el menú). Solo la abren los **administradores de la empresa**. Son los **23 valores** que los documentos llevan hoy, escritos según los anexos de la DIAN y probados con el simulador, que **nadie ha verificado todavía en la habilitación de la DIAN**. Antes de pasar a producción, el administrador verifica cada uno en la habilitación y lo marca; con los 23 marcados puede **Confirmar valores por defecto**, y solo así la empresa puede pasar a producción (además del servidor, el software, el certificado y el PIN).
+Se abre desde **Conexión DIAN › Abrir la lista de verificación** (**Facturación › Parámetros › Facturación electrónica › Lista de verificación DIAN**; no tiene opción propia en el menú). Solo la abren los **administradores de la empresa**. Son los **24 valores** que los documentos llevan hoy, escritos según los anexos de la DIAN y probados con el simulador, que **nadie ha verificado todavía en la habilitación de la DIAN**. Antes de pasar a producción, el administrador verifica cada uno en la habilitación y lo marca; con los 24 marcados puede **Confirmar valores por defecto**, y solo así la empresa puede pasar a producción (además del servidor, el software, el certificado y el PIN).
 
-**Cómo se usa.** Marca las casillas (o usa **Seleccionar el grupo** para marcar un grupo entero) y pulsa **Marcar los seleccionados**: una sola ejecución, con **un** código de verificación, marca todo lo seleccionado. Bajo cada valor marcado verás **Verificado por** quién y cuándo. La barra muestra el avance (**n de 23 verificados**). **Confirmar valores por defecto** se habilita solo con los 23 marcados y sin cambios pendientes de guardar, y también pide el código; después la página dice **Valores confirmados el** (fecha) **por** (nombre).
+**Cómo se usa.** Marca las casillas (o usa **Seleccionar el grupo** para marcar un grupo entero) y pulsa **Marcar los seleccionados**: una sola ejecución, con **un** código de verificación, marca todo lo seleccionado. Bajo cada valor marcado verás **Verificado por** quién y cuándo. La barra muestra el avance (**n de 24 verificados**). **Confirmar valores por defecto** se habilita solo con los 24 marcados y sin cambios pendientes de guardar, y también pide el código; después la página dice **Valores confirmados el** (fecha) **por** (nombre).
 
-**Desmarcar.** Desmarcar cualquier valor (el botón pasa a **Guardar cambios**) deja sin efecto la confirmación en el mismo paso: la página avisa **Confirma de nuevo los valores por defecto** y, cuando vuelvan a estar los 23 marcados, se confirma otra vez. **En producción no se puede desmarcar** (la confirmación no se retira ahí): para cambiar la verificación, vuelve primero a habilitación. Cada marca y cada desmarca queda en la **auditoría** con quién, cuándo y desde dónde.
+**Desmarcar.** Desmarcar cualquier valor (el botón pasa a **Guardar cambios**) deja sin efecto la confirmación en el mismo paso: la página avisa **Confirma de nuevo los valores por defecto** y, cuando vuelvan a estar los 24 marcados, se confirma otra vez. **En producción no se puede desmarcar** (la confirmación no se retira ahí): para cambiar la verificación, vuelve primero a habilitación. Cada marca y cada desmarca queda en la **auditoría** con quién, cuándo y desde dónde.
 
 **Cuando llega un valor nuevo.** Si una versión del sistema agrega un valor a la lista, la confirmación anterior **deja de valer en ese momento**: el valor nuevo aparece con la etiqueta **Nuevo** y un aviso rojo (**Hay n valores nuevos por verificar**). Marca los nuevos y confirma de nuevo. Una empresa que **ya está en producción** sigue enviando documentos con normalidad (el aviso solo le pide verificar los valores nuevos); pasar a producción otra empresa necesita la confirmación vigente.
 
@@ -201,6 +203,7 @@ Se abre desde **Conexión DIAN › Abrir la lista de verificación** (**Facturac
    - **Muestras gratis**: que acepte el TaxTotal y el AlternativeConditionPrice de una línea de muestra.
    - **Otros impuestos por unidad**: que acepte PerUnitAmount y BaseUnitMeasure.
    - **TaxExclusiveAmount con líneas excluidas y ZZ**: que el total sin impuestos cuadre.
+   - **Moneda extranjera** (DocumentCurrencyCode, PaymentExchangeRate, LegalMonetaryTotal en la moneda de la factura y CUFE calculado con esos valores): que una factura de exportación en dólares se acepte en la habilitación. Es un valor nuevo de la versión 2 de la lista: una empresa que ya había confirmado la lista de 23 debe verificarlo y confirmar de nuevo.
 5. **Medios de pago y compradores**
    - **Subconjunto de la tabla 13.3.4.2** (1, 10, 20, 42, 47, 48, 49, 71, ZZZ): que los medios que usa la empresa estén aceptados.
    - **Documentos de compradores extranjeros reducidos a dígitos**: que acepte esos números.

@@ -102,6 +102,20 @@ describe("the export invoice (international sale)", () => {
     golden("export-invoice-usd.xml", xml);
   });
 
+  // Task 34.4 (FX §9): a line whose USD price was converted from the product's COP list price at the invoice's rate (Task 34.3,
+  // resolveLinePrice: 50.000 / 4.123,45 = 12,1257… → 12,13 half-up) is an ordinary USD line of the document; the golden file pins it.
+  it("a converted-price line prints its USD price like any other line (golden export-invoice-usd-converted.xml)", () => {
+    const converted = Math.round((50000 / 4123.45) * 100) / 100;
+    expect(converted).toBe(12.13);
+    const inv = invoice(FOREIGN, [{ item: ITEM, quantity: 100, unitPrice: 12.5, ivaRate: "0" }, { item: { ...ITEM, sku: "SRV-01", description: "Instalación" }, quantity: 2, unitPrice: converted, ivaRate: "0" }],
+      { currency: "USD", exchangeRate: { rate: 4123.45, date: "2026-11-09" } });
+    const xml = buildInvoiceXml(inv);
+    expect(xml).toContain('<cbc:PriceAmount currencyID="USD">12.13</cbc:PriceAmount>');
+    expect(xml).toContain('<cbc:PayableAmount currencyID="USD">1274.26</cbc:PayableAmount>');
+    expect(xml).toContain("<cbc:CalculationRate>4123.45</cbc:CalculationRate>");
+    golden("export-invoice-usd-converted.xml", xml);
+  });
+
   it("names the foreign buyer without a Colombian address: its country and address line, no DANE code, its PartyTaxScheme", () => {
     const xml = buildInvoiceXml(exportUsd());
     const customer = xml.slice(xml.indexOf("<cac:AccountingCustomerParty>"), xml.indexOf("</cac:AccountingCustomerParty>"));

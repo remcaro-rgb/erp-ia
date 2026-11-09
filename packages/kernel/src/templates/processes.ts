@@ -20,7 +20,7 @@ import { countryPackOf, translatorFor, type Translate } from "../registry/labels
 import { defaultTemplate, printableFields, printLabels, type DefaultPresentation } from "./defaults";
 import type { TableSource } from "./render";
 import { DOC_TEMPLATE_ENTITY, MAX_PAGE_POINTS, TEMPLATE_SCOPES, TemplateBlocks, type Block, type Template, type TemplateScope } from "./schema";
-import { IMAGE_VARIABLES, listVariables, loadPrintCompany, loadPrintUser, resolveVariables, variableNames, type PrintContext } from "./variables";
+import { IMAGE_VARIABLES, listVariables, loadPrintCompany, loadPrintUser, recordCurrency, resolveVariables, variableNames, type PrintContext } from "./variables";
 
 // The PDF template processes (entity types spec 2026-11-02 §6; Phase 2A.5 Task 11, migration 0048):
 //   - kernel.doc_template.save: a company admin creates or changes a template (step-up, audited); every save is a new version;
@@ -336,12 +336,14 @@ export async function renderPrint(ctx: ProcessContext, input: PrintInput, t: Tra
   let vars: Record<string, string>;
   let table: TableSource | undefined;
   let rowCount: number;
+  let currency: string | undefined;
   if (input.recordId) {
     const record = await readRows(ctx, entity, presentation, "id = $1", [input.recordId], 1);
     // Not there, or not readable by the caller (company RLS, record-level read): the same refusal, so it never tells which.
     if (record.rows.length === 0) throw new ProcessError("not_found", `${entity.id} ${input.recordId} not found`);
     const ctxOf: PrintContext = { ...base, columns: record.columns };
     vars = resolveVariables(ctxOf, entity, record.rows[0]!);
+    currency = recordCurrency(record.rows[0]!);
     // What the entity's module adds to the record's print (ModuleDef.printVariables: Task 19, the invoice's QR and CUFE), as the caller.
     const added = moduleVariablesOf(ctx, entity);
     if (added) {
@@ -380,7 +382,7 @@ export async function renderPrint(ctx: ProcessContext, input: PrintInput, t: Tra
   // Loaded on demand (exports/render.ts does the same): the PDF engine is large and only a print needs it.
   const { renderTemplatePdf } = await import("./render");
   const pageText = input.pageText ?? t("common.print.page_number");
-  const pdf = await renderTemplatePdf(template, vars, table, background ?? undefined, { locale: ctx.locale, timeZone: company.timeZone, printedAt, ...(pageText ? { pageText } : {}) });
+  const pdf = await renderTemplatePdf(template, vars, table, background ?? undefined, { locale: ctx.locale, timeZone: company.timeZone, printedAt, ...(pageText ? { pageText } : {}), ...(currency ? { currency } : {}) });
   const fileName = exportFileName(input.title ?? template.name, entity.id, "pdf", company.timeZone, printedAt);
   return { pdf, template, scope, fileName, rowCount };
 }

@@ -221,6 +221,17 @@ export interface DianChecklist {
   items: readonly DianChecklistItem[];
 }
 
+/** What a document's currency legend is made of (EInvoicePack.currencyLegend). */
+export interface CurrencyLegendInput {
+  currency: string;
+  /** Company-currency units per unit of `currency` (the document's frozen rate). */
+  rate: number;
+  /** ISO date of the rate. */
+  rateDate: string;
+  /** The document's total in the company currency (total_company). */
+  totalCompany: number;
+}
+
 export interface EInvoicePack {
   /** The DIAN verification checklist the company's admin ticks before producción (plan 2B Task 35, R35-2). */
   dianChecklist: DianChecklist;
@@ -298,6 +309,13 @@ export interface EInvoicePack {
     /** The legend of an invoice's numbering authorization (number, prefix, range, validity) in `locale`. */
     resolutionLegend(resolution: ResolutionInfo, locale: string): string;
   };
+  /**
+   * Task 34.4 (FX §3): the lines a foreign-currency document prints below its totals, in `locale` (Colombia: «Equivalente en COP a TRM
+   * 4.123,45 del 2026-11-09: $ 51.543.125,00»): its rate, the rate's date (the invoice's issue date, also for its notes, OD-7) and its
+   * total in the company currency. The wording and which totals it lists are fiscal text, the pack's (rule 5); none for the company's
+   * own currency.
+   */
+  currencyLegend(document: CurrencyLegendInput, locale: string): string[];
   /**
    * Reads a signing certificate (Colombia: PKCS#12 and its password) without storing it. Throws a user-facing error (the caller's
    * language is Spanish) when it is not one or the password does not open it.

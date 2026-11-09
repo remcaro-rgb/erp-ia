@@ -1,4 +1,4 @@
-import type { ResolutionInfo } from "@erp/kernel";
+import { moneyText, rateText, type CurrencyLegendInput, type ResolutionInfo } from "@erp/kernel";
 import { computeNitDv } from "./nit";
 
 // The graphic representation of a Colombian electronic document (plan 2B Task 19; Anexo Técnico 1.9 of the DIAN): what its PDF prints besides
@@ -36,6 +36,20 @@ export function resolutionLegend(r: ResolutionInfo, locale: string): string {
   }
   const prefix = r.prefix ? `prefijo ${r.prefix}` : "sin prefijo";
   return `Resolución DIAN de numeración N.º ${r.number}: ${prefix}, del ${r.from} al ${r.to}, vigente del ${paperDate(r.validFrom)} al ${paperDate(r.validTo)}`;
+}
+
+/**
+ * The legend a foreign-currency document prints below its totals (Task 34.4, FX §3): its total in pesos at the TRM it was issued with
+ * (Decreto 1453 de 2018, art. 288 ET: initial recognition at the TRM; the DIAN reads the invoice as being in COP «sin perjuicio» of another
+ * currency). One line; none for a peso document. Rates print with es-CO separators (`4.123,45`), the date as the TRM's (ISO).
+ */
+export function currencyLegend(document: CurrencyLegendInput, locale: string): string[] {
+  if (document.currency === "COP") return [];
+  const rate = rateText(document.rate);
+  const total = moneyText(document.totalCompany);
+  return locale.toLowerCase().startsWith("en")
+    ? [`COP equivalent at TRM ${rate} of ${document.rateDate}: ${total}`]
+    : [`Equivalente en COP a TRM ${rate} del ${document.rateDate}: ${total}`];
 }
 
 /**

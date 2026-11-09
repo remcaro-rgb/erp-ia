@@ -117,7 +117,8 @@ function build(t: RuleTemplate, event: EventRef, options: { tolerance: number; c
   }
   if (diff !== 0) {
     const amount = Math.abs(diff) / 100;
-    entry.roundingLine = { role: "rounding", side: diff > 0 ? "credit" : "debit", amountDoc: amount, amountCompany: amount };
+    // The difference is of the company amounts: an entry in another currency carries it in pesos only (Task 34.4, FX §4).
+    entry.roundingLine = { role: "rounding", side: diff > 0 ? "credit" : "debit", amountDoc: currency === options.companyCurrency ? amount : 0, amountCompany: amount };
   }
   return { ok: true, entry };
 }

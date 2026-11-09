@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { resolveVariables } from "@erp/kernel";
 import { einvoicePack } from "@erp/loc-co/einvoice";
+import { invoiceEntity } from "../entities";
 import { renderTemplatePdf } from "../../../../kernel/src/templates/render";
 import { pdfText } from "../../../../kernel/src/templates/__tests__/pdf-text";
 import { invoicing } from "../index";
@@ -23,12 +25,14 @@ const COPY: Record<string, string> = {
   "invoicing.print.pending_notice": "Documento pendiente de validación por la DIAN",
   "invoicing.print.reference": "Factura {number} · CUFE {code}",
 };
+/** A USD export invoice at the TRM of 2026-11-09 (FX §3): its totals in dollars, the legend of its peso equivalent from the pack. */
+const USD = { currency: "USD", rate: 4123.45, rateDate: "2026-11-09", totalCompany: 51543125 };
 const t = (key: string, params?: Record<string, string | number>) => {
   let text = COPY[key] ?? key;
   for (const [k, v] of Object.entries(params ?? {})) text = text.replaceAll(`{${k}}`, String(v));
   return text;
 };
-const deps = { representation: einvoicePack.representation, t, locale: "es-419" };
+const deps = { representation: einvoicePack.representation, currencyLegend: einvoicePack.currencyLegend, t, locale: "es-419" };
 
 describe("the invoice's print variables", () => {
   it("the QR payload is the DIAN's query of the document by its CUFE (Anexo Técnico format, pinned)", async () => {
@@ -107,5 +111,43 @@ describe("the invoice's template (ModuleDef.printTemplates + printVariables)", (
     expect(text).toContain(CUFE.slice(0, 40));
     expect(text).toContain("990000999");
     expect(text).toContain("sin validez fiscal");
+  });
+});
+
+// Task 34.4 (FX §3, item 129): a foreign-currency invoice prints its totals in its own currency (USD 12.500,00) and, below them, the peso
+// equivalent at its rate, in the pack's wording (rule 5); a peso invoice prints no legend.
+describe("the foreign-currency invoice's print (Task 34.4)", () => {
+  it("the pack's legend gives the COP equivalent at the TRM and its date; a COP invoice has none", () => {
+    expect(einvoicePack.currencyLegend(USD, "es-419")).toEqual(["Equivalente en COP a TRM 4.123,45 del 2026-11-09: $ 51.543.125,00"]);
+    expect(einvoicePack.currencyLegend(USD, "en")).toEqual(["COP equivalent at TRM 4.123,45 of 2026-11-09: $ 51.543.125,00"]);
+    expect(einvoicePack.currencyLegend({ currency: "COP", rate: 1, rateDate: "2026-11-09", totalCompany: 1000 }, "es-419")).toEqual([]);
+  });
+
+  it("the print variable fe.moneda carries the legend; the template prints it below the totals", async () => {
+    const values = await einvoicePrintValues({ kind: "invoice", code: CUFE, environment: "produccion", resolution: RESOLUTION, dianStatus: "accepted", currency: USD }, deps);
+    expect(values[FE.currency]).toBe("Equivalente en COP a TRM 4.123,45 del 2026-11-09: $ 51.543.125,00");
+    const peso = await einvoicePrintValues({ kind: "invoice", code: CUFE, environment: "produccion", resolution: RESOLUTION, dianStatus: "accepted", currency: { ...USD, currency: "COP", rate: 1 } }, deps);
+    expect(peso[FE.currency]).toBe("");
+    expect(EINVOICE_TEXT_VARIABLES).toContain(FE.currency);
+    expect(invoiceRecordTemplate({ title: "Factura" }).blocks.some((b) => b.kind === "variable" && b.value === FE.currency)).toBe(true);
+  });
+
+  it("renders the USD invoice with USD 12.500,00 totals and the peso legend", async () => {
+    const money = ["subtotal", "discount_total", "tax_total", "total"].map((field) => ({ field, label: field, type: "money" as const }));
+    const record = { currency: "USD", subtotal: "12500.0000", discount_total: "0.0000", tax_total: "0.0000", total: "12500.0000" };
+    const ctx = {
+      company: { name: "Café del Norte S.A.S.", nit: "900373115-3", address: "", city: "", phone: "", logo: "" }, user: { name: "Ana" },
+      printedAt: new Date("2026-11-09T15:00:00Z"), locale: "es-419", timeZone: "America/Bogota", columns: [{ field: "currency", label: "currency", type: "text" as const }, ...money],
+    };
+    const fields = resolveVariables(ctx, invoiceEntity, record);
+    expect(fields.total).toBe("USD 12.500,00");
+    expect(fields.subtotal).toBe("USD 12.500,00");
+    // A peso invoice prints as rule 23 says.
+    expect(resolveVariables(ctx, invoiceEntity, { ...record, currency: "COP", total: "1234567" }).total).toBe("$ 1.234.567,00");
+    const values = await einvoicePrintValues({ kind: "invoice", code: CUFE, environment: "habilitacion", resolution: RESOLUTION, dianStatus: "accepted", currency: USD }, deps);
+    const pdf = await renderTemplatePdf(invoiceRecordTemplate({ title: "Factura electrónica de venta" }), { ...fields, ...values, number: "SETP990000001" }, undefined, undefined, { printedAt: new Date("2026-11-09T15:00:00Z") });
+    const text = pdfText(pdf);
+    expect(text).toContain("USD 12.500,00");
+    expect(text).toContain("Equivalente en COP a TRM 4.123,45 del 2026-11-09: $ 51.543.125,00");
   });
 });

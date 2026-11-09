@@ -15,10 +15,11 @@ export const DIAN_CHECKLIST_GROUPS = [
   "notes_documents", "signing_software", "dian_response", "taxes_amounts", "payment_buyers", "issuer_profile", "infrastructure", "reference_tables",
 ] as const;
 
-const item = (key: string, group: (typeof DIAN_CHECKLIST_GROUPS)[number], es: string, en: string): DianChecklistItem => ({ key, group, since: 1, es, en });
+const item = (key: string, group: (typeof DIAN_CHECKLIST_GROUPS)[number], es: string, en: string, since = 1): DianChecklistItem => ({ key, group, since, es, en });
 
 export const DIAN_CHECKLIST: DianChecklist = {
-  version: 1,
+  // 2: «Moneda extranjera» (plan 2B.2 Task 34.4, FX §3): the export invoice in USD was never sent to habilitación.
+  version: 2,
   items: [
     // 1. Notas y tipos de documento
     item("credit_note_type_91", "notes_documents",
@@ -72,6 +73,10 @@ export const DIAN_CHECKLIST: DianChecklist = {
     item("tax_exclusive_amount_excluded_zz", "taxes_amounts",
       "El TaxExclusiveAmount con líneas excluidas y con el tributo ZZ",
       "The TaxExclusiveAmount with excluded lines and with tax ZZ"),
+    item("moneda_extranjera", "taxes_amounts",
+      "Moneda extranjera: la factura de exportación en USD lleva DocumentCurrencyCode USD y PaymentExchangeRate con la TRM (la DIAN dice que la factura es en COP «sin perjuicio» de otra moneda), sus totales (LegalMonetaryTotal) y el CUFE en la moneda del documento, y el CalculationRate con seis decimales (la TRM tiene dos)",
+      "Foreign currency: the USD export invoice carries DocumentCurrencyCode USD and PaymentExchangeRate with the TRM (the DIAN says the invoice is in COP «without prejudice» of another currency), its totals (LegalMonetaryTotal) and the CUFE in the document currency, and the CalculationRate with six decimals (the TRM has two)",
+      2),
     // 5. Medios de pago y compradores
     item("payment_means_subset", "payment_buyers",
       "Los medios de pago son un subconjunto de la tabla 13.3.4.2: 1, 10, 20, 42, 47, 48, 49, 71, ZZZ",

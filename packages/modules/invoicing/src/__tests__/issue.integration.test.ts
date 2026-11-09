@@ -50,10 +50,11 @@ describe("invoicing.invoice.issue", () => {
     expect(keys(payload)).toEqual(expect.arrayContaining(keys(fixture)));
     expect(keys(payload.lines[0]!)).toEqual(expect.arrayContaining(keys(fixture.lines[0]!)));
     expect(keys(payload.taxes[0]!)).toEqual(expect.arrayContaining(keys(fixture.taxes[0]!)));
-    expect(payload).toMatchObject({ number: issued.number, invoiceId: draft.id, date: h.today, dueDate: h.today, totals: { total: 406350 }, costCenterId: h.costCenterId });
+    // Task 34.4 (R34-4): each company amount keeps its field and gains its document twin (*Doc); a COP invoice carries both equal.
+    expect(payload).toMatchObject({ number: issued.number, invoiceId: draft.id, date: h.today, dueDate: h.today, totals: { total: 406350, totalDoc: 406350 }, costCenterId: h.costCenterId, currency: "COP", exchangeRate: 1 });
     expect(payload.taxes).toEqual([
-      { code: "IVA5", rate: 5, amount: 14250, base: 285000 },
-      { code: "IVA19", rate: 19, amount: 17100, base: 90000 },
+      { code: "IVA5", rate: 5, amount: 14250, amountDoc: 14250, base: 285000 },
+      { code: "IVA19", rate: 19, amount: 17100, amountDoc: 17100, base: 90000 },
     ]);
 
     // Posted inline: the entry exists before any dispatch, balanced, revenue with the cost center.
