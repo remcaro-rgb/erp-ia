@@ -354,9 +354,14 @@ test.describe("crm and sales pages", () => {
       await page.reload();
       await expect(frame(page).getByTestId("order-stage")).toBeVisible();
       await expect(frame(page).getByTestId("order-credit")).toHaveCount(0);
-      // The same plain role once it may consult invoices (the module entitled, the grant given): the credit shows again.
+      // The plain role needs the invoice consult (the module entitled, the grant given) and the all-orders permission («Cambiar el vendedor
+      // de un pedido», so sales.v_orders holds every salesperson's orders; review F-4.2). The consult alone is not enough.
       await fixture.sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${fixture.tenantId}, 'module:invoicing', 'manual')`;
       await fixture.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${admin!.id}, 'invoicing.invoice.consult')`;
+      await page.reload();
+      await expect(frame(page).getByTestId("order-stage")).toBeVisible();
+      await expect(frame(page).getByTestId("order-credit")).toHaveCount(0);
+      await fixture.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${admin!.id}, 'sales.order.reassign')`;
       await page.reload();
       await expect(frame(page).getByTestId("order-credit")).toContainText("$ 5.000.000,00 · Disponible");
     } finally {

@@ -5003,7 +5003,9 @@
             "payments_payment_receive": "Registrar recibo de caja",
             "payments_payment_void": "Anular recibo de caja",
             "costing_landed_cost_allocate": "Distribuir costo en destino",
-            "costing_landed_cost_void": "Anular costo en destino"
+            "costing_landed_cost_void": "Anular costo en destino",
+            "payments_advance_apply": "Aplicar anticipo a facturas",
+            "payments_advance_undo": "Deshacer aplicación de anticipo"
           }
         }
       },

@@ -5003,7 +5003,9 @@
             "payments_payment_receive": "Record cash receipt",
             "payments_payment_void": "Void cash receipt",
             "costing_landed_cost_allocate": "Allocate landed cost",
-            "costing_landed_cost_void": "Void landed cost"
+            "costing_landed_cost_void": "Void landed cost",
+            "payments_advance_apply": "Apply advance to invoices",
+            "payments_advance_undo": "Undo advance application"
           }
         }
       },

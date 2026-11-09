@@ -176,6 +176,93 @@ describe("(3) a failing rule in asynchronous mode goes to the retry queue; the a
   });
 });
 
+// Whole-branch review F-2.1: in asynchronous mode the reversal of a void is posted by the consumer (accounting.posting.reverse_source); when
+// the ledger refuses it (the period of the void is closed) the pending carries the reversal rule, and Reintentar re-runs the reversal once the
+// period is reopened, with the voided-source protocol of a successful reversal (the source recorded voided, its pendings dismissed).
+describe("(3b) a void whose reversal the ledger refuses in asynchronous mode is a retryable pending", () => {
+  const closeToday = async () => {
+    const [period] = await h.sql<{ id: string }[]>`
+      select p.id from accounting.periods p where p.company_id = ${h.companyId} and ${h.today}::date between p.starts_on and p.ends_on`;
+    await h.sql`update accounting.periods set status = 'closed' where id = ${period!.id}`;
+    return period!.id;
+  };
+  const reopen = (id: string) => h.sql`update accounting.periods set status = 'open' where id = ${id}`;
+
+  /** The void committed, the consumer could not reverse: a closed_period pending of the reversal rule; a retry while closed posts nothing. */
+  const refusedWhileClosed = async (sourceId: string, voidEvent: string, posted: number) => {
+    expect(await h.drain()).toEqual([]);
+    expect(await h.entriesOf(sourceId)).toHaveLength(posted);
+    const [failed] = await h.pending(sourceId);
+    expect(failed).toMatchObject({ source_id: sourceId, event: voidEvent, state: "failed", failure_id: expect.any(String) });
+    const [row] = await h.sql<{ error_code: string; status: string; reverse_of: string | null }[]>`
+      select f.error_code, f.status, r.template #>> '{reverseOf,event}' as reverse_of
+      from accounting.posting_failures f left join accounting.posting_rules r on r.id = f.posting_rule_id where f.id = ${failed!.failure_id}`;
+    expect(row).toMatchObject({ error_code: "closed_period", status: "pending", reverse_of: expect.any(String) });
+    expect(await h.run(h.admin, "accounting.posting.retry", { failureId: failed!.failure_id })).toMatchObject({ resolved: false, code: "closed_period" });
+    expect(await h.entriesOf(sourceId)).toHaveLength(posted);
+    expect((await h.sql`select status from accounting.posting_failures where id = ${failed!.failure_id}`)[0]).toEqual({ status: "pending" });
+    return { failureId: failed!.failure_id!, reverseOf: row!.reverse_of! };
+  };
+
+  /** After the reopen: the retry posts the reversal, records the source voided, clears the pending; a second retry is refused, nothing more posts. */
+  const retriedAfterReopen = async (sourceId: string, failureId: string, reverseOf: string) => {
+    const out = await h.run<{ resolved: boolean; entryId?: string }>(h.admin, "accounting.posting.retry", { failureId });
+    expect(out).toMatchObject({ resolved: true, entryId: expect.any(String) });
+    const entries = await h.entriesOf(sourceId);
+    expect(entries).toHaveLength(2);
+    expect(entries[1]).toMatchObject({ id: out.entryId, reversal_of_id: entries[0]!.id, status: "posted" });
+    expect(await h.count("accounting.voided_sources", `source_id = '${sourceId}' and event = '${reverseOf}'`)).toBe(1);
+    expect((await h.sql`select status, resolved_entry_id from accounting.posting_failures where id = ${failureId}`)[0]).toEqual({ status: "resolved", resolved_entry_id: out.entryId });
+    expect(await h.pending(sourceId)).toEqual([]);
+    await expect(h.run(h.admin, "accounting.posting.retry", { failureId })).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await h.drain()).toEqual([]);
+    expect(await h.entriesOf(sourceId)).toHaveLength(2);
+    await balanced();
+  };
+
+  it("a receipt voided in a closed period: pending with the rule, refused while closed, reopen → Reintentar reverses it once", async () => {
+    await h.setMode("asynchronous");
+    const invoice = await h.issuedInvoice();
+    expect(await h.drain()).toEqual([]);
+    const receipt = await h.receive(invoice.id, invoice.total);
+    expect(await h.drain()).toEqual([]);
+    expect(await h.entriesOf(receipt.id)).toHaveLength(1);
+    const period = await closeToday();
+    let refused: { failureId: string; reverseOf: string };
+    try {
+      await h.runStepUp("payments.payment.void", { id: receipt.id, reason: "Consignación devuelta" });
+      refused = await refusedWhileClosed(receipt.id, "payments.payment.voided", 1);
+    } finally {
+      await reopen(period);
+    }
+    expect(refused!.reverseOf).toBe("payments.received");
+    await retriedAfterReopen(receipt.id, refused!.failureId, refused!.reverseOf);
+  });
+
+  it("an advance application undone in a closed period: the same", async () => {
+    await h.setMode("asynchronous");
+    const invoice = await h.issuedInvoice();
+    expect(await h.drain()).toEqual([]);
+    const advance = await h.run<{ id: string }>(h.admin, "payments.payment.receive", { partyId: h.customerId, methodId: h.transfer, amount: invoice.total, date: h.today, allocations: [] });
+    expect(await h.drain()).toEqual([]);
+    const application = await h.run<{ id: string }>(h.admin, "payments.advance.apply", {
+      partyId: h.customerId, lines: [{ receiptId: advance.id, invoiceId: invoice.id, amount: invoice.total }],
+    });
+    expect(await h.drain()).toEqual([]);
+    expect(await h.entriesOf(application.id)).toHaveLength(1);
+    const period = await closeToday();
+    let refused: { failureId: string; reverseOf: string };
+    try {
+      await h.runStepUp("payments.advance.undo", { id: application.id, reason: "Aplicación equivocada" });
+      refused = await refusedWhileClosed(application.id, "payments.advance.unapplied", 1);
+    } finally {
+      await reopen(period);
+    }
+    expect(refused!.reverseOf).toBe("payments.advance.applied");
+    await retriedAfterReopen(application.id, refused!.failureId, refused!.reverseOf);
+  });
+});
+
 describe("(4) the same failing rule in inline mode still rolls the action back", () => {
   it("no account for a role: Emitir is refused and the invoice stays a draft", async () => {
     await h.setMode("inline_strict");

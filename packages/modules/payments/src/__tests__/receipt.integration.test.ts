@@ -435,4 +435,28 @@ describe("Task 24b: «Registrar pago» lists the customer's open invoices (payme
     const missing = await h.refusal(openOf("00000000-0000-7000-8000-000000000000"));
     expect(missing?.code).toBe("invalid_input");
   });
+
+  // Whole-branch review F-5.4 (rule 14): the process itself refuses a caller who may not see an invoice field the list shows or computes the
+  // open balance from, as payments.advance.open does; the web helper's check stays, every other channel (API, scheduler) gets the same answer.
+  it("a role holding the process but with an invoice amount masked is forbidden by the process itself", async () => {
+    const partyId = await h.newCustomer("900111333", "Cliente Abiertas Mascaras S.A.S.");
+    const invoice = await h.issuedInvoice(1, { partyId });
+    const clerk: typeof h.admin = { ...h.admin, claims: h.seed.claimsFor(h.seed.users.clerk!, h.companyId) as typeof h.admin.claims };
+    // The company's admin role is exempt from field masks (kernel.field_visible): the member role (the clerk) is the masked caller.
+    const roleId = h.seed.companies[0]!.memberRoleId;
+    await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${roleId}, 'payments.payment.open_invoices') on conflict do nothing`;
+    const asClerk = () => h.run<{ invoices: OpenInvoice[] }>(clerk, "payments.payment.open_invoices", { partyId });
+    expect((await asClerk()).invoices.map((i) => i.id)).toEqual([invoice.id]);
+    for (const field of ["number", "total", "paid_amount", "credited_amount", "debited_amount"]) {
+      await h.sql`insert into kernel.field_permissions (company_id, role_id, entity, field, mode) values (${h.companyId}, ${roleId}, 'invoicing.invoice', ${field}, 'masked')`;
+      try {
+        const refused = await h.refusal(asClerk());
+        expect(refused?.code, field).toBe("forbidden");
+        expect(refused?.message, field).not.toMatch(/\d{3}\.\d{3}|119000/);
+      } finally {
+        await h.sql`delete from kernel.field_permissions where company_id = ${h.companyId} and role_id = ${roleId} and entity = 'invoicing.invoice' and field = ${field}`;
+      }
+    }
+    expect((await asClerk()).invoices.map((i) => i.id)).toEqual([invoice.id]);
+  });
 });

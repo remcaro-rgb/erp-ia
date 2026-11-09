@@ -1,5 +1,6 @@
 import "server-only";
 import { gridPageAccess, runProcess, type Caller } from "@erp/kernel";
+import { OPEN_INVOICES_FIELDS } from "@erp/module-payments";
 import type { OpenInvoice } from "@erp/ui";
 import { gridEntity } from "@/lib/grid/access";
 import { stepRefusal as refusal } from "@/lib/records/step-refusal";
@@ -9,9 +10,11 @@ import { processDeps } from "@/lib/server/runtime";
 // (v_receivable_invoices), which is not masked (rule 3 publishes it for processes), and returns the invoice number, total and what is open.
 // So the screen shows it only to a caller who sees those fields as they are (rule 14, plan 2B Task 40, Ruling R40-2): the number and the
 // money fields the open balance is computed from. Anything less is a typed `forbidden`, never a list with the amounts guessed or blanked.
+// The process refuses the same way itself (whole-branch review F-5.4), so every other channel gets the same answer; this check stays so the
+// screen answers before running it.
 
-/** The invoice fields the list shows or computes the open balance from: each must be visible to the caller. */
-export const OPEN_INVOICES_FIELDS = ["number", "total", "paid_amount", "credited_amount", "debited_amount"] as const;
+/** The invoice fields the list shows or computes the open balance from (payments' own list): each must be visible to the caller. */
+export { OPEN_INVOICES_FIELDS };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 

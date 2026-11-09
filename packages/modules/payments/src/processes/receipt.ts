@@ -443,6 +443,13 @@ export const paymentReceive = defineProcess({
  * balance the receipt is checked against), and whether a receipt of `date` (default today) can pay each one, with why not (the same reasons
  * «Registrar pago» refuses with). An invoice fully settled is left out. The screen applies only to the payable ones; the server checks again.
  */
+/**
+ * The invoice fields the list shows or computes the open balance from (plan 2B Task 40, R40-2): each must be visible to the caller, else the
+ * consult is `forbidden` (rule 14: masked figures are never answered, guessed or blanked). The process checks them itself (whole-branch review
+ * F-5.4), as payments.advance.open does, so every channel gets the same answer; the web helper checks them too before calling.
+ */
+export const OPEN_INVOICES_FIELDS = ["number", "total", "paid_amount", "credited_amount", "debited_amount"] as const;
+
 export const openInvoices = defineProcess({
   id: "payments.payment.open_invoices",
   module: "payments",
@@ -459,6 +466,11 @@ export const openInvoices = defineProcess({
   handler: async (ctx, { partyId, date: given }) => {
     const [party] = await ctx.tx<{ id: string }[]>`select id from core.v_party_sales where id = ${partyId}`;
     if (!party) refuse("invalid_party", ["El cliente no existe o no es visible"]);
+    // invoicing.v_receivable_invoices is published unmasked: a caller who may not see the invoice's number or amounts gets no list (F-5.4).
+    for (const field of OPEN_INVOICES_FIELDS) {
+      const [visible] = await ctx.tx<{ visible: boolean }[]>`select kernel.field_visible('invoicing.invoice', ${field}) as visible`;
+      if (visible?.visible !== true) throw new ProcessError("forbidden", `payments.payment.open_invoices: the caller may not see invoicing.invoice.${field}`);
+    }
     const on = given ?? (await today(ctx));
     const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
     const currency = company!.currency_code.trim();

@@ -173,7 +173,20 @@ const asParent = defineProcess({
   handler: async (ctx) => (await ctx.runProcess!("test.nestcfg.inner", { name: "asp-in" }, { asParent: "test.nestcfg.outer" })) ?? null,
 });
 
-const TEST_PROCESSES = [outer, outerSu, inner, sensitive, only, middle, chain, flakyProcess, flakySu, flakyOnly, asParent];
+// Whole-branch review F-1.1: a nested update under the record guard (kernel.record_access): a record the caller cannot read is refused
+// `not_found`, which is a denial in disguise and must never be queued by a `continue` pair.
+const guarded = defineProcess({
+  id: "test.nestcfg.guarded",
+  module: "test",
+  kind: "update",
+  description: "anidado con regla por registro",
+  recordAccess: { entity: "test.nestrec", idField: "id", right: "modify" },
+  input: z.object({ id: z.uuid(), name: z.string() }),
+  output: z.object({ id: z.string() }),
+  handler: async (ctx, { name }) => ({ id: await insertProbe(ctx.tx, ctx.companyId, name) }),
+});
+
+const TEST_PROCESSES = [outer, outerSu, inner, sensitive, only, middle, chain, flakyProcess, flakySu, flakyOnly, asParent, guarded];
 
 const testModule: ModuleDef = {
   id: "test",
@@ -271,7 +284,7 @@ describe("configurable nested runs (plan 2B Task 32)", () => {
     const grantedClaims = seed.claimsFor(seed.users.granted!, companyId) as JwtClaims;
     granted = { claims: { ...grantedClaims, role_ids: [...grantedClaims.role_ids, retrierRole] }, origin: "ui" };
     // The plain role may run the parents and the nested processes (so a refusal is about the nested-run gate, not the parent's).
-    for (const id of ["test.nestcfg.outer", "test.nestcfg.outer_su", "test.nestcfg.inner"]) await grant(seed.companies[0]!.memberRoleId, id);
+    for (const id of ["test.nestcfg.outer", "test.nestcfg.outer_su", "test.nestcfg.inner", "test.nestcfg.guarded"]) await grant(seed.companies[0]!.memberRoleId, id);
     for (const id of ["kernel.nested_failure.retry", "kernel.nested_failure.dismiss", "test.nestcfg.flaky"]) await grant(retrierRole, id);
     // A role granted only the dismissal (fix round 1, M9: it sees the queue too).
     const [dRole] = await sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${companyId}, 'dismisser', false) returning id`;
@@ -510,6 +523,31 @@ describe("configurable nested runs (plan 2B Task 32)", () => {
       // A step-up nested process in continue mode without coverage is refused too.
       await setPair("test.nestcfg.outer", "test.nestcfg.sensitive", false, "continue");
       await expect(run(admin, "test.nestcfg.outer", { target: "test.nestcfg.sensitive", input: { name: "su-in" }, name: "su" })).rejects.toMatchObject({ code: "step_up_required" });
+    });
+
+    it("the record guard's not_found (a record the caller cannot read) propagates out of a continue pair and is never queued (WBR F-1.1)", async () => {
+      await setPair("test.nestcfg.outer", "test.nestcfg.guarded", false, "continue");
+      // A rule on the record that grants read to the retrier role only: the plain user may run both processes but cannot read the record.
+      const recordId = randomUUID();
+      await sql`insert into kernel.record_access (company_id, seq, entity, record_id, grantee_role_id, can_read, can_modify)
+                values (${companyId}, (select coalesce(max(seq), 0) + 1 from kernel.record_access where company_id = ${companyId}), 'test.nestrec', ${recordId}, ${retrierRole}, true, true)`;
+      try {
+        const chainId = randomUUID();
+        const refused = await run(onChain(plain, chainId), "test.nestcfg.outer", { target: "test.nestcfg.guarded", input: { id: recordId, name: "rg-in" }, name: "rg" }).catch((e: unknown) => e);
+        // The external code stays not_found (it disguises existence), with no details; the whole run is refused, nothing is queued.
+        expect(refused).toBeInstanceOf(ProcessError);
+        expect(refused).toMatchObject({ code: "not_found", stage: "gate" });
+        expect((refused as ProcessError).details).toBeUndefined();
+        expect(await probes("rg")).toEqual([]);
+        expect(await failuresOf(chainId)).toHaveLength(0);
+        // The control: a record without rules passes the guard and the pair runs whole.
+        const readable = randomUUID();
+        const ok = randomUUID();
+        await run(onChain(admin, ok), "test.nestcfg.outer", { target: "test.nestcfg.guarded", input: { id: readable, name: "rk-in" }, name: "rk" });
+        expect(await probes("rk")).toEqual(["rk-after", "rk-before", "rk-in"]);
+      } finally {
+        await sql`delete from kernel.record_access where company_id = ${companyId} and entity = 'test.nestrec'`;
+      }
     });
   });
 

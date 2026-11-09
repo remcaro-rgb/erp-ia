@@ -302,6 +302,15 @@ async function setUpOpening(sql: Sql, run: Run, laura: DemoSession): Promise<voi
 // ---------------------------------------------------------------------------------------------------------------------
 // The posted history
 
+/**
+ * Whether the annulment of `invoiceNumber` was already posted by the seed before Task 53.3, which sent `invoicing.invoice.voided` for it
+ * instead of the credit note NC-303. Sending the note then would credit the invoice a second time (review F-6.1); `legacyVoided` holds the
+ * invoice numbers of the outbox's `invoicing.invoice.voided` rows of the demo company.
+ */
+export function annulmentAlreadyPosted(invoiceNumber: string, legacyVoided: ReadonlySet<string>): boolean {
+  return legacyVoided.has(invoiceNumber);
+}
+
 /** A synthetic outbox event delivered to the accounting consumer, as `dispatchOutboxRow` does (the CLI has no workflow world). */
 async function deliver(sql: Sql, deps: RunProcessDeps, event: string, payload: Record<string, unknown>): Promise<boolean> {
   const number = String(payload.number);
@@ -438,7 +447,12 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
   // The receipt of FE-1013 voided (open again), and the annulment note of the invoice FE-1015, each in its own open period.
   if (voidedReceipt) await send("payments.payment.voided", { date: addDays(voidedReceipt.date, 3), number: voidedReceipt.number, paymentId: documentId("b", voidedReceipt.index) });
   // FE-1015 is annulled by its credit note of annulment (Task 53.3), numbered after the partial notes.
+  const legacyVoided = new Set(
+    (await sql<{ number: string }[]>`select payload->>'number' as number from kernel.outbox where company_id = ${DEMO_COMPANY_ID} and event = 'invoicing.invoice.voided'`).map((r) => r.number),
+  );
   for (const [i, note] of ANNULMENT_NOTES.entries()) {
+    // A database seeded before Task 53 already holds the reversal as `invoicing.invoice.voided`: the note would credit the invoice twice.
+    if (annulmentAlreadyPosted(note.invoice, legacyVoided)) continue;
     const spec = issued.get(note.invoice)!;
     await send("invoicing.note.issued", annulmentPayload(note, spec.spec, {
       noteId: documentId("e", CREDIT_NOTES.length + i + 1), invoiceId: documentId("a", spec.index), customer: customer(spec.spec.customer), costCenterId: costCenters.get(spec.spec.costCenter),

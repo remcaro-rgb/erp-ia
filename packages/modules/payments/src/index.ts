@@ -50,7 +50,7 @@ export { DOCUMENT_STATES, MAESTRO_STATES, METHOD_KINDS, PAYMENTS_ENTITIES, WITHH
 export type { WithholdingKind } from "./entities";
 export { ADVANCE_APPLIED, ADVANCE_UNAPPLIED, APPLICATION_PREFIX, applicationPlan, appliedPayload, unappliedPayload } from "./processes/advance";
 export type { ApplicationOutput, ApplicationPlan } from "./processes/advance";
-export { payability, PAYMENT_RECEIVED, PAYMENT_VOIDED, PAYMENTS_REFUSAL_CODES, RECEIPT_PREFIX, receiptTotals, receivedPayload, voidedPayload } from "./processes/receipt";
+export { OPEN_INVOICES_FIELDS, payability, PAYMENT_RECEIVED, PAYMENT_VOIDED, PAYMENTS_REFUSAL_CODES, RECEIPT_PREFIX, receiptTotals, receivedPayload, voidedPayload } from "./processes/receipt";
 export { RECEIPT_PRINT_FIELDS, RECEIPT_PRINT_LINE_COLUMNS, receiptRecordTemplate } from "./print";
 export type { ReceivedPayload, ReceiptOutput } from "./processes/receipt";
 export { PAYMENTS_POSTING_RULES } from "./rules";

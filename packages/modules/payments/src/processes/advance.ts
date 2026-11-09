@@ -228,6 +228,8 @@ export const advanceApply = defineProcess({
   output: applicationOutput,
   idempotencyKey: (input) => (input.idempotencyKey ? `apply:${input.idempotencyKey}` : undefined),
   handler: async (ctx, input) => {
+    // The same field checks as payments.advance.open (F-2.4): a refusal below names the remaining advance («tiene un saldo de $ X»).
+    await assertAdvanceFieldsVisible(ctx, "payments.advance.apply");
     if (input.idempotencyKey) {
       const stored = await storedApplication(ctx, input.idempotencyKey);
       if (stored) return stored;
@@ -370,6 +372,22 @@ export const advanceUndo = defineProcess({
 /** The fields of the customer's receipts the consult needs: without them the figures would be guessed or blank (rule 14, R36-10). */
 const OPEN_FIELDS = ["number", "date", "advance", "party_id", "status"] as const;
 
+/**
+ * Masked fields never filter nor answer guessed figures: a caller who does not see the receipt's number, date or advance (nor the customer
+ * and status the list is filtered by) is forbidden, as for the open invoices list (R40-2). `applied` is the sum of the applications' lines (a
+ * definer function): it is a figure of payments.advance_application_line.amount, so a caller who may not see that field gets no figure either
+ * (rule 14, no side channel). payments.advance.open runs it, and so does payments.advance.apply, whose refusals name the remaining advance
+ * (whole-branch review F-2.4).
+ */
+async function assertAdvanceFieldsVisible(ctx: ProcessContext, processId: string): Promise<void> {
+  for (const field of OPEN_FIELDS) {
+    const [visible] = await ctx.tx<{ visible: boolean }[]>`select kernel.field_visible('payments.receipt', ${field}) as visible`;
+    if (visible?.visible !== true) throw new ProcessError("forbidden", `${processId}: the caller may not see payments.receipt.${field}`);
+  }
+  const [lineAmount] = await ctx.tx<{ visible: boolean }[]>`select kernel.field_visible('payments.advance_application_line', 'amount') as visible`;
+  if (lineAmount?.visible !== true) throw new ProcessError("forbidden", `${processId}: the caller may not see payments.advance_application_line.amount`);
+}
+
 export const advanceOpen = defineProcess({
   id: "payments.advance.open",
   module: "payments",
@@ -385,16 +403,7 @@ export const advanceOpen = defineProcess({
   handler: async (ctx, { partyId }) => {
     const [party] = await ctx.tx<{ id: string }[]>`select id from core.v_party_sales where id = ${partyId}`;
     if (!party) refuse("invalid_party", ["El cliente no existe o no es visible"]);
-    // Masked fields never filter nor answer guessed figures: a caller who does not see the receipt's number, date or advance (nor the
-    // customer and status the list is filtered by) is forbidden, as for the open invoices list (R40-2).
-    for (const field of OPEN_FIELDS) {
-      const [visible] = await ctx.tx<{ visible: boolean }[]>`select kernel.field_visible('payments.receipt', ${field}) as visible`;
-      if (visible?.visible !== true) throw new ProcessError("forbidden", `payments.advance.open: the caller may not see payments.receipt.${field}`);
-    }
-    // `applied` is the sum of the applications' lines (a definer function): it is a figure of payments.advance_application_line.amount, so a
-    // caller who may not see that field gets no figure either (rule 14, no side channel).
-    const [lineAmount] = await ctx.tx<{ visible: boolean }[]>`select kernel.field_visible('payments.advance_application_line', 'amount') as visible`;
-    if (lineAmount?.visible !== true) throw new ProcessError("forbidden", "payments.advance.open: the caller may not see payments.advance_application_line.amount");
+    await assertAdvanceFieldsVisible(ctx, "payments.advance.open");
     const rows = await ctx.tx<{ id: string; number: string | null; date: string | null; method_code: string | null; advance: string }[]>`
       select id, number, date::text as date, method_code, advance::text from payments.v_receipts
       where party_id = ${partyId} and status = 'posted' and advance > 0 order by date, number`;

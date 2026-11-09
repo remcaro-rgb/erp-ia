@@ -6,7 +6,8 @@ import { processDeps } from "@/lib/server/runtime";
 
 // A pedido's credit «Disponible» is summed from invoicing's published (unmasked) views, so it shows only to a caller who sees every amount
 // it counts (final review I-2, rule 14): the credit limit, the invoice consult and the invoices' money fields. A role with the invoice total
-// masked would otherwise read what the customer owes as the difference.
+// masked would otherwise read what the customer owes as the difference. It also needs `sales.order.reassign`, so `sales.v_orders` (owner
+// scope, 0139) holds every salesperson's firm orders and the figure agrees with the approval check (review F-4.2).
 
 let member: AuthFixture;
 let companyId: string;
@@ -21,7 +22,7 @@ beforeAll(async () => {
   for (const key of ["module:core", "module:inventory", "module:crm", "module:sales", "module:invoicing"]) {
     await member.sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${member.tenantId}, ${key}, 'manual') on conflict do nothing`;
   }
-  for (const process of ["invoicing.invoice.consult", "sales.customer_terms.consult"]) {
+  for (const process of ["invoicing.invoice.consult", "sales.customer_terms.consult", "sales.order.reassign"]) {
     await member.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${roleId}, ${process}) on conflict do nothing`;
   }
 });
@@ -69,6 +70,15 @@ describe("creditVisibleTo (the pedido's credit Disponible)", () => {
       expect(await creditVisibleTo(processDeps(), claims())).toBe(false);
     } finally {
       await member.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${roleId}, 'invoicing.invoice.consult') on conflict do nothing`;
+    }
+  });
+
+  it("hides from a salesperson who may not run sales.order.reassign: v_orders then leaves out other salespeople's orders (review F-4.2)", async () => {
+    await member.sql`delete from kernel.process_permissions where company_id = ${companyId} and role_id = ${roleId} and process_id = 'sales.order.reassign'`;
+    try {
+      expect(await creditVisibleTo(processDeps(), claims())).toBe(false);
+    } finally {
+      await member.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${roleId}, 'sales.order.reassign') on conflict do nothing`;
     }
   });
 });

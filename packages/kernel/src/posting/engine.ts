@@ -84,7 +84,8 @@ export function postingConsumer(provider: PostingProvider, moduleId?: string): E
       if (rule.template.reverseOf) {
         const ref = rule.template.reverseOf;
         // Nothing posted for the referenced source (it predates the ledger, or had no rule): nothing to reverse.
-        await provider.reverse(ctx, { event: ref.event, sourceId: String(resolvePath(payload, ref.sourceId) ?? "") });
+        // The rule's id goes with it: a reversal the ledger refuses is a pending of this rule, which accounting.posting.retry re-runs.
+        await provider.reverse(ctx, { event: ref.event, sourceId: String(resolvePath(payload, ref.sourceId) ?? ""), ruleId: rule.id });
         continue;
       }
       const composed = composeEntry(rule.template, event, settings);

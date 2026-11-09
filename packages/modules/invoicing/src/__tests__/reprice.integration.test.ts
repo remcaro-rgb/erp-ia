@@ -59,6 +59,14 @@ describe("invoicing.invoice.reprice", () => {
     expect(out.subtotal).toBe(2 * 18000 + 50000);
   });
 
+  it("a draft in a foreign currency is refused: the list price carries no currency, so nothing changes (review F-3.1)", async () => {
+    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, issueDate: h.day(4, 5), currency: "USD", exchangeRate: 4000, lines: [{ productId: h.servicio, qty: 1, unitPrice: 12.5 }] });
+    const refused = await h.refusal(h.run(h.admin, "invoicing.invoice.reprice", { id: draft.id }));
+    expect(refused?.code).toBe("invalid_input");
+    expect(refused?.message).toMatch(/^currency_not_supported/);
+    expect(await unitPrices(draft.id)).toEqual([12.5]);
+  });
+
   it("an issued invoice is refused and nothing changes", async () => {
     const draft = await draftOf([{ productId: h.servicio, qty: 1 }]);
     await h.run(h.admin, "invoicing.invoice.issue", { id: draft.id });

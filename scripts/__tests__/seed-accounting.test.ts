@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { INVOICE_READY_PARTIES, PARTIES } from "../demo/data";
 import { ANDRES, DEMO_ROLE_IDS, LAURA, MARCELA } from "../demo/accounts";
 import {
-  ADJUSTMENTS, ANNULMENT_NOTES, annulmentPayload, documentId, BUSINESS_UNITS, COGS, SAMPLE_COMPROBANTES, COST_CENTERS, CREDIT_NOTES, ITEMS, INVOICES, OPEN_AUXILIARIES, OPENING_LINES, TOSTADORA, TRILLADORA, ELECTRIC,
+  ADJUSTMENTS, ANNULMENT_NOTES, annulmentAlreadyPosted, annulmentPayload, documentId, BUSINESS_UNITS, COGS, SAMPLE_COMPROBANTES, COST_CENTERS, CREDIT_NOTES, ITEMS, INVOICES, OPEN_AUXILIARIES, OPENING_LINES, TOSTADORA, TRILLADORA, ELECTRIC,
   type Node,
 } from "../demo/accounting";
 
@@ -131,5 +131,15 @@ describe("the demo ledger's parties on receivables and payables", () => {
         if (/^[4-7]/.test(line.accountCode)) expect(centers.has(line.costCenter ?? ""), `${c.description} ${line.accountCode}`).toBe(true);
       }
     }
+  });
+});
+
+describe("the annulment of FE-1015 on a database seeded before Task 53 (review F-6.1)", () => {
+  it("is skipped when the outbox already holds invoicing.invoice.voided for the invoice, and sent otherwise", () => {
+    const note = ANNULMENT_NOTES[0]!;
+    expect(note.invoice).toBe("FE-1015");
+    expect(annulmentAlreadyPosted(note.invoice, new Set(["FE-1015"]))).toBe(true);
+    expect(annulmentAlreadyPosted(note.invoice, new Set(["FE-1010"]))).toBe(false);
+    expect(annulmentAlreadyPosted(note.invoice, new Set())).toBe(false);
   });
 });

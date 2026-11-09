@@ -186,7 +186,7 @@ describe("check-rules: reads through masked views in apps/web and packages/agent
 });
 
 describe("check-rules: unmasked module views", () => {
-  const VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "payments.v_invoice_allocations"];
+  const VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "invoicing.v_open_invoices", "invoicing.v_order_invoiced", "payments.v_invoice_allocations"];
 
   it("flags a page reading an unmasked view with no field-visibility helper, with file and line", () => {
     put("apps/web/src/app/(app)/x/page.tsx", "export const q = (tx) => tx`\n  select id from invoicing.v_receivable_invoices where party_id = ${1}`;\n");
@@ -207,7 +207,7 @@ describe("check-rules: unmasked module views", () => {
     expect(checkRules(root).map((v) => v.rule)).toEqual(["unmasked-view-read"]);
   });
 
-  it("flags each of the five views and the open_invoices process", () => {
+  it("flags each of the seven views and the open_invoices process", () => {
     for (const view of VIEWS) {
       put("apps/web/src/lib/x.ts", `tx\`select 1 from ${view} v\`;\n`);
       expect(checkRules(root).map((v) => v.rule), view).toEqual(["unmasked-view-read"]);
@@ -217,6 +217,19 @@ describe("check-rules: unmasked module views", () => {
     }
     put("apps/web/src/lib/x.ts", 'await runProcess(deps, caller, "payments.payment.open_invoices", {});\n');
     expect(checkRules(root).map((v) => v.rule)).toEqual(["unmasked-view-read"]);
+  });
+
+  it("flags the real sales/record.ts credit read once its creditVisibleTo( gate is gone (review F-5.1)", () => {
+    const real = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const text = readFileSync(join(real, "apps/web/src/lib/sales/record.ts"), "utf8");
+    expect(text).toMatch(/creditVisibleTo\(/);
+    expect(text).toMatch(/invoicing\.v_open_invoices/);
+    put("apps/web/src/lib/sales/record.ts", text);
+    expect(checkRules(root).filter((v) => v.rule === "unmasked-view-read")).toEqual([]);
+    put("apps/web/src/lib/sales/record.ts", text.replaceAll("creditVisibleTo(", "creditVisible("));
+    const flagged = checkRules(root).filter((v) => v.rule === "unmasked-view-read");
+    expect(flagged.length).toBeGreaterThan(0);
+    expect(flagged.every((v) => v.file === "apps/web/src/lib/sales/record.ts")).toBe(true);
   });
 
   it("does not scan test files or code under packages/modules", () => {

@@ -386,6 +386,33 @@ describe("(k) permissions and masking (rule 14)", () => {
     }
     expect((await h.openAdvances(partyId, clerk)).map((a) => a.receiptId)).toEqual([receipt.id]);
   });
+
+  // Whole-branch review F-2.4 (rule 14): payments.advance.apply runs the same field checks as the consult, so a refusal that names the
+  // remaining advance («tiene un saldo de $ X») never reaches a caller who may not see it.
+  it("a role holding payments.advance.apply but with the advance masked is forbidden before any refusal discloses the remaining advance", async () => {
+    const { partyId, invoice, receipt } = await scenario("Cliente Aplica Mascaras S.A.S.", 1, 119000);
+    const clerk: typeof h.admin = { ...h.admin, claims: h.seed.claimsFor(h.seed.users.clerk!, h.companyId) as typeof h.admin.claims };
+    const roleId = h.seed.companies[0]!.memberRoleId;
+    await h.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${h.companyId}, ${roleId}, 'payments.advance.apply') on conflict do nothing`;
+    try {
+      // Unmasked, an over-application is refused with the figure (the caller may see it).
+      const plain = await h.refusal(h.apply([{ receiptId: receipt.id, invoiceId: invoice.id, amount: 999999999 }], { partyId }, clerk));
+      expect(plain?.code).toBe("invalid_input");
+      expect(JSON.stringify(plain?.details ?? plain?.message)).toMatch(/advance_exceeds_open|saldo/);
+      for (const [entity, field] of [["payments.receipt", "advance"], ["payments.receipt", "number"], ["payments.advance_application_line", "amount"]] as const) {
+        await h.sql`insert into kernel.field_permissions (company_id, role_id, entity, field, mode) values (${h.companyId}, ${roleId}, ${entity}, ${field}, 'masked')`;
+        try {
+          const refused = await h.refusal(h.apply([{ receiptId: receipt.id, invoiceId: invoice.id, amount: 999999999 }], { partyId }, clerk));
+          expect(refused?.code, `${entity}.${field}`).toBe("forbidden");
+          expect(JSON.stringify([refused?.message, refused?.details ?? null]), `${entity}.${field}`).not.toMatch(/saldo/);
+        } finally {
+          await h.sql`delete from kernel.field_permissions where company_id = ${h.companyId} and role_id = ${roleId} and entity = ${entity} and field = ${field}`;
+        }
+      }
+    } finally {
+      await h.sql`delete from kernel.process_permissions where company_id = ${h.companyId} and role_id = ${roleId} and process_id = 'payments.advance.apply'`;
+    }
+  });
 });
 
 describe("(l) concurrency", () => {

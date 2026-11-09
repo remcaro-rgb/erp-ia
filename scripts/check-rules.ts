@@ -160,8 +160,16 @@ function checkMaskedViewReads(root: string): Violation[] {
  * or apps/web/src/lib file that names one must also call a field-visibility helper, so the screen shows a figure only to who may see
  * its fields (rule 14, plan 2B Task 40). A comment is not a marker: there is no escape hatch.
  */
-export const UNMASKED_VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "payments.v_invoice_allocations"] as const;
+export const UNMASKED_VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "invoicing.v_open_invoices", "invoicing.v_order_invoiced", "payments.v_invoice_allocations"] as const;
 export const UNMASKED_PROCESSES = ["payments.payment.open_invoices"] as const;
+/**
+ * Views whose fields only one helper vouches for: a file reading them needs that helper's call, not any marker. v_open_invoices and
+ * v_order_invoiced feed the pedido's credit «Disponible», which `creditVisibleTo` gates (review F-5.1).
+ */
+const VIEW_SPECIFIC_MARKER: Readonly<Record<string, RegExp>> = {
+  "invoicing.v_open_invoices": /\bcreditVisibleTo\s*\(/,
+  "invoicing.v_order_invoiced": /\bcreditVisibleTo\s*\(/,
+};
 const VISIBILITY_MARKER = /\b(?:gridPageAccess|creditVisibleTo|linkableEntities)\s*\(|\bkernel\.field_visible\s*\(/;
 
 // Best effort and file-level: a marker anywhere in the file (even inside a string literal) satisfies the guard, and `linkableEntities(`
@@ -174,8 +182,10 @@ function checkUnmaskedViewReads(root: string): Violation[] {
     const path = rel(root, file);
     if (isTestFile(path)) continue;
     const text = withoutComments(readFileSync(file, "utf8"));
-    if (VISIBILITY_MARKER.test(text)) continue;
+    const generic = VISIBILITY_MARKER.test(text);
     for (const m of [...text.matchAll(viewRead), ...text.matchAll(processCall)]) {
+      const specific = VIEW_SPECIFIC_MARKER[m[1]!.toLowerCase()];
+      if (specific ? specific.test(text) : generic) continue;
       violations.push({
         rule: "unmasked-view-read",
         file: path,

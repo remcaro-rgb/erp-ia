@@ -72,7 +72,8 @@ export function ledgerOrStockReason(registry: Registry, processId: string): stri
 
 /**
  * The codes a `continue` pair queues (R32-16): a handler failure, a SQL error (`handler_failed`) and the typed `invalid_input` and
- * `not_found`. A denial (`forbidden`, `not_entitled`, `step_up_required`, `record_forbidden`) and `idempotent_replay` always propagate.
+ * `not_found`. A denial (`forbidden`, `not_entitled`, `step_up_required`, `record_forbidden`) and `idempotent_replay` always propagate, and
+ * so does the record guard's `not_found` (stage `gate`, a record the caller cannot read: run.ts isRecordGuardRefusal, review F-1.1).
  */
 export const CONTINUABLE_CODES: ReadonlySet<ProcessErrorCode> = new Set<ProcessErrorCode>(["invalid_input", "not_found", "handler_failed"]);
 

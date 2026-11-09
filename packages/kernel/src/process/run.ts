@@ -358,10 +358,20 @@ export async function assertRecordRight(ctx: Pick<ProcessContext, "tx">, entity:
   const [row] = await ctx.tx<{ readable: boolean; allowed: boolean }[]>`
     select kernel.can_access_record(${entity}, ${recordId}::uuid, 'read') as readable,
            kernel.can_access_record(${entity}, ${recordId}::uuid, ${right}) as allowed`;
-  if (row?.readable !== true) throw new ProcessError("not_found", `${entity} ${recordId} not found`);
+  // Stage `gate` marks it as the guard's refusal, a denial in disguise (whole-branch review F-1.1): a `continue` pair propagates it as it
+  // does `forbidden` and never queues it (isRecordGuardRefusal). The stage is internal: the caller still sees only `not_found`, no details.
+  if (row?.readable !== true) throw new ProcessError("not_found", `${entity} ${recordId} not found`, GATE);
   if (row.allowed !== true) {
     throw new ProcessError("record_forbidden", `the caller has no ${right} right on ${entity} ${recordId}`, { details: { entity, recordId, right } });
   }
+}
+
+/**
+ * Whether `error` is a refusal of the pipeline's own visibility checks disguised as `not_found` (stage `gate`): the record guard's
+ * (assertRecordRight, a record the caller cannot read) or a clone whose source the caller does not see. A denial, never a data failure.
+ */
+export function isRecordGuardRefusal(error: ProcessError): boolean {
+  return error.code === "not_found" && error.stage === "gate";
 }
 
 /**
@@ -652,7 +662,8 @@ function buildContext(
         // A SQL denial (insufficient_privilege, 42501: a definer writer or a grant refusing this run) is a denial like the typed ones (M1).
         const failure = sqlDenial(error, inner.id) ?? asProcessError(sqlRefusal(error) ?? error, inner.id);
         // A denial always propagates (R32-16); so does a failure after the subtree set off a ledger or stock event (R32-5 run-time guard).
-        if (!CONTINUABLE_CODES.has(failure.code) || collected.some((event) => ledgerOrStockEvent(registry, event))) throw failure;
+        // The record guard's not_found (a record the caller cannot read) is a denial too (F-1.1); a handler's own not_found is still queued.
+        if (!CONTINUABLE_CODES.has(failure.code) || isRecordGuardRefusal(failure) || collected.some((event) => ledgerOrStockEvent(registry, event))) throw failure;
         const [row] = await tx<{ id: string }[]>`
           select kernel.nested_failure_record(${def.id}, ${inner.id}, ${tx.json((parsed.data ?? null) as JSONValue)}, ${failure.code}, ${queuedReason(failure)},
                                               ${chainId}::uuid, ${caller.origin}) as id`;

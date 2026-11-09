@@ -55,3 +55,19 @@ describe("postingConsumer and transient SQL failures", () => {
     expect(failures).toEqual([expect.objectContaining({ code: "closed_period", ruleId: "r1" })]);
   });
 });
+
+// Whole-branch review F-2.1: the provider's reversal learns the reversal rule, so a reversal the ledger refuses is a pending of that rule
+// (accounting.posting.retry re-runs it) instead of a rule-less pending nothing can retry.
+describe("postingConsumer and a reversal rule", () => {
+  it("passes the rule's id to the provider's reverse", async () => {
+    const seen: unknown[] = [];
+    const reversal: RuleTemplate = { date: "$.date", description: "Anulación {{number}}", lines: [], reverseOf: { event: "x.issued", sourceId: "$.sourceId" } };
+    const consume = postingConsumer({
+      ...provider(async () => ({ entryId: null })),
+      rulesFor: async () => [{ id: "r-void", event: "x.voided", journalId: "j1", template: reversal, priority: 100 }],
+      reverse: async (_c, ref) => { seen.push(ref); return null; },
+    });
+    await consume(ctx, { ...payload, sourceId: "0192b4c0-0000-7000-8000-0000000000aa" });
+    expect(seen).toEqual([{ event: "x.issued", sourceId: "0192b4c0-0000-7000-8000-0000000000aa", ruleId: "r-void" }]);
+  });
+});

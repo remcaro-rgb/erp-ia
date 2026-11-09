@@ -27,7 +27,11 @@ export interface PostingProvider {
   composeSettings(ctx: ConsumerContext): Promise<{ tolerance: number; companyCurrency: string }>;
   /** Counts an event acknowledged without posting because it predates the ledger ("eventos anteriores al inicio del libro"). */
   countSkipped(ctx: ConsumerContext, eventId: string): Promise<void>;
-  reverse(ctx: ConsumerContext, ref: { event: string; sourceId: string }): Promise<{ entryId: string } | null>;
+  /**
+   * Reverses the entry the reversal rule `ref.ruleId` orders for `ref.sourceId`; a refusal of the ledger (a closed period) is recorded as a
+   * pending of that rule, so the retry queue can re-run the reversal (whole-branch review F-2.1).
+   */
+  reverse(ctx: ConsumerContext, ref: { event: string; sourceId: string; ruleId?: string }): Promise<{ entryId: string } | null>;
   recordFailure(ctx: ConsumerContext, failure: PostingFailure): Promise<void>;
   /**
    * What a run that emits `event` will post, one line per rule ("Contabilidad: asiento en Ventas"), for a confirmation card (design §5.1).

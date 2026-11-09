@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { inlinePostingProcesses } from "@erp/kernel";
+import { processDeps } from "@/lib/server/runtime";
+import es from "../../../../../packages/i18n/messages/es-419.json";
+import en from "../../../../../packages/i18n/messages/en.json";
 import { documentKey, postingModeData } from "./posting-mode";
 
 describe("postingModeData (the mode card's facts)", () => {
@@ -15,5 +19,14 @@ describe("postingModeData (the mode card's facts)", () => {
 
   it("builds the catalogue key of a process (snake_case)", () => {
     expect(documentKey("costing.landed_cost.allocate")).toBe("costing_landed_cost_allocate");
+  });
+
+  it("every documento of the mode card has a name in both catalogues, so the card never prints a raw key (review F-5.2)", () => {
+    const keys = inlinePostingProcesses(processDeps().registry).map(documentKey);
+    expect(keys).toContain("payments_advance_apply");
+    for (const [locale, messages] of [["es-419", es], ["en", en]] as const) {
+      const names = (messages as unknown as { accounting: { pages: { posting: { mode: { document: Record<string, string> } } } } }).accounting.pages.posting.mode.document;
+      expect(keys.filter((k) => !names[k]), locale).toEqual([]);
+    }
   });
 });

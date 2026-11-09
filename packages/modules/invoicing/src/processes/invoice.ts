@@ -309,7 +309,8 @@ export const invoiceUpdate = defineProcess({
 /**
  * «Recalcular precios» (owner item 17, ruling R50-17): the Borrador keeps its prices until the user asks. This sets every line's unit price
  * from its product's list price of today (a product with no list price keeps the line's price; the discount stays; a line billed from a
- * pedido, one with `orderLineId`, keeps the price agreed in the pedido), taxes the lines again
+ * pedido, one with `orderLineId`, keeps the price agreed in the pedido; a Borrador in a currency other than the company's is refused with
+ * `currency_not_supported`, review F-3.1), taxes the lines again
  * with the country pack on the invoice's own date (the issue date is moved to today by «Emitir», which taxes again then) and writes
  * price_date = the company's today. A Borrador only.
  */
@@ -325,6 +326,12 @@ export const invoiceReprice = defineProcess({
   handler: async (ctx, input) => {
     const invoice = await readInvoice(ctx, input.id, true);
     if (invoice.stage !== "draft" || invoice.status !== "draft") refuseState("invoice_issued", [`La factura ${label(invoice)} ya se emitió: los precios no se recalculan; se corrigen con una nota`]);
+    // A list price carries no currency (it is the company's): put in a foreign-currency Borrador it would be read as that currency (rule 8).
+    // Until foreign-currency price lists exist (Task 34, owner item 19) the typed prices stay.
+    const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+    if (invoice.currency !== company!.currency_code) {
+      refuse("currency_not_supported", [`La factura está en ${invoice.currency}: la lista de precios está en ${company!.currency_code} y no se puede aplicar a otra moneda; deja los precios que escribiste`]);
+    }
     const drafts = (await linesOf(ctx, invoice.id)).map(draftOf);
     if (drafts.length === 0) refuse("nothing_to_invoice", ["La factura no tiene líneas"]);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));

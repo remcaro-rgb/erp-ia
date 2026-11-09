@@ -74,8 +74,9 @@ export const accountingProvider: PostingProvider = {
       // A reversal the ledger refuses (a closed period) is a pending, like any rule that cannot post; the event is acknowledged.
       const lead = error.message.split(":")[0] ?? "";
       const [row] = await ctx.sql<{ payload: unknown }[]>`select payload from kernel.outbox where id = ${ctx.event.id}`;
+      // With the reversal rule's id (whole-branch review F-2.1): accounting.posting.retry re-runs the reversal once the period reopens.
       await accountingProvider.recordFailure(ctx, {
-        eventId: ctx.event.id, event: ctx.event.name, eventDate: date, payload: row?.payload ?? null,
+        eventId: ctx.event.id, event: ctx.event.name, eventDate: date, ...(ref.ruleId ? { ruleId: ref.ruleId } : {}), payload: row?.payload ?? null,
         code: (CODES as readonly string[]).includes(lead) ? (lead as PostingFailureCode) : "invalid_template",
         detail: Array.isArray(error.details) && error.details.length > 0 ? error.details.join("; ") : error.message,
       });

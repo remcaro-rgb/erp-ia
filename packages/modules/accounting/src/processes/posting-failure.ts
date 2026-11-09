@@ -1,4 +1,4 @@
-import { composeEntry, defineProcess, dismissParkedEvents, ProcessError, RuleTemplate, visibleExtra, type ComposedLine, type PostingRule, type ProcessContext } from "@erp/kernel";
+import { asPostingEngine, composeEntry, defineProcess, dismissParkedEvents, ProcessError, resolvePath, RuleTemplate, visibleExtra, type ComposedLine, type PostingRule, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { invalid } from "./common";
 import { reverseEntry } from "./entry-post";
@@ -19,9 +19,12 @@ interface FailureRow {
   posting_rule_id: string | null;
   payload: unknown;
   status: string;
+  event_date: string | null;
   created_at: Date;
   attempts: number;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const codeOf = (error: ProcessError): string => {
   const lead = error.message.split(":")[0] ?? "";
@@ -40,7 +43,7 @@ export const postingRetry = defineProcess({
   output: z.object({ resolved: z.boolean(), entryId: z.string().optional(), number: z.string().optional(), code: z.string().optional(), detail: z.string().optional() }),
   handler: async (ctx, { failureId }) => {
     const [failure] = await ctx.tx<FailureRow[]>`
-      select id, event_id, event, posting_rule_id, payload, status, created_at, attempts
+      select id, event_id, event, posting_rule_id, payload, status, event_date::text, created_at, attempts
       from accounting.posting_failures where id = ${failureId} and company_id = ${ctx.companyId} for update`;
     if (!failure) throw new ProcessError("not_found", `posting failure ${failureId} not found`);
     // Then the event's outbox row (plan 2B Task 14 review), as accounting.entry.post_from_event takes it, and below the lock of the rule's
@@ -53,6 +56,15 @@ export const postingRetry = defineProcess({
       select id, template, is_active from accounting.posting_rules where id = ${failure.posting_rule_id} and company_id = ${ctx.companyId}`;
     if (!rule) throw new ProcessError("not_found", `posting rule ${failure.posting_rule_id} not found`);
     if (!rule.is_active) throw invalid(`rule ${rule.id} is disabled`, "La regla contable está desactivada");
+    const fail = async (code: string, detail: string) => {
+      await ctx.tx`
+        update accounting.posting_failures set error_code = ${code}, error_detail = ${detail}, attempts = attempts + 1, last_attempt_at = now() where id = ${failureId}`;
+      return { resolved: false, code, detail };
+    };
+    // A reversal rule (whole-branch review F-2.1): the pending of a void whose reversal the ledger refused (a closed period). The retry re-runs
+    // accounting.posting.reverse_source's body, under the locks taken above, so it ends exactly as a successful reversal by the consumer would.
+    const reverseOf = (rule.template as PostingRule["template"] | null)?.reverseOf;
+    if (reverseOf) return retryReversal(ctx, failure, reverseOf, fail);
     // The source was voided (review round 2, N1: a pending recorded while the void ran): never posted; the pending is dismissed as the void
     // would have dismissed it, and the retry answers why it did not post.
     if (await lockedSourceVoided(ctx, failure.event, sourceOf(failure.payload, rule.template as PostingRule["template"]))) {
@@ -63,11 +75,6 @@ export const postingRetry = defineProcess({
       return { resolved: false, code: SOURCE_VOIDED };
     }
 
-    const fail = async (code: string, detail: string) => {
-      await ctx.tx`
-        update accounting.posting_failures set error_code = ${code}, error_detail = ${detail}, attempts = attempts + 1, last_attempt_at = now() where id = ${failureId}`;
-      return { resolved: false, code, detail };
-    };
     const [settings] = await ctx.tx<{ rounding_tolerance: string }[]>`select rounding_tolerance from accounting.settings where company_id = ${ctx.companyId}`;
     const template = RuleTemplate.safeParse(rule.template);
     if (!template.success) return fail("invalid_template", template.error.issues.map((i) => i.message).join("; "));
@@ -102,6 +109,45 @@ export const postingRetry = defineProcess({
     }
   },
 });
+
+type RetryOutcome = { resolved: boolean; entryId?: string; number?: string; code?: string; detail?: string };
+
+/**
+ * The retry of a reversal's pending: the voided source is resolved from the stored void event, and reverseVoidedSource runs in a savepoint as
+ * the posting engine (as the inline reversal does): the source recorded voided, its undelivered events and pendings dismissed, its entry
+ * reversed on the void's date. A refusal (the period still closed) undoes all of it and is recorded on the row, which stays pending.
+ */
+async function retryReversal(
+  ctx: ProcessContext,
+  failure: FailureRow,
+  ref: { event: string; sourceId: string },
+  fail: (code: string, detail: string) => Promise<RetryOutcome>,
+): Promise<RetryOutcome> {
+  let sourceId: string;
+  try {
+    sourceId = String(resolvePath(failure.payload, ref.sourceId) ?? "");
+  } catch (error) {
+    return fail("invalid_template", `reverseOf.sourceId: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!UUID.test(sourceId)) return fail("invalid_template", `reverseOf.sourceId ${ref.sourceId} no resuelve un origen`);
+  const own = failure.payload !== null && typeof failure.payload === "object" ? (failure.payload as { date?: unknown }).date : undefined;
+  const date = failure.event_date ?? (typeof own === "string" && /^\d{4}-\d{2}-\d{2}/.test(own) ? own.slice(0, 10) : failure.created_at.toISOString().slice(0, 10));
+  try {
+    const out = await ctx.tx.savepoint((sp) => {
+      const inner = { ...ctx, tx: sp };
+      return asPostingEngine(inner, () => reverseVoidedSource(inner, { event: ref.event, sourceId, voidEventId: failure.event_id, voidEvent: failure.event, date }));
+    });
+    const [entry] = out.entryId ? await ctx.tx<{ number: string }[]>`select number from accounting.entries where id = ${out.entryId}` : [];
+    await ctx.tx`
+      update accounting.posting_failures
+         set status = 'resolved', resolved_entry_id = ${out.entryId}, attempts = attempts + 1, last_attempt_at = now()
+       where id = ${failure.id}`;
+    return { resolved: true, ...(out.entryId ? { entryId: out.entryId } : {}), ...(entry ? { number: entry.number } : {}) };
+  } catch (error) {
+    if (error instanceof ProcessError && error.code === "invalid_input") return fail(codeOf(error), Array.isArray(error.details) && error.details.length > 0 ? error.details.join("; ") : error.message);
+    throw error;
+  }
+}
 
 export const postingFailureDismiss = defineProcess({
   id: "accounting.posting_failure.dismiss",
