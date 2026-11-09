@@ -38,10 +38,10 @@ describe("buildShellNav", () => {
       ["core.documentos", []],
       ["core.reportes", []],
       // The kernel's Parámetros screens of the module's maestros (Task 16), for whoever may run their admin processes.
-      ["core.parametros", ["core.entity_types", "core.state_recipients", "core.doc_templates"]],
+      ["core.parametros", ["core.exchange_rates", "core.entity_types", "core.state_recipients", "core.doc_templates"]],
       "core.import",
     ]);
-    expect(hrefs(shell.nav)).toEqual(["/parties", "/products", "/categories", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
+    expect(hrefs(shell.nav)).toEqual(["/parties", "/products", "/categories", "/exchange-rates", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
     const byId = (a: { processId: string }, b: { processId: string }) => a.processId.localeCompare(b.processId);
     expect([...shell.creates].sort(byId)).toEqual([
       { processId: "core.category.create", labelKey: "nav.create.core.category", href: "/categories?new=1" },
@@ -100,14 +100,14 @@ describe("buildShellNav", () => {
   it("an item whose feature is not entitled is hidden", () => {
     const entitled = new Set([...all.entitled].filter((k) => k !== "feature:core.products"));
     const shell = buildShellNav(registry, { ...all, entitled });
-    expect(hrefs(shell.nav)).toEqual(["/parties", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
+    expect(hrefs(shell.nav)).toEqual(["/parties", "/exchange-rates", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
     expect(shell.creates.map((c) => c.processId)).toEqual(["core.party.create"]);
   });
 
   it("an item naming a process shows only to callers who may run it (Importar datos: kernel.import.run)", () => {
     expect(keys.processes).toContain("kernel.import.run");
     const runnable = new Set([...all.runnable].filter((p) => p !== "kernel.import.run" && !p.startsWith("kernel.")));
-    expect(hrefs(buildShellNav(registry, { ...all, runnable }).nav)).toEqual(["/parties", "/products", "/categories"]);
+    expect(hrefs(buildShellNav(registry, { ...all, runnable }).nav)).toEqual(["/parties", "/products", "/categories", "/exchange-rates"]);
   });
 
   it("an item is hidden when no role of the caller may run any process of its feature; creates need their own grant", () => {
@@ -131,15 +131,15 @@ describe("buildShellNav", () => {
 describe("menu access in the shell", () => {
   it("drops a hidden item and its create command, for this caller only", () => {
     const shell = buildShellNav(registry, { ...all, hidden: new Set(["core.products"]) });
-    expect(hrefs(shell.nav)).toEqual(["/parties", "/categories", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
+    expect(hrefs(shell.nav)).toEqual(["/parties", "/categories", "/exchange-rates", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
     expect(shell.creates.map((c) => c.processId).sort()).toEqual(["core.category.create", "core.party.create"]);
     // An admin's hidden set is always empty (kernel.menu_hidden_keys): everything shows.
-    expect(hrefs(buildShellNav(registry, { ...all, hidden: new Set() }).nav)).toEqual(["/parties", "/products", "/categories", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
+    expect(hrefs(buildShellNav(registry, { ...all, hidden: new Set() }).nav)).toEqual(["/parties", "/products", "/categories", "/exchange-rates", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas", "/import"]);
   });
 
   it("a hidden section disappears with every item under it; a hidden level-1 item too", () => {
     const shell = buildShellNav(registry, { ...all, hidden: new Set(["core.maestros"]) });
-    expect(tree(shell.nav)).toEqual([["core.documentos", []], ["core.reportes", []], ["core.parametros", ["core.entity_types", "core.state_recipients", "core.doc_templates"]], "core.import"]);
+    expect(tree(shell.nav)).toEqual([["core.documentos", []], ["core.reportes", []], ["core.parametros", ["core.exchange_rates", "core.entity_types", "core.state_recipients", "core.doc_templates"]], "core.import"]);
     expect(shell.creates).toEqual([]);
     // Nothing left to open: the module goes, its empty sections with it.
     const none = buildShellNav(registry, { ...all, hidden: new Set(["core.maestros", "core.parametros", "core.import"]) });

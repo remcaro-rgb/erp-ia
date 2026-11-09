@@ -5,6 +5,7 @@ import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { CATEGORY_PROCESSES, categoryHooks } from "./processes/category";
 import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
+import { EXCHANGE_RATE_PROCESSES } from "./processes/exchange-rate";
 import { PARTY_PROCESSES, partyHooks } from "./processes/party";
 import { PRICE_LIST_LIFECYCLE, priceListHooks } from "./processes/price-list";
 import { PRICE_LIST_WRITE_PROCESSES } from "./processes/price-list-write";
@@ -29,6 +30,7 @@ export const core: ModuleDef = defineModule({
     ...PRICE_LIST_LIFECYCLE,
     ...PRICE_LIST_WRITE_PROCESSES,
     ...CONSULT_PROCESSES.settings,
+    ...EXCHANGE_RATE_PROCESSES,
   ],
   features: FEATURES,
   events: { emits: ["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"], consumes: {} },
@@ -47,3 +49,4 @@ export const core: ModuleDef = defineModule({
 });
 
 export { CORE_ENTITIES } from "./entities";
+export { officialRateCompanies, rateForDate, RATE_LOOKBACK_DAYS, TRM_IMPORT_FAILED } from "./processes/exchange-rate";

@@ -2,6 +2,7 @@ import type { CountryPack } from "@erp/kernel";
 import { accounting } from "./accounting";
 import { codeLabel } from "./code-label";
 import { DOCUMENT_TYPE_CODES } from "./document-types";
+import { exchangeRates } from "./exchange-rates";
 import { nitCheckDigit, validateTaxId } from "./nit";
 import { taxes } from "./taxes";
 import { validateParty } from "./validate-party";
@@ -21,9 +22,11 @@ export const co: CountryPack = {
   taxIdText: (taxId) => (/^\d{5,15}$/.test(taxId) ? `${taxId}-${nitCheckDigit(taxId)}` : taxId),
   accounting,
   taxes,
+  exchangeRates,
 };
 
 export { codeLabel } from "./code-label";
+export { exchangeRates, parseTrmRow, trmUrl, TRM_DATASET } from "./exchange-rates";
 export { nitCheckDigit, validateTaxId } from "./nit";
 export { validateParty } from "./validate-party";
 export { validateProduct } from "./validate-product";

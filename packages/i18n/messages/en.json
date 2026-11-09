@@ -1237,7 +1237,8 @@
       "parties": "Parties",
       "products": "Products",
       "categories": "Categories",
-      "import": "Import data"
+      "import": "Import data",
+      "exchange_rates": "Exchange rates"
     },
     "modules": {
       "accounting": "Accounting",
@@ -1433,7 +1434,9 @@
       "uom": "Unit of measure",
       "price_list": "Price list",
       "price_list_item": "Price list item",
-      "document_sequence": "Document sequence"
+      "document_sequence": "Document sequence",
+      "exchange_rate": "Exchange rate",
+      "exchange_rate_import": "Official rate import"
     },
     "kernel": {
       "import": "Import",
@@ -2028,6 +2031,32 @@
         "next_number": "Next number",
         "padding": "Zero padding",
         "resolution": "Resolution",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "exchange_rate": {
+        "seq": "ID",
+        "currency": "Currency",
+        "rate_date": "Date",
+        "rate": "Rate",
+        "source": "Source",
+        "official_rate": "Published official rate",
+        "note": "Note",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "exchange_rate_import": {
+        "seq": "ID",
+        "currency": "Currency",
+        "rate_date": "Date",
+        "status": "Status",
+        "attempts": "Attempts",
+        "written": "Rates written",
+        "error": "Error",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
@@ -6513,6 +6542,46 @@
     },
     "hints": {
       "invoice_not_accepted_advance": "This invoice has not been accepted by the DIAN yet; you can record the money as an advance and apply it afterwards."
+    }
+  },
+  "core": {
+    "exchange_rates": {
+      "title": "Exchange rates",
+      "intro": "Company currency per unit of each foreign currency, one value per day. The USD official rate (TRM) is imported every morning; other currencies are entered by hand.",
+      "import": "Import TRM",
+      "set": "Enter rate",
+      "override": "Replace TRM",
+      "manual_over_trm": "Manual rate; the published TRM is {rate}",
+      "values": {
+        "source": {
+          "trm": "TRM",
+          "manual": "Manual"
+        },
+        "import_status": {
+          "imported": "Imported",
+          "failed": "Failed"
+        }
+      },
+      "errors": {
+        "official_rate_exists": "That day already has the official rate (TRM). To change it use «Replace TRM», which asks for the second factor.",
+        "official_rate_missing": "That day has no official rate to replace; enter the rate with «Enter rate».",
+        "official_rate_unavailable": "The company's country publishes no official rate: enter rates by hand."
+      },
+      "imported": "Official rate imported: {written, plural, =0 {no new rate} one {# new rate} other {# new rates}}{skipped, plural, =0 {} one {; # day with a manual rate was kept} other {; # days with a manual rate were kept}}.",
+      "import_failed": "The official rate for {currencies} could not be imported; the administrator was told. Try later or enter the rate by hand.",
+      "currency": "Currency",
+      "date": "Date",
+      "rate": "Rate (company currency per unit)",
+      "note": "Note",
+      "close": "Close",
+      "saved": "Rate saved.",
+      "override_hint": "That day already has the TRM. To replace it, write a note with the reason and press «Replace TRM»: it asks for the second factor."
+    },
+    "recommendation": {
+      "trm_import_failed": {
+        "title": "The official rate (TRM) could not be imported",
+        "body": "The official source did not answer the {currency} rate for {date}. Try again with «Import TRM» in Exchange rates or enter the rate by hand."
+      }
     }
   }
 }

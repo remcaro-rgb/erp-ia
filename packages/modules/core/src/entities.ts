@@ -216,4 +216,42 @@ export const documentSequence = entity("core.document_sequence", "parametro", "d
   ...trailer(f),
 ]);
 
-export const CORE_ENTITIES: EntityDef[] = [party, partyContact, productCategory, product, uom, priceList, priceListItem, documentSequence];
+/** Where a rate came from (plan 2B.2 Task 34.1, FX §2): the country's official rate (the TRM) or typed by a user. */
+export const RATE_SOURCES = ["trm", "manual"] as const;
+
+// Tasas de cambio (Núcleo › Parámetros, FX §2, migration 0147): one rate per company, currency and day, in company currency per unit
+// (pesos per dollar). A TRM row is written by the daily import; a manual one by core.exchange_rate.set, or by override_official over a TRM
+// row (official_rate then keeps the published TRM, as it does for a manual day the import skipped). Not sensitive (FX §10).
+export const exchangeRate: EntityDef = {
+  ...entity("core.exchange_rate", "parametro", "exchange_rates", "rate_date", (f) => [
+    f("seq", "number", { required: true }),
+    f("currency", "text", { required: true, searchable: true }),
+    f("rate_date", "date", { required: true }),
+    f("rate", "number", { required: true }),
+    f("source", "enum", { required: true, enumValues: [...RATE_SOURCES], valuesKey: "core.exchange_rates.values.source" }),
+    f("official_rate", "number"),
+    f("note", "text"),
+    ...trailer(f),
+  ]),
+  defaultSort: { field: "rate_date", dir: "desc" },
+  processIds: { create: "core.exchange_rate.set" },
+};
+
+/** What the import did for a currency and day: wrote (or found) the official rate, or could not read it. */
+export const RATE_IMPORT_STATUSES = ["imported", "failed"] as const;
+
+// The import log (migration 0147): one row per company, currency and day the official-rate import asked for, with how many times it ran
+// and what it wrote or why it failed. A failed row is the subject of the kernel recommendation core.trm_import_failed (one open per day,
+// owner item 121; Task 38 API), closed by a later import that reads that day's rate.
+export const exchangeRateImport = entity("core.exchange_rate_import", "sistema", "exchange_rate_imports", "rate_date", (f) => [
+  f("seq", "number", { required: true }),
+  f("currency", "text", { required: true }),
+  f("rate_date", "date", { required: true }),
+  f("status", "enum", { required: true, enumValues: [...RATE_IMPORT_STATUSES], valuesKey: "core.exchange_rates.values.import_status" }),
+  f("attempts", "number", { required: true }),
+  f("written", "number", { required: true }),
+  f("error", "text"),
+  ...trailer(f),
+]);
+
+export const CORE_ENTITIES: EntityDef[] = [party, partyContact, productCategory, product, uom, priceList, priceListItem, documentSequence, exchangeRate, exchangeRateImport];

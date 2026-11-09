@@ -15,6 +15,9 @@ describe("core manifest", () => {
         "core.sequence.next",
         "core.document_sequence.register",
         "core.uom.consult", "core.price_list.consult", "core.price_list_item.consult", "core.price_list.create", "core.price_list_item.set", "core.price_list_item.remove", "core.party_contact.consult", "core.document_sequence.consult",
+        // Tasas de cambio (plan 2B.2 Task 34.1).
+        "core.exchange_rate.set", "core.exchange_rate.override_official", "core.exchange_rate.import_official", "core.exchange_rate.for_date",
+        "core.exchange_rate.consult", "core.exchange_rate_import.consult",
         // The kernel's generic lifecycle processes of the four maestros (entity types spec §5).
         ...["core.party", "core.product_category", "core.product", "core.price_list"].flatMap((e) => GENERIC_VERBS.map((v) => `${e}.${v}`)),
       ].sort(),
@@ -22,20 +25,20 @@ describe("core manifest", () => {
     expect(registry.entities("core").map((e) => e.id)).toEqual(
       expect.arrayContaining([
         "core.party", "core.product", "core.uom", "core.price_list", "core.party_contact", "core.product_category",
-        "core.price_list_item", "core.document_sequence",
+        "core.price_list_item", "core.document_sequence", "core.exchange_rate", "core.exchange_rate_import",
       ]),
     );
     expect(core.features.map((f) => f.id)).toEqual(["core.parties", "core.products", "core.settings"]);
     expect(core.events.emits).toEqual(["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"]);
-    expect(core.navigation.map((n) => n.href)).toEqual(["#", "#", "#", "#", "/parties", "/products", "/categories", "/import"]);
+    expect(core.navigation.map((n) => n.href)).toEqual(["#", "#", "#", "#", "/parties", "/products", "/categories", "/exchange-rates", "/import"]);
     // Entity types spec §2.4: once loaded the level-1 items are the four sections; the maestros sit under Maestros, Importar stays.
     const loaded = registry.module("core").navigation;
     expect(loaded.map((n) => [n.id, n.children?.map((c) => c.href)])).toEqual([
       ["core.maestros", ["/parties", "/products", "/categories"]],
       ["core.documentos", []],
       ["core.reportes", []],
-      // The kernel's Parámetros screens of the module's maestros (Task 16).
-      ["core.parametros", ["/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas"]],
+      // Tasas de cambio (Task 34.1, a parametro) and the kernel's Parámetros screens of the module's maestros (Task 16).
+      ["core.parametros", ["/exchange-rates", "/core/parametros/tipos", "/core/parametros/destinatarios", "/core/parametros/plantillas"]],
       ["core.import", undefined],
     ]);
   });
@@ -69,6 +72,11 @@ describe("core manifest", () => {
     // Importar datos runs the kernel's shared import: hiding it hides that page only (an import is refused by its target's item).
     expect(under("core.import")).toEqual([]);
     // Shared: lookups and numbering every screen uses, and the price lists, which have no screen yet.
-    expect(module.menuShared).toEqual(["core.sequence.next", "core.document_sequence.consult", "core.document_sequence.register", "core.uom.consult", "core.price_list.", "core.price_list_item."]);
+    // Task 34.1: the rate of a day every foreign-currency form reads, and the import log, which has no screen.
+    expect(module.menuShared).toEqual([
+      "core.sequence.next", "core.document_sequence.consult", "core.document_sequence.register", "core.uom.consult", "core.price_list.", "core.price_list_item.",
+      "core.exchange_rate.for_date", "core.exchange_rate_import.consult",
+    ]);
+    expect(under("core.exchange_rates")).toEqual(expect.arrayContaining(["core.exchange_rate.set", "core.exchange_rate.override_official", "core.exchange_rate.import_official", "core.exchange_rate.consult"]));
   });
 });

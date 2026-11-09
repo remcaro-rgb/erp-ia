@@ -41,9 +41,19 @@ export const documentSequenceConsult = consultOf(
   true,
 );
 
+// Tasas de cambio and the import log (plan 2B.2 Task 34.1, migration 0147).
+export const exchangeRateConsult = consultOf("core.exchange_rate", "core.v_exchange_rates", "core.settings", "Consulta una tasa de cambio de un día con los campos que el rol puede ver", true);
+export const exchangeRateImportConsult = consultOf(
+  "core.exchange_rate_import",
+  "core.v_exchange_rate_imports",
+  "core.settings",
+  "Consulta lo que hizo la importación de la tasa oficial en un día (importada o fallida, intentos y error)",
+  true,
+);
+
 /** By feature, so the manifest lists each in its feature. */
 export const CONSULT_PROCESSES = {
   parties: [partyContactConsult],
   products: [uomConsult, priceListConsult, priceListItemConsult],
-  settings: [documentSequenceConsult],
+  settings: [documentSequenceConsult, exchangeRateConsult, exchangeRateImportConsult],
 };

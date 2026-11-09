@@ -54,6 +54,12 @@
       "prompt": "ajusta el inventario del café en la bodega principal: sobran 2 unidades",
       "tier": "extended",
       "expect": { "process": "inventory.adjustment.post", "confirmation": true }
+    },
+    {
+      "id": "core-trm-today",
+      "prompt": "¿Cuál es la TRM de hoy?",
+      "tier": "extended",
+      "expect": { "process": "core.exchange_rate.for_date", "input": { "currency": "USD" } }
     }
   ]
 }
