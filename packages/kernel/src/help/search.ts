@@ -82,6 +82,10 @@ export async function searchHelp(tx: Tx, embedder: Embedder, options: SearchHelp
  */
 export async function searchHelpByEmbedding(tx: Tx, embedding: number[], options: Omit<SearchHelpOptions, "query" | "embed">): Promise<HelpResult[]> {
   const vector = vectorText(embedding);
+  // The locale / scope filter runs after an HNSW scan, which only hands over ~hnsw.ef_search candidates: rows of other
+  // locales (or dead index entries) leave fewer than `limit` results, or none (CI docker-integration, 2026-11-09). The
+  // help index is a few thousand rows at most, so the search is exact: index scans are off for this transaction.
+  await tx`select set_config('enable_indexscan', 'off', true)`;
   const rows = await tx<{ title: string; body: string; source: string; href: string | null }[]>`
     select title, body, source, href
     from kernel.help_chunks

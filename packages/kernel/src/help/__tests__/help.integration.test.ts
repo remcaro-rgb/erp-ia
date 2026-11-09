@@ -240,6 +240,25 @@ describe("help knowledge index", () => {
     expect((await probe("xx-none", 0)).map((r) => r.source)).toContain("guide:solo-pruebas.md");
   });
 
+  it("returns the nearest rows of the caller's locale even when other locales crowd the approximate index (CI docker-integration flake)", async () => {
+    // HNSW hands the filter ~40 candidates (hnsw.ef_search); a locale filter applied after the scan can leave fewer than
+    // `limit` rows. 4000 rows of another locale sitting exactly on the query vector fill those 40 slots.
+    const [vector] = await embedder.embed(["zarzaparrilla cuántica del laboratorio"]);
+    await sql`delete from kernel.help_chunks where locale = 'xx-crowd'`;
+    await sql`
+      insert into kernel.help_chunks (scope, source, title, body, embedding, locale)
+      select 'platform', 'crowd:' || g, 'Crowd ' || g, 'zarzaparrilla cuántica del laboratorio', ${`[${vector!.join(",")}]`}::extensions.vector, 'xx-crowd'
+      from generate_series(1, 4000) g`;
+    await sql`analyze kernel.help_chunks`;
+    try {
+      const results = await probe("xx-none", 0);
+      expect(results.length).toBe(Math.min(10, await count(sql`scope = 'platform' and locale = ${LOCALE}`)));
+      expect(results.map((r) => r.source)).toContain("guide:solo-pruebas.md");
+    } finally {
+      await sql`delete from kernel.help_chunks where locale = 'xx-crowd'`;
+    }
+  });
+
   it("a company note in the caller's locale never changes the help language: only platform chunks decide it", async () => {
     const [vector] = await embedder.embed(["nota interna de la sucursal"]);
     await sql`
