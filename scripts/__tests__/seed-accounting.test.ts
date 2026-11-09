@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { INVOICE_READY_PARTIES, PARTIES } from "../demo/data";
 import { ANDRES, DEMO_ROLE_IDS, LAURA, MARCELA } from "../demo/accounts";
 import {
-  ADJUSTMENTS, BUSINESS_UNITS, COGS, SAMPLE_COMPROBANTES, COST_CENTERS, CREDIT_NOTES, ITEMS, INVOICES, OPEN_AUXILIARIES, OPENING_LINES, TOSTADORA, TRILLADORA, ELECTRIC,
+  ADJUSTMENTS, ANNULMENT_NOTES, annulmentPayload, documentId, BUSINESS_UNITS, COGS, SAMPLE_COMPROBANTES, COST_CENTERS, CREDIT_NOTES, ITEMS, INVOICES, OPEN_AUXILIARIES, OPENING_LINES, TOSTADORA, TRILLADORA, ELECTRIC,
   type Node,
 } from "../demo/accounting";
 
@@ -34,12 +34,12 @@ describe("the demo ledger data", () => {
     }
   });
 
-  it("has 15 invoices, their receipts, 2 credit notes, 7 cost postings, 2 adjustments and 2 voids: 40 documents in January to October", () => {
+  it("has 15 invoices, their receipts, 2 credit notes, 7 cost postings, 2 adjustments, 1 void and 1 annulment note: 40 documents in January to October", () => {
     const receipts = INVOICES.filter((i) => i.receipt).length;
     expect(INVOICES).toHaveLength(15);
     expect(receipts).toBe(12);
-    // 15 invoices + 12 receipts + 2 notes + 7 cost postings + 2 adjustments + 2 voids (the receipt of FE-1013, the invoice FE-1015).
-    expect(INVOICES.length + receipts + CREDIT_NOTES.length + COGS.length + ADJUSTMENTS.length + 2).toBe(40);
+    // 15 invoices + 12 receipts + 2 notes + 7 cost postings + 2 adjustments + 1 void (the receipt of FE-1013) + 1 annulment note (NC-303, of FE-1015).
+    expect(INVOICES.length + receipts + CREDIT_NOTES.length + COGS.length + ADJUSTMENTS.length + 1 + ANNULMENT_NOTES.length).toBe(40);
     expect(new Set(INVOICES.map((i) => i.number)).size).toBe(15);
     for (const document of [...INVOICES, ...CREDIT_NOTES, ...COGS, ...ADJUSTMENTS]) {
       expect(document.date >= "2026-01-01" && document.date <= "2026-10-31", document.date).toBe(true);
@@ -50,6 +50,25 @@ describe("the demo ledger data", () => {
     }
     for (const note of CREDIT_NOTES) expect(partyKinds.get(note.customer), note.number).toContain("customer");
     for (const supplier of [TRILLADORA, TOSTADORA, ELECTRIC]) expect(partyKinds.get(supplier)).toContain("supplier");
+  });
+
+  it("annuls FE-1015 with the credit note of annulment NC-303: next number, an open October date, the invoice's own amounts", () => {
+    expect(ANNULMENT_NOTES.map((n) => n.invoice)).toEqual(["FE-1015"]);
+    const numbers = [...CREDIT_NOTES, ...ANNULMENT_NOTES].map((n) => n.number);
+    expect(numbers).toEqual(["NC-301", "NC-302", "NC-303"]);
+    const note = ANNULMENT_NOTES[0]!;
+    const invoice = INVOICES.find((i) => i.number === note.invoice)!;
+    expect(note.date >= invoice.date && note.date <= "2026-10-31").toBe(true);
+    const payload = annulmentPayload(note, invoice, { noteId: documentId("e", CREDIT_NOTES.length + 1), invoiceId: documentId("a", INVOICES.indexOf(invoice) + 1), customer: { partyId: "p", legalName: "SOL DEL CARIBE" }, costCenterId: "cc" });
+    // The very payload of invoicing.note.issued of the real void path (processes/note.ts): kind credit, annulment, concept 2, negative signed amounts.
+    expect(payload).toMatchObject({ number: "NC-303", kind: "credit", annulment: true, reasonCode: "2", invoiceNumber: "FE-1015", date: "2026-10-20" });
+    const base = invoice.beverages + invoice.food;
+    expect(base).toBe(3_000_000);
+    expect(payload.totals).toEqual({ total: -3_570_000 });
+    expect(payload.lines).toEqual([{ subtotal: -invoice.beverages, categoryId: "bebidas", costCenterId: "cc" }, { subtotal: -invoice.food, categoryId: "comida", costCenterId: "cc" }]);
+    expect(payload.taxes).toEqual([{ code: "IVA19", rate: 19, amount: -570_000, base: -base }]);
+    // Balanced: the total is the lines plus the tax.
+    expect(-(payload.totals as { total: number }).total).toBe(base + 570_000);
   });
 
   it("names cost centers and business units that exist, and masters whose groups come before their leaves", () => {

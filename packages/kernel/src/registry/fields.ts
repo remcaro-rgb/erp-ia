@@ -65,6 +65,12 @@ export const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 /** Entity id: `<module>.<name>`, lowercase. */
 export const ENTITY_ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 
+/**
+ * The module an entity id belongs to: its id up to the first dot (`crm.quote` → `crm`). A `ref` whose target's module is not loaded
+ * names an optional neighbour's record (plan 2B Task 53.2): the usability gate and the import's name lookup skip it.
+ */
+export const entityModuleOf = (entityId: string): string => entityId.slice(0, entityId.indexOf(".") === -1 ? entityId.length : entityId.indexOf("."));
+
 /** Validates one field of entity `entityId` and returns it with the defaults applied. */
 export function resolveField(entityId: string, field: FieldDef): ResolvedFieldDef {
   const where = `entity ${entityId}, field ${field.name}`;

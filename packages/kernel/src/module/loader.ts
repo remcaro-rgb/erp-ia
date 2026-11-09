@@ -1,4 +1,5 @@
 import { defineEntity } from "../registry/entities";
+import { entityModuleOf } from "../registry/fields";
 import { POSTING_CONSUMER, postingConsumer } from "../posting/engine";
 import { consumers } from "../events/consumers";
 import type { Registry } from "../registry";
@@ -12,7 +13,9 @@ import { withMenuSections } from "./menu";
  * Registers `modules` (their entities, processes and manifests) in dependency order: a module is
  * registered after everything in its `dependsOn`, which must be among `modules` or already in the
  * registry. Throws `module dependency cycle: a -> b -> a`, `missing dependency: <id>` or
- * `duplicate module <id>` or `entity <id>: unknown <create|attach> process <id>` before registering anything. Each entry of a module's `events.consumes` is
+ * `duplicate module <id>`, `entity <id>: unknown <create|attach> process <id>` or `entity <id>, field <f>: ref <target> is not an entity
+ * of module <m>` (a ref into a loaded module whose entity does not exist; one into a module that is not loaded is not checked) before
+ * registering anything. Each entry of a module's `events.consumes` is
  * registered as that module's consumer of the event (design §5.5).
  *
  * Every maestro and documento of a module also gets the kernel's generic lifecycle processes (`<entity>.save`, `.submit`,
@@ -78,6 +81,21 @@ export function loadModules(registry: Registry, declared: ModuleDef[]): void {
     for (const entity of module.entities) {
       for (const [role, id] of Object.entries(entity.processIds ?? {})) {
         if (id !== undefined && !processIds.has(id)) throw new Error(`entity ${entity.id}: unknown ${role} process ${id}`);
+      }
+    }
+  }
+
+  // The target of every `ref` field (plan 2B Task 53.2): when its module is loaded (in the registry or among these modules) it must be an
+  // entity of that module, so a typo or a removed entity fails at startup. A target in a module that is not loaded is an optional
+  // neighbour's and is not checked (the usability gate and the import skip it).
+  const entityIds = new Set([...registry.entities().map((e) => e.id), ...modules.flatMap((m) => m.entities.map((e) => e.id))]);
+  for (const module of modules) {
+    for (const entity of module.entities) {
+      for (const field of entity.fields) {
+        if (field.type !== "ref" || !field.ref) continue;
+        const target = entityModuleOf(field.ref.entity);
+        if (!loadedIds.has(target) || entityIds.has(field.ref.entity)) continue;
+        throw new Error(`entity ${entity.id}, field ${field.name}: ref ${field.ref.entity} is not an entity of module ${target}`);
       }
     }
   }

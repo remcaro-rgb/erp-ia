@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { setExportsStore, type ProcessError } from "@erp/kernel";
+import { addRefLabels, recordHref, setExportsStore, withClaims, type ProcessError } from "@erp/kernel";
 import { MemoryFileStore } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -289,6 +289,27 @@ describe("crm quotes", () => {
     await crm.events.consumes["sales.order.confirmed"]!(h.consumer(), confirmed!.payload);
     const [won] = await h.sql`select outcome from crm.opportunities where id = ${deal.id}`;
     expect(won).toMatchObject({ outcome: "won" });
+  });
+
+  it("the pedido names its cotización (Task 53.2): quote_id_label is the quote's number for a viewer who reads quotes, nothing for one who does not (rule 14)", async () => {
+    const quote = await create({ lines: [{ productId: cafe, qty: 1 }] });
+    await h.run(h.admin, "crm.quote.accept", { id: quote.id });
+    const order = await h.run<{ id: string }>(h.admin, "sales.order.from_quote", { quoteId: quote.id });
+    const orderEntity = h.registry.entity("sales.order");
+    expect(orderEntity.fields.find((f) => f.name === "quote_id")?.ref).toEqual({ entity: "crm.quote", display: "number" });
+    const labelled = async (viewer = h.admin) => {
+      const rows: Record<string, unknown>[] = [{ id: order.id, quote_id: quote.id }];
+      await withClaims(h.sql, viewer.claims, (tx) => addRefLabels(tx, h.registry, orderEntity, rows));
+      return rows[0]!;
+    };
+    expect(await labelled()).toMatchObject({ quote_id: quote.id, quote_id_label: quote.number });
+    expect(recordHref("crm.quote", quote.id)).toBe(`/r/crm.quote/${quote.id}`);
+    // A salesperson consults quotes but reads only their own (crm's owner scope): the admin's cotización is neither named nor marked
+    // found for them, the raw id only.
+    const row = await labelled(h.vendedor);
+    expect(row.quote_id).toBe(quote.id);
+    expect(row).not.toHaveProperty("quote_id_label");
+    expect(row).not.toHaveProperty("quote_id_found");
   });
 
   it("expire closes an open or sent quote; an expired or past-validity quote cannot be accepted", async () => {

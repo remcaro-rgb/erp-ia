@@ -80,13 +80,15 @@ export type OrderStage = (typeof ORDER_STAGES)[number];
 // customer's price list, the default list, the list price; or the accepted cotización's own prices when it comes from one) and taxed by the
 // country pack. A documento numbered PED- on save that never posts (invoicing posts, Task 16); it waits for approval (Pendiente de
 // Aprobación) when it would take the customer above their credit limit or a line's discount is above the company's threshold, so its
-// approval flag is its own (ownFlags). Every line's product and the customer must be invoice_ready (rule 10). The cotización, the
-// oportunidad and the bodega are other modules' records, named by id (no reference across schemas, rule 3).
+// approval flag is its own (ownFlags). Every line's product and the customer must be invoice_ready (rule 10). The cotización is a `ref`
+// to crm.quote by its number (plan 2B Task 53.2, item 67): an entity field declaration the kernel reads, so the frame and the grid show the
+// quote's number as a link through crm's masked view when crm is loaded and the viewer reads quotes; without crm the kernel skips it and
+// the raw id stays (no dependency, no foreign key across schemas, rule 3). The oportunidad and the bodega stay raw ids.
 export const orderEntity: EntityDef = entity("sales.order", "documento", "orders", "number", (f) => [
   f("seq", "number", { required: true }),
   f("number", "text", { searchable: true }),
   f("party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
-  f("quote_id", "uuid"),
+  f("quote_id", "ref", ref("crm.quote", "number")),
   f("opportunity_id", "uuid"),
   // The salesperson (Task 39, migration 0139): only they and whoever may run sales.order.reassign read the pedido (owner_scope). Filterable
   // in the grid; it changes only through sales.order.reassign.

@@ -6,7 +6,7 @@ import type { ProcessContext } from "../process/context";
 import { ProcessError } from "../process/errors";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
-import { IDENTIFIER, type ResolvedFieldDef } from "../registry/fields";
+import { entityModuleOf, IDENTIFIER, type ResolvedFieldDef } from "../registry/fields";
 import { canEditData, nextStatus, type LifecycleAction, type LifecycleFlags, type RecordStatus } from "./lifecycle";
 import { SYSTEM_USER_ID } from "../events/consumers";
 import { writeSnapshot } from "./snapshot";
@@ -302,12 +302,17 @@ async function isReferenced(ctx: ProcessContext, entity: ResolvedEntityDef, reco
   return row?.used === true;
 }
 
-/** The ref fields of `fields` that point at a maestro the registry knows (a ref to another entity type is not gated; an unknown entity throws). */
+/**
+ * The ref fields of `fields` that point at a maestro the registry knows (a ref to another entity type is not gated; an unknown entity
+ * of a loaded module throws). A ref to an entity of a module that is not loaded (an optional neighbour, plan 2B Task 53.2) is skipped:
+ * no gate on it, its raw id stays usable.
+ */
 function maestroRefs(registry: Registry, fields: ResolvedFieldDef[]): { name: string; target: string }[] {
   const out: { name: string; target: string }[] = [];
   for (const f of fields) {
     if (f.type !== "ref" || !f.ref || f.viewExpr !== undefined) continue;
-    // Fail closed: a ref to an entity the registry does not know throws (registry.entity throws) rather than skipping the check.
+    if (!registry.hasModule(entityModuleOf(f.ref.entity))) continue;
+    // Fail closed: a ref to an entity a loaded module does not declare throws (registry.entity throws) rather than skipping the check.
     const target = registry.entity(f.ref.entity);
     if (target.entityType === "maestro") out.push({ name: f.name, target: target.id });
   }

@@ -33,6 +33,28 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
         where company_id = ${DEMO_COMPANY_ID} and status = 'posted' and description = any(${SAMPLE_COMPROBANTES.map((c) => c.description)})`;
       expect(posted.map((r) => r.description).sort()).toEqual(SAMPLE_COMPROBANTES.map((c) => c.description).sort());
 
+      // Task 53.3 (R53-2): FE-1015 is annulled by the credit note of annulment NC-303 (the event the real void path emits), posted in VT.
+      const [fe1015] = await sql<{ id: string }[]>`
+        select id from accounting.entries where company_id = ${DEMO_COMPANY_ID} and status = 'posted' and description like 'Factura FE-1015%' limit 1`;
+      const [nc303] = await sql<{ id: string; journal: string; status: string }[]>`
+        select e.id, j.code as journal, e.status from accounting.entries e join accounting.journals j on j.id = e.journal_id
+        where e.company_id = ${DEMO_COMPANY_ID} and e.description like 'Nota NC-303%'`;
+      expect(fe1015).toBeDefined();
+      expect(nc303).toMatchObject({ journal: "VT", status: "posted" });
+      const [receivable] = await sql<{ balance: string }[]>`
+        select coalesce(sum(l.debit - l.credit), 0)::text as balance
+        from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
+        where e.company_id = ${DEMO_COMPANY_ID} and e.status = 'posted' and e.id in (${fe1015!.id}, ${nc303!.id}) and a.code like '1305%'`;
+      expect(Number(receivable!.balance)).toBe(0);
+      const [trial] = await sql<{ debit: string; credit: string }[]>`
+        select sum(l.debit)::text as debit, sum(l.credit)::text as credit
+        from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id where e.company_id = ${DEMO_COMPANY_ID} and e.status = 'posted'`;
+      expect(Number(trial!.debit)).toBe(Number(trial!.credit));
+      const noteEvents = await sql<{ number: string }[]>`
+        select payload->>'number' as number from kernel.outbox where company_id = ${DEMO_COMPANY_ID} and event = 'invoicing.note.issued' and payload->>'annulment' = 'true'`;
+      expect(noteEvents.map((r) => r.number)).toEqual(["NC-303"]);
+      expect(await sql`select 1 from kernel.outbox where company_id = ${DEMO_COMPANY_ID} and event = 'invoicing.invoice.voided' and payload->>'number' = 'FE-1015'`).toEqual([]);
+
       const keys = SALES_CHAIN_MODULES.map((m) => `module:${m}`);
       const entitled = await sql<{ tenant_id: string; key: string }[]>`
         select tenant_id, key from kernel.tenant_entitlements where key = any(${keys}) and enabled and company_id is null`;
@@ -69,7 +91,7 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
       expect(goods.length).toBeGreaterThan(0);
       for (const good of goods) expect(prices.get(good.id), good.id).toBe(wholesalePrice(Number(good.list_price)));
       const [terms] = await sql<{ price_list_id: string }[]>`
-        select t.price_list_id from sales.customer_terms t join core.parties p on p.id = t.party_id where t.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${ALMACENES_EXITO}`;
+        select t.price_list_id from sales.customer_terms t join core.parties p on p.id = t.party_id where t.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${PRICE_LIST.customer}`;
       expect(terms!.price_list_id).toBe(list!.id);
     } finally {
       await sql.end();

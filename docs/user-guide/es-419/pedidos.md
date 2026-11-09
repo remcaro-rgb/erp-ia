@@ -27,6 +27,8 @@ El pedido grabado muestra sus **Datos** (el cliente, la cotización, la oportuni
 
 ![pedido PED-1 entregado, con los enlaces a su cotización, su oportunidad y su bodega, los totales y sus entregas](img/pedido-entregado.png)
 
+El campo **Cotización** de un pedido que vino de una cotización muestra el **número de la cotización** (`COT-…`), en el pedido y en la columna del listado, y un clic lo abre. Si tu rol no puede consultar cotizaciones, o la cotización no es tuya y no ves las de otros vendedores, no ves su número ni el enlace; si la empresa no usa CRM, el pedido no tiene cotización que mostrar.
+
 El cliente y cada producto deben estar **listos para facturar** (datos DIAN completos, archivos requeridos, activos y aprobados). Si alguno no lo está, el pedido no se graba y el mensaje dice qué falta, línea por línea.
 
 Puedes pedir al asistente, por ejemplo: «crea un pedido para Distribuidora Andina de 2 cafés de 500 g en la bodega principal, para entregar el 10 de noviembre».

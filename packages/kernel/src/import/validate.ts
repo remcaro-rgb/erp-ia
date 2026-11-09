@@ -3,7 +3,7 @@ import type { Caller } from "../process/context";
 import { ProcessError } from "../process/errors";
 import { runProcess, type RunProcessDeps } from "../process/run";
 import type { ResolvedEntityDef } from "../registry/entities";
-import { IDENTIFIER } from "../registry/fields";
+import { entityModuleOf, IDENTIFIER } from "../registry/fields";
 import type { ImportColumn, ImportLines } from "./columns";
 import { describeFailure } from "./errors-csv";
 import { columnLabel, lineLabels, linePrefix, type ImportLabels, type ImportRecord } from "./map";
@@ -34,7 +34,7 @@ interface RefCell {
 /**
  * Replaces each reference cell written as a display value by the id of the one visible record that has it; no
  * match or several matches are row errors. Ids are left to the create process. A documento's lines (D14, `lines`) are resolved the
- * same way, each error named by its Líneas row.
+ * same way, each error named by its Líneas row. A column to an entity of a module that is not loaded is left as it came (Task 53.2).
  */
 export async function resolveReferences(
   deps: RunProcessDeps,
@@ -45,12 +45,15 @@ export async function resolveReferences(
   lines: ImportLines | null = null,
 ): Promise<void> {
   const groups: { column: ImportColumn; label: string; cells: RefCell[] }[] = [];
-  for (const column of columns.filter((c) => c.type === "ref" && c.ref)) {
+  // A column whose target is an entity of a module that is not loaded (an optional neighbour, plan 2B Task 53.2) is not resolved: the
+  // cell keeps the text it came with and the create process judges it. One of a loaded module resolves (an unknown entity throws).
+  const resolvable = (c: ImportColumn) => c.type === "ref" && c.ref !== undefined && deps.registry.hasModule(entityModuleOf(c.ref.entity));
+  for (const column of columns.filter(resolvable)) {
     groups.push({ column, label: columnLabel(column, labels), cells: records.map((record) => ({ holder: record.input, record, prefix: "" })) });
   }
   if (lines) {
     const ofLines = lineLabels(labels);
-    for (const column of lines.columns.filter((c) => c.type === "ref" && c.ref)) {
+    for (const column of lines.columns.filter(resolvable)) {
       const cells = records.flatMap((record) => {
         const list = record.input[lines.key];
         if (!Array.isArray(list)) return [];

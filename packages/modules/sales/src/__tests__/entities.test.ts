@@ -123,6 +123,17 @@ describe("sales never names crm in its manifest (rule 3, plan 2B Task 42)", () =
   it("the manifest declares no shortcuts: the crm module contributes its own", () => {
     expect((sales as { shortcuts?: unknown }).shortcuts).toBeUndefined();
   });
+
+  it("the pedido's cotización is a ref to crm.quote by number (Task 53.2), yet sales loads without crm and needs nothing of it", () => {
+    const order = loaded().entity("sales.order");
+    expect(order.fields.find((f) => f.name === "quote_id")).toMatchObject({ type: "ref", ref: { entity: "crm.quote", display: "number" } });
+    // The oportunidad and the bodega stay raw ids.
+    expect(order.fields.find((f) => f.name === "opportunity_id")?.type).toBe("uuid");
+    expect(order.fields.find((f) => f.name === "warehouse_id")?.type).toBe("uuid");
+    expect(sales.dependsOn).not.toContain("crm");
+    expect(sales.needs ?? []).not.toContain("crm");
+    expect(JSON.stringify([sales.navigation, sales.features, sales.dependsOn, sales.needs ?? []])).not.toMatch(/crm/i);
+  });
 });
 
 describe("sales masked views, migrations 0082, 0084 and 0085", () => {

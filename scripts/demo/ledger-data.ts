@@ -68,6 +68,11 @@ export const INVOICES: InvoiceSpec[] = [
   { number: "FE-1015", date: "2026-10-19", customer: SOL_DEL_CARIBE, beverages: 2_000_000, food: 1_000_000, costCenter: "USA", businessUnit: "INS-HOR" },
 ];
 
+/** Credit notes of annulment (Task 53.3): the full note a void of the invoice emits; numbered after the partial credit notes below. */
+export const ANNULMENT_NOTES = [
+  { number: "NC-303", date: "2026-10-20", invoice: "FE-1015" },
+];
+
 export const CREDIT_NOTES = [
   { number: "NC-301", date: "2026-06-20", customer: EXITO, subtotal: 1_000_000, costCenter: "TOS" },
   { number: "NC-302", date: "2026-09-22", customer: COLINA, subtotal: 500_000, costCenter: "TOS" },

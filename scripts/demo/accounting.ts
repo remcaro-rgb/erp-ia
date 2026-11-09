@@ -25,9 +25,9 @@ import type { Sql } from "postgres";
 import { accounting } from "@erp/module-accounting";
 import { ATTACHMENT_PROCESSES, buildConsumerContext, consumers, enqueueEvent, runProcess, type Caller, type RunProcessDeps } from "@erp/kernel";
 import { DEMO_COMPANY_ID, DEMO_ROLE_IDS } from "./accounts";
-import { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, HOTEL_CUMBRE, BOSQUE, TRILLADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, type InvoiceSpec } from "./ledger-data";
+import { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, HOTEL_CUMBRE, BOSQUE, TRILLADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, ANNULMENT_NOTES, type InvoiceSpec } from "./ledger-data";
 
-export { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, EXITO, COLINA, HOTEL_CUMBRE, CARIBE_EXPRESS, SOL_DEL_CARIBE, CATERING_ANDES, ANDINAS, BOSQUE, TRILLADORA, TOSTADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, type InvoiceSpec } from "./ledger-data";
+export { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, EXITO, COLINA, HOTEL_CUMBRE, CARIBE_EXPRESS, SOL_DEL_CARIBE, CATERING_ANDES, ANDINAS, BOSQUE, TRILLADORA, TOSTADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, ANNULMENT_NOTES, type InvoiceSpec } from "./ledger-data";
 
 /** A signed-in demo account: the caller of its processes and, when it has a second step, a fresh step-up. */
 export interface DemoSession {
@@ -54,7 +54,7 @@ const addDays = (iso: string, days: number) => {
 };
 
 /** A fixed UUID v7-shaped id for the event payloads, so a rerun names the same documents. */
-const documentId = (kind: "a" | "b" | "c" | "d" | "e", n: number) => `019a2c4e-0000-7000-8000-${kind}${pad(n, 11)}`;
+export const documentId = (kind: "a" | "b" | "c" | "d" | "e", n: number) => `019a2c4e-0000-7000-8000-${kind}${pad(n, 11)}`;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The data
@@ -337,6 +337,30 @@ async function partyIds(sql: Sql): Promise<Map<string, { id: string; name: strin
 }
 
 /** The 40 posted entries of January to October, from the §5.4 payloads. Returns how many events were new. */
+/** The annulment concept of the Colombian pack's table 13.2.4 (packages/localization/co: ANNULMENT_CONCEPT). */
+const ANNULMENT_REASON_CODE = "2";
+
+/**
+ * The invoicing.note.issued payload of an annulment, mirroring what invoicing.invoice.void / note.issue_annulment emits (processes/note.ts):
+ * a credit note whose amounts are the invoice's, negative (the posting engine flips the side of a negative amount). R53-2: the seed's
+ * invoices are ledger events with no invoicing.invoices row, so the seed sends the event itself.
+ */
+export function annulmentPayload(
+  note: { number: string; date: string; invoice: string },
+  spec: InvoiceSpec,
+  ids: { noteId: string; invoiceId: string; customer: { partyId: string; legalName: string }; costCenterId: string | undefined },
+): Record<string, unknown> {
+  const base = spec.beverages + spec.food;
+  const tax = money(base * 0.19);
+  return {
+    date: note.date, number: note.number, noteId: ids.noteId, kind: "credit", annulment: true, reasonCode: ANNULMENT_REASON_CODE, dueDate: note.date,
+    invoiceId: ids.invoiceId, invoiceNumber: spec.number, customer: ids.customer, costCenterId: ids.costCenterId,
+    totals: { total: -(base + tax) },
+    lines: [{ subtotal: -spec.beverages, categoryId: "bebidas", costCenterId: ids.costCenterId }, { subtotal: -spec.food, categoryId: "comida", costCenterId: ids.costCenterId }],
+    taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -base }],
+  };
+}
+
 async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
   const costCenters = await nodeIds(sql, "cost_centers");
   const units = await nodeIds(sql, "business_units");
@@ -411,9 +435,15 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
     });
   }
 
-  // Voids: the receipt of FE-1013 (open again) and the invoice FE-1015, each in its own month and open period.
+  // The receipt of FE-1013 voided (open again), and the annulment note of the invoice FE-1015, each in its own open period.
   if (voidedReceipt) await send("payments.payment.voided", { date: addDays(voidedReceipt.date, 3), number: voidedReceipt.number, paymentId: documentId("b", voidedReceipt.index) });
-  await send("invoicing.invoice.voided", { date: "2026-10-20", number: "FE-1015", invoiceId: documentId("a", 15) });
+  // FE-1015 is annulled by its credit note of annulment (Task 53.3), numbered after the partial notes.
+  for (const [i, note] of ANNULMENT_NOTES.entries()) {
+    const spec = issued.get(note.invoice)!;
+    await send("invoicing.note.issued", annulmentPayload(note, spec.spec, {
+      noteId: documentId("e", CREDIT_NOTES.length + i + 1), invoiceId: documentId("a", spec.index), customer: customer(spec.spec.customer), costCenterId: costCenters.get(spec.spec.costCenter),
+    }));
+  }
   return delivered;
 }
 
