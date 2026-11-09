@@ -1,7 +1,7 @@
 import { countryPack, defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChanged, genericProcess, ProcessError, runLifecycle, visibleExtra, writeSnapshot, type ProcessContext, type ProcessDef, type RecordStatus, type TypedHooks, type TypedRecord } from "@erp/kernel";
 import { z } from "zod";
 import { receiptEntity, WITHHOLDING_KINDS, type WithholdingKind } from "../entities";
-import { cents, date, id, idInput, markReceiptLinksVoided, money, num, pesos, refuse, refuseState, syncReceiptLinks, today } from "./common";
+import { cents, date, id, idInput, markReceiptLinksVoided, money, moneyAmount, num, refuse, refuseState, syncReceiptLinks, today } from "./common";
 
 // Recibos de caja (plan 2B Task 21; design §8 and §8.1 step 7; accounting design §5.4 and §10a.7: the withholdings a customer practises are
 // recognised when it pays, never on the invoice). A documento that posts (contabiliza) and never waits for approval (own flags).
@@ -46,7 +46,7 @@ export const PAYMENTS_REFUSAL_CODES = [
 /** How far a withholding's amount may be from base × rate: the certificate's rounding to the peso ($ 0,50). */
 const WITHHOLDING_TOLERANCE_CENTS = 50;
 
-const positive = money.refine((n) => n > 0, "Debe ser mayor que cero");
+const positive = moneyAmount.refine((n) => n > 0, "Debe ser mayor que cero");
 
 export const withholdingInput = z.object({
   kind: z.enum(WITHHOLDING_KINDS),
@@ -71,7 +71,7 @@ export const receiveInput = z.object({
   /** The date of the receipt (the entry's); defaults to the company's today. */
   date: date.optional(),
   /** The money received. */
-  amount: money,
+  amount: moneyAmount,
   reference: z.string().trim().min(1).max(100).optional(),
   notes: z.string().trim().max(2000).optional(),
   allocations: z.array(allocationInput).max(100).default([]),
@@ -106,7 +106,7 @@ export type ReceiptTotals =
  * withholdings, the cash applied, the advance, and each allocation's cash. Refuses a withholding that is not base × rate (within $ 1),
  * withholdings above their allocation, money short of the cash applied, and a receipt of nothing.
  */
-export function receiptTotals(amount: number, allocations: readonly Pick<PlannedAllocation, "invoiceNumber" | "amount" | "withholdings">[]): ReceiptTotals {
+export function receiptTotals(amount: number, allocations: readonly Pick<PlannedAllocation, "invoiceNumber" | "amount" | "withholdings">[], currency = "COP"): ReceiptTotals {
   const errors: string[] = [];
   const lines = allocations.map((a, i) => {
     const name = a.invoiceNumber ?? `de la línea ${i + 1}`;
@@ -114,11 +114,11 @@ export function receiptTotals(amount: number, allocations: readonly Pick<Planned
     for (const w of a.withholdings) {
       const expected = Math.round((cents(w.base) * w.rate) / 100);
       if (Math.abs(cents(w.amount) - expected) > WITHHOLDING_TOLERANCE_CENTS) {
-        errors.push(`La retención ${w.code} de la factura ${name} no corresponde a su base y tarifa: ${pesos(w.base)} × ${w.rate} % = ${pesos(expected / 100)}, no ${pesos(w.amount)}`);
+        errors.push(`La retención ${w.code} de la factura ${name} no corresponde a su base y tarifa: ${money(w.base, currency)} × ${w.rate} % = ${money(expected / 100, currency)}, no ${money(w.amount, currency)}`);
       }
       held += cents(w.amount);
     }
-    if (held > cents(a.amount)) errors.push(`Las retenciones de la factura ${name} (${pesos(held / 100)}) superan lo aplicado (${pesos(a.amount)})`);
+    if (held > cents(a.amount)) errors.push(`Las retenciones de la factura ${name} (${money(held / 100, currency)}) superan lo aplicado (${money(a.amount, currency)})`);
     return { applied: cents(a.amount), held };
   });
   if (errors.length > 0) return { ok: false, code: "invalid_withholding", details: errors };
@@ -128,7 +128,7 @@ export function receiptTotals(amount: number, allocations: readonly Pick<Planned
   const received = cents(amount);
   if (received === 0 && applied === 0) return { ok: false, code: "nothing_received", details: ["El recibo no tiene valor recibido ni facturas por aplicar"] };
   if (received < cashApplied) {
-    return { ok: false, code: "cash_short", details: [`El valor recibido (${pesos(received / 100)}) no cubre lo aplicado en efectivo a las facturas (${pesos(cashApplied / 100)})`] };
+    return { ok: false, code: "cash_short", details: [`El valor recibido (${money(received / 100, currency)}) no cubre lo aplicado en efectivo a las facturas (${money(cashApplied / 100, currency)})`] };
   }
   return {
     ok: true,
@@ -152,7 +152,7 @@ export interface ReceivedPayloadInput {
  * allocations (invoice, number, what each settles, its cash, its withholdings).
  */
 export function receivedPayload(input: ReceivedPayloadInput) {
-  const totals = receiptTotals(input.amount, input.allocations);
+  const totals = receiptTotals(input.amount, input.allocations, input.currency);
   if (!totals.ok) throw new Error(`${totals.code}: ${totals.details.join("; ")}`);
   const byKind = (kind: WithholdingKind) =>
     input.allocations.flatMap((a) => a.withholdings.filter((w) => w.kind === kind).map((w) => ({ code: w.code, rate: w.rate, base: w.base, amount: w.amount, invoiceId: a.invoiceId })));
@@ -325,7 +325,7 @@ async function checkAllocations(ctx: ProcessContext, partyId: string, receiptDat
       if (blocked) fail(blocked.code, blocked.message);
       else {
         const open = openOf(inv, settled.get(inv.id) ?? 0);
-        if (cents(a.amount) > cents(open)) fail("allocation_exceeds_open", `La factura ${name} tiene un saldo de ${pesos(Math.max(open, 0))}: no se le puede aplicar ${pesos(a.amount)}`);
+        if (cents(a.amount) > cents(open)) fail("allocation_exceeds_open", `La factura ${name} tiene un saldo de ${money(Math.max(open, 0), currency)}: no se le puede aplicar ${money(a.amount, currency)}`);
       }
     }
     return { invoiceId: a.invoiceId, invoiceNumber: inv?.number ?? null, amount: a.amount, withholdings: a.withholdings };
@@ -389,7 +389,7 @@ export const paymentReceive = defineProcess({
     }
     const currency = company!.currency_code.trim();
     const planned = await checkAllocations(ctx, input.partyId, on, currency, input.allocations);
-    const totals = receiptTotals(input.amount, planned);
+    const totals = receiptTotals(input.amount, planned, currency);
     if (!totals.ok) refuse(totals.code, totals.details);
 
     const [header] = await ctx.tx<{ id: string }[]>`
@@ -528,7 +528,7 @@ export const paymentVoid = defineProcess({
     // reclass from being orphaned (Task 36, R36-8; the posted applications of the company whoever may read them).
     const [drawn] = await ctx.tx<{ applied: string }[]>`select applied::text from payments.advance_applied_amounts(array[${receiptId}]::uuid[])`;
     if (cents(num(drawn?.applied)) > 0) {
-      refuseState("receipt_has_applications", [`El recibo ${receipt.number ?? receiptId} tiene aplicaciones de anticipo vigentes (${pesos(num(drawn!.applied))}): deshaz las aplicaciones antes de anularlo`]);
+      refuseState("receipt_has_applications", [`El recibo ${receipt.number ?? receiptId} tiene aplicaciones de anticipo vigentes (${money(num(drawn!.applied), receipt.currency.trim())}): deshaz las aplicaciones antes de anularlo`]);
     }
     const on = given ?? (await today(ctx));
     if (on < receipt.date) refuse("void_before_receipt", [`La anulación (${on}) no puede ser anterior al recibo (${receipt.date})`]);

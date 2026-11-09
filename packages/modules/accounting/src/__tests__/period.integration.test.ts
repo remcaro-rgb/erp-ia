@@ -85,7 +85,7 @@ describe("period close", () => {
     expect(byName.suspense_zero!.value).toMatchObject({ balance: 50 });
     expect(byName.suspense_zero!.note).toContain("$ 50,00");
     expect(byName.control_receivable!.value).toMatchObject({ ledger: -100, open: 0, count: 1 });
-    expect(byName.control_receivable!.note).toContain("$ -100,00");
+    expect(byName.control_receivable!.note).toContain("-$ 100,00");
     // The suspense account sits in the payables group: its unapplied debit shows there too.
     expect(byName.control_payable!.passed).toBe(false);
     expect(refused.failed.length).toBe(failedChecks(refused).length);

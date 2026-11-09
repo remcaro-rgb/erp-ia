@@ -1,7 +1,7 @@
 import { defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChanged, genericProcess, ProcessError, runLifecycle, visibleExtra, writeSnapshot, type ProcessContext, type ProcessDef, type RecordStatus, type TypedHooks, type TypedRecord } from "@erp/kernel";
 import { z } from "zod";
 import { applicationEntity } from "../entities";
-import { cents, date, id, idInput, markApplicationLinksVoided, money, num, pesos, refuse, refuseState, syncApplicationLinks, today } from "./common";
+import { cents, date, id, idInput, markApplicationLinksVoided, money, moneyAmount, num, refuse, refuseState, syncApplicationLinks, today } from "./common";
 import { FEATURE_RECEIPTS, lockInvoices, openOf, payability, readyCustomer } from "./receipt";
 
 // Aplicar anticipo a factura (plan 2B.2 Task 36, owner decisions item 23; accounting design 2026-10-28, advances and receivables; main design
@@ -33,7 +33,7 @@ export const ADVANCE_UNAPPLIED = "payments.advance.unapplied";
 export const APPLICATION_PREFIX = "AP-";
 export const FEATURE_ADVANCES = FEATURE_RECEIPTS;
 
-const positive = money.refine((n) => n > 0, "Debe ser mayor que cero");
+const positive = moneyAmount.refine((n) => n > 0, "Debe ser mayor que cero");
 
 export const applyInput = z.object({
   partyId: id,
@@ -78,6 +78,7 @@ export function applicationPlan(
   advances: readonly PlanAdvance[],
   invoices: readonly PlanInvoice[],
   dates: { on: string; today: string },
+  currency = "COP",
 ): ApplicationPlan {
   if (lines.length === 0 || lines.every((l) => cents(l.amount) <= 0)) return { ok: false, code: "nothing_applied", details: ["La aplicación no tiene valor: indica cuánto del anticipo se aplica a cada factura"] };
   if (dates.on > dates.today) return { ok: false, code: "application_in_future", details: [`La aplicación no puede tener fecha posterior a hoy (${dates.today})`] };
@@ -107,11 +108,11 @@ export function applicationPlan(
     }
     for (const [receiptId, sum] of drawn) {
       const a = advanceOf.get(receiptId)!;
-      if (sum > cents(a.remaining)) fail("advance_exceeds_open", `El anticipo del recibo ${a.number ?? receiptId} tiene un saldo de ${pesos(Math.max(a.remaining, 0))}: no se le pueden sacar ${pesos(sum / 100)}`);
+      if (sum > cents(a.remaining)) fail("advance_exceeds_open", `El anticipo del recibo ${a.number ?? receiptId} tiene un saldo de ${money(Math.max(a.remaining, 0), currency)}: no se le pueden sacar ${money(sum / 100, currency)}`);
     }
     for (const [invoiceId, sum] of settled) {
       const inv = invoiceOf.get(invoiceId)!;
-      if (sum > cents(inv.open)) fail("allocation_exceeds_open", `La factura ${inv.number ?? invoiceId} tiene un saldo de ${pesos(Math.max(inv.open, 0))}: no se le puede aplicar ${pesos(sum / 100)}`);
+      if (sum > cents(inv.open)) fail("allocation_exceeds_open", `La factura ${inv.number ?? invoiceId} tiene un saldo de ${money(Math.max(inv.open, 0), currency)}: no se le puede aplicar ${money(sum / 100, currency)}`);
     }
   }
   if (errors.length > 0) return { ok: false, code: errors[0]!.code, details: errors.map((e) => e.message) };
@@ -286,7 +287,7 @@ export const advanceApply = defineProcess({
     }
     if (errors.length > 0) refuse(errors[0]!.code, errors.map((e) => e.message));
 
-    const plan = applicationPlan(input.lines, advances, invoices, { on, today: now });
+    const plan = applicationPlan(input.lines, advances, invoices, { on, today: now }, currency);
     if (!plan.ok) refuse(plan.code, plan.details);
 
     const [header] = await ctx.tx<{ id: string }[]>`

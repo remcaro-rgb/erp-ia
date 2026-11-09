@@ -1,4 +1,4 @@
-import type { ProcessContext } from "@erp/kernel";
+import { moneyText, type ProcessContext } from "@erp/kernel";
 import { controlReconciliation } from "../reports/control-reconciliation";
 import { AWAITING_APPROVAL_STATES, UNFINISHED_ENTRY_STATES } from "./common";
 
@@ -24,8 +24,8 @@ export interface ClosingPeriod {
   endsOn: string;
 }
 
-/** `$ 1.234.567,00`, the money format of rule 23. */
-export const money = (value: number): string => `$ ${new Intl.NumberFormat("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
+/** `$ 1.234.567,00`, the money format of rule 23 (sign first: `-$ 1.000,00`); another currency by its ISO code, `USD 12.500,00` (item 129). */
+export const money = (value: number, currency = "COP"): string => moneyText(value, currency);
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 

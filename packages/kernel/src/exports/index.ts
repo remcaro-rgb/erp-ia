@@ -4,7 +4,7 @@ export { writeCsv } from "./csv";
 export { exportJobEntity } from "./entity";
 export { EXPORT_PROCESSES, exportRequest, exportRun } from "./export.process";
 export type { ExportInput, ExportOutput } from "./export.process";
-export { cellOf, cellText, MASK } from "./format";
+export { cellOf, cellText, MASK, moneyText, rateText } from "./format";
 export { EXPORT_FAILED_MESSAGE, EXPORT_URL_TTL_SECONDS, exportJobStatus, markExportFailed } from "./jobs";
 export type { ExportJobArgs, ExportJobStatus } from "./jobs";
 export { exportRows, planExport } from "./plan";

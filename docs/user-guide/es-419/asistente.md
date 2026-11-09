@@ -33,7 +33,7 @@ Las respuestas muestran negrita, listas y enlaces **solo a pantallas de la aplic
 
 ## Consultas: la tabla de resultados
 
-Cuando preguntas por datos (`kernel.data.query`), el asistente responde con una tabla con los mismos formatos de los listados: dinero como `$ 1.234.567,00`, fechas y horas en la zona horaria de tu empresa, «Sí» y «No», y un guion cuando no hay valor. Los campos que tu rol no puede ver no aparecen, y los enmascarados se muestran como ••••••.
+Cuando preguntas por datos (`kernel.data.query`), el asistente responde con una tabla con los mismos formatos de los listados: dinero como `$ 1.234.567,00`, fechas y horas en la zona horaria de tu empresa, «Sí» y «No», y un guion cuando no hay valor. Los campos que tu rol no puede ver no aparecen, y los enmascarados se muestran como ••••••. En la tarjeta de confirmación de una acción, un importe en otra moneda se muestra con el código de esa moneda (`USD 12.500,00`), nunca con `$`, que queda para los pesos.
 
 - El nombre de cada fila y los registros que menciona (el proveedor de un producto, por ejemplo) son **enlaces** a su página, como en los listados (guía **Listados**, «Enlaces a registros»); sin enlace cuando tu rol no puede consultar ese tipo de registro.
 - Una consulta trae **hasta 50 filas**. Si hay más, la tabla lo dice («Resultado truncado a 50 filas») y verás «50 de 312»: afina la pregunta para ver el resto.
