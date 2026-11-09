@@ -21,9 +21,9 @@ describe("formatMoney", () => {
     expect(formatMoney(Number.NaN)).toBe("");
   });
 
-  it("names other currencies", () => {
-    expect(formatMoney(10, "USD")).toBe("US$ 10,00");
-    expect(formatMoney(10, "EUR")).toBe("€ 10,00");
+  it("names other currencies by their ISO code (item 129)", () => {
+    expect(formatMoney(10, "USD")).toBe("USD 10,00");
+    expect(formatMoney(10, "EUR")).toBe("EUR 10,00");
     expect(formatMoney(10, "MXN")).toBe("MXN 10,00");
   });
 });
@@ -31,6 +31,8 @@ describe("formatMoney", () => {
 describe("parseMoney and moneyEditText", () => {
   it("reads what a person types or pastes", () => {
     expect(parseMoney("$ 1.234.567,00")).toBe(1234567);
+    expect(parseMoney("USD 12.500,00")).toBe(12500);
+    expect(parseMoney("-EUR 980,50")).toBe(-980.5);
     expect(parseMoney("1234567,5")).toBe(1234567.5);
     expect(parseMoney("1.234.567")).toBe(1234567);
     expect(parseMoney("1234567")).toBe(1234567);

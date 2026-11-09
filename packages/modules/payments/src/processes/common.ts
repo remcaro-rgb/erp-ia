@@ -1,4 +1,4 @@
-import { GENERIC_VERBS, genericProcess, ProcessError, runLifecycle, type EntityDef, type LinksApi, type ProcessContext, type ProcessDef } from "@erp/kernel";
+import { GENERIC_VERBS, genericProcess, moneyText, ProcessError, runLifecycle, type EntityDef, type LinksApi, type ProcessContext, type ProcessDef } from "@erp/kernel";
 import { z } from "zod";
 
 // Helpers every payments handler shares: typed refusals, the first lifecycle state of a maestro, Grabar's duplicate refusal, the company's
@@ -9,7 +9,7 @@ export const idInput = z.object({ id });
 export const idOutput = z.object({ id: z.string() });
 export const date = z.iso.date();
 /** Money: up to two decimals (the ledger's cents), at most 13 integer digits. */
-export const money = z.number().finite().min(0).max(1e13).refine((n) => Math.abs(Math.round(n * 100) - n * 100) < 1e-6, "Máximo dos decimales");
+export const moneyAmount = z.number().finite().min(0).max(1e13).refine((n) => Math.abs(Math.round(n * 100) - n * 100) < 1e-6, "Máximo dos decimales");
 /** Admin-defined extra data (design §5.14); the processes validate it against the company's custom fields. */
 export const extra = z.record(z.string(), z.unknown()).optional();
 
@@ -95,11 +95,8 @@ export const num = (value: unknown): number => (value === null || value === unde
 export const cents = (n: number): number => Math.round(n * 100);
 export const round2 = (n: number): number => cents(n) / 100;
 
-/** Money as the screens write it (rule 23: `$ 1.234.567,00`), for the text of a refusal. */
-export function pesos(n: number): string {
-  const [int, dec] = Math.abs(n).toFixed(2).split(".");
-  return `${n < 0 ? "-" : ""}$ ${int!.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${dec}`;
-}
+/** Money as the screens write it, for the text of a refusal: `$ 1.234.567,00` for COP (rule 23), `USD 12.500,00` otherwise (item 129). */
+export const money = (n: number, currency: string): string => moneyText(n, currency);
 
 // The document links payments writes (design §22.27, plan 2B Task 31): invoice_to_receipt, one link per invoice a receipt applies to, through
 // ctx.links only (rule 1), in the transaction that writes the receipt's allocations, as the process that writes them. Anular keeps them,

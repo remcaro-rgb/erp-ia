@@ -104,7 +104,9 @@ export function buildPreview(
 ): ConfirmationPreview {
   const catalogue = catalogueOf(options.locale);
   // The label helper the audit viewer shares (kernel registry/labels.ts): option labels, the pack's codes, money, Sí / No.
-  const labels: ValueLabels = { t: (key) => message(catalogue, key), locale: options.locale, pack: countryPackOf(options.country), timeZone: options.timeZone };
+  // Money reads in the input's currency when it names one (`USD 12.500,00`, item 129); COP otherwise.
+  const currency = input !== null && typeof input === "object" && typeof (input as { currency?: unknown }).currency === "string" ? (input as { currency: string }).currency : undefined;
+  const labels: ValueLabels = { t: (key) => message(catalogue, key), locale: options.locale, pack: countryPackOf(options.country), timeZone: options.timeZone, currency };
   const entity = entityOf(registry, def);
   const fieldOf = (key: string) => (entity ? fieldOfKey(entity.fields, key) : undefined);
   const label = (key: string): string => {

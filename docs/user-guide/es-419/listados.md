@@ -22,7 +22,7 @@ Terceros, Productos, Categorías y Soporte son **listados** que funcionan igual.
 - La **tabla**: una fila por registro, con los encabezados que ordenan y, debajo de ellos, una fila de cajas para filtrar cada columna. La primera columna es la que **identifica** el registro (la razón social en Terceros, la descripción en Productos, el nombre en Categorías): junto con la columna de casillas queda **fija a la izquierda** cuando desplazas la tabla hacia los lados, con una sombra en su borde, para que siempre sepas de qué fila se trata. Si hay columnas de dinero, la fila **Suma** queda fija abajo (ver «Totales y selección»).
 - El **pie**: las filas que estás viendo, las páginas y lo que tienes seleccionado.
 
-Los importes se muestran como `$ 1.234.567,00`, alineados a la derecha. Un valor **enmascarado** para tu rol se ve como ••••••.
+Los importes se muestran como `$ 1.234.567,00`, alineados a la derecha. En la ficha de un documento en otra moneda (una factura en dólares, por ejemplo), sus importes llevan el código de la moneda en lugar del signo: `USD 12.500,00`, `EUR 980,50`; los pesos siguen con `$`. Un valor **enmascarado** para tu rol se ve como ••••••.
 
 Haz clic en una fila (o enfócala y pulsa Enter) para abrir el registro en su propia pestaña.
 
