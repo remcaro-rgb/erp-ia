@@ -269,7 +269,14 @@ describe("crm quotes and sales pricing catalogue (plan 2B Task 12)", () => {
       expect(valueAt(tree, "crm.quote.own_flags.requires_approval")).toBeDefined();
       expect(valueAt(tree, "crm.quote.own_flags.posts")).toBeDefined();
       for (const code of ["quote_pending_approval", "quote_accepted", "quote_expired", "not_invoice_ready"]) expect(valueAt(tree, `crm.errors.${code}`)).toBeDefined();
-      for (const source of ["customer_list", "default_list", "list_price"]) expect(valueAt(tree, `sales.values.price_source.${source}`)).toBeDefined();
+      for (const source of ["customer_list", "default_list", "list_price", "converted"]) expect(valueAt(tree, `sales.values.price_source.${source}`)).toBeDefined();
+      // Task 34.3 (FX §2, §8; R34-7): the rate's refusal in the three create processes, export only, the converted price's note.
+      for (const ns of ["sales", "crm", "invoicing"]) {
+        expect(valueAt(tree, `${ns}.errors.exchange_rate_missing`), ns).toBeDefined();
+        expect(valueAt(tree, `${ns}.errors.exchange_rate_required`), ns).toBeUndefined();
+      }
+      expect(valueAt(tree, "invoicing.errors.foreign_currency_domestic")).toBeDefined();
+      expect(argumentsOf(valueAt(tree, "sales.price.converted")!)).toEqual(["rate"]);
       expect(valueAt(tree, "nav.modules.sales")).toBeDefined();
     }
     expect(valueAt(es, "sales.errors.price_not_found")).toContain("indica el precio unitario");
@@ -354,7 +361,7 @@ describe("DIAN checklist copy (plan 2B Task 35, R35-3)", () => {
 
 describe("recommendation copy (plan 2B Task 38)", () => {
   it("names the texts and reasons the processes raise, the card's link and the bell, in both locales with the same arguments", () => {
-    const reasons = ["invalid_party", "invalid_product", "over_invoicing", "order_cancelled", "order_not_confirmed", "delivery_voided", "delivery_not_shipped", "invalid_order_line", "price_not_found", "invalid_payment_means", "exchange_rate_required", "nothing_to_invoice", "einvoice_not_available", "refused"];
+    const reasons = ["invalid_party", "invalid_product", "over_invoicing", "order_cancelled", "order_not_confirmed", "delivery_voided", "delivery_not_shipped", "invalid_order_line", "price_not_found", "invalid_payment_means", "exchange_rate_missing", "nothing_to_invoice", "einvoice_not_available", "refused"];
     for (const tree of [es, en]) {
       expect(argumentsOf(valueAt(tree, "invoicing.recommendation.auto_skipped.body")!)).toEqual(["document", "reason"]);
       expect(valueAt(tree, "invoicing.recommendation.auto_skipped.title")).toBeDefined();

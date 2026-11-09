@@ -82,6 +82,9 @@ export interface SalesFormData {
   warehouses: CodeOption[];
   /** A prospecto's document types (the DIAN table of the country pack). */
   documentTypes: CodeOption[];
+  /** The currencies a new cotización or pedido may be in (the company's, and those with a rate in Tasas de cambio or a price list; Task 34.3). */
+  currencies: CodeOption[];
+  companyCurrency: string;
   /** The embudos an oportunidad goes in. */
   pipelines: CodeOption[];
   party: LookupSource;
@@ -141,7 +144,10 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
   const needsParty = kind !== "pipeline";
   const [lists, party, product, lead, opportunity, source, runnable] = await Promise.all([
     withClaims(deps.sql, caller.claims, async (tx) => {
-      const [today] = await tx<{ today: string }[]>`select (now() at time zone timezone)::date::text as today from kernel.companies where id = ${caller.claims.active_company_id}`;
+      const [today] = await tx<{ today: string; currency: string }[]>`select (now() at time zone timezone)::date::text as today, currency_code as currency from kernel.companies where id = ${caller.claims.active_company_id}`;
+      const currencies = kind === "quote" || kind === "order" ? await tx<{ code: string; name: string }[]>`select distinct trim(c) as code, trim(c) as name from (
+              select ${(today?.currency ?? "COP")}::text as c union all select currency from core.v_exchange_rates where currency is not null
+              union all select currency_code from core.v_price_lists where currency_code is not null) t order by 1` : [];
       const warehouses =
         kind === "quote" || kind === "order" || kind === "delivery"
           ? await tx<{ id: string; code: string | null; name: string | null }[]>`
@@ -155,7 +161,7 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
           ? await tx<{ id: string; code: string | null; name: string | null }[]>`
               select id, code, name from crm.v_pipelines where coalesce(is_active, true) and status in ('saved', 'approved') order by is_default desc, code`
           : [];
-      return { today: today?.today ?? new Date().toISOString().slice(0, 10), warehouses, pipelines };
+      return { today: today?.today ?? new Date().toISOString().slice(0, 10), companyCurrency: (today?.currency ?? "COP").trim(), currencies, warehouses, pipelines };
     }),
     needsParty ? lookupSource(caller, "core.party") : Promise.resolve(null),
     kind === "quote" || kind === "order" || kind === "opportunity" ? lookupSource(caller, "core.product") : Promise.resolve(null),
@@ -203,6 +209,8 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
     today: lists.today,
     warehouses: lists.warehouses.map((w) => ({ code: w.id, name: [w.code, w.name].filter(Boolean).join(" · ") })),
     documentTypes: kind === "lead" ? partyTables(locale).documentTypes.map((d) => ({ code: d.code, name: d.name })) : [],
+    currencies: lists.currencies.map((c) => ({ code: c.code, name: c.name })),
+    companyCurrency: lists.companyCurrency,
     pipelines: lists.pipelines.map((p) => ({ code: p.id, name: [p.code, p.name].filter(Boolean).join(" · ") })),
     party: party ?? { fields: [], entityLabel: t("entity.core.party") },
     product: product ?? { fields: [], entityLabel: t("entity.core.product") },

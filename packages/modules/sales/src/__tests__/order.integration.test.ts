@@ -216,6 +216,27 @@ describe("sales orders", () => {
     expect({ subtotal: order.subtotal, taxTotal: order.taxTotal, total: order.total }).toEqual({ subtotal: expected.subtotal, taxTotal: expected.taxTotal, total: expected.total });
   });
 
+  it("a USD pedido takes the rate of its date from Tasas de cambio; none → exchange_rate_missing; a typed rate wins; an unpriced line converts the list price (Task 34.3)", async () => {
+    const missing = await refusal(create({ currency: "USD", issueDate: "2026-06-20", lines: [{ productId: filtro, qty: 1 }] }));
+    expect(missing?.code).toBe("invalid_input");
+    expect(missing?.message).toMatch(/^exchange_rate_missing/);
+    await sql`insert into core.exchange_rates (company_id, currency, rate_date, rate, source) values (${companyId}, 'USD', '2026-11-04', 4123.45, 'trm')`;
+    try {
+      // The rate of the day before answers (within 3 days); no USD list: 12.000 / 4.123,45 = 2,91.
+      const fromTable = await create({ currency: "USD", lines: [{ productId: filtro, qty: 1 }] });
+      const [row] = await sql<{ exchange_rate: string }[]>`select exchange_rate::text from sales.orders where id = ${fromTable.id}`;
+      expect(Number(row!.exchange_rate)).toBe(4123.45);
+      const [line] = await sql<{ unit_price: string }[]>`select unit_price::text from sales.order_lines where order_id = ${fromTable.id}`;
+      expect(Number(line!.unit_price)).toBe(2.91);
+      const typed = await create({ currency: "USD", exchangeRate: 4000, lines: [{ productId: filtro, qty: 1 }] });
+      await run(admin, "sales.order.update", { id: typed.id, exchangeRate: 4050 });
+      const [edited] = await sql<{ exchange_rate: string }[]>`select exchange_rate::text from sales.orders where id = ${typed.id}`;
+      expect(Number(edited!.exchange_rate)).toBe(4050);
+    } finally {
+      await sql`delete from core.exchange_rates where company_id = ${companyId}`;
+    }
+  });
+
   it("refuses a product that is not invoice_ready, with the reasons in the error (rule 10)", async () => {
     const error = await refusal(create({ lines: [{ productId: cafe, qty: 1 }, { productId: notReady, qty: 1 }] }));
     expect(error?.code).toBe("invalid_input");

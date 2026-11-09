@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choosePrice, lineDiscount } from "../price";
+import { choosePrice, convertPrice, lineDiscount } from "../price";
 import { readinessReasons } from "../readiness";
 
 // Price resolution (plan 2B Task 12): the customer's price list, then the company's default price list, then the product's list price.
@@ -41,6 +41,37 @@ describe("choosePrice", () => {
 
   it("takes a zero price from a list (a free item of the list is a price, not a gap)", () => {
     expect(choosePrice({ customer: { priceListId: CUSTOMER_LIST, price: 0 }, fallback: null, listPrice: 28500 })?.unitPrice).toBe(0);
+  });
+});
+
+describe("choosePrice in a foreign currency (Task 34.3, FX §8, owner item 127)", () => {
+  const usdRate = { rate: 4123.45, from: "COP" };
+  it("a USD list wins over the converted list price", () => {
+    expect(choosePrice({ customer: { priceListId: CUSTOMER_LIST, price: 6.5 }, fallback: null, listPrice: 25000, convert: usdRate })).toEqual({
+      unitPrice: 6.5, priceListId: CUSTOMER_LIST, discountPct: 0, source: "customer_list",
+    });
+    expect(choosePrice({ customer: null, fallback: { priceListId: DEFAULT_LIST, price: 7 }, listPrice: 25000, convert: usdRate })?.source).toBe("default_list");
+  });
+
+  it("no USD list: the product's list price (pesos) divided by the rate, half-up to the cent, source converted", () => {
+    // 25.000 / 4.123,45 = 6,0629… → 6,06.
+    expect(choosePrice({ customer: null, fallback: { priceListId: DEFAULT_LIST, price: null }, listPrice: 25000, discountPct: 2, convert: usdRate })).toEqual({
+      unitPrice: 6.06, discountPct: 2, source: "converted", convertedFrom: { amount: 25000, currency: "COP", rate: 4123.45 },
+    });
+  });
+
+  it("no rate, no conversion: a list price in the company currency never stands for another currency", () => {
+    expect(choosePrice({ customer: null, fallback: null, listPrice: null })).toBeNull();
+  });
+});
+
+describe("convertPrice", () => {
+  it("divides by the rate and rounds half up to the cent, also where binary floats sit just under the half", () => {
+    expect(convertPrice(25000, 4123.45)).toBe(6.06);
+    // 20.100 / 4.000 = 5,025 exactly → 5,03 (5.025 * 100 is 502.4999… in binary).
+    expect(convertPrice(20100, 4000)).toBe(5.03);
+    expect(convertPrice(28500, 4000)).toBe(7.13);
+    expect(convertPrice(0, 4000)).toBe(0);
   });
 });
 

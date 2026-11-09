@@ -27,4 +27,4 @@ Current: phase 2B sales chain (branch `phase-2b-sales-chain`), see [[Plan phase-
 - 2026-11-05 · [[Plan phase-2b-owner-decisions-pending]] — Phase 2B.1 · Owner decisions pending (to record in design §22) (0 tasks)
 - [[Aplicar anticipo a factura (2B.2 task 36)]] — apply a customer advance to invoices, with undo
 - [[Plan phase-2b-order-owner-isolation]] — a salesperson reads only their own pedidos; «Cambiar vendedor» and the all-orders permission (2B.2 task 39)
-- [[Foreign currency design (2B.2 task 34)]] — USD export invoices with TRM, peso or USD collection, exchange differences, aging in both currencies (approved 2026-11-09; 34.1 and 34.2 built)
+- [[Foreign currency design (2B.2 task 34)]] — USD export invoices with TRM, peso or USD collection, exchange differences, aging in both currencies (approved 2026-11-09; 34.1, 34.2 and 34.3 built)

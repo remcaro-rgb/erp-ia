@@ -2,7 +2,7 @@ import { countryPack, defineProcess, genericProcess, ProcessError, runLifecycle,
 import { assertSaleReady, lineDiscount, resolveLineDiscount, resolveLinePrice, type ResolvedPrice, type SaleParty, type SaleProduct } from "@erp/module-sales";
 import { z } from "zod";
 import { quoteEntity, type QuoteStage } from "../entities";
-import { assertWritable, defined, id, idInput, money, num, refuse } from "./common";
+import { assertWritable, defaultRate, defined, exchangeRateMissing, id, idInput, money, num, refuse } from "./common";
 import { quoteSettings } from "./settings";
 
 // Cotizaciones (plan 2B Task 12, design §8 and §8.1 step 0): a documento numbered COT- on save that never posts. Each line is priced by
@@ -132,7 +132,7 @@ interface Priced {
  * Prices, discounts and taxes `lines` for `partyId` on `issueDate` in `currency`, after the invoice-readiness gate of the customer and
  * every product. The taxes are the company's country pack's (`computeTaxes`, per-line rounding).
  */
-async function priceLines(ctx: ProcessContext, partyId: string, lines: z.output<typeof quoteLineInput>[], issueDate: string, currency: string): Promise<Priced> {
+async function priceLines(ctx: ProcessContext, partyId: string, lines: z.output<typeof quoteLineInput>[], issueDate: string, currency: string, exchangeRate: number): Promise<Priced> {
   const { party, products } = await assertSaleReady(ctx, partyId, lines.map((l) => l.productId));
   const priceErrors: string[] = [];
   const resolved: { unitPrice: number; priceListId: string | null; discountPct: number; product: SaleProduct; given: z.output<typeof quoteLineInput> }[] = [];
@@ -143,7 +143,7 @@ async function priceLines(ctx: ProcessContext, partyId: string, lines: z.output<
     let found: ResolvedPrice | null = null;
     if (line.unitPrice === undefined) {
       try {
-        found = await resolveLinePrice(ctx, { productId: line.productId, partyId, qty: line.qty, date: issueDate, currency });
+        found = await resolveLinePrice(ctx, { productId: line.productId, partyId, qty: line.qty, date: issueDate, currency, exchangeRate });
       } catch (error) {
         // Only "no price" is caught (a JS refusal, the transaction is intact).
         if (!(error instanceof ProcessError) || error.code !== "invalid_input") throw error;
@@ -276,8 +276,6 @@ export const quoteCreate = defineProcess({
     const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
     const companyCurrency = company!.currency_code.trim();
     const currency = input.currency ?? companyCurrency;
-    if (currency !== companyCurrency && input.exchangeRate === undefined) refuse("exchange_rate_required", [`Indica la tasa de cambio de ${currency} a ${companyCurrency}`]);
-    const exchangeRate = currency === companyCurrency ? 1 : input.exchangeRate!;
     if (input.opportunityId) {
       const [deal] = await ctx.tx<{ party_id: string | null; status: string }[]>`select party_id, status from crm.opportunities where id = ${input.opportunityId}`;
       if (!deal || deal.status === "voided") refuse("invalid_opportunity", ["La oportunidad no existe, no es visible o está anulada"]);
@@ -292,8 +290,12 @@ export const quoteCreate = defineProcess({
     const [due] = await ctx.tx<{ d: string }[]>`select (${issueDate}::date + ${settings.validityDays}::int)::text as d`;
     const validUntil = input.validUntil ?? due!.d;
     if (validUntil < issueDate) refuse("invalid_validity", ["La cotización vence antes de su fecha"]);
+    // The rate: the one typed, else Tasas de cambio's of the quote's date (Task 34.3, FX §2); none → exchange_rate_missing.
+    const exchangeRate = currency === companyCurrency
+      ? 1
+      : (input.exchangeRate ?? (await defaultRate(ctx.tx, currency, issueDate)) ?? refuse("exchange_rate_missing", [exchangeRateMissing(currency, issueDate)]));
 
-    const priced = await priceLines(ctx, input.partyId, input.lines, issueDate, currency);
+    const priced = await priceLines(ctx, input.partyId, input.lines, issueDate, currency, exchangeRate);
     const requiresApproval = needsApproval(settings.approvalDiscountPct, priced.maxDiscountPct);
     const [header] = await ctx.tx<{ id: string }[]>`
       insert into crm.quotes ${ctx.tx({
@@ -330,6 +332,8 @@ export const quoteUpdate = defineProcess({
     id,
     lines: z.array(quoteLineInput).min(1).max(200).optional(),
     validUntil: date.optional(),
+    /** A foreign-currency cotización's rate (company currency per unit), editable while it is open (Task 34.3, FX §2). */
+    exchangeRate: z.number().finite().positive().optional(),
     notes: z.string().trim().max(2000).nullable().optional(),
   }).strict(),
   output: quoteOutput,
@@ -344,10 +348,17 @@ export const quoteUpdate = defineProcess({
     let priced: { subtotal: number; taxTotal: number; total: number } = { subtotal: num(quote.subtotal), taxTotal: num(quote.tax_total), total: num(quote.total) };
     let requiresApproval = quote.requires_approval;
     const set: Record<string, unknown> = defined({ valid_until: input.validUntil, notes: input.notes });
+    let exchangeRate = num(quote.exchange_rate);
+    if (input.exchangeRate !== undefined && input.exchangeRate !== exchangeRate) {
+      const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+      if (quote.currency === company!.currency_code.trim()) refuse("invalid_exchange_rate", [`La cotización está en ${quote.currency}, la moneda de la empresa: su tasa es 1`]);
+      exchangeRate = input.exchangeRate;
+      Object.assign(set, { exchange_rate: exchangeRate, total_company: round2(priced.total * exchangeRate) });
+    }
     if (input.lines) {
-      const fresh = await priceLines(ctx, quote.party_id, input.lines, quote.issue_date, quote.currency);
+      const fresh = await priceLines(ctx, quote.party_id, input.lines, quote.issue_date, quote.currency, exchangeRate);
       requiresApproval = needsApproval(settings.approvalDiscountPct, fresh.maxDiscountPct);
-      Object.assign(set, totals(fresh, num(quote.exchange_rate)), { requires_approval: requiresApproval });
+      Object.assign(set, totals(fresh, exchangeRate), { requires_approval: requiresApproval });
       await ctx.tx`delete from crm.quote_lines where quote_id = ${quote.id}`;
       await insertLines(ctx, quote.id, fresh.lines);
       priced = fresh;

@@ -5495,7 +5495,9 @@
       "quote_pending_approval": "La cotización espera aprobación: se envía o se acepta una vez aprobada",
       "quote_accepted": "La cotización fue aceptada: sus líneas y valores no cambian",
       "quote_expired": "La cotización venció",
-      "not_invoice_ready": "El cliente o un producto no está listo para facturar"
+      "not_invoice_ready": "El cliente o un producto no está listo para facturar",
+      "exchange_rate_missing": "No hay tasa de cambio para la moneda del documento en su fecha: regístrala en Tasas de cambio o escríbela en el documento",
+      "invalid_exchange_rate": "Un documento en la moneda de la empresa no lleva tasa de cambio (es 1)"
     },
     "form": {
       "section": {
@@ -5601,7 +5603,7 @@
       "invalid_quote": "La cotización no tiene líneas",
       "invalid_warehouse": "La bodega no existe, no es visible o no está activa",
       "invalid_delivery_date": "La fecha de entrega es anterior a la del pedido",
-      "exchange_rate_required": "Indica la tasa de cambio de la moneda del pedido",
+      "exchange_rate_missing": "No hay tasa de cambio para la moneda del documento en su fecha: regístrala en Tasas de cambio o escríbela en el documento",
       "invalid_party": "El cliente no existe, no es visible o no es un cliente",
       "invalid_product": "El producto no existe o no es visible",
       "not_invoice_ready": "El cliente o un producto no está listo para facturar",
@@ -5628,13 +5630,15 @@
       "return_voided": "La devolución está anulada",
       "negative_stock_refused": "La bodega no tiene las existencias que la entrega despacha",
       "split_location": "Una línea de la entrega sale de una sola ubicación y ninguna tiene toda la cantidad: divide la línea o traslada la mercancía",
-      "invalid_owner": "El vendedor no pertenece a la empresa"
+      "invalid_owner": "El vendedor no pertenece a la empresa",
+      "invalid_exchange_rate": "Un documento en la moneda de la empresa no lleva tasa de cambio (es 1)"
     },
     "values": {
       "price_source": {
         "customer_list": "Lista de precios del cliente",
         "default_list": "Lista de precios predeterminada",
-        "list_price": "Precio de lista del producto"
+        "list_price": "Precio de lista del producto",
+        "converted": "Precio de lista convertido a la tasa"
       },
       "order_stage": {
         "open": "Abierto",
@@ -5734,9 +5738,14 @@
         "discount": "un descuento entre 0 y 100",
         "order": "el pedido",
         "delivery": "la entrega",
-        "reason": "el motivo"
+        "reason": "el motivo",
+        "rate": "una tasa de cambio mayor que cero"
       },
-      "lines_masked": "No ves el precio o el descuento de las líneas: las líneas de este documento no se editan desde tu rol."
+      "lines_masked": "No ves el precio o el descuento de las líneas: las líneas de este documento no se editan desde tu rol.",
+      "currency": "Moneda",
+      "currency_hint": "Sin tasa escrita, la de Tasas de cambio",
+      "exchange_rate": "Tasa de cambio",
+      "exchange_rate_hint": "{currency} por unidad; vacía: la de Tasas de cambio"
     },
     "view": {
       "facts": "Datos",
@@ -5831,6 +5840,9 @@
     },
     "print": {
       "delivery_title": "Remisión de entrega"
+    },
+    "price": {
+      "converted": "Precio convertido de COP a {rate}"
     }
   },
   "invoicing": {
@@ -5943,7 +5955,10 @@
       "no_sequence": "La empresa no tiene numeración para este tipo de nota: regístrala en Core › Parámetros › Secuencias de documentos (prefijo y siguiente número; las notas no llevan resolución DIAN).",
       "dian_checklist_incomplete": "Faltan valores por verificar en la lista de verificación DIAN: la confirmación necesita todos marcados",
       "dian_in_production": "La empresa está en producción: la verificación no se retira. Vuelve a habilitación para desmarcar valores",
-      "dian_defaults_unconfirmed": "Los valores por defecto del documento electrónico no están confirmados: verifica la lista DIAN antes de pasar a producción"
+      "dian_defaults_unconfirmed": "Los valores por defecto del documento electrónico no están confirmados: verifica la lista DIAN antes de pasar a producción",
+      "exchange_rate_missing": "No hay tasa de cambio para la moneda del documento en su fecha: regístrala en Tasas de cambio o escríbela en el documento",
+      "invalid_exchange_rate": "Un documento en la moneda de la empresa no lleva tasa de cambio (es 1)",
+      "foreign_currency_domestic": "En esta versión solo las facturas de exportación pueden ir en moneda extranjera"
     },
     "note": {
       "own_flags": {
@@ -6247,7 +6262,7 @@
         "invalid_order_line": "una línea no corresponde a su pedido",
         "price_not_found": "un producto no tiene precio",
         "invalid_payment_means": "el medio de pago no es válido",
-        "exchange_rate_required": "falta la tasa de cambio",
+        "exchange_rate_missing": "no hay tasa de cambio para la fecha",
         "nothing_to_invoice": "no hay nada por facturar",
         "einvoice_not_available": "el país no tiene facturación electrónica registrada",
         "refused": "la factura fue rechazada"

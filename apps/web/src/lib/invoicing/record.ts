@@ -131,6 +131,9 @@ export interface InvoicingFormData {
   product: LookupSource;
   /** The DIAN payment means the country pack accepts, named. */
   paymentMeans: CodeOption[];
+  /** The currencies a new invoice may be in: the company's, and those with a rate in Tasas de cambio or a price list (Task 34.3; another one is for exports, R34-7). */
+  currencies: CodeOption[];
+  companyCurrency: string;
   /** How the stored references read (`party_id`). */
   labels: Record<string, string>;
   /** A Borrador's lines the edit form starts from (with `product_label`). */
@@ -173,9 +176,12 @@ export async function loadInvoicingForm(caller: Caller, entityId: string, record
   const t = await getTranslations();
   const [facts, party, product, runnable] = await Promise.all([
     withClaims(deps.sql, caller.claims, async (tx) => {
-      const [company] = await tx<{ today: string; country: string }[]>`
-        select (now() at time zone timezone)::date::text as today, country_code as country from kernel.companies where id = ${caller.claims.active_company_id}`;
-      return { today: company?.today ?? new Date().toISOString().slice(0, 10), country: company?.country ?? "CO" };
+      const [company] = await tx<{ today: string; country: string; currency: string }[]>`
+        select (now() at time zone timezone)::date::text as today, country_code as country, currency_code as currency from kernel.companies where id = ${caller.claims.active_company_id}`;
+      const currencies = kind === "invoice" ? await tx<{ code: string; name: string }[]>`select distinct trim(c) as code, trim(c) as name from (
+              select ${(company?.currency ?? "COP")}::text as c union all select currency from core.v_exchange_rates where currency is not null
+              union all select currency_code from core.v_price_lists where currency_code is not null) t order by 1` : [];
+      return { today: company?.today ?? new Date().toISOString().slice(0, 10), country: company?.country ?? "CO", currency: (company?.currency ?? "COP").trim(), currencies };
     }),
     lookupSource(caller, "core.party"),
     lookupSource(caller, "core.product"),
@@ -208,6 +214,8 @@ export async function loadInvoicingForm(caller: Caller, entityId: string, record
     party: party ?? { fields: [], entityLabel: t("entity.core.party") },
     product: product ?? { fields: [], entityLabel: t("entity.core.product") },
     paymentMeans,
+    currencies: facts.currencies,
+    companyCurrency: facts.currency,
     labels,
     lines,
     editable,

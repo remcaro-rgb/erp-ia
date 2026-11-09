@@ -1,4 +1,4 @@
-import { GENERIC_VERBS, genericProcess, ProcessError, runLifecycle, type EntityDef, type ProcessContext, type ProcessDef } from "@erp/kernel";
+import { GENERIC_VERBS, genericProcess, ProcessError, runLifecycle, type EntityDef, type ProcessContext, type ProcessDef, type Tx } from "@erp/kernel";
 import { z } from "zod";
 
 // Helpers every crm handler shares: typed refusals, the first lifecycle state of a maestro, Grabar's duplicate refusal and the party facts
@@ -88,3 +88,24 @@ export async function visibleParties(ctx: ProcessContext, ids: readonly string[]
     select id, legal_name, invoice_ready, dian_status from core.v_parties where id = any(${unique}::uuid[])`;
   return new Map(rows.map((r) => [r.id, { id: r.id, legalName: r.legal_name, invoiceReady: r.invoice_ready, dianStatus: r.dian_status }]));
 }
+
+/** How many days before a document's date a rate still answers for it (a weekend, a holiday): core.exchange_rate.for_date's lookback. */
+const RATE_LOOKBACK_DAYS = 3;
+
+/**
+ * The default rate of a document in `currency` on `date` (Task 34.3, FX §2, R34-2): the company's row of Tasas de cambio for that day, else
+ * the latest within the 3 days before, read through core's published view core.v_exchange_rates (rule 3; a rate the caller may not see is
+ * no rate). Null when there is none: the caller refuses with exchange_rate_missing unless the user typed a rate.
+ */
+export async function defaultRate(tx: Tx, currency: string, date: string): Promise<number | null> {
+  const [row] = await tx<{ rate: string | null }[]>`
+    select rate::text from core.v_exchange_rates
+    where company_id = kernel.current_company_id() and currency = ${currency} and rate is not null
+      and rate_date between ${date}::date - ${RATE_LOOKBACK_DAYS}::int and ${date}::date
+    order by rate_date desc limit 1`;
+  return row?.rate ? Number(row.rate) : null;
+}
+
+/** The refusal's detail when a foreign-currency document has no rate (FX §2). */
+export const exchangeRateMissing = (currency: string, date: string): string =>
+  `No hay tasa de cambio para ${currency} el ${date}; regístrala en Tasas de cambio o escríbela en el documento`;

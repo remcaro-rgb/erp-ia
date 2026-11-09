@@ -26,8 +26,18 @@ El listado de **CRM › Documentos › Cotizaciones** muestra el número, el cli
 1. Elige el **Cliente**. Si viene de una negociación, elige también la **Oportunidad** (debe ser del mismo cliente).
 2. La **Fecha** es la de hoy y la cotización vale los días que diga **Parámetros de CRM** (30 si no se ha configurado); puedes cambiar la fecha **Válida hasta**.
 3. Agrega las **líneas**: producto y cantidad. El **precio unitario** lo pone el sistema (ver **Ventas: precios y condiciones comerciales**): la lista de precios del cliente, si no la lista predeterminada, si no el precio de lista del producto. Puedes escribir otro precio a mano.
-4. El **descuento** de cada línea es un porcentaje; si no lo escribes, se usa el descuento habitual del cliente, también cuando el precio lo escribes a mano (por ejemplo, en una cotización en dólares).
+4. El **descuento** de cada línea es un porcentaje; si no lo escribes, se usa el descuento habitual del cliente, también cuando el precio lo escribes a mano.
 5. Pulsa **Guardar** en la barra de acciones. El sistema calcula la base, el IVA, el INC y los otros impuestos de cada línea, y el subtotal, los impuestos y el total, con las reglas de redondeo de la DIAN, y abre la cotización grabada.
+
+### En otra moneda
+
+En **Moneda** puedes elegir otra moneda que la de la empresa (por ejemplo, dólares). Aparece entonces la **Tasa de cambio** (cuántos pesos vale un dólar):
+
+- Si la dejas vacía, la cotización toma la tasa de **Tasas de cambio** para su fecha (o la más reciente de los tres días anteriores; guía **Tasas de cambio**). Si no hay ninguna, no se graba y el mensaje dice «No hay tasa de cambio para USD el …»: regístrala allí o escríbela.
+- Si la escribes, se usa la tuya. Puedes cambiarla mientras la cotización está abierta.
+- El precio de cada línea sale de una lista de precios **en esa moneda** (la del cliente o la predeterminada). Si ninguna tiene el producto, se toma el precio de lista del producto en pesos y se convierte a la tasa, redondeado al centavo: por ejemplo, $ 12.000,00 a 4.123,45 da `USD 2,91`. Un precio escrito a mano gana.
+
+La moneda no cambia después de grabar. Una cotización en dólares a un cliente en Colombia se graba, pero la factura que salga de ella no (en esta versión solo las facturas de exportación van en otra moneda; guía **Facturas de venta**).
 
 La cotización grabada muestra sus **Datos** (el cliente y la oportunidad son enlaces que abren su ficha), la etapa, los **Totales** (por ejemplo `$ 88.200,00`) y sus líneas en un listado con filtros y exportación. **Editar** vuelve al formulario mientras la cotización está abierta; **Duplicar** (en la barra) crea una nueva con el mismo cliente y las mismas líneas, con fecha de hoy y la vigencia de los parámetros.
 

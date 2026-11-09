@@ -5495,7 +5495,9 @@
       "quote_pending_approval": "The quote is waiting for approval: it can be sent or accepted once approved",
       "quote_accepted": "The quote was accepted: its lines and amounts do not change",
       "quote_expired": "The quote has expired",
-      "not_invoice_ready": "The customer or a product is not ready for invoicing"
+      "not_invoice_ready": "The customer or a product is not ready for invoicing",
+      "exchange_rate_missing": "There is no exchange rate for the document currency on its date: record it in Exchange rates or type it on the document",
+      "invalid_exchange_rate": "A document in the company currency carries no exchange rate (it is 1)"
     },
     "form": {
       "section": {
@@ -5601,7 +5603,7 @@
       "invalid_quote": "The quote has no lines",
       "invalid_warehouse": "The warehouse does not exist, is not visible or is not active",
       "invalid_delivery_date": "The delivery date is before the order date",
-      "exchange_rate_required": "Enter the exchange rate of the order currency",
+      "exchange_rate_missing": "There is no exchange rate for the document currency on its date: record it in Exchange rates or type it on the document",
       "invalid_party": "The customer does not exist, is not visible or is not a customer",
       "invalid_product": "The product does not exist or is not visible",
       "not_invoice_ready": "The customer or a product is not ready to invoice",
@@ -5628,13 +5630,15 @@
       "return_voided": "The return is voided",
       "negative_stock_refused": "The warehouse does not have the stock the delivery ships",
       "split_location": "A delivery line leaves from a single location and none holds the whole quantity: split the line or transfer the goods",
-      "invalid_owner": "The salesperson does not belong to the company"
+      "invalid_owner": "The salesperson does not belong to the company",
+      "invalid_exchange_rate": "A document in the company currency carries no exchange rate (it is 1)"
     },
     "values": {
       "price_source": {
         "customer_list": "Customer price list",
         "default_list": "Default price list",
-        "list_price": "Product list price"
+        "list_price": "Product list price",
+        "converted": "List price converted at the rate"
       },
       "order_stage": {
         "open": "Open",
@@ -5734,9 +5738,14 @@
         "discount": "a discount between 0 and 100",
         "order": "the order",
         "delivery": "the delivery",
-        "reason": "the reason"
+        "reason": "the reason",
+        "rate": "an exchange rate greater than zero"
       },
-      "lines_masked": "You do not see the lines' price or discount: this document's lines are not edited from your role."
+      "lines_masked": "You do not see the lines' price or discount: this document's lines are not edited from your role.",
+      "currency": "Currency",
+      "currency_hint": "Without a typed rate, the Exchange rates one",
+      "exchange_rate": "Exchange rate",
+      "exchange_rate_hint": "{currency} per unit; empty: the Exchange rates one"
     },
     "view": {
       "facts": "Details",
@@ -5831,6 +5840,9 @@
     },
     "print": {
       "delivery_title": "Delivery note"
+    },
+    "price": {
+      "converted": "Price converted from COP at {rate}"
     }
   },
   "invoicing": {
@@ -5943,7 +5955,10 @@
       "no_sequence": "The company has no numbering for this kind of note: register it in Core › Settings › Document sequences (prefix and next number; notes carry no DIAN resolution).",
       "dian_checklist_incomplete": "Values are still unverified in the DIAN checklist: the confirmation needs every one ticked",
       "dian_in_production": "The company is in production: the verification is not withdrawn. Go back to habilitación to untick values",
-      "dian_defaults_unconfirmed": "The electronic document defaults are not confirmed: verify the DIAN checklist before going to production"
+      "dian_defaults_unconfirmed": "The electronic document defaults are not confirmed: verify the DIAN checklist before going to production",
+      "exchange_rate_missing": "There is no exchange rate for the document currency on its date: record it in Exchange rates or type it on the document",
+      "invalid_exchange_rate": "A document in the company currency carries no exchange rate (it is 1)",
+      "foreign_currency_domestic": "In this version only export invoices can be in a foreign currency"
     },
     "note": {
       "own_flags": {
@@ -6247,7 +6262,7 @@
         "invalid_order_line": "a line does not match its order",
         "price_not_found": "a product has no price",
         "invalid_payment_means": "the payment means is not valid",
-        "exchange_rate_required": "the exchange rate is missing",
+        "exchange_rate_missing": "there is no exchange rate for the date",
         "nothing_to_invoice": "there is nothing to invoice",
         "einvoice_not_available": "the country has no electronic invoicing registered",
         "refused": "the invoice was refused"

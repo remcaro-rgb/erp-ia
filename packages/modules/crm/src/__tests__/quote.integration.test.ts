@@ -208,6 +208,30 @@ describe("crm quotes", () => {
     await h.run(h.admin, "sales.customer_terms.set", { partyId: plainPartyId, priceListId: null, discountPct: 0 });
   });
 
+  it("a USD quote takes the rate of its date from Tasas de cambio; none → exchange_rate_missing; a typed rate wins; an unpriced line converts the list price (Task 34.3)", async () => {
+    const missing = await refusal(create({ partyId: plainPartyId, currency: "USD", issueDate: "2026-06-20", validUntil: "2026-07-20", lines: [{ productId: filtro, qty: 1 }] }));
+    expect(missing?.code).toBe("invalid_input");
+    expect(missing?.message).toMatch(/^exchange_rate_missing/);
+    await h.sql`insert into core.exchange_rates (company_id, currency, rate_date, rate, source) values (${h.companyId}, 'USD', '2026-11-05', 4123.45, 'trm')`;
+    try {
+      // No USD list carries the filtro: its list price 12.000 / 4.123,45 = 2,91 (half up).
+      const fromTable = await create({ partyId: plainPartyId, currency: "USD", lines: [{ productId: filtro, qty: 1 }] });
+      const [row] = await h.sql<{ exchange_rate: string }[]>`select exchange_rate::text from crm.quotes where id = ${fromTable.id}`;
+      expect(Number(row!.exchange_rate)).toBe(4123.45);
+      expect((await linesOf(fromTable.id)).map((l) => Number(l.unit_price))).toEqual([2.91]);
+      const typed = await create({ partyId: plainPartyId, currency: "USD", exchangeRate: 4000, lines: [{ productId: filtro, qty: 1 }] });
+      const [typedRow] = await h.sql<{ exchange_rate: string }[]>`select exchange_rate::text from crm.quotes where id = ${typed.id}`;
+      expect(Number(typedRow!.exchange_rate)).toBe(4000);
+      expect((await linesOf(typed.id)).map((l) => Number(l.unit_price))).toEqual([3]);
+      // Editable while open.
+      await h.run(h.admin, "crm.quote.update", { id: typed.id, exchangeRate: 4050 });
+      const [edited] = await h.sql<{ exchange_rate: string }[]>`select exchange_rate::text from crm.quotes where id = ${typed.id}`;
+      expect(Number(edited!.exchange_rate)).toBe(4050);
+    } finally {
+      await h.sql`delete from core.exchange_rates where company_id = ${h.companyId}`;
+    }
+  });
+
   it("a salesperson cannot approve their own discount; an approver sees the quotes that need approval and approves them", async () => {
     await h.run(h.admin, "crm.settings.update", { quoteApprovalDiscountPct: 10 });
     const over = await create({ lines: [{ productId: cafe, qty: 1, discountPct: 15 }] }, h.vendedor);

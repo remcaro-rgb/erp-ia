@@ -229,7 +229,7 @@ describe("money: every issued invoice balances and its receivable is its total i
   });
 
   it("a foreign-currency invoice", async () => {
-    const draft = await manual([{ productId: h.cafe, qty: 3, unitPrice: 12.37 }, { productId: h.servicio, qty: 1, unitPrice: 99.99 }], { currency: "USD", exchangeRate: 4123.4567 });
+    const draft = await manual([{ productId: h.cafe, qty: 3, unitPrice: 12.37 }, { productId: h.servicio, qty: 1, unitPrice: 99.99 }], { partyId: await h.foreignBuyer("555200300"), currency: "USD", exchangeRate: 4123.4567 });
     await issue(draft.id);
     const p = await posted(draft.id);
     expect(p.entry.total_debit).toBe(p.entry.total_credit);

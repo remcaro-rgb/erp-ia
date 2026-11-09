@@ -1,4 +1,4 @@
-import { countryPack, ProcessError, type EInvoicePack, type LinksApi, type ProcessContext, type TaxedDocument, type TaxLineInput } from "@erp/kernel";
+import { countryPack, ProcessError, type EInvoicePack, type LinksApi, type ProcessContext, type TaxedDocument, type TaxLineInput, type Tx } from "@erp/kernel";
 import { z } from "zod";
 import type { InvoiceCreation } from "../entities";
 import { refuse, type InvoiceParty, type InvoiceProduct } from "../readiness";
@@ -375,3 +375,24 @@ export async function assertDianAccepted(ctx: ProcessContext, invoice: { id: str
   }
   refuseState("invoice_not_accepted", [`La factura ${name} está en camino a la DIAN y aún no tiene su respuesta: espera a que la acepte`]);
 }
+
+/** How many days before a document's date a rate still answers for it (a weekend, a holiday): core.exchange_rate.for_date's lookback. */
+const RATE_LOOKBACK_DAYS = 3;
+
+/**
+ * The default rate of a document in `currency` on `date` (Task 34.3, FX §2, R34-2): the company's row of Tasas de cambio for that day, else
+ * the latest within the 3 days before, read through core's published view core.v_exchange_rates (rule 3; a rate the caller may not see is
+ * no rate). Null when there is none: the caller refuses with exchange_rate_missing unless the user typed a rate.
+ */
+export async function defaultRate(tx: Tx, currency: string, date: string): Promise<number | null> {
+  const [row] = await tx<{ rate: string | null }[]>`
+    select rate::text from core.v_exchange_rates
+    where company_id = kernel.current_company_id() and currency = ${currency} and rate is not null
+      and rate_date between ${date}::date - ${RATE_LOOKBACK_DAYS}::int and ${date}::date
+    order by rate_date desc limit 1`;
+  return row?.rate ? Number(row.rate) : null;
+}
+
+/** The refusal's detail when a foreign-currency document has no rate (FX §2). */
+export const exchangeRateMissing = (currency: string, date: string): string =>
+  `No hay tasa de cambio para ${currency} el ${date}; regístrala en Tasas de cambio o escríbela en el documento`;

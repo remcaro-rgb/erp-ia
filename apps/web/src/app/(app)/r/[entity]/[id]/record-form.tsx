@@ -175,6 +175,8 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
           copyOf={stored ? null : (clone?.sourceRowId ?? null)}
           today={form.today}
           warehouses={form.warehouses}
+          currencies={form.currencies}
+          companyCurrency={form.companyCurrency}
           party={form.party}
           product={form.product}
           opportunity={form.opportunity}
@@ -218,6 +220,8 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
         party={form.party}
         product={form.product}
         paymentMeans={form.paymentMeans}
+        currencies={form.currencies}
+        companyCurrency={form.companyCurrency}
         linesFixed={stored && form.linesFixed}
         modes={modes}
         lineModes={form.lineModes}

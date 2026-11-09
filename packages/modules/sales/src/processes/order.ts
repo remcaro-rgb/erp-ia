@@ -3,7 +3,7 @@ import { z } from "zod";
 import { orderEntity, type OrderStage } from "../entities";
 import { lineDiscount, resolveLineDiscount, resolveLinePrice, type ResolvedPrice } from "../price";
 import { assertSaleReady, type SaleParty, type SaleProduct } from "../readiness";
-import { linkOrderToQuote, markLinksVoided } from "./common";
+import { defaultRate, exchangeRateMissing, linkOrderToQuote, markLinksVoided } from "./common";
 
 // Pedidos de venta (plan 2B Task 13, design §8 and §8.1 steps 1–2): a documento numbered PED- on save that never posts (the invoice posts,
 // Task 16). Each line is priced like a cotización line (the customer's price list, then the default list, then the product's list price; a
@@ -183,7 +183,7 @@ interface Priced {
  * product. A line that brings its unit price (by hand, or copied from the accepted cotización with its list) keeps it; the others are
  * resolved. The taxes are the company's country pack's (`computeTaxes`, per-line rounding).
  */
-async function priceLines(ctx: ProcessContext, partyId: string, lines: LineInput[], issueDate: string, currency: string): Promise<Priced> {
+async function priceLines(ctx: ProcessContext, partyId: string, lines: LineInput[], issueDate: string, currency: string, exchangeRate: number): Promise<Priced> {
   const { party, products } = await assertSaleReady(ctx, partyId, lines.map((l) => l.productId));
   const priceErrors: string[] = [];
   const resolved: { unitPrice: number; priceListId: string | null; discountPct: number; product: SaleProduct; given: LineInput }[] = [];
@@ -192,7 +192,7 @@ async function priceLines(ctx: ProcessContext, partyId: string, lines: LineInput
     let found: ResolvedPrice | null = null;
     if (line.unitPrice === undefined) {
       try {
-        found = await resolveLinePrice(ctx, { productId: line.productId, partyId, qty: line.qty, date: issueDate, currency });
+        found = await resolveLinePrice(ctx, { productId: line.productId, partyId, qty: line.qty, date: issueDate, currency, exchangeRate });
       } catch (error) {
         // Only "no price" is caught (a JS refusal, the transaction is intact).
         if (!(error instanceof ProcessError) || error.code !== "invalid_input") throw error;
@@ -389,13 +389,15 @@ async function createOrder(ctx: ProcessContext, input: NewOrder): Promise<Create
   const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
   const companyCurrency = company!.currency_code.trim();
   const currency = input.currency ?? companyCurrency;
-  if (currency !== companyCurrency && input.exchangeRate === undefined) refuse("exchange_rate_required", [`Indica la tasa de cambio de ${currency} a ${companyCurrency}`]);
-  const exchangeRate = currency === companyCurrency ? 1 : input.exchangeRate!;
   if (input.warehouseId) await assertWarehouse(ctx, input.warehouseId);
   const issueDate = input.issueDate ?? (await today(ctx));
+  // The rate: the one typed, else Tasas de cambio's of the pedido's date (Task 34.3, FX §2); none → exchange_rate_missing.
+  const exchangeRate = currency === companyCurrency
+    ? 1
+    : (input.exchangeRate ?? (await defaultRate(ctx.tx, currency, issueDate)) ?? refuse("exchange_rate_missing", [exchangeRateMissing(currency, issueDate)]));
   if (input.deliveryDate && input.deliveryDate < issueDate) refuse("invalid_delivery_date", ["La fecha de entrega es anterior a la del pedido"]);
 
-  const priced = await priceLines(ctx, input.partyId, input.lines, issueDate, currency);
+  const priced = await priceLines(ctx, input.partyId, input.lines, issueDate, currency, exchangeRate);
   const approval = await approvalOf(ctx, input.partyId, null, priced, exchangeRate);
   let handOver = false;
   if (input.ownerId !== ctx.userId) {
@@ -563,6 +565,8 @@ export const orderUpdate = defineProcess({
     lines: z.array(orderLineInput).min(1).max(200).optional(),
     deliveryDate: date.nullable().optional(),
     warehouseId: id.nullable().optional(),
+    /** A foreign-currency pedido's rate (company currency per unit), editable while it is open (Task 34.3, FX §2). */
+    exchangeRate: z.number().finite().positive().optional(),
     notes: z.string().trim().max(2000).nullable().optional(),
   }).strict(),
   output: orderOutput,
@@ -576,11 +580,27 @@ export const orderUpdate = defineProcess({
       Object.entries({ delivery_date: input.deliveryDate, warehouse_id: input.warehouseId, notes: input.notes }).filter(([, v]) => v !== undefined),
     );
     let requiresApproval = order.requires_approval;
+    let exchangeRate = num(order.exchange_rate);
+    if (input.exchangeRate !== undefined && input.exchangeRate !== exchangeRate) {
+      const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+      if (order.currency === company!.currency_code.trim()) refuse("invalid_exchange_rate", [`El pedido está en ${order.currency}, la moneda de la empresa: su tasa es 1`]);
+      exchangeRate = input.exchangeRate;
+      if (!input.lines) {
+        // The pesos of the pedido move with the rate: the credit limit is checked again on them (the discounts do not change).
+        const [row] = await ctx.tx<{ total: string; discount_exceeded: boolean }[]>`select total::text, discount_exceeded from sales.orders where id = ${order.id}`;
+        const totalCompany = round2(num(row!.total) * exchangeRate);
+        const creditExceeded = await overCreditLimit(ctx, order.party_id, order.id, totalCompany);
+        requiresApproval = creditExceeded || row!.discount_exceeded;
+        Object.assign(set, { exchange_rate: exchangeRate, total_company: totalCompany, credit_exceeded: creditExceeded, requires_approval: requiresApproval });
+      } else {
+        set.exchange_rate = exchangeRate;
+      }
+    }
     if (input.lines) {
-      const fresh = await priceLines(ctx, order.party_id, input.lines, order.issue_date, order.currency);
-      const approval = await approvalOf(ctx, order.party_id, order.id, fresh, num(order.exchange_rate));
+      const fresh = await priceLines(ctx, order.party_id, input.lines, order.issue_date, order.currency, exchangeRate);
+      const approval = await approvalOf(ctx, order.party_id, order.id, fresh, exchangeRate);
       requiresApproval = approval.requiresApproval;
-      Object.assign(set, totals(fresh, num(order.exchange_rate)), {
+      Object.assign(set, totals(fresh, exchangeRate), {
         requires_approval: approval.requiresApproval,
         credit_exceeded: approval.creditExceeded,
         discount_exceeded: approval.discountExceeded,

@@ -2,9 +2,10 @@ import { defineProcess, emitAndPostStrict, genericProcess, ProcessError, runLife
 import { z } from "zod";
 import { invoiceEntity, type InvoiceStage } from "../entities";
 import { allocatedTo } from "../consumers/payments";
+import { resolveLinePrice } from "@erp/module-sales";
 import { assertInvoiceReady, readInvoiceFacts } from "../readiness";
 import {
-  assertDianAccepted, checkSources, companyAmounts, date, FEATURE_INVOICES, id, INVOICE_CREATED, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
+  assertDianAccepted, checkSources, companyAmounts, date, defaultRate, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
   refuse, refuseState, settingsOf, today, unlinkInvoice, writeParts, type DraftLine,
 } from "./common";
 
@@ -155,6 +156,44 @@ async function dueDateOf(ctx: ProcessContext, form: "1" | "2", issueDate: string
   return row!.due;
 }
 
+/**
+ * The rate of an invoice in `currency` dated `issueDate` (Task 34.3, FX §2): 1 in the company currency; else the rate typed, else Tasas de
+ * cambio's of the issue date (defaultRate, R34-2); none → exchange_rate_missing.
+ */
+export async function invoiceRate(ctx: ProcessContext, currency: string, issueDate: string, typed: number | undefined): Promise<number> {
+  const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+  if (currency === company!.currency_code.trim()) return 1;
+  return typed ?? (await defaultRate(ctx.tx, currency, issueDate)) ?? refuse("exchange_rate_missing", [exchangeRateMissing(currency, issueDate)]);
+}
+
+/**
+ * Export only (owner item 124, ruling R34-7): an invoice in another currency than the company's must be an export (InvoiceTypeCode 02: a
+ * buyer of another country, as «Emitir» decides it). Refused with foreign_currency_domestic at create, update and issue; a COP invoice to a
+ * buyer abroad is not concerned.
+ */
+export async function assertExportCurrency(ctx: ProcessContext, partyId: string, currency: string, countryCode?: string | null): Promise<void> {
+  const [company] = await ctx.tx<{ currency_code: string; country_code: string }[]>`select currency_code, country_code from kernel.companies where id = ${ctx.companyId}`;
+  if (currency === company!.currency_code.trim()) return;
+  const country = countryCode !== undefined ? countryCode : (await readInvoiceFacts(ctx, partyId, [])).party.countryCode;
+  if ((country ?? company!.country_code) === company!.country_code) {
+    refuse("foreign_currency_domestic", [`En esta versión solo las facturas de exportación pueden ir en moneda extranjera: el cliente está en ${company!.country_code}; factura en ${company!.currency_code}`]);
+  }
+}
+
+/**
+ * The price of a line typed without one, in the invoice's currency: sales' price resolution (a list in that currency, else the product's
+ * list price converted at the invoice's rate, FX §8); null when nothing gives one.
+ */
+async function resolvedPrice(ctx: ProcessContext, partyId: string, productId: string, qty: number, date: string, currency: string, exchangeRate: number): Promise<number | null> {
+  try {
+    return (await resolveLinePrice(ctx, { productId, partyId, qty, date, currency, exchangeRate })).unitPrice;
+  } catch (error) {
+    // Only "no price" is caught (a JS refusal, the transaction is intact).
+    if (error instanceof ProcessError && error.code === "invalid_input") return null;
+    throw error;
+  }
+}
+
 export interface CreateArgs {
   partyId: string;
   issueDate: string;
@@ -182,9 +221,9 @@ export async function createInvoice(ctx: ProcessContext, args: CreateArgs): Prom
   await assertPaymentMeans(ctx, args.paymentMeans);
   const { einvoice } = await packOf(ctx);
   const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
-  const currency = args.currency ?? company!.currency_code;
-  if (currency !== company!.currency_code && !args.exchangeRate) refuse("exchange_rate_required", [`Indica la tasa de cambio de ${currency} a ${company!.currency_code}`]);
-  const exchangeRate = currency === company!.currency_code ? 1 : args.exchangeRate!;
+  const currency = args.currency ?? company!.currency_code.trim();
+  await assertExportCurrency(ctx, args.partyId, currency, facts.party.countryCode);
+  const exchangeRate = await invoiceRate(ctx, currency, args.issueDate, args.exchangeRate);
   await checkSources(ctx, { id: null, partyId: args.partyId, currency }, args.lines);
   const paymentForm = args.paymentForm ?? "1";
   const dueDate = await dueDateOf(ctx, paymentForm, args.issueDate, args.dueDate);
@@ -223,13 +262,20 @@ export async function createInvoice(ctx: ProcessContext, args: CreateArgs): Prom
   return { id: row!.id, notReady: facts.notReady };
 }
 
-/** Manual lines priced at the given price or the product's list price, 0 % off unless given. */
-async function manualLines(ctx: ProcessContext, partyId: string, lines: z.output<typeof manualLineInput>[]): Promise<DraftLine[]> {
+/**
+ * Manual lines priced at the given price or the product's list price, 0 % off unless given. In another currency than the company's
+ * (`foreign`: the invoice's currency, date and rate) a line without a price takes sales' price resolution instead: a list in that currency,
+ * else the list price converted at the rate (Task 34.3, FX §8); a company-currency list price never stands for another currency.
+ */
+async function manualLines(ctx: ProcessContext, partyId: string, lines: z.output<typeof manualLineInput>[], foreign: { currency: string; date: string; rate: number } | null = null): Promise<DraftLine[]> {
   const facts = await readInvoiceFacts(ctx, partyId, lines.map((l) => l.productId));
   const missing: string[] = [];
+  const foreignPrices = foreign
+    ? await Promise.all(lines.map((l) => (l.unitPrice === undefined ? resolvedPrice(ctx, partyId, l.productId, l.qty, foreign.date, foreign.currency, foreign.rate) : Promise.resolve(null))))
+    : [];
   const out = lines.map((l, i): DraftLine => {
     const p = facts.products.get(l.productId)!;
-    const unitPrice = l.unitPrice ?? p.listPrice;
+    const unitPrice = l.unitPrice ?? (foreign ? foreignPrices[i] : p.listPrice);
     if (unitPrice === null || unitPrice === undefined) missing.push(`Línea ${i + 1}: el producto ${p.sku} no tiene precio de lista: indica el precio`);
     return { productId: l.productId, qty: l.qty, unitPrice: unitPrice ?? 0, discountPct: l.discountPct ?? 0, description: l.description ?? null };
   });
@@ -255,10 +301,19 @@ export const invoiceCreate = defineProcess({
   }).strict(),
   output: invoiceOutput,
   handler: async (ctx, input) => {
-    const lines = await manualLines(ctx, input.partyId, input.lines);
+    const issueDate = input.issueDate ?? (await today(ctx));
+    const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+    const currency = input.currency ?? company!.currency_code.trim();
+    let foreign: { currency: string; date: string; rate: number } | null = null;
+    if (currency !== company!.currency_code.trim()) {
+      await assertExportCurrency(ctx, input.partyId, currency);
+      foreign = { currency, date: issueDate, rate: await invoiceRate(ctx, currency, issueDate, input.exchangeRate) };
+    }
+    const lines = await manualLines(ctx, input.partyId, input.lines, foreign);
     const created = await createInvoice(ctx, {
       ...input,
-      issueDate: input.issueDate ?? (await today(ctx)),
+      issueDate,
+      ...(foreign ? { exchangeRate: foreign.rate } : {}),
       lines,
       origin: "manual",
       allowNotReady: false,
@@ -277,6 +332,8 @@ export const invoiceUpdate = defineProcess({
   input: z.object({
     id,
     ...updateHeaderInput,
+    /** A foreign-currency Borrador's rate (company currency per unit), editable until «Emitir» freezes it (Task 34.3, FX §2). */
+    exchangeRate: z.number().finite().positive().optional(),
     lines: z.array(manualLineInput).min(1).max(500).optional(),
     expectedUpdatedAt: z.string().optional(),
   }).strict(),
@@ -286,6 +343,12 @@ export const invoiceUpdate = defineProcess({
     if (invoice.stage !== "draft" || invoice.status !== "draft") refuseState("invoice_issued", [`La factura ${label(invoice)} ya se emitió: se corrige con una nota`]);
     if (input.lines && invoice.origin !== "manual") refuse("lines_from_sale", ["Las líneas de una factura de un pedido vienen de lo despachado: elimina el borrador y créalo de nuevo"]);
     await assertPaymentMeans(ctx, input.paymentMeans);
+    await assertExportCurrency(ctx, invoice.party_id, invoice.currency);
+    const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+    const foreignInvoice = invoice.currency !== company!.currency_code.trim();
+    if (input.exchangeRate !== undefined && !foreignInvoice) refuse("invalid_exchange_rate", [`La factura está en ${invoice.currency}, la moneda de la empresa: su tasa es 1`]);
+    const exchangeRate = input.exchangeRate ?? num(invoice.exchange_rate);
+    if (input.exchangeRate !== undefined) await ctx.tx`update invoicing.invoices set exchange_rate = ${exchangeRate} where id = ${invoice.id}`;
     const issueDate = input.issueDate ?? invoice.issue_date;
     const paymentForm = input.paymentForm ?? invoice.payment_form;
     const dueDate = await dueDateOf(ctx, paymentForm, issueDate, input.dueDate ?? (input.issueDate || input.paymentForm ? null : invoice.due_date));
@@ -297,9 +360,11 @@ export const invoiceUpdate = defineProcess({
              cost_center_id = ${input.costCenterId === undefined ? invoice.cost_center_id : input.costCenterId},
              notes = ${input.notes === undefined ? current!.notes : input.notes}
       where id = ${invoice.id}`;
-    const drafts = input.lines ? await manualLines(ctx, invoice.party_id, input.lines) : (await linesOf(ctx, invoice.id)).map(draftOf);
+    const drafts = input.lines
+      ? await manualLines(ctx, invoice.party_id, input.lines, foreignInvoice ? { currency: invoice.currency, date: issueDate, rate: exchangeRate } : null)
+      : (await linesOf(ctx, invoice.id)).map(draftOf);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
-    await writeParts(ctx, invoice.id, await priceLines(ctx, facts.party, facts.products, drafts, issueDate), num(invoice.exchange_rate));
+    await writeParts(ctx, invoice.id, await priceLines(ctx, facts.party, facts.products, drafts, issueDate), exchangeRate);
     // New lines are priced now (the list of today or the typed price): their price date is today. A change of dates or terms keeps it.
     if (input.lines) await ctx.tx`update invoicing.invoices set price_date = ${await today(ctx)} where id = ${invoice.id}`;
     return outputOf(ctx, invoice.id);
@@ -309,8 +374,9 @@ export const invoiceUpdate = defineProcess({
 /**
  * «Recalcular precios» (owner item 17, ruling R50-17): the Borrador keeps its prices until the user asks. This sets every line's unit price
  * from its product's list price of today (a product with no list price keeps the line's price; the discount stays; a line billed from a
- * pedido, one with `orderLineId`, keeps the price agreed in the pedido; a Borrador in a currency other than the company's is refused with
- * `currency_not_supported`, review F-3.1), taxes the lines again
+ * pedido, one with `orderLineId`, keeps the price agreed in the pedido). The price is sales' price resolution in the invoice's currency
+ * (Task 34.3, item 118 lifted): a list in that currency, else the list price, converted at the invoice's rate in a foreign Borrador. It taxes
+ * the lines again
  * with the country pack on the invoice's own date (the issue date is moved to today by «Emitir», which taxes again then) and writes
  * price_date = the company's today. A Borrador only.
  */
@@ -320,23 +386,23 @@ export const invoiceReprice = defineProcess({
   kind: "update",
   feature: FEATURE_INVOICES,
   description:
-    "Recalcula los precios de una factura en borrador con la lista de precios de hoy y vuelve a calcular sus impuestos; «Emitir» ya no cambia los precios. Una factura emitida no se recalcula",
+    "Recalcula los precios de una factura en borrador con la lista de precios de hoy (en otra moneda, la lista en esa moneda o el precio de lista convertido a la tasa de la factura) y vuelve a calcular sus impuestos; «Emitir» ya no cambia los precios. Una factura emitida no se recalcula",
   input: z.object({ id, expectedUpdatedAt: z.string().optional() }).strict(),
   output: invoiceOutput,
   handler: async (ctx, input) => {
     const invoice = await readInvoice(ctx, input.id, true);
     if (invoice.stage !== "draft" || invoice.status !== "draft") refuseState("invoice_issued", [`La factura ${label(invoice)} ya se emitió: los precios no se recalculan; se corrigen con una nota`]);
-    // A list price carries no currency (it is the company's): put in a foreign-currency Borrador it would be read as that currency (rule 8).
-    // Until foreign-currency price lists exist (Task 34, owner item 19) the typed prices stay.
-    const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
-    if (invoice.currency !== company!.currency_code) {
-      refuse("currency_not_supported", [`La factura está en ${invoice.currency}: la lista de precios está en ${company!.currency_code} y no se puede aplicar a otra moneda; deja los precios que escribiste`]);
-    }
     const drafts = (await linesOf(ctx, invoice.id)).map(draftOf);
     if (drafts.length === 0) refuse("nothing_to_invoice", ["La factura no tiene líneas"]);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
-    // A line billed from a pedido keeps the price agreed there (owner item 50, 2026-11-08); only free lines take today's list.
-    const repriced = drafts.map((l) => (l.orderLineId ? l : { ...l, unitPrice: facts.products.get(l.productId)!.listPrice ?? l.unitPrice }));
+    const date = await today(ctx);
+    const rate = num(invoice.exchange_rate);
+    // A line billed from a pedido keeps the price agreed there (owner item 50, 2026-11-08); only free lines take today's price. A product
+    // nothing prices keeps the line's price.
+    const repriced: DraftLine[] = [];
+    for (const l of drafts) {
+      repriced.push(l.orderLineId ? l : { ...l, unitPrice: (await resolvedPrice(ctx, invoice.party_id, l.productId, l.qty, date, invoice.currency, rate)) ?? l.unitPrice });
+    }
     await writeParts(ctx, invoice.id, await priceLines(ctx, facts.party, facts.products, repriced, invoice.issue_date), num(invoice.exchange_rate));
     await ctx.tx`update invoicing.invoices set price_date = ${await today(ctx)} where id = ${invoice.id}`;
     return outputOf(ctx, invoice.id);
@@ -355,25 +421,22 @@ export const invoiceFromOrders = defineProcess({
   feature: FEATURE_INVOICES,
   emits: [INVOICE_CREATED],
   description:
-    "Crea las facturas en borrador de lo despachado y aún no facturado de los pedidos indicados (una por cliente y moneda), al precio y descuento de cada pedido",
+    "Crea las facturas en borrador de lo despachado y aún no facturado de los pedidos indicados (una por cliente y moneda, a la tasa de cambio de la fecha de la factura), al precio y descuento de cada pedido",
   input: z.object({
     orderIds: z.array(id).min(1).max(50),
     ...headerInput,
-    /** The rate of a foreign-currency invoice on its date (rule 8: the document's snapshot); absent, each pedido's own rate. */
+    /** The rate of a foreign-currency invoice (rule 8: the document's snapshot); absent, Tasas de cambio's of the invoice's date (item 128). */
     exchangeRate: z.number().finite().positive().optional(),
   }).strict(),
   output: z.object({ invoices: z.array(invoiceOutput) }),
   handler: async (ctx, input) => {
     const pending = await pendingDeliveryLines(ctx, { orderIds: [...new Set(input.orderIds)] });
     if (pending.length === 0) refuseState("nothing_to_invoice", ["Los pedidos no tienen nada despachado por facturar"]);
-    const rates = new Map((await ctx.tx<{ order_id: string; exchange_rate: string }[]>`
-      select distinct order_id, exchange_rate::text from sales.v_invoice_order_lines where order_id = any(${[...new Set(pending.map((p) => p.order_id))]}::uuid[])`).map((r) => [r.order_id, num(r.exchange_rate)]));
-    const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
-    // One invoice per customer, currency and rate: an invoice has one rate snapshot (rule 8); pedidos at different rates are not merged.
-    const rateOf = (p: (typeof pending)[number]) => (p.currency === company!.currency_code ? 1 : input.exchangeRate ?? rates.get(p.order_id) ?? 1);
+    // One invoice per customer and currency (item 128): the fiscal value is fixed at invoicing (art. 288 ET), so the invoice takes the rate
+    // of its own date, not the pedidos'; pedidos at different rates bill together at their agreed prices (§22.28).
     const groups = new Map<string, (typeof pending)[number][]>();
     for (const p of pending) {
-      const key = `${p.party_id}:${p.currency}:${rateOf(p)}`;
+      const key = `${p.party_id}:${p.currency}`;
       groups.set(key, [...(groups.get(key) ?? []), p]);
     }
     const issueDate = input.issueDate ?? (await today(ctx));
@@ -385,7 +448,7 @@ export const invoiceFromOrders = defineProcess({
         partyId: first.party_id,
         issueDate,
         currency: first.currency,
-        exchangeRate: rateOf(first),
+        exchangeRate: await invoiceRate(ctx, first.currency, issueDate, input.exchangeRate),
         lines: lines.map((p) => ({
           productId: p.product_id, qty: num(p.pending_qty), unitPrice: num(p.unit_price), discountPct: num(p.discount_pct), description: p.description,
           orderId: p.order_id, orderLineId: p.order_line_id, deliveryId: p.delivery_id, deliveryLineId: p.delivery_line_id,
@@ -427,6 +490,8 @@ export const invoiceIssue = defineProcess({
       }
       refuseState("invoice_issued", [`La factura ${label(invoice)} ya se emitió`]);
     }
+    // Export only (R34-7): the buyer's country may have changed since the Borrador was written.
+    await assertExportCurrency(ctx, invoice.party_id, invoice.currency);
     await runLifecycle(ctx, ctx.registry.entity(invoiceEntity.id), invoiceId, "save", notes === undefined ? {} : { data: { notes } });
     // Owner item 17: «Emitir» keeps the prices; it only says when they are from another day than the issue date.
     const [dates] = await ctx.tx<{ price_date: string | null; issue_date: string }[]>`select price_date::text, issue_date::text from invoicing.invoices where id = ${invoiceId}`;

@@ -83,6 +83,21 @@ describe("cotización and pedido drafts", () => {
     expect(saleInput("invoice", changed, "i1", { initial: stored, linesLocked: true })).toEqual({ id: "i1", paymentMeans: "10" });
   });
 
+  it("a foreign-currency document sends its currency and the rate typed; a stored one's rate is editable and sent only when it changed (Task 34.3)", () => {
+    const base = { ...saleDraft("2026-11-05", null), partyId: "p1", lines: [line({ productId: "a", qty: "1" })] };
+    // No rate typed: the process takes Tasas de cambio's of the date.
+    expect(saleInput("invoice", { ...base, currency: "USD" }, null)).toMatchObject({ currency: "USD" });
+    expect(saleInput("invoice", { ...base, currency: "USD" }, null)).not.toHaveProperty("exchangeRate");
+    expect(saleInput("quote", { ...base, currency: "USD", exchangeRate: "4.123,45" }, null)).toMatchObject({ currency: "USD", exchangeRate: 4123.45 });
+    expect(saleInput("order", base, null)).not.toHaveProperty("currency");
+    const stored = saleDraft("2026-11-05", { party_id: "p1", issue_date: "2026-11-01", currency: "USD", exchange_rate: "4000.000000", notes: null }, [{ product_id: "a", qty: "1", unit_price: "5" }]);
+    expect(stored).toMatchObject({ currency: "USD", exchangeRate: "4000" });
+    expect(saleInput("invoice", stored, "i1", { initial: stored })).toEqual({ id: "i1" });
+    expect(saleInput("invoice", { ...stored, exchangeRate: "4100,5" }, "i1", { initial: stored })).toEqual({ id: "i1", exchangeRate: 4100.5 });
+    expect(saleInput("order", { ...stored, exchangeRate: "4100" }, "o1", { initial: stored })).toEqual({ id: "o1", exchangeRate: 4100 });
+    expect(saleMissing({ ...base, currency: "USD", exchangeRate: "-1" })).toEqual(["rate"]);
+  });
+
   it("refuses a quantity that is not positive and a discount above 100", () => {
     const base = { ...saleDraft("2026-11-05", null), partyId: "p1" };
     expect(saleMissing({ ...base, lines: [line({ productId: "a", qty: "0" })] })).toEqual(["qty"]);

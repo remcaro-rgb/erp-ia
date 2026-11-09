@@ -104,11 +104,21 @@ export async function paymentsHarness() {
 
   /** An issued invoice of the service (`qty` × 100.000 + IVA 19 %), accepted by the DIAN unless told otherwise. */
   const issuedInvoice = async (qty = 1, options: { partyId?: string; accepted?: boolean; currency?: string; exchangeRate?: number } = {}): Promise<Invoice> => {
-    const draft = await run<{ id: string }>(admin, "invoicing.invoice.create", {
-      partyId: options.partyId ?? partyId, paymentForm: "2", lines: [{ productId: servicio, qty }],
-      ...(options.currency ? { currency: options.currency, exchangeRate: options.exchangeRate } : {}),
-    });
-    const issued = await run<{ id: string; number: string; total: number }>(admin, "invoicing.invoice.issue", { id: draft.id });
+    const buyer = options.partyId ?? partyId;
+    // A foreign-currency invoice is an export only (Task 34.3, R34-7): the buyer is abroad while it is written and issued, then back in
+    // Colombia, so the receipts of these tests (one customer) still meet it.
+    const abroad = options.currency !== undefined && options.currency !== "COP";
+    if (abroad) await sql`update core.parties set country_code = 'US', department_code = null, municipality_code = null where id = ${buyer}`;
+    let issued: { id: string; number: string; total: number };
+    try {
+      const draft = await run<{ id: string }>(admin, "invoicing.invoice.create", {
+        partyId: buyer, paymentForm: "2", lines: [{ productId: servicio, qty }],
+        ...(options.currency ? { currency: options.currency, exchangeRate: options.exchangeRate } : {}),
+      });
+      issued = await run<{ id: string; number: string; total: number }>(admin, "invoicing.invoice.issue", { id: draft.id });
+    } finally {
+      if (abroad) await sql`update core.parties set country_code = 'CO', department_code = '11', municipality_code = '11001' where id = ${buyer}`;
+    }
     // The DIAN's answer, as the transport would record it (its status only moves forward: sent, then accepted).
     if (options.accepted !== false) {
       await sql`update invoicing.invoices set dian_status = 'submitted' where id = ${issued.id}`;

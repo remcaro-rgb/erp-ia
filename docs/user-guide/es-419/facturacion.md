@@ -45,13 +45,21 @@ La barra de la ficha tiene los botones del documento, en cualquier pestaña: **G
 
 Hay tres maneras de crear facturas; la empresa elige cuál usa en **Facturación › Parámetros › Parámetros de facturación** (ver abajo).
 
-- **A mano.** Eliges el cliente, la fecha, la forma de pago (**Contado** o **Crédito**), el medio de pago y las líneas: producto, cantidad, precio (si no lo indicas, el precio de lista del producto) y descuento. Los impuestos los calcula el sistema según el producto y el cliente.
-- **Desde lo despachado («Por facturar»).** **Facturación › Reportes › Por facturar** (o **Crear factura desde pedidos** en la lista de facturas) lista, en la tabla de siempre (filtrar, ordenar, columnas), cada producto que salió en entregas despachadas y aún no está en ninguna factura (tampoco en un borrador): el pedido, la entrega, su fecha, el cliente, el producto y lo pedido, entregado, facturado y lo que falta por facturar. Filtra por **Pedido** o por cliente, marca las líneas (la casilla de arriba marca todas las que ves) y pulsa **Crear facturas**: cada pedido que marcaste se factura completo con lo que le falta; se crea un borrador por cliente y moneda (y, en moneda extranjera, por tasa de cambio: indica la tasa del día de la factura o se usa la de cada pedido), con el precio y el descuento de cada pedido. Un pedido entregado en dos entregas queda en una sola factura con las dos.
+- **A mano.** Eliges el cliente, la fecha, la forma de pago (**Contado** o **Crédito**), el medio de pago y las líneas: producto, cantidad, precio (si no lo indicas, el precio de lista del producto) y descuento. Los impuestos los calcula el sistema según el producto y el cliente. Para una exportación, elige la **Moneda** (ver «En moneda extranjera»).
+- **Desde lo despachado («Por facturar»).** **Facturación › Reportes › Por facturar** (o **Crear factura desde pedidos** en la lista de facturas) lista, en la tabla de siempre (filtrar, ordenar, columnas), cada producto que salió en entregas despachadas y aún no está en ninguna factura (tampoco en un borrador): el pedido, la entrega, su fecha, el cliente, el producto y lo pedido, entregado, facturado y lo que falta por facturar. Filtra por **Pedido** o por cliente, marca las líneas (la casilla de arriba marca todas las que ves) y pulsa **Crear facturas**: cada pedido que marcaste se factura completo con lo que le falta; se crea un borrador por cliente y moneda, con el precio y el descuento de cada pedido. En moneda extranjera la factura lleva la tasa de **su** fecha (la de **Tasas de cambio**), no la de los pedidos: dos pedidos en dólares a tasas distintas quedan en una sola factura. Un pedido entregado en dos entregas queda en una sola factura con las dos.
 - **Automática.** Según los parámetros, al **despachar cada entrega** o al **confirmar el pedido** (ver abajo).
 
 El cliente y cada producto deben estar **listos para facturar** (guía **Terceros**): si no, la factura se rechaza y el mensaje dice qué le falta a cada uno (datos DIAN, archivos como el RUT, que esté activo o aprobado).
 
 Una factura a **crédito** vence a los días de crédito de los parámetros (30 si no se han cambiado), salvo que indiques otro vencimiento; una de **contado** vence el mismo día.
+
+### En moneda extranjera
+
+En esta versión **solo las facturas de exportación** (a un cliente de otro país) pueden ir en otra moneda. Una factura en dólares a un cliente en Colombia se rechaza con «En esta versión solo las facturas de exportación pueden ir en moneda extranjera», al crearla, al cambiarla y al emitirla (por ejemplo, si cambiaste el país del cliente después de crear el borrador). Una factura en pesos a un cliente del exterior sí se puede hacer.
+
+- **Tasa de cambio.** Si no la escribes, la factura toma la de **Tasas de cambio** para su fecha (o la más reciente de los tres días anteriores; guía **Tasas de cambio**). Sin tasa no se crea: «No hay tasa de cambio para USD el …». La que escribas gana, y puedes cambiarla mientras la factura es un borrador; al emitir queda fija.
+- **Precios.** Una línea sin precio toma el de una lista de precios en esa moneda o, si no hay, el precio de lista del producto en pesos convertido a la tasa y redondeado al centavo (por ejemplo, $ 50.000,00 a 4.000 da `USD 12,50`).
+- **Recalcular precios** funciona igual en un borrador en otra moneda: convierte a la tasa de la factura las líneas escritas a mano y deja el precio acordado en las que vienen de un pedido.
 
 Al cambiar un borrador, lo que no indicas queda igual; puedes **quitar** las notas o el centro de costo dejándolos vacíos.
 

@@ -59,11 +59,15 @@ describe("invoicing.invoice.reprice", () => {
     expect(out.subtotal).toBe(2 * 18000 + 50000);
   });
 
-  it("a draft in a foreign currency is refused: the list price carries no currency, so nothing changes (review F-3.1)", async () => {
-    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, issueDate: h.day(4, 5), currency: "USD", exchangeRate: 4000, lines: [{ productId: h.servicio, qty: 1, unitPrice: 12.5 }] });
-    const refused = await h.refusal(h.run(h.admin, "invoicing.invoice.reprice", { id: draft.id }));
-    expect(refused?.code).toBe("invalid_input");
-    expect(refused?.message).toMatch(/^currency_not_supported/);
+  it("a draft in a foreign currency is repriced in its currency: the list price converts at the invoice's rate (Task 34.3, item 118 lifted)", async () => {
+    const buyer = (await h.run<{ id: string }>(h.admin, "core.party.create", {
+      kind: ["customer"], personType: "1", documentType: "50", documentNumber: "555000111", legalName: "Export Buyer LLC", taxResponsibilities: ["R-99-PN"], taxScheme: "ZZ",
+      countryCode: "US", addressLine: "100 Main St, Seattle WA", invoiceEmail: "ap@buyer.example",
+    })).id;
+    await h.markReady(buyer);
+    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: buyer, issueDate: h.day(4, 5), currency: "USD", exchangeRate: 4000, lines: [{ productId: h.servicio, qty: 1, unitPrice: 12 }] });
+    await h.run(h.admin, "invoicing.invoice.reprice", { id: draft.id });
+    // 50.000 / 4.000 = 12,50 USD.
     expect(await unitPrices(draft.id)).toEqual([12.5]);
   });
 

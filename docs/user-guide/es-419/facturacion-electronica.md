@@ -49,7 +49,7 @@ Además del estado DIAN, cada envío tiene su propio estado, que ves en el detal
 
 La DIAN exige que la factura lleve la fecha del día en que se genera, y el CUFE depende de ella. Por eso, al pulsar **Emitir**, la factura toma **la fecha de hoy** (la de la empresa) y los **impuestos se calculan con las tarifas vigentes en esa fecha**. La fecha que tenía el borrador queda como **Fecha de entrega o servicio**.
 
-Los **precios no cambian solos al emitir**: el borrador conserva los precios que tiene. Si quieres ponerlos al día, pulsa **Recalcular precios** en la barra del borrador: cada línea toma el precio de lista de hoy de su producto (si el producto no tiene precio de lista, la línea conserva el suyo; el descuento no cambia) y los impuestos se calculan de nuevo. Los precios que escribiste a mano en una línea libre se reemplazan por la lista; las líneas facturadas desde un pedido conservan el precio acordado en el pedido. **Recalcular precios** solo funciona en facturas en la moneda de la empresa (pesos): la lista de precios está en pesos, así que en un borrador en otra moneda (por ejemplo dólares) el sistema lo rechaza y deja los precios que escribiste. El botón no aparece en una factura ya emitida: allí se corrige con una nota.
+Los **precios no cambian solos al emitir**: el borrador conserva los precios que tiene. Si quieres ponerlos al día, pulsa **Recalcular precios** en la barra del borrador: cada línea toma el precio de lista de hoy de su producto (si el producto no tiene precio de lista, la línea conserva el suyo; el descuento no cambia) y los impuestos se calculan de nuevo. Los precios que escribiste a mano en una línea libre se reemplazan por la lista; las líneas facturadas desde un pedido conservan el precio acordado en el pedido. En un borrador en otra moneda (por ejemplo dólares), cada línea libre toma el precio de una lista en esa moneda o, si no hay, el precio de lista en pesos convertido a la tasa de la factura y redondeado al centavo (guía **Facturas de venta**, «En moneda extranjera»). El botón no aparece en una factura ya emitida: allí se corrige con una nota.
 
 El borrador guarda la **Fecha de los precios**, el día en que se pusieron sus precios (al crearlo, al cambiar sus líneas o al recalcular). Si no es hoy, la ficha muestra el aviso **«Los precios son del <fecha>; usa Recalcular precios para actualizarlos»**. El aviso no impide emitir: emitir con esos precios es una decisión tuya. Al emitir, el sistema responde de nuevo con ese aviso si los precios eran de otro día.
 
@@ -112,6 +112,8 @@ La nota de anulación no se crea a mano: solo la emite Anular.
 Una factura en dólares u otra moneda de la tabla de la DIAN se envía en **su moneda**, con la **tasa de cambio** (TRM) de la factura. Su CUFE se calcula con los valores en esa moneda.
 
 Si el cliente es del exterior, la factura sale como **factura de exportación** y sus notas crédito como notas de exportación, en la misma moneda y con la misma tasa. El cliente del exterior se identifica con su documento extranjero y su país; no lleva departamento ni municipio de Colombia.
+
+En esta versión la moneda extranjera es solo para **exportaciones**: una factura en dólares a un cliente en Colombia no se crea ni se emite (guía **Facturas de venta**, «En moneda extranjera»).
 
 ## Errores frecuentes y qué hacer
 

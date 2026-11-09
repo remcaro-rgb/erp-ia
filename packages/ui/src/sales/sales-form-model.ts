@@ -56,6 +56,10 @@ export interface SaleDraft {
   paymentMeans: string;
   /** An invoice: the due date; empty, the process computes it from the payment form. */
   dueDate: string;
+  /** The document's currency (ISO 4217); empty, the company's. Chosen on a new document only (Task 34.3). */
+  currency: string;
+  /** A foreign-currency document's rate as typed (company currency per unit); empty on a new one, Tasas de cambio's of the date. */
+  exchangeRate: string;
   notes: string;
   lines: SaleLine[];
 }
@@ -88,6 +92,8 @@ export function saleDraft(today: string, record: Row | null, lines: readonly Row
     paymentForm: s(record?.payment_form),
     paymentMeans: s(record?.payment_means),
     dueDate: day(record?.due_date),
+    currency: s(record?.currency).trim(),
+    exchangeRate: numText(record?.exchange_rate),
     notes: s(record?.notes),
     lines: [...stored, emptySaleLine()],
   };
@@ -105,8 +111,12 @@ export function saleMissing(draft: SaleDraft): string[] {
   if (lines.some((l) => !(parseQty(l.qty) > 0))) missing.push("qty");
   if (lines.some((l) => l.unitPrice.trim() !== "" && !(parseAmount(l.unitPrice) >= 0))) missing.push("price");
   if (lines.some((l) => l.discountPct.trim() !== "" && !(parseQty(l.discountPct) >= 0 && parseQty(l.discountPct) <= 100))) missing.push("discount");
+  if (draft.exchangeRate.trim() !== "" && !(parseAmount(draft.exchangeRate) > 0)) missing.push("rate");
   return missing;
 }
+
+/** The rate typed, as a number; undefined when the box is empty (a new document then takes Tasas de cambio's rate of its date). */
+const rateOf = (draft: SaleDraft): number | undefined => (draft.exchangeRate.trim() ? parseAmount(draft.exchangeRate) : undefined);
 
 const lineInput = (l: SaleLine) =>
   definedOnly({
@@ -147,6 +157,7 @@ export function saleInput(kind: SaleDocumentKind, draft: SaleDraft, id: string |
         : kind === "invoice"
           ? [["issue_date", "issueDate", draft.issueDate || undefined], ["due_date", "dueDate", draft.dueDate || undefined], ["payment_form", "paymentForm", draft.paymentForm || undefined], ["payment_means", "paymentMeans", draft.paymentMeans || undefined], ["notes", "notes", notes]]
           : [["delivery_date", "deliveryDate", draft.deliveryDate || null], ["warehouse_id", "warehouseId", draft.warehouseId || null], ["notes", "notes", notes]];
+    header.push(["exchange_rate", "exchangeRate", rateOf(draft)]);
     const out: Record<string, unknown> = { id };
     const linesChanged = !initial || JSON.stringify(lines) !== JSON.stringify(filledSaleLines(initial).map(lineInput));
     if (linesChanged && !basis.linesLocked) out.lines = lines;
@@ -157,7 +168,7 @@ export function saleInput(kind: SaleDocumentKind, draft: SaleDraft, id: string |
     }
     return definedOnly(out);
   }
-  const common = definedOnly({ partyId: draft.partyId, issueDate: draft.issueDate || undefined, notes: trimmed(draft.notes), lines });
+  const common = definedOnly({ partyId: draft.partyId, issueDate: draft.issueDate || undefined, currency: draft.currency || undefined, exchangeRate: rateOf(draft), notes: trimmed(draft.notes), lines });
   if (kind === "quote") return { ...common, ...definedOnly({ opportunityId: draft.opportunityId || undefined, validUntil: draft.validUntil || undefined }) };
   if (kind === "invoice") return { ...common, ...definedOnly({ dueDate: draft.dueDate || undefined, paymentForm: draft.paymentForm || undefined, paymentMeans: draft.paymentMeans || undefined }) };
   return { ...common, ...definedOnly({ deliveryDate: draft.deliveryDate || undefined, warehouseId: draft.warehouseId || undefined }) };

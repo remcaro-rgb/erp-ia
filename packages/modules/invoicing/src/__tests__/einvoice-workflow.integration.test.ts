@@ -543,7 +543,7 @@ describe("the document is the invoice as issued", () => {
   });
 
   it("an invoice in foreign currency is sent in its currency with its TRM (Task 18), with the CUFE «Emitir» computed (parity)", async () => {
-    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, currency: "USD", exchangeRate: 4100, lines: [{ productId: h.servicio, qty: 1, unitPrice: 25 }] });
+    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: await h.foreignBuyer("555200301"), currency: "USD", exchangeRate: 4100, lines: [{ productId: h.servicio, qty: 1, unitPrice: 25 }] });
     const invoice = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.issue", { id: draft.id });
     expect(await h.drain()).toEqual([]);
     const s = await settle(invoice.id);

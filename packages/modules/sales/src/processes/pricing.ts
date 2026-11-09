@@ -129,9 +129,16 @@ export const priceResolve = defineProcess({
   kind: "consult",
   feature: FEATURE,
   description:
-    "Da el precio unitario de un producto para un cliente: el de la lista de precios del cliente, si no el de la lista predeterminada, si no el precio de lista del producto; con el descuento habitual del cliente",
-  input: z.object({ productId: id, partyId: id, qty: z.number().finite().positive(), date: z.iso.date(), currency: z.string().regex(/^[A-Z]{3}$/).optional() }).strict(),
-  output: z.object({ unitPrice: z.number(), priceListId: z.string().optional(), discountPct: z.number(), source: z.enum(["customer_list", "default_list", "list_price"]) }),
+    "Da el precio unitario de un producto para un cliente: el de la lista de precios del cliente, si no el de la lista predeterminada, si no el precio de lista del producto (en otra moneda, convertido a la tasa del documento); con el descuento habitual del cliente",
+  input: z.object({
+    productId: id, partyId: id, qty: z.number().finite().positive(), date: z.iso.date(), currency: z.string().regex(/^[A-Z]{3}$/).optional(),
+    /** The document's rate (company currency per unit) in another currency: the list price converts at it (Task 34.3). */
+    exchangeRate: z.number().finite().positive().optional(),
+  }).strict(),
+  output: z.object({
+    unitPrice: z.number(), priceListId: z.string().optional(), discountPct: z.number(), source: z.enum(["customer_list", "default_list", "list_price", "converted"]),
+    convertedFrom: z.object({ amount: z.number(), currency: z.string(), rate: z.number() }).optional(),
+  }),
   handler: (ctx, input) => resolveLinePrice(ctx, input),
 });
 

@@ -107,6 +107,15 @@ describe("sales pricing", () => {
     const usd = await refusal(resolve(partyId, { currency: "USD" }));
     expect(usd).toMatchObject({ code: "invalid_input" });
     expect(usd!.message).toContain("price_not_found");
+    // With the document's rate the list price converts (Task 34.3, item 127): 28.500 / 4.000 = 7,13 (half up), source converted.
+    expect(await resolve(partyId, { currency: "USD", exchangeRate: 4000 })).toEqual({
+      unitPrice: 7.13, discountPct: 3, source: "converted", convertedFrom: { amount: 28500, currency: "COP", rate: 4000 },
+    });
+    // A USD list of the customer wins over the conversion.
+    const usdList = await priceList("Export USD", 6.5, "USD");
+    await run(admin, "sales.customer_terms.set", { partyId, priceListId: usdList });
+    expect(await resolve(partyId, { currency: "USD", exchangeRate: 4000 })).toMatchObject({ unitPrice: 6.5, priceListId: usdList, source: "customer_list" });
+    await run(admin, "sales.customer_terms.set", { partyId, priceListId: customerList });
     // The standing discount does not depend on a price: sales.discount.resolve answers it in any currency.
     expect(await run(admin, "sales.discount.resolve", { partyId })).toEqual({ discountPct: 3 });
     expect(await run(admin, "sales.discount.resolve", { partyId: plainId })).toEqual({ discountPct: 0 });

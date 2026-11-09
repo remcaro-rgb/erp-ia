@@ -118,6 +118,15 @@ export async function invoicingHarness(options: { entitlements?: string[] } = {}
     if (ready) await markReady(id);
     return id;
   };
+  /** A customer abroad (United States), invoice_ready: a foreign-currency invoice is an export only (Task 34.3, R34-7). */
+  const foreignBuyer = async (documentNumber: string, legalName = `Importer ${documentNumber} LLC`) => {
+    const id = (await run<{ id: string }>(admin, "core.party.create", {
+      kind: ["customer"], personType: "1", documentType: "50", documentNumber, legalName, taxResponsibilities: ["R-99-PN"], taxScheme: "ZZ",
+      countryCode: "US", addressLine: "100 Main St, Seattle WA", invoiceEmail: "ap@importer.example",
+    })).id;
+    await markReady(id);
+    return id;
+  };
   const product = async (sku: string, overrides: Record<string, unknown> = {}) => (await run<{ id: string }>(admin, "core.product.create", good(sku, overrides))).id;
 
   await runStepUp("accounting.chart.seed", {});
@@ -189,6 +198,6 @@ export async function invoicingHarness(options: { entitlements?: string[] } = {}
 
   return {
     sql, seed, admin, member, memberRoleId, companyId, otherCompanyId, year, day, today, costCenterId, resolution, partyId, cafe, servicio, warehouseId, locationId,
-    run, runStepUp, refusal, drain, markReady, newCustomer, product, confirmedOrder, shipDelivery, setMode, invoicesOf, entriesFor, linesOf, issuedEvent, cleanup,
+    run, runStepUp, refusal, drain, markReady, newCustomer, foreignBuyer, product, confirmedOrder, shipDelivery, setMode, invoicesOf, entriesFor, linesOf, issuedEvent, cleanup,
   };
 }

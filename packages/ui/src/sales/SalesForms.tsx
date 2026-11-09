@@ -223,9 +223,13 @@ export interface SaleDocumentFormProps extends CommonProps {
   paymentMeans?: readonly CodeOption[];
   /** An invoice of pedidos: its lines bill what shipped and are not edited here (the header is). */
   linesFixed?: boolean;
+  /** The currencies a new document may be in (code and name); none given, the document is in the company's (Task 34.3). */
+  currencies?: readonly CodeOption[];
+  /** The company's currency: another one shows the rate box (company currency per unit), editable while the document is a Borrador. */
+  companyCurrency?: string | null;
 }
 
-export function SaleDocumentForm({ kind, record, lines = [], labels = {}, initial: copy, copyOf = null, today, warehouses = [], party, product, opportunity, readOnly = false, save, requestStepUp, onSaved, processes, modes = {}, lineModes = {}, paymentMeans = [], linesFixed = false }: SaleDocumentFormProps) {
+export function SaleDocumentForm({ kind, record, lines = [], labels = {}, initial: copy, copyOf = null, today, warehouses = [], party, product, opportunity, readOnly = false, save, requestStepUp, onSaved, processes, modes = {}, lineModes = {}, paymentMeans = [], linesFixed = false, currencies = [], companyCurrency = null }: SaleDocumentFormProps) {
   const t = useTranslations("sales.form");
   const ti = useTranslations("invoicing.form");
   const errorText = useErrorText();
@@ -233,7 +237,8 @@ export function SaleDocumentForm({ kind, record, lines = [], labels = {}, initia
   const key = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
   const [draft, initial, setDraft, discard] = useDraft<SaleDraft>(key, () => (record ? saleDraft(today, record, lines, labels) : saleDraft(today, copy ?? null, [], labels)));
   const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, isNew));
-  const failed = failureMessages(flow.failure, ["partyId", "opportunityId", "issueDate", "validUntil", "deliveryDate", "warehouseId", "dueDate", "paymentForm", "paymentMeans", "notes"], errorText);
+  const failed = failureMessages(flow.failure, ["partyId", "opportunityId", "issueDate", "validUntil", "deliveryDate", "warehouseId", "dueDate", "paymentForm", "paymentMeans", "currency", "exchangeRate", "notes"], errorText);
+  const foreign = draft.currency !== "" && companyCurrency !== null && draft.currency !== companyCurrency;
   const missing = saleMissing(draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   // A stored record's masked fields never reached the form (rule 14): they are not edited and never sent. A new one has none to keep.
@@ -317,6 +322,14 @@ export function SaleDocumentForm({ kind, record, lines = [], labels = {}, initia
             </Field>
           )}
           <DateField label={t("issue_date")} value={draft.issueDate} disabled={readOnly || !isNew} error={failed.field("issueDate")} onChange={set("issueDate")} />
+          {currencies.length > 1 && (
+            <SelectField label={t("currency")} hint={isNew ? t("currency_hint") : undefined} value={draft.currency || (companyCurrency ?? "")} options={currencies} showCode={false} disabled={readOnly || !isNew} error={failed.field("currency")} onChange={(code) => setDraft((d) => ({ ...d, currency: code === companyCurrency ? "" : code, exchangeRate: code === companyCurrency ? "" : d.exchangeRate }))} />
+          )}
+          {foreign && (isMasked("exchange_rate") ? (
+            <MaskedField label={t("exchange_rate")} />
+          ) : (
+            <TextField label={t("exchange_rate")} hint={t("exchange_rate_hint", { currency: companyCurrency ?? "" })} value={draft.exchangeRate} inputMode="decimal" mono disabled={readOnly} error={failed.field("exchangeRate")} onChange={set("exchangeRate")} />
+          ))}
           {kind === "invoice" ? (
             <>
               {isMasked("payment_form") ? (
