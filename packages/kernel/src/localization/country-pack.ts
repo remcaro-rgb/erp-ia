@@ -168,7 +168,11 @@ export type TaxedDocument = {
 };
 export interface TaxesPack {
   rounding: "per_line_half_up_2";
-  computeTaxes(input: { lines: TaxLineInput[]; party: PartyTaxProfile; date: string }): TaxedDocument;
+  /**
+   * `export`: the document is an export (the customer is abroad); the pack applies its export exemption (Colombia: a taxed good is IVA 0 %
+   * exento, art. 481 lit. a ET, owner item 134). Absent or false: the product's rates.
+   */
+  computeTaxes(input: { lines: TaxLineInput[]; party: PartyTaxProfile; date: string; export?: boolean }): TaxedDocument;
   /**
    * The ledger's tax code (`AccountingPack.taxCodes`, the `tax:<code>` dimension of a posting rule) of one entry of `TaxedDocument.taxes`:
    * Colombia's IVA "01" at 19 % is `IVA19`, INC "04" at 8 % is `INC8` (plan 2B Task 16: the invoice event carries the ledger's codes).

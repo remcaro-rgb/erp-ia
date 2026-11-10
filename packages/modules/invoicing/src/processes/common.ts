@@ -59,12 +59,15 @@ export async function settingsOf(ctx: ProcessContext): Promise<Settings> {
 }
 
 /** The company's country pack, with its electronic-invoicing entry (server-only; fail closed when the server did not register it). */
-export async function packOf(ctx: ProcessContext): Promise<{ taxes: ReturnType<typeof countryPack>["taxes"]; einvoice: EInvoicePack }> {
+export async function packOf(ctx: ProcessContext): Promise<{ taxes: ReturnType<typeof countryPack>["taxes"]; einvoice: EInvoicePack; countryCode: string }> {
   const [company] = await ctx.tx<{ country_code: string }[]>`select country_code from kernel.companies where id = ${ctx.companyId}`;
   const pack = countryPack(company!.country_code);
   if (!pack.einvoice) throw new ProcessError("invalid_state", "einvoice_not_available: El paquete del país no tiene facturación electrónica registrada", { details: ["El paquete del país no tiene facturación electrónica registrada"] });
-  return { taxes: pack.taxes, einvoice: pack.einvoice };
+  return { taxes: pack.taxes, einvoice: pack.einvoice, countryCode: company!.country_code };
 }
+
+/** An export: the buyer is of another country than the company's (InvoiceTypeCode 02, frozen at «Emitir» as `is_export`; a buyer without a country is domestic). */
+export const isExportFor = (party: Pick<InvoiceParty, "countryCode">, companyCountry: string): boolean => (party.countryCode ?? companyCountry) !== companyCountry;
 
 /** Percent off the line, as an amount rounded half-up to cents (the same rule as the sales documents). */
 export function lineDiscount(lineQty: number, unitPrice: number, discountPct: number): number {
@@ -123,7 +126,7 @@ export interface Priced {
 
 /** Taxes `lines` for `party` on `date` with the company's country pack (per-line rounding); every tax carries the ledger's code. */
 export async function priceLines(ctx: ProcessContext, party: InvoiceParty, products: Map<string, InvoiceProduct>, lines: DraftLine[], on: string): Promise<Priced> {
-  const { taxes } = await packOf(ctx);
+  const { taxes, countryCode } = await packOf(ctx);
   const taxLines: TaxLineInput[] = lines.map((l) => {
     const p = products.get(l.productId)!;
     return {
@@ -142,6 +145,8 @@ export async function priceLines(ctx: ProcessContext, party: InvoiceParty, produ
     lines: taxLines,
     party: { responsibilities: party.responsibilities, ...(party.personType ? { personType: party.personType } : {}) },
     date: on,
+    // The pack's export exemption (owner item 134): a good sold abroad is IVA 0 % exento from the Borrador on.
+    export: isExportFor(party, countryCode),
   });
   const priced = lines.map((l, i): PricedLine => {
     const t = taxed.lines[i]!;
@@ -155,7 +160,8 @@ export async function priceLines(ctx: ProcessContext, party: InvoiceParty, produ
       discount_pct: l.discountPct,
       discount: taxLines[i]!.discount ?? 0,
       base: t.base,
-      iva_rate: t.ivaRate === null ? null : String(p.ivaRate),
+      // The rate the pack applied (an export turns 5 % into 0 %), not the product's.
+      iva_rate: t.ivaRate === null ? null : String(t.ivaRate),
       iva: t.iva,
       inc_rate: t.incRate === null ? null : String(p.incRate),
       inc: t.inc,

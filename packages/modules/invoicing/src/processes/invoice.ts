@@ -5,7 +5,7 @@ import { allocatedTo } from "../consumers/payments";
 import { resolveLinePrice } from "@erp/module-sales";
 import { assertInvoiceReady, readInvoiceFacts } from "../readiness";
 import {
-  assertDianAccepted, checkSources, companyAmounts, date, defaultRate, rateDiffers, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
+  assertDianAccepted, checkSources, companyAmounts, date, defaultRate, rateDiffers, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, isExportFor, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
   refuse, refuseState, settingsOf, today, unlinkInvoice, writeParts, type DraftLine,
 } from "./common";
 
@@ -708,7 +708,7 @@ export const invoiceHooks: TypedHooks = {
     // The DIAN environment the CUFE names is frozen with it (Task 19 fix round 1): the QR, the document and the transport follow it.
     // Whether it is an export is frozen here (Task 18 fix round 1): a buyer of another country than the company's; its notes and its
     // resends follow it, never the buyer's master data of later.
-    const isExport = (facts.party.countryCode ?? company!.country_code) !== company!.country_code;
+    const isExport = isExportFor(facts.party, company!.country_code);
     await ctx.tx`
       update invoicing.invoices set number = ${drawn.full}, prefix = ${drawn.prefix}, consecutive = ${drawn.number}, cufe = ${cufe},
              issue_time = ${time}, resolution = ${ctx.tx.json(drawn.resolution as never)}, is_export = ${isExport},

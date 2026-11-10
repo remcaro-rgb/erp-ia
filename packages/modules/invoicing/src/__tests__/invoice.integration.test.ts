@@ -7,6 +7,9 @@ import { invoicingHarness, type Harness, type InvoiceOut } from "./helpers";
 //   (2) a USD invoice to a customer in Colombia is refused with foreign_currency_domestic at create, update and issue (export only, item 124);
 //   (3) «Recalcular precios» of a USD Borrador converts the free lines from the list price at the invoice's rate and keeps the pedido's lines;
 //   (4) «Facturar pedidos» groups by customer and currency (not rate) and takes the rate of the invoice's date (item 128).
+// IVA exento por exportación (plan 2B.2 Task 34.8a, owner item 134; art. 481 lit. a ET, from the pack's tax engine):
+//   (5) an invoice to a buyer abroad taxes its goods at IVA 0 % exento from the Borrador on, in USD or in COP, and «Emitir» keeps it;
+//       services keep their rate; a domestic invoice of the same good keeps its IVA 5 %.
 
 let h: Harness;
 let buyer: string;
@@ -139,5 +142,28 @@ describe("«Facturar pedidos» in a foreign currency (item 128)", () => {
     const usd = await shippedUsdOrder(4000);
     const refused = await h.refusal(h.run(h.admin, "invoicing.invoice.from_orders", { orderIds: [usd.id], issueDate: h.day(7, 20) }));
     expect(refused?.message).toMatch(/^exchange_rate_missing/);
+  });
+});
+
+describe("IVA exento por exportación (item 134, Task 34.8a)", () => {
+  const linesOf = (id: string) =>
+    h.sql<{ iva_rate: string | null; iva: string }[]>`select iva_rate, iva::text from invoicing.invoice_lines where invoice_id = ${id} order by line_no`;
+  const taxesOf = (id: string) =>
+    h.sql<{ rate: string | null; base: string; amount: string }[]>`select rate::text, base::text, amount::text from invoicing.invoice_taxes where invoice_id = ${id} order by rate nulls first`;
+
+  it("a USD invoice to a buyer abroad: the good is IVA 0 % exento, the service keeps 19 %, from the Borrador to «Emitir»", async () => {
+    const draft = await usdDraft({ issueDate: h.today, exchangeRate: 4000, lines: [{ productId: h.cafe, qty: 2, unitPrice: 10 }, { productId: h.servicio, qty: 1, unitPrice: 12.5 }] });
+    expect((await linesOf(draft.id)).map((l) => [l.iva_rate, Number(l.iva)])).toEqual([["0", 0], ["19", 2.38]]);
+    expect(draft.taxTotal).toBe(2.38);
+    await h.run(h.admin, "invoicing.invoice.issue", { id: draft.id });
+    expect((await linesOf(draft.id)).map((l) => [l.iva_rate, Number(l.iva)])).toEqual([["0", 0], ["19", 2.38]]);
+    expect((await taxesOf(draft.id)).map((t) => [Number(t.rate), Number(t.base), Number(t.amount)])).toEqual([[0, 20, 0], [19, 12.5, 2.38]]);
+  });
+
+  it("a COP invoice to a buyer abroad is an export too; a domestic one keeps IVA 5 %", async () => {
+    const abroad = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: buyer, lines: [{ productId: h.cafe, qty: 1, unitPrice: 20000 }] });
+    expect((await linesOf(abroad.id)).map((l) => [l.iva_rate, Number(l.iva)])).toEqual([["0", 0]]);
+    const domestic = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, lines: [{ productId: h.cafe, qty: 1, unitPrice: 20000 }] });
+    expect((await linesOf(domestic.id)).map((l) => [l.iva_rate, Number(l.iva)])).toEqual([["5", 1000]]);
   });
 });

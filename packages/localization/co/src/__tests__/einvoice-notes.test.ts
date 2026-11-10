@@ -38,8 +38,8 @@ const SOFTWARE = { id: "software-uuid-here", pin: "12345", providerNit: "9003731
 const ITEM: EInvoiceItem = { sku: "CAF-500", description: "Café de exportación 500 g", idScheme: "999", uomCode: "94", brand: "Café del Norte", model: "Excelso" };
 
 type Line = TaxLineInput & { item: EInvoiceItem };
-function invoice(customer: EInvoiceParty, lines: Line[], over: Partial<EInvoiceDocument> = {}): EInvoiceDocument {
-  const taxed = computeTaxes({ lines, party: { responsibilities: customer.taxResponsibilities, personType: customer.personType }, date: "2026-10-30" });
+function invoice(customer: EInvoiceParty, lines: Line[], over: Partial<EInvoiceDocument> = {}, isExport = false): EInvoiceDocument {
+  const taxed = computeTaxes({ lines, party: { responsibilities: customer.taxResponsibilities, personType: customer.personType }, date: "2026-10-30", export: isExport });
   return {
     environment: "habilitacion", number: "SETP990000007", issueDate: "2026-10-30", issueTime: "10:15:00-05:00", resolution: RESOLUTION, software: SOFTWARE,
     supplier: SUPPLIER, customer, paymentForm: "2", paymentMeansCode: "10", dueDate: "2026-11-29",
@@ -114,6 +114,15 @@ describe("the export invoice (international sale)", () => {
     expect(xml).toContain('<cbc:PayableAmount currencyID="USD">1274.26</cbc:PayableAmount>');
     expect(xml).toContain("<cbc:CalculationRate>4123.45</cbc:CalculationRate>");
     golden("export-invoice-usd-converted.xml", xml);
+  });
+
+  // Task 34.8a (owner item 134): the exemption comes from the pack's tax engine. A good whose product is IVA 5 % sold abroad (`export: true`)
+  // builds exactly the document of a 0 % line: the golden export-invoice-usd.xml, byte for byte.
+  it("a 5 % good on an export is IVA 0 % exento from the tax engine: the same XML as export-invoice-usd.xml", () => {
+    const inv = invoice(FOREIGN, [{ item: ITEM, quantity: 100, unitPrice: 12.5, kind: "good", ivaRate: "5" }], { currency: "USD", exchangeRate: { rate: 4123.4567, date: "2026-10-30" } }, true);
+    const xml = buildInvoiceXml(inv);
+    expect(xml).toMatch(/<cbc:Percent>0.00<\/cbc:Percent>/);
+    golden("export-invoice-usd.xml", xml);
   });
 
   it("names the foreign buyer without a Colombian address: its country and address line, no DANE code, its PartyTaxScheme", () => {

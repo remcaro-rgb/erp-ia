@@ -91,6 +91,37 @@ describe("IVA and INC", () => {
   });
 });
 
+describe("IVA exento por exportación (art. 481 lit. a ET, owner item 134)", () => {
+  const lines = [
+    { quantity: 2, unitPrice: 10000, kind: "good" as const, ivaRate: "19" as const },
+    { quantity: 1, unitPrice: 28500, kind: "good" as const, ivaRate: "5" as const },
+    { quantity: 1, unitPrice: 7000, kind: "good" as const, ivaRate: "EXC" as const },
+    { quantity: 1, unitPrice: 50000, kind: "service" as const, ivaRate: "19" as const },
+    { quantity: 2, unitPrice: 25000, kind: "good" as const, ivaRate: "EXC" as const, incRate: "8" as const },
+  ];
+  it("an export turns a taxed good into IVA 0 % exento; excluded, services and INC keep theirs", () => {
+    const r = computeTaxes({ lines, party: nobody, date: "2026-03-01", export: true });
+    expect(r.lines.map((l) => [l.base, l.ivaRate, l.iva, l.incRate, l.inc])).toEqual([
+      [20000, 0, 0, null, 0],
+      [28500, 0, 0, null, 0],
+      [7000, null, 0, null, 0],
+      [50000, 19, 9500, null, 0],
+      [50000, null, 0, 8, 4000],
+    ]);
+    expect(r.taxes).toEqual([
+      { family: "IVA", code: "01", rate: 0, base: 48500, amount: 0 },
+      { family: "IVA", code: "01", rate: 19, base: 50000, amount: 9500 },
+      { family: "INC", code: "04", rate: 8, base: 50000, amount: 4000 },
+    ]);
+    expect(r.taxTotal).toBe(13500);
+  });
+  it("without the flag (or false) nothing changes", () => {
+    const plain = computeTaxes({ lines, party: nobody, date: "2026-03-01" });
+    expect(computeTaxes({ lines, party: nobody, date: "2026-03-01", export: false })).toEqual(plain);
+    expect(plain.lines.map((l) => l.ivaRate)).toEqual([19, 5, null, 19, null]);
+  });
+});
+
 describe("free sample", () => {
   it("taxes on the reference price, payable 0, outside the document total", () => {
     const r = computeTaxes({

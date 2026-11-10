@@ -4,7 +4,11 @@ import { IVA_TAX_CODE, lineIva } from "./iva";
 import { round2 } from "./round";
 import { withholdingsSuffered } from "./withholdings";
 
-export function computeTaxes(input: { lines: TaxLineInput[]; party: PartyTaxProfile; date: string }): TaxedDocument {
+/** IVA rate of a line: on an export a taxed good is IVA 0 % exento (art. 481 lit. a ET); excluded goods and services keep theirs (lit. c has conditions the pack does not check). */
+const exportIvaRate = (l: TaxLineInput, isExport: boolean): TaxLineInput["ivaRate"] =>
+  isExport && l.kind !== "service" && l.ivaRate !== "EXC" ? "0" : l.ivaRate;
+
+export function computeTaxes(input: { lines: TaxLineInput[]; party: PartyTaxProfile; date: string; export?: boolean }): TaxedDocument {
   const lines: TaxedLine[] = [];
   const groups = { compras: { base: 0, iva: 0 }, servicios: { base: 0, iva: 0 } };
   const taxMap = new Map<string, TaxedDocument["taxes"][number]>();
@@ -23,7 +27,7 @@ export function computeTaxes(input: { lines: TaxLineInput[]; party: PartyTaxProf
     const free = l.isFreeSample === true;
     if (free && !(l.referencePrice && l.referencePrice > 0)) throw new Error("free sample line requires a referencePrice > 0 (DIAN prices taxes on it)");
     const base = free ? round2(l.quantity * (l.referencePrice ?? 0)) : round2(l.quantity * l.unitPrice - (l.discount ?? 0));
-    const iva = lineIva(base, l.ivaRate);
+    const iva = lineIva(base, exportIvaRate(l, input.export === true));
     const inc = lineInc(base, l.incRate);
     const other = lineOtherTaxes(base, l.quantity, l.otherTaxes ?? []);
     const taxSum = round2(iva.amount + inc.amount + other.reduce((s, o) => s + o.amount, 0));
