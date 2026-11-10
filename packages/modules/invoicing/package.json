@@ -14,6 +14,7 @@
   "dependencies": {
     "@erp/infra": "workspace:*",
     "@erp/kernel": "workspace:*",
+    "@erp/module-sales": "workspace:*",
     "qrcode": "1.5.4",
     "workflow": "^5.2.3",
     "zod": "^4.6.7"
@@ -24,7 +25,6 @@
     "@erp/module-core": "workspace:*",
     "@erp/module-costing": "workspace:*",
     "@erp/module-inventory": "workspace:*",
-    "@erp/module-sales": "workspace:*",
     "@types/qrcode": "1.5.6",
     "@workflow/vitest": "^5.0.6",
     "tsx": "^4.23.15"

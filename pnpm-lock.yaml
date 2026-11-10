@@ -550,6 +550,9 @@ importers:
       '@erp/kernel':
         specifier: workspace:*
         version: link:../../kernel
+      '@erp/module-sales':
+        specifier: workspace:*
+        version: link:../sales
       qrcode:
         specifier: 1.5.4
         version: 1.5.4
@@ -575,9 +578,6 @@ importers:
       '@erp/module-inventory':
         specifier: workspace:*
         version: link:../inventory
-      '@erp/module-sales':
-        specifier: workspace:*
-        version: link:../sales
       '@types/qrcode':
         specifier: 1.5.6
         version: 1.5.6
