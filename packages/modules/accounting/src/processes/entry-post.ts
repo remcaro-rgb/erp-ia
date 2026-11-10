@@ -27,6 +27,7 @@ export interface EntryRow {
   reverse_on: string | null;
   is_auto_reversal: boolean;
   reversal_of_id: string | null;
+  currency: string;
   exchange_rate: string;
   source_entity: string | null;
   source_record_id: string | null;
@@ -36,7 +37,7 @@ export interface EntryRow {
 }
 
 const ENTRY_COLUMNS = `id, journal_id, date::text as date, status, origin, created_by, business_unit_id, reverse_on::text as reverse_on, is_auto_reversal,
-  reversal_of_id, exchange_rate, source_entity, source_record_id, is_closing, is_opening, extra`;
+  reversal_of_id, currency, exchange_rate, source_entity, source_record_id, is_closing, is_opening, extra`;
 
 /** The comprobante, locked. */
 export async function lockEntry(ctx: ProcessContext, entryId: string): Promise<EntryRow & { number: string | null }> {
@@ -147,7 +148,7 @@ export async function completePosting(ctx: ProcessContext, entry: EntryRow, numb
       insert into accounting.entries ${ctx.tx({
         company_id: ctx.companyId, journal_id: entry.journal_id, date: entry.reverse_on, description: `Reversión automática de ${number}`,
         origin: "auto", status: "draft", requires_approval: false, posts: true, is_auto_reversal: true, reversal_of_id: entryId,
-        business_unit_id: entry.business_unit_id, exchange_rate: entry.exchange_rate, source_entity: entry.source_entity,
+        business_unit_id: entry.business_unit_id, currency: entry.currency, exchange_rate: entry.exchange_rate, source_entity: entry.source_entity,
         source_record_id: entry.source_record_id, chain_id: ctx.chainId,
       })}
       on conflict (reversal_of_id) where is_auto_reversal do nothing
@@ -266,7 +267,7 @@ export async function reverseEntry(
     insert into accounting.entries ${ctx.tx({
       company_id: ctx.companyId, journal_id: original.journal_id, date: input.date ?? new Date().toISOString().slice(0, 10),
       description: `Reversión de ${original.number}: ${input.reason}`, origin: "auto", status: "draft", requires_approval: false, posts: true, reversal_of_id: entryId,
-      business_unit_id: original.business_unit_id, exchange_rate: original.exchange_rate, source_entity: original.source_entity,
+      business_unit_id: original.business_unit_id, currency: original.currency, exchange_rate: original.exchange_rate, source_entity: original.source_entity,
       source_record_id: original.source_record_id, chain_id: ctx.chainId, is_opening: original.is_opening, is_closing: original.is_closing,
     })}
     returning id`;

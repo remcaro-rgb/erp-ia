@@ -48,7 +48,7 @@ export type ChainHarness = Awaited<ReturnType<typeof chainHarness>>;
 export async function chainHarness(options: { users?: NonNullable<SeedOptions["users"]> } = {}) {
   const sql = testDb();
   registerCountryPack({ ...co, einvoice: einvoicePack });
-  for (const m of [core, inventory, costing, sales, crm, invoicing, payments]) await syncModuleManifest(sql, m);
+  for (const m of [core, inventory, costing, sales, crm, accounting, invoicing, payments]) await syncModuleManifest(sql, m);
   // The workflow's steps run processes through the app's registry, as the dispatch workflow's consumers do.
   loadModules(appRegistry, MODULES);
   const seed: SeededTenant = await seedTenant(sql, { companies: 1, entitlements: MODULE_IDS.map((m) => `module:${m}`), ...(options.users ? { users: options.users } : {}) });

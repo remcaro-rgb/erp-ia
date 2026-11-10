@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addWithholding, parseAmount, receiptDraft, receiptInput, receiptMissing, receiptTotals, setWithholding, withholdingAmount, type ReceiptDraft } from "../receipt-form-model";
+import { addWithholding, impliedRate, parseAmount, receiptDraft, receiptInput, receiptMissing, receiptTotals, setApplied, setReceived, setWithholding, withholdingAmount, type ReceiptDraft } from "../receipt-form-model";
 
 // «Registrar pago» (plan 2B Task 24b, accounting design §5.4): what the user types (the money received, what to apply to each open invoice,
 // the withholdings the customer practised on it) and the totals the form shows as it is typed: the cash applied, the withholdings and the
@@ -92,5 +92,44 @@ describe("receipt drafts", () => {
       allocations: [{ invoiceId: "i1", amount: 100000, withholdings: [{ kind: "income", code: "RTEFTE", rate: 2.5, base: 80000, amount: 2000 }] }],
       idempotencyKey: "k-1",
     });
+  });
+});
+
+// Plan 2B.2 Task 34.5 (item 125, R34-6): a receipt takes its method's currency. Pesos may settle a USD invoice: the user types the dollars
+// applied and the pesos received for them, and the screen shows the rate they imply; the server posts the exchange difference.
+describe("a receipt in another currency than an invoice's", () => {
+  const usd = [{ id: "u1", number: "FE9", open: 1000, payable: true, currency: "USD" }];
+  const cop = { receipt: "COP", company: "COP" };
+
+  it("a peso receipt on a USD invoice needs the pesos received; they are what the cash applied counts", () => {
+    let d: ReceiptDraft = { ...receiptDraft("2026-11-09"), partyId: "p", methodId: "m", amount: "4.150.000" };
+    d = setApplied(d, "u1", "1.000");
+    expect(receiptMissing(d, usd, cop)).toEqual(["amount_receipt"]);
+    d = setReceived(d, "u1", "4.150.000");
+    expect(receiptMissing(d, usd, cop)).toEqual([]);
+    expect(receiptTotals(d, usd, cop)).toMatchObject({ applied: 4150000, cash: 4150000, advance: 0, short: false });
+    expect(impliedRate(d, "u1")).toBe(4150);
+    expect(receiptInput(d, usd, "k", cop)).toMatchObject({ allocations: [{ invoiceId: "u1", amount: 1000, amountReceipt: 4150000, withholdings: [] }] });
+  });
+
+  it("a USD receipt on a USD invoice counts the dollars applied, sends the rate when typed, and no pesos per invoice", () => {
+    const money = { receipt: "USD", company: "COP" };
+    let d: ReceiptDraft = { ...receiptDraft("2026-11-09"), partyId: "p", methodId: "m", amount: "1.000" };
+    d = setApplied(d, "u1", "1.000");
+    expect(receiptMissing(d, usd, money)).toEqual([]);
+    expect(receiptTotals(d, usd, money)).toMatchObject({ applied: 1000, cash: 1000, advance: 0 });
+    expect(receiptInput(d, usd, "k", money)).not.toHaveProperty("exchangeRate");
+    const input = receiptInput({ ...d, exchangeRate: "4.000" }, usd, "k", money);
+    expect(input).toMatchObject({ exchangeRate: 4000, allocations: [{ invoiceId: "u1", amount: 1000, withholdings: [] }] });
+    expect((input.allocations as Record<string, unknown>[])[0]).not.toHaveProperty("amountReceipt");
+  });
+
+  it("no withholding goes on a foreign invoice (a customer abroad practises none), and a peso receipt sends no rate", () => {
+    let d: ReceiptDraft = { ...receiptDraft("2026-11-09"), partyId: "p", methodId: "m", amount: "4.000.000", exchangeRate: "4.000" };
+    d = setReceived(setApplied(addWithholding(d, "u1"), "u1", "1000"), "u1", "4000000");
+    const input = receiptInput(d, usd, "k", cop);
+    expect(input).not.toHaveProperty("exchangeRate");
+    expect(input).toMatchObject({ allocations: [{ invoiceId: "u1", withholdings: [] }] });
+    expect(receiptMissing(d, usd, cop)).toEqual([]);
   });
 });

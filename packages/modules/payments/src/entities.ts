@@ -75,6 +75,8 @@ export const methodEntity: EntityDef = entity("payments.method", "maestro", "met
   f("kind", "enum", { required: true, enumValues: [...METHOD_KINDS], valuesKey: "payments.values.method_kind" }),
   /** The DIAN payment means code (table 13.3.4.2) the method stands for, validated by the country pack. */
   f("means_code", "text"),
+  /** The currency of the money the method receives (plan 2B.2 Task 34.5, FX §6): a receipt goes only through a method of its currency. */
+  f("currency", "text", { required: true }),
   f("is_active", "boolean"),
   ...trailer(f),
   ...maestroLifecycle(f),
@@ -139,8 +141,13 @@ export const allocationEntity: EntityDef = entity("payments.receipt_allocation",
   f("line_no", "number", { required: true }),
   f("invoice_id", "uuid", { required: true }),
   f("invoice_number", "text", { searchable: true }),
-  /** What the allocation settles of the invoice (cash + withholdings). */
+  /** What the allocation settles of the invoice (cash + withholdings), in the invoice's currency. */
   f("amount", "money", { required: true }),
+  /** The same in the receipt's currency (FX §6): equal to `amount` unless pesos settle a foreign-currency invoice. */
+  f("amount_receipt", "money", { required: true }),
+  /** The same in the company's currency at the invoice's rate: what the allocation takes off the receivable (FX §4, §5). */
+  f("amount_company", "money", { required: true }),
+  /** The money of the receipt it took, in the receipt's currency. */
   f("cash_amount", "money", { required: true }),
   f("withholding_total", "money", { required: true }),
   f("withholdings", "json", { sortable: false }),
@@ -185,6 +192,8 @@ export const applicationLineEntity: EntityDef = entity("payments.advance_applica
   f("invoice_number", "text", { searchable: true }),
   /** What the line draws from the receipt's advance and settles of the invoice. */
   f("amount", "money", { required: true }),
+  /** The same in the company's currency (FX §11; equal to `amount` until advances take a foreign currency, plan 2B.2 Task 34.6). */
+  f("amount_company", "money", { required: true }),
   ...trailer(f),
 ]);
 

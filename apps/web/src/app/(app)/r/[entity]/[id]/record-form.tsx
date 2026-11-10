@@ -247,6 +247,7 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
       <ReceiptForm
         key={key}
         today={form.today}
+        companyCurrency={form.companyCurrency}
         methods={form.methods}
         cashBoxes={form.cashBoxes}
         party={form.party}

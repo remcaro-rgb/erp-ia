@@ -34,6 +34,11 @@ export const defaultRoleMappings = (): { role: string; dimension?: string; code:
   { role: "payable", code: "220505" },
   { role: "supplier_advances", code: "133005" },
   { role: "rounding", code: "530595" },
+  // The exchange difference (plan 2B.2 Task 34.5, FX §5): realized on a collection, unrealized at a revaluation (dimension fx_kind:realized |
+  // fx_kind:unrealized narrows them into subaccounts if the accountant wants them, e.g. for formato 2516). Provisional, owner item 126 (a):
+  // the accountant confirms the codes (the seed names 530520 too).
+  { role: "fx_gain", code: "421020" },
+  { role: "fx_loss", code: "530525" },
   { role: "suspense", code: "238095" },
   { role: "income_summary", code: "590505" },
   { role: "current_year_profit", code: "360505" },

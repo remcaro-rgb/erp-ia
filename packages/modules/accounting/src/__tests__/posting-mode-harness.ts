@@ -35,7 +35,7 @@ export type Harness = Awaited<ReturnType<typeof postingModeHarness>>;
 export async function postingModeHarness() {
   const sql = testDb();
   registerCountryPack({ ...co, einvoice: einvoicePack });
-  for (const m of [core, inventory, costing, sales, invoicing, payments]) await syncModuleManifest(sql, m);
+  for (const m of [core, inventory, costing, sales, accounting, invoicing, payments]) await syncModuleManifest(sql, m);
   const seed: SeededTenant = await seedTenant(sql, {
     companies: 2,
     users: [{ name: "clerk", companies: [0], role: "member" }],

@@ -64,7 +64,11 @@ describe("a receipt settles an invoice", () => {
     });
     expect(receipt).toMatchObject({ status: "posted", amount: 1165000, applied: 1190000, withholdingTotal: 25000, advance: 0 });
     expect(receipt.number).toMatch(/^RC-\d+$/);
-    expect(receipt.allocations).toEqual([{ invoiceId: invoice.id, invoiceNumber: invoice.number, amount: 1190000, cashAmount: 1165000, withholdingTotal: 25000 }]);
+    // Task 34.5: a peso allocation's receipt and company amounts are its amount, with no exchange difference.
+    expect(receipt.allocations).toEqual([{
+      invoiceId: invoice.id, invoiceNumber: invoice.number, currency: "COP", amount: 1190000, amountReceipt: 1190000, amountCompany: 1190000,
+      cashAmount: 1165000, withholdingTotal: 25000, fx: { gain: 0, loss: 0 },
+    }]);
     expect(await linesOfReceipt(receipt.id)).toEqual([
       ["111005", 1165000, 0, null], ["135515", 25000, 0, "RTEFTE_SERVICIOS_2_5"], ["130505", 0, 1190000, null],
     ]);
@@ -137,7 +141,7 @@ describe("a receipt settles an invoice", () => {
 });
 
 describe("what an allocation may settle", () => {
-  it("refuses an invoice of another customer, one the DIAN has not accepted, a foreign-currency invoice and an invoice dated after the receipt", async () => {
+  it("refuses an invoice of another customer, one the DIAN has not accepted, a foreign-currency invoice without the pesos received and an invoice dated after the receipt", async () => {
     const other = await h.newCustomer("800197268", "Hotel Casa Andina S.A.S.");
     const theirs = await h.issuedInvoice(1, { partyId: other });
     expect((await h.refusal(h.receive({ amount: 119000, allocations: [{ invoiceId: theirs.id, amount: 119000 }] })))?.message).toMatch(/invoice_other_customer/);
@@ -145,7 +149,8 @@ describe("what an allocation may settle", () => {
     const refused = await h.refusal(h.receive({ amount: 119000, allocations: [{ invoiceId: pending.id, amount: 119000 }] }));
     expect(refused?.message).toMatch(/invoice_not_accepted/);
     const usd = await h.issuedInvoice(1, { currency: "USD", exchangeRate: 4000 });
-    expect((await h.refusal(h.receive({ amount: 1, allocations: [{ invoiceId: usd.id, amount: 1 }] })))?.message).toMatch(/currency_not_supported/);
+    // Task 34.5 (R34-6): pesos may settle a USD invoice, given the pesos received for it (receipt-fx.integration.test.ts covers the rest).
+    expect((await h.refusal(h.receive({ amount: 1, allocations: [{ invoiceId: usd.id, amount: 1 }] })))?.message).toMatch(/amount_receipt_required/);
     const later = await h.issuedInvoice(1);
     expect((await h.refusal(h.receive({ amount: 119000, date: `${h.year}-01-02`, allocations: [{ invoiceId: later.id, amount: 119000 }] })))?.message).toMatch(/invoice_after_receipt/);
     expect((await h.refusal(h.receive({ amount: 1, allocations: [{ invoiceId: "0192b4c0-0000-7000-8000-0000000000ff", amount: 1 }] })))?.message).toMatch(/invoice_not_found/);
@@ -378,7 +383,8 @@ describe("fix round 1: the method's kind, the receipt's date, the caja, a draft 
 describe("migrations 0110 and 0111", () => {
   it("patch an unmodified copy (also one that differs from the old template), leave a modified one, backfill the mappings once, and are a no-op the second time", async () => {
     const sqlOf = (file: string) => readFileSync(new URL(`../../../../../supabase/migrations/${file}`, import.meta.url), "utf8");
-    const migrations = sqlOf("0110_accounting_payment_rules.sql") + "\n" + sqlOf("0111_payments_fix_round_1.sql");
+    // 0151 (Task 34.5) follows: it takes an unedited copy from 0111's template to the current one, with the currency and the fx lines.
+    const migrations = ["0110_accounting_payment_rules.sql", "0111_payments_fix_round_1.sql", "0151_payments_rules_currency.sql"].map(sqlOf).join("\n");
     const current = PAYMENTS_POSTING_RULES[0]!.template as unknown as { lines: { role: string }[]; source: object };
     const old = { ...current, source: { entity: "payments.payment", id: "$.paymentId" }, lines: current.lines.filter((l) => l.role !== "customer_advances") };
     const variant = { ...old, description: "Recibo {{number}}" };

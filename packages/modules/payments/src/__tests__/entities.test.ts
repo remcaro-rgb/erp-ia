@@ -22,6 +22,9 @@ const migration = migrationOf("0109_payments_core.sql");
 /** The masked views of the application entities are pasted in migration 0137 (plan 2B.2 Task 36). */
 const advanceMigration = migrationOf("0137_payments_advance_applications.sql");
 const ADVANCE_ENTITIES = ["payments.advance_application", "payments.advance_application_line"];
+/** The views re-created with the foreign-currency columns are pasted in migration 0150 (plan 2B.2 Task 34.5). */
+const fxMigration = migrationOf("0150_payments_foreign_currency.sql");
+const FX_ENTITIES = ["payments.method", "payments.receipt_allocation", "payments.advance_application_line"];
 
 const loaded = () => {
   const registry = new Registry();
@@ -145,7 +148,12 @@ describe("the payments.received payload", () => {
     // The cash line's dimension is the method's KIND (controller ruling, fix round 1): every kind is mapped by the pack, a free-text code is not.
     expect(payload).toMatchObject({ date: "2026-11-05", number: "RC-310", paymentId: base.receiptId, method: "transfer", methodCode: "BANCOLOMBIA", amount: 1155340, applied: 1190000, advance: 0, advances: [], customer });
     expect(payload.withholdings).toMatchObject({ income: [{ code: "RTEFTE_COMPRAS_2_5", rate: 2.5, base: 1000000, amount: 25000, invoiceId: invoiceA }], vat: [], ica: [{ code: "RTEICA_BOGOTA_0_966", amount: 9660 }] });
-    expect(payload.allocations).toEqual([{ invoiceId: invoiceA, invoiceNumber: "FE-1", amount: 1190000, cash: 1155340, withholdingTotal: 34660, withholdings: expect.any(Array) }]);
+    expect(payload.allocations).toEqual([{
+      invoiceId: invoiceA, invoiceNumber: "FE-1", currency: "COP", amount: 1190000, amountReceipt: 1190000, amountCompany: 1190000, cash: 1155340, withholdingTotal: 34660,
+      withholdings: expect.any(Array), fx: { gain: 0, loss: 0 },
+    }]);
+    // R34-4: a peso receipt carries its document twins equal to its company amounts.
+    expect(payload).toMatchObject({ currency: "COP", exchangeRate: 1, amountDoc: 1155340, appliedDoc: 1190000 });
 
     const lines = (payloadIn: unknown) => {
       const composed = composeEntry(accountingReceived.template as RuleTemplate, { id: "e1", event: "payments.received", payload: payloadIn, createdAt: new Date(), chainId: "c1" }, { tolerance: 0, companyCurrency: "COP" });
@@ -178,6 +186,46 @@ describe("the payments.received payload", () => {
     if (!composed.ok) return;
     expect(composed.entry.lines.map((l) => [l.role, l.side, l.amountCompany])).toEqual([
       ["cash", "debit", 500000], ["withholding_income_suffered", "debit", 2500], ["receivable", "credit", 300000], ["customer_advances", "credit", 202500],
+    ]);
+  });
+
+  it("a USD receipt at 4.000 of a USD invoice carried at 4.100: company amounts at the receipt's rate, the receivable at the invoice's, the loss per allocation (FX §5)", () => {
+    const payload = receivedPayload({
+      ...base, currency: "USD", exchangeRate: 4000, amount: 1500,
+      allocations: [{ invoiceId: invoiceA, invoiceNumber: "FE-1", currency: "USD", amount: 1000, amountReceipt: 1000, amountCompany: 4100000, withholdings: [] }],
+    });
+    expect(payload).toMatchObject({ currency: "USD", exchangeRate: 4000, amount: 6000000, amountDoc: 1500, applied: 4100000, appliedDoc: 1000, advance: 500, advances: [{ amount: 2000000, amountDoc: 500 }] });
+    expect(payload.allocations[0]).toMatchObject({ amountCompany: 4100000, fx: { gain: 0, loss: 100000 } });
+    const composed = composeEntry(accountingReceived.template as RuleTemplate, { id: "e1", event: "payments.received", payload, createdAt: new Date(), chainId: "c1" }, { tolerance: 0, companyCurrency: "COP" });
+    if (!composed.ok) throw new Error(composed.detail);
+    expect(composed.entry).toMatchObject({ currency: "USD", exchangeRate: 4000 });
+    expect(composed.entry.roundingLine).toBeUndefined();
+    expect(composed.entry.lines.map((l) => [l.role, l.side, l.amountDoc, l.amountCompany, l.dimension ?? null])).toEqual([
+      ["cash", "debit", 1500, 6000000, "payment_method:transfer"],
+      ["fx_loss", "debit", 0, 100000, "fx_kind:realized"],
+      ["receivable", "credit", 1000, 4100000, null],
+      ["customer_advances", "credit", 500, 2000000, null],
+    ]);
+  });
+
+  it("pesos against two USD invoices at two rates: each allocation's difference is its pesos received less its pesos at its own rate, the entry balances in pesos", () => {
+    const payload = receivedPayload({
+      ...base, amount: 8320000,
+      allocations: [
+        { invoiceId: invoiceA, invoiceNumber: "FE-1", currency: "USD", amount: 1000, amountReceipt: 4150000, amountCompany: 4100000, withholdings: [] },
+        { invoiceId: invoiceB, invoiceNumber: "FE-2", currency: "USD", amount: 1000, amountReceipt: 4170000, amountCompany: 4200000, withholdings: [] },
+      ],
+    });
+    expect(payload).toMatchObject({ currency: "COP", amount: 8320000, amountDoc: 8320000, applied: 8300000, appliedDoc: 8320000, advance: 0 });
+    expect(payload.allocations.map((a) => a.fx)).toEqual([{ gain: 50000, loss: 0 }, { gain: 0, loss: 30000 }]);
+    const composed = composeEntry(accountingReceived.template as RuleTemplate, { id: "e1", event: "payments.received", payload, createdAt: new Date(), chainId: "c1" }, { tolerance: 0, companyCurrency: "COP" });
+    if (!composed.ok) throw new Error(composed.detail);
+    expect(composed.entry.roundingLine).toBeUndefined();
+    expect(composed.entry.lines.map((l) => [l.role, l.side, l.amountDoc, l.amountCompany])).toEqual([
+      ["cash", "debit", 8320000, 8320000],
+      ["fx_loss", "debit", 0, 30000],
+      ["receivable", "credit", 8320000, 8300000],
+      ["fx_gain", "credit", 0, 50000],
     ]);
   });
 
@@ -239,10 +287,11 @@ describe("the application rules (plan 2B.2 Task 36, R36-2): the ledger shape", (
   });
 });
 
-describe("payments masked views, migrations 0109 and 0137", () => {
+describe("payments masked views, migrations 0109, 0137 and 0150", () => {
   for (const entity of PAYMENTS_ENTITIES) {
     it(`payments.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
-      expect(ADVANCE_ENTITIES.includes(entity.id) ? advanceMigration : migration).toContain(maskedViewSql(defineEntity(entity)));
+      const source = FX_ENTITIES.includes(entity.id) ? fxMigration : ADVANCE_ENTITIES.includes(entity.id) ? advanceMigration : migration;
+      expect(source).toContain(maskedViewSql(defineEntity(entity)));
     });
   }
 });

@@ -116,7 +116,9 @@
         "read_only": "Read-only for your role",
         "choose": "Search…",
         "roles": {
-          "revenue": "Revenue account"
+          "revenue": "Revenue account",
+          "fx_gain": "Exchange difference (income)",
+          "fx_loss": "Exchange difference (expense)"
         }
       },
       "dian": {
@@ -3042,6 +3044,7 @@
         "name": "Name",
         "kind": "Kind",
         "means_code": "DIAN payment means code",
+        "currency": "Currency",
         "is_active": "Active",
         "extra": "Additional data",
         "extra_free": "Free data",
@@ -3097,6 +3100,8 @@
         "invoice_id": "Invoice",
         "invoice_number": "Invoice number",
         "amount": "Amount applied",
+        "amount_receipt": "Amount in the receipt currency",
+        "amount_company": "Amount in pesos at the invoice rate",
         "cash_amount": "Cash applied",
         "withholding_total": "Withholdings",
         "withholdings": "Withholding detail",
@@ -3132,6 +3137,7 @@
         "invoice_id": "Invoice",
         "invoice_number": "Invoice no.",
         "amount": "Amount applied",
+        "amount_company": "Amount in pesos",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
@@ -6346,7 +6352,13 @@
       "invoice_voided": "The invoice is voided",
       "invoice_annulment_pending": "The invoice has an annulment credit note in progress: it takes no payments",
       "invoice_not_accepted": "The DIAN has not accepted the invoice yet: record the payment once it does",
-      "currency_not_supported": "Receipts for foreign-currency invoices come in a later phase",
+      "currency_not_supported": "Advances apply in pesos for now: an invoice or a receipt in another currency takes no advance application",
+      "currency_mismatch": "The receipt currency cannot pay that invoice: pay it in its own currency, or a foreign-currency invoice in pesos",
+      "method_currency_mismatch": "The payment method receives another currency: use a payment method in the receipt currency",
+      "withholding_foreign_currency": "A foreign-currency invoice takes no withholdings on the receipt",
+      "amount_receipt_required": "Enter the pesos received for the foreign-currency invoice",
+      "amount_receipt_mismatch": "On a receipt in the invoice currency, the amount in the receipt currency is the amount applied",
+      "exchange_rate_missing": "There is no exchange rate for the receipt currency on its date: record it in Exchange rates or type it on the receipt",
       "invoice_after_receipt": "The invoice is dated after the receipt",
       "invoice_not_found": "The invoice does not exist or is not visible",
       "duplicate_invoice": "An invoice goes only once on the receipt",
@@ -6444,10 +6456,20 @@
         "amount": "the amount received",
         "cash_short": "an amount that covers the cash applied",
         "over_open": "apply at most each invoice's balance",
-        "withholding": "complete the withholdings"
+        "withholding": "complete the withholdings",
+        "amount_receipt": "what was received for each invoice in another currency"
       },
       "receive_hint": "The receipt posts when recorded",
-      "receive": "Record payment"
+      "receive": "Record payment",
+      "amount_currency_hint": "In {currency}, the payment method's currency",
+      "exchange_rate": "Exchange rate",
+      "exchange_rate_hint": "Pesos per {currency}. Empty: the receipt date's rate in Exchange rates",
+      "received": "Received ({currency})",
+      "received_of": "Received in {currency} for {invoice}",
+      "implied_rate": "Implied rate {rate}",
+      "no_withholding_foreign": "No withholdings (customer abroad)",
+      "method_currency": "Currency",
+      "method_currency_hint": "Three-letter ISO code (COP, USD, EUR). Empty: the company's currency. A receipt is in its payment method's currency; it does not change once the method is created"
     },
     "view": {
       "tabs": {
@@ -6492,6 +6514,7 @@
     "effects": {
       "receipt_applied": "Payments: numbers the cash receipt and applies the payment to the invoices; what is not applied stays as a customer advance",
       "receipt_withholdings": "Withholdings: those the customer applied are recorded as withholdings suffered",
+      "receipt_fx": "Accounting: exchange difference when the invoice is in another currency or at another rate",
       "receipt_voided": "Payments: the receipt is voided (never deleted) and its entry is reversed",
       "advance_applied": "Payments: numbers the application and draws the receipt's advance and each invoice's balance down; the entry moves the amount from customer advances to receivables",
       "advance_undone": "Payments: the application is voided (never deleted), the advance and the invoices get their balance back and the application's entry is reversed"

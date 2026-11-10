@@ -1,7 +1,7 @@
 import { countryPack, defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChanged, genericProcess, ProcessError, runLifecycle, visibleExtra, writeSnapshot, type ProcessContext, type ProcessDef, type RecordStatus, type TypedHooks, type TypedRecord } from "@erp/kernel";
 import { z } from "zod";
 import { receiptEntity, WITHHOLDING_KINDS, type WithholdingKind } from "../entities";
-import { cents, date, id, idInput, markReceiptLinksVoided, money, moneyAmount, num, refuse, refuseState, syncReceiptLinks, today } from "./common";
+import { cents, date, defaultRate, id, idInput, markReceiptLinksVoided, money, moneyAmount, num, refuse, refuseState, syncReceiptLinks, today } from "./common";
 
 // Recibos de caja (plan 2B Task 21; design §8 and §8.1 step 7; accounting design §5.4 and §10a.7: the withholdings a customer practises are
 // recognised when it pays, never on the invoice). A documento that posts (contabiliza) and never waits for approval (own flags).
@@ -10,9 +10,9 @@ import { cents, date, id, idInput, markReceiptLinksVoided, money, moneyAmount, n
 //   1. the customer must be a customer and invoice_ready (rule 10, main §5.17: the receivable and the advances are accounts the ledger takes
 //      only with a ready tercero), the method and the caja usable maestros (the lifecycle's gate);
 //   2. each allocation names an issued invoice of the same customer (invoicing's published view invoicing.v_receivable_invoices, rule 3) that
-//      the DIAN accepted (the prototype's gate: «La factura debe estar aceptada por la DIAN antes de registrar el pago»), in the company's
-//      currency (a foreign-currency collection and its exchange difference come later), not dated after the receipt and without an annulment
-//      in progress (Task 18: its credit note of annulment issued and not yet accepted). Under the invoices' locks (invoicing's
+//      the DIAN accepted (the prototype's gate: «La factura debe estar aceptada por la DIAN antes de registrar el pago»), in an allowed pair of
+//      currencies (R34-6, FX §6: the receipt's own currency, or a peso receipt against a foreign-currency invoice), not dated after the
+//      receipt and without an annulment in progress (Task 18: its credit note of annulment issued and not yet accepted). Under the invoices' locks (invoicing's
 //      lock_invoices_for_payment, FOR UPDATE in id order: two receipts of one invoice wait for each other, and for a note or an Anular in
 //      flight; never a deadlock) an allocation never exceeds what is open of the invoice: total + debit notes − credit notes − what posted
 //      receipts already settled (payments.allocated_amounts, every receipt of the company whoever may read it);
@@ -26,6 +26,15 @@ import { cents, date, id, idInput, markReceiptLinksVoided, money, moneyAmount, n
 //      without accounting receives and the event parks; a ledger never started is refused (ledger_not_started).
 // A retry with the same idempotency key answers the first result, also when both run at once (they queue on the key).
 //
+// Foreign currency (plan 2B.2 Task 34.5, FX §5 realized, §6; owner item 125): a receipt has one currency, the money's, which its method must
+// receive (method_currency_mismatch), and a rate (typed, else the rate table's on the receipt date, else exchange_rate_missing; 1 in pesos).
+// Each allocation keeps three amounts: `amount` in the invoice's currency (what it settles of the open balance), `amount_receipt` in the
+// receipt's (equal to `amount`, except pesos received against a foreign invoice, which the user types: amountReceipt) and `amount_company`
+// at the invoice's rate (what it takes off the receivable; the allocation that closes the invoice takes exactly what is left of its pesos).
+// The pesos the receipt gave for an allocation less its amount_company are the realized exchange difference (fx: gain or loss, per
+// allocation), posted to fx_gain / fx_loss with no document amount. A withholding on a foreign-currency invoice is refused
+// (withholding_foreign_currency: an export customer abroad practises none).
+//
 // Anular (payments.payment.void, STEP-UP) keeps the receipt (voided, never deleted), gives its allocations back (only posted receipts settle
 // an invoice) and reverses its entry inline and strict through the rule `reverseOf` on payments.payment.voided: a closed period refuses the
 // void with nothing written. A receipt whose event is still parked (accounting off) is dismissed so it never posts afterwards.
@@ -37,7 +46,9 @@ export const RECEIPT_PREFIX = "RC-";
 export const FEATURE_RECEIPTS = "payments.receipts";
 /** Every refusal code of the payments processes (the text after `invalid_input:` / `invalid_state:`); payments.errors.<code> names each one. */
 export const PAYMENTS_REFUSAL_CODES = [
-  "allocation_exceeds_open", "invoice_other_customer", "invoice_not_issued", "invoice_voided", "invoice_annulment_pending", "invoice_not_accepted", "currency_not_supported", "invoice_after_receipt", "invoice_not_found", "duplicate_invoice", "cash_short", "invalid_withholding", "nothing_received", "not_invoice_ready", "invalid_party", "invalid_method", "invalid_cash_box", "cash_box_not_cash", "method_kind_unmapped", "invalid_means_code", "means_code_kind_mismatch", "receipt_in_future", "void_before_receipt", "invalid_receipt", "receipt_posted",
+  "allocation_exceeds_open", "invoice_other_customer", "invoice_not_issued", "invoice_voided", "invoice_annulment_pending", "invoice_not_accepted", "currency_not_supported", "invoice_after_receipt",
+  // Foreign receipts (plan 2B.2 Task 34.5, R34-6).
+  "currency_mismatch", "method_currency_mismatch", "withholding_foreign_currency", "amount_receipt_required", "amount_receipt_mismatch", "exchange_rate_missing", "invoice_not_found", "duplicate_invoice", "cash_short", "invalid_withholding", "nothing_received", "not_invoice_ready", "invalid_party", "invalid_method", "invalid_cash_box", "cash_box_not_cash", "method_kind_unmapped", "invalid_means_code", "means_code_kind_mismatch", "receipt_in_future", "void_before_receipt", "invalid_receipt", "receipt_posted",
   // Applying an advance to invoices (plan 2B.2 Task 36): the application's own refusals, and Anular's guard (processes/advance.ts).
   "advance_exceeds_open", "advance_other_customer", "advance_not_found", "advance_not_posted", "duplicate_pair", "application_in_future", "application_before_receipt", "nothing_applied",
   "receipt_has_applications", "invalid_application", "application_posted", "undo_before_application"
@@ -59,8 +70,10 @@ export const withholdingInput = z.object({
 
 export const allocationInput = z.object({
   invoiceId: id,
-  /** What the allocation settles of the invoice: the cash plus the withholdings practised on it. */
+  /** What the allocation settles of the invoice, in the invoice's currency: the cash plus the withholdings practised on it. */
   amount: positive,
+  /** The same in the receipt's currency: required when pesos settle a foreign-currency invoice (the pesos received for it), else `amount`. */
+  amountReceipt: positive.optional(),
   withholdings: z.array(withholdingInput).max(10).default([]),
 }).strict();
 
@@ -70,7 +83,11 @@ export const receiveInput = z.object({
   cashBoxId: id.optional(),
   /** The date of the receipt (the entry's); defaults to the company's today. */
   date: date.optional(),
-  /** The money received. */
+  /** The currency of the money received (ISO 4217); the method's when not given (FX §6). */
+  currency: z.string().trim().regex(/^[A-Z]{3}$/, "La moneda es un código ISO de tres letras, como COP o USD").optional(),
+  /** Pesos per unit of `currency`; the rate table's on the receipt date when not given (1 for the company's currency). */
+  exchangeRate: z.number().finite().positive().max(1e9).optional(),
+  /** The money received, in the receipt's currency. */
   amount: moneyAmount,
   reference: z.string().trim().min(1).max(100).optional(),
   notes: z.string().trim().max(2000).optional(),
@@ -86,16 +103,37 @@ export const receiptOutput = z.object({
   date: z.string(),
   partyId: z.string(),
   methodId: z.string(),
+  currency: z.string(),
+  exchangeRate: z.number(),
   amount: z.number(),
   applied: z.number(),
   withholdingTotal: z.number(),
   advance: z.number(),
-  allocations: z.array(z.object({ invoiceId: z.string(), invoiceNumber: z.string().nullable(), amount: z.number(), cashAmount: z.number(), withholdingTotal: z.number() })),
+  allocations: z.array(z.object({
+    invoiceId: z.string(), invoiceNumber: z.string().nullable(), currency: z.string(), amount: z.number(), amountReceipt: z.number(), amountCompany: z.number(),
+    cashAmount: z.number(), withholdingTotal: z.number(), fx: z.object({ gain: z.number(), loss: z.number() }),
+  })),
 });
 export type ReceiptOutput = z.output<typeof receiptOutput>;
 
 export interface Withholding { kind: WithholdingKind; code: string; rate: number; base: number; amount: number }
-export interface PlannedAllocation { invoiceId: string; invoiceNumber: string | null; amount: number; withholdings: Withholding[] }
+/**
+ * An allocation as the receipt writes it: `amount` in the invoice's currency, `amountReceipt` in the receipt's (default `amount`) and
+ * `amountCompany` in pesos at the invoice's rate (default `amountReceipt` × the receipt's rate: no exchange difference).
+ */
+export interface PlannedAllocation { invoiceId: string; invoiceNumber: string | null; currency?: string; amount: number; amountReceipt?: number; amountCompany?: number; withholdings: Withholding[] }
+
+/** The pesos of `amount` at `rate`, to the cent. */
+const companyCents = (amount: number, rate: number): number => cents(amount * rate);
+
+/**
+ * The realized exchange difference of an allocation (FX §5): the pesos the receipt gave for it (amountReceipt × the receipt's rate) less
+ * the pesos it takes off the receivable (amountCompany). Non-negative, at most one of them is not zero.
+ */
+export function allocationFx(amountReceipt: number, amountCompany: number, rate: number): { gain: number; loss: number } {
+  const diff = companyCents(amountReceipt, rate) - cents(amountCompany);
+  return { gain: Math.max(diff, 0) / 100, loss: Math.max(-diff, 0) / 100 };
+}
 
 export type ReceiptTotals =
   | { ok: true; applied: number; withholdingTotal: number; cashApplied: number; advance: number; lines: { cash: number; withholdingTotal: number }[] }
@@ -150,12 +188,31 @@ export interface ReceivedPayloadInput {
  * withholdings by kind with code / rate / base / amount) plus what the rule's advance line and the consumers read: `advance` and
  * `advances` (one item when there is an advance: Cr customer_advances), the method's id, the caja, the reference, the currency and the
  * allocations (invoice, number, what each settles, its cash, its withholdings).
+ *
+ * Both amounts (R34-4, plan 2B.2 Task 34.5): every money field the 2A shape had keeps its company meaning (pesos) and gains its document
+ * twin in the receipt's currency with `Doc` appended (`amount` / `amountDoc`, `applied` / `appliedDoc`, `withholdings.*[].amountDoc`,
+ * `advances[].amountDoc`); `currency` and `exchangeRate` are the receipt's. The receivable is credited at the invoices' rates (`applied` =
+ * Σ amountCompany), the money at the receipt's: each allocation's `fx` is the difference (FX §5). The cash's pesos are the parts' pesos
+ * (each allocation's pesos received, the advance's, less the withholdings), so the entry balances to the cent in both currencies.
  */
 export function receivedPayload(input: ReceivedPayloadInput) {
-  const totals = receiptTotals(input.amount, input.allocations, input.currency);
+  const rate = input.exchangeRate;
+  const allocations = input.allocations.map((a) => {
+    const amountReceipt = a.amountReceipt ?? a.amount;
+    const amountCompany = a.amountCompany ?? companyCents(amountReceipt, rate) / 100;
+    return { ...a, currency: a.currency ?? input.currency, amountReceipt, amountCompany, fx: allocationFx(amountReceipt, amountCompany, rate) };
+  });
+  // What the receipt applies is counted in its own currency: the money received covers the pesos (or dollars) it gave for each invoice.
+  const totals = receiptTotals(input.amount, allocations.map((a) => ({ ...a, amount: a.amountReceipt })), input.currency);
   if (!totals.ok) throw new Error(`${totals.code}: ${totals.details.join("; ")}`);
   const byKind = (kind: WithholdingKind) =>
-    input.allocations.flatMap((a) => a.withholdings.filter((w) => w.kind === kind).map((w) => ({ code: w.code, rate: w.rate, base: w.base, amount: w.amount, invoiceId: a.invoiceId })));
+    input.allocations.flatMap((a) => a.withholdings.filter((w) => w.kind === kind).map((w) => ({
+      code: w.code, rate: w.rate, base: w.base, amount: companyCents(w.amount, rate) / 100, amountDoc: w.amount, invoiceId: a.invoiceId,
+    })));
+  const heldCompany = allocations.reduce((s, a) => s + a.withholdings.reduce((t, w) => t + companyCents(w.amount, rate), 0), 0);
+  const receivedCompany = allocations.reduce((s, a) => s + companyCents(a.amountReceipt, rate), 0);
+  const advanceCompany = companyCents(totals.advance, rate);
+  const cashCompany = receivedCompany - heldCompany + advanceCompany;
   return {
     date: input.date,
     number: input.number,
@@ -169,14 +226,17 @@ export function receivedPayload(input: ReceivedPayloadInput) {
     reference: input.reference,
     currency: input.currency,
     exchangeRate: input.exchangeRate,
-    amount: input.amount,
-    applied: totals.applied,
+    amount: cashCompany / 100,
+    amountDoc: input.amount,
+    applied: allocations.reduce((s, a) => s + cents(a.amountCompany), 0) / 100,
+    appliedDoc: totals.applied,
     advance: totals.advance,
-    advances: totals.advance > 0 ? [{ amount: totals.advance }] : [],
+    advances: totals.advance > 0 ? [{ amount: advanceCompany / 100, amountDoc: totals.advance }] : [],
     customer: { partyId: input.customer.partyId, legalName: input.customer.legalName },
     withholdings: { income: byKind("income"), vat: byKind("vat"), ica: byKind("ica") },
-    allocations: input.allocations.map((a, i) => ({
-      invoiceId: a.invoiceId, invoiceNumber: a.invoiceNumber, amount: a.amount, cash: totals.lines[i]!.cash, withholdingTotal: totals.lines[i]!.withholdingTotal, withholdings: a.withholdings,
+    allocations: allocations.map((a, i) => ({
+      invoiceId: a.invoiceId, invoiceNumber: a.invoiceNumber, currency: a.currency, amount: a.amount, amountReceipt: a.amountReceipt, amountCompany: a.amountCompany,
+      cash: totals.lines[i]!.cash, withholdingTotal: totals.lines[i]!.withholdingTotal, withholdings: a.withholdings, fx: a.fx,
     })),
   };
 }
@@ -191,7 +251,10 @@ interface ReceiptRow {
   id: string; number: string | null; status: RecordStatus; date: string; party_id: string; method_id: string; method_code: string; cash_box_id: string | null;
   reference: string | null; currency: string; exchange_rate: string; amount: string; applied: string; withholding_total: string; advance: string; updated_at: Date;
 }
-interface AllocationRow { invoice_id: string; invoice_number: string | null; amount: string; cash_amount: string; withholding_total: string; withholdings: Withholding[] | null }
+interface AllocationRow {
+  invoice_id: string; invoice_number: string | null; invoice_currency: string | null; amount: string; amount_receipt: string; amount_company: string; cash_amount: string;
+  withholding_total: string; withholdings: Withholding[] | null;
+}
 
 async function readReceipt(ctx: ProcessContext, receiptId: string, lock = false): Promise<ReceiptRow> {
   const rows = lock
@@ -207,17 +270,26 @@ async function readReceipt(ctx: ProcessContext, receiptId: string, lock = false)
   return rows[0];
 }
 
+/** The receipt's allocations, each with its invoice's currency (invoicing's published view; null when the caller cannot see the invoice). */
 const allocationsOf = (ctx: ProcessContext, receiptId: string) => ctx.tx<AllocationRow[]>`
-  select invoice_id, invoice_number, amount::text, cash_amount::text, withholding_total::text, withholdings
-  from payments.receipt_allocations where receipt_id = ${receiptId} order by line_no`;
+  select a.invoice_id, a.invoice_number, i.currency as invoice_currency, a.amount::text, a.amount_receipt::text, a.amount_company::text, a.cash_amount::text,
+         a.withholding_total::text, a.withholdings
+  from payments.receipt_allocations a left join invoicing.v_receivable_invoices i on i.id = a.invoice_id
+  where a.receipt_id = ${receiptId} order by a.line_no`;
 
 async function outputOf(ctx: ProcessContext, receiptId: string): Promise<ReceiptOutput> {
   const r = await readReceipt(ctx, receiptId);
   const lines = await allocationsOf(ctx, receiptId);
+  const currency = r.currency.trim();
+  const rate = num(r.exchange_rate);
   return {
-    id: r.id, number: r.number, status: r.status, date: r.date, partyId: r.party_id, methodId: r.method_id,
+    id: r.id, number: r.number, status: r.status, date: r.date, partyId: r.party_id, methodId: r.method_id, currency, exchangeRate: rate,
     amount: num(r.amount), applied: num(r.applied), withholdingTotal: num(r.withholding_total), advance: num(r.advance),
-    allocations: lines.map((l) => ({ invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, amount: num(l.amount), cashAmount: num(l.cash_amount), withholdingTotal: num(l.withholding_total) })),
+    allocations: lines.map((l) => ({
+      invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, currency: l.invoice_currency?.trim() ?? currency, amount: num(l.amount),
+      amountReceipt: num(l.amount_receipt), amountCompany: num(l.amount_company), cashAmount: num(l.cash_amount), withholdingTotal: num(l.withholding_total),
+      fx: allocationFx(num(l.amount_receipt), num(l.amount_company), rate),
+    })),
   };
 }
 
@@ -254,12 +326,16 @@ export async function readyCustomer(ctx: ProcessContext, partyId: string): Promi
 export interface InvoiceFacts {
   id: string; party_id: string; number: string | null; issue_date: string; currency: string; total: string; credited_amount: string; debited_amount: string;
   stage: string; status: string; dian_status: string; annulment_pending: boolean;
+  /** The invoice's frozen rate and its pesos (invoicing.v_receivable_invoices): what a foreign allocation is carried at. */
+  exchange_rate?: string; total_company?: string;
 }
 
 /**
  * Why an invoice cannot receive a payment of `partyId` dated `receiptDate` in `currency` (the first reason, in the words the screens show),
- * or null when it can: the customer's own, issued, not voided, no annulment in progress, accepted by the DIAN, in the company's currency and
- * not dated after the receipt. «Registrar pago» refuses with it; the open invoices list (payments.payment.open_invoices) shows it.
+ * or null when it can: the customer's own, issued, not voided, no annulment in progress, accepted by the DIAN, in an allowed pair of
+ * currencies and not dated after the receipt. «Registrar pago» refuses with it; the open invoices list (payments.payment.open_invoices)
+ * shows it. With `companyCurrency` (a receipt, R34-6) the pairs are the same currency, or a receipt in the company's currency against a
+ * foreign-currency invoice (`currency_mismatch` otherwise); without it (an advance application, plan Task 34.6) only the same currency.
  */
 export function payability(
   inv: Pick<InvoiceFacts, "party_id" | "stage" | "status" | "annulment_pending" | "dian_status" | "currency" | "issue_date">,
@@ -267,13 +343,20 @@ export function payability(
   currency: string,
   receiptDate: string,
   name: string,
+  companyCurrency?: string,
 ): { code: string; message: string } | null {
   if (inv.party_id !== partyId) return { code: "invoice_other_customer", message: `La factura ${name} es de otro cliente` };
   if (inv.stage === "draft" || inv.status === "draft") return { code: "invoice_not_issued", message: `La factura ${name} está en borrador: se paga una factura emitida` };
   if (inv.stage === "voided" || inv.status === "voided") return { code: "invoice_voided", message: `La factura ${name} está anulada` };
   if (inv.annulment_pending) return { code: "invoice_annulment_pending", message: `La factura ${name} tiene una nota crédito de anulación en curso: no recibe pagos` };
   if (inv.dian_status !== "accepted") return { code: "invoice_not_accepted", message: `La DIAN aún no ha aceptado la factura ${name}: el pago se registra cuando la acepte` };
-  if (inv.currency !== currency) return { code: "currency_not_supported", message: `La factura ${name} está en ${inv.currency}: los recibos de facturas en moneda extranjera llegan en una fase posterior` };
+  const invoiceCurrency = inv.currency.trim();
+  if (invoiceCurrency !== currency) {
+    if (companyCurrency === undefined) return { code: "currency_not_supported", message: `La factura ${name} está en ${invoiceCurrency}: los anticipos se aplican por ahora solo a facturas en ${currency}` };
+    if (currency !== companyCurrency) {
+      return { code: "currency_mismatch", message: `La factura ${name} está en ${invoiceCurrency}: un recibo en ${currency} no la paga; se paga en ${invoiceCurrency} o en ${companyCurrency}` };
+    }
+  }
   if (inv.issue_date > receiptDate) return { code: "invoice_after_receipt", message: `La factura ${name} es del ${inv.issue_date}, posterior al recibo (${receiptDate})` };
   return null;
 }
@@ -286,10 +369,10 @@ export const openOf = (inv: Pick<InvoiceFacts, "total" | "debited_amount" | "cre
  * The invoices named by `ids` (in the order of the lines, a repeated one is read once), checked visible to the caller (invoicing's published
  * view, security_invoker: an invoice the user cannot read cannot be paid by id; `invoice_not_found` names the lines), locked in id order
  * (invoicing.lock_invoices_for_payment: one lock order, no deadlock between receipts and applications) and read again as they stand under the
- * lock, with what the posted receipts and applications already settled of each (payments.allocated_amounts, read after the lock: a document
+ * lock, with what the posted receipts and applications already settled of each (payments.allocated_company_amounts, read after the lock: a document
  * that committed meanwhile counts).
  */
-export async function lockInvoices(ctx: ProcessContext, ids: readonly string[]): Promise<{ locked: Map<string, InvoiceFacts>; settled: Map<string, number> }> {
+export async function lockInvoices(ctx: ProcessContext, ids: readonly string[]): Promise<{ locked: Map<string, InvoiceFacts>; settled: Map<string, number>; settledCompany: Map<string, number> }> {
   const unique = [...new Set(ids)].sort();
   const visible = new Set((await ctx.tx<{ id: string }[]>`select id from invoicing.v_receivable_invoices where id = any(${unique}::uuid[])`).map((r) => r.id));
   const missing = ids.flatMap((invoiceId, i) => (visible.has(invoiceId) ? [] : [`Línea ${i + 1}: la factura no existe o no es visible`]));
@@ -297,38 +380,73 @@ export async function lockInvoices(ctx: ProcessContext, ids: readonly string[]):
   const locked = new Map((await ctx.tx<InvoiceFacts[]>`
     select id, party_id, number, issue_date::text as issue_date, currency, total::text, credited_amount::text, debited_amount::text, stage, status, dian_status, annulment_pending
     from invoicing.lock_invoices_for_payment(${unique}::uuid[])`).map((r) => [r.id, r]));
-  const settled = new Map((await ctx.tx<{ invoice_id: string; allocated: string }[]>`
-    select invoice_id, allocated::text from payments.allocated_amounts(${unique}::uuid[])`).map((r) => [r.invoice_id, num(r.allocated)]));
-  return { locked, settled };
+  // The frozen rate and pesos of each (an issued invoice never changes them; read under the lock from invoicing's published view).
+  for (const r of await ctx.tx<{ id: string; exchange_rate: string; total_company: string }[]>`
+    select id, exchange_rate::text, total_company::text from invoicing.v_receivable_invoices where id = any(${unique}::uuid[])`) {
+    const inv = locked.get(r.id);
+    if (inv) Object.assign(inv, { exchange_rate: r.exchange_rate, total_company: r.total_company });
+  }
+  const amounts = await ctx.tx<{ invoice_id: string; allocated: string; allocated_company: string }[]>`
+    select invoice_id, allocated::text, allocated_company::text from payments.allocated_company_amounts(${unique}::uuid[])`;
+  const settled = new Map(amounts.map((r) => [r.invoice_id, num(r.allocated)]));
+  const settledCompany = new Map(amounts.map((r) => [r.invoice_id, num(r.allocated_company)]));
+  return { locked, settled, settledCompany };
+}
+
+/**
+ * What a foreign-currency allocation takes off the receivable, in pesos at the invoice's rate (FX §4, §5): `amount` × the rate, to the cent;
+ * the allocation that settles what is open takes exactly what is left of the invoice's pesos (its total_company and its notes at its rate,
+ * less what the posted receipts and applications already took), so a collection in full always closes the receivable in both currencies.
+ */
+function carryingCompany(inv: InvoiceFacts, amount: number, open: number, settledCompany: number): number {
+  const rate = num(inv.exchange_rate ?? 1);
+  if (cents(amount) !== cents(open)) return companyCents(amount, rate) / 100;
+  const notes = companyCents(num(inv.debited_amount), rate) - companyCents(num(inv.credited_amount), rate);
+  return (cents(num(inv.total_company ?? inv.total)) + notes - cents(settledCompany)) / 100;
 }
 
 /**
  * The invoices of the allocations, locked (invoicing.lock_invoices_for_payment) and checked: the customer's own, issued, accepted by the
- * DIAN, in the company's currency, not after the receipt, no annulment in progress, and each allocation within what is open. Answers each
- * allocation with its invoice number.
+ * DIAN, in an allowed pair with the receipt's currency (R34-6), not after the receipt, no annulment in progress, each allocation within what
+ * is open, no withholding on a foreign-currency invoice and, when pesos settle a foreign-currency invoice, the pesos received for it. Answers
+ * each allocation with its invoice number and its three amounts.
  */
-async function checkAllocations(ctx: ProcessContext, partyId: string, receiptDate: string, currency: string, allocations: z.output<typeof allocationInput>[]): Promise<PlannedAllocation[]> {
+async function checkAllocations(
+  ctx: ProcessContext, partyId: string, receiptDate: string, currency: string, companyCurrency: string, allocations: z.output<typeof allocationInput>[],
+): Promise<PlannedAllocation[]> {
   if (allocations.length === 0) return [];
   const ids = allocations.map((a) => a.invoiceId);
   const repeated = ids.filter((v, i) => ids.indexOf(v) !== i);
   if (repeated.length > 0) refuse("duplicate_invoice", ["Una factura va una sola vez en el recibo: suma lo que se le aplica en una línea"]);
-  const { locked, settled } = await lockInvoices(ctx, ids);
+  const { locked, settled, settledCompany } = await lockInvoices(ctx, ids);
 
   const errors: { code: string; message: string }[] = [];
   const planned = allocations.map((a, i): PlannedAllocation => {
     const inv = locked.get(a.invoiceId);
     const fail = (code: string, message: string) => errors.push({ code, message });
+    const invoiceCurrency = inv?.currency.trim() ?? currency;
+    let amountReceipt = a.amountReceipt ?? a.amount;
+    let amountCompany = companyCents(a.amount, 1) / 100;
     if (!inv) fail("invoice_not_found", `Línea ${i + 1}: la factura no existe o no es visible`);
     else {
       const name = inv.number ?? `de la línea ${i + 1}`;
-      const blocked = payability(inv, partyId, currency, receiptDate, name);
+      const blocked = payability(inv, partyId, currency, receiptDate, name, companyCurrency);
+      const foreign = invoiceCurrency !== companyCurrency;
       if (blocked) fail(blocked.code, blocked.message);
-      else {
+      else if (foreign && a.withholdings.length > 0) {
+        fail("withholding_foreign_currency", `La factura ${name} está en ${invoiceCurrency}: un cliente del exterior no practica retenciones; registra el pago sin ellas`);
+      } else if (foreign && currency !== invoiceCurrency && a.amountReceipt === undefined) {
+        fail("amount_receipt_required", `La factura ${name} está en ${invoiceCurrency}: indica los ${currency} recibidos por los ${money(a.amount, invoiceCurrency)} que se aplican`);
+      } else if (currency === invoiceCurrency && a.amountReceipt !== undefined && cents(a.amountReceipt) !== cents(a.amount)) {
+        fail("amount_receipt_mismatch", `La factura ${name} está en la moneda del recibo: lo recibido por ella es lo aplicado (${money(a.amount, currency)})`);
+      } else {
         const open = openOf(inv, settled.get(inv.id) ?? 0);
-        if (cents(a.amount) > cents(open)) fail("allocation_exceeds_open", `La factura ${name} tiene un saldo de ${money(Math.max(open, 0), currency)}: no se le puede aplicar ${money(a.amount, currency)}`);
+        if (cents(a.amount) > cents(open)) fail("allocation_exceeds_open", `La factura ${name} tiene un saldo de ${money(Math.max(open, 0), invoiceCurrency)}: no se le puede aplicar ${money(a.amount, invoiceCurrency)}`);
+        if (currency === invoiceCurrency) amountReceipt = a.amount;
+        amountCompany = foreign ? carryingCompany(inv, a.amount, open, settledCompany.get(inv.id) ?? 0) : a.amount;
       }
     }
-    return { invoiceId: a.invoiceId, invoiceNumber: inv?.number ?? null, amount: a.amount, withholdings: a.withholdings };
+    return { invoiceId: a.invoiceId, invoiceNumber: inv?.number ?? null, currency: invoiceCurrency, amount: a.amount, amountReceipt, amountCompany, withholdings: a.withholdings };
   });
   if (errors.length > 0) refuse(errors[0]!.code, errors.map((e) => e.message));
   return planned;
@@ -374,7 +492,7 @@ export const paymentReceive = defineProcess({
     const on = input.date ?? now;
     if (on > now) refuse("receipt_in_future", [`El recibo no puede tener fecha posterior a hoy (${now}): registra el pago cuando se reciba`]);
     await readyCustomer(ctx, input.partyId);
-    const [method] = await ctx.tx<{ code: string; kind: string; name: string }[]>`select code, kind, name from payments.methods where id = ${input.methodId} and deleted_at is null`;
+    const [method] = await ctx.tx<{ code: string; kind: string; name: string; currency: string }[]>`select code, kind, name, currency from payments.methods where id = ${input.methodId} and deleted_at is null`;
     if (!method) refuse("invalid_method", ["El medio de pago no existe"]);
     const [company] = await ctx.tx<{ currency_code: string; country_code: string }[]>`select currency_code, country_code from kernel.companies where id = ${ctx.companyId}`;
     // The cash or bank account follows the method's kind (payment_method:<kind>): a kind the country pack maps to no account would fall back
@@ -387,9 +505,18 @@ export const paymentReceive = defineProcess({
       if (!box) refuse("invalid_cash_box", ["La caja no existe"]);
       if (method.kind !== "cash") refuse("cash_box_not_cash", [`Una caja recibe efectivo: el medio ${method.name} no es de efectivo`]);
     }
-    const currency = company!.currency_code.trim();
-    const planned = await checkAllocations(ctx, input.partyId, on, currency, input.allocations);
-    const totals = receiptTotals(input.amount, planned, currency);
+    const companyCurrency = company!.currency_code.trim();
+    // The receipt's currency is the money's: its method must receive it (FX §6), so the money lands in that method's account.
+    const methodCurrency = method.currency.trim();
+    const currency = input.currency ?? methodCurrency;
+    if (currency !== methodCurrency) {
+      refuse("method_currency_mismatch", [`El medio de pago ${method.name} recibe ${methodCurrency}: un recibo en ${currency} va por un medio de pago en ${currency}`]);
+    }
+    const exchangeRate = currency === companyCurrency ? 1 : (input.exchangeRate ?? (await defaultRate(ctx.tx, currency, on)));
+    if (exchangeRate === null) refuse("exchange_rate_missing", [`No hay tasa de cambio para ${currency} el ${on}; regístrala en Tasas de cambio o escríbela en el recibo`]);
+    const planned = await checkAllocations(ctx, input.partyId, on, currency, companyCurrency, input.allocations);
+    // Counted in the receipt's currency: what it gave for each invoice (amountReceipt).
+    const totals = receiptTotals(input.amount, planned.map((a) => ({ ...a, amount: a.amountReceipt ?? a.amount })), currency);
     if (!totals.ok) refuse(totals.code, totals.details);
 
     const [header] = await ctx.tx<{ id: string }[]>`
@@ -403,7 +530,7 @@ export const paymentReceive = defineProcess({
         reference: input.reference ?? null,
         notes: input.notes ?? null,
         currency,
-        exchange_rate: 1,
+        exchange_rate: exchangeRate,
         amount: input.amount,
         applied: totals.applied,
         withholding_total: totals.withholdingTotal,
@@ -424,6 +551,8 @@ export const paymentReceive = defineProcess({
         invoice_id: a.invoiceId,
         invoice_number: a.invoiceNumber,
         amount: a.amount,
+        amount_receipt: a.amountReceipt ?? a.amount,
+        amount_company: a.amountCompany ?? a.amount,
         cash_amount: totals.lines[i]!.cash,
         withholding_total: totals.lines[i]!.withholdingTotal,
         withholdings: ctx.tx.json(a.withholdings as never),
@@ -455,15 +584,17 @@ export const openInvoices = defineProcess({
   module: "payments",
   kind: "consult",
   feature: FEATURE_RECEIPTS,
-  description: "Consulta las facturas emitidas de un cliente con su saldo y si un recibo de caja puede pagarlas (aceptadas por la DIAN), o por qué no",
-  input: z.object({ partyId: id, date: date.optional() }).strict(),
+  description: "Consulta las facturas emitidas de un cliente con su saldo en su moneda y si un recibo de caja en la moneda indicada (la de la empresa si no se indica) puede pagarlas (aceptadas por la DIAN), o por qué no",
+  input: z.object({ partyId: id, date: date.optional(), currency: z.string().trim().regex(/^[A-Z]{3}$/).optional() }).strict(),
   output: z.object({
     invoices: z.array(z.object({
       id: z.string(), number: z.string().nullable(), issueDate: z.string(), dueDate: z.string().nullable(), currency: z.string(), total: z.number(), open: z.number(),
+      /** What is open in the invoice's currency (the same as `open`, named for the two-currency screens; plan 2B.2 Task 34.5). */
+      openDoc: z.number(),
       payable: z.boolean(), reasonCode: z.string().nullable(), reason: z.string().nullable(),
     })),
   }),
-  handler: async (ctx, { partyId, date: given }) => {
+  handler: async (ctx, { partyId, date: given, currency: receiptCurrency }) => {
     const [party] = await ctx.tx<{ id: string }[]>`select id from core.v_party_sales where id = ${partyId}`;
     if (!party) refuse("invalid_party", ["El cliente no existe o no es visible"]);
     // invoicing.v_receivable_invoices is published unmasked: a caller who may not see the invoice's number or amounts gets no list (F-5.4).
@@ -473,7 +604,8 @@ export const openInvoices = defineProcess({
     }
     const on = given ?? (await today(ctx));
     const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
-    const currency = company!.currency_code.trim();
+    const companyCurrency = company!.currency_code.trim();
+    const currency = receiptCurrency ?? companyCurrency;
     const rows = await ctx.tx<(InvoiceFacts & { due_date: string | null })[]>`
       select id, party_id, number, issue_date::text as issue_date, due_date::text as due_date, currency, total::text, credited_amount::text, debited_amount::text,
              stage, status, dian_status, annulment_pending
@@ -487,9 +619,9 @@ export const openInvoices = defineProcess({
       invoices: rows.flatMap((inv) => {
         const open = openOf(inv, settled.get(inv.id) ?? 0);
         if (open <= 0) return [];
-        const blocked = payability(inv, partyId, currency, on, inv.number ?? inv.id);
+        const blocked = payability(inv, partyId, currency, on, inv.number ?? inv.id, companyCurrency);
         return [{
-          id: inv.id, number: inv.number, issueDate: inv.issue_date, dueDate: inv.due_date, currency: inv.currency, total: num(inv.total), open,
+          id: inv.id, number: inv.number, issueDate: inv.issue_date, dueDate: inv.due_date, currency: inv.currency.trim(), total: num(inv.total), open, openDoc: open,
           payable: blocked === null, reasonCode: blocked?.code ?? null, reason: blocked?.message ?? null,
         }];
       }),
@@ -615,12 +747,13 @@ export const receiptHooks: TypedHooks = {
       methodId: r.method_id,
       cashBoxId: r.cash_box_id,
       reference: r.reference,
-      currency: r.currency,
+      currency: r.currency.trim(),
       exchangeRate: num(r.exchange_rate),
       amount: num(r.amount),
       customer: { partyId: r.party_id, legalName: fiscal?.legal_name ?? fiscal?.document_number ?? r.party_id },
       allocations: lines.map((l) => ({
-        invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, amount: num(l.amount),
+        invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, currency: l.invoice_currency?.trim() ?? r.currency.trim(), amount: num(l.amount),
+        amountReceipt: num(l.amount_receipt), amountCompany: num(l.amount_company),
         withholdings: (l.withholdings ?? []).map((w) => ({ kind: w.kind, code: w.code, rate: Number(w.rate), base: Number(w.base), amount: Number(w.amount) })),
       })),
     });

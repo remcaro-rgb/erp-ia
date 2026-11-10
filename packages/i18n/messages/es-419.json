@@ -116,7 +116,9 @@
         "read_only": "Solo lectura para tu rol",
         "choose": "Buscar…",
         "roles": {
-          "revenue": "Cuenta de ingresos"
+          "revenue": "Cuenta de ingresos",
+          "fx_gain": "Diferencia en cambio (ingreso)",
+          "fx_loss": "Diferencia en cambio (gasto)"
         }
       },
       "dian": {
@@ -3042,6 +3044,7 @@
         "name": "Nombre",
         "kind": "Tipo",
         "means_code": "Código DIAN del medio de pago",
+        "currency": "Moneda",
         "is_active": "Activo",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
@@ -3097,6 +3100,8 @@
         "invoice_id": "Factura",
         "invoice_number": "Número de la factura",
         "amount": "Valor aplicado",
+        "amount_receipt": "Valor en la moneda del recibo",
+        "amount_company": "Valor en pesos a la tasa de la factura",
         "cash_amount": "Efectivo aplicado",
         "withholding_total": "Retenciones",
         "withholdings": "Detalle de retenciones",
@@ -3132,6 +3137,7 @@
         "invoice_id": "Factura",
         "invoice_number": "N.º de la factura",
         "amount": "Valor aplicado",
+        "amount_company": "Valor en pesos",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -6346,7 +6352,13 @@
       "invoice_voided": "La factura está anulada",
       "invoice_annulment_pending": "La factura tiene una nota crédito de anulación en curso: no recibe pagos",
       "invoice_not_accepted": "La DIAN aún no ha aceptado la factura: el pago se registra cuando la acepte",
-      "currency_not_supported": "Los recibos de facturas en moneda extranjera llegan en una fase posterior",
+      "currency_not_supported": "Los anticipos se aplican por ahora en pesos: una factura o un recibo en otra moneda no recibe aplicaciones de anticipo",
+      "currency_mismatch": "La moneda del recibo no sirve para esa factura: se paga en su misma moneda, o en pesos una factura en moneda extranjera",
+      "method_currency_mismatch": "El medio de pago recibe otra moneda: usa un medio de pago en la moneda del recibo",
+      "withholding_foreign_currency": "Una factura en moneda extranjera no lleva retenciones en el recibo",
+      "amount_receipt_required": "Indica los pesos recibidos por la factura en moneda extranjera",
+      "amount_receipt_mismatch": "En un recibo de la misma moneda de la factura, el valor en la moneda del recibo es el valor aplicado",
+      "exchange_rate_missing": "No hay tasa de cambio para la moneda del recibo en su fecha: regístrala en Tasas de cambio o escríbela en el recibo",
       "invoice_after_receipt": "La factura es posterior a la fecha del recibo",
       "invoice_not_found": "La factura no existe o no es visible",
       "duplicate_invoice": "Una factura va una sola vez en el recibo",
@@ -6444,10 +6456,20 @@
         "amount": "el valor recibido",
         "cash_short": "un valor recibido que cubra el efectivo aplicado",
         "over_open": "aplicar como máximo el saldo de cada factura",
-        "withholding": "completar las retenciones"
+        "withholding": "completar las retenciones",
+        "amount_receipt": "lo recibido por cada factura en otra moneda"
       },
       "receive_hint": "Contabiliza el recibo al registrarlo",
-      "receive": "Registrar pago"
+      "receive": "Registrar pago",
+      "amount_currency_hint": "En {currency}, la moneda del medio de pago",
+      "exchange_rate": "Tasa de cambio",
+      "exchange_rate_hint": "Pesos por cada {currency}. Vacía: la tasa de la fecha del recibo en Tasas de cambio",
+      "received": "Recibido ({currency})",
+      "received_of": "Recibido en {currency} por {invoice}",
+      "implied_rate": "Tasa implícita {rate}",
+      "no_withholding_foreign": "Sin retenciones (cliente del exterior)",
+      "method_currency": "Moneda",
+      "method_currency_hint": "ISO de tres letras (COP, USD, EUR). Vacía: la moneda de la empresa. Un recibo va en la moneda de su medio de pago; no cambia después de crear el medio"
     },
     "view": {
       "tabs": {
@@ -6492,6 +6514,7 @@
     "effects": {
       "receipt_applied": "Pagos: numera el recibo de caja y aplica el pago a las facturas; lo no aplicado queda como anticipo del cliente",
       "receipt_withholdings": "Retenciones: las que practicó el cliente quedan registradas como retenciones sufridas",
+      "receipt_fx": "Contabilidad: diferencia en cambio cuando la factura está en otra moneda o a otra tasa",
       "receipt_voided": "Pagos: el recibo queda anulado (nunca se borra) y su asiento se revierte",
       "advance_applied": "Pagos: numera la aplicación y descuenta el anticipo del recibo y el saldo de cada factura; el asiento pasa el valor de anticipos de clientes a cuentas por cobrar",
       "advance_undone": "Pagos: la aplicación queda anulada (nunca se borra), el anticipo y las facturas recuperan su saldo y el asiento de la aplicación se revierte"

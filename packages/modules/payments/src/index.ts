@@ -34,9 +34,12 @@ export const payments: ModuleDef = defineModule({
   navigation: NAVIGATION,
   typedHooks: { "payments.method": methodHooks, "payments.cash_box": cashBoxHooks, "payments.receipt": receiptHooks, "payments.advance_application": applicationHooks },
   postingRules: PAYMENTS_POSTING_RULES,
+  // The receipt rule posts the realized exchange difference (plan 2B.2 Task 34.5, FX §5): the roles accounting declares, named here too
+  // because a module's rules may name only the kernel catalogue and its own roles (rule 4: modules never import one another).
+  accountRoles: ["fx_gain", "fx_loss"],
   // What the assistant's confirmation card tells about a receipt (plan 2B Task 25); the ledger's own line comes from the posting provider.
   effects: {
-    "payments.payment.receive": ["payments.effects.receipt_applied", "payments.effects.receipt_withholdings"],
+    "payments.payment.receive": ["payments.effects.receipt_applied", "payments.effects.receipt_withholdings", "payments.effects.receipt_fx"],
     "payments.payment.void": ["payments.effects.receipt_voided"],
     // Aplicar anticipo a factura (plan 2B.2 Task 36, R36-12): the card names the ledger reclass; the ledger's own line comes from the posting provider.
     "payments.advance.apply": ["payments.effects.advance_applied"],

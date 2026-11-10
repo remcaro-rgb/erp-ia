@@ -314,6 +314,8 @@ export const advanceApply = defineProcess({
       invoice_id: l.invoiceId,
       invoice_number: locked.get(l.invoiceId)!.number,
       amount: l.amount,
+      // An application is in pesos (COP only until plan Task 34.6): its pesos are its amount.
+      amount_company: l.amount,
     })))}`;
     // invoice_to_application and receipt_to_application, in this transaction (Task 31).
     await syncApplicationLinks(ctx, applicationId, input.lines.map((l) => l.invoiceId), input.lines.map((l) => l.receiptId));

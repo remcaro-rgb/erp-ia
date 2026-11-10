@@ -44,10 +44,19 @@ export const ACCOUNTING_RECORD_TABS: RecordTabContribution[] = [
   { id: "accounting.subject_accounts", label: "common.record.tabs.cuentas", forEntities: ["kernel.role", "kernel.user"], kind: "grid", feature: "accounting.ledger", source: "accounting.account_permission" },
 ];
 
+/**
+ * The exchange-difference roles (plan 2B.2 Task 34.5, FX §5): `fx_gain` (diferencia en cambio, ingreso) and `fx_loss` (gasto). The country
+ * pack maps them; the rules narrow them by the dimension `fx_kind:<kind>`, realized (a collection) or unrealized (a period-end revaluation).
+ */
+export const FX_ROLES = ["fx_gain", "fx_loss"] as const;
+export const FX_KINDS = ["realized", "unrealized"] as const;
+export type FxKind = (typeof FX_KINDS)[number];
+
 export const accounting: ModuleDef = defineModule({
   id: "accounting",
   version: "0.1.0",
   dependsOn: ["core"],
+  accountRoles: [...FX_ROLES],
   icon: "calculator",
   adopts: ["core.parties"],
   entities: ACCOUNTING_ENTITIES,

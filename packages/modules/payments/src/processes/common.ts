@@ -137,3 +137,19 @@ export async function syncApplicationLinks(ctx: ProcessContext, applicationId: s
 export async function markApplicationLinksVoided(ctx: ProcessContext, applicationId: string, reason: string): Promise<void> {
   await linksOf(ctx).markVoided({ entity: APPLICATION, id: applicationId, reason: reason.slice(0, 500) });
 }
+
+/** How many days back a document looks for the latest rate of its currency (a weekend or a holiday without a TRM row, FX §2; as invoicing). */
+export const RATE_LOOKBACK_DAYS = 3;
+
+/**
+ * The rate of `currency` on `date` from the company's rate table (core's published view core.v_exchange_rates, R34-2): the latest row on or
+ * before the date within RATE_LOOKBACK_DAYS, or null when there is none (the receipt then refuses `exchange_rate_missing`).
+ */
+export async function defaultRate(tx: ProcessContext["tx"], currency: string, date: string): Promise<number | null> {
+  const [row] = await tx<{ rate: string | null }[]>`
+    select rate::text from core.v_exchange_rates
+    where company_id = kernel.current_company_id() and currency = ${currency} and rate is not null
+      and rate_date between ${date}::date - ${RATE_LOOKBACK_DAYS}::int and ${date}::date
+    order by rate_date desc limit 1`;
+  return row?.rate ? Number(row.rate) : null;
+}

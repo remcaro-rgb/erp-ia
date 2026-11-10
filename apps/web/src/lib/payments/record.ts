@@ -135,6 +135,8 @@ export interface PaymentsFormData {
   kind: "payments";
   payments: PaymentsFormKind;
   today: string;
+  /** The company's currency: a method in another one makes a foreign receipt (plan 2B.2 Task 34.5). */
+  companyCurrency: string;
   /** A medio de pago's «Código DIAN» options. */
   meansCodes: CodeOption[];
   /** «Registrar pago»: the usable medios de pago and cajas. */
@@ -174,11 +176,11 @@ export async function loadPaymentsForm(caller: Caller, entityId: string, record:
   const kind = PAYMENTS_FORMS[entityId]!;
   const t = await getTranslations();
   const company = await withClaims(deps.sql, caller.claims, async (tx) => {
-    const [row] = await tx<{ today: string; country: string }[]>`
-      select (now() at time zone timezone)::date::text as today, country_code as country from kernel.companies where id = ${caller.claims.active_company_id}`;
-    return { today: row?.today ?? new Date().toISOString().slice(0, 10), country: row?.country ?? "CO" };
+    const [row] = await tx<{ today: string; country: string; currency: string }[]>`
+      select (now() at time zone timezone)::date::text as today, country_code as country, trim(currency_code) as currency from kernel.companies where id = ${caller.claims.active_company_id}`;
+    return { today: row?.today ?? new Date().toISOString().slice(0, 10), country: row?.country ?? "CO", currency: row?.currency ?? "COP" };
   });
-  const base: PaymentsFormData = { kind: "payments", payments: kind, today: company.today, meansCodes: [], methods: [], cashBoxes: [], party: { fields: [], entityLabel: t("entity.core.party") }, invoicesLinkable: false, view: null, application: null };
+  const base: PaymentsFormData = { kind: "payments", payments: kind, today: company.today, companyCurrency: company.currency, meansCodes: [], methods: [], cashBoxes: [], party: { fields: [], entityLabel: t("entity.core.party") }, invoicesLinkable: false, view: null, application: null };
   if (kind === "method") {
     const means = countryPack(company.country).einvoice?.paymentMeans ?? [];
     const key = (code: string) => `invoicing.values.payment_means.${code.toLowerCase()}`;
@@ -191,7 +193,7 @@ export async function loadPaymentsForm(caller: Caller, entityId: string, record:
   // «Registrar pago»: the medios de pago and cajas a receipt may name (active ones, as the caller sees them in their grids).
   const active = [{ field: "is_active", op: "eq" as const, value: true }];
   const [methods, boxes, party, linkable] = await Promise.all([
-    gridRows(caller, "payments.method", { filters: active, sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 200, columns: ["name", "kind", "code", "status"] }),
+    gridRows(caller, "payments.method", { filters: active, sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 200, columns: ["name", "kind", "code", "currency", "status"] }),
     gridRows(caller, "payments.cash_box", { filters: active, sort: [{ field: "code", dir: "asc" }], page: 1, pageSize: 200, columns: ["code", "name", "status"] }),
     lookupSource(caller, "core.party"),
     linkableEntities(deps, caller.claims, ["invoicing.invoice"]),
@@ -200,7 +202,7 @@ export async function loadPaymentsForm(caller: Caller, entityId: string, record:
   const usable = (r: Record<string, unknown>) => !["draft", "pending", "rejected"].includes(String(r.status ?? ""));
   return {
     ...base,
-    methods: methods.rows.filter(usable).map((m) => ({ id: String(m.id), name: String(m.name ?? m.code ?? m.id), kind: String(m.kind ?? "other") })),
+    methods: methods.rows.filter(usable).map((m) => ({ id: String(m.id), name: String(m.name ?? m.code ?? m.id), kind: String(m.kind ?? "other"), ...(typeof m.currency === "string" && m.currency ? { currency: m.currency.trim() } : {}) })),
     cashBoxes: boxes.rows.filter(usable).map((b) => ({ code: String(b.id), name: `${String(b.code ?? "")} · ${String(b.name ?? "")}` })),
     party: party ?? base.party,
     invoicesLinkable: linkable.has("invoicing.invoice"),

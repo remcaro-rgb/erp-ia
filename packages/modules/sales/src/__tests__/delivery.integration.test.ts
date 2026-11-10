@@ -140,7 +140,7 @@ describe("sales deliveries and returns", () => {
 
   beforeAll(async () => {
     registerCountryPack(co);
-    for (const m of [core, inventory, costing, sales]) await syncModuleManifest(sql, m);
+    for (const m of [core, inventory, costing, sales, accounting]) await syncModuleManifest(sql, m);
     seed = await seedTenant(sql, { companies: 2, entitlements: ["module:core", "module:accounting", "module:inventory", "module:costing", "module:sales"] });
     for (const company of seed.companies) {
       for (const id of PROCESS_IDS) {

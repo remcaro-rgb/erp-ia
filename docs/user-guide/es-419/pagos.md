@@ -34,6 +34,7 @@ En **Pagos › Maestros › Medios de pago** está cada forma en que te pagan: e
 - un **código** y un **nombre** que tú escoges (por ejemplo `BANCOLOMBIA`, «Transferencia Bancolombia»);
 - un **tipo** (efectivo, transferencia, tarjeta, cheque u otro), que decide la cuenta donde entra el dinero. El plan de cuentas de Colombia ya trae: efectivo y cheque a **110505 Caja general**, transferencia y tarjeta a **111005 Bancos, moneda nacional**. Si quieres otra cuenta para un tipo, cámbiala en **Contabilidad › Mapeo de cuentas** (rol **Caja**, con la dimensión `payment_method:<tipo>`, por ejemplo `payment_method:transfer`; guía **Reglas contables**). Confirma estas cuentas con tu contador. Un medio de tipo **Otro** (bonos, por ejemplo) no tiene cuenta asignada: el sistema no le recibe pagos, para que nada llegue a la caja sin que nadie lo haya decidido;
 - su **código DIAN de medio de pago**: el sistema solo acepta un código de la tabla de la DIAN y que corresponda al tipo (efectivo 10; transferencia 42 o 47; tarjeta 48 crédito o 49 débito; cheque 20; otro 1, 71 o ZZZ);
+- su **moneda**: la del dinero que recibe (código ISO de tres letras: `COP`, `USD`, `EUR`). Si la dejas vacía, es la moneda de la empresa. Se fija al crear el medio y no cambia después. Para recibir dólares crea un medio aparte, por ejemplo «Transferencia Bancolombia USD» con moneda `USD`;
 - **Activo**: un medio inactivo no se puede usar en recibos nuevos.
 
 El código de un medio no se repite en la empresa (sin importar mayúsculas). Cada medio se crea con **Nuevo** en su listado y se guarda con **Guardar**. En **Pagos › Maestros › Cajas** registras las cajas donde recibes efectivo; un recibo puede indicar en qué caja entró el dinero, solo si su medio de pago es de efectivo.
@@ -72,11 +73,31 @@ El sistema acepta una factura solo si:
 - es del **mismo cliente** del recibo;
 - está **emitida** (no en borrador) y **aceptada por la DIAN**. Una factura sin enviar, en proceso o rechazada todavía no recibe pagos: regístralo cuando la DIAN la acepte (guía **Facturación electrónica**);
 - **no está anulada** ni tiene una **nota crédito de anulación en curso** (la anulaste y la DIAN aún no responde);
-- está en **pesos** (los pagos de facturas en moneda extranjera llegan en una fase posterior);
+- está en la **moneda del recibo**, o el recibo está en pesos y la factura en otra moneda (ver **Pagos en otra moneda**). Un recibo en dólares no paga una factura en euros ni una en pesos;
 - tiene fecha **igual o anterior** a la del recibo;
 - y el valor aplicado **no supera su saldo**: el total de la factura, más sus notas débito, menos sus notas crédito y menos lo que otros recibos ya le aplicaron. El mensaje te dice el saldo exacto, por ejemplo «tiene un saldo de $ 119.000,00».
 
 Puedes pagar una factura en varios recibos (abonos) y un recibo puede pagar varias facturas del cliente; cada factura va una sola vez en el recibo. Si dos personas registran a la vez pagos de la misma factura, el sistema las atiende una tras otra: nunca se aplica más que el saldo.
+
+## Pagos en otra moneda
+
+Un recibo va en la **moneda de su medio de pago**. Así cobras una factura de exportación en dólares (guía **Tasas de cambio**):
+
+- **Recibo en dólares de una factura en dólares.** Escoge un medio en `USD`. El **valor recibido** y lo **aplicado** van en dólares. Aparece **Tasa de cambio**: escribe la del día en que entró el dinero o déjala vacía y el sistema toma la de la fecha del recibo en **Tasas de cambio** (de los últimos tres días). Si no hay ninguna, el recibo no se registra y te pide la tasa.
+- **Recibo en pesos de una factura en dólares.** El cliente te giró y el banco te abonó pesos. Con un medio en pesos, la factura en dólares aparece pagable con una columna más, **Recibido (COP)**: escribe en **Aplicado** los dólares que se saldan y en **Recibido** los pesos que entraron por ellos. Debajo ves la **tasa implícita** (pesos ÷ dólares).
+- Una factura en otra moneda **no lleva retenciones**: un cliente del exterior no las practica. El formulario no ofrece **Retención** en ella.
+- Puedes abonar en varias veces: USD 400 hoy y USD 600 el mes siguiente; el último abono deja la factura **Pagada**.
+
+### La diferencia en cambio
+
+La factura quedó en la cartera con los pesos de su tasa del día de emisión. Si el dinero entra a otra tasa, la diferencia es una **diferencia en cambio realizada** y el comprobante la registra solo:
+
+- a una tasa menor, una pérdida: por ejemplo USD 1.000 facturados a $ 4.100 y cobrados a $ 4.000: Débito Bancos $ 4.000.000, Débito **530525 Diferencia en cambio** (gasto) $ 100.000, Crédito Clientes $ 4.100.000;
+- a una tasa mayor, una ganancia: Crédito **421020 Diferencia en cambio** (ingreso).
+
+Las cuentas se asignan en **Contabilidad › Mapeo de cuentas** con los roles **Diferencia en cambio (ingreso)** (`fx_gain`) y **Diferencia en cambio (gasto)** (`fx_loss`). Si quieres una cuenta solo para la diferencia realizada (la de los cobros), mapea el rol con la dimensión `fx_kind:realized`. Las del plan de Colombia son provisionales: confírmalas con tu contador. El comprobante de un recibo en dólares queda en `USD` con su tasa; la línea de diferencia en cambio solo tiene pesos. Si anulas el recibo, la reversión deshace también esa línea.
+
+Si el administrador modificó la regla contable **Recibo de caja** antes de esta versión, la regla sigue como él la dejó (en pesos, sin la diferencia en cambio) y **Contabilidad** muestra la recomendación de revisarla: un recibo con diferencia en cambio no se contabiliza hasta que la regla la incluya (guía **Reglas contables**).
 
 ## La factura pagada
 

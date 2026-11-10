@@ -125,7 +125,7 @@ describe("void delivery: re-reserve the stock for the pedido", () => {
 
   beforeAll(async () => {
     registerCountryPack(co);
-    for (const m of [core, inventory, costing, sales]) await syncModuleManifest(sql, m);
+    for (const m of [core, inventory, costing, sales, accounting]) await syncModuleManifest(sql, m);
     seed = await seedTenant(sql, {
       companies: 2,
       users: [{ name: "vendedor", companies: [0], role: "member" }],

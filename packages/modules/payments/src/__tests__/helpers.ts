@@ -27,10 +27,14 @@ const customer = (documentNumber: string, legalName: string) => ({
 });
 
 export interface Invoice { id: string; number: string; total: number }
-export interface Allocation { invoiceId: string; amount: number; withholdings?: { kind: "income" | "vat" | "ica"; code: string; rate: number; base: number; amount: number }[] }
+export interface Allocation { invoiceId: string; amount: number; amountReceipt?: number; withholdings?: { kind: "income" | "vat" | "ica"; code: string; rate: number; base: number; amount: number }[] }
 export interface ReceiptOut {
   id: string; number: string | null; status: string; date: string; partyId: string; methodId: string; amount: number; applied: number; withholdingTotal: number; advance: number;
-  allocations: { invoiceId: string; invoiceNumber: string | null; amount: number; cashAmount: number; withholdingTotal: number }[];
+  currency: string; exchangeRate: number;
+  allocations: {
+    invoiceId: string; invoiceNumber: string | null; currency: string; amount: number; amountReceipt: number; amountCompany: number; cashAmount: number; withholdingTotal: number;
+    fx: { gain: number; loss: number };
+  }[];
 }
 
 export interface ApplicationOut {
@@ -44,7 +48,7 @@ export type Harness = Awaited<ReturnType<typeof paymentsHarness>>;
 export async function paymentsHarness() {
   const sql = testDb();
   registerCountryPack({ ...co, einvoice: einvoicePack });
-  for (const m of [core, invoicing, payments]) await syncModuleManifest(sql, m);
+  for (const m of [core, accounting, invoicing, payments]) await syncModuleManifest(sql, m);
   const seed: SeededTenant = await seedTenant(sql, {
     companies: 2,
     users: [{ name: "clerk", companies: [0], role: "member" }],
@@ -103,7 +107,7 @@ export async function paymentsHarness() {
   };
 
   /** An issued invoice of the service (`qty` × 100.000 + IVA 19 %), accepted by the DIAN unless told otherwise. */
-  const issuedInvoice = async (qty = 1, options: { partyId?: string; accepted?: boolean; currency?: string; exchangeRate?: number } = {}): Promise<Invoice> => {
+  const issuedInvoice = async (qty = 1, options: { partyId?: string; accepted?: boolean; currency?: string; exchangeRate?: number; productId?: string; unitPrice?: number } = {}): Promise<Invoice> => {
     const buyer = options.partyId ?? partyId;
     // A foreign-currency invoice is an export only (Task 34.3, R34-7): the buyer is abroad while it is written and issued, then back in
     // Colombia, so the receipts of these tests (one customer) still meet it.
@@ -112,7 +116,7 @@ export async function paymentsHarness() {
     let issued: { id: string; number: string; total: number };
     try {
       const draft = await run<{ id: string }>(admin, "invoicing.invoice.create", {
-        partyId: buyer, paymentForm: "2", lines: [{ productId: servicio, qty }],
+        partyId: buyer, paymentForm: "2", lines: [{ productId: options.productId ?? servicio, qty, ...(options.unitPrice !== undefined ? { unitPrice: options.unitPrice } : {}) }],
         ...(options.currency ? { currency: options.currency, exchangeRate: options.exchangeRate } : {}),
       });
       issued = await run<{ id: string; number: string; total: number }>(admin, "invoicing.invoice.issue", { id: draft.id });
@@ -127,9 +131,14 @@ export async function paymentsHarness() {
     return { id: issued.id, number: issued.number, total: issued.total };
   };
 
-  const receive = (input: { amount: number; allocations?: Allocation[]; method?: keyof typeof methods; partyId?: string; date?: string; idempotencyKey?: string; reference?: string; cashBoxId?: string }, caller: Caller = admin) =>
+  const receive = (
+    input: { amount: number; allocations?: Allocation[]; method?: keyof typeof methods; methodId?: string; currency?: string; exchangeRate?: number; partyId?: string; date?: string; idempotencyKey?: string; reference?: string; cashBoxId?: string },
+    caller: Caller = admin,
+  ) =>
     run<ReceiptOut>(caller, "payments.payment.receive", {
-      partyId: input.partyId ?? partyId, methodId: methods[input.method ?? "transfer"], amount: input.amount, date: input.date ?? today,
+      partyId: input.partyId ?? partyId, methodId: input.methodId ?? methods[input.method ?? "transfer"], amount: input.amount, date: input.date ?? today,
+      ...(input.currency ? { currency: input.currency } : {}),
+      ...(input.exchangeRate !== undefined ? { exchangeRate: input.exchangeRate } : {}),
       allocations: input.allocations ?? [],
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       ...(input.reference ? { reference: input.reference } : {}),

@@ -17,12 +17,14 @@ import type { LookupSource } from "../inventory/StockForms";
 import { hasNotAcceptedInvoice } from "./advance-apply-model";
 import {
   addWithholding,
+  impliedRate,
   receiptDraft,
   receiptInput,
   receiptMissing,
   receiptTotals,
   removeWithholding,
   setApplied,
+  setReceived,
   setWithholding,
   type ReceiptDraft,
   type WithholdingKindDraft,
@@ -57,13 +59,15 @@ interface MasterDraft {
   name: string;
   kind: string;
   meansCode: string;
+  /** A method's currency (ISO 4217, plan 2B.2 Task 34.5); empty: the company's. Set when the method is created. */
+  currency: string;
   description: string;
   isActive: boolean;
 }
 
 function masterDraft(source: Readonly<Record<string, unknown>> | null): MasterDraft {
   const s = (v: unknown) => (typeof v === "string" ? v : "");
-  return { code: s(source?.code), name: s(source?.name), kind: s(source?.kind) || "transfer", meansCode: s(source?.means_code), description: s(source?.description), isActive: source?.is_active !== false };
+  return { code: s(source?.code), name: s(source?.name), kind: s(source?.kind) || "transfer", meansCode: s(source?.means_code), currency: s(source?.currency).trim(), description: s(source?.description), isActive: source?.is_active !== false };
 }
 
 export function PaymentMasterForm({ kind, record, initial: copy, readOnly = false, meansCodes = [], processes, save, requestStepUp, onSaved }: PaymentMasterFormProps) {
@@ -85,14 +89,15 @@ export function PaymentMasterForm({ kind, record, initial: copy, readOnly = fals
     setDraft(next);
   }
   const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, isNew));
-  const failed = failureMessages(flow.failure, ["code", "name", "kind", "meansCode", "description"], errorText);
+  const failed = failureMessages(flow.failure, ["code", "name", "kind", "meansCode", "currency", "description"], errorText);
   const missing = draft.code.trim() === "" || draft.name.trim() === "";
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const input = (): Record<string, unknown> => {
     const common = { code: draft.code.trim(), name: draft.name.trim(), isActive: draft.isActive };
     if (kind === "cash_box") return { ...(record ? { id: record.id } : {}), ...common, ...(draft.description.trim() ? { description: draft.description.trim() } : {}) };
     const means = draft.meansCode ? { meansCode: draft.meansCode } : record ? { meansCode: null } : {};
-    return { ...(record ? { id: record.id } : {}), ...common, kind: draft.kind, ...means };
+    const currency = !record && draft.currency.trim() ? { currency: draft.currency.trim().toUpperCase() } : {};
+    return { ...(record ? { id: record.id } : {}), ...common, kind: draft.kind, ...means, ...currency };
   };
   const send = () => flow.submit(input());
   const submit = () => void send();
@@ -107,6 +112,7 @@ export function PaymentMasterForm({ kind, record, initial: copy, readOnly = fals
             <>
               <SelectField label={`${t("kind")} *`} value={draft.kind} options={METHOD_KINDS.map((k) => ({ code: k, name: tv(`method_kind.${k}`) }))} showCode={false} disabled={readOnly} error={failed.field("kind")} onChange={set("kind")} />
               <SelectField label={t("means_code")} hint={t("means_code_hint")} value={draft.meansCode} options={meansCodes.map((m) => ({ code: m.code, name: `${m.code} · ${m.name}` }))} showCode={false} empty="—" disabled={readOnly} error={failed.field("meansCode")} onChange={set("meansCode")} />
+              <TextField label={t("method_currency")} hint={t("method_currency_hint")} value={draft.currency} mono maxLength={3} disabled={readOnly || record !== null} error={failed.field("currency")} onChange={(v) => set("currency")(v.toUpperCase())} />
             </>
           )}
           {kind === "cash_box" && <TextField label={t("description")} value={draft.description} maxLength={300} disabled={readOnly} error={failed.field("description")} onChange={set("description")} />}
@@ -154,6 +160,8 @@ export interface MethodOption {
   id: string;
   name: string;
   kind: string;
+  /** The money the method receives (ISO 4217): the receipt's currency (plan 2B.2 Task 34.5). The company's when not given. */
+  currency?: string;
 }
 
 /** An open invoice of the customer (payments.payment.open_invoices). */
@@ -165,16 +173,20 @@ export interface OpenInvoice {
   currency: string;
   total: number;
   open: number;
+  /** What is open in the invoice's currency (plan 2B.2 Task 34.5; the same as `open`). */
+  openDoc?: number;
   payable: boolean;
   reasonCode: string | null;
   reason: string | null;
 }
 
-export type LoadOpenInvoices = (partyId: string, date: string) => Promise<{ ok: true; invoices: OpenInvoice[] } | { ok: false; code: string; messages: string[] }>;
+export type LoadOpenInvoices = (partyId: string, date: string, currency?: string) => Promise<{ ok: true; invoices: OpenInvoice[] } | { ok: false; code: string; messages: string[] }>;
 
 export interface ReceiptFormProps {
   /** Today in the company's time zone (the default date, and the latest a receipt may have). */
   today: string;
+  /** The company's currency (ISO 4217): a method in another one makes a foreign receipt. */
+  companyCurrency?: string;
   methods: readonly MethodOption[];
   /** The cajas, as `code · name`, by id. */
   cashBoxes: readonly CodeOption[];
@@ -196,8 +208,10 @@ export interface ReceiptFormProps {
 
 const partyRow = (row: GridRow) => ({ label: String(row.legal_name ?? row.id), sub: [row.document_number, row.municipality_code].filter(Boolean).join(" · ") });
 const day = (iso: string | null) => (iso ? iso.slice(0, 10).replaceAll("-", "/") : "—");
+/** A rate as the money reads (es-CO: `4.150`, `4.012,5`), up to four decimals. */
+const formatRate = (rate: number) => new Intl.NumberFormat("es-CO", { maximumFractionDigits: 4 }).format(rate);
 
-export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable = false, initial: copy, labels = {}, readOnly = false, loadInvoices, process, save, requestStepUp, onSaved }: ReceiptFormProps) {
+export function ReceiptForm({ today, companyCurrency = "COP", methods, cashBoxes, party, invoicesLinkable = false, initial: copy, labels = {}, readOnly = false, loadInvoices, process, save, requestStepUp, onSaved }: ReceiptFormProps) {
   const t = useTranslations("payments.form");
   const tv = useTranslations("payments.values");
   const th = useTranslations("payments.hints");
@@ -208,18 +222,24 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
   const [invoices, setInvoices] = useState<OpenInvoice[] | null>(null);
   const [loadFailure, setLoadFailure] = useState<string | null>(null);
   const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, true));
-  const failed = failureMessages(flow.failure, ["partyId", "methodId", "cashBoxId", "date", "amount", "reference", "notes"], errorText);
+  const failed = failureMessages(flow.failure, ["partyId", "methodId", "cashBoxId", "date", "amount", "exchangeRate", "reference", "notes"], errorText);
   const errorTextRef = useRef(errorText);
   useEffect(() => {
     errorTextRef.current = errorText;
   });
 
-  // The customer's open invoices, read again when the customer or the date changes (the date decides «posterior al recibo»).
+  // The receipt is in its method's currency (plan 2B.2 Task 34.5): it decides which invoices it may pay and how each is applied.
+  const method = methods.find((m) => m.id === draft.methodId) ?? null;
+  const currency = method?.currency ?? companyCurrency;
+  const money = { receipt: currency, company: companyCurrency };
+  const foreignReceipt = currency !== companyCurrency;
+
+  // The customer's open invoices, read again when the customer, the date (it decides «posterior al recibo») or the currency changes.
   const { partyId, date } = draft;
   useEffect(() => {
     if (!partyId) return;
     let live = true;
-    void loadInvoices(partyId, date).then((answer) => {
+    void loadInvoices(partyId, date, currency).then((answer) => {
       if (!live) return;
       if (answer.ok) {
         setInvoices(answer.invoices);
@@ -232,14 +252,14 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
     return () => {
       live = false;
     };
-  }, [partyId, date, loadInvoices]);
+  }, [partyId, date, currency, loadInvoices]);
 
   const rows = partyId ? (invoices ?? []) : [];
-  const method = methods.find((m) => m.id === draft.methodId) ?? null;
-  const totals = receiptTotals(draft, rows);
-  const missing = receiptMissing(draft, rows);
+  const totals = receiptTotals(draft, rows, money);
+  const missing = receiptMissing(draft, rows, money);
+  const crossRows = rows.some((inv) => inv.payable && inv.currency !== currency);
   const dirty = draft.partyId !== "" || draft.amount !== "" || Object.keys(draft.allocations).length > 0;
-  const send = () => flow.submit(receiptInput(draft, rows, key));
+  const send = () => flow.submit(receiptInput(draft, rows, key, money));
   const submit = () => void send();
   const canSave = !readOnly && missing.length === 0 && !flow.saving && !flow.stepUp;
   const set = <K extends keyof ReceiptDraft>(name: K) => (value: ReceiptDraft[K]) => setDraft((d) => ({ ...d, [name]: value }));
@@ -278,7 +298,15 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
             empty="—"
             disabled={readOnly}
             error={failed.field("methodId")}
-            onChange={(v) => setDraft((d) => ({ ...d, methodId: v, cashBoxId: methods.find((m) => m.id === v)?.kind === "cash" ? d.cashBoxId : "" }))}
+            onChange={(v) => {
+              const next = methods.find((m) => m.id === v);
+              // Another currency lists other invoices, applied in other money: what was typed for them goes.
+              if ((next?.currency ?? companyCurrency) !== currency) setInvoices(null);
+              setDraft((d) => ({
+                ...d, methodId: v, cashBoxId: next?.kind === "cash" ? d.cashBoxId : "",
+                ...((next?.currency ?? companyCurrency) !== currency ? { allocations: {}, exchangeRate: "" } : {}),
+              }));
+            }}
           />
           {method?.kind === "cash" && (
             <SelectField label={t("cash_box")} hint={t("cash_box_hint")} value={draft.cashBoxId} options={cashBoxes} showCode={false} empty="—" disabled={readOnly} error={failed.field("cashBoxId")} onChange={set("cashBoxId")} />
@@ -286,7 +314,10 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
           <Field label={`${t("date")} *`} hint={t("date_hint")} error={failed.field("date")}>
             {(id) => <input id={id} type="date" value={draft.date} max={today} disabled={readOnly} onChange={(e) => set("date")(e.target.value || today)} />}
           </Field>
-          <TextField label={`${t("amount")} *`} value={draft.amount} inputMode="decimal" mono disabled={readOnly} error={failed.field("amount")} onChange={set("amount")} />
+          <TextField label={`${t("amount")} *`} hint={foreignReceipt ? t("amount_currency_hint", { currency }) : undefined} value={draft.amount} inputMode="decimal" mono disabled={readOnly} error={failed.field("amount")} onChange={set("amount")} />
+          {foreignReceipt && (
+            <TextField label={t("exchange_rate")} hint={t("exchange_rate_hint", { currency })} value={draft.exchangeRate ?? ""} inputMode="decimal" mono disabled={readOnly} error={failed.field("exchangeRate")} onChange={(v) => setDraft((d) => ({ ...d, exchangeRate: v }))} />
+          )}
           <TextField label={t("reference")} hint={t("reference_hint")} value={draft.reference} maxLength={100} disabled={readOnly} error={failed.field("reference")} onChange={set("reference")} />
           <TextField label={t("notes")} value={draft.notes} maxLength={2000} disabled={readOnly} error={failed.field("notes")} onChange={set("notes")} className="erp-span3" />
         </div>
@@ -322,6 +353,11 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
                       <th scope="col" className="erp-num">
                         {t("apply")}
                       </th>
+                      {crossRows && (
+                        <th scope="col" className="erp-num">
+                          {t("received", { currency })}
+                        </th>
+                      )}
                       <th scope="col">{t("withholdings")}</th>
                     </tr>
                   </thead>
@@ -329,6 +365,8 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
                     {rows.map((inv) => {
                       const a = draft.allocations[inv.id];
                       const over = totals.over.includes(inv.id);
+                      const cross = inv.currency !== currency;
+                      const rate = cross ? impliedRate(draft, inv.id) : null;
                       return (
                         <tr key={inv.id}>
                           <td className="erp-mono">{invoicesLinkable ? <a href={recordHref("invoicing.invoice", inv.id)}>{name(inv)}</a> : name(inv)}</td>
@@ -354,14 +392,41 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
                                 </span>
                                 {over && <span className="erp-field__error">{t("over_open", { open: formatMoney(inv.open, inv.currency) })}</span>}
                               </td>
+                              {crossRows && (
+                                <td className="erp-num">
+                                  {cross ? (
+                                    <>
+                                      <input
+                                        aria-label={t("received_of", { currency, invoice: name(inv) })}
+                                        className="erp-num erp-mono"
+                                        inputMode="decimal"
+                                        value={a?.amountReceipt ?? ""}
+                                        disabled={readOnly}
+                                        onChange={(e) => setDraft((d) => setReceived(d, inv.id, e.target.value))}
+                                      />
+                                      {rate !== null && (
+                                        <span className="erp-small erp-muted erp-mono" data-testid="implied-rate">
+                                          {t("implied_rate", { rate: formatRate(rate) })}
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    "—"
+                                  )}
+                                </td>
+                              )}
                               <td>
-                                <button type="button" className="erp-btn erp-btn--sm" aria-label={t("add_withholding_to", { invoice: name(inv) })} disabled={readOnly} onClick={() => setDraft((d) => addWithholding(d, inv.id))}>
-                                  {t("add_withholding")}
-                                </button>
+                                {inv.currency !== companyCurrency ? (
+                                  <span className="erp-small erp-muted">{t("no_withholding_foreign")}</span>
+                                ) : (
+                                  <button type="button" className="erp-btn erp-btn--sm" aria-label={t("add_withholding_to", { invoice: name(inv) })} disabled={readOnly} onClick={() => setDraft((d) => addWithholding(d, inv.id))}>
+                                    {t("add_withholding")}
+                                  </button>
+                                )}
                               </td>
                             </>
                           ) : (
-                            <td colSpan={2} className="erp-small">
+                            <td colSpan={crossRows ? 3 : 2} className="erp-small">
                               <span className="erp-pill erp-pill--warn">{t("not_payable")}</span> {inv.reason}
                             </td>
                           )}
@@ -379,7 +444,7 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
               </div>
             )}
             {rows
-              .filter((inv) => inv.payable && (draft.allocations[inv.id]?.withholdings.length ?? 0) > 0)
+              .filter((inv) => inv.payable && inv.currency === companyCurrency && (draft.allocations[inv.id]?.withholdings.length ?? 0) > 0)
               .flatMap((inv) =>
                 draft.allocations[inv.id]!.withholdings.map((w, i) => (
                   <fieldset key={w.key} className="erp-field erp-withholding" aria-label={t("withholding_of", { n: i + 1, invoice: name(inv) })}>
@@ -430,19 +495,19 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
           <div>
             <dt>{t("total_applied")}</dt>
             <dd className="erp-num erp-mono" data-testid="payment-applied">
-              {formatMoney(totals.applied)}
+              {formatMoney(totals.applied, currency)}
             </dd>
           </div>
           <div>
             <dt>{t("total_withholdings")}</dt>
             <dd className="erp-num erp-mono" data-testid="payment-withholdings">
-              {formatMoney(totals.withholdings)}
+              {formatMoney(totals.withholdings, currency)}
             </dd>
           </div>
           <div>
             <dt>{t("total_cash")}</dt>
             <dd className="erp-num erp-mono" data-testid="payment-cash">
-              {formatMoney(totals.cash)}
+              {formatMoney(totals.cash, currency)}
             </dd>
           </div>
           <div>
@@ -450,12 +515,12 @@ export function ReceiptForm({ today, methods, cashBoxes, party, invoicesLinkable
               <b>{t("total_advance")}</b>
             </dt>
             <dd className="erp-num erp-mono" data-testid="payment-advance">
-              <b>{formatMoney(totals.advance)}</b>
+              <b>{formatMoney(totals.advance, currency)}</b>
             </dd>
           </div>
         </dl>
-        {totals.short && <div className="erp-dian erp-dian--warn">{t("cash_short", { received: formatMoney(totals.received), cash: formatMoney(totals.cash) })}</div>}
-        {!totals.short && totals.advance > 0 && <div className="erp-dian erp-dian--info">{t("advance_note", { advance: formatMoney(totals.advance) })}</div>}
+        {totals.short && <div className="erp-dian erp-dian--warn">{t("cash_short", { received: formatMoney(totals.received, currency), cash: formatMoney(totals.cash, currency) })}</div>}
+        {!totals.short && totals.advance > 0 && <div className="erp-dian erp-dian--info">{t("advance_note", { advance: formatMoney(totals.advance, currency) })}</div>}
       </Section>
 
       {(failed.panel.length > 0 || flow.failure) && (

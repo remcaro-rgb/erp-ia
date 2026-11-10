@@ -114,3 +114,11 @@ describe("period names (T3)", () => {
     expect(module.menuShared).toEqual(["accounting.settings.consult"]);
   });
 });
+
+describe("the exchange-difference roles (plan 2B.2 Task 34.5, FX §5)", () => {
+  it("declares fx_gain and fx_loss, and the fx_kind dimension realized | unrealized the rules narrow them by", async () => {
+    const { FX_KINDS } = await import("../index");
+    expect(accounting.accountRoles).toEqual(expect.arrayContaining(["fx_gain", "fx_loss"]));
+    expect(FX_KINDS).toEqual(["realized", "unrealized"]);
+  });
+});

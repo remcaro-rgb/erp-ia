@@ -4,7 +4,9 @@
   "paymentId": "0192b4c0-0000-7000-8000-00000000f005",
   "method": "transfer",
   "amount": 1155340,
+  "amountDoc": 1155340,
   "applied": 1190000,
+  "appliedDoc": 1190000,
   "customer": {
     "partyId": "0192b4c0-0000-7000-8000-00000000c001",
     "legalName": "Tiendas D1 S.A.S."
@@ -15,7 +17,8 @@
         "code": "RTEFTE_COMPRAS_2_5",
         "rate": 2.5,
         "base": 1000000,
-        "amount": 25000
+        "amount": 25000,
+        "amountDoc": 25000
       }
     ],
     "vat": [],
@@ -24,8 +27,11 @@
         "code": "RTEICA_BOGOTA_0_966",
         "rate": 0.966,
         "base": 1000000,
-        "amount": 9660
+        "amount": 9660,
+        "amountDoc": 9660
       }
     ]
-  }
+  },
+  "currency": "COP",
+  "exchangeRate": 1
 }

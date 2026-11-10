@@ -55,4 +55,11 @@ const seed = (code: string, name: string): AccountSeed => ({
 export const chartOfAccounts = (): AccountSeed[] => (puc.accounts as [string, string][]).map(([code, name]) => seed(code, name));
 
 /** Auxiliaries the role mappings need and the PUC does not list (accounting design §5.9). */
-export const extraAccounts = (): AccountSeed[] => [seed("238095", "Partidas por aclarar"), seed("530595", "Ajuste al peso")];
+export const extraAccounts = (): AccountSeed[] => [
+  seed("238095", "Partidas por aclarar"),
+  seed("530595", "Ajuste al peso"),
+  // The exchange difference of a collection or a revaluation (FX §5, roles fx_gain and fx_loss; provisional, owner item 126 (a)). A receipt's
+  // entry has no cost center, so neither account asks for one.
+  { ...seed("421020", "Diferencia en cambio"), requiresCostCenter: false },
+  { ...seed("530525", "Diferencia en cambio"), requiresCostCenter: false },
+];

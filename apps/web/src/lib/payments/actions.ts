@@ -17,9 +17,9 @@ import { PAYMENTS_STEPS } from "./record";
 export type PaymentsStepOutcome = { ok: true } | { ok: false; code: string; messages: string[] };
 
 /** «Registrar pago»: the customer's issued invoices with what is open and whether this receipt can pay each (and why not). Refuses `forbidden` when the caller may not see the invoices' amounts (Ruling R40-2). */
-export async function openInvoicesAction(partyId: unknown, date: unknown): Promise<OpenInvoicesOutcome> {
+export async function openInvoicesAction(partyId: unknown, date: unknown, currency?: unknown): Promise<OpenInvoicesOutcome> {
   if (!isUuid(partyId)) return { ok: false, code: "invalid_input", messages: [] };
-  return openInvoicesFor(await requireCaller(), partyId, date);
+  return openInvoicesFor(await requireCaller(), partyId, date, currency);
 }
 
 /**

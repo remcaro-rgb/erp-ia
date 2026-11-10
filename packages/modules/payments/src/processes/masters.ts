@@ -7,7 +7,9 @@ import { assertWritable, defined, extra, followLifecycle, id, idInput, idOutput,
 // requires it), Activo is `is_active`; a recibo names only a usable one (the lifecycle's gate). Codes are unique per company whatever their
 // case, among the records not deleted. A method's KIND is the dimension its receipts' cash line resolves the account by
 // (`payment_method:<kind>`): the Colombia pack maps cash, transfer, card and check; a receipt of a kind the pack does not map (other) is
-// refused. Its DIAN payment means code (table 13.3.4.2) must be known to the country pack and fit the kind (rule 5).
+// refused. Its DIAN payment means code (table 13.3.4.2) must be known to the country pack and fit the kind (rule 5). Its currency (plan 2B.2
+// Task 34.5, FX §6; default the company's) is the money it receives: a receipt goes only through a method of its own currency, so a USD
+// receipt lands in the bank account the method's kind maps to (no new role).
 
 export const FEATURE_METHODS = "payments.methods";
 
@@ -19,17 +21,19 @@ const methodFields = {
   name,
   kind: z.enum(METHOD_KINDS),
   meansCode: z.string().trim().min(1).max(5).optional(),
+  /** ISO 4217 (FX §6); the company's currency when not given. */
+  currency: z.string().trim().regex(/^[A-Z]{3}$/, "La moneda es un código ISO de tres letras, como COP o USD").optional(),
   isActive: z.boolean(),
 };
 const METHOD_KEY = "methods_company_code_key";
-const METHOD_WRITABLE = ["code", "name", "kind", "means_code", "is_active", "extra", "extra_free"];
+const METHOD_WRITABLE = ["code", "name", "kind", "means_code", "currency", "is_active", "extra", "extra_free"];
 
 const boxFields = { code, name, description: z.string().trim().max(300).optional(), isActive: z.boolean() };
 const BOX_KEY = "cash_boxes_company_code_key";
 const BOX_WRITABLE = ["code", "name", "description", "is_active", "extra", "extra_free"];
 
 const methodColumns = (input: Partial<z.output<z.ZodObject<typeof methodFields>>>) =>
-  defined({ code: input.code, name: input.name, kind: input.kind, means_code: input.meansCode, is_active: input.isActive });
+  defined({ code: input.code, name: input.name, kind: input.kind, means_code: input.meansCode, currency: input.currency, is_active: input.isActive });
 const boxColumns = (input: Partial<z.output<z.ZodObject<typeof boxFields>>>) =>
   defined({ code: input.code, name: input.name, description: input.description, is_active: input.isActive });
 
@@ -67,7 +71,7 @@ export const methodCreate = defineProcess({
   module: "payments",
   kind: "create",
   feature: FEATURE_METHODS,
-  description: "Crea un medio de pago (efectivo, transferencia, tarjeta, cheque u otro) con su código, que define la cuenta de caja o bancos de sus recibos, y su código DIAN",
+  description: "Crea un medio de pago (efectivo, transferencia, tarjeta, cheque u otro) con su código, que define la cuenta de caja o bancos de sus recibos, su código DIAN y la moneda que recibe (la de la empresa si no se indica)",
   input: z.object({ ...methodFields, isActive: methodFields.isActive.default(true), extra }).strict(),
   output: idOutput,
   handler: async (ctx, input) => {
@@ -88,7 +92,7 @@ export const methodUpdate = defineProcess({
   module: "payments",
   kind: "update",
   feature: FEATURE_METHODS,
-  description: "Actualiza un medio de pago: código, nombre, tipo, código DIAN y si está activo",
+  description: "Actualiza un medio de pago: código, nombre, tipo, código DIAN, moneda y si está activo",
   input: z.object(methodFields).partial().extend({ id, meansCode: methodFields.meansCode.nullable(), extra }).strict(),
   output: idOutput,
   handler: async (ctx, { id: methodId, extra: given, ...input }) => {

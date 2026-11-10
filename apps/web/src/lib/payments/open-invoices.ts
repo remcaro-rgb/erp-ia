@@ -17,17 +17,19 @@ import { processDeps } from "@/lib/server/runtime";
 export { OPEN_INVOICES_FIELDS };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const ISO = /^[A-Z]{3}$/;
 
 export type OpenInvoicesOutcome = { ok: true; invoices: OpenInvoice[] } | { ok: false; code: string; messages: string[] };
 
-export async function openInvoicesFor(caller: Caller, partyId: string, date?: unknown): Promise<OpenInvoicesOutcome> {
+/** `currency`: the receipt's (its method's, plan 2B.2 Task 34.5); the process takes the company's when it is not given. */
+export async function openInvoicesFor(caller: Caller, partyId: string, date?: unknown, currency?: unknown): Promise<OpenInvoicesOutcome> {
   const deps = processDeps();
   const invoice = gridEntity(deps.registry, "invoicing.invoice");
   if (!invoice) return { ok: false, code: "forbidden", messages: [] };
   const { modes } = await gridPageAccess(deps.sql, caller.claims, invoice);
   if (OPEN_INVOICES_FIELDS.some((f) => (modes[f] ?? "visible") !== "visible")) return { ok: false, code: "forbidden", messages: [] };
   try {
-    const result = (await runProcess(deps, caller, "payments.payment.open_invoices", { partyId, ...(typeof date === "string" && DAY.test(date) ? { date } : {}) })) as { invoices: OpenInvoice[] };
+    const result = (await runProcess(deps, caller, "payments.payment.open_invoices", { partyId, ...(typeof date === "string" && DAY.test(date) ? { date } : {}), ...(typeof currency === "string" && ISO.test(currency) ? { currency } : {}) })) as { invoices: OpenInvoice[] };
     return { ok: true, invoices: result.invoices };
   } catch (error) {
     return refusal(error);

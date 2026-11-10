@@ -16,6 +16,13 @@ const inPesos = <T extends PesoPayload>(payload: T): Record<string, unknown> => 
   lines: payload.lines.map((l) => ({ ...l, subtotalDoc: l.subtotal })),
   taxes: payload.taxes.map((t) => ({ ...t, amountDoc: t.amount })),
 });
+/** A peso receipt's payload with the twins of R34-4 and no exchange difference (Task 34.5). */
+type ReceiptPayload = { amount: number; applied: number; withholdings: Record<"income" | "vat" | "ica", { amount: number }[]>; advances: { amount: number }[] };
+const twin = (rows: { amount: number }[]) => rows.map((r) => ({ ...r, amountDoc: r.amount }));
+const receiptInPesos = <T extends ReceiptPayload>(payload: T): Record<string, unknown> => ({
+  ...payload, currency: "COP", exchangeRate: 1, amountDoc: payload.amount, appliedDoc: payload.applied, allocations: [], advances: twin(payload.advances),
+  withholdings: { income: twin(payload.withholdings.income), vat: twin(payload.withholdings.vat), ica: twin(payload.withholdings.ica) },
+});
 
 // Open items from allocations (plan 2B Task 22; accounting design §4.12, §5.11): for a company with the payments module, the receivable
 // open items follow what each recibo de caja applied to each invoice (payments' published allocations) and the notes of each invoice
@@ -323,11 +330,11 @@ describe("with or without payments", () => {
       const paidBase = money(base * share);
       const rte = money(paidBase * 0.025);
       const ica = money(paidBase * 0.00966);
-      await send("payments.received", {
+      await send("payments.received", receiptInPesos({
         date: addDays(spec.date, spec.receipt.days), number: `RC-${run}-${i + 1}`, paymentId: ids("b", run * 100 + i + 1), method: spec.receipt.method,
         amount: applied - rte - ica, applied, advance: 0, advances: [], customer: await customer(spec.customer),
         withholdings: { income: [{ code: "RTEFTE_COMPRAS_2_5", rate: 2.5, base: paidBase, amount: rte }], vat: [], ica: [{ code: "RTEICA_BOGOTA_0_966", rate: 0.966, base: paidBase, amount: ica }] },
-      });
+      }));
     }
     for (const [i, note] of CREDIT_NOTES.entries()) {
       const tax = money(note.subtotal * 0.19);

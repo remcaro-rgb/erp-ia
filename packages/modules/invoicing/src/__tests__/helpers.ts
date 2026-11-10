@@ -53,7 +53,7 @@ export const DIAN_CHECKLIST_VERSION = einvoicePack.dianChecklist.version;
 export async function invoicingHarness(options: { entitlements?: string[] } = {}) {
   const sql = testDb();
   registerCountryPack({ ...co, einvoice: einvoicePack });
-  for (const m of [core, inventory, costing, sales, invoicing]) await syncModuleManifest(sql, m);
+  for (const m of [core, inventory, costing, sales, accounting, invoicing]) await syncModuleManifest(sql, m);
   const seed: SeededTenant = await seedTenant(sql, {
     companies: 2,
     // A plain member of company 0 (not its admin): the Parámetros processes refuse it even when its role holds them (Task 19 fix round 2).

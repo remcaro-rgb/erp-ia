@@ -13,6 +13,8 @@ const json = (base: URL, name: string) => JSON.parse(readFileSync(new URL(name, 
   template: { currency?: string; exchangeRate?: string; lines: { amount: string; amountCompany?: string }[] };
 };
 const invoicingRules = readdirSync(INVOICING).filter((name) => name.endsWith(".json")).sort();
+const PAYMENTS = dir("../../../payments/src/rules/");
+const paymentsRules = readdirSync(PAYMENTS).filter((name) => name.endsWith(".json")).sort();
 
 describe("the default rules shipped twice", () => {
   it("invoicing ships the invoice and the three note rules", () => {
@@ -31,5 +33,28 @@ describe("the default rules shipped twice", () => {
       expect(line.amount, JSON.stringify(line)).toMatch(/Doc$/);
       expect(line.amountCompany, JSON.stringify(line)).toBe(line.amount.replace(/Doc$/, ""));
     }
+  });
+});
+
+describe("the payments rules shipped twice (plan 2B.2 Task 34.5)", () => {
+  it.each(paymentsRules)("%s is identical to its twin in accounting/src/rules/defaults/", (name) => {
+    expect(json(PAYMENTS, name)).toEqual(json(ACCOUNTING, name));
+  });
+
+  it("payment-received posts the receipt's currency and rate, both amounts of every line, and the realized difference per allocation (FX §5)", () => {
+    const { template } = json(PAYMENTS, "payment-received.json") as unknown as {
+      template: { currency?: string; exchangeRate?: string; lines: { role: string; side: string; amount: string; amountCompany?: string; forEach?: string; dimension?: string }[] };
+    };
+    expect(template.currency).toBe("$.currency");
+    expect(template.exchangeRate).toBe("$.exchangeRate");
+    for (const line of template.lines.filter((l) => !l.role.startsWith("fx_"))) {
+      expect(line.amount, JSON.stringify(line)).toMatch(/Doc$/);
+      expect(line.amountCompany, JSON.stringify(line)).toBe(line.amount.replace(/Doc$/, ""));
+    }
+    // An exchange difference has pesos only: its document amount is 0, so it never unbalances the receipt's currency.
+    expect(template.lines.filter((l) => l.role.startsWith("fx_")).map(({ role, side, amount, amountCompany, forEach, dimension }) => ({ role, side, amount, amountCompany, forEach, dimension }))).toEqual([
+      { role: "fx_loss", side: "debit", amount: "0", amountCompany: "$.fx.loss", forEach: "$.allocations[*]", dimension: "fx_kind:realized" },
+      { role: "fx_gain", side: "credit", amount: "0", amountCompany: "$.fx.gain", forEach: "$.allocations[*]", dimension: "fx_kind:realized" },
+    ]);
   });
 });

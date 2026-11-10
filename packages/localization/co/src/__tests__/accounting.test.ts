@@ -57,8 +57,15 @@ describe("Colombia accounting pack", () => {
     });
     expect(mappings.find((m) => m.role === "suspense")?.code).toBe("238095");
     expect(mappings.find((m) => m.role === "rounding")?.code).toBe("530595");
-    expect(acc.extraAccounts().map((a) => a.code).sort()).toEqual(["238095", "530595"]);
+    expect(acc.extraAccounts().map((a) => a.code).sort()).toEqual(["238095", "421020", "530525", "530595"]);
     const chart = new Set(acc.chartOfAccounts().map((a) => a.code));
+    // The realized and unrealized exchange difference (plan 2B.2 Task 34.5, FX §5; provisional, owner item 126 (a), the accountant confirms):
+    // fx_gain → 421020 and fx_loss → 530525 «Diferencia en cambio», added to the PUC seed; neither asks for a cost center (a receipt has none).
+    expect(mappings.find((m) => m.role === "fx_gain" && !m.dimension)?.code).toBe("421020");
+    expect(mappings.find((m) => m.role === "fx_loss" && !m.dimension)?.code).toBe("530525");
+    expect(acc.extraAccounts().find((a) => a.code === "421020")).toMatchObject({ name: "Diferencia en cambio", nature: "credit", requiresCostCenter: false, requiresParty: false, statementSection: "other_income" });
+    expect(acc.extraAccounts().find((a) => a.code === "530525")).toMatchObject({ name: "Diferencia en cambio", nature: "debit", requiresCostCenter: false, requiresParty: false, statementSection: "other_expenses" });
+    expect(chart.has("4210") && chart.has("421020") === false && chart.has("530525") === false).toBe(true);
     expect(chart.has("2380") && chart.has("5305")).toBe(true);
     expect(chart.has("238095") || chart.has("530595")).toBe(false);
   });

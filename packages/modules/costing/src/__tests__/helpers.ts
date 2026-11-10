@@ -46,7 +46,7 @@ export async function costingHarness(options: { accounting?: boolean } = {}): Pr
   const registry = new Registry();
   loadModules(registry, modules);
   registerCountryPack(co);
-  for (const m of [core, inventory, costing]) await syncModuleManifest(sql, m);
+  for (const m of [core, inventory, costing, accounting]) await syncModuleManifest(sql, m);
   const seed = await seedTenant(sql, {
     companies: 2,
     users: [{ name: "clerk", companies: [0], role: "member" }],

@@ -370,6 +370,26 @@ export function inPesos<T extends SalePayload>(payload: T): Record<string, unkno
   };
 }
 
+interface ReceiptPayload {
+  amount: number;
+  applied: number;
+  withholdings: { income: { amount: number }[]; vat: { amount: number }[]; ica: { amount: number }[] };
+  advances?: { amount: number }[];
+}
+
+/**
+ * A peso receipt payload as payments emits it since Task 34.5 (R34-4): each company amount beside its document twin (`*Doc`, equal in COP),
+ * the currency, the rate (1) and the allocations' exchange difference (none: an empty list, so no fx line).
+ */
+export function receiptInPesos<T extends ReceiptPayload>(payload: T): Record<string, unknown> {
+  const twin = (rows: { amount: number }[]) => rows.map((r) => ({ ...r, amountDoc: r.amount }));
+  return {
+    ...payload, currency: "COP", exchangeRate: 1, amountDoc: payload.amount, appliedDoc: payload.applied, allocations: [],
+    withholdings: { income: twin(payload.withholdings.income), vat: twin(payload.withholdings.vat), ica: twin(payload.withholdings.ica) },
+    advances: twin(payload.advances ?? []),
+  };
+}
+
 /**
  * The invoicing.note.issued payload of an annulment, mirroring what invoicing.invoice.void / note.issue_annulment emits (processes/note.ts):
  * a credit note whose amounts are the invoice's, negative (the posting engine flips the side of a negative amount). R53-2: the seed's
@@ -429,7 +449,7 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
     const ica = money(paidBase * 0.00966);
     receiptNo++;
     const number = `RC-${receiptNo}`;
-    await send("payments.received", {
+    await send("payments.received", receiptInPesos({
       date: addDays(spec.date, spec.receipt!.days), number, paymentId: documentId("b", index), method: spec.receipt!.method, amount: applied - rte - ica, applied,
       customer: customer(spec.customer),
       withholdings: {
@@ -437,7 +457,7 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
         vat: [],
         ica: [{ code: "RTEICA_BOGOTA_0_966", rate: 0.966, base: paidBase, amount: ica }],
       },
-    });
+    }));
     return { number, date: addDays(spec.date, spec.receipt!.days) };
   };
   let voidedReceipt: { number: string; date: string; index: number } | null = null;

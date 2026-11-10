@@ -2,6 +2,11 @@
 // draft the form keeps while the user types (the customer, the medio de pago, the caja, the date, the money received, what to apply to each
 // open invoice of the customer and the withholdings practised on it), the live totals (cash applied, withholdings, advance) and the input of
 // payments.payment.receive. Pure, so the arithmetic is unit-tested; the server checks everything again (rule 1).
+//
+// Plan 2B.2 Task 34.5 (item 125, R34-6): the receipt is in its method's currency. A foreign receipt may carry the rate (empty: the server
+// takes the rate table's of the receipt date). Pesos may settle a USD invoice: the user types the dollars applied and the pesos received for
+// them (amountReceipt), and the screen shows the rate they imply; the cash and the advance count what was received, in the receipt's currency.
+// A foreign invoice takes no withholding (a customer abroad practises none).
 
 export type WithholdingKindDraft = "" | "income" | "vat" | "ica";
 
@@ -20,8 +25,10 @@ export interface WithholdingDraft {
 }
 
 export interface AllocationDraft {
-  /** What to apply to the invoice (cash + withholdings), as typed. */
+  /** What to apply to the invoice (cash + withholdings), as typed, in the invoice's currency. */
   amount: string;
+  /** What was received for it in the receipt's currency, as typed: only when the invoice is in another currency. */
+  amountReceipt?: string;
   withholdings: WithholdingDraft[];
 }
 
@@ -32,6 +39,8 @@ export interface ReceiptDraft {
   cashBoxId: string;
   date: string;
   amount: string;
+  /** The receipt's rate to the company's currency, as typed (a foreign receipt only; empty: the rate table's). */
+  exchangeRate?: string;
   reference: string;
   notes: string;
   /** By invoice id. */
@@ -44,10 +53,20 @@ export interface OpenInvoiceRow {
   number: string | null;
   open: number;
   payable: boolean;
+  /** The invoice's currency (ISO 4217); the receipt's when not given. */
+  currency?: string;
 }
 
+/** The receipt's currency (its method's) and the company's. */
+export interface ReceiptCurrencies {
+  receipt: string;
+  company: string;
+}
+
+const PESOS: ReceiptCurrencies = { receipt: "COP", company: "COP" };
+
 /** What the form still lacks before «Registrar pago» can run. */
-export type ReceiptMissing = "party" | "method" | "amount" | "cash_short" | "over_open" | "withholding";
+export type ReceiptMissing = "party" | "method" | "amount" | "cash_short" | "over_open" | "withholding" | "amount_receipt";
 
 /** A number as typed in es-CO: `1.234.567,89`, `144.350` (thousands), `2,5`, `2.5`, `144350`; NaN when it is not one. */
 export function parseAmount(text: string): number {
@@ -118,6 +137,21 @@ export function setWithholding(draft: ReceiptDraft, invoiceId: string, index: nu
   return { ...draft, allocations: { ...draft.allocations, [invoiceId]: { ...current, withholdings } } };
 }
 
+/** What was received for an invoice in another currency, as typed (the receipt's currency). */
+export function setReceived(draft: ReceiptDraft, invoiceId: string, amountReceipt: string): ReceiptDraft {
+  const current = draft.allocations[invoiceId] ?? { amount: "", withholdings: [] };
+  return { ...draft, allocations: { ...draft.allocations, [invoiceId]: { ...current, amountReceipt } } };
+}
+
+/** The rate the pesos received and the dollars applied imply (received ÷ applied, to four decimals); null until both are typed. */
+export function impliedRate(draft: ReceiptDraft, invoiceId: string): number | null {
+  const a = draft.allocations[invoiceId];
+  if (!a) return null;
+  const applied = parseAmount(a.amount);
+  const received = parseAmount(a.amountReceipt ?? "");
+  return applied > 0 && received > 0 ? Math.round((received / applied) * 10000) / 10000 : null;
+}
+
 /** What to apply to an invoice, as typed. */
 export function setApplied(draft: ReceiptDraft, invoiceId: string, amount: string): ReceiptDraft {
   const current = draft.allocations[invoiceId] ?? { amount: "", withholdings: [] };
@@ -127,12 +161,16 @@ export function setApplied(draft: ReceiptDraft, invoiceId: string, amount: strin
 interface CountedAllocation {
   invoiceId: string;
   applied: number;
+  /** What was received for it, in the receipt's currency: `applied` when the currencies match; NaN when not typed yet. */
+  received: number;
+  /** The invoice is in another currency than the receipt's: the receipt amount goes in the input. */
+  cross: boolean;
   withholdings: { kind: Exclude<WithholdingKindDraft, "">; code: string; rate: number; base: number; amount: number }[];
   complete: boolean;
 }
 
 /** The allocations that count: on a payable invoice, with an amount above zero and within what is open. */
-function counted(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[]): { lines: CountedAllocation[]; over: string[] } {
+function counted(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[], money: ReceiptCurrencies): { lines: CountedAllocation[]; over: string[] } {
   const lines: CountedAllocation[] = [];
   const over: string[] = [];
   for (const inv of invoices) {
@@ -144,8 +182,13 @@ function counted(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[]): { li
       over.push(inv.id);
       continue;
     }
+    const invoiceCurrency = inv.currency ?? money.receipt;
+    const cross = invoiceCurrency !== money.receipt;
+    const typedReceived = parseAmount(a.amountReceipt ?? "");
+    const received = cross ? (typedReceived > 0 ? typedReceived : Number.NaN) : applied;
     let complete = true;
-    const withholdings = a.withholdings.flatMap((w) => {
+    // A foreign invoice takes no withholding: the lines are dropped (the screen does not offer them).
+    const withholdings = invoiceCurrency !== money.company ? [] : a.withholdings.flatMap((w) => {
       const rate = parseAmount(w.rate);
       const base = parseAmount(w.base);
       const amount = parseAmount(w.amount);
@@ -155,7 +198,7 @@ function counted(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[]): { li
       }
       return [{ kind: w.kind, code: w.code.trim(), rate, base, amount }];
     });
-    lines.push({ invoiceId: inv.id, applied, withholdings, complete });
+    lines.push({ invoiceId: inv.id, applied, received, cross, withholdings, complete });
   }
   return { lines, over };
 }
@@ -176,9 +219,10 @@ export interface ReceiptTotalsView {
 }
 
 /** The live totals of the form. */
-export function receiptTotals(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[]): ReceiptTotalsView {
-  const { lines, over } = counted(draft, invoices);
-  const applied = lines.reduce((s, l) => s + cents(l.applied), 0);
+export function receiptTotals(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[], money: ReceiptCurrencies = PESOS): ReceiptTotalsView {
+  const { lines, over } = counted(draft, invoices, money);
+  // In the receipt's currency: what was received for each invoice (an invoice whose pesos are not typed yet counts nothing).
+  const applied = lines.reduce((s, l) => s + (Number.isFinite(l.received) ? cents(l.received) : 0), 0);
   const held = lines.reduce((s, l) => s + l.withholdings.reduce((t, w) => t + cents(w.amount), 0), 0);
   const typed = parseAmount(draft.amount);
   const received = Number.isFinite(typed) ? cents(typed) : 0;
@@ -187,35 +231,39 @@ export function receiptTotals(draft: ReceiptDraft, invoices: readonly OpenInvoic
 }
 
 /** What the form lacks; the totals' checks only when the invoices are given. */
-export function receiptMissing(draft: ReceiptDraft, invoices?: readonly OpenInvoiceRow[]): ReceiptMissing[] {
+export function receiptMissing(draft: ReceiptDraft, invoices?: readonly OpenInvoiceRow[], money: ReceiptCurrencies = PESOS): ReceiptMissing[] {
   const missing: ReceiptMissing[] = [];
   if (!draft.partyId) missing.push("party");
   if (!draft.methodId) missing.push("method");
   const amount = parseAmount(draft.amount);
   if (!Number.isFinite(amount)) missing.push("amount");
   if (invoices && missing.length === 0) {
-    const totals = receiptTotals(draft, invoices);
-    if (totals.short) missing.push("cash_short");
+    const totals = receiptTotals(draft, invoices, money);
+    const { lines } = counted(draft, invoices, money);
+    if (lines.some((l) => !Number.isFinite(l.received))) missing.push("amount_receipt");
+    else if (totals.short) missing.push("cash_short");
     if (totals.over.length > 0) missing.push("over_open");
-    if (counted(draft, invoices).lines.some((l) => !l.complete)) missing.push("withholding");
+    if (lines.some((l) => !l.complete)) missing.push("withholding");
   }
   return missing;
 }
 
 /** The input of payments.payment.receive: the payable invoices with an amount, their withholdings, one idempotency key per form. */
-export function receiptInput(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[], idempotencyKey: string): Record<string, unknown> {
-  const { lines } = counted(draft, invoices);
+export function receiptInput(draft: ReceiptDraft, invoices: readonly OpenInvoiceRow[], idempotencyKey: string, money: ReceiptCurrencies = PESOS): Record<string, unknown> {
+  const { lines } = counted(draft, invoices, money);
   const reference = draft.reference.trim();
   const notes = draft.notes.trim();
+  const rate = money.receipt !== money.company ? parseAmount(draft.exchangeRate ?? "") : Number.NaN;
   return {
     partyId: draft.partyId,
     methodId: draft.methodId,
     ...(draft.cashBoxId ? { cashBoxId: draft.cashBoxId } : {}),
     date: draft.date,
     amount: parseAmount(draft.amount),
+    ...(rate > 0 ? { exchangeRate: rate } : {}),
     ...(reference ? { reference } : {}),
     ...(notes ? { notes } : {}),
-    allocations: lines.map((l) => ({ invoiceId: l.invoiceId, amount: l.applied, withholdings: l.withholdings })),
+    allocations: lines.map((l) => ({ invoiceId: l.invoiceId, amount: l.applied, ...(l.cross ? { amountReceipt: l.received } : {}), withholdings: l.withholdings })),
     idempotencyKey,
   };
 }
