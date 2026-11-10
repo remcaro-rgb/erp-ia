@@ -2454,6 +2454,7 @@
         "amount": "Valor",
         "offset_role": "Contrapartida",
         "party_id": "Proveedor",
+        "cost_center_id": "Centro de costo",
         "reference": "Referencia",
         "description": "Descripción",
         "currency": "Moneda",
@@ -2478,6 +2479,8 @@
         "base": "Base del reparto",
         "weight": "Peso",
         "amount": "Valor repartido",
+        "amount_stock": "A inventario",
+        "amount_cogs": "A costo de ventas",
         "unit_cost_added": "Costo unitario agregado",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
@@ -5421,6 +5424,7 @@
         "transfer_out": "Salida por traslado",
         "transfer_in": "Entrada por traslado",
         "landed_cost": "Costo en destino",
+        "landed_cost_cogs": "Costo en destino a costo de ventas",
         "reversal": "Reversión por anulación"
       },
       "cost_source": {
@@ -5432,7 +5436,8 @@
         "none": "Sin costo",
         "landed_cost": "Costo en destino",
         "reversal": "Reversión",
-        "last_known": "Último costo conocido (estimado)"
+        "last_known": "Último costo conocido (estimado)",
+        "landed_cost_cogs": "Costo en destino (unidades ya vendidas)"
       },
       "missing_status": {
         "open": "Abierto",
@@ -5471,9 +5476,12 @@
       "offset_role": "Contrapartida",
       "party": "Proveedor",
       "party_hint": "A quién se le debe, si la contrapartida es una cuenta por pagar o un anticipo.",
+      "cost_center": "Centro de costo",
+      "cost_center_hint": "Para la parte de las unidades ya vendidas, que va al costo de ventas.",
       "date": "Fecha",
       "reference": "Referencia",
-      "description": "Descripción"
+      "description": "Descripción",
+      "cogs_note": "Costo de ventas por unidades ya vendidas"
     },
     "settings_page": {
       "title": "Método de costeo",
@@ -5501,7 +5509,10 @@
       "return_cogs": "Costo de ventas: reversa el costo de ventas de lo devuelto, al costo de su salida",
       "return_void_cogs": "Costo de ventas: vuelve a registrar el costo de ventas de la devolución anulada",
       "movement_cost": "Costos: valora el movimiento al costo promedio ponderado de la bodega",
-      "movement_void_cost": "Costos: reversa la valoración del movimiento anulado"
+      "movement_void_cost": "Costos: reversa la valoración del movimiento anulado",
+      "landed_stock": "Costos: sube el costo de las unidades de la entrada que siguen en existencia",
+      "landed_cogs": "Costo de ventas: lleva al costo de ventas del período la parte de las unidades de la entrada ya vendidas",
+      "landed_void": "Costos: quita de las capas y del costo de ventas exactamente lo que repartió el costo en destino"
     },
     "recommendation": {
       "cost_missing": {

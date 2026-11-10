@@ -158,9 +158,10 @@ export interface StockDocumentFormProps {
   warehouses: readonly CodeOption[];
   locations: readonly LocationOption[];
   product: LookupSource;
-  /** A landed cost: the receipts it can be allocated to, and the suppliers it can be owed to. */
+  /** A landed cost: the receipts it can be allocated to, the suppliers it can be owed to, and the cost centers of its cost of sales part. */
   receipt?: LookupSource;
   party?: LookupSource;
+  costCenter?: LookupSource | null;
   /** A copy ("Duplicar") of a stored document: its header. */
   initial?: Readonly<Record<string, unknown>> | null;
   readOnly?: boolean;
@@ -185,7 +186,7 @@ function draftFrom(kind: StockDocumentFormProps["kind"], today: string, warehous
   };
 }
 
-export function StockDocumentForm({ kind, today, warehouses, locations, product, receipt, party, initial: copy, readOnly = false, save, requestStepUp, onSaved }: StockDocumentFormProps) {
+export function StockDocumentForm({ kind, today, warehouses, locations, product, receipt, party, costCenter, initial: copy, readOnly = false, save, requestStepUp, onSaved }: StockDocumentFormProps) {
   const ns = kind === "landed_cost" ? "costing.form" : "inventory.form";
   const t = useTranslations(ns);
   const ti = useTranslations("inventory.form");
@@ -199,7 +200,7 @@ export function StockDocumentForm({ kind, today, warehouses, locations, product,
   // One key per form: a retry of the same submit (a double click, a lost answer) answers the first allocation (Task 9 note).
   const [idempotencyKey] = useState(() => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `k${Date.now()}${Math.random()}`));
   const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, true));
-  const fieldKeys = ["date", "warehouseId", "fromWarehouseId", "toWarehouseId", "reference", "description", "reason", "movementId", "amount", "basis", "offsetRole", "partyId"];
+  const fieldKeys = ["date", "warehouseId", "fromWarehouseId", "toWarehouseId", "reference", "description", "reason", "movementId", "amount", "basis", "offsetRole", "partyId", "costCenterId"];
   const failed = failureMessages(flow.failure, fieldKeys, errorText);
   const missing = stockMissing(kind, draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
@@ -261,6 +262,24 @@ export function StockDocumentForm({ kind, today, warehouses, locations, product,
               />
             )}
           </Field>
+          {costCenter && (
+            <Field label={t("cost_center")} hint={t("cost_center_hint")} error={failed.field("costCenterId")} className="erp-span3">
+              {(id) => (
+                <EntityLookup
+                  id={id}
+                  aria-label={t("cost_center")}
+                  entityLabel={costCenter.entityLabel}
+                  fetcher={gridFetcher("accounting.cost_center")}
+                  fields={costCenter.fields}
+                  disabled={readOnly}
+                  value={draft.costCenterId ? { id: draft.costCenterId, label: draft.costCenterLabel } : null}
+                  href={null}
+                  describe={(row: GridRow) => ({ label: [row.code, row.name].filter(Boolean).join(" · ") || String(row.id), sub: "" })}
+                  onPick={(row) => setDraft((d) => ({ ...d, costCenterId: row?.id ?? "", costCenterLabel: row ? [row.code, row.name].filter(Boolean).join(" · ") : "" }))}
+                />
+              )}
+            </Field>
+          )}
           <DateField label={t("date")} value={draft.date} disabled={readOnly} error={failed.field("date")} onChange={set("date")} />
           <TextField label={t("reference")} value={draft.reference} maxLength={100} disabled={readOnly} error={failed.field("reference")} onChange={set("reference")} />
           <TextField label={t("description")} value={draft.description} maxLength={500} disabled={readOnly} error={failed.field("description")} onChange={set("description")} className="erp-span3" />

@@ -4,7 +4,9 @@ import cogsPosted from "./defaults/cogs-posted.json" with { type: "json" };
 
 // The default posting rules the costing module ships (accounting design §5.4; `accounting.posting_rule.sync` installs them for a company
 // that has costing on, and switches them off with the module). Landed costs: costing.landed_cost.allocated posts Dr inventory (one line per
-// receipt line, its share) / Cr the offset role the request names. A rule line names its role literally, so there is one rule per offset
+// receipt line, the stock part of its share) and Dr cogs (one line per receipt line, the part of its share that belongs to units already sold,
+// on the cost center the request names; a zero line is dropped by the engine, so a receipt with nothing sold posts as before: Task 45,
+// R45-3) / Cr the offset role the request names. A rule line names its role literally, so there is one rule per offset
 // role, each with a `when` on the payload's offsetRole: exactly one applies to an event. Anular posts nothing of its own: the rule
 // `reverseOf` on costing.landed_cost.voided reverses the entry of the allocation (a reversal rule has no `when`, it finds the entry by source).
 
@@ -26,6 +28,7 @@ const allocated = (role: (typeof OFFSET_ROLES)[number]): DefaultPostingRule => (
     source: { entity: "costing.landed_cost", id: "$.landedCostId" },
     lines: [
       { role: "inventory", side: "debit", forEach: "$.lines[*]", amount: "$.cost" },
+      { role: "cogs", side: "debit", forEach: "$.lines[*]", amount: "$.cogsAdjustment", costCenter: "$.costCenterId" },
       { role, side: "credit", amount: "$.amount", party: "$.partyId" },
     ],
     reverseOf: null,

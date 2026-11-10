@@ -2454,6 +2454,7 @@
         "amount": "Amount",
         "offset_role": "Offset",
         "party_id": "Supplier",
+        "cost_center_id": "Cost center",
         "reference": "Reference",
         "description": "Description",
         "currency": "Currency",
@@ -2478,6 +2479,8 @@
         "base": "Allocation base",
         "weight": "Weight",
         "amount": "Amount allocated",
+        "amount_stock": "To inventory",
+        "amount_cogs": "To cost of sales",
         "unit_cost_added": "Unit cost added",
         "extra": "Additional data",
         "extra_free": "Free data",
@@ -5421,6 +5424,7 @@
         "transfer_out": "Transfer out",
         "transfer_in": "Transfer in",
         "landed_cost": "Landed cost",
+        "landed_cost_cogs": "Landed cost to cost of sales",
         "reversal": "Void reversal"
       },
       "cost_source": {
@@ -5432,7 +5436,8 @@
         "none": "No cost",
         "landed_cost": "Landed cost",
         "reversal": "Reversal",
-        "last_known": "Last known cost (estimate)"
+        "last_known": "Last known cost (estimate)",
+        "landed_cost_cogs": "Landed cost (units already sold)"
       },
       "missing_status": {
         "open": "Open",
@@ -5471,9 +5476,12 @@
       "offset_role": "Offset",
       "party": "Supplier",
       "party_hint": "Who is owed, when the offset is a payable or an advance.",
+      "cost_center": "Cost center",
+      "cost_center_hint": "For the share of units already sold, which goes to cost of sales.",
       "date": "Date",
       "reference": "Reference",
-      "description": "Description"
+      "description": "Description",
+      "cogs_note": "Cost of sales for units already sold"
     },
     "settings_page": {
       "title": "Costing method",
@@ -5501,7 +5509,10 @@
       "return_cogs": "Cost of sales: reverses the cost of sales of what was returned, at the cost it left with",
       "return_void_cogs": "Cost of sales: records again the cost of sales of the voided return",
       "movement_cost": "Costing: values the movement at the warehouse's weighted average cost",
-      "movement_void_cost": "Costing: reverses the valuation of the voided movement"
+      "movement_void_cost": "Costing: reverses the valuation of the voided movement",
+      "landed_stock": "Costing: raises the cost of the receipt units still in stock",
+      "landed_cogs": "Cost of sales: sends the share of the receipt units already sold to the period's cost of sales",
+      "landed_void": "Costing: takes back from the layers and from cost of sales exactly what the landed cost allocated"
     },
     "recommendation": {
       "cost_missing": {

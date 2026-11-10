@@ -75,6 +75,8 @@ export interface StockFormData {
   product: LookupSource;
   receipt: LookupSource | null;
   party: LookupSource | null;
+  /** A landed cost (Task 45): the cost centers of its cost of sales part; null when the caller may not read them (or accounting is off). */
+  costCenter: LookupSource | null;
   /** A stored movimiento, traslado, conteo or costo en destino; null for a new one and for the maestros. */
   view: StockView | null;
 }
@@ -104,7 +106,7 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
   const deps = processDeps();
   const stock = STOCK_FORMS[entityId]!;
   const t = await getTranslations();
-  const [lists, product, receipt, party] = await Promise.all([
+  const [lists, product, receipt, party, costCenter] = await Promise.all([
     withClaims(deps.sql, caller.claims, async (tx) => {
       const [today] = await tx<{ today: string }[]>`select (now() at time zone timezone)::date::text as today from kernel.companies where id = ${caller.claims.active_company_id}`;
       const warehouses = await tx<{ id: string; code: string | null; name: string | null }[]>`
@@ -119,6 +121,7 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
     lookupSource(caller, "core.product"),
     stock === "landed_cost" ? lookupSource(caller, "inventory.movement") : Promise.resolve(null),
     stock === "landed_cost" ? lookupSource(caller, "core.party") : Promise.resolve(null),
+    stock === "landed_cost" ? lookupSource(caller, "accounting.cost_center") : Promise.resolve(null),
   ]);
   const view = record && LINES[entityId] ? await stockView(caller, entityId, record) : null;
   return {
@@ -130,6 +133,7 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
     product: product ?? { fields: [], entityLabel: t("entity.core.product") },
     receipt,
     party,
+    costCenter,
     view,
   };
 }
@@ -195,6 +199,9 @@ async function stockView(caller: Caller, entityId: string, record: Row): Promise
     if (live && stage === "open" && runnable.has("inventory.count.apply")) steps.push("inventory.count.apply");
   } else {
     facts.push(plain("date"), ref("movement_id", "inventory.movement"), plain("amount"), plain("basis"), plain("offset_role"), ref("party_id", "core.party"), plain("reference"), plain("description"));
+    // Task 45 (R45-7): the share of units already sold went to cost of sales; the lines show the split, the header says how much in all.
+    const cogs = sheet.reduce((sum, l) => sum + Math.round(Number(l.amount_cogs ?? 0) * 100), 0);
+    if (cogs !== 0) facts.push({ label: t("costing.form.cogs_note"), value: formatMoney(cogs / 100) });
   }
   const stageDef = entity.fields.find((f) => f.name === "stage");
   const adjustmentId = typeof record.adjustment_id === "string" ? record.adjustment_id : null;

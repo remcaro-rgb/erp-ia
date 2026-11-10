@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CostError, revalue } from "../average";
-import { distribute } from "../allocation";
+import { distribute, splitShare } from "../allocation";
 
 // Landed costs as arithmetic (plan 2B Task 9 Step 1): distribute() splits an amount, in cents, over the lines of a receipt by a base
 // (value, quantity or weight) so the increments add up to the amount to the cent (largest remainder); revalue() adds a signed amount
@@ -60,5 +60,40 @@ describe("revalue", () => {
   it("a negative amount takes a landed cost back (a void), to the cent", () => {
     const raised = revalue({ qty: 7, value: 700, avgCost: 100 }, 33.33).after;
     expect(revalue(raised, -33.33).after).toEqual({ qty: 7, value: 700, avgCost: 100 });
+  });
+});
+
+// Task 45 (R45-1): the share of a receipt line splits by units between the units still on hand (stock) and those already gone (cost of
+// sales): the stock part is rounded half-up to the cent, the cost of sales part is the remainder, so the two add up to the share exactly.
+describe("splitShare", () => {
+  it("the worked example: 10 received, 5 on hand, $ 10.000 → $ 5.000 to stock and $ 5.000 to cost of sales", () => {
+    expect(splitShare(1_000_000, 10, 5)).toEqual({ stock: 500_000, cogs: 500_000 });
+  });
+
+  it("nothing sold: the whole share to stock; all sold: the whole share to cost of sales", () => {
+    expect(splitShare(12_345, 10, 10)).toEqual({ stock: 12_345, cogs: 0 });
+    expect(splitShare(12_345, 10, 0)).toEqual({ stock: 0, cogs: 12_345 });
+  });
+
+  it("rounds the stock part half-up and gives the remainder to cost of sales", () => {
+    // 1 cent × 1/2 = 0,5 → 1 to stock, 0 to cost of sales; 100 cents × 1/3 = 33,33 → 33 and 67; × 2/3 = 66,67 → 67 and 33.
+    expect(splitShare(1, 2, 1)).toEqual({ stock: 1, cogs: 0 });
+    expect(splitShare(100, 3, 1)).toEqual({ stock: 33, cogs: 67 });
+    expect(splitShare(100, 3, 2)).toEqual({ stock: 67, cogs: 33 });
+  });
+
+  it("works on quantities with four decimals and always adds up to the share", () => {
+    for (const [share, received, onHand] of [[99_999, 7.3333, 2.5], [1, 0.0001, 0.0001], [123_457, 12.5, 12.4999], [98_765_432, 1000, 1]] as const) {
+      const out = splitShare(share, received, onHand);
+      expect(out.stock + out.cogs).toBe(share);
+      expect(Number.isInteger(out.stock) && Number.isInteger(out.cogs) && out.stock >= 0 && out.cogs >= 0).toBe(true);
+    }
+  });
+
+  it("refuses an on-hand quantity outside 0..received and a share that is not whole cents", () => {
+    expect(() => splitShare(100, 10, 11)).toThrow(CostError);
+    expect(() => splitShare(100, 10, -1)).toThrow(CostError);
+    expect(() => splitShare(100, 0, 0)).toThrow(CostError);
+    expect(() => splitShare(1.5, 10, 5)).toThrow(CostError);
   });
 });

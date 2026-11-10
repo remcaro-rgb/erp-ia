@@ -253,5 +253,7 @@ test.describe("inventory pages", () => {
     await page.goto("/r/costing.landed_cost/new");
     await expect(page.getByRole("heading", { name: "Crear costo en destino" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Entrada de mercancía" })).toBeVisible();
+    // Task 45: the cost center of the share of units already sold (it goes to cost of sales).
+    await expect(page.getByRole("combobox", { name: "Centro de costo" })).toBeVisible();
   });
 });

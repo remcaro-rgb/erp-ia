@@ -39,18 +39,20 @@ const trailer = (f: F): FieldDef[] => [
 export const COST_METHODS = ["average"] as const;
 /**
  * The inventory movement kinds a cost event follows (inventory's `MOVEMENT_KINDS`), and `landed_cost`: a landed cost allocated to a
- * receipt's layer (Task 9) moves the layer's value, never its quantity (qty 0), and has no movement line of its own.
+ * receipt's layer (Task 9) moves the layer's value, never its quantity (qty 0), and has no movement line of its own. `landed_cost_cogs`
+ * (Task 45, R45-2) records the part of a landed cost that belongs to units already sold and went to cost of sales: qty 0, the layer's value
+ * unchanged (its amount is the audit record of the adjustment, so a layer's value is the sum of its events other than these).
  */
-export const EVENT_KINDS = ["receipt", "issue", "sale_issue", "sale_return", "adjustment", "transfer_out", "transfer_in", "landed_cost", "reversal"] as const;
+export const EVENT_KINDS = ["receipt", "issue", "sale_issue", "sale_return", "adjustment", "transfer_out", "transfer_in", "landed_cost", "landed_cost_cogs", "reversal"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 /**
  * Where the unit cost of a cost event came from: the movement line's own cost (a receipt, an adjustment), the layer's weighted average (an
  * issue), the product's standard cost (the first cost of an empty layer), the original issue (a sale return), the traslado's out leg (its in
- * leg), a landed cost allocated to a receipt, or nothing (no cost known: valued at 0 and flagged in cost_missing). `last_known` (Task 44,
+ * leg), a landed cost allocated to a receipt (`landed_cost_cogs`: its part sent to cost of sales, Task 45), or nothing (no cost known: valued at 0 and flagged in cost_missing). `last_known` (Task 44,
  * R44-4) is an ESTIMATE: the product's last real cost, used under the company's `unknown_cost_mode = last_known` for a line with no cost of
  * its own; the event is also flagged cost_missing, because it carries no real cost.
  */
-export const COST_SOURCES = ["line", "average", "standard", "original_issue", "transfer", "none", "landed_cost", "reversal", "last_known"] as const;
+export const COST_SOURCES = ["line", "average", "standard", "original_issue", "transfer", "none", "landed_cost", "reversal", "last_known", "landed_cost_cogs"] as const;
 export type CostSource = (typeof COST_SOURCES)[number];
 /**
  * What a line with no known cost is valued at (Task 44, R44-1): `zero` (the default, as always) or `last_known` (the unit cost of the
@@ -161,6 +163,9 @@ export const landedCostEntity: EntityDef = entity("costing.landed_cost", "docume
   f("offset_role", "enum", { required: true, enumValues: [...OFFSET_ROLES], valuesKey: "costing.values.offset_role" }),
   // The supplier whose bill the cost is (the credited account of a payable or an advance asks for the tercero).
   f("party_id", "ref", party),
+  // Task 45: the cost center of the cost of sales part (the share of units already sold), as a sales delivery carries it (an accounting
+  // dimension: costing stores its id, the ledger checks it).
+  f("cost_center_id", "uuid"),
   f("reference", "text", { searchable: true }),
   f("description", "text", { searchable: true }),
   f("currency", "text"),
@@ -195,6 +200,9 @@ export const landedCostLineEntity: EntityDef = entity("costing.landed_cost_line"
   f("base", "number", { required: true }),
   f("weight", "number"),
   f("amount", "money", { required: true, sensitivity: "confidential" }),
+  // Task 45 (R45-7): the share split by units, to stock (the units still on hand) and to cost of sales (the units already sold).
+  f("amount_stock", "money", { required: true, sensitivity: "confidential" }),
+  f("amount_cogs", "money", { required: true, sensitivity: "confidential" }),
   f("unit_cost_added", "money", { required: true, sensitivity: "confidential" }),
   ...trailer(f),
 ]);

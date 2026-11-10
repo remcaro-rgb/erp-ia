@@ -221,28 +221,37 @@ describe("refusals", () => {
     await expect(allocate({ movementId: movement, amount: 10.005, basis: "value" })).rejects.toThrow();
   });
 
-  it("units of the receipt already issued are not restated: the allocation raises the value of what remains", async () => {
+  // Task 45 (R45-8, item 37): these two cases asserted that the share of units already issued stayed in the layer; it now goes to cost of
+  // sales in the allocation's entry (landed-cost-late.integration.test.ts has the whole rule). The issued units are still not restated.
+  const lateCenter = async () =>
+    (await h.sql<{ id: string }[]>`
+      insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'LCI', 'Costo en destino', 'leaf')
+      on conflict do nothing returning id`)[0]?.id ??
+    (await h.sql<{ id: string }[]>`select id from accounting.cost_centers where company_id = ${h.companyId} and code = 'LCI'`)[0]!.id;
+
+  it("units of the receipt already issued are not restated: their share goes to cost of sales, the rest raises what remains", async () => {
     const p = await product("LC-I1");
     const movement = await receipt([{ productId: p, qty: 10, unitCost: 100 }]);
     const issue = (await h.run<{ id: string }>(h.admin, "inventory.movement.post", { kind: "issue", date: date(), warehouseId: w.id, lines: [{ productId: p, locationId: w.locationId, qty: -6 }] })).id;
     await h.deliver(await h.movementEvent(issue), "costing");
     expect(await layerOf(h, p, w.id)).toEqual({ qty: 4, value: 400, avgCost: 100 });
-    await allocate({ movementId: movement, amount: 200, basis: "value" });
-    // The 6 units issued keep their cost of 600; the 200 raises the 4 that remain to 150 each.
-    expect(await layerOf(h, p, w.id)).toEqual({ qty: 4, value: 600, avgCost: 150 });
-    expect(await sumOfEvents(p)).toBe(600);
+    const landed = await allocate({ movementId: movement, amount: 200, basis: "value", costCenterId: await lateCenter() });
+    // The 6 units issued keep their cost of 600; their 6/10 of the 200 (120) goes to cost of sales, the 4 that remain take 80 (120 each).
+    expect(landed.lines.map((l) => l.amount)).toEqual([200]);
+    expect(await layerOf(h, p, w.id)).toEqual({ qty: 4, value: 480, avgCost: 120 });
+    expect((await layerEvents(p)).map((e) => [e.kind, Number(e.amount)])).toEqual([["receipt", 1000], ["issue", -600], ["landed_cost", 80], ["landed_cost_cogs", 120]]);
   });
 
-  it("when no unit remains the value stays in the layer and the next entry's average carries it", async () => {
+  it("when no unit remains the whole share goes to cost of sales and the layer keeps its value", async () => {
     const p = await product("LC-I2");
     const movement = await receipt([{ productId: p, qty: 2, unitCost: 100 }]);
     const issue = (await h.run<{ id: string }>(h.admin, "inventory.movement.post", { kind: "issue", date: date(), warehouseId: w.id, lines: [{ productId: p, locationId: w.locationId, qty: -2 }] })).id;
     await h.deliver(await h.movementEvent(issue), "costing");
-    await allocate({ movementId: movement, amount: 50, basis: "quantity" });
-    expect(await layerOf(h, p, w.id)).toEqual({ qty: 0, value: 50, avgCost: 100 });
+    await allocate({ movementId: movement, amount: 50, basis: "quantity", costCenterId: await lateCenter() });
+    expect(await layerOf(h, p, w.id)).toEqual({ qty: 0, value: 0, avgCost: 100 });
     await receipt([{ productId: p, qty: 1, unitCost: 100 }]);
-    expect(await layerOf(h, p, w.id)).toEqual({ qty: 1, value: 150, avgCost: 150 });
-    expect(await sumOfEvents(p)).toBe(150);
+    expect(await layerOf(h, p, w.id)).toEqual({ qty: 1, value: 100, avgCost: 100 });
+    expect((await layerEvents(p)).filter((e) => e.kind === "landed_cost_cogs").map((e) => Number(e.amount))).toEqual([50]);
   });
 });
 

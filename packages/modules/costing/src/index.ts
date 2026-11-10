@@ -14,7 +14,7 @@ import { COSTING_POSTING_RULES } from "./rules";
  * sale issue (costing.cogs.posted, which the 2A rule `cogs-posted` of accounting posts: Dr cogs / Cr inventory). No module is named here:
  * inventory publishes its movements (event and feed), accounting consumes the COGS event (rule 3). Weighted average only (OD-5);
  * landed costs (Task 9) raise the value of a receipt's layers and post Dr inventory / Cr the offset role through the rules this manifest
- * ships; FIFO is phase 3. Every void of a movement (inventory.movement.voided, Task 14) takes its cost back with opposite cost events; a
+ * ships (Task 45: the share of units already sold goes to cost of sales, Dr cogs, in the same entry); FIFO is phase 3. Every void of a movement (inventory.movement.voided, Task 14) takes its cost back with opposite cost events; a
  * voided sale issue (sale return) whose cost of sales left reverses it (costing.cogs.voided / costing.cogs.return_voided, rules `reverseOf`),
  * and a sale return's cost of sales leaves as costing.cogs.returned (Dr inventory / Cr cogs at the original issue's cost).
  */
@@ -47,6 +47,9 @@ export const costing: ModuleDef = defineModule({
     "sales.delivery.voided": ["costing.effects.delivery_void_cogs"],
     "sales.return.received": ["costing.effects.return_cogs"],
     "sales.return.voided": ["costing.effects.return_void_cogs"],
+    // Task 45 (R45-7): a landed cost raises the units still in stock and sends the share of the units already sold to cost of sales.
+    "costing.landed_cost.allocate": ["costing.effects.landed_stock", "costing.effects.landed_cogs"],
+    "costing.landed_cost.void": ["costing.effects.landed_void"],
   },
 });
 

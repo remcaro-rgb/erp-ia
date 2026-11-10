@@ -1,6 +1,6 @@
 import { defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChanged, ProcessError, runLifecycle, visibleExtra, writeSnapshot, type ProcessContext, type RecordStatus, type TypedHooks, type TypedRecord } from "@erp/kernel";
 import { z } from "zod";
-import { distribute } from "../allocation";
+import { distribute, splitShare } from "../allocation";
 import { revalue, round4, CostError, type Layer } from "../average";
 import { LANDED_BASES, landedCostEntity, OFFSET_ROLES, type LandedBasis } from "../entities";
 import { feedLockKey, refuse } from "./common";
@@ -21,15 +21,24 @@ import { feedLockKey, refuse } from "./common";
 //
 // The allocation: the receipt's cost events (costing's own, so the receipt must have been valued) give each line's value, quantity and layer;
 // weight has no field on the product (the DIAN data of main §5.8b carries none), so the request gives each line's total weight. The shares
-// are whole cents by largest remainder (allocation.ts): the lines' increments add up to the amount to the cent. A line's share goes to its
-// layer's VALUE at once and the layer's quantity does not move, so the average of the units that remain rises by share / qty:
-//  - the units of that receipt already issued are NOT restated: sales and issues made before the allocation keep the cost they took (no
-//    retroactive cost of sales); the share of the units already gone is spread over the units that remain, and when none remain it stays in
-//    the layer's value, which the next entry's average carries (no value vanishes: the layer still reconciles to its cost events);
-//  - several allocations on one receipt are allowed and additive (a freight bill and a customs bill are two documents);
-//  - each share is recorded as a cost event of kind `landed_cost` (qty 0, the share as amount), so a layer's value is still the sum of its
-//    events' amounts (migration 0075) and the layer's ledger postings are the events' amounts.
-// Anular takes every share back with the opposite cost events (never deleting anything) and reverses the ledger entry inline and strict
+// are whole cents by largest remainder (allocation.ts): the lines' shares add up to the amount to the cent.
+// A cost that arrives after units of the receipt were sold (Task 45, item 37, rulings R45-1..R45-10; owner items 137-139, pending the
+// accountant) sends the share of those units to cost of sales in the current period; nothing in a past period is rewritten:
+//  - which units count as sold (R45-1, average costing: units are fungible): per receipt line, onHand = min(received, the layer's quantity
+//    now), the newest receipt being assumed to be what is still on hand; lines of the same product share their layer, so its units on hand
+//    are given to the lines in order, never twice. The share splits by units (splitShare): the stock part (share × onHand / received,
+//    half-up to the cent) and the cost of sales part (the remainder): the two add up to the share exactly;
+//  - the stock part goes to the layer's VALUE at once and the layer's quantity does not move, so the average of the units that remain rises
+//    by stock part / qty; it is recorded as a cost event of kind `landed_cost` (qty 0), so a layer's value is still the sum of its events'
+//    amounts other than `landed_cost_cogs` (migration 0075, R45-2);
+//  - the cost of sales part is recorded as a cost event of kind `landed_cost_cogs` (qty 0, the layer unchanged: the audit record of the
+//    adjustment) and posts Dr cogs, on the cost center the request names, in the allocation's entry (R45-3). Sales and issues made before
+//    the allocation keep the cost they took (no restatement, R45-5): the adjustment is dated the allocation;
+//  - nothing sold: the stock part is the whole share and there is no cost of sales part, no cogs event and no cogs line (R45-6), exactly as
+//    before Task 45;
+//  - several allocations on one receipt are allowed and additive (a freight bill and a customs bill are two documents).
+// Anular takes every share back with the opposite cost events of both kinds (never deleting anything; the cogs events again leave the layer
+// alone, R45-4) and reverses the whole ledger entry, its cogs debit included, inline and strict
 // through the rule `costing.landed_cost.voided` (reverseOf): when the entry cannot be reversed (a closed period) the void is refused and
 // nothing is written. It restates nothing already issued either: it removes exactly the amounts it added, whatever the units have done
 // since, so a void after units were issued lowers the layer's value (even below what the remaining units are worth, or below zero) and
@@ -67,6 +76,8 @@ export const allocateInput = z.object({
   offsetRole: z.enum(OFFSET_ROLES),
   /** The supplier whose bill it is (core.party): the credit to payable or to advances is owed to someone and the ledger asks for the tercero. */
   partyId: id.optional(),
+  /** The cost center of the cost of sales part (Task 45): the share of units already sold posts Dr cogs, which may ask for one. */
+  costCenterId: id.optional(),
   /** The date of the entry; defaults to today in the company's time zone. */
   date: date.optional(),
   reference: z.string().trim().max(100).optional(),
@@ -82,7 +93,7 @@ export const allocateOutput = z.object({
   number: z.string().nullable(),
   status: z.literal("posted"),
   amount: z.number(),
-  lines: z.array(z.object({ lineId: z.string(), movementLineId: z.string(), productId: z.string(), amount: z.number(), unitCostAdded: z.number() })),
+  lines: z.array(z.object({ lineId: z.string(), movementLineId: z.string(), productId: z.string(), amount: z.number(), amountStock: z.number(), amountCogs: z.number(), unitCostAdded: z.number() })),
 });
 
 interface ReceiptEvent {
@@ -90,7 +101,11 @@ interface ReceiptEvent {
   warehouse_id: string; layer_id: string; qty: string; amount: string; currency: string; kind: string;
 }
 
-/** The payload of `costing.landed_cost.allocated`: the rule posts Dr inventory per line (`cost`) / Cr the offset role (`amount`). */
+/**
+ * The payload of `costing.landed_cost.allocated`: the rule posts Dr inventory per line (`cost`, the stock part), Dr cogs per line
+ * (`cogsAdjustment`, the part of units already sold, on `costCenterId`; 0 when none, and the engine drops a zero line) / Cr the offset role
+ * (`amount`).
+ */
 export interface LandedCostEvent {
   landedCostId: string;
   number: string;
@@ -101,9 +116,14 @@ export interface LandedCostEvent {
   offsetRole: (typeof OFFSET_ROLES)[number];
   /** The supplier (core.party) the credit is owed to, when the request named one. */
   partyId?: string;
+  /** The cost center of the cost of sales part, when the request named one. */
+  costCenterId?: string;
   amount: number;
   reference: string | null;
-  lines: { lineId: string; movementLineId: string; productId: string; categoryId: string | null; warehouseId: string; amount: number; cost: number }[];
+  lines: {
+    lineId: string; movementLineId: string; productId: string; categoryId: string | null; warehouseId: string; amount: number; cost: number; cogsAdjustment: number;
+    costCenterId?: string;
+  }[];
 }
 
 const today = async (ctx: ProcessContext): Promise<string> =>
@@ -121,11 +141,22 @@ async function moveLayer(ctx: ProcessContext, layerId: string, amount: number): 
   return after;
 }
 
-/** Writes the cost event of one share (or of its reversal) beside the receipt's own events. */
+/** A layer as it is, under its row lock (a cost of sales part leaves it unchanged). */
+async function readLayer(ctx: ProcessContext, layerId: string): Promise<Layer> {
+  const [row] = await ctx.tx<{ qty: string; value: string; avg_cost: string | null }[]>`
+    select qty, value, avg_cost from costing.cost_layers where id = ${layerId} for update`;
+  if (!row) throw new ProcessError("not_found", `cost layer ${layerId} not found`);
+  return { qty: num(row.qty), value: num(row.value), avgCost: row.avg_cost === null ? null : num(row.avg_cost) };
+}
+
+/** The kinds of a landed cost's own cost events: the stock part and the cost of sales part (Task 45). */
+type ShareKind = "landed_cost" | "landed_cost_cogs";
+
+/** Writes the cost event of one share part (or of its reversal) beside the receipt's own events. */
 async function writeShareEvent(
   ctx: ProcessContext,
   receipt: Pick<ReceiptEvent, "movement_seq" | "movement_number" | "product_id" | "category_id" | "warehouse_id" | "layer_id" | "currency"> & { movement_id: string },
-  on: { date: string; amount: number; unitCost: number; after: Layer; landedCostId: string; landedLineId: string },
+  on: { kind: ShareKind; date: string; amount: number; unitCost: number; after: Layer; landedCostId: string; landedLineId: string },
 ): Promise<void> {
   await ctx.tx`
     insert into costing.cost_events ${ctx.tx({
@@ -135,7 +166,7 @@ async function writeShareEvent(
       movement_line_id: (await ctx.tx<{ id: string }[]>`select kernel.uuid_v7() as id`)[0]!.id,
       movement_seq: Number(receipt.movement_seq),
       movement_number: receipt.movement_number,
-      kind: "landed_cost",
+      kind: on.kind,
       date: on.date,
       product_id: receipt.product_id,
       category_id: receipt.category_id,
@@ -144,7 +175,7 @@ async function writeShareEvent(
       qty: 0,
       unit_cost: on.unitCost,
       amount: on.amount,
-      cost_source: "landed_cost",
+      cost_source: on.kind,
       cost_missing: false,
       qty_after: on.after.qty,
       value_after: on.after.value,
@@ -167,7 +198,7 @@ export async function allocateLandedCost(ctx: ProcessContext, input: z.output<ty
   const events = await ctx.tx<ReceiptEvent[]>`
     select e.id, e.movement_line_id, e.movement_seq, e.movement_number, e.product_id, e.category_id, e.warehouse_id, e.layer_id, e.qty, e.amount, e.currency, e.kind
     from costing.cost_events e
-    where e.company_id = ${ctx.companyId} and e.movement_id = ${input.movementId} and e.kind not in ('landed_cost', 'reversal')
+    where e.company_id = ${ctx.companyId} and e.movement_id = ${input.movementId} and e.kind not in ('landed_cost', 'landed_cost_cogs', 'reversal')
     order by e.movement_seq, e.seq`;
   if (events.length === 0) {
     refuse("movement_not_costed", ["El movimiento no existe o todavía no está valorizado: el costo se reparte sobre una entrada ya valorizada"]);
@@ -204,6 +235,18 @@ export async function allocateLandedCost(ctx: ProcessContext, input: z.output<ty
 
   if (OWED_ROLES.includes(input.offsetRole) && !input.partyId) refuse("party_required", ["Indica el proveedor: el crédito a cuentas por pagar o a anticipos se debe a un tercero"]);
 
+  // R45-1: the units of each line still on hand (the layer's quantity now, given to the lines of one layer in order) split its share.
+  const onHandLeft = new Map<string, number>();
+  for (const e of events) {
+    if (!onHandLeft.has(e.layer_id)) onHandLeft.set(e.layer_id, Math.max(0, (await readLayer(ctx, e.layer_id)).qty));
+  }
+  const parts = events.map((e, i) => {
+    const received = num(e.qty);
+    const onHand = Math.min(received, onHandLeft.get(e.layer_id)!);
+    onHandLeft.set(e.layer_id, round4(onHandLeft.get(e.layer_id)! - onHand));
+    return { onHand, sold: round4(received - onHand), ...splitShare(shares[i]!, received, onHand) };
+  });
+
   const on = input.date ?? (await today(ctx));
   const [header] = await ctx.tx<{ id: string }[]>`
     insert into costing.landed_costs ${ctx.tx({
@@ -215,6 +258,7 @@ export async function allocateLandedCost(ctx: ProcessContext, input: z.output<ty
       amount: input.amount,
       offset_role: input.offsetRole,
       party_id: input.partyId ?? null,
+      cost_center_id: input.costCenterId ?? null,
       reference: input.reference ?? null,
       description: input.description ?? null,
       currency: events[0]!.currency,
@@ -237,18 +281,25 @@ export async function allocateLandedCost(ctx: ProcessContext, input: z.output<ty
     base: input.basis === "value" ? num(e.amount) : input.basis === "quantity" ? num(e.qty) : bases[i]! / 1e4,
     weight: input.basis === "weight" ? bases[i]! / 1e4 : null,
     amount: shares[i]! / 100,
+    amount_stock: parts[i]!.stock / 100,
+    amount_cogs: parts[i]!.cogs / 100,
     unit_cost_added: round4(shares[i]! / 100 / num(e.qty)),
   }));
   const inserted = await ctx.tx<{ id: string; line_no: number }[]>`insert into costing.landed_cost_lines ${ctx.tx(lineRows)} returning id, line_no`;
   const lineIds = new Map(inserted.map((r) => [r.line_no, r.id]));
 
   for (const [i, e] of events.entries()) {
-    if (shares[i] === 0) continue;
-    const amount = shares[i]! / 100;
-    const after = await moveLayer(ctx, e.layer_id, amount);
-    await writeShareEvent(ctx, { ...e, movement_id: input.movementId }, {
-      date: on, amount, unitCost: lineRows[i]!.unit_cost_added, after, landedCostId, landedLineId: lineIds.get(i + 1)!,
-    });
+    const { stock, cogs, sold } = parts[i]!;
+    const at = { date: on, landedCostId, landedLineId: lineIds.get(i + 1)! };
+    if (stock > 0) {
+      const after = await moveLayer(ctx, e.layer_id, stock / 100);
+      await writeShareEvent(ctx, { ...e, movement_id: input.movementId }, { ...at, kind: "landed_cost", amount: stock / 100, unitCost: lineRows[i]!.unit_cost_added, after });
+    }
+    if (cogs > 0) {
+      // The cost of sales part leaves the layer as it is (R45-2): the event records it, the entry posts it.
+      const after = await readLayer(ctx, e.layer_id);
+      await writeShareEvent(ctx, { ...e, movement_id: input.movementId }, { ...at, kind: "landed_cost_cogs", amount: cogs / 100, unitCost: round4(cogs / 100 / sold), after });
+    }
   }
 
   // Grabar: the number (on save) and the posting (Contabiliza): the post hook emits costing.landed_cost.allocated.
@@ -258,7 +309,10 @@ export async function allocateLandedCost(ctx: ProcessContext, input: z.output<ty
     number: saved.number ?? null,
     status: "posted",
     amount: input.amount,
-    lines: lineRows.map((r) => ({ lineId: lineIds.get(r.line_no)!, movementLineId: r.movement_line_id, productId: r.product_id, amount: r.amount, unitCostAdded: r.unit_cost_added })),
+    lines: lineRows.map((r) => ({
+      lineId: lineIds.get(r.line_no)!, movementLineId: r.movement_line_id, productId: r.product_id, amount: r.amount, amountStock: r.amount_stock, amountCogs: r.amount_cogs,
+      unitCostAdded: r.unit_cost_added,
+    })),
   };
 }
 
@@ -270,7 +324,7 @@ export const landedCostAllocate = defineProcess({
   emits: [LANDED_COST_ALLOCATED],
   recordAccess: "none",
   description:
-    "Reparte un costo en destino (flete, aranceles, seguro) sobre las líneas de una entrada de mercancía ya valorizada, por valor, cantidad o peso, y sube el valor de sus capas de costo; contabiliza Dr inventario / Cr el rol de contrapartida que se indica; varios repartos sobre una entrada se suman",
+    "Reparte un costo en destino (flete, aranceles, seguro) sobre las líneas de una entrada de mercancía ya valorizada, por valor, cantidad o peso: la parte de las unidades que siguen en existencia sube el valor de sus capas de costo y la de las unidades ya vendidas va al costo de ventas del período; contabiliza Dr inventario y Dr costo de ventas (con el centro de costo que se indica) / Cr el rol de contrapartida; varios repartos sobre una entrada se suman",
   input: allocateInput,
   output: allocateOutput,
   // A retry of the same request (same key) answers the first run; without a key every call is a new allocation.
@@ -288,7 +342,7 @@ export const landedCostVoid = defineProcess({
   sensitivity: "step-up",
   emits: [LANDED_COST_VOIDED],
   description:
-    "Anula un costo en destino con el motivo: quita de las capas de costo exactamente lo que repartió, con eventos de costo opuestos, y revierte su asiento contable; el documento queda anulado, nunca se borra, y las salidas ya hechas no se recalculan",
+    "Anula un costo en destino con el motivo: quita de las capas de costo exactamente lo que repartió y devuelve lo que llevó al costo de ventas, con eventos de costo opuestos, y revierte su asiento contable; el documento queda anulado, nunca se borra, y las salidas ya hechas no se recalculan",
   input: voidInput,
   output: z.object({ id: z.string(), status: z.literal("voided"), number: z.string().nullable() }),
   handler: async (ctx, { id: landedCostId, reason, date: given, expectedUpdatedAt }) => {
@@ -306,14 +360,16 @@ export const landedCostVoid = defineProcess({
       select e.id, e.movement_line_id, e.movement_seq, e.movement_number, e.product_id, e.category_id, e.warehouse_id, e.layer_id, e.qty, e.amount, e.currency, e.kind,
              e.source_line_id, e.unit_cost
       from costing.cost_events e
-      where e.company_id = ${ctx.companyId} and e.kind = 'landed_cost' and e.source_id = ${landedCostId}
+      where e.company_id = ${ctx.companyId} and e.kind in ('landed_cost', 'landed_cost_cogs') and e.source_id = ${landedCostId}
       order by e.seq`;
     const on = given ?? (await today(ctx));
     for (const share of shares) {
       const amount = -num(share.amount);
-      const after = await moveLayer(ctx, share.layer_id, amount);
+      const kind = share.kind as ShareKind;
+      // The stock part comes out of the layer; the cost of sales part never was in it (R45-4): its opposite event leaves the layer alone.
+      const after = kind === "landed_cost" ? await moveLayer(ctx, share.layer_id, amount) : await readLayer(ctx, share.layer_id);
       await writeShareEvent(ctx, { ...share, movement_id: record.movement_id as string }, {
-        date: on, amount, unitCost: num(share.unit_cost), after, landedCostId, landedLineId: share.source_line_id,
+        kind, date: on, amount, unitCost: num(share.unit_cost), after, landedCostId, landedLineId: share.source_line_id,
       });
     }
     const [voided] = await ctx.tx<TypedRecord[]>`
@@ -383,12 +439,13 @@ export const landedCostHooks: TypedHooks = {
   },
   async post(ctx, record) {
     // Read back as text: the event carries the date as the ledger reads it (YYYY-MM-DD) and the amounts as numbers.
-    const [head] = await ctx.tx<{ number: string; date: string; movement_id: string; movement_number: string | null; basis: LandedBasis; offset_role: LandedCostEvent["offsetRole"]; party_id: string | null; amount: string; reference: string | null }[]>`
-      select number, date::text as date, movement_id, movement_number, basis, offset_role, party_id, amount, reference from costing.landed_costs where id = ${record.id}`;
-    const lines = await ctx.tx<{ id: string; movement_line_id: string; product_id: string; warehouse_id: string; amount: string; category_id: string | null }[]>`
-      select l.id, l.movement_line_id, l.product_id, l.warehouse_id, l.amount,
-             (select e.category_id from costing.cost_events e where e.company_id = l.company_id and e.kind = 'landed_cost' and e.source_line_id = l.id order by e.seq limit 1) as category_id
+    const [head] = await ctx.tx<{ number: string; date: string; movement_id: string; movement_number: string | null; basis: LandedBasis; offset_role: LandedCostEvent["offsetRole"]; party_id: string | null; cost_center_id: string | null; amount: string; reference: string | null }[]>`
+      select number, date::text as date, movement_id, movement_number, basis, offset_role, party_id, cost_center_id, amount, reference from costing.landed_costs where id = ${record.id}`;
+    const lines = await ctx.tx<{ id: string; movement_line_id: string; product_id: string; warehouse_id: string; amount: string; amount_stock: string; amount_cogs: string; category_id: string | null }[]>`
+      select l.id, l.movement_line_id, l.product_id, l.warehouse_id, l.amount, l.amount_stock, l.amount_cogs,
+             (select e.category_id from costing.cost_events e where e.company_id = l.company_id and e.kind in ('landed_cost', 'landed_cost_cogs') and e.source_line_id = l.id order by e.seq limit 1) as category_id
       from costing.landed_cost_lines l where l.landed_cost_id = ${record.id} order by l.line_no`;
+    const center = head!.cost_center_id ? { costCenterId: head!.cost_center_id } : {};
     const event: LandedCostEvent = {
       landedCostId: record.id,
       number: head!.number,
@@ -398,11 +455,12 @@ export const landedCostHooks: TypedHooks = {
       basis: head!.basis,
       offsetRole: head!.offset_role,
       ...(head!.party_id ? { partyId: head!.party_id } : {}),
+      ...center,
       amount: num(head!.amount),
       reference: head!.reference,
       lines: lines.map((l) => ({
         lineId: l.id, movementLineId: l.movement_line_id, productId: l.product_id, categoryId: l.category_id,
-        warehouseId: l.warehouse_id, amount: num(l.amount), cost: num(l.amount),
+        warehouseId: l.warehouse_id, amount: num(l.amount), cost: num(l.amount_stock), cogsAdjustment: num(l.amount_cogs), ...center,
       })),
     };
     // Inline and strict (D8): the entry is in the ledger when this action commits, or the action does not happen.

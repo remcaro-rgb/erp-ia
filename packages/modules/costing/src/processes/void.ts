@@ -99,7 +99,7 @@ export const movementVoidCost = defineProcess({
       from costing.cost_events where company_id = ${ctx.companyId} and movement_id = ${movementId}
       order by seq for update`;
     if (events.some((e) => e.kind === "reversal")) return { movementId, reversed: 0, cogsVoided: false };
-    const own = events.filter((e) => e.kind !== "landed_cost");
+    const own = events.filter((e) => e.kind !== "landed_cost" && e.kind !== "landed_cost_cogs");
     if (own.length === 0) return { movementId, reversed: 0, cogsVoided: false };
 
     const date = voidedOn ?? (await companyDate(ctx));

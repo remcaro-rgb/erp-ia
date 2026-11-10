@@ -146,6 +146,7 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
         product={form.product}
         {...(form.receipt ? { receipt: form.receipt } : {})}
         {...(form.party ? { party: form.party } : {})}
+        costCenter={form.costCenter}
         initial={clone?.values ?? null}
         readOnly={readOnly}
         save={saveStock}

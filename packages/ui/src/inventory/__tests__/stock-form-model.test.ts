@@ -52,6 +52,9 @@ describe("stock form model", () => {
     expect(stockMissing("landed_cost", d)).toEqual([]);
     expect(stockMissing("landed_cost", { ...d, offsetRole: "payable" })).toEqual(["party"]);
     expect(stockInput("landed_cost", d, "k-1")).toEqual({ movementId: "m1", amount: 150000, basis: "quantity", offsetRole: "cash", date: "2026-11-05", idempotencyKey: "k-1" });
+    // Task 45: the cost center of the cost of sales part goes when chosen (optional: the ledger asks for it when units were already sold).
+    expect(stockInput("landed_cost", { ...d, costCenterId: "cc1", costCenterLabel: "VTA · Ventas" }, "k-1")).toMatchObject({ costCenterId: "cc1" });
+    expect(stockMissing("landed_cost", { ...d, costCenterId: "" })).toEqual([]);
   });
 
   it("a bodega and a ubicación: the ubicación's bodega goes on creation only", () => {

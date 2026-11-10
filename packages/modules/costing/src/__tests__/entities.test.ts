@@ -6,7 +6,7 @@ import { core } from "@erp/module-core";
 import { inventory } from "@erp/module-inventory";
 import cogsFixture from "../defaults/cogs-posted.fixture.json" with { type: "json" };
 import { costing, COSTING_ENTITIES } from "../index";
-import { COST_SOURCES, UNKNOWN_COST_MODES } from "../entities";
+import { COST_SOURCES, EVENT_KINDS, UNKNOWN_COST_MODES } from "../entities";
 import { cogsPayload } from "../processes/cost";
 
 // The costing manifest (plan 2B Task 8, design §8): three sistema entities, the consumer of inventory.movement.posted, the COGS event the
@@ -21,6 +21,9 @@ const unknownMigration = readFileSync(new URL("../../../../../supabase/migration
 
 // Fix round 1 adds the estimated marker to the cost_missing rows (migration 0131), which regenerates their view.
 const estimatedMigration = readFileSync(new URL("../../../../../supabase/migrations/0131_costing_cost_missing_estimated.sql", import.meta.url), "utf8");
+// Task 45 (R45-2, R45-7) adds the cost of sales part of a late landed cost: the event kind and cost source, the line split and the header's
+// cost center; it regenerates both landed cost views (migration 0155).
+const lateMigration = readFileSync(new URL("../../../../../supabase/migrations/0155_costing_landed_cogs.sql", import.meta.url), "utf8");
 
 const loaded = () => {
   const registry = new Registry();
@@ -107,10 +110,19 @@ describe("costing masked views, migrations 0073 and 0077", () => {
   for (const entity of COSTING_ENTITIES) {
     it(`costing.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       // The settings view is the one 0130 recreates (the older text no longer matches the entity).
-      const source = entity.id === "costing.settings" ? unknownMigration : entity.id === "costing.cost_missing" ? estimatedMigration : migration + landedMigration;
+      const source = entity.id === "costing.settings" ? unknownMigration : entity.id === "costing.cost_missing" ? estimatedMigration
+        : entity.id === "costing.landed_cost" || entity.id === "costing.landed_cost_line" ? lateMigration : migration + landedMigration;
       expect(source).toContain(maskedViewSql(defineEntity(entity)));
     });
   }
+
+  it("Task 45, migration 0155: the kind and cost source checks equal EVENT_KINDS and COST_SOURCES; a landed cost's events (both kinds) carry qty 0", () => {
+    const list = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
+    expect(lateMigration).toContain(`check (kind in (${list(EVENT_KINDS)}))`);
+    expect(lateMigration).toContain(`check (cost_source in (${list(COST_SOURCES)}))`);
+    expect(lateMigration).toContain("check ((kind in ('landed_cost', 'landed_cost_cogs')) = (qty = 0))");
+    expect(lateMigration).toContain("check (amount_stock >= 0 and amount_cogs >= 0 and amount_stock + amount_cogs = amount)");
+  });
 
   it("settings accept only the average method; the layers carry the method and the FIFO columns", () => {
     expect(migration).toMatch(/create table costing\.settings[\s\S]*method\s+text not null default 'average' check \(method in \('average'\)\)/);
@@ -121,7 +133,7 @@ describe("costing masked views, migrations 0073 and 0077", () => {
     const list = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
     expect(unknownMigration).toContain(`check (unknown_cost_mode in (${list(UNKNOWN_COST_MODES)}))`);
     expect(unknownMigration).toContain(`default 'zero'`);
-    expect(unknownMigration).toContain(`check (cost_source in (${list(COST_SOURCES)}))`);
+    expect(unknownMigration).toContain(`check (cost_source in (${list(COST_SOURCES.filter((c) => c !== "landed_cost_cogs"))}))`);
     expect(unknownMigration).toContain("'costing.unknown_cost.set'");
     const settings = COSTING_ENTITIES.find((e) => e.id === "costing.settings")!;
     expect(settings.fields.map((f) => f.name).slice(0, 4)).toEqual(["seq", "method", "unknown_cost_mode", "extra"]);

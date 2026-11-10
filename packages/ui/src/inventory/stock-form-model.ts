@@ -44,6 +44,9 @@ export interface StockDraft {
   offsetRole: string;
   partyId: string;
   partyLabel: string;
+  /** A landed cost (Task 45): the cost center of the cost of sales part, the share of units already sold. */
+  costCenterId: string;
+  costCenterLabel: string;
   lines: StockLine[];
 }
 
@@ -68,6 +71,8 @@ export function stockDraft(today: string, warehouses: readonly { code: string }[
     offsetRole: "payable",
     partyId: "",
     partyLabel: "",
+    costCenterId: "",
+    costCenterLabel: "",
     lines: [emptyLine()],
   };
 }
@@ -137,6 +142,7 @@ export function stockInput(kind: StockFormKind, draft: StockDraft, idempotencyKe
       basis: draft.basis,
       offsetRole: draft.offsetRole,
       ...(draft.partyId ? { partyId: draft.partyId } : {}),
+      ...(draft.costCenterId ? { costCenterId: draft.costCenterId } : {}),
       ...(draft.date ? { date: draft.date } : {}),
       ...(draft.reference.trim() ? { reference: draft.reference.trim() } : {}),
       ...description,

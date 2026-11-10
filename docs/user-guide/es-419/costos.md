@@ -75,13 +75,31 @@ Un **costo en destino** suma al costo de una entrada lo que pagaste después por
 2. Elige la **Entrada de mercancía** (la entrada cuyo costo sube) y escribe el **Valor**.
 3. En **Repartir por**, elige **Valor** (en proporción al valor de cada línea de la entrada) o **Cantidad** (en proporción a las unidades).
 4. Elige la **Contrapartida**: **Cuentas por pagar**, **Anticipos a proveedores**, **Caja**, **Bancos** o **Cuenta transitoria**. Si es una cuenta por pagar o un anticipo, elige también el **Proveedor**.
-5. Escribe la **Fecha**, la **Referencia** (por ejemplo el número de la factura del transportador) y la **Descripción**, y pulsa **Guardar**.
+5. Si parte de la entrada ya se vendió, elige el **Centro de costo** del costo de ventas (ver **Costo en destino que llega tarde**).
+6. Escribe la **Fecha**, la **Referencia** (por ejemplo el número de la factura del transportador) y la **Descripción**, y pulsa **Guardar**.
 
-El valor se reparte entre las líneas al centavo (la suma da exactamente el valor) y sube el valor de la capa de cada producto; la cantidad no cambia, así que sube el costo promedio de las unidades que quedan. Lo que ya se vendió no se recalcula: el costo de ventas registrado no cambia. El asiento es débito inventarios por línea y crédito la contrapartida elegida. Si contabilidad no puede tomar el asiento (período cerrado, proveedor no listo, falta una cuenta o un centro de costo), el costo en destino no se registra y el mensaje dice por qué. Pulsar dos veces **Guardar** no lo registra dos veces. Una misma entrada puede tener varios costos en destino (el flete y los aranceles, por ejemplo).
+El valor se reparte entre las líneas al centavo (la suma da exactamente el valor). Si todas las unidades de la entrada siguen en existencia, sube el valor de la capa de cada producto; la cantidad no cambia, así que sube el costo promedio de las unidades que quedan, y el asiento es débito inventarios por línea y crédito la contrapartida elegida. Si parte ya se vendió, la parte de esas unidades va al costo de ventas (sección siguiente). Si contabilidad no puede tomar el asiento (período cerrado, proveedor no listo, falta una cuenta o un centro de costo), el costo en destino no se registra y el mensaje dice por qué. Pulsar dos veces **Guardar** no lo registra dos veces. Una misma entrada puede tener varios costos en destino (el flete y los aranceles, por ejemplo).
 
 **Pendiente de contabilizar.** Si la empresa eligió el modo de contabilización **Asíncrona con reintentos** (guía **Reglas contables**), el costo en destino se guarda antes de que su comprobante exista y su ficha muestra la insignia **Pendiente de contabilizar** hasta que el sistema lo registre; si el registro falla, la insignia dice **Contabilización fallida · ver pendientes** y lleva a **Pendientes de contabilizar**. Con la contabilidad apagada la insignia dice **Contabilidad desactivada**, y sin el módulo contratado, **Módulo contable no contratado**. En el modo por defecto, **Inmediata y estricta**, con Contabilidad activa y contratada nunca se guarda un documento sin su comprobante, así que la insignia no aparece; con Contabilidad apagada o sin contratar, o si quedó una cola del modo asíncrono, la insignia aparece en cualquiera de los dos modos.
 
-**Anular** un costo en destino (en la barra del registro, con un motivo) pide tu **código de verificación**. Quita exactamente el valor que había sumado a cada capa y reversa su asiento. Si el período de la anulación está cerrado, se rechaza y nada cambia.
+**Anular** un costo en destino (en la barra del registro, con un motivo) pide tu **código de verificación**. Quita exactamente el valor que había sumado a cada capa, devuelve lo que había llevado al costo de ventas y reversa su asiento completo. Si el período de la anulación está cerrado, se rechaza y nada cambia.
+
+### Costo en destino que llega tarde
+
+A veces la factura del flete llega cuando ya vendiste parte de la mercancía. Ese costo no puede subir el costo de unidades que ya no tienes, así que se reparte en dos:
+
+- **A inventario**: la parte de las unidades que siguen en existencia sube el costo promedio de la capa, como siempre.
+- **A costo de ventas**: la parte de las unidades ya vendidas va al **costo de ventas del período** del costo en destino (su **Fecha**), con el **Centro de costo** que elijas.
+
+Las ventas ya registradas no se recalculan ni se tocan: el ajuste queda en el período del costo en destino, nunca en uno anterior. Un costo en destino fechado en un período cerrado se rechaza.
+
+**Ejemplo.** Entran 10 unidades a $ 8.000,00 (valen $ 80.000,00) y vendes 5. Llega el flete de $ 10.000,00 y lo registras como costo en destino de esa entrada: $ 5.000,00 van **a inventario** (las 5 unidades que quedan pasan a valer $ 45.000,00, promedio $ 9.000,00) y $ 5.000,00 van **a costo de ventas**. Un solo asiento: débito inventarios $ 5.000,00, débito costo de ventas $ 5.000,00 (con el centro de costo) y crédito la contrapartida $ 10.000,00.
+
+Cómo se cuentan las unidades vendidas: el costo es promedio ponderado, así que las unidades de un producto en una bodega no se distinguen entre entradas. Se supone que lo que queda en existencia es lo de la entrada más reciente: por cada línea, las unidades **en existencia** son las de la capa hoy (sin pasar de lo que entró en esa línea) y el resto se considera vendido. Si la entrada tiene dos líneas del mismo producto, las unidades en existencia se asignan a las líneas en orden. Con varias entradas en la misma capa el reparto es una aproximación; el costeo PEPS (FIFO), en la fase 3, lo hará exacto.
+
+En la ficha del costo en destino, cada línea muestra **A inventario** y **A costo de ventas**, y el encabezado dice el total de **Costo de ventas por unidades ya vendidas** cuando lo hay. La cuenta de costo de ventas pide centro de costo: si parte de la entrada ya se vendió y no eliges uno, el costo en destino no se registra y el mensaje lo dice. En los eventos de costo del producto, esa parte aparece como **Costo en destino a costo de ventas** y no cambia el valor de la capa.
+
+Las cuentas son las que la empresa ya tiene para inventarios y costo de ventas. **El contador confirma** dos puntos: si esta parte va a la misma cuenta de costo de ventas o a una cuenta propia, y que el ajuste se registra en el período del costo en destino. Si el contador decide otra cosa, solo cambia la regla contable.
 
 ## Costeo: el método
 
@@ -111,7 +129,7 @@ En los dos modos el producto queda en **Costos pendientes** y el sistema recomie
 ## Preguntas frecuentes
 
 - **«El costo promedio no cambió después de una venta»**: es lo esperado. Las salidas usan el promedio, no lo cambian.
-- **«Registré el flete y el costo de ventas de lo que ya vendí no subió»**: un costo en destino no recalcula lo ya vendido; sube el costo de las unidades que quedan.
+- **«Registré el flete y el costo de ventas de mis ventas pasadas no cambió»**: es lo esperado. Las ventas no se recalculan; la parte de las unidades ya vendidas entra al costo de ventas del período del costo en destino (ver **Costo en destino que llega tarde**).
 - **«No puedo desactivar Inventario»**: Costos depende de Inventario. Desactiva primero Costos (guía **Administración**, sección Módulos): se puede aunque Inventario esté activo, y mientras Costos esté apagado los ajustes de Inventario usan el costo estándar. Después puedes desactivar Inventario.
 - **«Cambié a Último costo conocido y el costo de ventas de ayer no cambió»**: es lo esperado. El cambio vale desde el siguiente movimiento y no recalcula lo anterior.
 - **«No veo los costos»**: tu rol los tiene enmascarados u ocultos. Pídeselo al administrador (guía **Administración**).

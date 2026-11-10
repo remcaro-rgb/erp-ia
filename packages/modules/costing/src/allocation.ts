@@ -29,3 +29,20 @@ export function distribute(totalCents: number, bases: readonly number[]): number
   }
   return shares.map((s) => Number(s.part));
 }
+
+/**
+ * Splits one receipt line's share (Task 45, R45-1) between the units of the line still on hand and the units already gone: `shareCents`
+ * (a non-negative whole number of cents), `received` (the line's quantity, > 0) and `onHand` (0..received; the newest receipt is assumed to
+ * be what is still on hand). The stock part is `share × onHand / received` rounded half-up to the cent; the cost of sales part is the
+ * remainder, so the two add up to the share exactly. Quantities carry up to 4 decimals and are scaled to integers (BigInt arithmetic).
+ */
+export function splitShare(shareCents: number, received: number, onHand: number): { stock: number; cogs: number } {
+  if (!Number.isSafeInteger(shareCents) || shareCents < 0) throw new CostError("invalid_quantity", `La parte a repartir debe ser un número de centavos (${shareCents})`);
+  const r = BigInt(Math.round(received * 1e4));
+  const h = BigInt(Math.round(onHand * 1e4));
+  if (r <= BigInt(0)) throw new CostError("invalid_quantity", "La cantidad recibida debe ser positiva");
+  if (h < BigInt(0) || h > r) throw new CostError("invalid_quantity", "Las unidades en existencia deben estar entre cero y lo recibido");
+  // Half-up: floor((2·share·onHand + received) / (2·received)).
+  const stock = Number((BigInt(2) * BigInt(shareCents) * h + r) / (BigInt(2) * r));
+  return { stock, cogs: shareCents - stock };
+}
