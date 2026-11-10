@@ -22,6 +22,7 @@ import {
   masterStockInput,
   masterStockMissing,
   OWED_ROLES,
+  parseQty,
   stockDraft,
   stockInput,
   stockMissing,
@@ -162,6 +163,8 @@ export interface StockDocumentFormProps {
   receipt?: LookupSource;
   party?: LookupSource;
   costCenter?: LookupSource | null;
+  /** How inventory tracks each tracked product, by id (Task 28.2): its lines ask for the lot or the serials. Untracked products are absent. */
+  tracking?: Readonly<Record<string, "lot" | "serial">>;
   /** A copy ("Duplicar") of a stored document: its header. */
   initial?: Readonly<Record<string, unknown>> | null;
   readOnly?: boolean;
@@ -186,7 +189,7 @@ function draftFrom(kind: StockDocumentFormProps["kind"], today: string, warehous
   };
 }
 
-export function StockDocumentForm({ kind, today, warehouses, locations, product, receipt, party, costCenter, initial: copy, readOnly = false, save, requestStepUp, onSaved }: StockDocumentFormProps) {
+export function StockDocumentForm({ kind, today, warehouses, locations, product, receipt, party, costCenter, tracking = {}, initial: copy, readOnly = false, save, requestStepUp, onSaved }: StockDocumentFormProps) {
   const ns = kind === "landed_cost" ? "costing.form" : "inventory.form";
   const t = useTranslations(ns);
   const ti = useTranslations("inventory.form");
@@ -328,6 +331,9 @@ export function StockDocumentForm({ kind, today, warehouses, locations, product,
   const destLocations = locationsOf(draft.toWarehouseId);
   const showCost = movementKind === "receipt";
   const showQty = kind !== "count";
+  // Lots and serials (Task 28.2): the column shows only when a line's product is tracked; a conteo lists its lots and serials itself.
+  const showTracking = kind !== "count" && draft.lines.some((l) => l.tracking !== "none");
+  const inboundLine = (l: StockLine) => movementKind === "receipt" || (movementKind === "adjustment" && parseQty(l.qty) > 0);
   const lines =
     kind === "landed_cost" ? null : (
       <Section title={ti("lines")}>
@@ -351,6 +357,7 @@ export function StockDocumentForm({ kind, today, warehouses, locations, product,
                     {ti("unit_cost")}
                   </th>
                 )}
+                {showTracking && <th scope="col">{ti("lot_serials")}</th>}
                 <th scope="col">
                   <span className="sr-only">{ti("remove_line")}</span>
                 </th>
@@ -373,7 +380,10 @@ export function StockDocumentForm({ kind, today, warehouses, locations, product,
                         value={l.productId ? { id: l.productId, label: l.productLabel } : null}
                         href={product.linkable && l.productId ? recordHref("core.product", l.productId) : null}
                         describe={(row: GridRow) => ({ label: `${String(row.sku ?? "")} · ${String(row.description ?? "")}`, sub: String(row.uom_code ?? "") })}
-                        onPick={(row) => setLine(l.key, { productId: row?.id ?? "", productLabel: row ? `${String(row.sku ?? "")} · ${String(row.description ?? "")}` : "" })}
+                        onPick={(row) => setLine(l.key, {
+                          productId: row?.id ?? "", productLabel: row ? `${String(row.sku ?? "")} · ${String(row.description ?? "")}` : "",
+                          tracking: (row && tracking[row.id]) || "none", lotCode: "", expiresOn: "", serialNos: "",
+                        })}
                       />
                     </td>
                     <td>
@@ -406,6 +416,21 @@ export function StockDocumentForm({ kind, today, warehouses, locations, product,
                     {showCost && (
                       <td className="erp-num">
                         <input aria-label={ti("unit_cost_line", { n })} className="erp-num erp-mono" inputMode="decimal" value={l.unitCost} disabled={readOnly} onChange={(e) => setLine(l.key, { unitCost: e.target.value })} />
+                      </td>
+                    )}
+                    {showTracking && (
+                      <td>
+                        {l.tracking === "lot" && (
+                          <span className="erp-row">
+                            <input aria-label={ti("lot_line", { n })} placeholder={ti("lot_code")} className="erp-mono" maxLength={60} value={l.lotCode} disabled={readOnly} onChange={(e) => setLine(l.key, { lotCode: e.target.value })} />
+                            {inboundLine(l) && (
+                              <input aria-label={ti("expires_line", { n })} title={ti("expires_hint")} type="date" value={l.expiresOn} disabled={readOnly} onChange={(e) => setLine(l.key, { expiresOn: e.target.value })} />
+                            )}
+                          </span>
+                        )}
+                        {l.tracking === "serial" && (
+                          <input aria-label={ti("serials_line", { n })} placeholder={ti("serials_hint")} className="erp-mono" value={l.serialNos} disabled={readOnly} onChange={(e) => setLine(l.key, { serialNos: e.target.value })} />
+                        )}
                       </td>
                     )}
                     <td>

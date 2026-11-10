@@ -2,6 +2,7 @@ import { defineProcess, ProcessError, runLifecycle, visibleExtra, type ProcessCo
 import { z } from "zod";
 import { KIND_PREFIX, KIND_SIGN, movementEntity, POSTABLE_KINDS, type MovementKind } from "../entities";
 import { entityId, id, idInput, num, productCosts, productFacts, qtyText, quantity, refuse, type ProductFacts } from "./common";
+import { moveSerials, resolveTracked, serialsAfterVoid, trackingKinds } from "./tracked-lines";
 
 // Inventory movements (plan 2B Task 6, design §8.1, Review Focus 1). inventory.movement.post registers a movement and moves the stock in
 // one transaction: the header and its lines, the stock levels of every product and ubicación it touches (locked through lockStock, the
@@ -37,6 +38,14 @@ export const movementLineInput = z.object({
    * that issue's cost (costing, plan 2B Task 8). Stored as `return_of_line_id`, the sale issue's movement line.
    */
   returnOf: z.object({ sourceEntity: entityId, sourceLineId: id }).strict().optional(),
+  /** A lot-tracked product (Task 28.2): the lot the line moves, by id. */
+  lotId: id.optional(),
+  /** A lot-tracked product: the lot by its code (whatever its case); an inbound line with a new code creates the lot nested. */
+  lot: z.object({ code: z.string().trim().min(1).max(60), expiresOn: date.optional(), producedOn: date.optional() }).strict().optional(),
+  /** A serial-tracked product: one serial per unit, by id. The line becomes one movement line per serial. */
+  serialIds: z.array(id).min(1).max(500).optional(),
+  /** A serial-tracked product: one serial per unit, by number; an inbound line with a new number registers the serial nested. */
+  serials: z.array(z.object({ serialNo: z.string().trim().min(1).max(80) }).strict()).min(1).max(500).optional(),
 }).strict();
 
 export const movementInput = z.object({
@@ -89,6 +98,10 @@ export interface MovementEventLine {
   value?: number;
   /** Adjustments only, when the request names one: the cost center the adjustment account of the rule may require (accounting's id). */
   costCenterId?: string;
+  /** A lot-tracked line (Task 28.2): the lot it moved. Absent on untracked lines. */
+  lotId?: string;
+  /** A serial-tracked line: the serial it moved (qty ±1). Absent on untracked lines. */
+  serialId?: string;
 }
 
 /** The payload of `inventory.movement.posted` and `inventory.movement.voided` (the 2A fixture's shape: movementId, kind, lines[], date). */
@@ -114,9 +127,18 @@ export interface MovementEvent {
 interface StockDelta {
   productId: string;
   locationId: string | null;
+  /** The bucket's lot and serial (Task 28.2); absent or null for an untracked product. */
+  lotId?: string | null;
+  serialId?: string | null;
+  /** The lot's code or the serial's number, for the refusal. */
+  label?: string;
   qty: number;
   sku: string;
 }
+
+/** The key of a stock bucket: product, ubicación, lot and serial. */
+const bucketKey = (r: { productId: string; locationId: string | null; lotId?: string | null; serialId?: string | null }) =>
+  `${r.productId}|${r.locationId ?? ""}|${r.lotId ?? ""}|${r.serialId ?? ""}`;
 
 /** Quantities carry 4 decimals (numeric(18,4)): sums of them are rounded back so a double never drifts into the database. */
 const round4 = (n: number) => Math.round(n * 1e4) / 1e4;
@@ -131,55 +153,72 @@ const round2 = (n: number) => (Math.sign(n) * Math.round(Math.abs(n) * 100)) / 1
  * and what makes a movement and a reservation of the same product queue whatever ubicaciones each touches: both take the product's lock
  * before any row, so no two of them can hold locks the other waits for. Returns the locked rows.
  */
-export async function lockStock(ctx: ProcessContext, warehouseId: string, productIds: readonly string[]): Promise<{ id: string; product_id: string; location_id: string | null }[]> {
+export async function lockStock(ctx: ProcessContext, warehouseId: string, productIds: readonly string[]): Promise<{ id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]> {
   const products = [...new Set(productIds)].sort();
   for (const productId of products) {
     await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${`inventory.stock:${ctx.companyId}:${warehouseId}:${productId}`}, 0))`;
   }
-  return ctx.tx<{ id: string; product_id: string; location_id: string | null }[]>`
-    select id, product_id, location_id from inventory.stock_levels
+  // Every bucket of the products (Task 28.2: lots and serials too), in one order: product, ubicación, lot, serial (nulls first).
+  return ctx.tx<{ id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]>`
+    select id, product_id, location_id, lot_id, serial_id from inventory.stock_levels
     where company_id = ${ctx.companyId} and warehouse_id = ${warehouseId} and product_id = any(${products}::uuid[])
-      and lot_id is null and serial_id is null
-    order by product_id, location_id nulls first
+    order by product_id, location_id nulls first, lot_id nulls first, serial_id nulls first
     for update`;
 }
 
 /**
- * Moves the stock of `warehouse` by `deltas`, in the caller's transaction. The rows are locked by lockStock; a (product, ubicación) row
- * that does not exist yet is created at zero under that lock (a plain insert: no `seq` is drawn for nothing). The quantity is added in
- * SQL (`on_hand = on_hand + qty`, numeric) and checked under the lock: a row that ends below zero refuses the whole movement with
- * `negative_stock_refused`, unless the bodega allows backorders. A second transaction waiting on the lock reads what the first committed
+ * Moves the stock of `warehouse` by `deltas`, in the caller's transaction. The rows are locked by lockStock; a bucket (product, ubicación,
+ * lot, serial) that does not exist yet is created at zero under that lock (a plain insert: no `seq` is drawn for nothing). The quantity is
+ * added in SQL (`on_hand = on_hand + qty`, numeric) and checked under the lock: an untracked bucket that ends below zero refuses the whole
+ * movement with `negative_stock_refused`, unless the bodega allows backorders; a lot or serial bucket never goes below zero, whatever the
+ * bodega allows (`lot_short`, `serial_not_in_stock`: a lot or serial is a physical thing, Task 28.2). A second transaction waiting on the lock reads what the first committed
  * (READ COMMITTED: each statement after the lock sees the committed rows).
  */
 export async function applyStock(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, deltas: readonly StockDelta[]): Promise<void> {
   const buckets = new Map<string, StockDelta>();
   for (const d of deltas) {
-    const key = `${d.productId}|${d.locationId ?? ""}`;
+    const key = bucketKey(d);
     const seen = buckets.get(key);
     buckets.set(key, seen ? { ...seen, qty: round4(seen.qty + d.qty) } : { ...d });
   }
   const locked = await lockStock(ctx, warehouse.id, [...buckets.values()].map((d) => d.productId));
-  const rowOf = new Map(locked.map((r) => [`${r.product_id}|${r.location_id ?? ""}`, r.id]));
+  const rowOf = new Map(locked.map((r) => [bucketKey({ productId: r.product_id, locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id }), r.id]));
   const missing = [...buckets.entries()].filter(([key]) => !rowOf.has(key));
   if (missing.length > 0) {
-    const created = await ctx.tx<{ id: string; product_id: string; location_id: string | null }[]>`
-      insert into inventory.stock_levels ${ctx.tx(missing.map(([, d]) => ({ company_id: ctx.companyId, product_id: d.productId, warehouse_id: warehouse.id, location_id: d.locationId, on_hand: 0 })))}
-      returning id, product_id, location_id`;
-    for (const r of created) rowOf.set(`${r.product_id}|${r.location_id ?? ""}`, r.id);
+    const created = await ctx.tx<{ id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]>`
+      insert into inventory.stock_levels ${ctx.tx(missing.map(([, d]) => ({
+        company_id: ctx.companyId, product_id: d.productId, warehouse_id: warehouse.id, location_id: d.locationId, lot_id: d.lotId ?? null, serial_id: d.serialId ?? null, on_hand: 0,
+      })))}
+      returning id, product_id, location_id, lot_id, serial_id`;
+    for (const r of created) rowOf.set(bucketKey({ productId: r.product_id, locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id }), r.id);
   }
   const refusals: string[] = [];
+  const lotShort: string[] = [];
+  const serialsOut: string[] = [];
   for (const [key, d] of [...buckets.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (d.qty === 0) continue;
+    if (d.serialId && d.qty < 0) {
+      // A serial leaves only the bucket that holds it: checked before the update, so the 0..1 check never sees −1.
+      const [held] = await ctx.tx<{ on_hand: string }[]>`select on_hand::text from inventory.stock_levels where id = ${rowOf.get(key)!}`;
+      if (num(held!.on_hand) + d.qty < 0) {
+        serialsOut.push(`El serial ${d.label ?? d.serialId} de ${d.sku} no está en esa bodega y ubicación`);
+        continue;
+      }
+    }
     const [row] = await ctx.tx<{ before: string; negative: boolean }[]>`
       update inventory.stock_levels set on_hand = on_hand + ${String(d.qty)}::numeric
       where id = ${rowOf.get(key)!}
       returning (on_hand - ${String(d.qty)}::numeric)::text as before, on_hand < 0 as negative`;
-    if (row!.negative && d.qty < 0 && !warehouse.allowBackorders) {
+    if (row!.negative && d.qty < 0 && d.lotId) {
+      lotShort.push(`El lote ${d.label ?? d.lotId} de ${d.sku} tiene ${qtyText(num(row!.before))} en esa bodega y ubicación y el movimiento saca ${qtyText(-d.qty)}`);
+    } else if (row!.negative && d.qty < 0 && !warehouse.allowBackorders) {
       refusals.push(`El producto ${d.sku} tiene ${qtyText(num(row!.before))} en existencia y el movimiento saca ${qtyText(-d.qty)}: la bodega no permite existencias negativas`);
     }
   }
   // Refusing throws, and the transaction rolls back the changed rows.
   if (refusals.length > 0) refuse("negative_stock_refused", refusals);
+  if (serialsOut.length > 0) refuse("serial_not_in_stock", serialsOut);
+  if (lotShort.length > 0) refuse("lot_short", lotShort);
 }
 
 /**
@@ -196,6 +235,16 @@ export async function lockStockLegs(ctx: ProcessContext, legs: readonly { wareho
     byWarehouse.set(leg.warehouseId, set);
   }
   for (const warehouseId of [...byWarehouse.keys()].sort()) await lockStock(ctx, warehouseId, [...byWarehouse.get(warehouseId)!]);
+}
+
+/** The lot codes and serial numbers of the buckets named, by id (for the refusals). */
+async function bucketLabels(ctx: ProcessContext, buckets: readonly { lotId: string | null; serialId: string | null }[]): Promise<Map<string, string>> {
+  const lots = [...new Set(buckets.flatMap((b) => (b.lotId ? [b.lotId] : [])))];
+  const serials = [...new Set(buckets.flatMap((b) => (b.serialId ? [b.serialId] : [])))];
+  const out = new Map<string, string>();
+  if (lots.length > 0) for (const r of await ctx.tx<{ id: string; code: string }[]>`select id, code from inventory.lots where id = any(${lots}::uuid[])`) out.set(r.id, r.code);
+  if (serials.length > 0) for (const r of await ctx.tx<{ id: string; serial_no: string }[]>`select id, serial_no from inventory.serials where id = any(${serials}::uuid[])`) out.set(r.id, r.serial_no);
+  return out;
 }
 
 /** The date a step happened: today in the company's timezone. */
@@ -352,6 +401,15 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
   if (problems.length > 0) refuse("invalid_movement", problems);
   if (moved.length === 0) return { id: null, number: null, status: "skipped", skippedLines };
 
+  // Lots and serials (Task 28.2): a tracked product's line names the bucket it moves; a serial line becomes one line per serial. The stock
+  // locks come first (the one lock order), then the serials and the nested creates of new lots and serials. An untracked movement moves
+  // the bucket without lot or serial, as before (RG-2).
+  const kinds = await trackingKinds(ctx, moved.map((m) => m.product.id));
+  const tracked = [...kinds.values()].some((k) => k !== "none");
+  if (tracked) await lockStock(ctx, warehouse.id, moved.map((m) => m.product.id));
+  const resolved = await resolveTracked(ctx, moved.map((m, i) => ({ item: i, fields: m.line, product: m.product, index: m.index })), "invalid_movement", kinds);
+  const labels = tracked ? await bucketLabels(ctx, resolved) : new Map<string, string>();
+
   // An adjustment is valued at the line's cost, else the product's standard cost read unmasked (the caller's field visibility never changes a value).
   const standardCosts = input.kind === "adjustment" ? await productCosts(ctx, moved.map((m) => m.product.id), warehouse.id) : new Map<string, number>();
   const returned = await returnedLines(ctx, moved);
@@ -374,20 +432,25 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
     })}
     returning id`;
   const movementId = header!.id;
-  const rows = moved.map(({ line, product }, i) => ({
-    company_id: ctx.companyId,
-    movement_id: movementId,
-    line_no: i + 1,
-    product_id: product.id,
-    location_id: line.locationId ?? null,
-    qty: line.qty,
-    uom: product.uomCode,
-    // An adjustment is valued: the line's cost, else the product's standard cost (costing, Task 8, brings the weighted average).
-    unit_cost: line.unitCost ?? (input.kind === "adjustment" ? (standardCosts.get(product.id) ?? null) : null),
-    source_entity: line.sourceLineId ? input.sourceEntity! : null,
-    source_line_id: line.sourceLineId ?? null,
-    return_of_line_id: returned[i] ?? null,
-  }));
+  const rows = resolved.map((r, n) => {
+    const { line, product } = moved[r.item]!;
+    return {
+      company_id: ctx.companyId,
+      movement_id: movementId,
+      line_no: n + 1,
+      product_id: product.id,
+      location_id: line.locationId ?? null,
+      lot_id: r.lotId,
+      serial_id: r.serialId,
+      qty: r.qty,
+      uom: product.uomCode,
+      // An adjustment is valued: the line's cost, else the product's standard cost (costing, Task 8, brings the weighted average).
+      unit_cost: line.unitCost ?? (input.kind === "adjustment" ? (standardCosts.get(product.id) ?? null) : null),
+      source_entity: line.sourceLineId ? input.sourceEntity! : null,
+      source_line_id: line.sourceLineId ?? null,
+      return_of_line_id: returned[r.item] ?? null,
+    };
+  });
   let inserted: { id: string; line_no: number }[];
   try {
     inserted = await ctx.tx<{ id: string; line_no: number }[]>`insert into inventory.movement_lines ${ctx.tx(rows)} returning id, line_no`;
@@ -398,7 +461,11 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
     throw error;
   }
 
-  await applyStock(ctx, warehouse, moved.map(({ line, product }) => ({ productId: product.id, locationId: line.locationId ?? null, qty: line.qty, sku: product.sku })));
+  await applyStock(ctx, warehouse, rows.map((r, n) => ({
+    productId: r.product_id, locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id, qty: r.qty, sku: moved[resolved[n]!.item]!.product.sku,
+    ...(r.lot_id || r.serial_id ? { label: labels.get((r.serial_id ?? r.lot_id)!) ?? resolved[n]!.serialNo ?? "" } : {}),
+  })));
+  if (tracked) await moveSerials(ctx, rows.map((r) => ({ serialId: r.serial_id, qty: r.qty })), input.kind === "adjustment");
   await ctx.tx`update inventory.movements set applied_at = now() where id = ${movementId}`;
 
   // Grabar (draft → saved): the number (on save, D9), the usability of the maestros it names (bodega, ubicaciones, productos), the
@@ -418,7 +485,7 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
       lineId: lineIds.get(r.line_no)!,
       lineNo: r.line_no,
       productId: r.product_id,
-      categoryId: moved[i]!.product.categoryId,
+      categoryId: moved[resolved[i]!.item]!.product.categoryId,
       warehouseId: warehouse.id,
       locationId: r.location_id,
       qty: r.qty,
@@ -426,6 +493,8 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
       unitCost: r.unit_cost,
       sourceLineId: r.source_line_id,
       ...(r.return_of_line_id ? { returnOfLineId: r.return_of_line_id } : {}),
+      ...(r.lot_id ? { lotId: r.lot_id } : {}),
+      ...(r.serial_id ? { serialId: r.serial_id } : {}),
     })),
   };
   if (input.costCenterId && input.kind !== "adjustment") event.costCenterId = input.costCenterId;
@@ -512,11 +581,17 @@ export const movementVoid = defineProcess({
     const result = await runLifecycle(ctx, ctx.registry.entity(movementEntity.id), movementId, "void", { reason, ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}) });
     const [movement] = await ctx.tx<{ number: string; kind: MovementKind; date: string; warehouse_id: string; source_entity: string | null; source_id: string | null }[]>`
       select number, kind, date::text as date, warehouse_id, source_entity, source_id from inventory.movements where id = ${movementId}`;
-    const lines = await ctx.tx<{ id: string; line_no: number; product_id: string; location_id: string | null; qty: string; uom: string; unit_cost: string | null; source_line_id: string | null }[]>`
-      select id, line_no, product_id, location_id, qty, uom, unit_cost, source_line_id from inventory.movement_lines where movement_id = ${movementId} order by line_no`;
+    const lines = await ctx.tx<{ id: string; line_no: number; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string; uom: string; unit_cost: string | null; source_line_id: string | null }[]>`
+      select id, line_no, product_id, location_id, lot_id, serial_id, qty, uom, unit_cost, source_line_id from inventory.movement_lines where movement_id = ${movementId} order by line_no`;
     const products = await productFacts(ctx, lines.map((l) => l.product_id));
     const warehouse = await warehouseOf(ctx, movement!.warehouse_id);
-    await applyStock(ctx, warehouse, lines.map((l) => ({ productId: l.product_id, locationId: l.location_id, qty: -num(l.qty), sku: products.get(l.product_id)?.sku ?? l.product_id })));
+    const labels = await bucketLabels(ctx, lines.map((l) => ({ lotId: l.lot_id, serialId: l.serial_id })));
+    await applyStock(ctx, warehouse, lines.map((l) => ({
+      productId: l.product_id, locationId: l.location_id, lotId: l.lot_id, serialId: l.serial_id, qty: -num(l.qty), sku: products.get(l.product_id)?.sku ?? l.product_id,
+      ...(l.lot_id || l.serial_id ? { label: labels.get((l.serial_id ?? l.lot_id)!) ?? "" } : {}),
+    })));
+    // The serials the void moved back (Task 28.2): their status follows the stock.
+    await serialsAfterVoid(ctx, movementId, lines.flatMap((l) => (l.serial_id ? [l.serial_id] : [])));
     const event: MovementEvent = {
       movementId,
       number: movement!.number,
@@ -529,6 +604,8 @@ export const movementVoid = defineProcess({
       lines: lines.map((l) => ({
         lineId: l.id, lineNo: l.line_no, productId: l.product_id, categoryId: products.get(l.product_id)?.categoryId ?? null, warehouseId: movement!.warehouse_id,
         locationId: l.location_id, qty: num(l.qty), uom: l.uom, unitCost: l.unit_cost === null ? null : num(l.unit_cost), sourceLineId: l.source_line_id,
+        ...(l.lot_id ? { lotId: l.lot_id } : {}),
+        ...(l.serial_id ? { serialId: l.serial_id } : {}),
       })),
     };
     await ctx.emit(MOVEMENT_VOIDED, event);

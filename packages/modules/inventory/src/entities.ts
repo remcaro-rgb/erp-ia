@@ -240,6 +240,9 @@ export const transferLineEntity: EntityDef = entity("inventory.transfer_line", "
   f("qty", "number", { required: true }),
   f("uom", "text", { required: true }),
   ...trailer(f),
+  // Task 28.2: the lot or serial the line moves (a serial line moves one unit); appended so the masked view is re-created in place.
+  f("lot_id", "ref", lotRef),
+  f("serial_id", "ref", serialRef),
 ]);
 
 // Conteo físico (Task 7): lines name the product (and ubicación) to count; recording stores what was counted next to what the system
@@ -281,6 +284,9 @@ export const countLineEntity: EntityDef = entity("inventory.count_line", "lines"
   f("difference", "number"),
   f("recorded_at", "datetime"),
   ...trailer(f),
+  // Task 28.2: a lot-tracked product is counted per lot, a serial-tracked one per serial (the bucket the line counts).
+  f("lot_id", "ref", lotRef),
+  f("serial_id", "ref", serialRef),
 ]);
 
 // Lote (Task 28.1, PG §3.1): of one product, its code free text unique per product whatever its case (item 145); expiry and production

@@ -31,6 +31,8 @@ const STAGE_TONE: Record<string, "ok" | "warn" | "info" | "gray"> = { requested:
 export function StockRecordView({ entity, recordId, view }: { entity: string; recordId: string; view: StockView }) {
   const t = useTranslations("inventory.view");
   const te = useTranslations("errors");
+  // Lots and serials (Task 28.2): the column shows only when the count holds a tracked product.
+  const tracked = view.countLines.some((l) => l.lotSerial !== "");
   const router = useRouter();
   // The action takes the entity and the step's name; it picks the process itself (plan 2B Task 14b).
   const step = useStepRunner((step: StockStep, input, token) => runStockStepAction(entity, step.slice(step.lastIndexOf(".") + 1), input, token), () => router.refresh());
@@ -78,6 +80,7 @@ export function StockRecordView({ entity, recordId, view }: { entity: string; re
                   </th>
                   <th scope="col">{t("product")}</th>
                   <th scope="col">{t("location")}</th>
+                  {tracked && <th scope="col">{t("lot_serial")}</th>}
                   <th scope="col" className="erp-num">
                     {t("system_qty")}
                   </th>
@@ -95,6 +98,7 @@ export function StockRecordView({ entity, recordId, view }: { entity: string; re
                     <td className="erp-lines__no erp-muted">{l.lineNo}</td>
                     <td>{l.product}</td>
                     <td>{l.location || "—"}</td>
+                    {tracked && <td className="erp-mono">{l.lotSerial || "—"}</td>}
                     <td className="erp-num erp-mono">{l.systemQty ?? "—"}</td>
                     <td className="erp-num">
                       {canRecord ? (

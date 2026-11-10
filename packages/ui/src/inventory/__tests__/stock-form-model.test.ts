@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createProcess, emptyLine, masterStockDraft, masterStockInput, masterStockMissing, parseQty, stockDraft, stockInput, stockMissing, type StockDraft } from "../stock-form-model";
+import { createProcess, emptyLine, masterStockDraft, masterStockInput, masterStockMissing, parseQty, serialList, stockDraft, stockInput, stockMissing, type StockDraft } from "../stock-form-model";
 
 const line = (over: Partial<ReturnType<typeof emptyLine>> = {}) => ({ ...emptyLine(), productId: "p1", productLabel: "CAF · Café", qty: "10", ...over });
 const draft = (over: Partial<StockDraft> = {}): StockDraft => ({ ...stockDraft("2026-11-05"), warehouseId: "w1", ...over });
@@ -63,5 +63,33 @@ describe("stock form model", () => {
     expect(masterStockInput("location", stored, null)).toEqual({ code: "A1", name: "Estante", isActive: true, warehouseId: "w1", kind: "storage" });
     expect(masterStockInput("warehouse", masterStockDraft({ code: "PRIN", name: "Principal" }), null)).toEqual({ code: "PRIN", name: "Principal", isActive: true, allowBackorders: false });
     expect(masterStockMissing("location", masterStockDraft({ code: "A1", name: "E" }), true)).toBe(true);
+  });
+
+  it("lots and serials (Task 28.2): a lot line sends its code and expiry, a serial line its numbers; untracked lines send neither", () => {
+    const lot = line({ tracking: "lot", lotCode: " L-1 ", expiresOn: "2027-03-01" });
+    const serial = line({ productId: "p2", tracking: "serial", qty: "2", serialNos: "M-1, M-2\n" });
+    expect(stockInput("movement", draft({ lines: [lot, serial, line({ productId: "p3" })] }))).toEqual({
+      date: "2026-11-05", kind: "receipt", warehouseId: "w1",
+      lines: [
+        { productId: "p1", qty: 10, lot: { code: "L-1", expiresOn: "2027-03-01" } },
+        { productId: "p2", qty: 2, serials: [{ serialNo: "M-1" }, { serialNo: "M-2" }] },
+        { productId: "p3", qty: 10 },
+      ],
+    });
+    // A salida and a traslado name an existing lot by its code (no expiry), the serials by number.
+    expect(stockInput("movement", draft({ kind: "issue", lines: [lot] }))).toMatchObject({ lines: [{ productId: "p1", qty: -10, lot: { code: "L-1" } }] });
+    expect(stockInput("transfer", draft({ toWarehouseId: "w2", lines: [lot, serial] }))).toMatchObject({
+      lines: [{ productId: "p1", qty: 10, lot: { code: "L-1" } }, { productId: "p2", qty: 2, serials: [{ serialNo: "M-1" }, { serialNo: "M-2" }] }],
+    });
+    // A conteo lists its buckets itself: no lot or serial in its input.
+    expect(stockInput("count", draft({ lines: [lot] }))).toEqual({ date: "2026-11-05", warehouseId: "w1", lines: [{ productId: "p1" }] });
+  });
+
+  it("a lot line without its code, or a serial line whose numbers do not match the quantity, is missing them", () => {
+    expect(serialList(" a ,b\n\nc ")).toEqual(["a", "b", "c"]);
+    expect(stockMissing("movement", draft({ lines: [line({ tracking: "lot" })] }))).toContain("lot");
+    expect(stockMissing("movement", draft({ lines: [line({ tracking: "serial", qty: "3", serialNos: "a,b" })] }))).toContain("serials");
+    expect(stockMissing("movement", draft({ lines: [line({ tracking: "serial", qty: "2", serialNos: "a,b" })] }))).toEqual([]);
+    expect(stockMissing("count", draft({ lines: [line({ tracking: "lot" })] }))).toEqual([]);
   });
 });

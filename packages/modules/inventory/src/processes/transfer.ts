@@ -3,6 +3,7 @@ import { z } from "zod";
 import { transferEntity } from "../entities";
 import { id, idInput, productFacts, quantity, refuse, savedMovementId, type ProductFacts } from "./common";
 import { companyToday, lockStockLegs, MOVEMENT_POSTED, postMovement, refuseTransitWarehouse, warehouseOf } from "./movement";
+import { resolveTracked } from "./tracked-lines";
 
 // Traslados entre bodegas (plan 2B Task 7, design §8.1, Review Focus 1). A traslado is a documento (numbered TR- on save, lines) that
 // moves stock in two steps through the company's transit ubicación, so the stock on its way is never lost nor counted twice:
@@ -13,6 +14,8 @@ import { companyToday, lockStockLegs, MOVEMENT_POSTED, postMovement, refuseTrans
 // Locking: each step takes the stock locks of ALL its legs in one ordered pass (lockStockLegs: bodegas in id order, products in id
 // order) before its first movement, so a ship A→B racing the receive of a B→A never holds one leg while waiting for the other.
 // The movements carry source `inventory.transfer`; they are not voidable by themselves. A shipped traslado is not voided (receive it).
+// Lots and serials (Task 28.2, PG §3.2): a line of a lot-tracked product names an existing lot; a serial-tracked line lists its serials
+// (existing ones) and is stored as one line per serial at 1. Ship and receive move the same lot and serial buckets through transit.
 
 const FEATURE = "inventory.stock";
 const TRANSIT_CODE = "TRANSITO";
@@ -27,6 +30,12 @@ export const transferLineInput = z.object({
   /** A ubicación of the destination bodega; none leaves it in the bodega's own stock. */
   toLocationId: id.optional(),
   qty: positive,
+  /** A lot-tracked product (Task 28.2): the lot moved, by id or by its code (an existing lot of the product). */
+  lotId: id.optional(),
+  lot: z.object({ code: z.string().trim().min(1).max(60) }).strict().optional(),
+  /** A serial-tracked product: one serial per unit, by id or by number (stored as one line per serial). */
+  serialIds: z.array(id).min(1).max(500).optional(),
+  serials: z.array(z.object({ serialNo: z.string().trim().min(1).max(80) }).strict()).min(1).max(500).optional(),
 }).strict();
 
 export const transferInput = z.object({
@@ -56,7 +65,10 @@ interface TransferRow {
   to_warehouse_id: string;
   transit_location_id: string | null;
 }
-interface TransferLineRow { id: string; line_no: number; product_id: string; from_location_id: string | null; to_location_id: string | null; qty: string }
+interface TransferLineRow { id: string; line_no: number; product_id: string; from_location_id: string | null; to_location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string }
+
+/** What a traslado's leg moves of a line: its lot, or its one serial. */
+const tracking = (l: TransferLineRow) => ({ ...(l.lot_id ? { lotId: l.lot_id } : {}), ...(l.serial_id ? { serialIds: [l.serial_id] } : {}) });
 
 /** The traslado locked for the step, or `not_found`. */
 async function lockTransfer(ctx: ProcessContext, transferId: string): Promise<TransferRow> {
@@ -68,7 +80,7 @@ async function lockTransfer(ctx: ProcessContext, transferId: string): Promise<Tr
 
 async function linesOf(ctx: ProcessContext, transferId: string): Promise<TransferLineRow[]> {
   return ctx.tx<TransferLineRow[]>`
-    select id, line_no, product_id, from_location_id, to_location_id, qty::text from inventory.transfer_lines where transfer_id = ${transferId} order by line_no`;
+    select id, line_no, product_id, from_location_id, to_location_id, lot_id, serial_id, qty::text from inventory.transfer_lines where transfer_id = ${transferId} order by line_no`;
 }
 
 /** Refuses a step on a traslado that is not in the stage the step needs (or is voided). */
@@ -125,7 +137,7 @@ export const transferCreate = defineProcess({
       select id, warehouse_id, kind from inventory.locations where id = any(${locationIds}::uuid[]) and deleted_at is null`;
     const locationOf = new Map(locations.map((l) => [l.id, l]));
     const services: string[] = [];
-    const moved: { line: z.output<typeof transferLineInput>; product: ProductFacts }[] = [];
+    const moved: { line: z.output<typeof transferLineInput>; product: ProductFacts; index: number }[] = [];
     input.lines.forEach((line, i) => {
       const product = products.get(line.productId);
       if (!product) return errors.push(`Línea ${i + 1}: el producto no existe o no es visible`);
@@ -137,10 +149,12 @@ export const transferCreate = defineProcess({
         if (!location || location.warehouse_id !== warehouseId) errors.push(`Línea ${i + 1}: la ubicación no es de la bodega de ${side}`);
         else if (location.kind === "transit") errors.push(`Línea ${i + 1}: la ubicación de tránsito la usa el traslado, no se elige`);
       }
-      moved.push({ line, product });
+      moved.push({ line, product, index: i });
     });
     if (services.length > 0) refuse("service_product_refused", services);
     if (errors.length > 0) refuse("invalid_transfer", errors);
+    // A traslado moves stock that exists: it names existing lots and serials (an outbound line of the source bodega), never new ones.
+    const resolved = await resolveTracked(ctx, moved.map((m, i) => ({ item: i, fields: { ...m.line, qty: -m.line.qty }, product: m.product, index: m.index })), "invalid_transfer");
 
     const [header] = await ctx.tx<{ id: string }[]>`
       insert into inventory.transfers ${ctx.tx({
@@ -156,16 +170,21 @@ export const transferCreate = defineProcess({
       })}
       returning id`;
     const lines = await ctx.tx<{ id: string; line_no: number; product_id: string }[]>`
-      insert into inventory.transfer_lines ${ctx.tx(moved.map(({ line, product }, i) => ({
-        company_id: ctx.companyId,
-        transfer_id: header!.id,
-        line_no: i + 1,
-        product_id: product.id,
-        from_location_id: line.fromLocationId ?? null,
-        to_location_id: line.toLocationId ?? null,
-        qty: line.qty,
-        uom: product.uomCode,
-      })))}
+      insert into inventory.transfer_lines ${ctx.tx(resolved.map((r, i) => {
+        const { line, product } = moved[r.item]!;
+        return {
+          company_id: ctx.companyId,
+          transfer_id: header!.id,
+          line_no: i + 1,
+          product_id: product.id,
+          from_location_id: line.fromLocationId ?? null,
+          to_location_id: line.toLocationId ?? null,
+          lot_id: r.lotId,
+          serial_id: r.serialId,
+          qty: Math.abs(r.qty),
+          uom: product.uomCode,
+        };
+      }))}
       returning id, line_no, product_id`;
     const saved = await runLifecycle(ctx, ctx.registry.entity(transferEntity.id), header!.id, "save");
     return {
@@ -199,11 +218,11 @@ export const transferShip = defineProcess({
     const base = { date: when, sourceEntity: transferEntity.id, sourceId: transferId, reference: t.number ?? undefined };
     const out = await postMovement(ctx, {
       ...base, kind: "transfer_out", warehouseId: t.from_warehouse_id,
-      lines: lines.map((l) => ({ productId: l.product_id, ...(l.from_location_id ? { locationId: l.from_location_id } : {}), qty: -Number(l.qty) })),
+      lines: lines.map((l) => ({ productId: l.product_id, ...(l.from_location_id ? { locationId: l.from_location_id } : {}), qty: -Number(l.qty), ...tracking(l) })),
     });
     const into = await postMovement(ctx, {
       ...base, kind: "transfer_in", warehouseId: transit.warehouseId, allowTransit: true,
-      lines: lines.map((l) => ({ productId: l.product_id, locationId: transit.locationId, qty: Number(l.qty) })),
+      lines: lines.map((l) => ({ productId: l.product_id, locationId: transit.locationId, qty: Number(l.qty), ...tracking(l) })),
     });
     const movements = [savedMovementId(out, "La salida del traslado"), savedMovementId(into, "La entrada a tránsito")];
     await ctx.tx`update inventory.transfers set stage = 'in_transit', shipped_at = now(), transit_location_id = ${transit.locationId} where id = ${transferId}`;
@@ -232,11 +251,11 @@ export const transferReceive = defineProcess({
     const base = { date: when, sourceEntity: transferEntity.id, sourceId: transferId, reference: t.number ?? undefined };
     const out = await postMovement(ctx, {
       ...base, kind: "transfer_out", warehouseId: transit.warehouse_id, allowTransit: true,
-      lines: lines.map((l) => ({ productId: l.product_id, locationId: transit.id, qty: -Number(l.qty) })),
+      lines: lines.map((l) => ({ productId: l.product_id, locationId: transit.id, qty: -Number(l.qty), ...tracking(l) })),
     });
     const into = await postMovement(ctx, {
       ...base, kind: "transfer_in", warehouseId: t.to_warehouse_id,
-      lines: lines.map((l) => ({ productId: l.product_id, ...(l.to_location_id ? { locationId: l.to_location_id } : {}), qty: Number(l.qty) })),
+      lines: lines.map((l) => ({ productId: l.product_id, ...(l.to_location_id ? { locationId: l.to_location_id } : {}), qty: Number(l.qty), ...tracking(l) })),
     });
     const movements = [savedMovementId(out, "La salida de tránsito"), savedMovementId(into, "La entrada al destino")];
     await ctx.tx`update inventory.transfers set stage = 'received', received_at = now() where id = ${transferId}`;

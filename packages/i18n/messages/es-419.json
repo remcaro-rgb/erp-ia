@@ -2355,7 +2355,9 @@
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
-        "updated_at": "Actualizado"
+        "updated_at": "Actualizado",
+        "lot_id": "Lote",
+        "serial_id": "Serial"
       },
       "count": {
         "seq": "ID",
@@ -2388,7 +2390,9 @@
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
-        "updated_at": "Actualizado"
+        "updated_at": "Actualizado",
+        "lot_id": "Lote",
+        "serial_id": "Serial"
       },
       "lot": {
         "seq": "ID",
@@ -5554,8 +5558,17 @@
         "qty": "una cantidad válida",
         "receipt": "la entrada",
         "amount": "el valor",
-        "party": "el proveedor"
-      }
+        "party": "el proveedor",
+        "lot": "el lote de cada línea por lote",
+        "serials": "un serial por unidad en cada línea por serial"
+      },
+      "lot_serials": "Lote / seriales",
+      "lot_line": "Lote, línea {n}",
+      "lot_code": "Código del lote",
+      "expires_line": "Vencimiento del lote, línea {n}",
+      "expires_hint": "Vencimiento del lote (un lote nuevo lo pide si el producto exige vencimiento)",
+      "serials_line": "Seriales, línea {n}",
+      "serials_hint": "Un serial por unidad, separados por comas"
     },
     "view": {
       "facts": "Datos del documento",
@@ -5573,7 +5586,8 @@
       "receive": "Recibir",
       "record_count": "Registrar conteo",
       "apply_count": "Aplicar conteo",
-      "apply_hint": "Pide tu código de verificación; todas las líneas deben estar contadas."
+      "apply_hint": "Pide tu código de verificación; todas las líneas deben estar contadas.",
+      "lot_serial": "Lote / serial"
     },
     "effects": {
       "order_reserve": "Inventario: reserva el stock de las líneas del pedido en su bodega",
@@ -5592,6 +5606,16 @@
     },
     "tracking": {
       "intro": "Cómo se sigue cada producto: sin seguimiento, por lote (con FEFO y vencimiento) o por serial. Cambiarlo pide el segundo factor y solo se puede cuando el producto no tiene existencias."
+    },
+    "errors": {
+      "lot_required": "El producto se sigue por lote: indica el lote",
+      "lot_not_found": "El lote no existe o es de otro producto",
+      "lot_short": "El lote no tiene la cantidad que el movimiento saca en esa bodega y ubicación",
+      "expiry_required": "El lote necesita fecha de vencimiento",
+      "serials_required": "El producto se sigue por serial: lista un serial por unidad",
+      "serials_count_mismatch": "La cantidad no coincide con los seriales listados",
+      "serial_exists": "El serial ya está en existencia",
+      "serial_not_in_stock": "El serial no está en existencia en esa bodega y ubicación"
     }
   },
   "costing": {

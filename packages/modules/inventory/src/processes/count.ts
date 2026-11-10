@@ -4,6 +4,7 @@ import { countEntity } from "../entities";
 import { postAdjustment } from "./adjustment";
 import { id, idInput, num, productFacts, quantity, refuse, savedMovementId, type ProductFacts } from "./common";
 import { companyToday, MOVEMENT_POSTED, refuseTransitWarehouse, warehouseOf } from "./movement";
+import { resolveTracked, trackingKinds } from "./tracked-lines";
 
 // Conteos físicos (plan 2B Task 7, design §8.1). A conteo is a documento (numbered CT- on save, lines):
 //   create → lists what to count in a bodega (product, and the ubicación when it is counted by ubicación);
@@ -13,6 +14,10 @@ import { companyToday, MOVEMENT_POSTED, refuseTransitWarehouse, warehouseOf } fr
 //            applied is final: re-applying and recording again are refused (`count_already_applied`), and two concurrent applies
 //            queue on the count row so only the first posts. Source lines make the adjustment idempotent in the database as well.
 // The difference is measured at record time, so movements after it are not undone by applying.
+// Lots and serials (Task 28.2, PG §3.2): a count line is one bucket (product, ubicación, lot, serial). create lists, for a tracked product,
+// every lot or serial with stock at that ubicación; record also takes what the counter found that the sheet does not list (a lot, by id
+// or by a new code, created nested; a serial scanned, registered nested when new), each becoming a line of its own; apply posts one
+// adjustment line per bucket difference (a serial missing: −1, scrapped; a serial found: +1, available).
 
 const FEATURE = "inventory.stock";
 
@@ -31,8 +36,18 @@ const createdOutput = z.object({
   id: z.string(),
   number: z.string().nullable(),
   status: z.string(),
-  lines: z.array(z.object({ id: z.string(), lineNo: z.number(), productId: z.string(), locationId: z.string().nullable() })),
+  lines: z.array(z.object({ id: z.string(), lineNo: z.number(), productId: z.string(), locationId: z.string().nullable(), lotId: z.string().nullable(), serialId: z.string().nullable() })),
 });
+
+/** What the counter found that the count sheet does not list (Task 28.2): a lot (by id, or a code, new or not) or a serial scanned. */
+export const foundInput = z.object({
+  productId: id,
+  locationId: id.optional(),
+  lotId: id.optional(),
+  lot: z.object({ code: z.string().trim().min(1).max(60), expiresOn: date.optional(), producedOn: date.optional() }).strict().optional(),
+  serialNo: z.string().trim().min(1).max(80).optional(),
+  countedQty: quantity.refine((n) => n >= 0, "La cantidad contada no puede ser negativa"),
+}).strict();
 
 interface CountRow { id: string; number: string | null; status: string; stage: "open" | "applied"; warehouse_id: string; date: string }
 
@@ -82,6 +97,25 @@ export const countCreate = defineProcess({
     if (services.length > 0) refuse("service_product_refused", services);
     if (errors.length > 0) refuse("invalid_count", errors);
 
+    // A tracked product is counted per bucket: one line per lot or serial with stock at the ubicación (none yet: the counter adds what they find).
+    const kinds = await trackingKinds(ctx, lines.map((l) => l.product.id));
+    const buckets: { productId: string; locationId: string | null; lotId: string | null; serialId: string | null }[] = [];
+    for (const { line, product } of lines) {
+      const kind = kinds.get(product.id) ?? "none";
+      if (kind === "none") {
+        buckets.push({ productId: product.id, locationId: line.locationId ?? null, lotId: null, serialId: null });
+        continue;
+      }
+      const held = await ctx.tx<{ lot_id: string | null; serial_id: string | null }[]>`
+        select s.lot_id, s.serial_id from inventory.stock_levels s
+        left join inventory.lots l on l.id = s.lot_id left join inventory.serials r on r.id = s.serial_id
+        where s.company_id = ${ctx.companyId} and s.warehouse_id = ${warehouse.id} and s.product_id = ${product.id}
+          and s.location_id is not distinct from ${line.locationId ?? null}::uuid and s.on_hand <> 0
+          and ${kind === "lot" ? ctx.tx`s.lot_id is not null` : ctx.tx`s.serial_id is not null`}
+        order by l.code nulls last, r.serial_no nulls last`;
+      for (const b of held) buckets.push({ productId: product.id, locationId: line.locationId ?? null, lotId: b.lot_id, serialId: b.serial_id });
+    }
+
     const [header] = await ctx.tx<{ id: string }[]>`
       insert into inventory.counts ${ctx.tx({
         company_id: ctx.companyId, date: input.date, warehouse_id: warehouse.id, description: input.description ?? null,
@@ -89,17 +123,17 @@ export const countCreate = defineProcess({
         requires_approval: false, posts: false,
       })}
       returning id`;
-    const rows = await ctx.tx<{ id: string; line_no: number; product_id: string; location_id: string | null }[]>`
-      insert into inventory.count_lines ${ctx.tx(lines.map(({ line }, i) => ({
-        company_id: ctx.companyId, count_id: header!.id, line_no: i + 1, product_id: line.productId, location_id: line.locationId ?? null,
+    const rows = buckets.length === 0 ? [] : await ctx.tx<{ id: string; line_no: number; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]>`
+      insert into inventory.count_lines ${ctx.tx(buckets.map((b, i) => ({
+        company_id: ctx.companyId, count_id: header!.id, line_no: i + 1, product_id: b.productId, location_id: b.locationId, lot_id: b.lotId, serial_id: b.serialId,
       })))}
-      returning id, line_no, product_id, location_id`;
+      returning id, line_no, product_id, location_id, lot_id, serial_id`;
     const saved = await runLifecycle(ctx, ctx.registry.entity(countEntity.id), header!.id, "save");
     return {
       id: header!.id,
       number: saved.number ?? null,
       status: saved.status,
-      lines: rows.map((r) => ({ id: r.id, lineNo: r.line_no, productId: r.product_id, locationId: r.location_id })).sort((a, b) => a.lineNo - b.lineNo),
+      lines: rows.map((r) => ({ id: r.id, lineNo: r.line_no, productId: r.product_id, locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id })).sort((a, b) => a.lineNo - b.lineNo),
     };
   },
 });
@@ -112,25 +146,31 @@ export const countRecord = defineProcess({
   description: "Registra las cantidades contadas de las líneas de un conteo abierto junto con lo que el sistema tenía en ese momento; no mueve existencias",
   input: z.object({
     id,
-    lines: z.array(z.object({ lineId: id, countedQty: quantity.refine((n) => n >= 0, "La cantidad contada no puede ser negativa") }).strict()).min(1).max(1000),
-  }).strict(),
+    lines: z.array(z.object({ lineId: id, countedQty: quantity.refine((n) => n >= 0, "La cantidad contada no puede ser negativa") }).strict()).max(1000).default([]),
+    /** What the counter found that the sheet does not list: each becomes a line of its own (Task 28.2). */
+    found: z.array(foundInput).max(1000).optional(),
+  }).strict().refine((v) => v.lines.length + (v.found?.length ?? 0) > 0, "Registra al menos una línea"),
   output: z.object({ id: z.string(), recorded: z.number().int() }),
-  handler: async (ctx, { id: countId, lines }) => {
+  handler: async (ctx, { id: countId, lines: given, found = [] }) => {
     const count = await lockCount(ctx, countId);
     requireOpen(count);
-    const own = await ctx.tx<{ id: string; product_id: string; location_id: string | null }[]>`
-      select id, product_id, location_id from inventory.count_lines where count_id = ${countId}`;
+    const own = await ctx.tx<{ id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]>`
+      select id, product_id, location_id, lot_id, serial_id from inventory.count_lines where count_id = ${countId}`;
     const byId = new Map(own.map((l) => [l.id, l]));
-    const unknown = lines.filter((l) => !byId.has(l.lineId));
+    const unknown = given.filter((l) => !byId.has(l.lineId));
     if (unknown.length > 0) refuse("invalid_count", unknown.map((l) => `La línea ${l.lineId} no es de este conteo`));
-    if (new Set(lines.map((l) => l.lineId)).size !== lines.length) refuse("invalid_count", ["Una línea aparece dos veces"]);
+    if (new Set(given.map((l) => l.lineId)).size !== given.length) refuse("invalid_count", ["Una línea aparece dos veces"]);
+    const lines = [...given, ...(await addFound(ctx, count, own, found))];
+    const all = new Map((await ctx.tx<{ id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]>`
+      select id, product_id, location_id, lot_id, serial_id from inventory.count_lines where count_id = ${countId}`).map((l) => [l.id, l]));
     for (const l of lines) {
-      const line = byId.get(l.lineId)!;
+      const line = all.get(l.lineId)!;
       // What the system holds in exactly this bucket now (the bodega's own stock when the line names no ubicación).
       const [held] = await ctx.tx<{ on_hand: string }[]>`
         select coalesce(sum(on_hand), 0)::text as on_hand from inventory.stock_levels
         where company_id = ${ctx.companyId} and warehouse_id = ${count.warehouse_id} and product_id = ${line.product_id}
-          and location_id is not distinct from ${line.location_id}::uuid and lot_id is null and serial_id is null`;
+          and location_id is not distinct from ${line.location_id}::uuid
+          and lot_id is not distinct from ${line.lot_id}::uuid and serial_id is not distinct from ${line.serial_id}::uuid`;
       const system = num(held!.on_hand);
       await ctx.tx`
         update inventory.count_lines
@@ -157,8 +197,8 @@ export const countApply = defineProcess({
     // The count row serializes two applies: the second reads the stage the first left.
     const count = await lockCount(ctx, countId);
     requireOpen(count);
-    const lines = await ctx.tx<{ id: string; product_id: string; location_id: string | null; counted_qty: string | null; difference: string | null }[]>`
-      select id, product_id, location_id, counted_qty::text, difference::text from inventory.count_lines where count_id = ${countId} order by line_no`;
+    const lines = await ctx.tx<{ id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; counted_qty: string | null; difference: string | null }[]>`
+      select id, product_id, location_id, lot_id, serial_id, counted_qty::text, difference::text from inventory.count_lines where count_id = ${countId} order by line_no`;
     const pending = lines.filter((l) => l.counted_qty === null);
     if (pending.length > 0) refuse("count_incomplete", [`Faltan ${pending.length} línea(s) por contar`]);
     const differing = lines.filter((l) => num(l.difference) !== 0);
@@ -175,7 +215,10 @@ export const countApply = defineProcess({
         costCenterId,
         sourceEntity: countEntity.id,
         sourceId: countId,
-        lines: differing.map((l) => ({ productId: l.product_id, ...(l.location_id ? { locationId: l.location_id } : {}), qty: num(l.difference), sourceLineId: l.id })),
+        lines: differing.map((l) => ({
+          productId: l.product_id, ...(l.location_id ? { locationId: l.location_id } : {}), qty: num(l.difference), sourceLineId: l.id,
+          ...(l.lot_id ? { lotId: l.lot_id } : {}), ...(l.serial_id ? { serialIds: [l.serial_id] } : {}),
+        })),
       });
       adjustmentId = savedMovementId(posted, "El ajuste del conteo");
       adjustmentNumber = posted.number;
@@ -184,6 +227,54 @@ export const countApply = defineProcess({
     return { id: countId, stage: "applied" as const, adjustmentId, adjustmentNumber };
   },
 });
+
+type CountLineRow = { id: string; product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null };
+
+/**
+ * Adds a line per bucket the counter found that the count does not list (Task 28.2) and returns their counted quantities. A lot named by a
+ * new code is created nested (inventory.lot.create), a new serial number registered nested (inventory.serial.create, not in stock until
+ * the count applies); a serial is found once (counted 1). A bucket already on the sheet is refused: its line is recorded instead.
+ */
+async function addFound(ctx: ProcessContext, count: CountRow, own: readonly CountLineRow[], found: readonly z.output<typeof foundInput>[]): Promise<{ lineId: string; countedQty: number }[]> {
+  if (found.length === 0) return [];
+  const products = await productFacts(ctx, found.map((f) => f.productId));
+  const locationIds = [...new Set(found.flatMap((f) => (f.locationId ? [f.locationId] : [])))];
+  const locations = locationIds.length === 0 ? [] : await ctx.tx<{ id: string; warehouse_id: string }[]>`
+    select id, warehouse_id from inventory.locations where id = any(${locationIds}::uuid[]) and deleted_at is null`;
+  const kinds = await trackingKinds(ctx, found.map((f) => f.productId));
+  const errors: string[] = [];
+  found.forEach((f, i) => {
+    const product = products.get(f.productId);
+    const at = `Encontrado ${i + 1}`;
+    if (!product || product.kind === "service" || !product.trackStock) return errors.push(`${at}: el producto no existe o no lleva existencias`);
+    if (f.locationId && locations.find((l) => l.id === f.locationId)?.warehouse_id !== count.warehouse_id) return errors.push(`${at}: la ubicación no es de la bodega del conteo`);
+    const kind = kinds.get(product.id) ?? "none";
+    if (kind === "none") return errors.push(`${at}: ${product.sku} no se sigue por lote ni por serial: agrégalo al conteo al crearlo`);
+    if (kind === "serial" && f.countedQty !== 1) return errors.push(`${at}: un serial encontrado se cuenta 1`);
+  });
+  if (errors.length > 0) refuse("invalid_count", errors);
+  // Resolved as inbound lines (a found bucket is stock the system does not list): new lots and serials are created nested; a serial the
+  // system holds in stock elsewhere is refused serial_exists (move it with a traslado, or count it where the system has it).
+  const resolved = await resolveTracked(ctx, found.map((f, i) => ({
+    item: i,
+    fields: { qty: 1, ...(f.lotId ? { lotId: f.lotId } : {}), ...(f.lot ? { lot: f.lot } : {}), ...(f.serialNo ? { serials: [{ serialNo: f.serialNo }] } : {}) },
+    product: products.get(f.productId)!, index: i,
+  })), "invalid_count", kinds);
+  const keyOf = (b: { product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }) => `${b.product_id}|${b.location_id ?? ""}|${b.lot_id ?? ""}|${b.serial_id ?? ""}`;
+  const taken = new Set(own.map(keyOf));
+  const [last] = await ctx.tx<{ n: number }[]>`select coalesce(max(line_no), 0)::int as n from inventory.count_lines where count_id = ${count.id}`;
+  const rows = resolved.map((r, n) => {
+    const f = found[r.item]!;
+    const row = { product_id: f.productId, location_id: f.locationId ?? null, lot_id: r.lotId, serial_id: r.serialId };
+    if (taken.has(keyOf(row))) errors.push(`Encontrado ${r.item + 1}: ya está en el conteo: registra su línea`);
+    taken.add(keyOf(row));
+    return { company_id: ctx.companyId, count_id: count.id, line_no: last!.n + n + 1, ...row };
+  });
+  if (errors.length > 0) refuse("invalid_count", errors);
+  const inserted = await ctx.tx<{ id: string; line_no: number }[]>`insert into inventory.count_lines ${ctx.tx(rows)} returning id, line_no`;
+  const lineNo = new Map(inserted.map((r) => [r.line_no, r.id]));
+  return rows.map((row, n) => ({ lineId: lineNo.get(row.line_no)!, countedQty: found[resolved[n]!.item]!.countedQty }));
+}
 
 export const countVoid = defineProcess({
   id: "inventory.count.void",

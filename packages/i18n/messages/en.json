@@ -2355,7 +2355,9 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "lot_id": "Lot",
+        "serial_id": "Serial"
       },
       "count": {
         "seq": "ID",
@@ -2388,7 +2390,9 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "lot_id": "Lot",
+        "serial_id": "Serial"
       },
       "lot": {
         "seq": "ID",
@@ -5554,8 +5558,17 @@
         "qty": "a valid quantity",
         "receipt": "the receipt",
         "amount": "the amount",
-        "party": "the supplier"
-      }
+        "party": "the supplier",
+        "lot": "the lot of each lot line",
+        "serials": "one serial per unit on each serial line"
+      },
+      "lot_serials": "Lot / serials",
+      "lot_line": "Lot, line {n}",
+      "lot_code": "Lot code",
+      "expires_line": "Lot expiry, line {n}",
+      "expires_hint": "Lot expiry (a new lot needs it when the product requires expiry)",
+      "serials_line": "Serials, line {n}",
+      "serials_hint": "One serial per unit, separated by commas"
     },
     "view": {
       "facts": "Document data",
@@ -5573,7 +5586,8 @@
       "receive": "Receive",
       "record_count": "Record count",
       "apply_count": "Apply count",
-      "apply_hint": "Asks for your verification code; every line must be counted."
+      "apply_hint": "Asks for your verification code; every line must be counted.",
+      "lot_serial": "Lot / serial"
     },
     "effects": {
       "order_reserve": "Inventory: reserves the stock of the order lines in their warehouse",
@@ -5592,6 +5606,16 @@
     },
     "tracking": {
       "intro": "How each product is tracked: not at all, by lot (with FEFO and expiry) or by serial. Changing it asks for the second factor and is allowed only while the product has no stock."
+    },
+    "errors": {
+      "lot_required": "The product is tracked by lot: name the lot",
+      "lot_not_found": "The lot does not exist or belongs to another product",
+      "lot_short": "The lot does not hold the quantity the movement takes in that warehouse and location",
+      "expiry_required": "The lot needs an expiry date",
+      "serials_required": "The product is tracked by serial: list one serial per unit",
+      "serials_count_mismatch": "The quantity does not match the serials listed",
+      "serial_exists": "The serial is already in stock",
+      "serial_not_in_stock": "The serial is not in stock in that warehouse and location"
     }
   },
   "costing": {

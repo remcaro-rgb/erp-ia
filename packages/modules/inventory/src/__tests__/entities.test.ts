@@ -12,7 +12,7 @@ import { savedMovementId } from "../processes/common";
 
 // The views of the first six entities are in 0066, those of the traslados and conteos (Task 7) in 0069, those of the lots, serials,
 // tracking and allocations (Task 28.1) in 0162.
-const migration = ["0066_inventory_core.sql", "0069_inventory_transfers_counts.sql", "0162_inventory_lots_serials.sql"]
+const migration = ["0066_inventory_core.sql", "0069_inventory_transfers_counts.sql", "0162_inventory_lots_serials.sql", "0163_inventory_lines_lots.sql"]
   .map((file) => readFileSync(new URL(`../../../../../supabase/migrations/${file}`, import.meta.url), "utf8"))
   .join("\n");
 
@@ -162,7 +162,7 @@ describe("inventory manifest", () => {
   });
 });
 
-describe("inventory masked views, migrations 0066, 0069 and 0162", () => {
+describe("inventory masked views, migrations 0066, 0069, 0162 and 0163", () => {
   for (const entity of INVENTORY_ENTITIES) {
     it(`inventory.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       const generated = maskedViewSql(defineEntity(entity));

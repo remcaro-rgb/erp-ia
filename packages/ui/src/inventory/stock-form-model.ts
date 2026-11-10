@@ -26,7 +26,20 @@ export interface StockLine {
   /** As typed: positive for an entrada or salida (the form signs it), signed for an ajuste. */
   qty: string;
   unitCost: string;
+  /** How inventory tracks the chosen product (Task 28.2): a lot line takes its lot, a serial line its numbers. */
+  tracking: LineTracking;
+  /** A lot line: the lot's code (a new one on an entrada creates it), and its expiry on an entrada. */
+  lotCode: string;
+  expiresOn: string;
+  /** A serial line: the numbers as typed or scanned, separated by commas or new lines (one per unit). */
+  serialNos: string;
 }
+
+/** How inventory tracks a product: untracked, by lot or by serial. */
+export type LineTracking = "none" | "lot" | "serial";
+
+/** The serial numbers typed in a line: split by commas, semicolons or new lines, trimmed, empty ones left out. */
+export const serialList = (text: string): string[] => text.split(/[,;\n]/).map((s) => s.trim()).filter((s) => s !== "");
 
 export interface StockDraft {
   kind: FormMovementKind;
@@ -52,7 +65,9 @@ export interface StockDraft {
 
 let lineSeq = 0;
 /** An empty line. */
-export const emptyLine = (): StockLine => ({ key: `l${++lineSeq}`, productId: "", productLabel: "", locationId: "", toLocationId: "", qty: "", unitCost: "" });
+export const emptyLine = (): StockLine => ({
+  key: `l${++lineSeq}`, productId: "", productLabel: "", locationId: "", toLocationId: "", qty: "", unitCost: "", tracking: "none", lotCode: "", expiresOn: "", serialNos: "",
+});
 
 /** A new document's draft: today, the only bodega when there is one, one empty line. */
 export function stockDraft(today: string, warehouses: readonly { code: string }[] = []): StockDraft {
@@ -125,6 +140,9 @@ export function stockMissing(kind: StockFormKind, draft: StockDraft): string[] {
       return !Number.isFinite(q) || q === 0 || (kind === "transfer" || (kind === "movement" && draft.kind !== "adjustment") ? q < 0 : false);
     });
     if (bad) missing.push("qty");
+    // Lots and serials (Task 28.2): a lot line names its lot; a serial line lists one number per unit.
+    if (lines.some((l) => l.tracking === "lot" && l.lotCode.trim() === "")) missing.push("lot");
+    if (lines.some((l) => l.tracking === "serial" && serialList(l.serialNos).length !== Math.abs(parseQty(l.qty)))) missing.push("serials");
   }
   return missing;
 }
@@ -150,6 +168,12 @@ export function stockInput(kind: StockFormKind, draft: StockDraft, idempotencyKe
     };
   }
   const lines = filledLines(draft);
+  // What a line names of its lot or serials; an entrada (or a positive ajuste) also gives a new lot's expiry.
+  const tracked = (l: StockLine, inbound: boolean) => {
+    if (l.tracking === "lot" && l.lotCode.trim() !== "") return { lot: { code: l.lotCode.trim(), ...(inbound && l.expiresOn ? { expiresOn: l.expiresOn } : {}) } };
+    if (l.tracking === "serial") return { serials: serialList(l.serialNos).map((serialNo) => ({ serialNo })) };
+    return {};
+  };
   const common = {
     date: draft.date,
     ...(draft.reference.trim() ? { reference: draft.reference.trim() } : {}),
@@ -165,6 +189,7 @@ export function stockInput(kind: StockFormKind, draft: StockDraft, idempotencyKe
         ...(l.locationId ? { fromLocationId: l.locationId } : {}),
         ...(l.toLocationId ? { toLocationId: l.toLocationId } : {}),
         qty: parseQty(l.qty),
+        ...tracked(l, false),
       })),
     };
   }
@@ -179,11 +204,13 @@ export function stockInput(kind: StockFormKind, draft: StockDraft, idempotencyKe
   const sign = draft.kind === "issue" ? -1 : 1;
   const movementLines = lines.map((l) => {
     const cost = parseQty(l.unitCost);
+    const qty = draft.kind === "adjustment" ? parseQty(l.qty) : sign * Math.abs(parseQty(l.qty));
     return {
       productId: l.productId,
       ...(l.locationId ? { locationId: l.locationId } : {}),
-      qty: draft.kind === "adjustment" ? parseQty(l.qty) : sign * Math.abs(parseQty(l.qty)),
+      qty,
       ...(draft.kind === "receipt" && Number.isFinite(cost) ? { unitCost: cost } : {}),
+      ...tracked(l, qty > 0),
     };
   });
   if (draft.kind === "adjustment") {

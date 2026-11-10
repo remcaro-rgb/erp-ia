@@ -78,6 +78,18 @@ Un producto puede seguirse **por lote** (por ejemplo café con fecha de tostión
 
 En las líneas de movimiento y en **Existencias** se ven las columnas **Lote** y **Serial**. Están vacías en los productos sin seguimiento.
 
+### Lotes y seriales en entradas, salidas, traslados, ajustes y conteos
+
+Las existencias de un producto con seguimiento se llevan **por lote** o **por serial** dentro de cada bodega y ubicación. Al elegir un producto con seguimiento en una línea aparece la columna **Lote / seriales**.
+
+- **Entrada.** Un producto por lote pide el **Código del lote**. Si el código es nuevo, el lote se crea solo al guardar, con el **Vencimiento** que escribas; si el producto exige vencimiento, sin fecha no se guarda. Si el lote ya existe, la entrada se suma a él (el código no distingue mayúsculas). Un producto por serial pide **un serial por unidad**, separados por comas: 3 unidades, 3 seriales. Cada serial nuevo se registra solo y queda **Disponible**. Un serial que ya está disponible no vuelve a entrar.
+- **Salida.** Indica el lote o los seriales que salen. Si el lote no tiene esa cantidad en la bodega y ubicación, la salida se rechaza, aunque la bodega permita existencias negativas. Un serial que no está en esa bodega y ubicación tampoco sale. El serial que sale queda **Despachado**; si vuelve con una entrada, queda **Disponible** otra vez.
+- **Traslado.** Cada línea dice el lote o los seriales que viajan. Al despachar y al recibir se mueve el mismo lote o serial, también mientras está en tránsito.
+- **Ajuste.** Sigue pidiendo tu código de verificación. Cada línea dice su lote o sus seriales. Un ajuste negativo de un serial lo deja **Dado de baja**. Un ajuste positivo con un serial nuevo lo registra y lo deja disponible.
+- **Conteo.** Al crear el conteo, un producto con seguimiento sale en la hoja **una línea por lote o serial** con existencias en esa ubicación. Cuenta cada lote; en un serial pon 1 si lo encontraste y 0 si falta. Lo que encuentres y no esté en la hoja (un lote nuevo, un serial escaneado) se agrega al registrar el conteo, por ahora con el asistente. Al aplicar, cada diferencia es una línea del ajuste: un lote con 2 de menos, un lote nuevo con lo encontrado, un serial que falta con −1 (queda dado de baja).
+
+Si la línea no dice el lote o los seriales, o los seriales no coinciden con la cantidad, el formulario lo dice al pie antes de guardar.
+
 ## Movimientos: entradas, salidas y ajustes
 
 Ve a **Inventario › Documentos › Movimientos** › **Nuevo**.

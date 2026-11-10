@@ -211,7 +211,8 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "inventory.transfer_line": {
     title: "line_no",
-    shown: ["line_no", "product_id", "from_location_id", "to_location_id", "qty", "uom"],
+    // Lots and serials (Task 28.2): the lot or serial the line carries through transit; the record frame drops both when no line is tracked.
+    shown: ["line_no", "product_id", "from_location_id", "to_location_id", "lot_id", "serial_id", "qty", "uom"],
     exclude: ["extra", "extra_free", "transfer_id"],
     fields: { uom: { display: "mono" } },
   },

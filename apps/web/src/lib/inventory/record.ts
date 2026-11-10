@@ -47,6 +47,8 @@ export interface CountSheetLine {
   lineNo: number;
   product: string;
   location: string;
+  /** The lot's code or the serial number the line counts (Task 28.2); empty for an untracked product. */
+  lotSerial: string;
   systemQty: number | null;
   countedQty: number | null;
   difference: number | null;
@@ -77,6 +79,8 @@ export interface StockFormData {
   party: LookupSource | null;
   /** A landed cost (Task 45): the cost centers of its cost of sales part; null when the caller may not read them (or accounting is off). */
   costCenter: LookupSource | null;
+  /** How inventory tracks each tracked product, by id (Task 28.2): the lines of a new document ask for the lot or the serials. */
+  tracking: Record<string, "lot" | "serial">;
   /** A stored movimiento, traslado, conteo or costo en destino; null for a new one and for the maestros. */
   view: StockView | null;
 }
@@ -116,7 +120,10 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
         order by w.code`;
       const locations = await tx<{ id: string; warehouse_id: string; code: string | null; name: string | null }[]>`
         select id, warehouse_id, code, name from inventory.v_locations where coalesce(is_active, true) and kind = 'storage' order by code`;
-      return { today: today?.today ?? new Date().toISOString().slice(0, 10), warehouses, locations };
+      // The tracked products (Task 28.2), as the caller may read the parametro; a product without a row is untracked.
+      const tracked = await tx<{ product_id: string; tracking: "lot" | "serial" }[]>`
+        select product_id, tracking from inventory.v_product_tracking where tracking in ('lot', 'serial')`;
+      return { today: today?.today ?? new Date().toISOString().slice(0, 10), warehouses, locations, tracked };
     }),
     lookupSource(caller, "core.product"),
     stock === "landed_cost" ? lookupSource(caller, "inventory.movement") : Promise.resolve(null),
@@ -131,6 +138,7 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
     warehouses: lists.warehouses.map((w) => ({ code: w.id, name: [w.code, w.name].filter(Boolean).join(" · ") })),
     locations: lists.locations.map((l) => ({ code: l.id, warehouseId: l.warehouse_id, name: [l.code, l.name].filter(Boolean).join(" · ") })),
     product: product ?? { fields: [], entityLabel: t("entity.core.product") },
+    tracking: Object.fromEntries(lists.tracked.map((r) => [r.product_id, r.tracking])),
     receipt,
     party,
     costCenter,
@@ -158,6 +166,9 @@ async function stockView(caller: Caller, entityId: string, record: Row): Promise
     withClaims(deps.sql, caller.claims, (tx) => tx<{ timezone: string }[]>`select timezone from kernel.companies where id = ${caller.claims.active_company_id}`),
   ]);
   const timeZone = zone[0]?.timezone;
+  // Lots and serials (Task 28.2): their columns show only when some line of the document names one (an untracked document reads as before).
+  const tracked = sheet.some((l) => l.lot_id || l.serial_id);
+  if (linesGrid && !tracked) linesGrid.columns = linesGrid.columns.filter((c) => c.field !== "lot_id" && c.field !== "serial_id");
   const label = (field: string) => {
     const def = entity.fields.find((f) => f.name === field);
     return def && t.has(def.label) ? t(def.label) : field;
@@ -219,6 +230,7 @@ async function stockView(caller: Caller, entityId: string, record: Row): Promise
             lineNo: Number(l.line_no),
             product: String(l[refLabelKey("product_id")] ?? l.product_id ?? ""),
             location: l.location_id ? String(l[refLabelKey("location_id")] ?? l.location_id) : "",
+            lotSerial: l.serial_id ? String(l[refLabelKey("serial_id")] ?? l.serial_id) : l.lot_id ? String(l[refLabelKey("lot_id")] ?? l.lot_id) : "",
             systemQty: num(l.system_qty),
             countedQty: num(l.counted_qty),
             difference: num(l.difference),
