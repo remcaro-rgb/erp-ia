@@ -16,7 +16,11 @@ export interface DefaultPostingRule { event: string; name: string; journalCode: 
 /** What a module implements to receive the engine's output; the kernel knows no module (design §5.1). */
 export interface PostingProvider {
   rulesFor(ctx: ConsumerContext, event: string): Promise<PostingRule[]>;
-  resolveAccount(ctx: ConsumerContext, role: string, dimension?: string): Promise<ResolvedAccount | null>;
+  /**
+   * The account of `role` for the first of `dimension` (one, or an ordered list: Task 34.8b) that has a mapping, else the role's own
+   * mapping (no dimension), else null.
+   */
+  resolveAccount(ctx: ConsumerContext, role: string, dimension?: string | readonly string[]): Promise<ResolvedAccount | null>;
   ledgerStartsOn(ctx: ConsumerContext): Promise<Date | null>;
   /**
    * Runs the provider's own process; `rule` gives the idempotency key `posting:<event_id>:<rule_id>` and the journal. `entryId` is null when

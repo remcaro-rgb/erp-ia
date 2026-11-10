@@ -1,4 +1,4 @@
-import { asPostingEngine, composeEntry, defineProcess, dismissParkedEvents, ProcessError, resolvePath, RuleTemplate, visibleExtra, type ComposedLine, type PostingRule, type ProcessContext } from "@erp/kernel";
+import { asPostingEngine, composeEntry, defineProcess, dismissParkedEvents, lineDimensions, ProcessError, resolvePath, RuleTemplate, visibleExtra, type ComposedLine, type PostingRule, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { invalid } from "./common";
 import { reverseEntry } from "./entry-post";
@@ -88,7 +88,7 @@ export const postingRetry = defineProcess({
         lines.push(line);
         continue;
       }
-      const account = (line.dimension ? await resolveRoleAccount(ctx, line.role, line.dimension) : null) ?? (await resolveRoleAccount(ctx, line.role));
+      const account = await resolveRoleAccount(ctx, line.role, lineDimensions(line));
       if (!account) return fail("missing_account_mapping", `Sin cuenta para el rol ${line.role}${line.dimension ? `:${line.dimension}` : ""}`);
       lines.push({ ...line, accountCode: account.code });
     }

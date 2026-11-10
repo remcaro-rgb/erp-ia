@@ -12,6 +12,13 @@ describe("posting rule template schema", () => {
     expect(RuleTemplate.safeParse({ description: "x", lines: [{ ...line, role: "cash", account: "1105" }] }).success).toBe(false);
     expect(RuleTemplate.safeParse({ description: "x", lines: [line] }).success).toBe(false);
   });
+  // Task 34.8b (owner item 135): a line may name an ordered list of dimensions; the first mapped one wins, then the role alone.
+  it("accepts an ordered list of dimensions, refuses an empty one or a wildcard inside it", () => {
+    const line = { role: "cash", side: "debit", amount: "$.a" };
+    expect(RuleTemplate.safeParse({ description: "x", lines: [{ ...line, dimension: ["payment_method:{{methodCode}}", "payment_method:{{method}}"] }] }).success).toBe(true);
+    expect(RuleTemplate.safeParse({ description: "x", lines: [{ ...line, dimension: [] }] }).success).toBe(false);
+    expect(RuleTemplate.safeParse({ description: "x", lines: [{ ...line, dimension: ["a:{{$.x[*].y}}"] }] }).success).toBe(false);
+  });
   it("refuses forEach with a second wildcard or without one", () => {
     const base = { role: "cash", side: "debit", amount: "$.a" };
     expect(RuleTemplate.safeParse({ description: "x", lines: [{ ...base, forEach: "$.a[*].b[*]" }] }).success).toBe(false);

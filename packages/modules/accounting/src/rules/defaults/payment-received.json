@@ -18,7 +18,7 @@
         "side": "debit",
         "amount": "$.amountDoc",
         "amountCompany": "$.amount",
-        "dimension": "payment_method:{{method}}"
+        "dimension": ["payment_method_id:{{methodId}}", "payment_method:{{method}}"]
       },
       {
         "role": "withholding_income_suffered",

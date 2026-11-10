@@ -1,4 +1,4 @@
-import { composeEntry, defineProcess, moduleStates, ProcessError, RuleTemplate, ruleApplies, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
+import { composeEntry, defineProcess, lineDimensions, moduleStates, ProcessError, RuleTemplate, ruleApplies, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { defined, invalid } from "./common";
 import { knownRoles, resolveRoleAccount } from "./mapping";
@@ -187,7 +187,7 @@ export const postingRuleTest = defineProcess({
         lines.push(line);
         continue;
       }
-      const account = (line.dimension ? await resolveRoleAccount(ctx, line.role, line.dimension) : null) ?? (await resolveRoleAccount(ctx, line.role));
+      const account = await resolveRoleAccount(ctx, line.role, lineDimensions(line));
       if (!account) return { ok: false, code: "missing_account_mapping", detail: `Sin cuenta para el rol ${line.role}${line.dimension ? `:${line.dimension}` : ""}` };
       lines.push({ ...line, accountCode: account.code });
     }

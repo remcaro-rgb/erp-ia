@@ -384,8 +384,9 @@ describe("fix round 1: the method's kind, the receipt's date, the caja, a draft 
 describe("migrations 0110 and 0111", () => {
   it("patch an unmodified copy (also one that differs from the old template), leave a modified one, backfill the mappings once, and are a no-op the second time", async () => {
     const sqlOf = (file: string) => readFileSync(new URL(`../../../../../supabase/migrations/${file}`, import.meta.url), "utf8");
-    // 0151 (Task 34.5) follows: it takes an unedited copy from 0111's template to the current one, with the currency and the fx lines.
-    const migrations = ["0110_accounting_payment_rules.sql", "0111_payments_fix_round_1.sql", "0151_payments_rules_currency.sql"].map(sqlOf).join("\n");
+    // 0151 (Task 34.5) follows: it takes an unedited copy from 0111's template to one with the currency and the fx lines; 0154 (Task 34.8b)
+    // then gives the cash line the medio de pago before its kind, the current template.
+    const migrations = ["0110_accounting_payment_rules.sql", "0111_payments_fix_round_1.sql", "0151_payments_rules_currency.sql", "0154_payments_rules_method_account.sql"].map(sqlOf).join("\n");
     const current = PAYMENTS_POSTING_RULES[0]!.template as unknown as { lines: { role: string }[]; source: object };
     const old = { ...current, source: { entity: "payments.payment", id: "$.paymentId" }, lines: current.lines.filter((l) => l.role !== "customer_advances") };
     const variant = { ...old, description: "Recibo {{number}}" };

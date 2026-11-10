@@ -112,11 +112,16 @@ export function postingConsumer(provider: PostingProvider, moduleId?: string): E
 
 export type Resolved = { ok: true; entry: ComposedEntry } | { ok: false; detail: string };
 
-/** Explicit account kept; else (role, dimension), then (role, none) (design §4.2). */
+/** A composed line's dimensions in the order they are tried (Task 34.8b); undefined without one. */
+export const lineDimensions = (line: Pick<ComposedLine, "dimension" | "dimensionFallbacks">): string[] | undefined =>
+  line.dimension ? [line.dimension, ...(line.dimensionFallbacks ?? [])] : undefined;
+
+/** Explicit account kept; else (role, each dimension in order), then (role, none) (design §4.2). */
 export async function resolveRoles(provider: PostingProvider, ctx: Parameters<EventConsumer>[0], entry: ComposedEntry): Promise<Resolved> {
   const resolve = async (line: ComposedLine): Promise<ComposedLine | string> => {
     if (line.accountCode || !line.role) return line;
-    const account = (line.dimension ? await provider.resolveAccount(ctx, line.role, line.dimension) : null) ?? (await provider.resolveAccount(ctx, line.role));
+    const dimensions = lineDimensions(line);
+    const account = (dimensions ? await provider.resolveAccount(ctx, line.role, dimensions) : null) ?? (await provider.resolveAccount(ctx, line.role));
     return account ? { ...line, accountCode: account.code } : `${line.role}${line.dimension ? `:${line.dimension}` : ""}`;
   };
   const lines: ComposedLine[] = [];

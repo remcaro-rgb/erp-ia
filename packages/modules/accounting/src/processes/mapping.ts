@@ -1,4 +1,4 @@
-import { ACCOUNT_ROLES, defineProcess, type ProcessContext } from "@erp/kernel";
+import { ACCOUNT_ROLES, defineProcess, type ConsumerContext, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { invalid } from "./common";
 import { id } from "./schemas";
@@ -14,16 +14,22 @@ export function knownRoles(ctx: Pick<ProcessContext, "registry">): string[] {
 }
 
 /**
- * The account a role resolves to for a dimension (design §4.2): the `(role, dimension)` mapping, else `(role, null)`, else null.
- * An explicit account in a rule line, which comes first, is the caller's concern.
+ * The account a role resolves to (design §4.2): the `(role, dimension)` mapping of the first of `dimension` that has one (one dimension or an
+ * ordered list, Task 34.8b: a receipt tries its medio de pago, then the medio's kind), else `(role, null)`, else null. One query for the
+ * posting provider and the processes that preview or retry a posting. An explicit account in a rule line, which comes first, is the caller's concern.
  */
-export async function resolveRoleAccount(ctx: Pick<ProcessContext, "tx" | "companyId">, role: string, dimension?: string): Promise<{ accountId: string; code: string } | null> {
-  const [row] = await ctx.tx<{ account_id: string; code: string }[]>`
+export async function roleAccountQuery(sql: ProcessContext["tx"] | ConsumerContext["sql"], companyId: string, role: string, dimension?: string | readonly string[]): Promise<{ accountId: string; code: string } | null> {
+  const dimensions = dimension === undefined ? [] : typeof dimension === "string" ? [dimension] : [...dimension];
+  const [row] = await (sql as ProcessContext["tx"])<{ account_id: string; code: string }[]>`
     select m.account_id, a.code
     from accounting.account_role_mappings m join accounting.accounts a on a.id = m.account_id
-    where m.company_id = ${ctx.companyId} and m.role = ${role} and (m.dimension is null or m.dimension = ${dimension ?? null})
-    order by (m.dimension is null) limit 1`;
+    where m.company_id = ${companyId} and m.role = ${role} and (m.dimension is null or m.dimension = any(${dimensions}::text[]))
+    order by array_position(${dimensions}::text[], m.dimension) nulls last limit 1`;
   return row ? { accountId: row.account_id, code: row.code } : null;
+}
+
+export async function resolveRoleAccount(ctx: Pick<ProcessContext, "tx" | "companyId">, role: string, dimension?: string | readonly string[]): Promise<{ accountId: string; code: string } | null> {
+  return roleAccountQuery(ctx.tx, ctx.companyId, role, dimension);
 }
 
 export const accountRoleMappingUpdate = defineProcess({

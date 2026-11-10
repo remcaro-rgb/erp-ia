@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ProcessError } from "../../process/errors";
 import type { ConsumerContext } from "../../registry/types";
-import { postingConsumer } from "../engine";
+import { postingConsumer, resolveRoles } from "../engine";
 import type { PostingFailure, PostingProvider } from "../provider";
 import type { RuleTemplate } from "../template";
 
@@ -69,5 +69,22 @@ describe("postingConsumer and a reversal rule", () => {
     });
     await consume(ctx, { ...payload, sourceId: "0192b4c0-0000-7000-8000-0000000000aa" });
     expect(seen).toEqual([{ event: "x.issued", sourceId: "0192b4c0-0000-7000-8000-0000000000aa", ruleId: "r-void" }]);
+  });
+});
+
+describe("resolveRoles and an ordered dimension list (Task 34.8b, owner item 135)", () => {
+  it("asks the provider once per line with the dimensions in order; the role alone is the provider's last resort", async () => {
+    const asked: [string, unknown][] = [];
+    const p: PostingProvider = { ...provider(async () => ({ entryId: "e1" })), resolveAccount: async (_c, role, dimension) => { asked.push([role, dimension]); return { accountId: "a", code: "111010" }; } };
+    const out = await resolveRoles(p, ctx, {
+      date: "2026-03-15", description: "x", currency: "COP", exchangeRate: 1, sourceEventId: "e", chainId: "c",
+      lines: [
+        { role: "cash", side: "debit", amountDoc: 1, amountCompany: 1, dimension: "payment_method:TRF-USD", dimensionFallbacks: ["payment_method:transfer"] },
+        { role: "revenue", side: "credit", amountDoc: 1, amountCompany: 1, dimension: "category:x" },
+        { role: "receivable", side: "credit", amountDoc: 0, amountCompany: 0 },
+      ],
+    });
+    expect(out.ok).toBe(true);
+    expect(asked).toEqual([["cash", ["payment_method:TRF-USD", "payment_method:transfer"]], ["revenue", ["category:x"]], ["receivable", undefined]]);
   });
 });

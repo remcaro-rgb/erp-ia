@@ -259,6 +259,8 @@ describe("(8) old copies of the receipt rule (R34-5, 0151)", () => {
   it("0151 rewrites an unedited copy to the shipped template, leaves an edited one, and can run twice", async () => {
     await setRule(legacy(), false);
     for (let run = 0; run < 2; run++) await h.sql.begin((tx) => tx.unsafe(migration("0151_payments_rules_currency.sql")));
+    // 0154 (Task 34.8b) then gives the cash line its medio de pago before its kind: the two in order reach the shipped template.
+    await h.sql.begin((tx) => tx.unsafe(migration("0154_payments_rules_method_account.sql")));
     expect(await ruleTemplate()).toEqual(paymentReceivedRule.template);
     await setRule(legacy(), true);
     await h.sql.begin((tx) => tx.unsafe(migration("0151_payments_rules_currency.sql")));

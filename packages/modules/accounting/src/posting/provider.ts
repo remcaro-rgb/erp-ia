@@ -2,6 +2,7 @@ import { asPostingEngine, ProcessError, ruleApplies, type ConsumerContext, type 
 import { postFromEvent, type ComposedInput } from "../processes/post-from-event";
 import { reverseVoidedSource } from "../processes/posting-failure";
 import { ASYNC_BY_DESIGN } from "./mode";
+import { roleAccountQuery } from "../processes/mapping";
 
 // The accounting module as the posting engine's provider (accounting design §5.1). It runs on the service connection of the
 // event consumer, so every query names the company; everything it writes goes through the module's own processes.
@@ -29,11 +30,7 @@ export const accountingProvider: PostingProvider = {
   },
 
   async resolveAccount(ctx, role, dimension) {
-    const [row] = await ctx.sql<{ account_id: string; code: string }[]>`
-      select m.account_id, a.code from accounting.account_role_mappings m join accounting.accounts a on a.id = m.account_id
-      where m.company_id = ${ctx.companyId} and m.role = ${role} and (m.dimension is null or m.dimension = ${dimension ?? null})
-      order by (m.dimension is null) limit 1`;
-    return row ? { accountId: row.account_id, code: row.code } : null;
+    return roleAccountQuery(ctx.sql, ctx.companyId, role, dimension);
   },
 
   async ledgerStartsOn(ctx) {

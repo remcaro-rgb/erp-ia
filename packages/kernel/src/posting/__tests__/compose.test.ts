@@ -32,6 +32,19 @@ describe("posting compose", () => {
     expect(r.entry.lines[3]).toMatchObject({ taxCode: "01", taxBase: 100000 });
     expect(r.entry.source).toEqual({ entity: "invoicing.invoice", id: "inv-1" });
   });
+  it("an ordered dimension list composes as the first dimension and the rest as fallbacks, in order (Task 34.8b)", () => {
+    const t: RuleTemplate = {
+      description: "t",
+      lines: [
+        { role: "cash", side: "debit", amount: "$.a", dimension: ["payment_method:{{code}}", "payment_method:{{kind}}"] },
+        { role: "revenue", side: "credit", amount: "$.a", dimension: "category:x" },
+      ],
+    };
+    const r = run(t, { a: 10, code: "TRF-USD", kind: "transfer" });
+    if (!r.ok) throw new Error(r.detail);
+    expect(r.entry.lines[0]).toMatchObject({ dimension: "payment_method:TRF-USD", dimensionFallbacks: ["payment_method:transfer"] });
+    expect(r.entry.lines[1]!.dimensionFallbacks).toBeUndefined();
+  });
   it("balances a 0.5 COP difference through a rounding line and refuses 2 COP", () => {
     const ok = simple([100.5, 100]);
     const r = run(ok.template, ok.payload);

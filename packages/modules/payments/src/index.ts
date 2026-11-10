@@ -2,7 +2,7 @@ import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { PAYMENTS_ENTITIES } from "./entities";
 import { FEATURES, NAVIGATION } from "./features";
-import { cashBoxHooks, MASTER_PROCESSES, methodHooks } from "./processes/masters";
+import { cashBoxHooks, FEATURE_METHODS, MASTER_PROCESSES, methodHooks } from "./processes/masters";
 import { ADVANCE_APPLIED, ADVANCE_PROCESSES, ADVANCE_UNAPPLIED, applicationHooks } from "./processes/advance";
 import { PAYMENT_RECEIVED, PAYMENT_VOIDED, RECEIPT_PROCESSES, receiptHooks } from "./processes/receipt";
 import { receiptRecordTemplate } from "./print";
@@ -34,6 +34,21 @@ export const payments: ModuleDef = defineModule({
   navigation: NAVIGATION,
   typedHooks: { "payments.method": methodHooks, "payments.cash_box": cashBoxHooks, "payments.receipt": receiptHooks, "payments.advance_application": applicationHooks },
   postingRules: PAYMENTS_POSTING_RULES,
+  // The bank account of one medio de pago (plan 2B.2 Task 34.8b, owner item 135): the method's «Contabilidad» tab maps the role cash for
+  // `payment_method_id:<id>`, which the receipt rule tries before the method's kind (a USD transfer lands in the dollar account). Saved through
+  // accounting's mapping process under its step-up; the tab shows only to whoever may run it (and not at all without Contabilidad).
+  recordTabs: [{
+    id: "payments.method_account",
+    label: "common.record.tabs.contabilidad",
+    forEntities: ["payments.method"],
+    kind: "mapping",
+    feature: FEATURE_METHODS,
+    dimension: "payment_method_id:{id}",
+    roles: ["cash"],
+    lookupEntity: "accounting.account",
+    saveProcess: "accounting.account_role_mapping.update",
+    consultProcess: "accounting.account_role_mapping.consult",
+  }],
   // The receipt rule posts the realized exchange difference (plan 2B.2 Task 34.5, FX §5): the roles accounting declares, named here too
   // because a module's rules may name only the kernel catalogue and its own roles (rule 4: modules never import one another).
   accountRoles: ["fx_gain", "fx_loss"],

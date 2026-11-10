@@ -30,7 +30,9 @@ Si la contabilidad aún no está configurada, la pantalla ofrece **Configurar co
 
 Cada regla habla de **roles contables** (clientes, ventas, caja, IVA generado…), no de números de cuenta. En **Mapeo de cuentas** cada rol tiene su **Cuenta**; la pantalla dice «Todos los roles tienen cuenta» o cuántos faltan (en rojo, **Sin cuenta**). Para cambiar una, escoge otra cuenta en la lista y **Guardar** (pide código de verificación).
 
-Algunos roles pueden variar por **Dimensión**: por ejemplo, la cuenta de ingresos por categoría de producto, que también se edita en la pestaña **Contabilidad** de la categoría.
+Algunos roles pueden variar por **Dimensión**: por ejemplo, la cuenta de ingresos por categoría de producto, que también se edita en la pestaña **Contabilidad** de la categoría. Otro ejemplo es la cuenta de **Caja** de un medio de pago, en la pestaña **Contabilidad** del medio (`payment_method_id:…`; guía **Pagos de clientes**).
+
+Una línea de regla puede probar varias dimensiones en orden: el recibo de caja busca primero la cuenta del **medio de pago**, luego la de su **tipo** (`payment_method:transfer`) y, si ninguna tiene cuenta, la del rol sin dimensión. En la regla se escribe como una lista: `"dimension": ["payment_method_id:{{methodId}}", "payment_method:{{method}}"]`.
 
 ## Modo de contabilización
 

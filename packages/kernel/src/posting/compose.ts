@@ -3,7 +3,10 @@ import { RuleTemplate, type RuleCondition, type RuleLine } from "./template";
 
 export interface EventRef { id: string; event: string; payload: unknown; createdAt: Date; chainId: string }
 export interface ComposedLine {
-  role?: string; accountCode?: string; dimension?: string; side: "debit" | "credit"; amountDoc: number; amountCompany: number;
+  role?: string; accountCode?: string; dimension?: string;
+  /** The dimensions tried after `dimension`, in order, before the role alone (a rule line with a dimension list, Task 34.8b). */
+  dimensionFallbacks?: string[];
+  side: "debit" | "credit"; amountDoc: number; amountCompany: number;
   partyId?: string; costCenterId?: string; openAuxiliaryId?: string; itemId?: string; businessUnitId?: string;
   description?: string; taxCode?: string; taxRate?: number; taxBase?: number; reference?: string; dueDate?: string;
 }
@@ -78,8 +81,9 @@ function build(t: RuleTemplate, event: EventRef, options: { tolerance: number; c
     if (amountCompany === 0) return;
     const flip = raw < 0;
     const optional = (path: string | undefined, fallback?: string) => text(at(path, item)) ?? fallback;
+    const dimensions = (line.dimension === undefined ? [] : Array.isArray(line.dimension) ? line.dimension : [line.dimension]).map((d) => interpolate(d, payload, item));
     const composed: ComposedLine = {
-      role: line.role, accountCode: line.account, dimension: line.dimension ? interpolate(line.dimension, payload, item) : undefined,
+      role: line.role, accountCode: line.account, dimension: dimensions[0], dimensionFallbacks: dimensions.length > 1 ? dimensions.slice(1) : undefined,
       side: flip ? (line.side === "debit" ? "credit" : "debit") : line.side,
       amountDoc: round2(Math.abs(amountDoc)), amountCompany,
       partyId: optional(line.party, header.partyId), costCenterId: optional(line.costCenter, header.costCenterId),

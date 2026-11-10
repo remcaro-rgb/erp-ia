@@ -4,7 +4,7 @@ export { PathError, interpolate, resolvePath } from "./path";
 export { RuleCondition, RuleLine, RuleTemplate } from "./template";
 export { composeEntry, ruleApplies } from "./compose";
 export type { ComposeResult, ComposedEntry, ComposedLine, EventRef } from "./compose";
-export { postingConsumer, POSTING_CONSUMER } from "./engine";
+export { lineDimensions, postingConsumer, POSTING_CONSUMER } from "./engine";
 export { asPostingEngine, dismissParkedEvents, emitAndPostStrict, inlinePostingProcesses } from "./inline";
 export type { InlinePosting } from "./inline";
 export type { DefaultPostingRule, PostingFailure, PostingFailureCode, PostingMode, PostingProvider, PostingRule, ResolvedAccount } from "./provider";
