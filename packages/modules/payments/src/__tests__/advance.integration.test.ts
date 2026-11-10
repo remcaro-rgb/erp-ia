@@ -182,7 +182,8 @@ describe("refusals write nothing: no row, no entry, no number", () => {
     await refuses(/advance_not_posted/, () => h.apply([{ receiptId: draft!.id, invoiceId: invoice.id, amount: 1000 }], { partyId }));
     await refuses(/duplicate_pair/, () => h.apply([{ receiptId: receipt.id, invoiceId: invoice.id, amount: 1000 }, { receiptId: receipt.id, invoiceId: invoice.id, amount: 2000 }], { partyId }));
     const usd = await h.issuedInvoice(1, { partyId, currency: "USD", exchangeRate: 4000 });
-    await refuses(/currency_not_supported/, () => h.apply([{ receiptId: receipt.id, invoiceId: usd.id, amount: 1 }], { partyId }));
+    // A peso advance on a USD invoice (plan 2B.2 Task 34.6: an application is in one currency, its advances' and its invoices').
+    await refuses(/currency_mismatch/, () => h.apply([{ receiptId: receipt.id, invoiceId: usd.id, amount: 1 }], { partyId }));
     const [dates] = await h.sql<{ before: string; after: string }[]>`select (${h.today}::date - 1)::text as before, (${h.today}::date + 1)::text as after`;
     await refuses(/application_before_receipt/, () => h.apply([{ receiptId: receipt.id, invoiceId: invoice.id, amount: 1000 }], { partyId, date: dates!.before }));
     await refuses(/application_in_future/, () => h.apply([{ receiptId: receipt.id, invoiceId: invoice.id, amount: 1000 }], { partyId, date: dates!.after }));

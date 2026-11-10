@@ -40,7 +40,8 @@ describe("the manifest's rules", () => {
     expect(rules[3]!.template.lines.map((l) => l.role)).toContain("customer_advances");
     // Plan 2B.2 Task 36: the application's rule books the reclass from advances to receivables, the application as its source.
     expect(rules[0]!.template.source).toEqual({ entity: "payments.advance_application", id: "$.applicationId" });
-    expect(rules[0]!.template.lines.map((l) => l.role)).toEqual(["customer_advances", "receivable"]);
+    // Plan 2B.2 Task 34.6: with the realized exchange difference of a foreign application (no line in pesos: a zero company amount is dropped).
+    expect(rules[0]!.template.lines.map((l) => l.role)).toEqual(["customer_advances", "fx_loss", "receivable", "fx_gain"]);
   });
 
   it("the demo chart maps every kind of method: efectivo and cheque to the cash account, transferencia and tarjeta to the bank (role cash, dimension payment_method:<kind>)", async () => {

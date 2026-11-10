@@ -124,7 +124,7 @@ export interface Withholding { kind: WithholdingKind; code: string; rate: number
 export interface PlannedAllocation { invoiceId: string; invoiceNumber: string | null; currency?: string; amount: number; amountReceipt?: number; amountCompany?: number; withholdings: Withholding[] }
 
 /** The pesos of `amount` at `rate`, to the cent. */
-const companyCents = (amount: number, rate: number): number => cents(amount * rate);
+export const companyCents = (amount: number, rate: number): number => cents(amount * rate);
 
 /**
  * The realized exchange difference of an allocation (FX §5): the pesos the receipt gave for it (amountReceipt × the receipt's rate) less
@@ -335,7 +335,8 @@ export interface InvoiceFacts {
  * or null when it can: the customer's own, issued, not voided, no annulment in progress, accepted by the DIAN, in an allowed pair of
  * currencies and not dated after the receipt. «Registrar pago» refuses with it; the open invoices list (payments.payment.open_invoices)
  * shows it. With `companyCurrency` (a receipt, R34-6) the pairs are the same currency, or a receipt in the company's currency against a
- * foreign-currency invoice (`currency_mismatch` otherwise); without it (an advance application, plan Task 34.6) only the same currency.
+ * foreign-currency invoice (`currency_mismatch` otherwise); without it (an advance application, plan Task 34.6) only the same currency
+ * (`currency_mismatch` too).
  */
 export function payability(
   inv: Pick<InvoiceFacts, "party_id" | "stage" | "status" | "annulment_pending" | "dian_status" | "currency" | "issue_date">,
@@ -352,7 +353,7 @@ export function payability(
   if (inv.dian_status !== "accepted") return { code: "invoice_not_accepted", message: `La DIAN aún no ha aceptado la factura ${name}: el pago se registra cuando la acepte` };
   const invoiceCurrency = inv.currency.trim();
   if (invoiceCurrency !== currency) {
-    if (companyCurrency === undefined) return { code: "currency_not_supported", message: `La factura ${name} está en ${invoiceCurrency}: los anticipos se aplican por ahora solo a facturas en ${currency}` };
+    if (companyCurrency === undefined) return { code: "currency_mismatch", message: `La factura ${name} está en ${invoiceCurrency}: un anticipo en ${currency} no la paga; se aplica un anticipo en ${invoiceCurrency}` };
     if (currency !== companyCurrency) {
       return { code: "currency_mismatch", message: `La factura ${name} está en ${invoiceCurrency}: un recibo en ${currency} no la paga; se paga en ${invoiceCurrency} o en ${companyCurrency}` };
     }
@@ -398,7 +399,7 @@ export async function lockInvoices(ctx: ProcessContext, ids: readonly string[]):
  * the allocation that settles what is open takes exactly what is left of the invoice's pesos (its total_company and its notes at its rate,
  * less what the posted receipts and applications already took), so a collection in full always closes the receivable in both currencies.
  */
-function carryingCompany(inv: InvoiceFacts, amount: number, open: number, settledCompany: number): number {
+export function carryingCompany(inv: InvoiceFacts, amount: number, open: number, settledCompany: number): number {
   const rate = num(inv.exchange_rate ?? 1);
   if (cents(amount) !== cents(open)) return companyCents(amount, rate) / 100;
   const notes = companyCents(num(inv.debited_amount), rate) - companyCents(num(inv.credited_amount), rate);

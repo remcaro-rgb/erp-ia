@@ -138,6 +138,19 @@ Las aplicaciones aparecen en **Documentos relacionados** de la factura y del rec
 
 **Empresas que ya existían.** La aplicación necesita dos reglas contables nuevas, **Aplicación de anticipo** y **Anulación de aplicación de anticipo**. Una empresa creada antes de esta versión no las tiene: un administrador debe sincronizar las reglas contables por defecto una vez; las formas de hacerlo (repetir **Configurar contabilidad**, volver a activar el módulo de contabilidad o pedírselo al asistente) están en la guía **Reglas contables**. Hasta entonces, aplicar un anticipo se rechaza y no cambia nada.
 
+### Anticipos en otra moneda
+
+Un anticipo queda en la moneda del recibo que lo dejó: un recibo de USD 1.000 sin facturas es un anticipo de **USD 1.000**, contabilizado en **280505** a la tasa de ese recibo (por ejemplo, $ 4.000 por dólar: $ 4.000.000).
+
+- **Misma moneda.** Un anticipo en dólares se aplica a facturas en dólares, y uno en pesos a facturas en pesos. Un anticipo en pesos no se aplica a una factura en dólares (ni uno en dólares a una en pesos o en euros): se rechaza con *la factura está en USD: un anticipo en COP no la paga*. Una aplicación va en **una sola moneda**: si el cliente tiene anticipos en pesos y en dólares, aplica cada moneda por separado.
+- **Los valores van en la moneda del anticipo.** Lo que escribes por factura son dólares, y el saldo de la factura que baja también.
+- **La diferencia en cambio.** La factura queda contabilizada a su propia tasa (la TRM del día en que se emitió) y el anticipo a la del recibo: la diferencia entre los dos valores en pesos es **diferencia en cambio realizada**. Por ejemplo, un anticipo de USD 1.000 recibido a $ 4.000 aplicado a una factura de USD 1.000 emitida a $ 4.100: Débito **280505** $ 4.000.000, Débito **530525 Diferencia en cambio** (gasto) $ 100.000, Crédito Clientes $ 4.100.000. Si el anticipo se recibió a una tasa mayor que la de la factura, la diferencia es un ingreso (**421020**). El comprobante queda en `USD` con la tasa del anticipo; la línea de diferencia en cambio solo tiene pesos. Así lo decidió la empresa el 2026-11-09, pendiente de la confirmación del contador (la alternativa, contabilizar el ingreso a la tasa del anticipo, no está activa).
+- **El saldo cierra en las dos monedas.** Cuando el anticipo cubre toda la factura, la factura queda en USD 0 y en $ 0, y el anticipo usado queda en $ 0 en **280505**, aunque lo apliques en varias veces: la última aplicación toma exactamente los pesos que quedaban.
+- **Los anticipos no se reajustan.** Un anticipo recibido es una partida no monetaria (NIC 21): el **Ajuste por diferencia en cambio** del cierre de mes reajusta las facturas en dólares que siguen abiertas, nunca el anticipo.
+- **Deshacer** una aplicación en dólares revierte también la línea de diferencia en cambio.
+
+Una empresa cuya regla **Aplicación de anticipo** fue modificada antes de esta versión la conserva tal como quedó: sigue contabilizando solo en pesos, a la tasa de las facturas en los dos lados, y **Contabilidad** recibe el aviso *La regla Aplicación de anticipo no lleva moneda*. Revísala en **Contabilidad › Reglas contables** o vuelve a la regla por defecto.
+
 ## La contabilidad y el periodo
 
 El recibo se contabiliza en el mismo momento (diario **RC**, recibos de caja), con el cliente como tercero. Si el periodo de la fecha está **cerrado**, o la contabilidad no puede tomar el asiento, el recibo **no se registra** y te dice por qué. Si la empresa aún no inició su contabilidad (fecha de inicio), el recibo se rechaza. Si la empresa no usa el módulo de contabilidad, el recibo se registra y su asiento queda pendiente hasta que la active.

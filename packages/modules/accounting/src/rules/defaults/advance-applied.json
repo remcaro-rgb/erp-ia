@@ -6,6 +6,8 @@
     "date": "$.date",
     "description": "Aplicación de anticipo {{number}} · {{customer.legalName}}",
     "party": "$.customer.partyId",
+    "currency": "$.currency",
+    "exchangeRate": "$.exchangeRate",
     "source": {
       "entity": "payments.advance_application",
       "id": "$.applicationId"
@@ -14,12 +16,30 @@
       {
         "role": "customer_advances",
         "side": "debit",
-        "amount": "$.total"
+        "amount": "$.drawnDoc",
+        "amountCompany": "$.drawn"
+      },
+      {
+        "role": "fx_loss",
+        "side": "debit",
+        "forEach": "$.allocations[*]",
+        "amount": "0",
+        "amountCompany": "$.fx.loss",
+        "dimension": "fx_kind:realized"
       },
       {
         "role": "receivable",
         "side": "credit",
-        "amount": "$.total"
+        "amount": "$.totalDoc",
+        "amountCompany": "$.total"
+      },
+      {
+        "role": "fx_gain",
+        "side": "credit",
+        "forEach": "$.allocations[*]",
+        "amount": "0",
+        "amountCompany": "$.fx.gain",
+        "dimension": "fx_kind:realized"
       }
     ],
     "reverseOf": null

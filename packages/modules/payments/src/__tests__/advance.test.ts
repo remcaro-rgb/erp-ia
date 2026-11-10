@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicationPlan } from "../processes/advance";
+import { applicationPlan, splitCompany } from "../processes/advance";
 
 // «Aplicar anticipo a factura» (plan 2B.2 Task 36, R36-1, R36-5, R36-6): the pure plan of an application over cents. The handler loads and
 // locks the advance receipts and the invoices; this checks the sums against what each advance has left and each invoice has open.
@@ -100,5 +100,15 @@ describe("applicationPlan", () => {
       .toMatchObject({ ok: false, code: "application_before_receipt" });
     expect(applicationPlan([{ receiptId: R1, invoiceId: I1, amount: 1 }], [advance(R1, 10)], [invoice(I1, 10)], { on: "2026-11-07", today: "2026-11-06" }))
       .toMatchObject({ ok: false, code: "application_in_future" });
+  });
+});
+
+describe("splitCompany (plan 2B.2 Task 34.6): the pesos of a line at a rate, the last line taking what is left", () => {
+  it("each part at the rate to the cent, the parts adding up to the total exactly", () => {
+    // USD 333,33 + 666,67 at 4.000,123: 1.333.361,00 + 2.666.762,00 = 4.000.123,00 (the whole advance's pesos).
+    expect(splitCompany([333.33, 666.67], 4000.123, 400012300)).toEqual([133336100, 266676200]);
+    expect(splitCompany([0.01, 0.01, 0.01], 3999.997, 12000)).toEqual([4000, 4000, 4000]);
+    expect(splitCompany([0.01, 0.01, 0.01], 3999.997, 11999)).toEqual([4000, 4000, 3999]);
+    expect(splitCompany([], 4000, 0)).toEqual([]);
   });
 });

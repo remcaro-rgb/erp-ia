@@ -2,7 +2,7 @@ import { defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChange
 import { z } from "zod";
 import { applicationEntity } from "../entities";
 import { cents, date, id, idInput, markApplicationLinksVoided, money, moneyAmount, num, refuse, refuseState, syncApplicationLinks, today } from "./common";
-import { FEATURE_RECEIPTS, lockInvoices, openOf, payability, readyCustomer } from "./receipt";
+import { carryingCompany, companyCents, FEATURE_RECEIPTS, lockInvoices, openOf, payability, readyCustomer } from "./receipt";
 
 // Aplicar anticipo a factura (plan 2B.2 Task 36, owner decisions item 23; accounting design 2026-10-28, advances and receivables; main design
 // §8.1 step 7, §22.27). A receipt that received more than it applied leaves an advance (payments.receipts.advance, Cr customer_advances 280505).
@@ -13,8 +13,8 @@ import { FEATURE_RECEIPTS, lockInvoices, openOf, payability, readyCustomer } fro
 //   1. the customer must be a customer and invoice_ready (rule 10); the date defaults to today and is not after it;
 //   2. the advance receipts are taken FOR UPDATE in id order, then the invoices under invoicing.lock_invoices_for_payment (FOR UPDATE in id
 //      order): the lock order is always receipts then invoices (`receive` takes only invoices: no deadlock). Each receipt must be the customer's,
-//      posted, in COP and dated on or before the application; each invoice must be payable (the receipt's own `payability`, called with the
-//      application date) and in COP;
+//      posted and dated on or before the application; each invoice must be payable (the receipt's own `payability`, called with the
+//      application date) and in its advance's currency (currency_mismatch otherwise), one currency for the whole application;
 //   3. applicationPlan over cents: per receipt within what its advance has left (receipts.advance − the posted applications), per invoice
 //      within what is open (total + debit notes − credit notes − what the posted receipts AND applications settled), one line per pair;
 //   4. header and lines are written already applied, numbered AP-n on save, the links (invoice_to_application, receipt_to_application) and the
@@ -22,6 +22,14 @@ import { FEATURE_RECEIPTS, lockInvoices, openOf, payability, readyCustomer } fro
 //      customer as party, the application as source. A closed period or a missing mapping refuses the whole application with nothing written.
 //      Under the asynchronous posting mode (Task 33) it commits and the ledger entry follows.
 // Invoicing recomputes the paid stage in its consumer of payments.advance.applied (`refreshPaid`, untouched).
+//
+// Foreign currency (plan 2B.2 Task 34.6, FX §6; owner items 114, 126 (d), (e) of 2026-11-09): an application is in the currency of its
+// advances and its invoices, which must be the same (a peso advance on a USD invoice is refused: currency_mismatch). Each line keeps
+// `amount` in that currency, `amount_company` in pesos at the invoice's rate (what it takes off the receivable; the line that settles what
+// is open takes exactly the invoice's pesos left) and `advance_company` in pesos at the advance receipt's rate (what it draws from
+// customer_advances; the draw that empties an advance takes exactly the pesos its receipt credited less the earlier draws). Revenue stays at
+// the invoice's TRM (item 126 (e), as proposed): the difference between the two pesos is realized exchange difference, fx_gain or fx_loss,
+// per invoice. Advances are non-monetary (NIC 21, item 126 (d)): nothing revalues them. A peso application posts exactly as before.
 //
 // «Deshacer aplicación» (payments.advance.undo, STEP-UP) keeps the application (voided, never deleted), reverses its entry inline and strict
 // through the rule `reverseOf` on payments.advance.unapplied, marks its links voided and dismisses a still-parked event. Both balances are
@@ -51,6 +59,10 @@ export const applicationOutput = z.object({
   date: z.string(),
   partyId: z.string(),
   total: z.number(),
+  /** The application's currency (its advances' and invoices'), the advances' rate and what it takes off the receivable in pesos. */
+  currency: z.string(),
+  exchangeRate: z.number(),
+  totalCompany: z.number(),
   lines: z.array(z.object({ receiptId: z.string(), receiptNumber: z.string().nullable(), invoiceId: z.string(), invoiceNumber: z.string().nullable(), amount: z.number() })),
 });
 export type ApplicationOutput = z.output<typeof applicationOutput>;
@@ -130,12 +142,12 @@ export function applicationPlan(
   };
 }
 
-interface LineRow { receipt_id: string; receipt_number: string | null; invoice_id: string; invoice_number: string | null; amount: string }
-interface ApplicationRow { id: string; number: string | null; status: RecordStatus; date: string; party_id: string; currency: string; total: string; updated_at: Date }
+interface LineRow { receipt_id: string; receipt_number: string | null; invoice_id: string; invoice_number: string | null; amount: string; amount_company: string; advance_company: string }
+interface ApplicationRow { id: string; number: string | null; status: RecordStatus; date: string; party_id: string; currency: string; exchange_rate: string; total: string; total_company: string; updated_at: Date }
 
 const SELECT_APPLICATION = (ctx: ProcessContext, applicationId: string, lock: boolean) => lock
-  ? ctx.tx<ApplicationRow[]>`select id, number, status, date::text as date, party_id, currency, total::text, updated_at from payments.advance_applications where id = ${applicationId} for update`
-  : ctx.tx<ApplicationRow[]>`select id, number, status, date::text as date, party_id, currency, total::text, updated_at from payments.advance_applications where id = ${applicationId}`;
+  ? ctx.tx<ApplicationRow[]>`select id, number, status, date::text as date, party_id, currency, exchange_rate::text, total::text, total_company::text, updated_at from payments.advance_applications where id = ${applicationId} for update`
+  : ctx.tx<ApplicationRow[]>`select id, number, status, date::text as date, party_id, currency, exchange_rate::text, total::text, total_company::text, updated_at from payments.advance_applications where id = ${applicationId}`;
 
 async function readApplication(ctx: ProcessContext, applicationId: string, lock = false): Promise<ApplicationRow> {
   const [row] = await SELECT_APPLICATION(ctx, applicationId, lock);
@@ -144,41 +156,56 @@ async function readApplication(ctx: ProcessContext, applicationId: string, lock 
 }
 
 const linesOf = (ctx: ProcessContext, applicationId: string) => ctx.tx<LineRow[]>`
-  select receipt_id, receipt_number, invoice_id, invoice_number, amount::text from payments.advance_application_lines where application_id = ${applicationId} order by line_no`;
+  select receipt_id, receipt_number, invoice_id, invoice_number, amount::text, amount_company::text, advance_company::text from payments.advance_application_lines where application_id = ${applicationId} order by line_no`;
 
 async function outputOf(ctx: ProcessContext, applicationId: string): Promise<ApplicationOutput> {
   const a = await readApplication(ctx, applicationId);
   const lines = await linesOf(ctx, applicationId);
   return {
     id: a.id, number: a.number, status: a.status, date: a.date, partyId: a.party_id, total: num(a.total),
+    currency: a.currency.trim(), exchangeRate: num(a.exchange_rate), totalCompany: num(a.total_company),
     lines: lines.map((l) => ({ receiptId: l.receipt_id, receiptNumber: l.receipt_number, invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, amount: num(l.amount) })),
   };
 }
 
-/** What each invoice and each advance receipt of an application's lines moves, summed (the event payloads' shapes). */
+/**
+ * What each invoice and each advance receipt of an application's lines moves, summed (the event payloads' shapes): per invoice its amount (in
+ * the application's currency), its pesos at the invoice's rate and the realized exchange difference (the advances' pesos less the invoice's,
+ * a gain or a loss, at most one not zero); per receipt its pesos at the receipt's rate (`amount`, company meaning, R34-4) and the same in the
+ * application's currency (`amountDoc`).
+ */
 function aggregate(lines: readonly LineRow[]) {
-  const invoices = new Map<string, { invoiceId: string; invoiceNumber: string | null; cents: number }>();
-  const receipts = new Map<string, { receiptId: string; receiptNumber: string | null; cents: number }>();
+  const invoices = new Map<string, { invoiceId: string; invoiceNumber: string | null; cents: number; company: number; advance: number }>();
+  const receipts = new Map<string, { receiptId: string; receiptNumber: string | null; cents: number; company: number }>();
   for (const l of lines) {
-    const i = invoices.get(l.invoice_id) ?? { invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, cents: 0 };
+    const i = invoices.get(l.invoice_id) ?? { invoiceId: l.invoice_id, invoiceNumber: l.invoice_number, cents: 0, company: 0, advance: 0 };
     i.cents += cents(num(l.amount));
+    i.company += cents(num(l.amount_company));
+    i.advance += cents(num(l.advance_company));
     invoices.set(l.invoice_id, i);
-    const r = receipts.get(l.receipt_id) ?? { receiptId: l.receipt_id, receiptNumber: l.receipt_number, cents: 0 };
+    const r = receipts.get(l.receipt_id) ?? { receiptId: l.receipt_id, receiptNumber: l.receipt_number, cents: 0, company: 0 };
     r.cents += cents(num(l.amount));
+    r.company += cents(num(l.advance_company));
     receipts.set(l.receipt_id, r);
   }
   return {
-    allocations: [...invoices.values()].map((i) => ({ invoiceId: i.invoiceId, invoiceNumber: i.invoiceNumber, amount: i.cents / 100 })),
-    advances: [...receipts.values()].map((r) => ({ receiptId: r.receiptId, receiptNumber: r.receiptNumber, amount: r.cents / 100 })),
+    allocations: [...invoices.values()].map((i) => ({
+      invoiceId: i.invoiceId, invoiceNumber: i.invoiceNumber, amount: i.cents / 100, amountCompany: i.company / 100,
+      fx: { gain: Math.max(i.advance - i.company, 0) / 100, loss: Math.max(i.company - i.advance, 0) / 100 },
+    })),
+    advances: [...receipts.values()].map((r) => ({ receiptId: r.receiptId, receiptNumber: r.receiptNumber, amount: r.company / 100, amountDoc: r.cents / 100 })),
   };
 }
 
 /**
  * The payload of payments.advance.applied: the document's date and number, its id (`applicationId`, and `paymentId` = the same id: invoicing's consumer
- * of payments.received reads that name), the customer, the total and currency (what the rule posts: Dr customer_advances / Cr receivable), the
- * allocations per invoice (invoicing recomputes the paid stage from them) and the advances per receipt.
+ * of payments.received reads that name), the customer, the currency and the advances' rate, the allocations per invoice (invoicing recomputes the
+ * paid stage from them) and the advances per receipt. Both amounts (R34-4, plan 2B.2 Task 34.6): `total` is what the application takes off the
+ * receivable in pesos at the invoices' rates (Cr receivable), `totalDoc` the same in the application's currency; `drawn` / `drawnDoc` what it
+ * takes from customer_advances in pesos at the advances' rates and in that currency (Dr customer_advances); each allocation's `fx` is the
+ * realized difference (fx_gain / fx_loss, owner item 126 (e)). In pesos the four totals are one and no fx line posts.
  */
-export function appliedPayload(input: { applicationId: string; number: string; date: string; currency: string; total: number; customer: { partyId: string; legalName: string }; lines: readonly LineRow[] }) {
+export function appliedPayload(input: { applicationId: string; number: string; date: string; currency: string; exchangeRate: number; total: number; customer: { partyId: string; legalName: string }; lines: readonly LineRow[] }) {
   const { allocations, advances } = aggregate(input.lines);
   return {
     date: input.date,
@@ -186,8 +213,12 @@ export function appliedPayload(input: { applicationId: string; number: string; d
     applicationId: input.applicationId,
     paymentId: input.applicationId,
     customer: { partyId: input.customer.partyId, legalName: input.customer.legalName },
-    total: input.total,
     currency: input.currency,
+    exchangeRate: input.exchangeRate,
+    total: allocations.reduce((s, a) => s + cents(a.amountCompany), 0) / 100,
+    totalDoc: input.total,
+    drawn: advances.reduce((s, a) => s + cents(a.amount), 0) / 100,
+    drawnDoc: input.total,
     allocations,
     advances,
   };
@@ -206,7 +237,17 @@ export function unappliedPayload(input: { applicationId: string; number: string;
   };
 }
 
-interface AdvanceReceipt { id: string; number: string | null; status: string; date: string; party_id: string; currency: string; advance: string }
+interface AdvanceReceipt { id: string; number: string | null; status: string; date: string; party_id: string; currency: string; exchange_rate: string; advance: string }
+
+/**
+ * Splits `total` cents over `parts` (amounts in the document's currency) by `rate`: each part its own pesos to the cent, the last one what is
+ * left, so the parts add up to `total` exactly (the receivable an allocation settles, the advance a draw empties).
+ */
+export function splitCompany(parts: readonly number[], rate: number, total: number): number[] {
+  const out = parts.map((p) => companyCents(p, rate));
+  if (out.length > 0) out[out.length - 1] = total - out.slice(0, -1).reduce((s, c) => s + c, 0);
+  return out;
+}
 
 /** A replay of an application with this key that committed while this run waited for the key (the kernel's own check runs before the lock). */
 async function storedApplication(ctx: ProcessContext, key: string): Promise<ApplicationOutput | null> {
@@ -246,13 +287,12 @@ export const advanceApply = defineProcess({
       pairs.add(key);
     }
     const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
-    const currency = company!.currency_code.trim();
-    if (currency !== "COP") refuse("currency_not_supported", [`La empresa lleva su contabilidad en ${currency}: aplicar anticipos solo está disponible en pesos colombianos (COP)`]);
+    const companyCurrency = company!.currency_code.trim();
 
     // The advance receipts first (FOR UPDATE, id order), then the invoices: one lock order for every application and receipt.
     const receiptIds = [...new Set(input.lines.map((l) => l.receiptId))].sort();
     const receipts = new Map((await ctx.tx<AdvanceReceipt[]>`
-      select id, number, status, date::text as date, party_id, currency, advance::text from payments.receipts where id = any(${receiptIds}::uuid[]) order by id for update`).map((r) => [r.id, r]));
+      select id, number, status, date::text as date, party_id, currency, exchange_rate::text, advance::text from payments.receipts where id = any(${receiptIds}::uuid[]) order by id for update`).map((r) => [r.id, r]));
     const errors: { code: string; message: string }[] = [];
     for (const [i, l] of input.lines.entries()) {
       const r = receipts.get(l.receiptId);
@@ -262,20 +302,24 @@ export const advanceApply = defineProcess({
         const name = r.number ?? `de la línea ${i + 1}`;
         if (r.party_id !== input.partyId) fail("advance_other_customer", `El recibo ${name} es de otro cliente`);
         else if (r.status !== "posted") fail("advance_not_posted", `El recibo ${name} no está registrado (estado ${r.status}): solo se aplica el anticipo de un recibo contabilizado`);
-        else if (r.currency.trim() !== "COP") fail("currency_not_supported", `El recibo ${name} está en ${r.currency}: aplicar anticipos solo está disponible en pesos colombianos (COP)`);
         else if (r.date > on) fail("application_before_receipt", `El recibo ${name} es del ${r.date}, posterior a la aplicación (${on})`);
         else if (cents(num(r.advance)) <= 0) fail("advance_exceeds_open", `El recibo ${name} no dejó anticipo por aplicar`);
       }
     }
     if (errors.length > 0) refuse(errors[0]!.code, errors.map((e) => e.message));
-    const applied = new Map((await ctx.tx<{ receipt_id: string; applied: string }[]>`
-      select receipt_id, applied::text from payments.advance_applied_amounts(${receiptIds}::uuid[])`).map((r) => [r.receipt_id, num(r.applied)]));
+    // One currency per application (one per entry, FX §4): the advances'. Each invoice must be in it too (payability, below).
+    const currencies = [...new Set(receiptIds.map((r) => receipts.get(r)!.currency.trim()))];
+    if (currencies.length > 1) refuse("currency_mismatch", [`Los anticipos están en ${currencies.join(" y ")}: una aplicación va en una sola moneda; aplica cada moneda por separado`]);
+    const currency = currencies[0]!;
+    const drawnBefore = new Map((await ctx.tx<{ receipt_id: string; applied: string; applied_company: string }[]>`
+      select receipt_id, applied::text, applied_company::text from payments.advance_applied_amounts(${receiptIds}::uuid[])`).map((r) => [r.receipt_id, r]));
+    const applied = new Map([...drawnBefore].map(([id, r]) => [id, num(r.applied)]));
     const advances = receiptIds.map((receiptId): { receiptId: string; number: string | null; date: string; remaining: number } => {
       const r = receipts.get(receiptId)!;
       return { receiptId, number: r.number, date: r.date, remaining: (cents(num(r.advance)) - cents(applied.get(receiptId) ?? 0)) / 100 };
     });
 
-    const { locked, settled } = await lockInvoices(ctx, input.lines.map((l) => l.invoiceId));
+    const { locked, settled, settledCompany } = await lockInvoices(ctx, input.lines.map((l) => l.invoiceId));
     const invoices = [...locked.values()].map((inv) => ({ invoiceId: inv.id, number: inv.number, open: openOf(inv, settled.get(inv.id) ?? 0) }));
     for (const [i, l] of input.lines.entries()) {
       const inv = locked.get(l.invoiceId);
@@ -290,13 +334,42 @@ export const advanceApply = defineProcess({
     const plan = applicationPlan(input.lines, advances, invoices, { on, today: now }, currency);
     if (!plan.ok) refuse(plan.code, plan.details);
 
+    // The two pesos of each line (rule 8, stored): at the invoice's rate (amount_company) and at the advance's rate (advance_company).
+    const amountCompany = new Array<number>(input.lines.length).fill(0);
+    const advanceCompany = new Array<number>(input.lines.length).fill(0);
+    const foreign = currency !== companyCurrency;
+    for (const p of plan.byInvoice) {
+      const idx = input.lines.flatMap((l, i) => (l.invoiceId === p.invoiceId ? [i] : []));
+      const inv = locked.get(p.invoiceId)!;
+      const open = invoices.find((i) => i.invoiceId === p.invoiceId)!.open;
+      const total = foreign ? cents(carryingCompany(inv, p.amount, open, settledCompany.get(p.invoiceId) ?? 0)) : cents(p.amount);
+      splitCompany(idx.map((i) => input.lines[i]!.amount), foreign ? num(inv.exchange_rate ?? 1) : 1, total).forEach((c, k) => { amountCompany[idx[k]!] = c; });
+    }
+    for (const p of plan.byReceipt) {
+      const idx = input.lines.flatMap((l, i) => (l.receiptId === p.receiptId ? [i] : []));
+      const r = receipts.get(p.receiptId)!;
+      const rate = foreign ? num(r.exchange_rate) : 1;
+      const remaining = advances.find((a) => a.receiptId === p.receiptId)!.remaining;
+      // The draw that empties the advance takes exactly what its receipt credited to customer_advances (receivedPayload) less the earlier draws.
+      const total = cents(p.amount) === cents(remaining)
+        ? companyCents(num(r.advance), rate) - cents(num(drawnBefore.get(p.receiptId)?.applied_company ?? 0))
+        : companyCents(p.amount, rate);
+      splitCompany(idx.map((i) => input.lines[i]!.amount), rate, total).forEach((c, k) => { advanceCompany[idx[k]!] = c; });
+    }
+    const drawnCompany = advanceCompany.reduce((s, c) => s + c, 0);
+    // The entry's rate: the advances' (one receipt, or several at one rate), else the rate their pesos imply.
+    const rates = [...new Set(plan.byReceipt.map((p) => num(receipts.get(p.receiptId)!.exchange_rate)))];
+    const exchangeRate = !foreign ? 1 : rates.length === 1 ? rates[0]! : Math.round((drawnCompany / 100 / plan.total) * 1e6) / 1e6;
+
     const [header] = await ctx.tx<{ id: string }[]>`
       insert into payments.advance_applications ${ctx.tx({
         company_id: ctx.companyId,
         date: on,
         party_id: input.partyId,
         currency,
+        exchange_rate: exchangeRate,
         total: plan.total,
+        total_company: amountCompany.reduce((s, c) => s + c, 0) / 100,
         // Applied in this very action: the validate hook (Grabar) refuses a Borrador that was never applied.
         applied_at: new Date(),
         // An application never waits for approval and always posts (ownFlags): explicit, so the Parámetros switches never apply.
@@ -314,8 +387,8 @@ export const advanceApply = defineProcess({
       invoice_id: l.invoiceId,
       invoice_number: locked.get(l.invoiceId)!.number,
       amount: l.amount,
-      // An application is in pesos (COP only until plan Task 34.6): its pesos are its amount.
-      amount_company: l.amount,
+      amount_company: amountCompany[i]! / 100,
+      advance_company: advanceCompany[i]! / 100,
     })))}`;
     // invoice_to_application and receipt_to_application, in this transaction (Task 31).
     await syncApplicationLinks(ctx, applicationId, input.lines.map((l) => l.invoiceId), input.lines.map((l) => l.receiptId));
@@ -481,7 +554,8 @@ export const applicationHooks: TypedHooks = {
       applicationId: a.id,
       number: a.number ?? (record.number as string),
       date: a.date,
-      currency: a.currency,
+      currency: a.currency.trim(),
+      exchangeRate: num(a.exchange_rate),
       total: num(a.total),
       customer: { partyId: a.party_id, legalName: fiscal?.legal_name ?? fiscal?.document_number ?? a.party_id },
       lines,

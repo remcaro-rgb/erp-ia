@@ -19,12 +19,13 @@ import { ACCOUNTING_DEFAULT_RULES } from "../../../accounting/src/rules/defaults
 
 const migrationOf = (file: string) => readFileSync(new URL(`../../../../../supabase/migrations/${file}`, import.meta.url), "utf8");
 const migration = migrationOf("0109_payments_core.sql");
-/** The masked views of the application entities are pasted in migration 0137 (plan 2B.2 Task 36). */
-const advanceMigration = migrationOf("0137_payments_advance_applications.sql");
+/** The masked views of the application entities were pasted in migration 0137 (plan 2B.2 Task 36), then in 0152 (below). */
 const ADVANCE_ENTITIES = ["payments.advance_application", "payments.advance_application_line"];
 /** The views re-created with the foreign-currency columns are pasted in migration 0150 (plan 2B.2 Task 34.5). */
 const fxMigration = migrationOf("0150_payments_foreign_currency.sql");
-const FX_ENTITIES = ["payments.method", "payments.receipt_allocation", "payments.advance_application_line"];
+const FX_ENTITIES = ["payments.method", "payments.receipt_allocation"];
+/** The application views re-created with the advances' rate and pesos are pasted in migration 0152 (plan 2B.2 Task 34.6). */
+const advanceFxMigration = migrationOf("0152_payments_advance_applications_currency.sql");
 
 const loaded = () => {
   const registry = new Registry();
@@ -266,9 +267,10 @@ describe("the application rules (plan 2B.2 Task 36, R36-2): the ledger shape", (
   const customer = { partyId: "0192b4c0-0000-7000-8000-00000000c001", legalName: "Tiendas D1 S.A.S." };
   const applicationId = "0192b4c0-0000-7000-8000-00000000f036";
   const payload = {
-    date: "2026-11-06", number: "AP-1", applicationId, paymentId: applicationId, customer, total: 300000, currency: "COP",
-    allocations: [{ invoiceId: "0192b4c0-0000-7000-8000-00000000a001", invoiceNumber: "FE-1", amount: 300000 }],
-    advances: [{ receiptId: "0192b4c0-0000-7000-8000-00000000f005", receiptNumber: "RC-1", amount: 300000 }],
+    date: "2026-11-06", number: "AP-1", applicationId, paymentId: applicationId, customer, currency: "COP", exchangeRate: 1,
+    total: 300000, totalDoc: 300000, drawn: 300000, drawnDoc: 300000,
+    allocations: [{ invoiceId: "0192b4c0-0000-7000-8000-00000000a001", invoiceNumber: "FE-1", amount: 300000, amountCompany: 300000, fx: { gain: 0, loss: 0 } }],
+    advances: [{ receiptId: "0192b4c0-0000-7000-8000-00000000f005", receiptNumber: "RC-1", amount: 300000, amountDoc: 300000 }],
   };
 
   it("Dr customer_advances / Cr receivable for the whole total, the customer as party, the application as source", () => {
@@ -281,16 +283,30 @@ describe("the application rules (plan 2B.2 Task 36, R36-2): the ledger shape", (
     expect(composed.entry.partyId ?? composed.entry.lines[0]!.partyId).toBe(customer.partyId);
   });
 
+  it("in USD: Dr customer_advances at the advance's rate, the realized loss in pesos only, Cr receivable at the invoice's rate (plan 2B.2 Task 34.6)", () => {
+    const usd = {
+      ...payload, currency: "USD", exchangeRate: 4000, total: 4100000, totalDoc: 1000, drawn: 4000000, drawnDoc: 1000,
+      allocations: [{ ...payload.allocations[0]!, amount: 1000, amountCompany: 4100000, fx: { gain: 0, loss: 100000 } }],
+      advances: [{ ...payload.advances[0]!, amount: 4000000, amountDoc: 1000 }],
+    };
+    const composed = composeEntry(accountingAdvanceApplied.template as RuleTemplate, { id: "e2", event: "payments.advance.applied", payload: usd, createdAt: new Date(), chainId: "c2" }, { tolerance: 0, companyCurrency: "COP" });
+    expect(composed.ok).toBe(true);
+    if (!composed.ok) return;
+    expect(composed.entry.lines.map((l) => [l.role, l.side, l.amountCompany, l.amountDoc])).toEqual([
+      ["customer_advances", "debit", 4000000, 1000], ["fx_loss", "debit", 100000, 0], ["receivable", "credit", 4100000, 1000],
+    ]);
+  });
+
   it("the reversal rule finds the application's entry by its source", () => {
     expect((accountingAdvanceUnapplied.template as RuleTemplate).reverseOf).toEqual({ event: "payments.advance.applied", sourceId: "$.applicationId" });
     expect(accountingAdvanceUnapplied.event).toBe("payments.advance.unapplied");
   });
 });
 
-describe("payments masked views, migrations 0109, 0137 and 0150", () => {
+describe("payments masked views, migrations 0109, 0150 and 0152", () => {
   for (const entity of PAYMENTS_ENTITIES) {
     it(`payments.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
-      const source = FX_ENTITIES.includes(entity.id) ? fxMigration : ADVANCE_ENTITIES.includes(entity.id) ? advanceMigration : migration;
+      const source = FX_ENTITIES.includes(entity.id) ? fxMigration : ADVANCE_ENTITIES.includes(entity.id) ? advanceFxMigration : migration;
       expect(source).toContain(maskedViewSql(defineEntity(entity)));
     });
   }

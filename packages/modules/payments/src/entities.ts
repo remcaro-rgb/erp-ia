@@ -160,8 +160,12 @@ export const applicationEntity: EntityDef = entity("payments.advance_application
   f("date", "date", { required: true }),
   f("party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
   f("currency", "text", { required: true }),
+  /** The advances' rate (pesos per unit of `currency`; 1 in pesos): the entry's rate (plan 2B.2 Task 34.6, FX §6). */
+  f("exchange_rate", "number", { required: true }),
   /** What the application moves from the customer's advances to its invoices: the sum of its lines (Dr customer_advances / Cr receivable). */
   f("total", "money", { required: true }),
+  /** The same in the company's currency at the invoices' rates: what it takes off the receivable (the sum of the lines' amount_company). */
+  f("total_company", "money", { required: true }),
   f("applied_at", "datetime"),
   f("voided_at", "datetime"),
   ...trailer(f),
@@ -177,7 +181,7 @@ export const applicationEntity: EntityDef = entity("payments.advance_application
   },
   processIds: { create: "payments.advance.apply" },
   // An application is written by «Aplicar a facturas» with its own lines: a copy has no meaning, nothing but the customer is kept.
-  cloneReset: ["seq", "number", "date", "total", "applied_at", "voided_at", "void_reason"],
+  cloneReset: ["seq", "number", "date", "total", "total_company", "exchange_rate", "applied_at", "voided_at", "void_reason"],
   defaultSort: { field: "seq", dir: "desc" },
   recordPage: true,
 });
@@ -192,8 +196,11 @@ export const applicationLineEntity: EntityDef = entity("payments.advance_applica
   f("invoice_number", "text", { searchable: true }),
   /** What the line draws from the receipt's advance and settles of the invoice. */
   f("amount", "money", { required: true }),
-  /** The same in the company's currency (FX §11; equal to `amount` until advances take a foreign currency, plan 2B.2 Task 34.6). */
+  /** The same in the company's currency at the invoice's rate: what the line takes off the receivable (FX §6, plan 2B.2 Task 34.6). */
   f("amount_company", "money", { required: true }),
+  /** The same in the company's currency at the advance receipt's rate: what the line draws from customer_advances; the difference to
+   *  amount_company is the realized exchange difference (owner item 126 (e)). */
+  f("advance_company", "money", { required: true }),
   ...trailer(f),
 ]);
 
