@@ -2,7 +2,7 @@ import { defineProcess, dismissParkedEvents, emitAndPostStrict, emitStatusChange
 import { z } from "zod";
 import { applicationEntity } from "../entities";
 import { cents, date, id, idInput, markApplicationLinksVoided, money, moneyAmount, num, refuse, refuseState, syncApplicationLinks, today } from "./common";
-import { carryingCompany, companyCents, FEATURE_RECEIPTS, lockInvoices, openOf, payability, readyCustomer } from "./receipt";
+import { carryingCompany, companyCents, FEATURE_RECEIPTS, lockInvoices, openAfterDocs, openOf, payability, readyCustomer } from "./receipt";
 
 // Aplicar anticipo a factura (plan 2B.2 Task 36, owner decisions item 23; accounting design 2026-10-28, advances and receivables; main design
 // §8.1 step 7, §22.27). A receipt that received more than it applied leaves an advance (payments.receipts.advance, Cr customer_advances 280505).
@@ -560,8 +560,10 @@ export const applicationHooks: TypedHooks = {
       customer: { partyId: a.party_id, legalName: fiscal?.legal_name ?? fiscal?.document_number ?? a.party_id },
       lines,
     });
+    const openAfter = await openAfterDocs(ctx, payload.allocations);
+    const allocations = payload.allocations.map((al, i) => ({ ...al, openAfterDoc: openAfter[i]! }));
     // Inline and strict (D8): the entry is in the ledger when this action commits, or the action does not happen.
-    await emitAndPostStrict(ctx, ADVANCE_APPLIED, payload, { requireRule: true });
+    await emitAndPostStrict(ctx, ADVANCE_APPLIED, { ...payload, allocations }, { requireRule: true });
   },
 };
 

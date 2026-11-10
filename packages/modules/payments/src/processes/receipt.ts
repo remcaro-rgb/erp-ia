@@ -395,6 +395,24 @@ export async function lockInvoices(ctx: ProcessContext, ids: readonly string[]):
 }
 
 /**
+ * What stays open of each allocation's invoice right after it, in the invoice's currency (plan 2B.2 Task 30.1, PG §5.3): the invoice's open
+ * balance under its lock (lockInvoices), less this allocation and the earlier ones of the same document. Called from a post hook, before the
+ * kernel marks the document posted, so what the posted documents settled does not count this one yet. Sales reads it to take the commission's
+ * remainder on the allocation that leaves the invoice at 0 (RG-11).
+ */
+export async function openAfterDocs(ctx: ProcessContext, allocations: readonly { invoiceId: string; amount: number }[]): Promise<number[]> {
+  if (allocations.length === 0) return [];
+  const { locked, settled } = await lockInvoices(ctx, allocations.map((a) => a.invoiceId));
+  const open = new Map<string, number>();
+  return allocations.map((a) => {
+    const before = open.get(a.invoiceId) ?? cents(openOf(locked.get(a.invoiceId)!, settled.get(a.invoiceId) ?? 0));
+    const after = before - cents(a.amount);
+    open.set(a.invoiceId, after);
+    return after / 100;
+  });
+}
+
+/**
  * What a foreign-currency allocation takes off the receivable, in pesos at the invoice's rate (FX §4, §5): `amount` × the rate, to the cent;
  * the allocation that settles what is open takes exactly what is left of the invoice's pesos (its total_company and its notes at its rate,
  * less what the posted receipts and applications already took), so a collection in full always closes the receivable in both currencies.
@@ -758,8 +776,10 @@ export const receiptHooks: TypedHooks = {
         withholdings: (l.withholdings ?? []).map((w) => ({ kind: w.kind, code: w.code, rate: Number(w.rate), base: Number(w.base), amount: Number(w.amount) })),
       })),
     });
+    const openAfter = await openAfterDocs(ctx, payload.allocations);
+    const allocations = payload.allocations.map((a, i) => ({ ...a, openAfterDoc: openAfter[i]! }));
     // Inline and strict (D8): the entry is in the ledger when this action commits, or the action does not happen.
-    await emitAndPostStrict(ctx, PAYMENT_RECEIVED, payload, { requireRule: true });
+    await emitAndPostStrict(ctx, PAYMENT_RECEIVED, { ...payload, allocations }, { requireRule: true });
   },
 };
 

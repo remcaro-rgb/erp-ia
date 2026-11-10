@@ -1,5 +1,6 @@
 import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
+import { COMMISSION_BASES, type CommissionBasis } from "../entities";
 import { resolveLineDiscount, resolveLinePrice } from "../price";
 
 // Pricing parameters of the sales module (plan 2B Task 12): the company's default price list (sales.settings) and each customer's
@@ -31,29 +32,32 @@ export const settingsUpdate = defineProcess({
   recordAccess: "none",
   feature: FEATURE,
   description:
-    "Cambia los parámetros de ventas de la empresa: la lista de precios predeterminada (la que da el precio cuando el cliente no tiene lista propia o su lista no trae el producto) y el descuento máximo de un pedido sin aprobación",
+    "Cambia los parámetros de ventas de la empresa: la lista de precios predeterminada (la que da el precio cuando el cliente no tiene lista propia o su lista no trae el producto), el descuento máximo de un pedido sin aprobación y cuándo se gana la comisión (al recaudo o al facturar)",
   input: z.object({
     defaultPriceListId: id.nullable().optional(),
     /** A pedido with a line discount above this percent waits for approval; null: no pedido does by its discount. */
     orderApprovalDiscountPct: percent.nullable().optional(),
+    /** When a commission is earned (plan 2B.2 Task 30.1, item 162): on the customer's payment (default) or on the invoice's issue; later invoices only. */
+    commissionBasis: z.enum(COMMISSION_BASES).optional(),
   }).strict(),
-  output: z.object({ id: z.string(), defaultPriceListId: z.string().nullable(), orderApprovalDiscountPct: z.number().nullable() }),
+  output: z.object({ id: z.string(), defaultPriceListId: z.string().nullable(), orderApprovalDiscountPct: z.number().nullable(), commissionBasis: z.enum(COMMISSION_BASES) }),
   handler: async (ctx, input) => {
     if (input.defaultPriceListId) await assertUsableList(ctx, input.defaultPriceListId);
     const values = Object.fromEntries(
-      Object.entries({ default_price_list_id: input.defaultPriceListId, order_approval_discount_pct: input.orderApprovalDiscountPct }).filter(([, v]) => v !== undefined),
+      Object.entries({ default_price_list_id: input.defaultPriceListId, order_approval_discount_pct: input.orderApprovalDiscountPct, commission_basis: input.commissionBasis }).filter(([, v]) => v !== undefined),
     );
     const [current] = await ctx.tx<{ id: string }[]>`select id from sales.settings where company_id = ${ctx.companyId} for update`;
-    type Row = { id: string; default_price_list_id: string | null; order_approval_discount_pct: string | null };
+    type Row = { id: string; default_price_list_id: string | null; order_approval_discount_pct: string | null; commission_basis: CommissionBasis };
     const [row] = current
       ? Object.keys(values).length > 0
-        ? await ctx.tx<Row[]>`update sales.settings set ${ctx.tx(values)} where id = ${current.id} returning id, default_price_list_id, order_approval_discount_pct::text`
-        : await ctx.tx<Row[]>`select id, default_price_list_id, order_approval_discount_pct::text from sales.settings where id = ${current.id}`
-      : await ctx.tx<Row[]>`insert into sales.settings ${ctx.tx({ company_id: ctx.companyId, ...values })} returning id, default_price_list_id, order_approval_discount_pct::text`;
+        ? await ctx.tx<Row[]>`update sales.settings set ${ctx.tx(values)} where id = ${current.id} returning id, default_price_list_id, order_approval_discount_pct::text, commission_basis`
+        : await ctx.tx<Row[]>`select id, default_price_list_id, order_approval_discount_pct::text, commission_basis from sales.settings where id = ${current.id}`
+      : await ctx.tx<Row[]>`insert into sales.settings ${ctx.tx({ company_id: ctx.companyId, ...values })} returning id, default_price_list_id, order_approval_discount_pct::text, commission_basis`;
     return {
       id: row!.id,
       defaultPriceListId: row!.default_price_list_id,
       orderApprovalDiscountPct: row!.order_approval_discount_pct === null ? null : Number(row!.order_approval_discount_pct),
+      commissionBasis: row!.commission_basis,
     };
   },
 });

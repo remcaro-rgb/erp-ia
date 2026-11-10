@@ -40,6 +40,13 @@ const trailer = (f: F): FieldDef[] => [
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
 const priceList = ref("core.price_list", "name");
 
+/** When a commission is earned (plan 2B.2 Task 30.1, owner item 162): on the customer's payment (default) or on the invoice's issue. */
+export const COMMISSION_BASES = ["on_collection", "on_invoice"] as const;
+export type CommissionBasis = (typeof COMMISSION_BASES)[number];
+/** Who a commission plan pays (PG §5.1, item 156): an employee (salesperson on payroll) or an external agent (a supplier). */
+export const PAYEE_KINDS = ["employee", "agent"] as const;
+export type PayeeKind = (typeof PAYEE_KINDS)[number];
+
 // Parámetros de ventas: one row per company. The default price list prices a line whose customer has no list of their own (or whose list
 // does not carry the product).
 // `order_approval_discount_pct` (Task 13): a pedido with a line discount above it waits for approval (none: no pedido does by discount).
@@ -49,6 +56,9 @@ export const salesSettingsEntity: EntityDef = entity("sales.settings", "parametr
   f("default_price_list_id", "ref", priceList),
   ...trailer(f),
   f("order_approval_discount_pct", "number"),
+  // Plan 2B.2 Task 30.1 (owner item 162, migration 0156, appended to the view): when a commission is earned, when the customer pays
+  // (on_collection, the default) or when the invoice is issued (on_invoice). Read at each invoice: changing it affects later invoices only.
+  f("commission_basis", "enum", { required: true, enumValues: [...COMMISSION_BASES], valuesKey: "sales.values.commission_basis" }),
 ]);
 
 // Condiciones comerciales de un cliente: the price list the customer buys from and their standing discount (percent off every line), and
@@ -265,6 +275,118 @@ export const returnLineEntity: EntityDef = entity("sales.return_line", "lines", 
   ...trailer(f),
 ]);
 
+// Commissions (plan 2B.2 Task 30.1, Part G design PG §5.1, §5.2, §5.5; owner items 156–158, 162, 163; RG-11, RG-12, RG-14; migration 0156).
+// Rates and amounts are confidential (masked for every role but the admin until the admin shows them, item 163); a salesperson reads only
+// the plans that list their user and what those plans earned (record rule of 0156), whoever may run sales.commission.consult_all every one.
+
+/** The lifecycle states of a maestro (entity types spec §5). */
+const MAESTRO_STATES = ["draft", "saved", "pending", "rejected", "approved"];
+const confidential = { sensitivity: "confidential" } as const;
+
+// Plan de comisión (maestro): who is paid (a core party: an employee, or a supplier for an external agent, invoice_ready, rule 10), the
+// users whose pedidos it covers (sales.commission_plan_users, one active plan per user at a date), the default rate and a rate per product
+// category (sales.commission_plan_lines), its validity and the days the provision is due after its date (CxP aging). Activo is is_active.
+export const commissionPlanEntity: EntityDef = entity("sales.commission_plan", "maestro", "commission_plans", "name", (f) => [
+  f("seq", "number", { required: true }),
+  f("name", "text", { required: true, searchable: true }),
+  f("payee_party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
+  f("payee_kind", "enum", { required: true, enumValues: [...PAYEE_KINDS], valuesKey: "sales.values.payee_kind" }),
+  f("default_rate_pct", "number", { required: true, ...confidential }),
+  f("payment_days", "number", { required: true }),
+  f("valid_from", "date", { required: true }),
+  f("valid_to", "date"),
+  f("notes", "text", { searchable: true }),
+  f("is_active", "boolean"),
+  ...trailer(f),
+  f("status", "enum", { enumValues: MAESTRO_STATES, valuesKey: "grid.values.record_status" }),
+  f("requires_approval", "boolean"),
+], { importKey: ["name"], cloneReset: ["seq", "name"], processIds: { create: "sales.commission_plan.create" } });
+
+/** Whether a base still earns: open until it is fully accrued or closed by an annulment (Task 30.3). */
+export const COMMISSION_BASE_STATES = ["open", "closed"] as const;
+
+// Base de comisión (sistema): one per invoice line billed from a pedido whose owner had an active plan at the invoice date. Written only by
+// sales.commission.compute from invoicing.invoice.issued: the payee and the rate frozen at the issue, the base (the line's subtotal before
+// taxes, after discounts) in pesos and in the invoice's currency, the commission on each, what was accrued and reversed of it.
+export const commissionBaseEntity: EntityDef = entity("sales.commission_base", "sistema", "commission_bases", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("invoice_id", "uuid", { required: true }),
+  f("invoice_number", "text", { searchable: true }),
+  f("invoice_line_id", "uuid", { required: true }),
+  f("invoice_date", "date", { required: true }),
+  f("order_id", "ref", { required: true, ...ref("sales.order", "number") }),
+  f("order_line_id", "ref", { required: true, ...ref("sales.order_line", "line_no") }),
+  f("product_id", "ref", ref("core.product", "description")),
+  f("category_id", "ref", ref("core.product_category", "name")),
+  f("cost_center_id", "uuid"),
+  f("user_id", "uuid", { required: true, filterable: true }),
+  f("plan_id", "ref", { required: true, ...ref("sales.commission_plan", "name") }),
+  f("payee_party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
+  f("payee_kind", "enum", { required: true, enumValues: [...PAYEE_KINDS], valuesKey: "sales.values.payee_kind" }),
+  f("basis", "enum", { required: true, enumValues: [...COMMISSION_BASES], valuesKey: "sales.values.commission_basis" }),
+  f("rate_pct", "number", { required: true, ...confidential }),
+  f("currency", "text", { required: true }),
+  f("exchange_rate", "number", { required: true }),
+  f("base", "money", { required: true, ...confidential }),
+  f("base_doc", "money", { required: true, ...confidential }),
+  f("commission", "money", { required: true, ...confidential }),
+  f("commission_doc", "money", { required: true, ...confidential }),
+  f("accrued", "money", { required: true, ...confidential }),
+  f("reversed", "money", { required: true, ...confidential }),
+  f("status", "enum", { required: true, enumValues: [...COMMISSION_BASE_STATES], valuesKey: "sales.values.commission_base_status" }),
+  ...trailer(f),
+], { defaultSort: { field: "seq", dir: "desc" } });
+
+/**
+ * Where a commission stands beside its lifecycle status (`stage`; the kernel's `status` column is the documento's lifecycle, so the plan's
+ * «status posted|reversed|paid» is this column): posted (the provision is in the ledger), reversed (Task 30.3), paid (phase 3 disbursements).
+ */
+export const COMMISSION_STAGES = ["posted", "reversed", "paid"] as const;
+/** What a commission documento comes from (Task 30.2, 30.3). */
+export const COMMISSION_SOURCES = ["invoice", "receipt", "advance", "note", "annulment", "void"] as const;
+
+// Comisión (documento, contabiliza, numbered COM- on save): the provision owed to one payee for one source document (the invoice under
+// on_invoice, the receipt or advance application under on_collection; a note or a void reverses), posted inline (Task 30.2, design §5.4: Dr
+// commission_expense / Cr commissions_payable with the payee as party). Its lines name the bases it accrues. Written only by the
+// sales.commission processes of Tasks 30.2 and 30.3; no create from the screen.
+export const commissionEntity: EntityDef = entity("sales.commission", "documento", "commissions", "number", (f) => [
+  f("seq", "number", { required: true }),
+  f("number", "text", { searchable: true }),
+  f("date", "date", { required: true }),
+  f("due_date", "date"),
+  f("payee_party_id", "ref", { required: true, ...ref("core.party", "legal_name") }),
+  f("payee_kind", "enum", { required: true, enumValues: [...PAYEE_KINDS], valuesKey: "sales.values.payee_kind" }),
+  f("plan_id", "ref", { required: true, ...ref("sales.commission_plan", "name") }),
+  f("source_kind", "enum", { required: true, enumValues: [...COMMISSION_SOURCES], valuesKey: "sales.values.commission_source" }),
+  f("source_id", "uuid", { required: true }),
+  f("currency", "text", { required: true }),
+  f("amount", "money", { required: true, ...confidential }),
+  f("stage", "enum", { required: true, enumValues: [...COMMISSION_STAGES], valuesKey: "sales.values.commission_stage" }),
+  f("reverses_id", "ref", ref("sales.commission", "number")),
+  f("notes", "text", { searchable: true }),
+  ...trailer(f),
+  f("status", "enum", { required: true, enumValues: DOCUMENT_STATES, valuesKey: "grid.values.record_status" }),
+  f("requires_approval", "boolean"),
+  f("posts", "boolean"),
+  f("void_reason", "text"),
+], {
+  typed: { numbering: "on_save", lines: { entity: "sales.commission_line", parentField: "commission_id" }, ownFlags: deliveryFlags("sales.commission") },
+  // No record page yet: 30.4 opens the plan and the commission in the record frame (apps/web/src/lib/records/entities.ts).
+  cloneReset: ["seq", "number", "stage", "reverses_id"],
+  defaultSort: { field: "seq", dir: "desc" },
+});
+
+export const commissionLineEntity: EntityDef = entity("sales.commission_line", "lines", "commission_lines", "line_no", (f) => [
+  f("seq", "number", { required: true }),
+  f("commission_id", "ref", { required: true, ...ref("sales.commission", "number") }),
+  f("line_no", "number", { required: true }),
+  f("base_id", "uuid", { required: true }),
+  f("cost_center_id", "uuid"),
+  f("amount", "money", { required: true, ...confidential }),
+  ...trailer(f),
+]);
+
 export const SALES_ENTITIES: EntityDef[] = [
   salesSettingsEntity, customerTermsEntity, orderEntity, orderLineEntity, deliveryEntity, deliveryLineEntity, returnEntity, returnLineEntity,
+  commissionPlanEntity, commissionBaseEntity, commissionEntity, commissionLineEntity,
 ];

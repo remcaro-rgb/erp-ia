@@ -1386,7 +1386,8 @@
       "settings": "Sales settings",
       "orders": "Orders",
       "deliveries": "Deliveries",
-      "returns": "Returns"
+      "returns": "Returns",
+      "commission_plans": "Commission plans"
     },
     "invoicing": {
       "maestros": "Master data",
@@ -1492,7 +1493,11 @@
       "delivery": "Delivery",
       "delivery_line": "Delivery line",
       "return": "Sales return",
-      "return_line": "Return line"
+      "return_line": "Return line",
+      "commission_plan": "Commission plan",
+      "commission_base": "Commission base",
+      "commission": "Commission",
+      "commission_line": "Commission line"
     },
     "invoicing": {
       "settings": "Invoicing settings",
@@ -2679,7 +2684,8 @@
         "extra_free": "Free data",
         "created_at": "Created",
         "updated_at": "Updated",
-        "order_approval_discount_pct": "Largest order discount without approval (%)"
+        "order_approval_discount_pct": "Largest order discount without approval (%)",
+        "commission_basis": "Commission earned"
       },
       "customer_terms": {
         "seq": "ID",
@@ -2827,6 +2833,91 @@
         "delivery_line_id": "Delivery line",
         "product_id": "Product",
         "qty": "Quantity"
+      },
+      "commission_plan": {
+        "seq": "ID",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "name": "Name",
+        "payee_party_id": "Payee",
+        "payee_kind": "Payee type",
+        "default_rate_pct": "Default rate (%)",
+        "payment_days": "Days to pay",
+        "valid_from": "Valid from",
+        "valid_to": "Valid to",
+        "notes": "Notes",
+        "is_active": "Active"
+      },
+      "commission_base": {
+        "seq": "ID",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "invoice_id": "Invoice",
+        "invoice_number": "Invoice number",
+        "invoice_line_id": "Invoice line",
+        "invoice_date": "Invoice date",
+        "order_id": "Sales order",
+        "order_line_id": "Order line",
+        "product_id": "Product",
+        "category_id": "Category",
+        "cost_center_id": "Cost center",
+        "user_id": "Salesperson",
+        "plan_id": "Commission plan",
+        "payee_party_id": "Payee",
+        "payee_kind": "Payee type",
+        "basis": "Commission earned",
+        "rate_pct": "Rate (%)",
+        "currency": "Currency",
+        "exchange_rate": "Exchange rate",
+        "base": "Base",
+        "base_doc": "Base in the invoice currency",
+        "commission": "Commission",
+        "commission_doc": "Commission in the invoice currency",
+        "accrued": "Accrued",
+        "reversed": "Reversed",
+        "status": "Status"
+      },
+      "commission": {
+        "seq": "ID",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "number": "Number",
+        "date": "Date",
+        "due_date": "Due date",
+        "payee_party_id": "Payee",
+        "payee_kind": "Payee type",
+        "plan_id": "Commission plan",
+        "source_kind": "Source",
+        "source_id": "Source document",
+        "currency": "Currency",
+        "amount": "Amount",
+        "stage": "Stage",
+        "reverses_id": "Reverses",
+        "notes": "Notes",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "commission_line": {
+        "seq": "ID",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "commission_id": "Commission",
+        "line_no": "Line",
+        "base_id": "Commission base",
+        "cost_center_id": "Cost center",
+        "amount": "Amount"
       }
     },
     "invoicing": {
@@ -3246,7 +3337,8 @@
       "pricing": "Pricing and customer terms",
       "orders": "Sales orders",
       "deliveries": "Sales deliveries",
-      "returns": "Sales returns"
+      "returns": "Sales returns",
+      "commissions": "Sales commissions"
     },
     "invoicing": {
       "invoices": "Sales invoices",
@@ -3335,6 +3427,14 @@
     "sales": {
       "order": {
         "reassign": "Change the salesperson of an order"
+      },
+      "commission_plan": {
+        "create": "Create a commission plan",
+        "update": "Update a commission plan"
+      },
+      "commission": {
+        "compute": "Compute an invoice's commission bases",
+        "consult_all": "See every salesperson's commissions"
       }
     }
   },
@@ -5744,6 +5844,31 @@
       "return_stage": {
         "open": "To receive",
         "received": "Received"
+      },
+      "payee_kind": {
+        "employee": "Employee",
+        "agent": "Sales agent"
+      },
+      "commission_basis": {
+        "on_collection": "When the invoice is collected",
+        "on_invoice": "When the invoice is issued"
+      },
+      "commission_base_status": {
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "commission_stage": {
+        "posted": "Accrued",
+        "reversed": "Reversed",
+        "paid": "Paid"
+      },
+      "commission_source": {
+        "invoice": "Invoice",
+        "receipt": "Receipt",
+        "advance": "Advance application",
+        "note": "Credit note",
+        "annulment": "Invoice annulment",
+        "void": "Collection void"
       }
     },
     "order": {
@@ -5920,13 +6045,23 @@
       "issue_refused": "Sales: if Inventory cannot issue the stock, the delivery goes back with the reason",
       "return_void_refused": "Sales: if Inventory cannot give the stock back, the return goes back with the reason",
       "re_reserve_recorded": "Sales: records on the voided delivery whether inventory reserved the stock for the order again",
-      "invoice_annulled": "Sales: the deliveries get back what the annulled invoice had invoiced"
+      "invoice_annulled": "Sales: the deliveries get back what the annulled invoice had invoiced",
+      "commission_bases": "Sales: computes the commission bases of the invoiced order lines"
     },
     "print": {
       "delivery_title": "Delivery note"
     },
     "price": {
       "converted": "Price converted from COP at {rate}"
+    },
+    "commission_plan": {
+      "intro": "Who earns a commission, at what rate and on whose sales orders. Each salesperson sees only the plans that include them."
+    },
+    "commission": {
+      "own_flags": {
+        "requires_approval": "Asks no approval: the invoice or its collection accrues the commission.",
+        "posts": "Always posts: every accrued commission makes its entry with the payable."
+      }
     }
   },
   "invoicing": {

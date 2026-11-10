@@ -100,11 +100,15 @@ describe("a receipt settles an invoice", () => {
     expect(over?.message).toMatch(/allocation_exceeds_open/);
     expect(JSON.stringify(over?.details)).toContain("119.000,00");
     expect(await h.footprint()).toEqual(before);
-    await h.receive({ amount: 50000, allocations: [{ invoiceId: invoice.id, amount: 50000 }] });
+    const first = await h.receive({ amount: 50000, allocations: [{ invoiceId: invoice.id, amount: 50000 }] });
     expect((await h.refusal(h.receive({ amount: 69001, allocations: [{ invoiceId: invoice.id, amount: 69001 }] })))?.message).toMatch(/allocation_exceeds_open/);
     const rest = await h.receive({ amount: 69000, allocations: [{ invoiceId: invoice.id, amount: 69000 }] });
     expect(rest.status).toBe("posted");
     expect(await h.paidOf(invoice.id)).toBe(119000);
+    // Each allocation of the event says what stays open of the invoice after it (Task 30.1): 69.000 after the partial, 0 after the rest.
+    const openAfter = async (receiptId: string) => ((await h.eventsOf("payments.received", receiptId))[0]!.payload.allocations as { openAfterDoc: number }[]).map((a) => a.openAfterDoc);
+    expect(await openAfter(first.id)).toEqual([69000]);
+    expect(await openAfter(rest.id)).toEqual([0]);
   });
 
   it("one receipt over several invoices: one entry, one receivable credit for the sum, one allocation per invoice", async () => {

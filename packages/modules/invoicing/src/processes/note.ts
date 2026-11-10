@@ -533,8 +533,8 @@ export const noteHooks: TypedHooks = {
     const settings = await settingsOf(ctx);
     const costCenterId = note.cost_center_id ?? settings.defaultCostCenterId;
     const rate = num(note.exchange_rate);
-    const lines = await ctx.tx<{ base: string; free_sample: boolean; subtotal_company: string; category_id: string | null }[]>`
-      select base::text, free_sample, subtotal_company::text, category_id from invoicing.note_lines where note_id = ${note.id} order by line_no`;
+    const lines = await ctx.tx<{ base: string; free_sample: boolean; subtotal_company: string; category_id: string | null; invoice_line_id: string | null }[]>`
+      select base::text, free_sample, subtotal_company::text, category_id, invoice_line_id from invoicing.note_lines where note_id = ${note.id} order by line_no`;
     const taxes = await ctx.tx<{ ledger_code: string; rate: string | null; base: string; amount: string; amount_company: string }[]>`
       select ledger_code, rate::text, base::text, amount::text, amount_company::text from invoicing.note_taxes where note_id = ${note.id} order by seq`;
     const facts = await readInvoiceFacts(ctx, note.party_id, []);
@@ -566,7 +566,8 @@ export const noteHooks: TypedHooks = {
       ...(costCenterId ? { costCenterId } : {}),
       // Company amounts in the fields they always had, the document twins with Doc (R34-4), both signed.
       totals: { total: signed(company.total), totalDoc: signed(company.totalDoc) },
-      lines: company.revenue.map(({ line, subtotal, subtotalDoc }) => ({ subtotal: signed(subtotal), subtotalDoc: signed(subtotalDoc), categoryId: line.category_id, ...(costCenterId ? { costCenterId } : {}) })),
+      // Each line names the invoice line it adjusts (Task 30.1): sales reverses that line's commission base in proportion (Task 30.3).
+      lines: company.revenue.map(({ line, subtotal, subtotalDoc }) => ({ subtotal: signed(subtotal), subtotalDoc: signed(subtotalDoc), categoryId: line.category_id, invoiceLineId: line.invoice_line_id, ...(costCenterId ? { costCenterId } : {}) })),
       taxes: company.taxLines.map(({ tax, amount, amountDoc, base }) => ({ code: tax.ledger_code, rate: tax.rate === null ? null : num(tax.rate), amount: signed(amount), amountDoc: signed(amountDoc), base: signed(base) })),
       currency: note.currency,
       exchangeRate: rate,

@@ -19,9 +19,12 @@ const reReserveView = readFileSync(new URL("../../../../../supabase/migrations/0
 const ownerIsolation = readFileSync(new URL("../../../../../supabase/migrations/0139_sales_order_owner_isolation.sql", import.meta.url), "utf8");
 // Review fix round 1 (0140): the approver branch of owner_scope and the owner rule in sales.lock_orders_for_invoice.
 const ownerFixes = readFileSync(new URL("../../../../../supabase/migrations/0140_sales_order_owner_isolation_fixes.sql", import.meta.url), "utf8");
+// Commissions (Task 30.1): 0156 creates the plans, bases and commissions and regenerates the settings' view with commission_basis.
+const commissions = readFileSync(new URL("../../../../../supabase/migrations/0156_sales_commissions.sql", import.meta.url), "utf8");
 /** The migration holding the latest masked view of each entity. */
 const viewMigration = (entityId: string) =>
-  entityId === "sales.delivery" ? ownerIsolation : /^sales\.(delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders;
+  entityId === "sales.settings" || entityId.startsWith("sales.commission") ? commissions
+    : entityId === "sales.delivery" ? ownerIsolation : /^sales\.(delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders;
 
 const loaded = () => {
   const registry = new Registry();
@@ -33,14 +36,15 @@ describe("sales manifest", () => {
   it("depends on core, declares the four menu sections, its features, emits the pedido, entrega and devolución events and consumes inventory movements and refusals and the issued invoices", () => {
     expect(sales.dependsOn).toEqual(["core"]);
     expect(sales.navigation.map((n) => n.id)).toEqual(["sales.maestros", "sales.documentos", "sales.reportes", "sales.parametros"]);
-    expect(sales.features.map((f) => f.id)).toEqual(["sales.pricing", "sales.orders", "sales.deliveries", "sales.returns"]);
+    expect(sales.features.map((f) => f.id)).toEqual(["sales.pricing", "sales.orders", "sales.deliveries", "sales.returns", "sales.commissions"]);
     expect(Object.fromEntries(SALES_ENTITIES.map((e) => [e.id, e.entityType]))).toEqual({
       "sales.settings": "parametro", "sales.customer_terms": "parametro", "sales.order": "documento", "sales.order_line": "lines",
       "sales.delivery": "documento", "sales.delivery_line": "lines", "sales.return": "documento", "sales.return_line": "lines",
+      "sales.commission_plan": "maestro", "sales.commission_base": "sistema", "sales.commission": "documento", "sales.commission_line": "lines",
     });
     expect(sales.events.emits).toEqual([
       "sales.order.created", "sales.order.confirmed", "sales.order.cancelled",
-      "sales.delivery.shipped", "sales.delivery.voided", "sales.return.received", "sales.return.voided",
+      "sales.delivery.shipped", "sales.delivery.voided", "sales.return.received", "sales.return.voided", "sales.commission.due",
     ]);
     // The sale issue inventory posted for an entrega is recorded on its lines, and what inventory refused (a despacho it could not issue,
     // the Anular of a devolución it could not take back) puts the document back with the reason: by event, sales never calls inventory (rule 3).
@@ -84,6 +88,11 @@ describe("sales manifest", () => {
         "sales.delivery.save", "sales.delivery.submit", "sales.delivery.approve", "sales.delivery.reject", "sales.delivery.delete",
         "sales.return.create", "sales.return.receive", "sales.return.void", "sales.return.restore", "sales.return.consult", "sales.return_line.consult",
         "sales.return.save", "sales.return.submit", "sales.return.approve", "sales.return.reject", "sales.return.delete",
+        // Commissions (Task 30.1): the plans (a maestro, with the generic verbs), the bases' compute and the «all commissions» permission.
+        "sales.commission_plan.create", "sales.commission_plan.update", "sales.commission_plan.consult",
+        "sales.commission_plan.save", "sales.commission_plan.submit", "sales.commission_plan.approve", "sales.commission_plan.reject", "sales.commission_plan.void", "sales.commission_plan.delete",
+        "sales.commission.compute", "sales.commission.consult_all",
+        "sales.commission.save", "sales.commission.submit", "sales.commission.approve", "sales.commission.reject", "sales.commission.void", "sales.commission.delete",
       ].sort(),
     );
     expect(module.features.flatMap((f) => f.processes).sort()).toEqual(module.processes.map((p) => p.id).sort());
@@ -91,6 +100,7 @@ describe("sales manifest", () => {
     expect(uncoveredRecordWrites(registry).filter((id) => id.startsWith("sales."))).toEqual([]);
     const rows = menuItemsOf(module).filter((r) => r.href);
     expect(rows.map((r) => [r.navKey, r.parentKey, r.href])).toEqual([
+      ["sales.commission_plans", "sales.maestros", "/sales/commission-plans"],
       ["sales.orders", "sales.documentos", "/sales/orders"],
       ["sales.deliveries", "sales.documentos", "/sales/deliveries"],
       ["sales.returns", "sales.documentos", "/sales/returns"],
@@ -136,7 +146,7 @@ describe("sales never names crm in its manifest (rule 3, plan 2B Task 42)", () =
   });
 });
 
-describe("sales masked views, migrations 0082, 0084 and 0085", () => {
+describe("sales masked views, migrations 0082, 0084, 0085 and 0156", () => {
   for (const entity of SALES_ENTITIES) {
     it(`sales.v_${entity.table} is the generated masked view of ${entity.id} in its latest migration`, () => {
       const generated = maskedViewSql(defineEntity(entity));
@@ -145,6 +155,28 @@ describe("sales masked views, migrations 0082, 0084 and 0085", () => {
       expect(sql).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
     });
   }
+
+  it("0156 marks the commission rates and amounts confidential and masks them in the views, the plan lines' rate too (Task 30.1, RG-14)", () => {
+    const confidential = Object.fromEntries(SALES_ENTITIES.filter((e) => e.id.startsWith("sales.commission"))
+      .map((e) => [e.id, defineEntity(e).fields.filter((f) => f.sensitivity === "confidential").map((f) => f.name)]));
+    expect(confidential).toEqual({
+      "sales.commission_plan": ["default_rate_pct"],
+      "sales.commission_base": ["rate_pct", "base", "base_doc", "commission", "commission_doc", "accrued", "reversed"],
+      "sales.commission": ["amount"],
+      "sales.commission_line": ["amount"],
+    });
+    for (const [entity, fields] of Object.entries(confidential)) {
+      for (const field of fields) expect(commissions).toContain(`(select kernel.field_visible('${entity}', '${field}'))`);
+    }
+    // The plan lines are no entity of their own: their view masks the rate under the plan's default rate.
+    expect(commissions).toMatch(/create or replace view sales\.v_commission_plan_lines[\s\S]*kernel\.field_visible\('sales\.commission_plan', ?'default_rate_pct'\)/);
+  });
+
+  it("sales.commission.consult_all is the «all commissions» permission: an update, so no new role gets it by default (owner item 167)", () => {
+    const consultAll = loaded().process("sales.commission.consult_all");
+    expect(consultAll).toMatchObject({ module: "sales", kind: "update", feature: "sales.commissions", recordAccess: "none" });
+    expect(loaded().process("sales.commission.compute")).toMatchObject({ kind: "create", origins: ["event"], emits: ["sales.commission.due"] });
+  });
 
   it("0139 isolates the pedidos by owner: restrictive owner_scope on the pedido and its lines, the owners view, the entrega's order_owner_id (Task 39)", () => {
     expect(ownerIsolation).toContain(

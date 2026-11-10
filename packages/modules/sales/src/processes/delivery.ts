@@ -2,6 +2,7 @@ import { defineProcess, ProcessError, runLifecycle, writeSnapshot, type EventCon
 import { z } from "zod";
 import { deliveryEntity, RE_RESERVE_RESULTS, type DeliveryStage, type OrderStage, type ReReserveResult } from "../entities";
 import { assertSaleReady } from "../readiness";
+import { issuedForCommission } from "./commission";
 import { linkDeliveryToOrder, markLinksVoided } from "./common";
 import { assertWarehouse, FIRM_STAGES, refuse, refuseState, today } from "./order";
 import { lockShipStock, pendingShipped, qtyText } from "./stock";
@@ -603,11 +604,21 @@ export const deliveryRecordInvoiced = defineProcess({
   },
 });
 
-/** Consumer of invoicing.invoice.issued: what the invoice billed of each entrega line is recorded on it (invoiced_qty). */
+/**
+ * Consumer of invoicing.invoice.issued: what the invoice billed of each entrega line is recorded on it (invoiced_qty); then, as a SECOND,
+ * separate run (its own transaction, never nested: RG-12, plan 2B.2 Task 30.1), the commission bases of the lines billed from a pedido
+ * (sales.commission.compute). When compute fails the event is retried: record_invoiced recomputes from invoicing's view, so the retry
+ * records nothing twice, and compute is idempotent on the invoice. An invoice issued before Task 30.1 (no commissionLines) earns nothing.
+ */
 export const onInvoiceIssued: EventConsumer = async (ctx, payload) => {
   const parsed = invoiceIssued.safeParse(payload);
   if (!parsed.success) throw new ProcessError("invalid_input", `invoicing.invoice.issued payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
   await ctx.runProcess("sales.delivery.record_invoiced", { invoiceId: parsed.data.invoiceId });
+  const forCommission = issuedForCommission.safeParse(payload);
+  if (!forCommission.success) throw new ProcessError("invalid_input", `invoicing.invoice.issued payload: ${forCommission.error.issues.map((i) => i.message).join("; ")}`);
+  if (forCommission.data.commissionLines.length === 0) return;
+  const { invoiceId, number, date, currency, exchangeRate, costCenterId, commissionLines } = forCommission.data;
+  await ctx.runProcess("sales.commission.compute", { invoiceId, number, date, currency, exchangeRate, ...(costCenterId ? { costCenterId } : {}), commissionLines });
 };
 
 /** What sales reads of invoicing.invoice.annulled (Task 18): the voided invoice and the entregas it billed. */

@@ -1386,7 +1386,8 @@
       "settings": "Parámetros de ventas",
       "orders": "Pedidos",
       "deliveries": "Entregas",
-      "returns": "Devoluciones"
+      "returns": "Devoluciones",
+      "commission_plans": "Planes de comisión"
     },
     "invoicing": {
       "maestros": "Maestros",
@@ -1492,7 +1493,11 @@
       "delivery": "Entrega",
       "delivery_line": "Línea de entrega",
       "return": "Devolución de venta",
-      "return_line": "Línea de devolución"
+      "return_line": "Línea de devolución",
+      "commission_plan": "Plan de comisión",
+      "commission_base": "Base de comisión",
+      "commission": "Comisión",
+      "commission_line": "Línea de comisión"
     },
     "invoicing": {
       "settings": "Parámetros de facturación",
@@ -2679,7 +2684,8 @@
         "extra_free": "Datos libres",
         "created_at": "Creado",
         "updated_at": "Actualizado",
-        "order_approval_discount_pct": "Descuento máximo de un pedido sin aprobación (%)"
+        "order_approval_discount_pct": "Descuento máximo de un pedido sin aprobación (%)",
+        "commission_basis": "Comisión causada"
       },
       "customer_terms": {
         "seq": "ID",
@@ -2827,6 +2833,91 @@
         "delivery_line_id": "Línea de entrega",
         "product_id": "Producto",
         "qty": "Cantidad"
+      },
+      "commission_plan": {
+        "seq": "ID",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación",
+        "name": "Nombre",
+        "payee_party_id": "Beneficiario",
+        "payee_kind": "Tipo de beneficiario",
+        "default_rate_pct": "Tasa general (%)",
+        "payment_days": "Días para pagar",
+        "valid_from": "Vigente desde",
+        "valid_to": "Vigente hasta",
+        "notes": "Notas",
+        "is_active": "Activo"
+      },
+      "commission_base": {
+        "seq": "ID",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "invoice_id": "Factura",
+        "invoice_number": "Número de factura",
+        "invoice_line_id": "Línea de factura",
+        "invoice_date": "Fecha de factura",
+        "order_id": "Pedido",
+        "order_line_id": "Línea de pedido",
+        "product_id": "Producto",
+        "category_id": "Categoría",
+        "cost_center_id": "Centro de costo",
+        "user_id": "Vendedor",
+        "plan_id": "Plan de comisión",
+        "payee_party_id": "Beneficiario",
+        "payee_kind": "Tipo de beneficiario",
+        "basis": "Comisión causada",
+        "rate_pct": "Tasa (%)",
+        "currency": "Moneda",
+        "exchange_rate": "Tasa de cambio",
+        "base": "Base",
+        "base_doc": "Base en moneda de la factura",
+        "commission": "Comisión",
+        "commission_doc": "Comisión en moneda de la factura",
+        "accrued": "Causado",
+        "reversed": "Reversado",
+        "status": "Estado"
+      },
+      "commission": {
+        "seq": "ID",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación",
+        "number": "Número",
+        "date": "Fecha",
+        "due_date": "Vence",
+        "payee_party_id": "Beneficiario",
+        "payee_kind": "Tipo de beneficiario",
+        "plan_id": "Plan de comisión",
+        "source_kind": "Origen",
+        "source_id": "Documento de origen",
+        "currency": "Moneda",
+        "amount": "Valor",
+        "stage": "Etapa",
+        "reverses_id": "Reversa a",
+        "notes": "Notas",
+        "posts": "Contabiliza",
+        "void_reason": "Motivo de anulación"
+      },
+      "commission_line": {
+        "seq": "ID",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "commission_id": "Comisión",
+        "line_no": "Línea",
+        "base_id": "Base de comisión",
+        "cost_center_id": "Centro de costo",
+        "amount": "Valor"
       }
     },
     "invoicing": {
@@ -3246,7 +3337,8 @@
       "pricing": "Precios y condiciones comerciales",
       "orders": "Pedidos de venta",
       "deliveries": "Entregas de venta",
-      "returns": "Devoluciones de venta"
+      "returns": "Devoluciones de venta",
+      "commissions": "Comisiones de venta"
     },
     "invoicing": {
       "invoices": "Facturas de venta",
@@ -3335,6 +3427,14 @@
     "sales": {
       "order": {
         "reassign": "Cambiar el vendedor de un pedido"
+      },
+      "commission_plan": {
+        "create": "Crear un plan de comisión",
+        "update": "Modificar un plan de comisión"
+      },
+      "commission": {
+        "compute": "Calcular las bases de comisión de una factura",
+        "consult_all": "Ver las comisiones de todos los vendedores"
       }
     }
   },
@@ -5744,6 +5844,31 @@
       "return_stage": {
         "open": "Por recibir",
         "received": "Recibida"
+      },
+      "payee_kind": {
+        "employee": "Empleado",
+        "agent": "Agente comercial"
+      },
+      "commission_basis": {
+        "on_collection": "Al recaudar la factura",
+        "on_invoice": "Al emitir la factura"
+      },
+      "commission_base_status": {
+        "open": "Abierta",
+        "closed": "Cerrada"
+      },
+      "commission_stage": {
+        "posted": "Causada",
+        "reversed": "Reversada",
+        "paid": "Pagada"
+      },
+      "commission_source": {
+        "invoice": "Factura",
+        "receipt": "Recibo de caja",
+        "advance": "Aplicación de anticipo",
+        "note": "Nota crédito",
+        "annulment": "Anulación de factura",
+        "void": "Anulación de recaudo"
       }
     },
     "order": {
@@ -5920,13 +6045,23 @@
       "issue_refused": "Ventas: si Inventario no puede despachar, la entrega vuelve atrás con el motivo",
       "return_void_refused": "Ventas: si Inventario no puede devolver el stock, la devolución vuelve atrás con el motivo",
       "re_reserve_recorded": "Ventas: anota en la entrega anulada si el inventario reservó de nuevo las existencias para el pedido",
-      "invoice_annulled": "Ventas: las entregas recuperan lo que la factura anulada había facturado"
+      "invoice_annulled": "Ventas: las entregas recuperan lo que la factura anulada había facturado",
+      "commission_bases": "Ventas: calcula las bases de comisión de las líneas facturadas de un pedido"
     },
     "print": {
       "delivery_title": "Remisión de entrega"
     },
     "price": {
       "converted": "Precio convertido de COP a {rate}"
+    },
+    "commission_plan": {
+      "intro": "Quién gana comisión, a qué tasa y sobre los pedidos de qué vendedores. Cada vendedor ve solo los planes que lo incluyen."
+    },
+    "commission": {
+      "own_flags": {
+        "requires_approval": "No pide aprobación: la comisión la causa la factura o su recaudo.",
+        "posts": "Contabiliza siempre: cada comisión causada genera su asiento con la cuenta por pagar."
+      }
     }
   },
   "invoicing": {

@@ -167,3 +167,34 @@ describe("IVA exento por exportación (item 134, Task 34.8a)", () => {
     expect((await linesOf(domestic.id)).map((l) => [l.iva_rate, Number(l.iva)])).toEqual([["5", 1000]]);
   });
 });
+
+// The commission lines of the issued event (plan 2B.2 Task 30.1, Part G PG §5.2, item 158): every invoice line billed from a pedido line,
+// free samples left out, with the invoice line's id, its pedido and category, and the subtotal before taxes in pesos and in the document.
+describe("invoicing.invoice.issued carries commissionLines (Task 30.1)", () => {
+  type CommissionLine = { invoiceLineId: string; orderId: string; orderLineId: string; productId: string; categoryId: string | null; subtotal: number; subtotalDoc: number; costCenterId?: string };
+  const payloadOf = async (invoiceId: string) => (await h.issuedEvent(invoiceId))[0]!.payload as { commissionLines: CommissionLine[] };
+
+  it("an invoice billed from a pedido names each pedido line with the invoice line's id; a free sample is left out", async () => {
+    const sample = await h.product("MUESTRA-30", { description: "Muestra de café", isFreeSample: true, referencePriceType: "1", referencePrice: 28500, listPrice: 0, trackStock: false });
+    const order = await h.confirmedOrder([{ productId: h.cafe, qty: 3 }, { productId: h.servicio, qty: 1 }, { productId: sample, qty: 1 }]);
+    await h.shipDelivery(order.id);
+    expect(await h.drain()).toEqual([]);
+    const { invoices } = await h.run<{ invoices: InvoiceOut[] }>(h.admin, "invoicing.invoice.from_orders", { orderIds: [order.id] });
+    const draftId = invoices[0]!.id;
+    expect(await h.sql`select free_sample from invoicing.invoice_lines where invoice_id = ${draftId} and product_id = ${sample}`).toEqual([{ free_sample: true }]);
+    await h.run(h.admin, "invoicing.invoice.issue", { id: draftId });
+    const lines = await h.sql<{ id: string; order_id: string; order_line_id: string; product_id: string; category_id: string | null; subtotal_company: string; base: string }[]>`
+      select id, order_id, order_line_id, product_id, category_id, subtotal_company::text, base::text from invoicing.invoice_lines where invoice_id = ${draftId} and product_id <> ${sample} order by line_no`;
+    expect((await payloadOf(draftId)).commissionLines).toEqual(lines.map((l) => ({
+      invoiceLineId: l.id, orderId: order.id, orderLineId: l.order_line_id, productId: l.product_id, categoryId: l.category_id,
+      subtotal: Number(l.subtotal_company), subtotalDoc: Number(l.base), costCenterId: h.costCenterId,
+    })));
+    expect(lines.map((l) => l.order_line_id).sort()).toEqual(order.lineIds.slice(0, 2).sort());
+  });
+
+  it("an invoice with no pedido line carries no commission line", async () => {
+    const draft = await h.run<InvoiceOut>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, lines: [{ productId: h.servicio, qty: 1 }] });
+    await h.run(h.admin, "invoicing.invoice.issue", { id: draft.id });
+    expect((await payloadOf(draft.id)).commissionLines).toEqual([]);
+  });
+});

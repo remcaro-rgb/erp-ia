@@ -33,5 +33,25 @@
     }
   ],
   "currency": "COP",
-  "exchangeRate": 1
+  "exchangeRate": 1,
+  "commissionLines": [
+    {
+      "invoiceLineId": "0192b4c0-0000-7000-8000-00000000f101",
+      "orderId": "0192b4c0-0000-7000-8000-00000000e001",
+      "orderLineId": "0192b4c0-0000-7000-8000-00000000e101",
+      "productId": "0192b4c0-0000-7000-8000-00000000b001",
+      "categoryId": "bebidas",
+      "subtotal": 600000,
+      "subtotalDoc": 600000
+    },
+    {
+      "invoiceLineId": "0192b4c0-0000-7000-8000-00000000f102",
+      "orderId": "0192b4c0-0000-7000-8000-00000000e001",
+      "orderLineId": "0192b4c0-0000-7000-8000-00000000e102",
+      "productId": "0192b4c0-0000-7000-8000-00000000b002",
+      "categoryId": "comida",
+      "subtotal": 400000,
+      "subtotalDoc": 400000
+    }
+  ]
 }

@@ -7,6 +7,8 @@ import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, order
 import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
 import { PRICING_PROCESSES } from "./processes/pricing";
+import { COMMISSION_DUE, COMMISSION_PROCESSES, commissionHooks } from "./processes/commission";
+import { COMMISSION_PLAN_PROCESSES, commissionPlanHooks } from "./processes/commission-plan";
 import { onReturnVoidRefused, RETURN_PROCESSES, RETURN_RECEIVED, RETURN_VOIDED, returnHooks } from "./processes/return";
 
 /**
@@ -38,13 +40,16 @@ export const sales: ModuleDef = defineModule({
   icon: "shopping-cart",
   entities: SALES_ENTITIES,
   // sales.order.reassign (Task 39): the «all orders» permission of the owner isolation (migration 0139) and the owner change.
-  processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES],
+  // Commissions (Task 30.1): the plans, the bases of an issued invoice (sales.commission.compute, from the invoicing.invoice.issued consumer)
+  // and sales.commission.consult_all, the «all commissions» permission of the record rule (migration 0156).
+  processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES, ...COMMISSION_PLAN_PROCESSES, ...COMMISSION_PROCESSES],
   features: FEATURES,
   // Its Inicio cards (plan 2B Task 26).
   homeKpis: HOME_KPIS,
   homeCharts: HOME_CHARTS,
   events: {
-    emits: [ORDER_CREATED, ORDER_CONFIRMED, ORDER_CANCELLED, DELIVERY_SHIPPED, DELIVERY_VOIDED, RETURN_RECEIVED, RETURN_VOIDED],
+    // sales.commission.due { invoiceId, basis } (Task 30.1): an issued invoice wrote commission bases; Task 30.2's consumer accrues them.
+    emits: [ORDER_CREATED, ORDER_CONFIRMED, ORDER_CANCELLED, DELIVERY_SHIPPED, DELIVERY_VOIDED, RETURN_RECEIVED, RETURN_VOIDED, COMMISSION_DUE],
     consumes: {
       "inventory.movement.posted": onMovementPosted,
       // Inventory could not issue a despacho / take back a devolución's stock: the document goes back with the reason (Task 14 review).
@@ -52,7 +57,8 @@ export const sales: ModuleDef = defineModule({
       "inventory.sale_return_void.refused": onReturnVoidRefused,
       // The outcome of the re-reservation a voided entrega asked for (Task 43): recorded on the entrega, «Reserva al anular».
       "inventory.delivery_reservation.restored": onReReservation,
-      // What an issued invoice billed of each entrega line (Task 16: sales never imports invoicing; it reads invoicing's published view).
+      // What an issued invoice billed of each entrega line (Task 16: sales never imports invoicing; it reads invoicing's published view),
+      // then the commission bases of its lines billed from a pedido (Task 30.1: a second, separate run).
       "invoicing.invoice.issued": onInvoiceIssued,
       // An invoice voided by its accepted annulment note (Task 18): the entregas get back what it invoiced.
       "invoicing.invoice.annulled": onInvoiceAnnulled,
@@ -66,17 +72,18 @@ export const sales: ModuleDef = defineModule({
     "inventory.sale_issue.refused": ["sales.effects.issue_refused"],
     "inventory.sale_return_void.refused": ["sales.effects.return_void_refused"],
     "inventory.delivery_reservation.restored": ["sales.effects.re_reserve_recorded"],
-    "invoicing.invoice.issued": ["sales.effects.invoice_issued"],
+    "invoicing.invoice.issued": ["sales.effects.invoice_issued", "sales.effects.commission_bases"],
     "invoicing.invoice.annulled": ["sales.effects.invoice_annulled"],
   },
   // The lifecycle of the pedido (entity types spec §5): Grabar runs the checks; it numbers PED- on save.
-  typedHooks: { "sales.order": orderHooks, "sales.delivery": deliveryHooks, "sales.return": returnHooks },
+  typedHooks: { "sales.order": orderHooks, "sales.delivery": deliveryHooks, "sales.return": returnHooks, "sales.commission_plan": commissionPlanHooks, "sales.commission": commissionHooks },
   // What a pedido and an entrega print with when the company chose no template of its own (Task 14b).
   printTemplates: { "sales.order": { record: orderRecordTemplate }, "sales.delivery": { record: deliveryRecordTemplate }, "sales.return": { record: returnRecordTemplate } },
 });
 
-export { DELIVERY_STAGES, ORDER_STAGES, RETURN_STAGES, SALES_ENTITIES } from "./entities";
-export type { DeliveryStage, OrderStage } from "./entities";
+export { COMMISSION_BASES, COMMISSION_STAGES, DELIVERY_STAGES, ORDER_STAGES, PAYEE_KINDS, RETURN_STAGES, SALES_ENTITIES } from "./entities";
+export type { CommissionBasis, DeliveryStage, OrderStage, PayeeKind } from "./entities";
+export { COMMISSION_DUE } from "./processes/commission";
 export { DELIVERY_SHIPPED, DELIVERY_SOURCE, DELIVERY_VOIDED } from "./processes/delivery";
 export { RETURN_RECEIVED, RETURN_VOIDED } from "./processes/return";
 export { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_LINE_SOURCE } from "./processes/order";

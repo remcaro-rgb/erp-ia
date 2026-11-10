@@ -102,7 +102,7 @@ export interface InvoiceRow {
   credited_amount: string; debited_amount: string; annulment_note_id: string | null; auto_source: string | null;
 }
 export interface LineRow {
-  line_no: number; product_id: string; description: string | null; qty: string; unit_price: string; discount_pct: string; base: string; free_sample: boolean;
+  id: string; line_no: number; product_id: string; description: string | null; qty: string; unit_price: string; discount_pct: string; base: string; free_sample: boolean;
   subtotal_company: string; category_id: string | null; order_id: string | null; order_line_id: string | null; delivery_id: string | null; delivery_line_id: string | null;
 }
 
@@ -134,7 +134,7 @@ export async function outputOf(ctx: ProcessContext, invoiceId: string): Promise<
 
 async function linesOf(ctx: ProcessContext, invoiceId: string): Promise<LineRow[]> {
   return ctx.tx<LineRow[]>`
-    select line_no, product_id, description, qty::text, unit_price::text, discount_pct::text, base::text, free_sample, subtotal_company::text, category_id,
+    select id, line_no, product_id, description, qty::text, unit_price::text, discount_pct::text, base::text, free_sample, subtotal_company::text, category_id,
            order_id, order_line_id, delivery_id, delivery_line_id
     from invoicing.invoice_lines where invoice_id = ${invoiceId} order by line_no`;
 }
@@ -731,6 +731,11 @@ export const invoiceHooks: TypedHooks = {
     const company = companyAmounts(lines, taxes, rate);
     const revenue = company.revenue.map(({ line, subtotal, subtotalDoc }) => ({ subtotal, subtotalDoc, categoryId: line.category_id, ...(costCenterId ? { costCenterId } : {}) }));
     const taxLines = company.taxLines.map(({ tax, amount, amountDoc, base }) => ({ code: tax.ledger_code, rate: tax.rate === null ? null : num(tax.rate), amount, amountDoc, base }));
+    // The lines billed from a pedido, the commission bases of sales (Task 30.1, PG §5.2): the revenue lines (free samples left out, item 158),
+    // the subtotal before taxes after discounts in pesos and in the invoice's currency.
+    const commissionLines = company.revenue.flatMap(({ line, subtotal, subtotalDoc }) => (line.order_id && line.order_line_id
+      ? [{ invoiceLineId: line.id, orderId: line.order_id, orderLineId: line.order_line_id, productId: line.product_id, categoryId: line.category_id, subtotal, subtotalDoc, ...(costCenterId ? { costCenterId } : {}) }]
+      : []));
     const total = company.total;
     await ctx.tx`update invoicing.invoices set stage = 'issued', issued_at = now(), total_company = ${total} where id = ${invoice.id}`;
     await emitAndPostStrict(ctx, INVOICE_ISSUED, {
@@ -749,6 +754,7 @@ export const invoiceHooks: TypedHooks = {
       origin: invoice.origin,
       orderIds: [...new Set(lines.flatMap((l) => (l.order_id ? [l.order_id] : [])))],
       deliveryIds: [...new Set(lines.flatMap((l) => (l.delivery_id ? [l.delivery_id] : [])))],
+      commissionLines,
     }, { requireRule: true });
   },
 };

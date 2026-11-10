@@ -93,6 +93,10 @@ describe("(b) a partial application", () => {
     expect(await h.drain()).toEqual([]);
     expect((await h.stageOf(invoice.id)).stage).toBe("paid");
     expect(await remainingOf(partyId, receipt.id)).toBe(262000);
+    // Each allocation of the event says what stays open of the invoice after it (Task 30.1): 138.000 after the partial, 0 after the rest.
+    const openAfter = async (applicationId: string) => ((await h.eventsOf("payments.advance.applied", applicationId))[0]!.payload.allocations as { openAfterDoc: number }[]).map((a) => a.openAfterDoc);
+    expect(await openAfter(application.id)).toEqual([138000]);
+    expect(await openAfter(second.id)).toEqual([0]);
   });
 });
 

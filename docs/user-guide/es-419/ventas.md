@@ -3,9 +3,12 @@ title: "Ventas: precios y condiciones comerciales"
 routes:
   - /sales/customer-terms
   - /sales/settings
+  - /sales/commission-plans
 processes:
   - sales.customer_terms.set
   - sales.settings.update
+  - sales.commission_plan.create
+  - sales.commission_plan.update
   - sales.price.resolve
   - sales.discount.resolve
   - core.price_list.create
@@ -50,9 +53,17 @@ Para que una lista se use, asígnala a un cliente en **Condiciones comerciales**
 
 ## Parámetros de ventas
 
-**Ventas › Parámetros › Parámetros de ventas**: la **Lista de precios predeterminada**, la que da el precio a los clientes sin lista propia o cuando su lista no trae el producto. Debe estar activa (y aprobada, si las listas requieren aprobación). Sin lista predeterminada, se usa el precio de lista del producto. El **Descuento máximo de un pedido sin aprobación (%)**: un pedido con una línea de descuento mayor espera aprobación; vacío, ningún pedido la espera por su descuento.
+**Ventas › Parámetros › Parámetros de ventas**: la **Lista de precios predeterminada**, la que da el precio a los clientes sin lista propia o cuando su lista no trae el producto. Debe estar activa (y aprobada, si las listas requieren aprobación). Sin lista predeterminada, se usa el precio de lista del producto. El **Descuento máximo de un pedido sin aprobación (%)**: un pedido con una línea de descuento mayor espera aprobación; vacío, ningún pedido la espera por su descuento. Cuándo gana el vendedor su comisión, **Al emitir la factura** o **Al recaudar la factura** (en proporción a lo que se recauda; es la opción inicial), se fija pidiéndolo al **asistente** («cambia la comisión a al emitir la factura»). La base y la tasa de cada línea quedan fijas al emitir la factura, así cambies el plan o esta opción después.
 
 Las cotizaciones que usan estos precios se explican en la guía **Cotizaciones**; los pedidos, en la guía **Pedidos de venta**.
+
+## Planes de comisión
+
+**Ventas › Maestros › Planes de comisión**: quién gana comisión por lo que vende. Un plan tiene un **Nombre**, el **Beneficiario** (el tercero al que se le paga: un **Empleado** o un **Agente comercial**, de tipo empleado o proveedor y listo para facturar), los **usuarios** cuyos pedidos comisionan bajo el plan, la **Tasa general (%)**, una tasa por **categoría de producto** si alguna gana distinto, los **Días para pagar** y las fechas **Vigente desde** y **Vigente hasta** (vacía, sin fin). Un usuario está en un solo plan activo a la vez: un plan que se cruza en fechas con otro del mismo usuario no se acepta. El listado muestra los planes; para crear uno con sus usuarios y sus tasas por categoría, o cambiarlos, pídelo al **asistente** («crea un plan de comisión del 5 % para Andrea, 7 % en Café molido»), que te muestra el plan y te pide confirmar.
+
+Al emitir una factura hecha desde un pedido, cada línea guarda su **base de comisión**: el subtotal de la línea antes de impuestos y después de descuentos, en pesos (y en la moneda de la factura si es en otra moneda), con la tasa de la categoría de su producto o la general del plan del vendedor del pedido. Las muestras gratuitas y las líneas que no vienen de un pedido no comisionan; un vendedor sin plan, tampoco.
+
+Cada vendedor ve solo los planes y las bases de los planes que lo incluyen. Quien tiene el permiso **Ver las comisiones de todos los vendedores** (en **Administración › Roles**; un rol nuevo no lo trae) ve todos. Las tasas y los valores son confidenciales: un rol que no ve datos confidenciales los ve ocultos.
 
 ## El PDF de una entrega
 

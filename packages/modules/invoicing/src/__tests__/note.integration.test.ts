@@ -138,6 +138,9 @@ describe("credit and debit notes of an accepted invoice", () => {
     // A partial credit is a sales return by its concept (sales_returns, note_reason:1 → the role's 417505), never the revenue account.
     expect(byCode["417505"]).toEqual({ debit: 28500, credit: 0 });
     expect(Object.keys(byCode).sort()).toEqual(["130505", "240802", "417505"]);
+    // Each line of the event names the invoice line it adjusts (Task 30.1): sales reverses that line's commission base.
+    const [payload] = await h.sql<{ lines: { invoiceLineId: string; subtotal: number }[] }[]>`select payload->'lines' as lines from kernel.outbox where id = ${event!.id}`;
+    expect(payload!.lines).toEqual([expect.objectContaining({ invoiceLineId: cafeLine!.id, subtotal: -28500 })]);
 
     expect(await h.drain()).toEqual([]);
     const s = await settle({ noteId: issued.id });
