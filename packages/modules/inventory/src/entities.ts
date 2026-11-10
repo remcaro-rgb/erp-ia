@@ -4,8 +4,10 @@ import type { EntityDef, EntityType, FieldDef, FieldType } from "@erp/kernel";
 // read `inventory.values.*`. Field names are the column names; the masked views `inventory.v_<table>` of migration 0066 are generated from
 // these definitions (entities.test.ts fails when they drift). Bodegas and ubicaciones are maestros; a movimiento is a documento that
 // numbers on save and neither posts (contabiliza false: costing values it and accounting posts from its events) nor needs approval; its
-// lines, the stock levels and the reservations are written only by the inventory processes. Lots and serials arrive in 2B.2 (OD-8): the
-// line and stock tables carry the nullable `lot_id` / `serial_id` columns already, unused.
+// lines, the stock levels and the reservations are written only by the inventory processes. Lots and serials (2B.2 Task 28, OD-8, PG §3.1):
+// a lot and a serial are maestros of one product (code / number unique per product, item 145); the tracking of a product (none, lot,
+// serial, FEFO, expiry) is the parametro inventory.product_tracking, inventory's own because core.products is core's (rule 3); the line
+// and stock tables name them through `lot_id` / `serial_id`.
 
 type FieldOptions = Omit<FieldDef, "name" | "type" | "label">;
 
@@ -67,6 +69,16 @@ export const TRANSFER_STAGES = ["requested", "in_transit", "received"];
 /** Where a count is: open (being counted), applied (its differences posted as one adjustment). */
 export const COUNT_STAGES = ["open", "applied"];
 export const RESERVATION_STATUSES = ["active", "released"];
+/** How a product's stock is tracked (PG §3.1): not at all (the default), by lot, or one unit per serial number. */
+export const TRACKING_KINDS = ["none", "lot", "serial"] as const;
+export type TrackingKind = (typeof TRACKING_KINDS)[number];
+/** A lot is sold (active) or held back (blocked: FEFO skips it, 28.3). Apart from the maestro lifecycle `status` (typed_columns owns it). */
+export const LOT_STATUSES = ["active", "blocked"] as const;
+/**
+ * Where a serial is (kept by the processes only, read only on the form): in stock (`available`), gone with an issue (`issued`), written
+ * off by an adjustment (`scrapped`). Null: registered by hand and never received (`available` only by a process, 28.2).
+ */
+export const SERIAL_STATUSES = ["available", "issued", "scrapped"] as const;
 
 const maestroLifecycle = (f: F): FieldDef[] => [
   f("status", "enum", { enumValues: MAESTRO_STATES, valuesKey: "grid.values.record_status" }),
@@ -77,6 +89,8 @@ const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref
 const product = ref("core.product", "description");
 const warehouseRef = ref("inventory.warehouse", "name");
 const locationRef = ref("inventory.location", "code");
+const lotRef = ref("inventory.lot", "code");
+const serialRef = ref("inventory.serial", "serial_no");
 
 // Bodega.
 export const warehouseEntity: EntityDef = entity("inventory.warehouse", "maestro", "warehouses", "name", (f) => [
@@ -123,6 +137,8 @@ export const movementEntity: EntityDef = entity("inventory.movement", "documento
   f("requires_approval", "boolean"),
   f("posts", "boolean"),
   f("void_reason", "text"),
+  // The customer a sale issue or return answers to (Task 28.1, PG §3.6: the recall report names it without reading sales; rule 3).
+  f("party_id", "ref", ref("core.party", "legal_name")),
 ], {
   typed: {
     numbering: "on_save",
@@ -144,8 +160,8 @@ export const movementLineEntity: EntityDef = entity("inventory.movement_line", "
   f("line_no", "number", { required: true }),
   f("product_id", "ref", { required: true, ...product }),
   f("location_id", "ref", locationRef),
-  f("lot_id", "uuid"),
-  f("serial_id", "uuid"),
+  f("lot_id", "ref", lotRef),
+  f("serial_id", "ref", serialRef),
   f("qty", "number", { required: true }),
   f("uom", "text", { required: true }),
   // Company currency; costing (Task 8) values the issues, a receipt may bring its cost.
@@ -161,8 +177,8 @@ export const stockLevelEntity: EntityDef = entity("inventory.stock_level", "sist
   f("product_id", "ref", { required: true, ...product }),
   f("warehouse_id", "ref", { required: true, ...warehouseRef }),
   f("location_id", "ref", locationRef),
-  f("lot_id", "uuid"),
-  f("serial_id", "uuid"),
+  f("lot_id", "ref", lotRef),
+  f("serial_id", "ref", serialRef),
   f("on_hand", "number", { required: true }),
   ...trailer(f),
 ]);
@@ -267,7 +283,61 @@ export const countLineEntity: EntityDef = entity("inventory.count_line", "lines"
   ...trailer(f),
 ]);
 
+// Lote (Task 28.1, PG §3.1): of one product, its code free text unique per product whatever its case (item 145); expiry and production
+// dates order FEFO (28.3). `lot_status` blocks it for sale; the maestro lifecycle (`status`, Activo) is the kernel's as for any maestro.
+export const lotEntity: EntityDef = entity("inventory.lot", "maestro", "lots", "code", (f) => [
+  f("seq", "number", { required: true }),
+  f("product_id", "ref", { required: true, ...product }),
+  f("code", "text", { required: true, searchable: true }),
+  f("expires_on", "date"),
+  f("produced_on", "date"),
+  f("lot_status", "enum", { required: true, enumValues: [...LOT_STATUSES], valuesKey: "inventory.values.lot_status" }),
+  f("note", "text", { searchable: true }),
+  f("is_active", "boolean"),
+  ...trailer(f),
+  ...maestroLifecycle(f),
+], { importKey: ["product_id", "code"], cloneReset: ["seq", "code"], defaultSort: { field: "expires_on", dir: "asc" } });
+
+// Serial (Task 28.1): one unit of a product, its number unique per product, optionally inside a lot of the same product. Its
+// `serial_status` is kept by the movements (28.2), read only on the form.
+export const serialEntity: EntityDef = entity("inventory.serial", "maestro", "serials", "serial_no", (f) => [
+  f("seq", "number", { required: true }),
+  f("product_id", "ref", { required: true, ...product }),
+  f("serial_no", "text", { required: true, searchable: true }),
+  f("lot_id", "ref", lotRef),
+  f("serial_status", "enum", { enumValues: [...SERIAL_STATUSES], valuesKey: "inventory.values.serial_status" }),
+  f("note", "text", { searchable: true }),
+  f("is_active", "boolean"),
+  ...trailer(f),
+  ...maestroLifecycle(f),
+], { importKey: ["product_id", "serial_no"], cloneReset: ["seq", "serial_no", "serial_status"] });
+
+// Seguimiento por producto (Task 28.1, Parámetros): one row per product; a product without a row is untracked (none, FEFO on, expiry not
+// required, expired lots blocked). Set by inventory.product_tracking.set (step-up), refused while the product has stock (item 146).
+export const productTrackingEntity: EntityDef = entity("inventory.product_tracking", "parametro", "product_tracking", "product_id", (f) => [
+  f("seq", "number", { required: true }),
+  f("product_id", "ref", { required: true, ...product }),
+  f("tracking", "enum", { required: true, enumValues: [...TRACKING_KINDS], valuesKey: "inventory.values.tracking" }),
+  f("fefo", "boolean", { required: true }),
+  f("expiry_required", "boolean", { required: true }),
+  f("block_expired", "boolean", { required: true }),
+  ...trailer(f),
+]);
+
+// Asignación de una reserva (Task 28.1, empty until 29.1): where, from which lot and which serial a reservation will be picked. Written
+// only by inventory.reservation.allocate (29.1); a reservation may be split over several lots.
+export const reservationAllocationEntity: EntityDef = entity("inventory.reservation_allocation", "sistema", "reservation_allocations", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("reservation_id", "ref", { required: true, ...ref("inventory.reservation", "seq") }),
+  f("location_id", "ref", locationRef),
+  f("lot_id", "ref", lotRef),
+  f("serial_id", "ref", serialRef),
+  f("qty", "number", { required: true }),
+  ...trailer(f),
+], { defaultSort: { field: "seq", dir: "desc" } });
+
 export const INVENTORY_ENTITIES: EntityDef[] = [
   warehouseEntity, locationEntity, movementEntity, movementLineEntity, stockLevelEntity, reservationEntity,
   transferEntity, transferLineEntity, countEntity, countLineEntity,
+  lotEntity, serialEntity, productTrackingEntity, reservationAllocationEntity,
 ];

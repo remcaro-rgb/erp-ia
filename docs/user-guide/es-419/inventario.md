@@ -7,6 +7,9 @@ routes:
   - /inventory/transfers
   - /inventory/counts
   - /inventory/stock
+  - /inventory/lots
+  - /inventory/serials
+  - /inventory/product-tracking
   - /costing/layers
   - /costing/missing
   - /costing/landed-costs
@@ -28,6 +31,14 @@ processes:
   - inventory.count.apply
   - inventory.count.void
   - inventory.stock_level.consult
+  - inventory.lot.create
+  - inventory.lot.update
+  - inventory.lot.consult
+  - inventory.serial.create
+  - inventory.serial.update
+  - inventory.serial.consult
+  - inventory.product_tracking.set
+  - inventory.product_tracking.consult
   - costing.cost_layer.consult
   - costing.cost_missing.consult
   - costing.landed_cost.allocate
@@ -52,6 +63,20 @@ Están en **Inventario › Maestros**.
 3. **Ubicaciones** divide una bodega en estantes o zonas. Elige la bodega al crear la ubicación. Después ya no se puede cambiar.
 
 La empresa tiene además una bodega de tránsito (código `TRANSITO`). El sistema la usa sola para los traslados despachados que aún no se reciben, y no aparece en las listas de los formularios.
+
+## Lotes, seriales y seguimiento por producto
+
+Un producto puede seguirse **por lote** (por ejemplo café con fecha de tostión y de vencimiento) o **por serial** (una unidad con su número, como un molino). Por defecto un producto no tiene seguimiento y todo funciona como siempre.
+
+1. **Inventario › Parámetros › Seguimiento por producto** dice cómo se sigue cada producto: **Sin seguimiento**, **Por lote** o **Por serial**. Para un producto por lote hay tres opciones más:
+   - **FEFO**: al vender sale primero el lote que vence antes.
+   - **Vencimiento obligatorio**: un lote sin fecha de vencimiento se rechaza.
+   - **Bloquea lotes vencidos**: un lote vencido no se vende.
+2. Cambiar el seguimiento de un producto pide tu **código de verificación**. Solo se puede cuando el producto **no tiene existencias** en ninguna bodega. Si las tiene, sácalas primero con un ajuste y vuelve a entrarlas con su lote después del cambio. Cambiar solo FEFO, el vencimiento o el bloqueo no pide sacar nada.
+3. **Inventario › Maestros › Lotes** lista los lotes. Cada lote es de **un solo producto**. Su **Código** es el que traes del proveedor o escaneas, y no se repite dentro del mismo producto (dos productos sí pueden tener el mismo código). Lleva **Vence**, **Producido** y una **Nota**. Un lote **Bloqueado** queda retenido y no se vende.
+4. **Inventario › Maestros › Seriales** lista los seriales. Cada uno es una unidad de un producto por serial, con su número único dentro del producto y, si quieres, el lote al que pertenece. Su **Estado del serial** lo llevan los movimientos: **Disponible** cuando entra, **Despachado** cuando sale, **Dado de baja** en un ajuste. No se cambia a mano.
+
+En las líneas de movimiento y en **Existencias** se ven las columnas **Lote** y **Serial**. Están vacías en los productos sin seguimiento.
 
 ## Movimientos: entradas, salidas y ajustes
 

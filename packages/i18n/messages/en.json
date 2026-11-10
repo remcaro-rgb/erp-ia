@@ -1298,7 +1298,9 @@
         "location": "location",
         "movement": "inventory movement",
         "transfer": "inventory transfer",
-        "count": "physical count"
+        "count": "physical count",
+        "lot": "lot",
+        "serial": "serial"
       },
       "costing": {
         "landed_cost": "landed cost"
@@ -1364,7 +1366,10 @@
       "movements": "Movements",
       "transfers": "Transfers",
       "counts": "Counts",
-      "stock": "Stock on hand"
+      "stock": "Stock on hand",
+      "lots": "Lots",
+      "serials": "Serials",
+      "product_tracking": "Product tracking"
     },
     "costing": {
       "landed_costs": "Landed costs",
@@ -1464,7 +1469,11 @@
       "transfer": "Inventory transfer",
       "transfer_line": "Transfer line",
       "count": "Physical count",
-      "count_line": "Count line"
+      "count_line": "Count line",
+      "lot": "Lot",
+      "serial": "Serial",
+      "product_tracking": "Product tracking",
+      "reservation_allocation": "Reservation allocation"
     },
     "costing": {
       "cost_layer": "Cost layer",
@@ -2263,7 +2272,8 @@
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
-        "updated_at": "Updated"
+        "updated_at": "Updated",
+        "party_id": "Party"
       },
       "movement_line": {
         "seq": "ID",
@@ -2375,6 +2385,61 @@
         "counted_qty": "Counted quantity",
         "difference": "Difference",
         "recorded_at": "Counted on",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "lot": {
+        "seq": "ID",
+        "product_id": "Product",
+        "code": "Code",
+        "expires_on": "Expires",
+        "produced_on": "Produced",
+        "lot_status": "Lot status",
+        "note": "Note",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
+      },
+      "serial": {
+        "seq": "ID",
+        "product_id": "Product",
+        "serial_no": "Serial",
+        "lot_id": "Lot",
+        "serial_status": "Serial status",
+        "note": "Note",
+        "is_active": "Active",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval"
+      },
+      "product_tracking": {
+        "seq": "ID",
+        "product_id": "Product",
+        "tracking": "Tracking",
+        "fefo": "FEFO (first expired, first out)",
+        "expiry_required": "Expiry required",
+        "block_expired": "Blocks expired lots",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "reservation_allocation": {
+        "seq": "ID",
+        "reservation_id": "Reservation",
+        "location_id": "Location",
+        "lot_id": "Lot",
+        "serial_id": "Serial",
+        "qty": "Quantity",
         "extra": "Additional data",
         "extra_free": "Free data",
         "created_at": "Created",
@@ -5407,6 +5472,20 @@
       "count_stage": {
         "open": "Open",
         "applied": "Applied"
+      },
+      "lot_status": {
+        "active": "Active",
+        "blocked": "Blocked"
+      },
+      "serial_status": {
+        "available": "Available",
+        "issued": "Issued",
+        "scrapped": "Scrapped"
+      },
+      "tracking": {
+        "none": "Not tracked",
+        "lot": "By lot",
+        "serial": "By serial"
       }
     },
     "transfer": {
@@ -5504,6 +5583,15 @@
       "delivery_reserve_again": "Inventory: when asked, reserves the voided delivery's stock for the order again, if it suffices",
       "return_reentry": "Inventory: puts the returned stock back in the warehouse",
       "return_void": "Inventory: takes the stock of the voided return out of the warehouse again"
+    },
+    "lot": {
+      "intro": "Each lot belongs to one lot-tracked product; its code is unique per product. A blocked lot is not sold."
+    },
+    "serial": {
+      "intro": "Each serial is one unit of a serial-tracked product. The movements keep its status: available when received, issued when sold, scrapped by an adjustment."
+    },
+    "tracking": {
+      "intro": "How each product is tracked: not at all, by lot (with FEFO and expiry) or by serial. Changing it asks for the second factor and is allowed only while the product has no stock."
     }
   },
   "costing": {

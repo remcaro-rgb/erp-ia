@@ -5,6 +5,8 @@ import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { INVENTORY_PROCESSES } from "./processes";
 import { MOVEMENT_POSTED, MOVEMENT_VOIDED, movementHooks } from "./processes/movement";
 import { countHooks } from "./processes/count";
+import { lotHooks } from "./processes/lot";
+import { serialHooks } from "./processes/serial";
 import { DELIVERY_RESERVATION_RESTORED, onDeliveryShipped, onDeliveryVoided, onReturnReceived, onReturnVoided, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
 import { INVENTORY_POSTING_RULES } from "./rules";
 import { onOrderCancelled, onOrderConfirmed } from "./processes/sales-orders";
@@ -19,7 +21,7 @@ import { locationHooks, warehouseHooks } from "./processes/warehouse";
  * sales.order.cancelled (processes/sales-orders.ts), and the entregas and devoluciones (Task 14, processes/sales-deliveries.ts):
  * sales.delivery.shipped posts the sale issue and uses up the reservation, sales.delivery.voided voids it, sales.return.received posts
  * the sale return at the issue's cost, sales.return.voided voids it. A voided entrega may also promise its stock back to the pedido's lines
- * (Task 43: the nested inventory.reservation.reserve_again, answered to sales as inventory.delivery_reservation.restored). Lots and serials, picking and put-away arrive in 2B.2 (OD-8).
+ * (Task 43: the nested inventory.reservation.reserve_again, answered to sales as inventory.delivery_reservation.restored). Lots and serials (Task 28, OD-8): the lot and serial maestros and the tracking per product (processes/lot.ts, serial.ts, tracking.ts); picking and put-away are the warehouse module's (Task 29).
  *
  * One read is declared in `needs`, not `dependsOn` (costing depends on inventory; Task 41): an adjustment is valued at costing's weighted average of its bodega through the published
  * definer function costing.average_costs() (migrations 0073 and 0075; processes/common.ts productCosts). It is a read of a published
@@ -69,6 +71,8 @@ export const inventory: ModuleDef = defineModule({
     "inventory.movement": movementHooks,
     "inventory.transfer": transferHooks,
     "inventory.count": countHooks,
+    "inventory.lot": lotHooks,
+    "inventory.serial": serialHooks,
   },
 });
 
@@ -80,3 +84,5 @@ export { onOrderCancelled, onOrderConfirmed, ORDER_LINE_SOURCE } from "./process
 export { DELIVERY_RESERVATION_RESTORED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
 export { applyStock, lockStockLegs, MOVEMENT_POSTED, MOVEMENT_VOIDED, postMovement } from "./processes/movement";
 export type { MovementEvent, MovementEventLine, MovementInput, PostedMovement } from "./processes/movement";
+export { DEFAULT_TRACKING, trackingOf } from "./processes/tracking";
+export type { ProductTracking } from "./processes/tracking";

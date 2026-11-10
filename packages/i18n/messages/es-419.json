@@ -1298,7 +1298,9 @@
         "location": "ubicación",
         "movement": "movimiento de inventario",
         "transfer": "traslado de inventario",
-        "count": "conteo físico"
+        "count": "conteo físico",
+        "lot": "lote",
+        "serial": "serial"
       },
       "costing": {
         "landed_cost": "costo en destino"
@@ -1364,7 +1366,10 @@
       "movements": "Movimientos",
       "transfers": "Transferencias",
       "counts": "Conteos",
-      "stock": "Existencias"
+      "stock": "Existencias",
+      "lots": "Lotes",
+      "serials": "Seriales",
+      "product_tracking": "Seguimiento por producto"
     },
     "costing": {
       "landed_costs": "Costos en destino",
@@ -1464,7 +1469,11 @@
       "transfer": "Traslado de inventario",
       "transfer_line": "Línea de traslado",
       "count": "Conteo físico",
-      "count_line": "Línea de conteo"
+      "count_line": "Línea de conteo",
+      "lot": "Lote",
+      "serial": "Serial",
+      "product_tracking": "Seguimiento por producto",
+      "reservation_allocation": "Asignación de reserva"
     },
     "costing": {
       "cost_layer": "Capa de costo",
@@ -2263,7 +2272,8 @@
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
-        "updated_at": "Actualizado"
+        "updated_at": "Actualizado",
+        "party_id": "Tercero"
       },
       "movement_line": {
         "seq": "ID",
@@ -2375,6 +2385,61 @@
         "counted_qty": "Cantidad contada",
         "difference": "Diferencia",
         "recorded_at": "Contado el",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "lot": {
+        "seq": "ID",
+        "product_id": "Producto",
+        "code": "Código",
+        "expires_on": "Vence",
+        "produced_on": "Producido",
+        "lot_status": "Estado del lote",
+        "note": "Nota",
+        "is_active": "Activo",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación"
+      },
+      "serial": {
+        "seq": "ID",
+        "product_id": "Producto",
+        "serial_no": "Serial",
+        "lot_id": "Lote",
+        "serial_status": "Estado del serial",
+        "note": "Nota",
+        "is_active": "Activo",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación"
+      },
+      "product_tracking": {
+        "seq": "ID",
+        "product_id": "Producto",
+        "tracking": "Seguimiento",
+        "fefo": "FEFO (primero en vencer, primero en salir)",
+        "expiry_required": "Vencimiento obligatorio",
+        "block_expired": "Bloquea lotes vencidos",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "reservation_allocation": {
+        "seq": "ID",
+        "reservation_id": "Reserva",
+        "location_id": "Ubicación",
+        "lot_id": "Lote",
+        "serial_id": "Serial",
+        "qty": "Cantidad",
         "extra": "Datos adicionales",
         "extra_free": "Datos libres",
         "created_at": "Creado",
@@ -5407,6 +5472,20 @@
       "count_stage": {
         "open": "Abierto",
         "applied": "Aplicado"
+      },
+      "lot_status": {
+        "active": "Activo",
+        "blocked": "Bloqueado"
+      },
+      "serial_status": {
+        "available": "Disponible",
+        "issued": "Despachado",
+        "scrapped": "Dado de baja"
+      },
+      "tracking": {
+        "none": "Sin seguimiento",
+        "lot": "Por lote",
+        "serial": "Por serial"
       }
     },
     "transfer": {
@@ -5504,6 +5583,15 @@
       "delivery_reserve_again": "Inventario: si se pidió, vuelve a reservar para el pedido las existencias de la entrega anulada, cuando alcanzan",
       "return_reentry": "Inventario: reingresa a la bodega el stock devuelto",
       "return_void": "Inventario: vuelve a sacar de la bodega el stock de la devolución anulada"
+    },
+    "lot": {
+      "intro": "Cada lote es de un producto que se sigue por lote; su código es único por producto. Un lote bloqueado no se vende."
+    },
+    "serial": {
+      "intro": "Cada serial es una unidad de un producto que se sigue por serial. Su estado lo llevan los movimientos: disponible al recibirlo, despachado al venderlo, dado de baja en un ajuste."
+    },
+    "tracking": {
+      "intro": "Cómo se sigue cada producto: sin seguimiento, por lote (con FEFO y vencimiento) o por serial. Cambiarlo pide el segundo factor y solo se puede cuando el producto no tiene existencias."
     }
   },
   "costing": {

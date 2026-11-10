@@ -198,8 +198,9 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "inventory.movement_line": {
     title: "line_no",
-    shown: ["line_no", "product_id", "location_id", "qty", "uom", "unit_cost"],
-    exclude: ["extra", "extra_free", "lot_id", "serial_id", "source_entity", "source_line_id", "movement_id"],
+    // Lots and serials (Task 28.1): the lot's code and the serial number, links to their maestros (rule 21); empty on untracked lines.
+    shown: ["line_no", "product_id", "location_id", "lot_id", "serial_id", "qty", "uom", "unit_cost"],
+    exclude: ["extra", "extra_free", "source_entity", "source_line_id", "movement_id"],
     fields: { uom: { display: "mono" } },
   },
   "inventory.transfer": {
@@ -222,9 +223,28 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "inventory.stock_level": {
     title: "product_id",
-    shown: ["product_id", "warehouse_id", "location_id", "on_hand", "updated_at"],
-    exclude: ["extra", "extra_free", "lot_id", "serial_id", "created_at"],
+    shown: ["product_id", "warehouse_id", "location_id", "lot_id", "serial_id", "on_hand", "updated_at"],
+    exclude: ["extra", "extra_free", "created_at"],
     fields: {},
+  },
+  // Lotes, Seriales and Seguimiento por producto (plan 2B.2 Task 28.1).
+  "inventory.lot": {
+    title: "code",
+    shown: ["seq", "product_id", "code", "expires_on", "produced_on", "lot_status", "note", "status", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: { code: { display: "mono" }, lot_status: { valuesKey: "inventory.values.lot_status", pills: { active: "ok", blocked: "danger" } }, status: recordStatus, is_active: active },
+  },
+  "inventory.serial": {
+    title: "serial_no",
+    shown: ["seq", "product_id", "serial_no", "lot_id", "serial_status", "note", "status", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: { serial_no: { display: "mono" }, serial_status: { valuesKey: "inventory.values.serial_status", pills: { available: "ok", issued: "gray", scrapped: "danger" } }, status: recordStatus, is_active: active },
+  },
+  "inventory.product_tracking": {
+    title: "product_id",
+    shown: ["product_id", "tracking", "fefo", "expiry_required", "block_expired", "updated_at"],
+    exclude: ["extra", "extra_free", "seq", "created_at"],
+    fields: { tracking: { valuesKey: "inventory.values.tracking", pills: { none: "gray", lot: "info", serial: "warn" } } },
   },
   "costing.cost_layer": {
     title: "product_id",

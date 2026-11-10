@@ -10,8 +10,9 @@ import { savedMovementId } from "../processes/common";
 // The inventory manifest (plan 2B Task 6, design §8): two maestros (bodegas, ubicaciones), one documento (movimiento) with its lines, the
 // stock levels and the reservations (sistema). Every view of the migration is the generated masked view of its entity (rule 14).
 
-// The views of the first six entities are in 0066, those of the traslados and conteos (Task 7) in 0069.
-const migration = ["0066_inventory_core.sql", "0069_inventory_transfers_counts.sql"]
+// The views of the first six entities are in 0066, those of the traslados and conteos (Task 7) in 0069, those of the lots, serials,
+// tracking and allocations (Task 28.1) in 0162.
+const migration = ["0066_inventory_core.sql", "0069_inventory_transfers_counts.sql", "0162_inventory_lots_serials.sql"]
   .map((file) => readFileSync(new URL(`../../../../../supabase/migrations/${file}`, import.meta.url), "utf8"))
   .join("\n");
 
@@ -55,17 +56,30 @@ describe("inventory manifest", () => {
       "inventory.transfer_line": "lines",
       "inventory.count": "documento",
       "inventory.count_line": "lines",
+      // Task 28.1 (PG §3.1): lots and serials are maestros, the tracking per product a parametro, the allocations of a reservation sistema.
+      "inventory.lot": "maestro",
+      "inventory.serial": "maestro",
+      "inventory.product_tracking": "parametro",
+      "inventory.reservation_allocation": "sistema",
     });
     const movement = byId["inventory.movement"]!;
     expect(movement.typed?.numbering).toBe("on_save");
     expect(movement.typed?.lines).toEqual({ entity: "inventory.movement_line", parentField: "movement_id" });
     // contabiliza false and no approval: the movement sets both flags itself (spec §5.4, ownFlags).
     expect(movement.typed?.ownFlags).toEqual({ requiresApproval: "inventory.movement.own_flags.requires_approval", posts: "inventory.movement.own_flags.posts" });
-    // OD-8: lots and serials come in 2B.2; the line and stock tables carry the nullable columns already.
+    // OD-8, Task 28.1: the line and stock tables name the lot and the serial as references to their maestros (a link, rule 21).
     for (const id of ["inventory.movement_line", "inventory.stock_level"]) {
-      const names = byId[id]!.fields.map((f) => f.name);
-      expect(names).toEqual(expect.arrayContaining(["lot_id", "serial_id"]));
+      const fields = Object.fromEntries(byId[id]!.fields.map((f) => [f.name, f]));
+      expect(fields.lot_id).toMatchObject({ type: "ref", ref: { entity: "inventory.lot", display: "code" } });
+      expect(fields.serial_id).toMatchObject({ type: "ref", ref: { entity: "inventory.serial", display: "serial_no" } });
     }
+    // The lot and serial keep their own state apart from the maestro lifecycle `status` (kernel.typed_columns owns that column).
+    expect(byId["inventory.lot"]!.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["product_id", "code", "expires_on", "produced_on", "lot_status", "note"]));
+    expect(byId["inventory.lot"]!.importKey).toEqual(["product_id", "code"]);
+    expect(byId["inventory.serial"]!.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["product_id", "serial_no", "lot_id", "serial_status", "note"]));
+    expect(byId["inventory.serial"]!.importKey).toEqual(["product_id", "serial_no"]);
+    expect(byId["inventory.product_tracking"]!.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["product_id", "tracking", "fefo", "expiry_required", "block_expired"]));
+    expect(byId["inventory.reservation_allocation"]!.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["reservation_id", "location_id", "lot_id", "serial_id", "qty"]));
     expect(byId["inventory.movement_line"]!.fields.map((f) => f.name)).toEqual(expect.arrayContaining(["product_id", "location_id", "qty", "uom"]));
     expect(byId["inventory.warehouse"]!.fields.map((f) => f.name)).toContain("allow_backorders");
   });
@@ -85,6 +99,11 @@ describe("inventory manifest", () => {
         "inventory.transfer.create", "inventory.transfer.ship", "inventory.transfer.receive", "inventory.transfer.void", "inventory.transfer.consult", "inventory.transfer_line.consult",
         "inventory.adjustment.post",
         "inventory.count.create", "inventory.count.record", "inventory.count.apply", "inventory.count.void", "inventory.count.consult", "inventory.count_line.consult",
+        // Task 28.1: the lot and serial maestros and the tracking parametro.
+        "inventory.lot.create", "inventory.lot.update", "inventory.lot.consult",
+        "inventory.serial.create", "inventory.serial.update", "inventory.serial.consult",
+        "inventory.product_tracking.set", "inventory.product_tracking.consult",
+        ...generic("inventory.lot"), ...generic("inventory.serial"),
         ...generic("inventory.warehouse"), ...generic("inventory.location"), ...generic("inventory.movement", ["void"]),
         ...generic("inventory.transfer", ["void"]), ...generic("inventory.count", ["void"]),
       ].sort(),
@@ -112,10 +131,13 @@ describe("inventory manifest", () => {
     expect(rows.map((r) => [r.navKey, r.parentKey, r.href])).toEqual([
       ["inventory.warehouses", "inventory.maestros", "/inventory/warehouses"],
       ["inventory.locations", "inventory.maestros", "/inventory/locations"],
+      ["inventory.lots", "inventory.maestros", "/inventory/lots"],
+      ["inventory.serials", "inventory.maestros", "/inventory/serials"],
       ["inventory.movements", "inventory.documentos", "/inventory/movements"],
       ["inventory.transfers", "inventory.documentos", "/inventory/transfers"],
       ["inventory.counts", "inventory.documentos", "/inventory/counts"],
       ["inventory.stock", "inventory.reportes", "/inventory/stock"],
+      ["inventory.product_tracking", "inventory.parametros", "/inventory/product-tracking"],
       ...rows.filter((r) => r.href!.startsWith("/inventory/parametros/")).map((r) => [r.navKey, r.parentKey, r.href]),
     ]);
     expect(at("inventory.stock").entity).toBe("inventory.stock_level");
@@ -140,7 +162,7 @@ describe("inventory manifest", () => {
   });
 });
 
-describe("inventory masked views, migrations 0066 and 0069", () => {
+describe("inventory masked views, migrations 0066, 0069 and 0162", () => {
   for (const entity of INVENTORY_ENTITIES) {
     it(`inventory.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
       const generated = maskedViewSql(defineEntity(entity));
@@ -162,7 +184,8 @@ describe("sensitive processes and posted movements (Task 7)", () => {
   it("the adjustment and the count's apply declare the step-up (rule 15); the others do not", () => {
     const registry = loaded();
     const stepUp = registry.processes({ module: "inventory" }).filter((p) => p.sensitivity === "step-up").map((p) => p.id).sort();
-    expect(stepUp).toEqual(["inventory.adjustment.post", "inventory.count.apply"]);
+    // Task 28.1: switching a product's tracking changes how every later movement is validated (PG §3.7).
+    expect(stepUp).toEqual(["inventory.adjustment.post", "inventory.count.apply", "inventory.product_tracking.set"]);
   });
 
   it("a movement a process posted that is voided or skipped is refused, never reported as done (postedOutput.status)", () => {

@@ -14,7 +14,7 @@ loadModules(registry, [kernelModule, core, inventory, needStub("costing")]);
 const PROCESS_IDS = [...registry.processes({ module: "core" }), ...registry.processes({ module: "inventory" })].map((p) => p.id);
 
 /** Every inventory table, children first. */
-export const INVENTORY_TABLES = ["count_lines", "counts", "transfer_lines", "transfers", "reservations", "stock_levels", "movement_lines", "movements", "movement_numbers", "locations", "warehouses"];
+export const INVENTORY_TABLES = ["reservation_allocations", "product_tracking", "count_lines", "counts", "transfer_lines", "transfers", "reservations", "stock_levels", "movement_lines", "movements", "serials", "lots", "movement_numbers", "locations", "warehouses"];
 
 export interface InventoryHarness {
   sql: Db;
