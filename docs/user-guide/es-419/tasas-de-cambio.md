@@ -64,6 +64,8 @@ Puedes pedírselo al asistente («reemplaza la TRM del 8 de noviembre por 4.150 
 
 Un documento en moneda extranjera (una factura de exportación en dólares, por ejemplo) toma la tasa de esta tabla para su fecha. Si ese día no hay tasa, usa la más reciente de los **tres días anteriores** (así un domingo o un festivo usan la del último día con tasa). Si tampoco la hay, el documento no se puede crear en esa moneda hasta que registres la tasa aquí o la escribas en el documento.
 
+En la empresa de demostración hay tres tasas manuales del dólar (anteayer, ayer y hoy, la de hoy en 4.123,45, «Tasa de demostración»): la exportación a Northwind Roasters toma la de su fecha (guía **Pagos de clientes**, «La diferencia en cambio»).
+
 ## Preguntarle al asistente
 
 Puedes preguntar «¿Cuál es la TRM de hoy?» o «¿a cuánto estaba el euro el 3 de noviembre?». El asistente contesta con la tasa, la fecha de la que viene y si es TRM o manual.

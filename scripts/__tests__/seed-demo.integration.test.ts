@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
 import { DEMO_COMPANY_ID } from "../demo/accounts";
 import { SAMPLE_COMPROBANTES } from "../demo/accounting";
-import { ALMACENES_EXITO, CHAIN, PRICE_LIST, SALES_CHAIN_MODULES, WAREHOUSE, wholesalePrice } from "../demo/sales";
+import { ALMACENES_EXITO, CHAIN, FOREIGN_SALE, NORTHWIND, PRICE_LIST, SALES_CHAIN_MODULES, USD_BANK, USD_RATES, WAREHOUSE, wholesalePrice } from "../demo/sales";
 
 // The whole demo seed against the local stack (owner order 2026-11-02): `DEMO_SEED=1 pnpm db:seed` must finish, with a posted
 // and balanced opening and the October sample comprobantes posted; and (plan 2B Task 26) the sale chain's modules entitled to the demo
@@ -93,6 +93,32 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
       const [terms] = await sql<{ price_list_id: string }[]>`
         select t.price_list_id from sales.customer_terms t join core.parties p on p.id = t.party_id where t.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${PRICE_LIST.customer}`;
       expect(terms!.price_list_id).toBe(list!.id);
+
+      // Task 34.8 (FX §9): the export sale in dollars. FE-USD is an export (InvoiceTypeCode 02), IVA exento, at its rate; its entry is in USD
+      // and balanced in both currencies; the partial USD receipt left USD 7.500 open and posted the realized loss on the dollar account.
+      const rates = await sql<{ rate: number; source: string }[]>`
+        select rate::float8 as rate, source from core.exchange_rates where company_id = ${DEMO_COMPANY_ID} and currency = 'USD' order by rate_date`;
+      expect(rates).toEqual(USD_RATES.map((r) => ({ rate: r.rate, source: "manual" })));
+      const [fe] = await sql<{ id: string; currency: string; is_export: boolean; total: number; rate: number; paid: number; stage: string; dian: string; iva: number }[]>`
+        select i.id, i.currency, i.is_export, i.total::float8 as total, i.exchange_rate::float8 as rate, i.paid_amount::float8 as paid, i.stage, i.dian_status as dian,
+               (select sum(l.iva)::float8 from invoicing.invoice_lines l where l.invoice_id = i.id) as iva
+        from invoicing.invoices i join core.parties p on p.id = i.party_id
+        where i.company_id = ${DEMO_COMPANY_ID} and p.document_number = ${NORTHWIND.documentNumber} and i.notes = ${FOREIGN_SALE.notes} and i.status <> 'voided'`;
+      expect(fe).toMatchObject({ currency: "USD", is_export: true, total: FOREIGN_SALE.total, rate: FOREIGN_SALE.rate, paid: FOREIGN_SALE.receipt.amount, dian: "accepted", iva: 0 });
+      expect(FOREIGN_SALE.total - fe!.paid).toBe(FOREIGN_SALE.open);
+      const [feEntry] = await sql<{ currency: string; debit: number; credit: number; debit_doc: number; credit_doc: number }[]>`
+        select e.currency, sum(l.debit)::float8 as debit, sum(l.credit)::float8 as credit, sum(l.debit_doc)::float8 as debit_doc, sum(l.credit_doc)::float8 as credit_doc
+        from accounting.entries e join accounting.entry_lines l on l.entry_id = e.id
+        where e.company_id = ${DEMO_COMPANY_ID} and e.source_record_id = ${fe!.id} and e.status = 'posted' and e.reversal_of_id is null group by e.id, e.currency`;
+      expect(feEntry).toMatchObject({ currency: "USD", debit_doc: FOREIGN_SALE.total, credit_doc: FOREIGN_SALE.total });
+      expect(feEntry!.debit).toBe(feEntry!.credit);
+      const receiptLines = await sql<{ code: string; debit: number; credit: number }[]>`
+        select a.code, l.debit::float8 as debit, l.credit::float8 as credit
+        from payments.receipt_allocations ra join accounting.entries e on e.source_record_id = ra.receipt_id and e.status = 'posted' and e.reversal_of_id is null
+        join accounting.entry_lines l on l.entry_id = e.id join accounting.accounts a on a.id = l.account_id
+        where ra.invoice_id = ${fe!.id} order by l.line_no`;
+      expect(receiptLines).toContainEqual({ code: USD_BANK.code, debit: FOREIGN_SALE.receipt.amount * FOREIGN_SALE.receipt.rate, credit: 0 });
+      expect(receiptLines).toContainEqual({ code: "530525", debit: FOREIGN_SALE.realizedLoss, credit: 0 });
     } finally {
       await sql.end();
     }

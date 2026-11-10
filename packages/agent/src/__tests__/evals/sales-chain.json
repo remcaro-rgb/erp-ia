@@ -60,6 +60,18 @@
       "prompt": "¿Cuál es la TRM de hoy?",
       "tier": "extended",
       "expect": { "process": "core.exchange_rate.for_date", "input": { "currency": "USD" } }
+    },
+    {
+      "id": "payments-receive-usd",
+      "prompt": "Registra un recibo de USD 5.000 de Northwind",
+      "tier": "extended",
+      "expect": { "process": "payments.payment.receive", "confirmation": true, "input": { "currency": "USD", "amount": 5000 } }
+    },
+    {
+      "id": "fx-revaluation-october",
+      "prompt": "Calcula la diferencia en cambio de octubre",
+      "tier": "extended",
+      "expect": { "process": "accounting.fx_revaluation.run", "confirmation": true }
     }
   ]
 }

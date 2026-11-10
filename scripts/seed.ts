@@ -53,7 +53,6 @@ import {
   getServiceDb,
   kernelModule,
   loadModules,
-  precheckAttachment,
   registerCountryPack,
   Registry,
   runProcess,
@@ -64,6 +63,7 @@ import {
   type RunProcessDeps,
 } from "@erp/kernel";
 import { CATEGORIES, INVOICE_READY_PARTIES, PARTIES, PRODUCTS } from "./demo/data";
+import { attachRequiredFiles } from "./demo/files";
 import { ANDRES, DEMO_ACCOUNTS, DEMO_COMPANY_ID, DEMO_ROLE_IDS, LAURA, MARCELA, type DemoAccount } from "./demo/accounts";
 import { seedAccounting } from "./demo/accounting";
 import { enableSalesChain, seedSalesChain } from "./demo/sales";
@@ -331,29 +331,6 @@ async function seedMasterData(sql: Sql, deps: RunProcessDeps, caller: Caller): P
   return created;
 }
 
-/** A one-page PDF that says it stands in for the document (the required files need a real PDF). */
-function placeholderPdf(title: string): Buffer {
-  const text = title.replace(/[()\\]/g, "");
-  const stream = `BT /F1 14 Tf 72 720 Td (${text} - documento de demostracion) Tj ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-  ];
-  let body = "%PDF-1.4\n";
-  const offsets: number[] = [];
-  objects.forEach((object, i) => {
-    offsets.push(body.length);
-    body += `${i + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xref = body.length;
-  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
-  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return Buffer.from(body, "latin1");
-}
-
 /**
  * The required files of the INVOICE_READY_PARTIES (RUT, and Cámara de Comercio for a company), as Laura, the way the
  * Archivos tab adds them (POST /api/attachments): precheck, the bytes in the store, then kernel.attachment.add. A tag
@@ -365,19 +342,7 @@ async function seedRequiredFiles(sql: Sql, deps: RunProcessDeps, caller: Caller,
     const party = PARTIES.find((p) => p.documentNumber === document)!;
     const [row] = await sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${document}`;
     const tags = party.personType === "1" ? ["RUT", "Cámara de Comercio"] : ["RUT"];
-    for (const tag of tags) {
-      const [present] = await sql`
-        select 1 from kernel.attachments where company_id = ${DEMO_COMPANY_ID} and entity = 'core.party' and record_id = ${row!.id} and tag = ${tag} and removed_at is null`;
-      if (present) continue;
-      const bytes = placeholderPdf(`${tag} ${party.legalName ?? `${party.firstName} ${party.firstSurname}`}`);
-      const fileName = `${tag === "RUT" ? "rut" : "camara-de-comercio"}-${document}.pdf`;
-      const target = { entity: "core.party", recordId: row!.id, tag, fileName, mimeType: "application/pdf", sizeBytes: bytes.length };
-      await precheckAttachment(deps, caller, target);
-      const storagePath = `${caller.claims.tenant_id}/${DEMO_COMPANY_ID}/core.party/${row!.id}/${randomBytes(8).toString("hex")}-${fileName}`;
-      await store.put(storagePath, bytes, "application/pdf");
-      await runProcess(deps, caller, "kernel.attachment.add", { ...target, storagePath });
-      added++;
-    }
+    added += await attachRequiredFiles(sql, deps, caller, store, { partyId: row!.id, document, name: party.legalName ?? `${party.firstName} ${party.firstSurname}`, tags });
   }
   return added;
 }
@@ -487,6 +452,7 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     console.log(
       `  Ventas: ${chain.actions} action(s) run; the chain ${chain.chain.quote} → ${chain.chain.order} → ${chain.chain.delivery} → ${chain.chain.invoice} (DIAN simulada: aceptada) → ${chain.chain.receipt} (existing documents kept).`,
     );
+    console.log(`  Exportación: ${chain.foreign.invoice} a Northwind Roasters LLC en USD (DIAN simulada: aceptada) → ${chain.foreign.receipt}, abono de USD 5.000 (existing documents kept).`);
     console.log("Demo accounts (LOCAL USE ONLY):");
     console.log(`  ${LAURA.email} / ${LAURA.password} · admin + gerente comercial · TOTP secret ${LAURA.totpSecret}`);
     console.log(`  ${MARCELA.email} / ${MARCELA.password} · cajero · no second step`);

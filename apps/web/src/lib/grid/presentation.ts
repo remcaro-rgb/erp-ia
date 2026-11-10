@@ -154,6 +154,16 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       is_active: { ...active, valuesKey: "grid.values.active_feminine" },
     },
   },
+  // Tasas de cambio (plan 2B.2 Task 34.2, FX §5): the day, the currency, the rate and where it came from in words (TRM / Manual).
+  "core.exchange_rate": {
+    title: "rate_date",
+    shown: ["rate_date", "currency", "rate", "source", "official_rate", "note"],
+    exclude: [],
+    fields: {
+      currency: { display: "mono" },
+      source: { valuesKey: "core.exchange_rates.values.source", pills: { trm: "info", manual: "gray" } },
+    },
+  },
   // Auditoría (prototype v5 renderAudit): date, origin as a pill, process, entity, record, action, actor and chain.
   "kernel.audit": {
     title: "occurred_at",

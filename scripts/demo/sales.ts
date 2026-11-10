@@ -27,6 +27,11 @@
  *     core.price_list.create and core.price_list_item.set, and named in Club Campestre El Rodeo's commercial terms. It comes AFTER the chain, so the
  *     chain's own documents keep the list prices their figures (CHAIN) are written for; the other specs keep list prices because their customers have no list.
  *
+ *  9. The export sale in dollars (plan 2B.2 Task 34.8; FX §9): Northwind Roasters LLC with its required files, the USD rates of the last three
+ *     days in Tasas de cambio (core.exchange_rate.set, origin ui), the price list «Exportación USD» in its terms, «Transferencia USD» into its
+ *     own dollar account, FE-USD (USD 12.500,00, IVA exento por exportación, accepted by the mock DIAN) and a partial USD receipt of
+ *     USD 5.000 at a lower rate (realized loss). See NORTHWIND and FOREIGN_SALE.
+ *
  * Gap (reported in plan 2B Task 26): no certificate (see 4).
  */
 import { randomUUID } from "node:crypto";
@@ -34,7 +39,9 @@ import type { Sql } from "postgres";
 import { buildConsumerContext, consumers, enableModule, runProcess, type Caller, type Registry, type RunProcessDeps } from "@erp/kernel";
 import type { FileStore } from "@erp/infra";
 import { DEMO_COMPANY_ID, DEMO_ROLE_IDS } from "./accounts";
+import { attachRequiredFiles } from "./files";
 import type { DemoSession } from "./accounting";
+import { FOREIGN_SALE, NORTHWIND, USD_BANK, USD_METHOD, USD_PRICE_LIST, USD_RATES } from "./foreign-sale";
 
 /** The modules of the sale chain, in dependency order (each one's `dependsOn` is enabled before it). */
 export const SALES_CHAIN_MODULES = ["inventory", "costing", "sales", "crm", "invoicing", "payments"] as const;
@@ -109,6 +116,9 @@ export const PRICE_LIST = { name: "Mayoristas", currencyCode: "COP", discountPct
 /** The Mayoristas price of a good: 10 % under the list price, in whole pesos. */
 export const wholesalePrice = (listPrice: number): number => Math.round((listPrice * (100 - PRICE_LIST.discountPct)) / 100);
 
+// The export sale in dollars (Task 34.8): its figures live in ./foreign-sale, free of imports so the e2e specs can read them.
+export { FOREIGN_SALE, NORTHWIND, USD_BANK, USD_METHOD, USD_PRICE_LIST, USD_RATES } from "./foreign-sale";
+
 /** The halfway documents (by their notes). */
 export const HALFWAY = [
   { notes: "Demostración: entregado y pendiente de facturar", party: HOTEL_CUMBRE_ANDINA, sku: "CAF-MOL-EXP", qty: 6, ship: true },
@@ -125,6 +135,8 @@ interface Who {
 export interface SalesSeedResult {
   actions: number;
   chain: { quote: string | null; order: string | null; delivery: string | null; invoice: string | null; receipt: string | null };
+  /** The export sale in dollars (step 9): FE-USD's number and its partial receipt's. */
+  foreign: { invoice: string | null; receipt: string | null };
 }
 
 type Row = { id: string; event: string; payload: Record<string, unknown>; created_at: Date; chain_id: string };
@@ -332,9 +344,79 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
   const terms = await one(sql<{ price_list_id: string | null }[]>`select price_list_id from sales.customer_terms where party_id = ${club}`);
   if (!terms?.price_list_id) await act("sales.customer_terms.set", { partyId: club, priceListId: list.id });
 
+  // 9. The export sale in dollars (after the Mayoristas list: Northwind buys with its own list in USD).
+  if (!store) throw new Error("demo sale chain: the export sale needs the file store (Northwind's required files)");
+  let northwind = await one(sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NORTHWIND.documentNumber}`);
+  if (!northwind) {
+    northwind = await act("core.party.create", {
+      kind: ["customer"], personType: "1", documentType: NORTHWIND.documentType, documentNumber: NORTHWIND.documentNumber, legalName: NORTHWIND.legalName,
+      taxResponsibilities: ["R-99-PN"], taxScheme: "ZZ", countryCode: NORTHWIND.countryCode, addressLine: NORTHWIND.addressLine, invoiceEmail: NORTHWIND.invoiceEmail,
+    });
+  }
+  const northwindId = northwind.id;
+  const filed = await attachRequiredFiles(sql, deps, laura.caller, store, { partyId: northwindId, document: NORTHWIND.documentNumber, name: NORTHWIND.legalName, tags: ["RUT", "Cámara de Comercio"] });
+  actions += filed;
+  for (const { daysAgo, rate } of USD_RATES) {
+    const rateDate = plusDays(today, -daysAgo);
+    if (!(await one(sql`select 1 from core.exchange_rates where company_id = ${DEMO_COMPANY_ID} and currency = 'USD' and rate_date = ${rateDate}`))) {
+      // Tasas de cambio › Registrar tasa (the demo calls no TRM feed: the rates are typed, as a company without the import would).
+      await act("core.exchange_rate.set", { currency: "USD", rateDate, rate, note: "Tasa de demostración" }, { ui: true });
+    }
+  }
+  let usdList = await one(sql<{ id: string }[]>`select id from core.price_lists where company_id = ${DEMO_COMPANY_ID} and name = ${USD_PRICE_LIST.name}`);
+  if (!usdList) usdList = await act("core.price_list.create", { name: USD_PRICE_LIST.name, currencyCode: USD_PRICE_LIST.currencyCode });
+  const exported = await product(USD_PRICE_LIST.sku);
+  if (!(await one(sql`select 1 from core.price_list_items where price_list_id = ${usdList.id} and product_id = ${exported}`))) {
+    await act("core.price_list_item.set", { priceListId: usdList.id, productId: exported, price: USD_PRICE_LIST.price });
+  }
+  const northwindTerms = await one(sql<{ price_list_id: string | null }[]>`select price_list_id from sales.customer_terms where party_id = ${northwindId}`);
+  if (!northwindTerms?.price_list_id) await act("sales.customer_terms.set", { partyId: northwindId, priceListId: usdList.id });
+  let usdMethod = await one(sql<{ id: string }[]>`select id from payments.methods where company_id = ${DEMO_COMPANY_ID} and code = ${USD_METHOD.code}`);
+  if (!usdMethod) usdMethod = await act("payments.method.create", USD_METHOD);
+  let usdBank = await one(sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${DEMO_COMPANY_ID} and code = ${USD_BANK.code}`);
+  if (!usdBank) usdBank = await act("accounting.account.create", { code: USD_BANK.code, name: USD_BANK.name });
+  const methodDimension = `payment_method_id:${usdMethod.id}`;
+  if (!(await one(sql`select 1 from accounting.account_role_mappings where company_id = ${DEMO_COMPANY_ID} and role = 'cash' and dimension = ${methodDimension}`))) {
+    // The medio de pago's «Contabilidad» tab (Task 34.8b): its dollars land in the dollar account, not in the peso bank.
+    await act("accounting.account_role_mapping.update", { mappings: [{ role: "cash", dimension: methodDimension, accountId: usdBank.id }] }, { stepUp: true });
+  }
+  const foreignInvoice = () => one(sql<{ id: string; number: string | null; stage: string; dian_status: string }[]>`
+    select id, number, stage, dian_status from invoicing.invoices where company_id = ${DEMO_COMPANY_ID} and party_id = ${northwindId} and notes = ${FOREIGN_SALE.notes} and status <> 'voided'`);
+  let feUsd = await foreignInvoice();
+  if (!feUsd) {
+    // No price typed: the line takes USD 25,00 from Northwind's list; no rate typed: the invoice takes today's from Tasas de cambio.
+    await act("invoicing.invoice.create", { partyId: northwindId, currency: "USD", issueDate: today, notes: FOREIGN_SALE.notes, lines: [{ productId: exported, qty: FOREIGN_SALE.qty }] });
+    feUsd = (await foreignInvoice())!;
+  }
+  if (feUsd.stage === "draft") {
+    await act("invoicing.invoice.issue", { id: feUsd.id, idempotencyKey: `demo-export-issue-${feUsd.id}` });
+    feUsd = (await foreignInvoice())!;
+  }
+  await drain();
+  if (feUsd.dian_status !== "accepted") {
+    await mockDianAccepts(sql, deps, store, feUsd.id);
+    chains.add((await one(sql<{ chain_id: string }[]>`select chain_id from kernel.outbox where company_id = ${DEMO_COMPANY_ID} and event = 'invoicing.invoice.issued' and payload->>'invoiceId' = ${feUsd.id} order by created_at desc limit 1`))!.chain_id);
+    await drain();
+  }
+  let usdReceipt = await one(sql<{ id: string; number: string }[]>`
+    select r.id, r.number from payments.receipts r join payments.receipt_allocations a on a.receipt_id = r.id
+    where r.company_id = ${DEMO_COMPANY_ID} and a.invoice_id = ${feUsd.id} and r.status <> 'voided' limit 1`);
+  if (!usdReceipt) {
+    const { amount, rate, reference } = FOREIGN_SALE.receipt;
+    usdReceipt = await act<{ id: string; number: string }>("payments.payment.receive", {
+      partyId: northwindId, methodId: usdMethod.id, currency: "USD", exchangeRate: rate, amount, date: today, reference,
+      allocations: [{ invoiceId: feUsd.id, amount }], idempotencyKey: `demo-export-receipt-${feUsd.id}`,
+    });
+  }
+  await drain();
+
   const [paid] = await sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${invoice.id}`;
   if (paid!.stage !== "paid") throw new Error(`demo sale chain: the invoice ${invoice.number} is ${paid!.stage}, not paid`);
-  return { actions, chain: { quote: quote.number, order: order.number, delivery: deliveryId, invoice: invoice.number, receipt: receipt.number } };
+  return {
+    actions,
+    chain: { quote: quote.number, order: order.number, delivery: deliveryId, invoice: invoice.number, receipt: receipt.number },
+    foreign: { invoice: feUsd.number, receipt: usdReceipt.number },
+  };
 }
 
 type Act = <T = { id: string }>(processId: string, input: unknown, options?: { stepUp?: boolean; ui?: boolean }) => Promise<T>;

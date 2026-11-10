@@ -98,6 +98,8 @@ La factura quedó en la cartera con los pesos de su tasa del día de emisión. S
 
 Las cuentas se asignan en **Contabilidad › Mapeo de cuentas** con los roles **Diferencia en cambio (ingreso)** (`fx_gain`) y **Diferencia en cambio (gasto)** (`fx_loss`). Si quieres una cuenta solo para la diferencia realizada (la de los cobros), mapea el rol con la dimensión `fx_kind:realized`. Las del plan de Colombia son provisionales: confírmalas con tu contador. El comprobante de un recibo en dólares queda en `USD` con su tasa; la línea de diferencia en cambio solo tiene pesos. Si anulas el recibo, la reversión deshace también esa línea.
 
+**En la empresa de demostración** (Café del Norte) está el ejemplo completo: la exportación a **Northwind Roasters LLC** (Estados Unidos) por USD 12.500,00 a 4.123,45, con IVA 0 % exento, y un recibo con **Transferencia USD** por USD 5.000 a 4.050. El dinero entra a la cuenta en dólares del medio de pago (**11101001 Bancolombia cuenta de compensación USD**, $ 20.250.000) y la diferencia en cambio realizada es una pérdida de $ 367.250 en **530525**. La factura queda con USD 7.500 por cobrar: en **Cartera por edades** se ve en dólares con la **Moneda del documento** y en pesos, a la tasa de la factura, con **Equivalente en COP**.
+
 Si el administrador modificó la regla contable **Recibo de caja** antes de esta versión, la regla sigue como él la dejó (en pesos, sin la diferencia en cambio) y **Contabilidad** muestra la recomendación de revisarla: un recibo con diferencia en cambio no se contabiliza hasta que la regla la incluya (guía **Reglas contables**).
 
 ## La factura pagada

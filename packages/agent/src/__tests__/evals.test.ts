@@ -89,6 +89,15 @@ describe("evaluation set", () => {
     expect(registry.process("invoicing.invoice.void").sensitivity).toBe("step-up");
   });
 
+  // Plan 2B.2 Task 34.8 (FX §10): the three foreign-currency prompts; the two writes behind a confirmation card (the revaluation asks for
+  // the code too: step-up), the TRM a consult.
+  it("has the foreign-currency prompts of Task 34, each on its process", () => {
+    const byPrompt = new Map(cases.map((c) => [c.prompt, c]));
+    expect(byPrompt.get("¿Cuál es la TRM de hoy?")?.expect).toMatchObject({ process: "core.exchange_rate.for_date" });
+    expect(byPrompt.get("Registra un recibo de USD 5.000 de Northwind")?.expect).toMatchObject({ process: "payments.payment.receive", confirmation: true, input: { currency: "USD", amount: 5000 } });
+    expect(byPrompt.get("Calcula la diferencia en cambio de octubre")?.expect).toMatchObject({ process: "accounting.fx_revaluation.run", confirmation: true });
+  });
+
   it("every case has a tier, and the five plan prompts are core", () => {
     for (const c of cases) expect(["core", "extended"], c.id).toContain(c.tier);
     expect(cases.filter((c) => c.id.startsWith("accounting-")).every((c) => c.tier === "core")).toBe(true);
