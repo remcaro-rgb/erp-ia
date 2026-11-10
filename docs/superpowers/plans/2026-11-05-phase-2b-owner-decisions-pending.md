@@ -460,3 +460,15 @@ Design draft: `docs/superpowers/specs/2026-11-10-foreign-currency-design.md` (se
 
 136. **Number columns in grids print the stored value** (FX §10; item 129 «rates `4.123,45`»; rule 23). `formatCellValue` (`packages/ui/src/grid/cell-format.ts`) formats money and dates but returns a `number` field as its text, so «Tasas de cambio» shows the rate `4123.450000` and the TRM publicada the same way; quantities and other numeric fields in every grid do too. 34.8 fixed only what the rates screen lacked on its own (no grid presentation: «Origen» showed `manual` instead of «Manual»; `apps/web/src/lib/grid/presentation.ts` now has `core.exchange_rate`). Proposed: number cells in es-CO digits with the field's scale, trailing zeros dropped (`4.123,45`, `12,5`), in the grid, the assistant's result tables and exports; the filter keeps accepting both separators. **Decide**.
     Recommended: do it with 131 and 132 (one UI task). Cost if wrong: a rate or a quantity in the raw database form next to money in es-CO digits; the e2e for the rates screen matches the rate by its digits until then.
+
+## Q. Items met while expanding 2B.2 Task 45 (landed cost arriving late), 2026-11-10 · decided as recommended, pending the accountant
+
+137. **Which units count as sold** (plan R45-1). Layers are per product and warehouse, so units are fungible. Proposed: per receipt line, `onHand = min(received, layer qty)`; the share splits by units (stock part rounded half-up, the remainder to cost of sales). **Decide**.
+    Recommended: as proposed (matches the worked example of item 37). Cost if wrong: with several receipts in one layer the split approximates which units were sold; FIFO in phase 3 makes it exact.
+    **Owner, 2026-11-10 (in chat, as recommended):** accepted, pending the accountant.
+138. **Accountant · account for the sold units' share.** Proposed: the existing `cogs` role (the same account as the cost of sales, same cost center). Alternative: a separate account «Costo de ventas por costos en destino tardíos». **Accountant decides**.
+    Recommended: the `cogs` role. Cost if wrong: reclassification of the entries; the alternative is one new role in the pack mapping and one rule line.
+    **Owner, 2026-11-10 (in chat, as recommended):** `cogs` role, pending the accountant.
+139. **Accountant · period of the adjustment.** Proposed: the allocation's date (the current period); nothing in a past period is rewritten (item 37). Confirm that an allocation dated in a closed period is refused, not moved to the open one. **Accountant decides**.
+    Recommended: refuse (the ledger's existing rule). Cost if wrong: users must date the document in an open period themselves.
+    **Owner, 2026-11-10 (in chat, as recommended):** refuse, pending the accountant.
