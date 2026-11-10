@@ -7,7 +7,8 @@ import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, order
 import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
 import { PRICING_PROCESSES } from "./processes/pricing";
-import { COMMISSION_DUE, COMMISSION_PROCESSES, commissionHooks } from "./processes/commission";
+import { COMMISSION_ACCRUED, COMMISSION_DUE, COMMISSION_PROCESSES, commissionHooks, onAdvanceApplied, onCommissionDue, onPaymentReceived } from "./processes/commission";
+import { SALES_POSTING_RULES } from "./rules";
 import { COMMISSION_PLAN_PROCESSES, commissionPlanHooks } from "./processes/commission-plan";
 import { onReturnVoidRefused, RETURN_PROCESSES, RETURN_RECEIVED, RETURN_VOIDED, returnHooks } from "./processes/return";
 
@@ -42,14 +43,20 @@ export const sales: ModuleDef = defineModule({
   // sales.order.reassign (Task 39): the «all orders» permission of the owner isolation (migration 0139) and the owner change.
   // Commissions (Task 30.1): the plans, the bases of an issued invoice (sales.commission.compute, from the invoicing.invoice.issued consumer)
   // and sales.commission.consult_all, the «all commissions» permission of the record rule (migration 0156).
+  // Task 30.2: sales.commission.accrue, from sales.commission.due (on_invoice) and the payments events (on_collection), posts the provision.
   processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES, ...COMMISSION_PLAN_PROCESSES, ...COMMISSION_PROCESSES],
+  // The commission provision (plan 2B.2 Task 30.2, PG §5.4, RG-13): the two roles the country pack maps by payee kind (dimension
+  // payee_kind:employee | payee_kind:agent), and the rules of the accrual and its reversal (rules/, twins of accounting's defaults).
+  accountRoles: ["commission_expense", "commissions_payable"],
+  postingRules: SALES_POSTING_RULES,
   features: FEATURES,
   // Its Inicio cards (plan 2B Task 26).
   homeKpis: HOME_KPIS,
   homeCharts: HOME_CHARTS,
   events: {
     // sales.commission.due { invoiceId, basis } (Task 30.1): an issued invoice wrote commission bases; Task 30.2's consumer accrues them.
-    emits: [ORDER_CREATED, ORDER_CONFIRMED, ORDER_CANCELLED, DELIVERY_SHIPPED, DELIVERY_VOIDED, RETURN_RECEIVED, RETURN_VOIDED, COMMISSION_DUE],
+    // sales.commission.accrued (Task 30.2): a commission documento, posted by the rule commission-accrued.
+    emits: [ORDER_CREATED, ORDER_CONFIRMED, ORDER_CANCELLED, DELIVERY_SHIPPED, DELIVERY_VOIDED, RETURN_RECEIVED, RETURN_VOIDED, COMMISSION_DUE, COMMISSION_ACCRUED],
     consumes: {
       "inventory.movement.posted": onMovementPosted,
       // Inventory could not issue a despacho / take back a devolución's stock: the document goes back with the reason (Task 14 review).
@@ -62,6 +69,11 @@ export const sales: ModuleDef = defineModule({
       "invoicing.invoice.issued": onInvoiceIssued,
       // An invoice voided by its accepted annulment note (Task 18): the entregas get back what it invoiced.
       "invoicing.invoice.annulled": onInvoiceAnnulled,
+      // The commissions (Task 30.2, RG-12): its own sales.commission.due accrues an on_invoice invoice in a run of its own (a posting failure
+      // retries only that event); a receipt or an advance application accrues the on_collection bases of the invoices it settles.
+      "sales.commission.due": onCommissionDue,
+      "payments.received": onPaymentReceived,
+      "payments.advance.applied": onAdvanceApplied,
     },
   },
   navigation: NAVIGATION,
@@ -74,6 +86,9 @@ export const sales: ModuleDef = defineModule({
     "inventory.delivery_reservation.restored": ["sales.effects.re_reserve_recorded"],
     "invoicing.invoice.issued": ["sales.effects.invoice_issued", "sales.effects.commission_bases"],
     "invoicing.invoice.annulled": ["sales.effects.invoice_annulled"],
+    "sales.commission.due": ["sales.effects.commission_accrual"],
+    "payments.received": ["sales.effects.commission_accrual"],
+    "payments.advance.applied": ["sales.effects.commission_accrual"],
   },
   // The lifecycle of the pedido (entity types spec §5): Grabar runs the checks; it numbers PED- on save.
   typedHooks: { "sales.order": orderHooks, "sales.delivery": deliveryHooks, "sales.return": returnHooks, "sales.commission_plan": commissionPlanHooks, "sales.commission": commissionHooks },
@@ -83,7 +98,8 @@ export const sales: ModuleDef = defineModule({
 
 export { COMMISSION_BASES, COMMISSION_STAGES, DELIVERY_STAGES, ORDER_STAGES, PAYEE_KINDS, RETURN_STAGES, SALES_ENTITIES } from "./entities";
 export type { CommissionBasis, DeliveryStage, OrderStage, PayeeKind } from "./entities";
-export { COMMISSION_DUE } from "./processes/commission";
+export { COMMISSION_ACCRUED, COMMISSION_DUE, COMMISSION_REVERSED } from "./processes/commission";
+export { SALES_POSTING_RULES } from "./rules";
 export { DELIVERY_SHIPPED, DELIVERY_SOURCE, DELIVERY_VOIDED } from "./processes/delivery";
 export { RETURN_RECEIVED, RETURN_VOIDED } from "./processes/return";
 export { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_LINE_SOURCE } from "./processes/order";

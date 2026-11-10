@@ -3503,7 +3503,8 @@
       },
       "commission": {
         "compute": "Compute an invoice's commission bases",
-        "consult_all": "See every salesperson's commissions"
+        "consult_all": "See every salesperson's commissions",
+        "accrue": "Accrue the commissions of an invoice or a collection"
       }
     }
   },
@@ -5268,7 +5269,8 @@
             "costing_landed_cost_allocate": "Allocate landed cost",
             "costing_landed_cost_void": "Void landed cost",
             "payments_advance_apply": "Apply advance to invoices",
-            "payments_advance_undo": "Undo advance application"
+            "payments_advance_undo": "Undo advance application",
+            "sales_commission_accrue": "Accrue commissions"
           }
         }
       },
@@ -6158,7 +6160,8 @@
       "return_void_refused": "Sales: if Inventory cannot give the stock back, the return goes back with the reason",
       "re_reserve_recorded": "Sales: records on the voided delivery whether inventory reserved the stock for the order again",
       "invoice_annulled": "Sales: the deliveries get back what the annulled invoice had invoiced",
-      "commission_bases": "Sales: computes the commission bases of the invoiced order lines"
+      "commission_bases": "Sales: computes the commission bases of the invoiced order lines",
+      "commission_accrual": "Sales: accrues the commissions of the invoice or the collection and posts them"
     },
     "print": {
       "delivery_title": "Delivery note"

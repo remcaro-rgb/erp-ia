@@ -63,6 +63,17 @@ Las cotizaciones que usan estos precios se explican en la guía **Cotizaciones**
 
 Al emitir una factura hecha desde un pedido, cada línea guarda su **base de comisión**: el subtotal de la línea antes de impuestos y después de descuentos, en pesos (y en la moneda de la factura si es en otra moneda), con la tasa de la categoría de su producto o la general del plan del vendedor del pedido. Las muestras gratuitas y las líneas que no vienen de un pedido no comisionan; un vendedor sin plan, tampoco.
 
+### Cuándo se causa la comisión y cómo se contabiliza
+
+La comisión se **causa** (nace como un documento **Comisión**, prefijo **COM-**, uno por beneficiario y por factura o recaudo) según la opción **Cuándo gana el vendedor su comisión** de los parámetros de ventas, la que regía al emitir la factura:
+
+- **Al emitir la factura**: al emitirse la factura se causa toda la comisión de sus líneas, con la fecha de la factura.
+- **Al recaudar la factura** (la opción inicial): cada recibo de caja o anticipo aplicado a la factura causa la parte de la comisión que corresponde a lo que pagó, con la fecha del recibo o de la aplicación. Por ejemplo, un recibo del 40 % de la factura causa el 40 % de la comisión; el que salda la factura causa lo que falte, para que la suma cuadre al centavo. La retención que el cliente practicó cuenta como pagada. En una factura en otra moneda la parte se mide en esa moneda: la diferencia en cambio del recaudo no cambia la comisión.
+
+La comisión se contabiliza sola, en la fuente **NC Notas de contabilidad**: débito al gasto de comisiones en el centro de costo de cada línea de la factura y crédito a la cuenta por pagar del beneficiario, con su fecha de vencimiento (la fecha de la comisión más los **Días para pagar** del plan). La cuenta depende del tipo de beneficiario: un **Empleado** va a 520518 Comisiones contra 250505 Salarios por pagar; un **Agente comercial**, a 523595 Otros servicios (comisiones) contra 233520 Comisiones por pagar (guía **Reglas contables**). Se causa por el valor bruto: la retención en la fuente de la comisión se practica al pagarla. La cuenta por pagar queda en **Cartera por edades** (cuentas por pagar) a nombre del beneficiario, con su vencimiento.
+
+Si la comisión no se puede contabilizar (por ejemplo, el beneficiario dejó de estar listo para facturar), la comisión se guarda igual y el comprobante queda en **Contabilidad › Pendientes de contabilizar**, donde se corrige y se reintenta; la factura y el recibo no se afectan. Con la contabilidad apagada, el comprobante espera y se registra al volver a activarla.
+
 Cada vendedor ve solo los planes y las bases de los planes que lo incluyen. Quien tiene el permiso **Ver las comisiones de todos los vendedores** (en **Administración › Roles**; un rol nuevo no lo trae) ve todos. Las tasas y los valores son confidenciales: un rol que no ve datos confidenciales los ve ocultos.
 
 ## El PDF de una entrega

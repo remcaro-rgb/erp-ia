@@ -3503,7 +3503,8 @@
       },
       "commission": {
         "compute": "Calcular las bases de comisión de una factura",
-        "consult_all": "Ver las comisiones de todos los vendedores"
+        "consult_all": "Ver las comisiones de todos los vendedores",
+        "accrue": "Causar las comisiones de una factura o un recaudo"
       }
     }
   },
@@ -5268,7 +5269,8 @@
             "costing_landed_cost_allocate": "Distribuir costo en destino",
             "costing_landed_cost_void": "Anular costo en destino",
             "payments_advance_apply": "Aplicar anticipo a facturas",
-            "payments_advance_undo": "Deshacer aplicación de anticipo"
+            "payments_advance_undo": "Deshacer aplicación de anticipo",
+            "sales_commission_accrue": "Causar comisiones"
           }
         }
       },
@@ -6158,7 +6160,8 @@
       "return_void_refused": "Ventas: si Inventario no puede devolver el stock, la devolución vuelve atrás con el motivo",
       "re_reserve_recorded": "Ventas: anota en la entrega anulada si el inventario reservó de nuevo las existencias para el pedido",
       "invoice_annulled": "Ventas: las entregas recuperan lo que la factura anulada había facturado",
-      "commission_bases": "Ventas: calcula las bases de comisión de las líneas facturadas de un pedido"
+      "commission_bases": "Ventas: calcula las bases de comisión de las líneas facturadas de un pedido",
+      "commission_accrual": "Ventas: causa las comisiones de la factura o del recaudo y las contabiliza"
     },
     "print": {
       "delivery_title": "Remisión de entrega"

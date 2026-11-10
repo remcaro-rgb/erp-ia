@@ -58,3 +58,35 @@ describe("the payments rules shipped twice (plan 2B.2 Task 34.5)", () => {
     ]);
   });
 });
+
+// The sales rules (plan 2B.2 Task 30.2, Part G PG §5.4, RG-13): the provision of a commission (Dr commission_expense per line, by payee kind,
+// on the line's cost center / Cr commissions_payable for the payee with the provision's due date) and its reversal (reverseOf). Shipped by
+// sales (its manifest's postingRules) and kept here as their twins, byte for byte.
+const SALES = dir("../../../sales/src/rules/");
+const salesRules = readdirSync(SALES).filter((name) => name.endsWith(".json")).sort();
+
+describe("the sales rules shipped twice (plan 2B.2 Task 30.2)", () => {
+  it("sales ships the commission accrual and its reversal", () => {
+    expect(salesRules).toEqual(["commission-accrued.json", "commission-reversed.json"]);
+  });
+
+  it.each(salesRules)("%s is identical to its twin in accounting/src/rules/defaults/", (name) => {
+    expect(json(SALES, name)).toEqual(json(ACCOUNTING, name));
+  });
+
+  it("commission-accrued debits the expense per line by payee kind and credits the payable for the payee with its due date", () => {
+    const rule = JSON.parse(readFileSync(new URL("commission-accrued.json", SALES), "utf8")) as {
+      event: string; template: { source: { entity: string; id: string }; lines: Record<string, string>[] };
+    };
+    expect(rule.event).toBe("sales.commission.accrued");
+    expect(rule.template.source).toEqual({ entity: "sales.commission", id: "$.commissionId" });
+    expect(rule.template.lines).toEqual([
+      { role: "commission_expense", side: "debit", forEach: "$.lines[*]", amount: "$.amount", costCenter: "$.costCenterId", dimension: "payee_kind:{{$$.payeeKind}}" },
+      { role: "commissions_payable", side: "credit", amount: "$.total", party: "$.payeePartyId", dueDate: "$.dueDate", dimension: "payee_kind:{{payeeKind}}" },
+    ]);
+    const reversed = JSON.parse(readFileSync(new URL("commission-reversed.json", SALES), "utf8")) as { event: string; template: { lines: unknown[]; reverseOf: unknown } };
+    expect(reversed.event).toBe("sales.commission.reversed");
+    expect(reversed.template.lines).toEqual([]);
+    expect(reversed.template.reverseOf).toEqual({ event: "sales.commission.accrued", sourceId: "$.commissionId" });
+  });
+});

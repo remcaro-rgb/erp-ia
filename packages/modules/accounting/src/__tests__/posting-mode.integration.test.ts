@@ -112,6 +112,43 @@ describe("(2) asynchronous: each documento commits without its entry, the consum
     await postsLater(out.annulmentNoteId, "invoicing.note.issued", "noteId");
   });
 
+  asyncCase(["sales.commission.accrue"], "a commission accrued in asynchronous mode posts when the consumer runs", async () => {
+    // Plan 2B.2 Task 30.2: an on_invoice commission of the seller's pedido, invoiced on its confirmation; the accrual commits without its entry.
+    const payee = (await h.run<{ id: string }>(h.admin, "core.party.create", {
+      kind: ["supplier"], personType: "1", documentType: "31", documentNumber: "900765432", legalName: "Agencia Comisionista S.A.S.", taxResponsibilities: ["O-13"],
+      taxScheme: "01", countryCode: "CO", departmentCode: "11", municipalityCode: "11001", addressLine: "Cra 1 # 2-3", invoiceEmail: "fe@agencia.example",
+      supplierEmail: "compras@agencia.example",
+    })).id;
+    await h.sql`update core.parties set dian_status = 'complete' where id = ${payee}`;
+    for (const tag of ["RUT", "Cámara de Comercio"]) {
+      await h.sql`insert into kernel.attachments (company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path)
+        values (${h.companyId}, 'core.party', ${payee}, ${tag}, ${`${tag}.pdf`}, 'application/pdf', 1024, ${`${h.seed.tenantId}/${h.companyId}/core.party/${payee}/${tag}.pdf`})`;
+    }
+    await h.run(h.admin, "sales.commission_plan.create", {
+      name: "Agencia comisionista", payeePartyId: payee, payeeKind: "agent", defaultRatePct: 5, validFrom: `${h.year}-01-01`, userIds: [h.admin.claims.sub], lines: [],
+    });
+    await h.run(h.admin, "sales.settings.update", { commissionBasis: "on_invoice" });
+    await h.runStepUp("invoicing.settings.update", { defaultCostCenterId: h.costCenterId, invoiceCreation: "on_order_confirmation" });
+    try {
+      const order = await h.run<{ id: string }>(h.admin, "sales.order.create", {
+        partyId: h.customerId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId: h.servicio, qty: 1, unitPrice: 100000 }],
+      });
+      await h.run(h.admin, "sales.order.confirm", { id: order.id });
+      // The pedido's invoice first, and its entry: the case looks at the commission's posting only.
+      expect(await h.drain(["inventory", "invoicing"])).toEqual([]);
+      expect(await h.drain()).toEqual([]);
+      expect(await h.drain(["sales"])).toEqual([]);
+      const [commission] = await h.sql<{ id: string; amount: string }[]>`
+        select c.id, c.amount::text from sales.commissions c where c.company_id = ${h.companyId} and c.payee_party_id = ${payee}`;
+      expect(Number(commission!.amount)).toBe(5000);
+      expect(await h.entriesOf(commission!.id)).toEqual([]);
+      await postsLater(commission!.id, "sales.commission.accrued", "commissionId");
+    } finally {
+      await h.runStepUp("invoicing.settings.update", { defaultCostCenterId: h.costCenterId, invoiceCreation: "manual" });
+      await h.run(h.admin, "sales.settings.update", { commissionBasis: "on_collection" });
+    }
+  });
+
   asyncCase(["costing.landed_cost.allocate", "costing.landed_cost.void"], "a landed cost and its void post when the consumer runs", async () => {
     const movementId = await h.stockReceipt("LC-A1");
     expect(await h.drain(["costing", "accounting"])).toEqual([]);

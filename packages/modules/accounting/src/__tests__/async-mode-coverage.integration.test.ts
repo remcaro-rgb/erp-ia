@@ -20,6 +20,7 @@ describe("asynchronous mode coverage", () => {
       "costing.landed_cost.allocate", "costing.landed_cost.void",
       "invoicing.invoice.issue", "invoicing.invoice.void", "invoicing.note.issue", "invoicing.note.issue_annulment",
       "payments.advance.apply", "payments.advance.undo", "payments.payment.receive", "payments.payment.void",
+      "sales.commission.accrue",
     ]);
   });
 

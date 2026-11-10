@@ -5,6 +5,9 @@ import { accountingHarness, installVoidedTestRule, newId, type AccountingHarness
 import invoiceFixture from "../rules/fixtures/invoice-issued.json" with { type: "json" };
 import voidedFixture from "../rules/fixtures/invoice-voided.json" with { type: "json" };
 import paymentFixture from "../rules/fixtures/payment-received.json" with { type: "json" };
+import commissionFixture from "../rules/fixtures/commission-accrued.json" with { type: "json" };
+import commissionAccruedRule from "../rules/defaults/commission-accrued.json" with { type: "json" };
+import commissionReversedRule from "../rules/defaults/commission-reversed.json" with { type: "json" };
 
 // The engine over the accounting provider with real outbox rows: the consumer the loader registered for "*" is invoked the way
 // the dispatch workflow invokes it (a consumer context on the event's chain, processes run as the system user with origin event).
@@ -217,6 +220,46 @@ describe("posting", () => {
       ["135518", "9660.0000", "0.0000", "RTEICA_BOGOTA_0_966"], ["130505", "0.0000", "1190000.0000", null],
     ]);
     expect(lines[1]).toMatchObject({ tax_rate: "2.5000", tax_base: "1000000.0000" });
+  });
+
+  it("a commission accrued posts the expense per line on its cost center and the payable for the payee with its due date; its reversal undoes it (plan 2B.2 Task 30.2)", async () => {
+    // The sales module ships these rules (its twins here); this harness loads no sales, so the test installs them as its own.
+    for (const rule of [commissionAccruedRule, commissionReversedRule]) {
+      const [journal] = await h.sql<{ id: string }[]>`select id from accounting.journals where company_id = ${h.companyId} and code = ${rule.journalCode}`;
+      await h.sql`
+        insert into accounting.posting_rules (company_id, event, name, module, journal_id, template, priority, is_default)
+        values (${h.companyId}, ${rule.event}, ${`${rule.name} (prueba)`}, 'accounting', ${journal!.id}, ${h.sql.json(rule.template as never)}, 100, false)`;
+    }
+    const commissionId = randomUUID();
+    const payload = {
+      ...commissionFixture, commissionId, date: dateIn(5, 6), dueDate: dateIn(6, 5), payeePartyId: partyId,
+      lines: commissionFixture.lines.map((l) => ({ ...l, baseId: randomUUID(), costCenterId: ccId })),
+    };
+    const { id } = await emit("sales.commission.accrued", payload);
+    await deliver(id);
+    const [entry] = await entriesOf(id);
+    expect(entry).toMatchObject({ status: "posted", total_debit: "62500.0000", total_credit: "62500.0000", source_entity: "sales.commission", source_record_id: commissionId });
+    const lines = await h.sql`
+      select a.code, l.debit, l.credit, l.party_id, l.cost_center_id, l.due_date::text as due_date from accounting.entry_lines l
+      join accounting.accounts a on a.id = l.account_id where l.entry_id = ${entry!.id} order by l.line_no`;
+    // payee_kind:employee: 520518 Comisiones / 250505 Salarios por pagar (the pack's provisional codes, owner items 159–160).
+    expect(lines.map((l) => [l.code, l.debit, l.credit, l.cost_center_id, l.party_id, l.due_date])).toEqual([
+      ["520518", "50000.0000", "0.0000", ccId, null, null],
+      ["520518", "12500.0000", "0.0000", ccId, null, null],
+      ["250505", "0.0000", "62500.0000", null, partyId, dateIn(6, 5)],
+    ]);
+    // An agent's commission goes to 523595 / 233520.
+    const agent = await emit("sales.commission.accrued", { ...payload, commissionId: randomUUID(), payeeKind: "agent", lines: payload.lines.map((l) => ({ ...l, baseId: randomUUID() })) });
+    await deliver(agent.id);
+    const agentCodes = await h.sql<{ code: string }[]>`
+      select a.code from accounting.entry_lines l join accounting.accounts a on a.id = l.account_id
+      where l.entry_id = (select id from accounting.entries where source_event_id = ${agent.id}) order by l.line_no`;
+    expect(agentCodes.map((l) => l.code)).toEqual(["523595", "523595", "233520"]);
+    const reversed = await emit("sales.commission.reversed", { commissionId, number: payload.number, date: dateIn(5, 20), reason: "Factura anulada" });
+    await deliver(reversed.id);
+    expect(await failuresOf(reversed.id)).toEqual([]);
+    const entries = await h.sql`select status, reversal_of_id, total_debit from accounting.entries where company_id = ${h.companyId} and source_record_id = ${commissionId} order by seq`;
+    expect(entries).toMatchObject([{ status: "posted" }, { status: "posted", reversal_of_id: entry!.id, total_debit: "62500.0000" }]);
   });
 
   it("post_from_event and posting_failure.record are event-only: a user is forbidden and neither is in the sensitive processes list", async () => {

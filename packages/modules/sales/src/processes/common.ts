@@ -7,7 +7,7 @@ import type { LinksApi, ProcessContext, Tx } from "@erp/kernel";
 const ORDER = "sales.order";
 const DELIVERY = "sales.delivery";
 
-function linksOf(ctx: ProcessContext): LinksApi {
+export function linksOf(ctx: ProcessContext): LinksApi {
   if (!ctx.links) throw new Error("ctx.links is not available: the kernel builds it for every run");
   return ctx.links;
 }

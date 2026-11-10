@@ -39,6 +39,17 @@ export const defaultRoleMappings = (): { role: string; dimension?: string; code:
   // the accountant confirms the codes (the seed names 530520 too).
   { role: "fx_gain", code: "421020" },
   { role: "fx_loss", code: "530525" },
+  // Commissions (plan 2B.2 Task 30.2, Part G PG §5.4, RG-13; provisional, owner items 159–161: the accountant confirms or corrects them). The
+  // sales module's roles, by payee kind: an employee's commission is a personnel expense (520518 Comisiones) owed as salary (250505 Salarios
+  // por pagar, item 160: payroll settles it in a later phase); an external agent's is a service (523595 Otros servicios, comisiones) owed as a
+  // cost payable (233520 Comisiones por pagar). The role without dimension is the agent's. The accrual posts gross (item 161: withholding at
+  // payment, phase 3).
+  { role: "commission_expense", code: "523595" },
+  { role: "commission_expense", dimension: "payee_kind:employee", code: "520518" },
+  { role: "commission_expense", dimension: "payee_kind:agent", code: "523595" },
+  { role: "commissions_payable", code: "233520" },
+  { role: "commissions_payable", dimension: "payee_kind:employee", code: "250505" },
+  { role: "commissions_payable", dimension: "payee_kind:agent", code: "233520" },
   { role: "suspense", code: "238095" },
   { role: "income_summary", code: "590505" },
   { role: "current_year_profit", code: "360505" },
