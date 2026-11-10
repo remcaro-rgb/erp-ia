@@ -434,3 +434,13 @@ Design draft: `docs/superpowers/specs/2026-11-10-foreign-currency-design.md` (se
 130. **Revaluing foreign-currency bank accounts** (FX §5, builder check). Ledger accounts carry no currency; a USD bank account could be identified only through the payment methods mapped to it, and any peso entry on it breaks a USD balance. Proposed: 2B.2 revalues receivables only; foreign bank and cash balances are revalued when the bank module arrives with an account currency; meanwhile the accountant posts that adjustment by hand. **Decide**.
     Recommended: defer to the bank module. Cost if wrong: until then the USD account's peso balance is at historical rates at month end unless adjusted by hand.
     **Decided by the owner, 2026-11-09 (in chat, as recommended):** accepted.
+
+## P. Items met while executing 2B.2 Task 34.7 (aging in both currencies and revaluation), 2026-11-09 · to decide
+
+131. **A screen button for «Diferencia en cambio»** (FX §7; design §19a). The run and the void are registered processes reachable through the assistant only; the Periods screen has no button and the revaluation documents have no list of their own. Proposed: a «Diferencia en cambio» action on each open period row (confirmation card, step-up) and the documents under Períodos. **Decide**.
+    Recommended: add it in the UI remediation batch, with its e2e spec. Cost if wrong: an accountant who never uses the assistant cannot run the month-end adjustment, and the close warning points at the assistant.
+132. **Per-row currency in report grids** (FX §7, §10). Report money columns now declare their currency source (`currency: "company"` or `{ field }`, guarded by check:rules), but the report grid still formats every money cell as COP; in «Moneda del documento» a USD row shows `$ 1.250,00`. Proposed: the grid reads the column's currency source and formats with `moneyText(value, currency)`, `USD 1.250,00` (item 129). **Decide**.
+    Recommended: do it with 131 (one UI task). Cost if wrong: a dollar figure that looks like pesos on a dense grid.
+133. **Rate look-back for the closing rate** (FX §5). The run takes the latest rate on or before the period end, at most three calendar days back (a month ending on a weekend or holiday has the TRM published for it, but a manual EUR rate may not); older than that refuses `exchange_rate_missing`. **Decide** (accountant).
+    Recommended: three days. Cost if wrong: too long revalues at a stale rate; zero refuses any month ending on a day without a manual rate.
+

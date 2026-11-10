@@ -13,8 +13,8 @@ const columns: ReportColumn[] = [
   { field: "section", label: "report.col.section", type: "text" },
   { field: "account_code", label: "report.col.account_code", type: "text", mono: true, link: { entity: "accounting.account", idField: "account_id" } },
   { field: "account_name", label: "report.col.account_name", type: "text" },
-  { field: "amount", label: "report.col.amount", type: "money", mono: true },
-  { field: "previous", label: "report.col.previous", type: "money", mono: true },
+  { field: "amount", label: "report.col.amount", type: "money", currency: "company", mono: true },
+  { field: "previous", label: "report.col.previous", type: "money", currency: "company", mono: true },
 ];
 
 const ASSETS = new Set(["assets_current", "assets_noncurrent"]);

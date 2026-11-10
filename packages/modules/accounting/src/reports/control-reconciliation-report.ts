@@ -12,9 +12,9 @@ const params = z.object({ asOf: z.iso.date() });
 const columns: ReportColumn[] = [
   { field: "control", label: "report.col.control", type: "text" },
   { field: "subject", label: "report.col.subject", type: "text" },
-  { field: "ledger", label: "report.col.ledger", type: "money", mono: true },
-  { field: "subledger", label: "report.col.subledger", type: "money", mono: true },
-  { field: "difference", label: "report.col.difference", type: "money", mono: true },
+  { field: "ledger", label: "report.col.ledger", type: "money", currency: "company", mono: true },
+  { field: "subledger", label: "report.col.subledger", type: "money", currency: "company", mono: true },
+  { field: "difference", label: "report.col.difference", type: "money", currency: "company", mono: true },
 ];
 
 export const controlReconciliationConsult = defineProcess({

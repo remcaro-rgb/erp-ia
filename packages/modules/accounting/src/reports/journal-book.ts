@@ -16,8 +16,8 @@ const columns: ReportColumn[] = [
   { field: "account_name", label: "report.col.account_name", type: "text" },
   { field: "party_name", label: "report.col.party", type: "text" },
   { field: "description", label: "report.col.description", type: "text" },
-  { field: "debit", label: "report.col.debit", type: "money", total: "sum", mono: true },
-  { field: "credit", label: "report.col.credit", type: "money", total: "sum", mono: true },
+  { field: "debit", label: "report.col.debit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "credit", label: "report.col.credit", type: "money", currency: "company", total: "sum", mono: true },
 ];
 
 export const journalBookConsult = defineProcess({

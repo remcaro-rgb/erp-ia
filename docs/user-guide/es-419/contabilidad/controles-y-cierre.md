@@ -9,11 +9,13 @@ processes:
   - accounting.entry.approve
   - accounting.entry.reject
   - accounting.settings.update
+  - accounting.fx_revaluation.run
+  - accounting.fx_revaluation.void
 ---
 
 # Controles contables
 
-La contabilidad trae cinco controles pequeños, pensados para que un error o un fraude se vea a tiempo. Esta guía explica qué hace cada uno y dónde se maneja. Para cerrar el período paso a paso, mira la guía **Períodos y cierre**.
+La contabilidad trae seis controles pequeños, pensados para que un error o un fraude se vea a tiempo. Esta guía explica qué hace cada uno y dónde se maneja. Para cerrar el período paso a paso, mira la guía **Períodos y cierre**.
 
 ## 1. Aprobación por otra persona
 
@@ -39,6 +41,21 @@ La cuenta transitoria recibe lo que aún no se sabe dónde va. El período no se
 
 ![Auditoría de comprobantes manuales](img/auditoria-comprobantes-manuales.png)
 
+## 6. Diferencia en cambio no realizada
+
+Si tienes facturas de venta en otra moneda (por ejemplo USD) todavía por cobrar al terminar el período, su valor en pesos cambió con la tasa. La **diferencia en cambio no realizada** lleva esa cartera a la tasa del último día del período.
+
+1. Pídele al asistente «calcula la diferencia en cambio de octubre» (o del período que quieras). Te muestra una tarjeta de confirmación y te pide el código de verificación.
+2. El sistema toma cada factura abierta en otra moneda, su saldo en esa moneda y la tasa del último día del período (la TRM o la tasa que registraste; si no hay una de ese día, usa la de hasta tres días antes). Si no encuentra tasa, se niega y te dice qué moneda falta.
+3. Contabiliza un comprobante **NC Notas de contabilidad** con fecha del último día del período: la cartera de cada factura sube o baja, contra **Diferencia en cambio** (ingreso 421020 o gasto 530525, con la dimensión «no realizada»).
+4. Al mismo tiempo contabiliza su reversión con fecha del día siguiente. Así, cuando el cliente paga, la diferencia realizada se calcula contra la tasa de la factura, como siempre.
+
+Las facturas en pesos no se tocan, ni los anticipos ni las cuentas bancarias en dólares.
+
+**Volver a calcular.** Si corriges una tasa o registras un pago con fecha del período, vuelve a pedirlo: el cálculo anterior se anula (con dos comprobantes espejo) y se contabiliza uno nuevo. También puedes pedir **anular la diferencia en cambio** sin recalcular. Las dos cosas solo se pueden mientras el período y el siguiente estén abiertos.
+
+**Al cerrar el período.** Si hay facturas abiertas en otra moneda y no la calculaste, el cierre muestra la advertencia **Diferencia en cambio no calculada**. Es solo un aviso: el período se cierra igual y la advertencia queda a la vista en la ventana de cierre.
+
 ## Quién puede qué
 
-Los permisos se asignan por rol en **Administración**. Cerrar y reabrir períodos, cambiar reglas y la configuración piden además el código de verificación. Todo queda en la auditoría.
+Los permisos se asignan por rol en **Administración**. Cerrar y reabrir períodos, calcular o anular la diferencia en cambio, cambiar reglas y la configuración piden además el código de verificación. La diferencia en cambio la pueden calcular el administrador y el contador. Todo queda en la auditoría.

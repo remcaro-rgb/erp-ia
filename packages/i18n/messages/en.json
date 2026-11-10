@@ -1426,7 +1426,9 @@
       "period": "Period",
       "period_close_check": "Close check",
       "posting_failure": "Unposted event",
-      "settings": "Accounting settings"
+      "settings": "Accounting settings",
+      "fx_revaluation": "Exchange difference adjustment",
+      "fx_revaluation_line": "Exchange difference adjustment line"
     },
     "core": {
       "party": "Party",
@@ -1892,6 +1894,45 @@
         "use_business_units": "Uses business units",
         "use_items": "Uses items",
         "use_open_auxiliaries": "Uses open auxiliaries"
+      },
+      "fx_revaluation": {
+        "seq": "ID",
+        "period_id": "Period",
+        "date": "Date",
+        "closing_rates": "Closing rates",
+        "lines_count": "Invoices adjusted",
+        "entry_id": "Adjustment entry",
+        "reversal_entry_id": "Reversal entry",
+        "void_entry_id": "Adjustment void entry",
+        "void_reversal_entry_id": "Reversal void entry",
+        "voided_at": "Voided at",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "fx_revaluation_line": {
+        "seq": "ID",
+        "revaluation_id": "Adjustment",
+        "line_no": "Line",
+        "entry_line_id": "Entry line",
+        "invoice_id": "Invoice",
+        "invoice_number": "Invoice number",
+        "party_id": "Party",
+        "currency": "Currency",
+        "open_doc": "Open in document currency",
+        "carrying": "Carrying amount in COP",
+        "closing_rate": "Closing rate",
+        "revalued": "Revalued amount in COP",
+        "adjustment": "Exchange difference",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
       }
     },
     "core": {
@@ -4458,7 +4499,8 @@
       "total": "Total",
       "value_1": "Value 1",
       "value_2": "Value 2",
-      "value_3": "Value 3"
+      "value_3": "Value 3",
+      "currency": "Currency"
     },
     "aging": {
       "not_due": "Not due",
@@ -4509,7 +4551,8 @@
         }
       },
       "account_ids": "Accounts",
-      "buckets": "Day ranges"
+      "buckets": "Day ranges",
+      "currency": "Currency"
     },
     "enum": {
       "accounting": {
@@ -4517,6 +4560,10 @@
           "kind": {
             "receivable": "Receivables (customers)",
             "payable": "Payables (suppliers)"
+          },
+          "currency": {
+            "company": "COP equivalent",
+            "document": "Document currency"
           }
         },
         "dimension_detail": {
@@ -4925,7 +4972,9 @@
         "preview_closing": "Closing entries to reverse",
         "preview_unavailable": "The closing preview could not be computed.",
         "close_confirm": "Close period",
-        "reopen_confirm": "Reopen period"
+        "reopen_confirm": "Reopen period",
+        "check_warning": "Warning",
+        "closed_with_warnings": "The period is closed. Review the warnings: they did not prevent the close."
       },
       "reports": {
         "none": "Your role cannot consult any accounting report.",
@@ -5155,7 +5204,8 @@
         "control_inventory": "Inventory control",
         "suspense_zero": "Suspense account at zero",
         "rounding_within_tolerance": "Rounding within tolerance",
-        "contra_nature_balances": "No balances against nature"
+        "contra_nature_balances": "No balances against nature",
+        "fx_revaluation": "Exchange difference calculated"
       },
       "failure_code": {
         "unbalanced": "Unbalanced entry",
@@ -5209,6 +5259,12 @@
       "rule_without_currency": {
         "title": "The rule {rule} has no currency",
         "body": "The rule {rule} has no currency; foreign-currency invoices will be posted in COP only (their document-currency debit and credit equal the COP ones). It was modified before the rules carried the document currency: review it in Accounting › Posting rules and add the currency and rate, or go back to the default rule."
+      }
+    },
+    "fx_revaluation": {
+      "own_flags": {
+        "requires_approval": "No approval: the «Calculate exchange difference» process computes and posts the adjustment.",
+        "posts": "Always posts: the adjustment at the period end and its reversal on the first day of the next one."
       }
     }
   },

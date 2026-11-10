@@ -15,6 +15,8 @@
  *  - rule 7/§9.2: a module with menu items (objects with label, href and icon) declares the four menu sections Maestros, Documentos,
  *             Reportes and Parámetros: `menuSections("<module>")`, or the four groups `<module>.maestros|documentos|reportes|parametros`
  *             written out (the loader checks their shape at boot)
+ *  - FX §7 (plan 2B.2 Task 34.7): every money column of a report definition (an object literal with `type: "money"` in a module's
+ *             `src/reports/`) names its currency: `currency: "company"` or `currency: { field: "<row field>" }`
  *  - CLAUDE.md and AGENTS.md at the root are byte-identical
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -22,7 +24,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "unmasked-view-read" | "agents-claude-identical" | "puc-code-outside-pack" | "entity-type" | "menu-sections";
+export type RuleId = "migration-name" | "spanish-literal" | "cross-schema-write" | "masked-view-read" | "unmasked-view-read" | "agents-claude-identical" | "puc-code-outside-pack" | "entity-type" | "menu-sections" | "report-currency";
 
 export interface Violation {
   rule: RuleId;
@@ -428,6 +430,49 @@ export function checkMenuSections(root: string): Violation[] {
   return violations;
 }
 
+/**
+ * FX §7: no report sums two currencies into one figure, so every money column of a report says whose currency its figures are in: the
+ * company's (`currency: "company"`) or the one a field of each row holds (`currency: { field: "currency" }`). Tests are skipped.
+ */
+export function checkReportCurrencies(root: string): Violation[] {
+  const modulesDir = join(root, "packages", "modules");
+  if (!existsSync(modulesDir)) return [];
+  const violations: Violation[] = [];
+  for (const name of readdirSync(modulesDir).sort()) {
+    const dir = join(modulesDir, name, "src", "reports");
+    if (!existsSync(dir)) continue;
+    for (const file of walk(dir).filter((f) => /\.tsx?$/.test(f))) {
+      const path = rel(root, file);
+      if (isTestFile(path)) continue;
+      const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+      const visit = (node: ts.Node) => {
+        if (ts.isObjectLiteralExpression(node)) {
+          const own = new Map<string, ts.Expression>();
+          // `"money" as const` is the same declaration as `"money"`.
+          const bare = (e: ts.Expression): ts.Expression => (ts.isAsExpression(e) || ts.isSatisfiesExpression(e) ? bare(e.expression) : e);
+          for (const p of node.properties) if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) own.set(p.name.text, bare(p.initializer));
+          const shorthand = node.properties.some((p) => ts.isShorthandPropertyAssignment(p) && p.name.text === "field");
+          const type = own.get("type");
+          if (type && ts.isStringLiteral(type) && type.text === "money" && (own.has("field") || shorthand)) {
+            const currency = own.get("currency");
+            const fieldOf = (e: ts.Expression) => ts.isObjectLiteralExpression(e) && e.properties.some((p) => ts.isPropertyAssignment(p) && ts.isIdentifier(p.name) && p.name.text === "field" && ts.isStringLiteral(p.initializer));
+            const ok = currency !== undefined && ((ts.isStringLiteral(currency) && currency.text === "company") || fieldOf(currency));
+            if (!ok) {
+              violations.push({
+                rule: "report-currency", file: path, line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+                message: 'FX §7: a report money column names its currency: currency: "company" or currency: { field: "<row field>" }',
+              });
+            }
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+    }
+  }
+  return violations;
+}
+
 function checkInstructionFiles(root: string): Violation[] {
   const claude = join(root, "CLAUDE.md");
   const agents = join(root, "AGENTS.md");
@@ -443,7 +488,7 @@ function checkInstructionFiles(root: string): Violation[] {
 }
 
 export function checkRules(root: string): Violation[] {
-  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkUnmaskedViewReads(root), ...checkPucCodes(root), ...checkEntityTypes(root), ...checkMenuSections(root), ...checkInstructionFiles(root)];
+  return [...checkMigrations(root), ...checkSpanishLiterals(root), ...checkCrossSchemaWrites(root), ...checkMaskedViewReads(root), ...checkUnmaskedViewReads(root), ...checkPucCodes(root), ...checkEntityTypes(root), ...checkMenuSections(root), ...checkReportCurrencies(root), ...checkInstructionFiles(root)];
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

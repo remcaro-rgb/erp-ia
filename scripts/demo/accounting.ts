@@ -260,7 +260,9 @@ async function grantAccounting(run: Run, laura: DemoSession): Promise<void> {
   const entries = ids.filter((p) => /^accounting\.(entry|entry_template|entry_line)\./.test(p.id)).map((p) => p.id);
   // Tasas de cambio (plan 2B.2 Task 34.1): the accountant registers manual rates and brings the TRM; replacing a TRM stays the admin's.
   const rates = ["core.exchange_rate.set", "core.exchange_rate.import_official", "core.exchange_rate.for_date"];
-  const contador = [...new Set([...consults, ...entries, "accounting.opening.create", ...rates])];
+  // Diferencia en cambio (plan 2B.2 Task 34.7): admin and contador run and void the month-end revaluation (step-up).
+  const fx = ["accounting.fx_revaluation.run", "accounting.fx_revaluation.void"];
+  const contador = [...new Set([...consults, ...entries, "accounting.opening.create", ...rates, ...fx])];
   const cajero = [...new Set([...consults, ...entries.filter((id) => /^accounting\.entry\.(create|update|void|delete|submit|from_template)$/.test(id))])];
   const attachments = ATTACHMENT_PROCESSES.map((p) => p.id);
   const changes = [

@@ -82,7 +82,7 @@ export const asInput = (line: LineRow): LineInput => ({
 });
 
 /** The mirrored lines of an entry, debit and credit swapped, for a reversal or an auto-reversal. */
-async function insertMirror(ctx: ProcessContext, from: string, to: string): Promise<void> {
+export async function insertMirror(ctx: ProcessContext, from: string, to: string): Promise<void> {
   await ctx.tx`
     insert into accounting.entry_lines (company_id, entry_id, line_no, account_id, party_id, cost_center_id, open_auxiliary_id, item_id, business_unit_id,
                                         description, debit, credit, debit_doc, credit_doc, tax_code, tax_rate, tax_base, reference, due_date)

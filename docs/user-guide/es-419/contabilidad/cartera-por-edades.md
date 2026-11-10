@@ -15,6 +15,7 @@ Este informe responde «¿quién me debe, desde cuándo?» (cartera) y «¿a qui
 1. **Contabilidad › Reportes › Informes › Cartera y cuentas por pagar por edades**.
 2. En **Tipo** elige **Cartera (clientes)** o **Por pagar (proveedores)**.
 3. En **A la fecha** pon el día de corte. Por defecto los rangos son los del sistema; en **Rangos de días** puedes cambiarlos.
+4. En **Moneda** elige **Equivalente en COP** (por defecto) o **Moneda del documento**.
 
 ![Cartera por edades con cinco rangos](img/cartera-por-edades.png)
 
@@ -45,6 +46,15 @@ Depende de si la empresa tiene activo el módulo **Pagos**. Puedes activarlo o d
 Si cada recibo se aplica a las facturas más antiguas primero, los dos cálculos dan las mismas partidas de las facturas.
 
 > Sin Pagos, las retenciones que te practicó el cliente sí salen en su fila, como una partida más: quedan en una cuenta del grupo 13 a nombre del cliente.
+
+## Facturas en otra moneda
+
+Si exportas y facturas en dólares (u otra moneda), el parámetro **Moneda** cambia cómo ves esas facturas.
+
+- **Equivalente en COP.** Todo en pesos: una fila por tercero y el total al pie, como siempre. El encabezado dice que los valores van en COP. Una factura en USD vale lo que se contabilizó con su tasa; si corriste la **diferencia en cambio** del mes (guía **Controles contables**), vale a la tasa de cierre hasta el día siguiente al cierre, cuando el ajuste se reversa.
+- **Moneda del documento.** Cada factura en su propia moneda. Las filas se agrupan por moneda y cada grupo termina en una fila **Subtotal USD**, **Subtotal COP**, etc. No hay total general: no se suman dólares con pesos.
+
+Lo pendiente en dólares baja con lo que el cliente pagó en dólares (o el equivalente en dólares que digitaste al registrar un pago en pesos) y con las notas crédito de la factura.
 
 ## Cobrar lo vencido
 

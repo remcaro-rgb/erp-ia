@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { defineEntity, isTypedEntity, maskedViewSql } from "@erp/kernel";
-import { ACCOUNTING_ENTITIES, LEDGER_ENTITIES, MASTER_ENTITIES, ledgerLineEntity } from "../entities";
+import { ACCOUNTING_ENTITIES, FX_ENTITIES, LEDGER_ENTITIES, MASTER_ENTITIES, ledgerLineEntity } from "../entities";
 
 const read = (name: string) => readFileSync(new URL(`../../../../../supabase/migrations/${name}`, import.meta.url), "utf8");
 const masters = read("0031_accounting_masters.sql");
@@ -12,6 +12,8 @@ const typedViews = read("0043_accounting_entries_typed.sql");
 // 0055 re-creates the entry and template views with their later columns (template options): their generated text lives there.
 const templateViews = read("0055_accounting_template_options.sql");
 const RECREATED_IN_0055 = new Set(["accounting.entry", "accounting.entry_template"]);
+// 0153 adds the diferencia en cambio documento and its lines (plan 2B.2 Task 34.7).
+const fxViews = read("0153_accounting_open_items_currency.sql");
 
 // The masked views are pasted into the migrations from maskedViewSql (rule 14). This guards against drift between the entity
 // definitions and the SQL: the generated column list must appear verbatim. Views that add a filter (the account security of
@@ -64,7 +66,7 @@ describe("accounting masked views, migration 0039 (account view)", () => {
 });
 
 describe("accounting masked views, migration 0043 (typed maestros and comprobante)", () => {
-  const typed = ACCOUNTING_ENTITIES.filter(isTypedEntity);
+  const typed = ACCOUNTING_ENTITIES.filter((e) => isTypedEntity(e) && !FX_ENTITIES.includes(e));
   it("covers the seven maestros and the comprobante", () => expect(typed).toHaveLength(8));
   for (const entity of typed) {
     it(`accounting.v_${entity.table} is the generated masked view of ${entity.id}, with the lifecycle columns`, () => {
@@ -84,4 +86,14 @@ describe("accounting masked views, migration 0043 (typed maestros and comprobant
       expect(typedViews).toMatch(new RegExp(`from accounting\\.${table}\\s+where deleted_at is null;`));
     }
   });
+});
+
+describe("accounting masked views, migration 0153 (diferencia en cambio)", () => {
+  for (const entity of FX_ENTITIES) {
+    it(`accounting.v_${entity.table} is the generated masked view of ${entity.id}`, () => {
+      const generated = maskedViewSql(defineEntity(entity));
+      expect(fxViews).toContain(generated.slice(0, generated.indexOf(`from ${entity.schema}.${entity.table}`)));
+      expect(fxViews).toContain(`grant select on ${entity.schema}.v_${entity.table} to authenticated;`);
+    });
+  }
 });

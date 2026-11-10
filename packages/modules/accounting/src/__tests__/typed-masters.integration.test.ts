@@ -35,7 +35,7 @@ describe("accounting maestros on the typed lifecycle", () => {
   it("every maestro and documento table of accounting has the typed columns, the state check, the flag trigger and its entity_tables row (0043)", async () => {
     const typed = h.deps.registry.entities("accounting").filter(isTypedEntity);
     expect(typed.filter((e) => e.entityType === "maestro").map((e) => e.id).sort()).toEqual(ACCOUNTING_MAESTROS);
-    expect(typed.filter((e) => e.entityType === "documento").map((e) => e.id)).toEqual(["accounting.entry"]);
+    expect(typed.filter((e) => e.entityType === "documento").map((e) => e.id)).toEqual(["accounting.entry", "accounting.fx_revaluation"]);
     for (const entity of typed) {
       const columns = await h.sql<{ column_name: string; is_nullable: string }[]>`
         select column_name, is_nullable from information_schema.columns where table_schema = ${entity.schema} and table_name = ${entity.table}`;

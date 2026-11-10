@@ -65,7 +65,7 @@ export const accounting: ModuleDef = defineModule({
   events: {
     emits: [
       "accounting.entry.submitted", "accounting.entry.posted", "accounting.entry.reversed", "accounting.period.closed",
-      "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed",
+      "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed", "accounting.fx_revaluation.posted",
     ],
     consumes: {
       "*": POSTING_CONSUMER,

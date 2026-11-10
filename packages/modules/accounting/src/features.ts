@@ -30,7 +30,7 @@ export const NAVIGATION: NavItem[] = menuSections("accounting", {
     { id: "accounting.reports", label: "nav.accounting.reports", href: "/accounting/reports", icon: "file-bar-chart", feature: "accounting.ledger", runs: ["accounting.report."] },
   ],
   parametros: [
-    { id: "accounting.periods", label: "nav.accounting.periods", href: "/accounting/periods", icon: "calendar-days", feature: "accounting.periods", entity: "accounting.period", runs: ["accounting.fiscal_year.", "accounting.year."] },
+    { id: "accounting.periods", label: "nav.accounting.periods", href: "/accounting/periods", icon: "calendar-days", feature: "accounting.periods", entity: "accounting.period", runs: ["accounting.fiscal_year.", "accounting.year.", "accounting.fx_revaluation."] },
     {
       id: "accounting.posting",
       label: "nav.accounting.posting",
@@ -65,7 +65,7 @@ export const FEATURES: FeatureDef[] = [
     id: "accounting.periods",
     label: "feature.accounting.periods",
     processes: forFeature("accounting.periods"),
-    entities: ["accounting.fiscal_year", "accounting.period", "accounting.period_close_check"],
+    entities: ["accounting.fiscal_year", "accounting.period", "accounting.period_close_check", "accounting.fx_revaluation", "accounting.fx_revaluation_line"],
     nav: nav("accounting.periods"),
   },
   {

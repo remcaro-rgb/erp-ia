@@ -380,3 +380,35 @@ describe("check-rules: menu sections (spec 2026-11-02 §9.2)", () => {
     expect(checkRules(root)).toEqual([]);
   });
 });
+
+describe("check-rules: report money columns name their currency (FX §7, plan 2B.2 Task 34.7)", () => {
+  const REPORT = "packages/modules/accounting/src/reports/aging.ts";
+  const found = () => checkRules(root).map((v) => [v.rule, v.file, v.line]);
+
+  it("flags a money column of a report definition without a currency source, with file and line", () => {
+    put(REPORT, 'const columns = [\n  { field: "party_name", label: "l", type: "text" },\n  { field: "total", label: "l", type: "money", total: "sum" },\n];\n');
+    expect(found()).toEqual([["report-currency", REPORT, 3]]);
+  });
+
+  it("flags a currency source that is neither the company's nor a row field", () => {
+    put(REPORT, 'const columns = [{ field: "total", label: "l", type: "money", currency: "USD" }];\n');
+    expect(found()).toEqual([["report-currency", REPORT, 1]]);
+  });
+
+  it("reads a type written `as const`", () => {
+    put(REPORT, 'const columns = MONEY.map((field) => ({ field, label: "l", type: "money" as const }));\n');
+    expect(found()).toEqual([["report-currency", REPORT, 1]]);
+  });
+
+  it("accepts the company's currency, a row field, non-money columns, tests and code outside the reports", () => {
+    put(REPORT, 'const columns = [\n  { field: "total", label: "l", type: "money", currency: "company" },\n  { field: "open", label: "l", type: "money", currency: { field: "currency" } },\n  { field: "days", label: "l", type: "number" },\n];\n');
+    put("packages/modules/accounting/src/reports/__tests__/x.test.ts", 'const c = { field: "total", label: "l", type: "money" };\n');
+    put("packages/modules/accounting/src/entities.ts", 'const f = { name: "total", label: "l", type: "money" };\n');
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("the real repo declares a currency source on every report money column", () => {
+    const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    expect(checkRules(repo).filter((v) => v.rule === "report-currency")).toEqual([]);
+  });
+});

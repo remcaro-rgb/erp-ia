@@ -12,9 +12,9 @@ const params = z.object({ from: z.uuid(), to: z.uuid(), nodeId: z.uuid().optiona
 const columns: ReportColumn[] = [
   { field: "cost_center_code", label: "report.col.cost_center", type: "text", mono: true },
   { field: "cost_center_name", label: "report.col.cost_center_name", type: "text" },
-  { field: "income", label: "report.col.income", type: "money", total: "sum", mono: true },
-  { field: "expense", label: "report.col.expense", type: "money", total: "sum", mono: true },
-  { field: "net", label: "report.col.net", type: "money", total: "sum", mono: true },
+  { field: "income", label: "report.col.income", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "expense", label: "report.col.expense", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "net", label: "report.col.net", type: "money", currency: "company", total: "sum", mono: true },
 ];
 
 export const costCenterStatementConsult = defineProcess({

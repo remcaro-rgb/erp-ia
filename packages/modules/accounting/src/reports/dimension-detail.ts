@@ -11,9 +11,9 @@ const params = z.object({ dimension: z.enum(DIMENSIONS), nodeId: z.uuid(), from:
 const columns: ReportColumn[] = [
   { field: "account_code", label: "report.col.account_code", type: "text", mono: true },
   { field: "account_name", label: "report.col.account_name", type: "text" },
-  { field: "debit", label: "report.col.debit", type: "money", total: "sum", mono: true },
-  { field: "credit", label: "report.col.credit", type: "money", total: "sum", mono: true },
-  { field: "net", label: "report.col.net", type: "money", total: "sum", mono: true },
+  { field: "debit", label: "report.col.debit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "credit", label: "report.col.credit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "net", label: "report.col.net", type: "money", currency: "company", total: "sum", mono: true },
 ];
 
 export const dimensionDetailConsult = defineProcess({

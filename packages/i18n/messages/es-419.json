@@ -1426,7 +1426,9 @@
       "period": "Período",
       "period_close_check": "Verificación de cierre",
       "posting_failure": "Evento sin contabilizar",
-      "settings": "Configuración contable"
+      "settings": "Configuración contable",
+      "fx_revaluation": "Ajuste por diferencia en cambio",
+      "fx_revaluation_line": "Línea de ajuste por diferencia en cambio"
     },
     "core": {
       "party": "Tercero",
@@ -1892,6 +1894,45 @@
         "use_business_units": "Usa unidades de negocio",
         "use_items": "Usa ítems",
         "use_open_auxiliaries": "Usa auxiliares abiertos"
+      },
+      "fx_revaluation": {
+        "seq": "ID",
+        "period_id": "Período",
+        "date": "Fecha",
+        "closing_rates": "Tasas de cierre",
+        "lines_count": "Facturas ajustadas",
+        "entry_id": "Comprobante del ajuste",
+        "reversal_entry_id": "Comprobante de reversión",
+        "void_entry_id": "Anulación del ajuste",
+        "void_reversal_entry_id": "Anulación de la reversión",
+        "voided_at": "Anulado el",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación",
+        "posts": "Contabiliza",
+        "void_reason": "Motivo de anulación"
+      },
+      "fx_revaluation_line": {
+        "seq": "ID",
+        "revaluation_id": "Ajuste",
+        "line_no": "Línea",
+        "entry_line_id": "Movimiento",
+        "invoice_id": "Factura",
+        "invoice_number": "N.º de factura",
+        "party_id": "Tercero",
+        "currency": "Moneda",
+        "open_doc": "Saldo en moneda del documento",
+        "carrying": "Saldo en COP a la tasa de la factura",
+        "closing_rate": "Tasa de cierre",
+        "revalued": "Saldo en COP a la tasa de cierre",
+        "adjustment": "Diferencia en cambio",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
       }
     },
     "core": {
@@ -4458,7 +4499,8 @@
       "total": "Total",
       "value_1": "Valor 1",
       "value_2": "Valor 2",
-      "value_3": "Valor 3"
+      "value_3": "Valor 3",
+      "currency": "Moneda"
     },
     "aging": {
       "not_due": "Por vencer",
@@ -4509,7 +4551,8 @@
         }
       },
       "account_ids": "Cuentas",
-      "buckets": "Rangos de días"
+      "buckets": "Rangos de días",
+      "currency": "Moneda"
     },
     "enum": {
       "accounting": {
@@ -4517,6 +4560,10 @@
           "kind": {
             "receivable": "Cartera (clientes)",
             "payable": "Por pagar (proveedores)"
+          },
+          "currency": {
+            "company": "Equivalente en COP",
+            "document": "Moneda del documento"
           }
         },
         "dimension_detail": {
@@ -4925,7 +4972,9 @@
         "preview_closing": "Comprobantes de cierre por revertir",
         "preview_unavailable": "No se pudo calcular la vista previa del cierre.",
         "close_confirm": "Cerrar período",
-        "reopen_confirm": "Reabrir período"
+        "reopen_confirm": "Reabrir período",
+        "check_warning": "Aviso",
+        "closed_with_warnings": "El período quedó cerrado. Revisa los avisos: no impidieron el cierre."
       },
       "reports": {
         "none": "Tu rol no puede consultar ningún informe contable.",
@@ -5155,7 +5204,8 @@
         "control_inventory": "Control de inventario",
         "suspense_zero": "Cuenta transitoria en cero",
         "rounding_within_tolerance": "Ajuste al peso dentro de la tolerancia",
-        "contra_nature_balances": "Sin saldos contrarios a la naturaleza"
+        "contra_nature_balances": "Sin saldos contrarios a la naturaleza",
+        "fx_revaluation": "Diferencia en cambio calculada"
       },
       "failure_code": {
         "unbalanced": "Comprobante descuadrado",
@@ -5209,6 +5259,12 @@
       "rule_without_currency": {
         "title": "La regla {rule} no lleva moneda",
         "body": "La regla {rule} no lleva moneda; las facturas en moneda extranjera se contabilizarán solo en COP (el débito y el crédito en moneda del documento quedan iguales a los de COP). Se modificó antes de que las reglas llevaran la moneda del documento: revísala en Contabilidad › Reglas contables y agrégale la moneda y la tasa, o vuelve a la regla por defecto."
+      }
+    },
+    "fx_revaluation": {
+      "own_flags": {
+        "requires_approval": "No requiere aprobación: el ajuste lo calcula y contabiliza el proceso «Calcular diferencia en cambio».",
+        "posts": "Contabiliza siempre: el ajuste al cierre del período y su reversión el primer día del siguiente."
       }
     }
   },

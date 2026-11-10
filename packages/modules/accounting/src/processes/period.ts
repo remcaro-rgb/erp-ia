@@ -1,6 +1,6 @@
 import { defineProcess, ProcessError } from "@erp/kernel";
 import { z } from "zod";
-import { runCloseChecks, type CloseCheck } from "./close-checks";
+import { blocking, runCloseChecks, type CloseCheck } from "./close-checks";
 import { invalid, settingsOf } from "./common";
 import { id } from "./schemas";
 
@@ -8,7 +8,7 @@ import { id } from "./schemas";
 // whether or not the period closes; a failed check keeps the period open and the run answers with the figures instead of throwing,
 // so the rows commit and the attempt is kept.
 
-const checkSchema = z.object({ check: z.string(), passed: z.boolean(), value: z.record(z.string(), z.unknown()), note: z.string() });
+const checkSchema = z.object({ check: z.string(), passed: z.boolean(), value: z.record(z.string(), z.unknown()), note: z.string(), severity: z.literal("warning").optional() });
 
 export const periodClose = defineProcess({
   id: "accounting.period.close",
@@ -20,7 +20,8 @@ export const periodClose = defineProcess({
   description: "Cierra un período contable tras correr los controles de cierre; si alguno falla el período sigue abierto y se devuelven las cifras",
   emits: ["accounting.period.closed"],
   input: z.object({ periodId: id }).strict(),
-  output: z.object({ closed: z.boolean(), checks: z.array(checkSchema), failed: z.array(z.string()) }),
+  // `warnings`: the notes of the failed warnings (FX §5 «Diferencia en cambio no calculada»), shown, never blocking.
+  output: z.object({ closed: z.boolean(), checks: z.array(checkSchema), failed: z.array(z.string()), warnings: z.array(z.string()) }),
   handler: async (ctx, { periodId }) => {
     const [period] = await ctx.tx<{ id: string; number: number; status: string; starts_on: string; ends_on: string; fiscal_year_id: string }[]>`
       select id, number, status, starts_on::text, ends_on::text, fiscal_year_id from accounting.periods
@@ -42,12 +43,13 @@ export const periodClose = defineProcess({
           company_id: ctx.companyId, period_id: periodId, check: c.check, value: ctx.tx.json(c.value as Parameters<typeof ctx.tx.json>[0]), passed: c.passed, note: c.note,
         })),
       )}`;
-    const failed = checks.filter((c) => !c.passed);
-    if (failed.length > 0) return { closed: false, checks, failed: failed.map((c) => c.note) };
+    const failed = blocking(checks);
+    const warnings = checks.filter((c) => !c.passed && c.severity === "warning").map((c) => c.note);
+    if (failed.length > 0) return { closed: false, checks, failed: failed.map((c) => c.note), warnings };
 
     await ctx.tx`update accounting.periods set status = 'closed', closed_at = now(), closed_by = ${ctx.userId}, reopened_for = null where id = ${periodId}`;
     await ctx.emit("accounting.period.closed", { periodId, number: period.number, fiscalYearId: period.fiscal_year_id, startsOn: period.starts_on, endsOn: period.ends_on });
-    return { closed: true, checks, failed: [] };
+    return { closed: true, checks, failed: [], warnings };
   },
 });
 

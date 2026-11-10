@@ -30,6 +30,8 @@ export interface CloseCheckResult {
   check: string;
   passed: boolean;
   note: string;
+  /** A warning (FX §5 «Diferencia en cambio no calculada») is shown but never keeps the period open. */
+  severity?: "warning";
 }
 
 /** Cerrar un período: runs the close checks; a failed check keeps it open and the answer lists them (the process records the attempt). */
@@ -38,7 +40,7 @@ export async function closePeriodAction(periodId: string, stepUpToken?: string):
   return perform<{ closed: boolean; checks: CloseCheckResult[] }, { closed: boolean; checks: CloseCheckResult[] }>(
     "accounting.period.close",
     { periodId },
-    (out) => ({ closed: out.closed, checks: out.checks.map((c) => ({ check: c.check, passed: c.passed, note: c.note })) }),
+    (out) => ({ closed: out.closed, checks: out.checks.map((c) => ({ check: c.check, passed: c.passed, note: c.note, ...(c.severity ? { severity: c.severity } : {}) })) }),
     stepUpToken,
   );
 }

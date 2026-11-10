@@ -175,9 +175,9 @@ describe("accounting catalogue", () => {
   const missing = (keys: string[]) => keys.flatMap(both).filter(([, value]) => value === undefined).map(([name]) => name);
   const accountingReports = registry.modules().filter((m) => m.id === "accounting").flatMap((m) => m.reports ?? []);
 
-  it("labels the twenty accounting entities and the journal master as Fuente / Fuentes", () => {
+  it("labels the twenty-two accounting entities (the diferencia en cambio documento and its lines, Task 34.7) and the journal master as Fuente / Fuentes", () => {
     const entities = registry.entities().filter((e) => e.module === "accounting");
-    expect(entities).toHaveLength(20);
+    expect(entities).toHaveLength(22);
     expect(missing(entities.map((e) => e.label))).toEqual([]);
     expect(valueAt(es, "entity.accounting.journal")).toBe("Fuente");
     expect(valueAt(es, "nav.accounting.journals")).toBe("Fuentes");

@@ -2,12 +2,14 @@ import { moneyText, type ProcessContext } from "@erp/kernel";
 import { controlReconciliation } from "../reports/control-reconciliation";
 import { AWAITING_APPROVAL_STATES, UNFINISHED_ENTRY_STATES } from "./common";
 
-// The ten checks of design §4.14 that `period.close` runs and records as the sign-off. Each carries the figures it compared and a
-// Spanish note the screens and the assistant show as the reason of a refusal.
+// The ten checks of design §4.14 that `period.close` runs and records as the sign-off, and the warning of plan 2B.2 Task 34.7
+// (FX §5): «Diferencia en cambio no calculada» while the period has open foreign-currency invoices and no posted revaluation run. Each
+// carries the figures it compared and a Spanish note the screens and the assistant show as the reason of a refusal; a warning is recorded
+// and shown but never keeps the period open.
 
 export const CLOSE_CHECK_NAMES = [
   "drafts", "pending_approvals", "pending_failures", "undispatched_events", "control_receivable", "control_payable", "control_inventory",
-  "suspense_zero", "rounding_within_tolerance", "contra_nature_balances",
+  "suspense_zero", "rounding_within_tolerance", "contra_nature_balances", "fx_revaluation",
 ] as const;
 export type CloseCheckName = (typeof CLOSE_CHECK_NAMES)[number];
 
@@ -16,7 +18,12 @@ export interface CloseCheck {
   passed: boolean;
   value: Record<string, unknown>;
   note: string;
+  /** A warning is shown and recorded; it never keeps the period open (absent: a gate). */
+  severity?: "warning";
 }
+
+/** The checks that keep a period open: every failed one that is not a warning. */
+export const blocking = (checks: readonly CloseCheck[]): CloseCheck[] => checks.filter((c) => !c.passed && c.severity !== "warning");
 
 export interface ClosingPeriod {
   id: string;
@@ -127,6 +134,27 @@ export async function runCloseChecks(ctx: ProcessContext, period: ClosingPeriod,
     note: contra.length === 0
       ? "Ninguna cuenta tiene saldo contrario a su naturaleza"
       : `${plural(contra.length, "cuenta tiene", "cuentas tienen")} saldo contrario a su naturaleza: ${contra.slice(0, 5).map((a) => `${a.code} (${money(Number(a.balance))})`).join(", ")}${contra.length > 5 ? "…" : ""}`,
+  });
+
+  // Diferencia en cambio no calculada (FX §5): open invoices in another currency at the period's end and no posted run of the period.
+  const [company] = await ctx.tx<{ currency: string }[]>`select currency_code::text as currency from kernel.companies where id = ${ctx.companyId}`;
+  const foreign = await ctx.tx<{ currency: string; n: number; open_doc: string }[]>`
+    select o.currency, count(*)::int as n, sum(o.open_doc)::text as open_doc
+    from accounting.open_items(${ctx.companyId}, ${period.endsOn}::date) o
+    join accounting.entries e on e.id = o.entry_id and e.source_entity = 'invoicing.invoice'
+    where o.kind = 'document' and o.currency <> ${company!.currency} and o.open_doc > 0
+    group by o.currency order by o.currency`;
+  const [run] = foreign.length === 0 ? [] : await ctx.tx<{ id: string }[]>`
+    select id from accounting.fx_revaluations where company_id = ${ctx.companyId} and period_id = ${period.id} and status = 'posted'`;
+  const invoices = foreign.reduce((s, f) => s + f.n, 0);
+  checks.push({
+    check: "fx_revaluation", passed: foreign.length === 0 || run !== undefined, severity: "warning",
+    value: { invoices, currencies: foreign.map((f) => ({ currency: f.currency, invoices: f.n, open: Number(f.open_doc) })), revaluationId: run?.id ?? null },
+    note: foreign.length === 0
+      ? "Sin facturas abiertas en moneda extranjera al cierre del período"
+      : run
+        ? "La diferencia en cambio del período está calculada"
+        : `Diferencia en cambio no calculada: ${plural(invoices, "factura abierta", "facturas abiertas")} en ${foreign.map((f) => `${f.currency} (${money(Number(f.open_doc), f.currency)})`).join(", ")} sin ajuste al cierre; pídele al asistente «calcular la diferencia en cambio del período» (proceso accounting.fx_revaluation.run)`,
   });
   return checks;
 }

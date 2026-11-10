@@ -22,7 +22,7 @@ const columns: ReportColumn[] = [
   { field: "round_amount", label: "report.col.round_amount", type: "boolean" },
   { field: "attachments", label: "report.col.attachments", type: "number", mono: true },
   { field: "lines", label: "report.col.lines", type: "number", mono: true },
-  { field: "amount", label: "report.col.amount", type: "money", total: "sum", mono: true },
+  { field: "amount", label: "report.col.amount", type: "money", currency: "company", total: "sum", mono: true },
 ];
 
 export const manualEntriesAuditConsult = defineProcess({

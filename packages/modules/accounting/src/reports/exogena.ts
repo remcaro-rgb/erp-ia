@@ -18,7 +18,7 @@ const columns: ReportColumn[] = [
   { field: "party_document_type", label: "report.col.document_type", type: "text", mono: true },
   { field: "party_document", label: "report.col.party_document", type: "text", mono: true, link: { entity: "core.party", idField: "party_id" } },
   { field: "party_name", label: "report.col.party", type: "text" },
-  ...Array.from({ length: MAX_COLUMNS }, (_, i) => ({ field: `col${i + 1}`, label: `report.col.value_${i + 1}`, type: "money" as const, total: "sum" as const, mono: true })),
+  ...Array.from({ length: MAX_COLUMNS }, (_, i) => ({ field: `col${i + 1}`, label: `report.col.value_${i + 1}`, type: "money" as const, currency: "company" as const, total: "sum" as const, mono: true })),
 ];
 
 interface PartyInfo {

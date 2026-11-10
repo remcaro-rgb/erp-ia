@@ -66,7 +66,7 @@ export const FAILURE_CODES = [
 ];
 export const CLOSE_CHECKS = [
   "drafts", "pending_failures", "pending_approvals", "undispatched_events", "control_receivable", "control_payable",
-  "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances",
+  "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances", "fx_revaluation",
 ];
 
 // §4.1 Cuenta. `access` is open or restricted (§4.15); the code is digits only and unique per company.
@@ -440,6 +440,64 @@ export const ledgerLineEntity: EntityDef = entity(
   { kind: "query", defaultSort: { field: "date", dir: "asc" } },
 );
 
+// Ajuste por diferencia en cambio (plan 2B.2 Task 34.7, FX §5 unrealized, migration 0153): one run of accounting.fx_revaluation.run over a
+// period, the documento of the entry at the period's end and of its reversal on the first day of the next period, both posted by the run
+// (it has no Borrador: written posted, numbered never, voided by accounting.fx_revaluation.void or by a rerun of the period). Its lines say
+// which invoice each receivable line of the entry adjusts, so the open items attach the adjustment (and its reversal) to that invoice.
+export const FX_REVALUATION_STATES = ["posted", "voided"];
+export const fxRevaluationEntity: EntityDef = entity("accounting.fx_revaluation", "documento", "fx_revaluations", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("period_id", "ref", { required: true, ...ref("accounting.period", "starts_on") }),
+  f("date", "date", { required: true }),
+  /** The rate table's rate of each revalued currency on the period's last day, `{ "USD": 4300 }`. */
+  f("closing_rates", "json", { sortable: false }),
+  f("lines_count", "number"),
+  f("entry_id", "ref", ref("accounting.entry", "number")),
+  f("reversal_entry_id", "ref", ref("accounting.entry", "number")),
+  f("void_entry_id", "ref", ref("accounting.entry", "number")),
+  f("void_reversal_entry_id", "ref", ref("accounting.entry", "number")),
+  f("voided_at", "datetime"),
+  ...trailer(f),
+  f("status", "enum", { required: true, enumValues: ENTRY_STATUSES, valuesKey: "grid.values.record_status" }),
+  f("requires_approval", "boolean"),
+  f("posts", "boolean"),
+  f("void_reason", "text"),
+], {
+  typed: {
+    numbering: "none",
+    lines: { entity: "accounting.fx_revaluation_line", parentField: "revaluation_id" },
+    ownFlags: { requiresApproval: "accounting.fx_revaluation.own_flags.requires_approval", posts: "accounting.fx_revaluation.own_flags.posts" },
+  },
+  processIds: { create: "accounting.fx_revaluation.run" },
+  cloneReset: ["seq", "date", "closing_rates", "lines_count", "entry_id", "reversal_entry_id", "void_entry_id", "void_reversal_entry_id", "voided_at", "void_reason"],
+  defaultSort: { field: "seq", dir: "desc" },
+  recordPage: true,
+});
+
+export const fxRevaluationLineEntity: EntityDef = entity("accounting.fx_revaluation_line", "lines", "fx_revaluation_lines", "line_no", (f) => [
+  f("seq", "number", { required: true }),
+  f("revaluation_id", "ref", { required: true, ...ref("accounting.fx_revaluation", "seq") }),
+  f("line_no", "number", { required: true }),
+  /** The receivable line of the run's entry that adjusts the invoice (its reversal and a void's mirrors carry the same line_no). */
+  f("entry_line_id", "uuid", { required: true }),
+  f("invoice_id", "uuid", { required: true }),
+  f("invoice_number", "text", { searchable: true }),
+  f("party_id", "ref", party),
+  f("currency", "text", { required: true }),
+  /** What the invoice still owed in its currency at the period's end. */
+  f("open_doc", "number", { required: true }),
+  /** Its carrying amount in pesos (the invoice's rate) and the same dollars at the closing rate. */
+  f("carrying", "money", { required: true }),
+  f("closing_rate", "number", { required: true }),
+  f("revalued", "money", { required: true }),
+  /** revalued − carrying: a debit of the receivable when positive (fx_gain), a credit when negative (fx_loss). */
+  f("adjustment", "money", { required: true }),
+  ...trailer(f),
+]);
+
+/** The entities of migration 0153 (the exchange-difference run). */
+export const FX_ENTITIES: EntityDef[] = [fxRevaluationEntity, fxRevaluationLineEntity];
+
 /** The entities whose tables and masked views migration 0031 creates (masters, security, periods, settings). */
 export const MASTER_ENTITIES: EntityDef[] = [
   accountEntity, accountRoleMappingEntity, accountPermissionEntity, journalEntity, fiscalYearEntity, periodEntity,
@@ -452,7 +510,7 @@ export const LEDGER_ENTITIES: EntityDef[] = [
 ];
 
 /** The 20 entities of design §4; `ledger_line` is a query entity over `v_ledger_lines` (Task 17). */
-export const ACCOUNTING_ENTITIES: EntityDef[] = [...MASTER_ENTITIES, ...LEDGER_ENTITIES, ledgerLineEntity];
+export const ACCOUNTING_ENTITIES: EntityDef[] = [...MASTER_ENTITIES, ...LEDGER_ENTITIES, ledgerLineEntity, ...FX_ENTITIES];
 
 /** The accounting entity `id` (throws for an unknown one): what the lifecycle processes are generated from. */
 export function entityDef(id: string): EntityDef {

@@ -13,9 +13,9 @@ const columns: ReportColumn[] = [
   { field: "account_code", label: "report.col.account_code", type: "text", mono: true },
   { field: "account_name", label: "report.col.account_name", type: "text" },
   { field: "description", label: "report.col.description", type: "text" },
-  { field: "debit", label: "report.col.debit", type: "money", total: "sum", mono: true },
-  { field: "credit", label: "report.col.credit", type: "money", total: "sum", mono: true },
-  { field: "balance", label: "report.col.balance", type: "money", mono: true },
+  { field: "debit", label: "report.col.debit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "credit", label: "report.col.credit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "balance", label: "report.col.balance", type: "money", currency: "company", mono: true },
 ];
 
 export const partyDetailConsult = defineProcess({
