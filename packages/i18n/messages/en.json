@@ -101,6 +101,7 @@
         "kind": {
           "quote_to_order": "Quote → Order",
           "order_to_delivery": "Order → Delivery",
+          "pick_to_delivery": "Pick → Delivery",
           "delivery_to_invoice": "Delivery → Invoice",
           "order_to_invoice": "Order → Invoice",
           "invoice_to_receipt": "Invoice → Receipt",
@@ -5929,7 +5930,9 @@
       "serial_not_in_stock": "The serial is not in stock in that warehouse and location",
       "lot_expired": "The lot is expired and the product blocks expired lots",
       "lot_blocked": "The lot is blocked: it cannot be shipped",
-      "invalid_return": "More is returned than left from that lot or serial"
+      "invalid_return": "More is returned than left from that lot or serial",
+      "relocation_cross_warehouse": "The location belongs to another warehouse: use a transfer between warehouses",
+      "movement_kind_not_voidable": "A relocation is not voided: correct it with another relocation"
     }
   },
   "costing": {

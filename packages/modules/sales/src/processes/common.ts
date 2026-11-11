@@ -23,6 +23,14 @@ export async function linkDeliveryToOrder(ctx: ProcessContext, deliveryId: strin
   await linksOf(ctx).sync({ to: { entity: DELIVERY, id: deliveryId }, kind: "order_to_delivery", from: [{ entity: ORDER, id: orderId }] });
 }
 
+/**
+ * The entrega's other upstream (Task 29.2, RG-8): the alistamiento of the warehouse module it was made from. Sales never imports warehouse;
+ * the pick's id comes in inventory's answer (inventory.reservation.allocated) and the kernel checks it exists in the company.
+ */
+export async function linkDeliveryToPick(ctx: ProcessContext, deliveryId: string, pickId: string): Promise<void> {
+  await linksOf(ctx).sync({ to: { entity: DELIVERY, id: deliveryId }, kind: "pick_to_delivery", from: [{ entity: "warehouse.pick", id: pickId }] });
+}
+
 /** A pedido or an entrega was voided or cancelled: every link touching it is marked (kept, never deleted). */
 export async function markLinksVoided(ctx: ProcessContext, entity: "sales.order" | "sales.delivery", id: string, reason: string): Promise<void> {
   await linksOf(ctx).markVoided({ entity, id, reason: reason.slice(0, 500) });

@@ -2,7 +2,7 @@ import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { SALES_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
-import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onSaleIssueAllocated, onSaleIssueRefused } from "./processes/delivery";
+import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onReservationAllocated, onSaleIssueAllocated, onSaleIssueRefused, RESERVATION_ALLOCATED } from "./processes/delivery";
 import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, orderHooks } from "./processes/order";
 import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { commissionRecordTemplate, deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
@@ -72,6 +72,9 @@ export const sales: ModuleDef = defineModule({
       "inventory.sale_return_void.refused": onReturnVoidRefused,
       // The outcome of the re-reservation a voided entrega asked for (Task 43): recorded on the entrega, «Reserva al anular».
       "inventory.delivery_reservation.restored": onReReservation,
+      // A confirmed alistamiento of the warehouse module, as inventory allocated it (Task 29.2, RG-8): an open entrega with the picked lines
+      // (when the alistamiento asks for one). Sales reacts to inventory's answer, never to the pick, and keeps dependsOn ["core"].
+      [RESERVATION_ALLOCATED]: onReservationAllocated,
       // What an issued invoice billed of each entrega line (Task 16: sales never imports invoicing; it reads invoicing's published view),
       // then the commission bases of its lines billed from a pedido (Task 30.1: a second, separate run).
       "invoicing.invoice.issued": onInvoiceIssued,
@@ -99,6 +102,7 @@ export const sales: ModuleDef = defineModule({
     "inventory.sale_issue.allocated": ["sales.effects.lots_recorded"],
     "inventory.sale_return_void.refused": ["sales.effects.return_void_refused"],
     "inventory.delivery_reservation.restored": ["sales.effects.re_reserve_recorded"],
+    [RESERVATION_ALLOCATED]: ["sales.effects.pick_delivery"],
     "invoicing.invoice.issued": ["sales.effects.invoice_issued", "sales.effects.commission_bases"],
     "invoicing.invoice.annulled": ["sales.effects.invoice_annulled", "sales.effects.commission_reversal"],
     "invoicing.note.issued": ["sales.effects.commission_note"],

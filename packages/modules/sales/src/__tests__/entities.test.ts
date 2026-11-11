@@ -55,7 +55,9 @@ describe("sales manifest", () => {
     ]);
     // The sale issue inventory posted for an entrega is recorded on its lines, and what inventory refused (a despacho it could not issue,
     // the Anular of a devolución it could not take back) puts the document back with the reason: by event, sales never calls inventory (rule 3).
-    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "invoicing.invoice.issued", "invoicing.invoice.annulled",
+    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored",
+      // Task 29.2: inventory's answer to a confirmed alistamiento (RG-8: sales reacts to inventory, never to the pick).
+      "inventory.reservation.allocated", "invoicing.invoice.issued", "invoicing.invoice.annulled",
       // The commissions (Tasks 30.2, 30.3): accrued on the due event and the collections, adjusted by the notes, reversed by the voids.
       "invoicing.note.issued", "payments.payment.voided", "payments.advance.unapplied", "sales.commission.due", "payments.received", "payments.advance.applied"]);
   });

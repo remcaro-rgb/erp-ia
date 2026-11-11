@@ -3,7 +3,7 @@ import { z } from "zod";
 import { deliveryEntity, RE_RESERVE_RESULTS, type DeliveryStage, type OrderStage, type ReReserveResult } from "../entities";
 import { assertSaleReady } from "../readiness";
 import { issuedForCommission, reverseAnnulledInvoice } from "./commission";
-import { linkDeliveryToOrder, markLinksVoided } from "./common";
+import { linkDeliveryToOrder, linkDeliveryToPick, markLinksVoided } from "./common";
 import { assertWarehouse, FIRM_STAGES, refuse, refuseState, today } from "./order";
 import { lockShipStock, pendingShipped, qtyText } from "./stock";
 
@@ -265,9 +265,16 @@ export const deliveryCreate = defineProcess({
     costCenterId: id.optional(),
     notes: z.string().trim().max(2000).optional(),
     lines: z.array(lineInput).min(1).max(200).optional(),
+    /**
+     * The alistamiento this entrega comes from (Task 29.2, RG-8): only the consumer of inventory.reservation.allocated sends it (origin
+     * event); the entrega is linked to it (pick_to_delivery) and made once per alistamiento (the idempotency key).
+     */
+    pickId: id.optional(),
   }).strict(),
   output: deliveryOutput,
+  idempotencyKey: (input) => (input.pickId ? `from_pick:${input.pickId}` : undefined),
   handler: async (ctx, input) => {
+    if (input.pickId && ctx.origin !== "event") refuse("pick_event_only", ["Una entrega se crea desde un alistamiento solo con la respuesta del inventario"]);
     const order = await lockOrder(ctx, input.orderId);
     assertDeliverable(order, true);
     const warehouseId = input.warehouseId ?? order.warehouse_id;
@@ -293,8 +300,9 @@ export const deliveryCreate = defineProcess({
       })}
       returning id`;
     await writeLines(ctx, header!.id, lines);
-    // order_to_delivery, in this transaction (Task 31).
+    // order_to_delivery, in this transaction (Task 31); pick_to_delivery when it comes from an alistamiento (Task 29.2).
     await linkDeliveryToOrder(ctx, header!.id, order.id);
+    if (input.pickId) await linkDeliveryToPick(ctx, header!.id, input.pickId);
     await runLifecycle(ctx, ctx.registry.entity(deliveryEntity.id), header!.id, "save");
     return outputOf(ctx, header!.id);
   },
@@ -790,6 +798,63 @@ export const onSaleIssueAllocated: EventConsumer = async (ctx, payload) => {
   const lines = parsed.data.lines.map((l) => allocatedLine.parse(l));
   if (lines.length === 0) return;
   await ctx.runProcess("sales.delivery.record_lots", { deliveryId: parsed.data.deliveryId, eventId: ctx.event.id, lines });
+};
+
+/** Inventory's answer to a confirmed alistamiento (Task 29.1's RESERVATION_ALLOCATED; repeated: sales imports neither warehouse nor inventory). */
+export const RESERVATION_ALLOCATED = "inventory.reservation.allocated";
+
+const reservationAllocated = z.looseObject({
+  pickId: id,
+  orderId: id,
+  warehouseId: id,
+  createDelivery: z.boolean(),
+  status: z.enum(["allocated", "short"]),
+  lines: z.array(z.looseObject({ orderLineId: id, productId: id, lotId: id.nullable().optional(), serialId: id.nullable().optional(), qty: z.number().positive() })).max(5000),
+});
+
+/**
+ * The entrega lines of an allocated alistamiento: one per pedido line (an entrega names a pedido line once), its quantity the sum of what was
+ * allocated; the lot when every allocation of the line is of one lot, the serials when they are serials. A line picked from two lots names
+ * none: the ship takes the allocations first (Task 29.2), so it still leaves from the lots and ubicaciones the picker took.
+ */
+export function deliveryLinesFromPick(lines: { orderLineId: string; lotId?: string | null | undefined; serialId?: string | null | undefined; qty: number }[]) {
+  const byLine = new Map<string, typeof lines>();
+  for (const l of lines) byLine.set(l.orderLineId, [...(byLine.get(l.orderLineId) ?? []), l]);
+  return [...byLine].map(([orderLineId, of]) => {
+    const qty = round4(of.reduce((sum, l) => sum + l.qty, 0));
+    const lots = new Set(of.map((l) => l.lotId ?? null));
+    const serials = of.flatMap((l) => (l.serialId ? [l.serialId] : []));
+    const [onlyLot] = [...lots];
+    return {
+      orderLineId,
+      qty,
+      ...(lots.size === 1 && onlyLot && serials.length === 0 ? { lotId: onlyLot } : {}),
+      ...(serials.length > 0 && serials.length === of.length && serials.length === qty ? { serialIds: serials } : {}),
+    };
+  });
+}
+
+/** Why a pedido no longer takes an entrega from its alistamiento (the pedido moved on since): nothing is made, the event is done. */
+const PICK_DELIVERY_MOOT = new Set(["order_cancelled", "order_delivered", "order_not_confirmed", "nothing_to_deliver"]);
+
+/**
+ * Consumer of inventory.reservation.allocated (Task 29.2, PG §4.3 step 4, RG-8): sales acts on inventory's answer, never on the alistamiento.
+ * `allocated` with createDelivery (warehouse's delivery_from_pick) → sales.delivery.create (origin event, as the system user) with the
+ * allocated lines, linked to the pedido (order_to_delivery) and to the alistamiento (pick_to_delivery); `short` or createDelivery off →
+ * nothing. Made once per alistamiento (the create's idempotency key): a redelivered answer answers the first entrega. When the pedido was
+ * cancelled, delivered or has nothing left since the alistamiento (a manual entrega took it), nothing is made.
+ */
+export const onReservationAllocated: EventConsumer = async (ctx, payload) => {
+  const parsed = reservationAllocated.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `${RESERVATION_ALLOCATED} payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  const answer = parsed.data;
+  if (answer.status !== "allocated" || !answer.createDelivery || answer.lines.length === 0) return;
+  try {
+    await ctx.runProcess("sales.delivery.create", { orderId: answer.orderId, warehouseId: answer.warehouseId, pickId: answer.pickId, lines: deliveryLinesFromPick(answer.lines) });
+  } catch (error) {
+    if (error instanceof ProcessError && error.code === "invalid_state" && PICK_DELIVERY_MOOT.has(/^[a-z_]+/.exec(error.message)?.[0] ?? "")) return;
+    throw error;
+  }
 };
 
 const refusedPayload = z.looseObject({ deliveryId: id, shippedEventId: id.optional(), code: z.string().min(1), reason: z.string() });

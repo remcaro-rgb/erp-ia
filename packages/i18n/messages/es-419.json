@@ -101,6 +101,7 @@
         "kind": {
           "quote_to_order": "Cotización → Pedido",
           "order_to_delivery": "Pedido → Entrega",
+          "pick_to_delivery": "Alistamiento → Entrega",
           "delivery_to_invoice": "Entrega → Factura",
           "order_to_invoice": "Pedido → Factura",
           "invoice_to_receipt": "Factura → Recibo",
@@ -5929,7 +5930,9 @@
       "serial_not_in_stock": "El serial no está en existencia en esa bodega y ubicación",
       "lot_expired": "El lote está vencido y el producto bloquea los lotes vencidos",
       "lot_blocked": "El lote está bloqueado: no se puede despachar",
-      "invalid_return": "Se devuelve más de lo que salió de ese lote o serial"
+      "invalid_return": "Se devuelve más de lo que salió de ese lote o serial",
+      "relocation_cross_warehouse": "La ubicación es de otra bodega: entre bodegas se mueve con un traslado",
+      "movement_kind_not_voidable": "Una reubicación no se anula: se corrige con otra reubicación"
     }
   },
   "costing": {

@@ -149,6 +149,12 @@ const bucketOrder = (left: (r: BucketRow) => number) => (a: BucketRow, b: Bucket
  *     many buckets as it takes (lot_short when they hold less; lot_required when the product turned FEFO off);
  *   - a serial product: the serials named, one per unit, each from the bucket holding it (serials_required, serials_count_mismatch,
  *     serial_not_in_stock). Serials are scanned, never chosen by the system.
+ * Allocations first (Task 29.2, PG §4.3 step 5, Review Focus 3): when the line's pedido line has a reservation in the bodega with
+ * allocations (an alistamiento confirmed and allocated, Task 29.1), the line leaves first from the allocated buckets (ubicación, lot,
+ * serial), in allocation order, up to what each allocation and its bucket still hold; a lot product only from allocations of the lot it
+ * names (if any) and of a lot it may sell; an untracked product only from ONE allocated bucket that covers the whole line (each line leaves
+ * from one bucket, RG-2). What the allocations do not cover goes the way above (named lot or FEFO; one bucket). A pedido line without
+ * allocations goes exactly as before. `used` says what was taken of each allocation, for the caller to use up once the issue posted.
  */
 async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, date: string, lines: PickLine[]) {
   const productIds = [...new Set(lines.map((l) => l.productId))];
@@ -166,6 +172,40 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
       and (s.location_id is null or (l.deleted_at is null and l.kind <> 'transit'))`;
   const keyOf = (r: { product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }) => `${r.product_id}|${r.location_id ?? ""}|${r.lot_id ?? ""}|${r.serial_id ?? ""}`;
   const left = new Map(rows.map((r) => [keyOf(r), num(r.on_hand)]));
+  // The allocations of the lines' pedido lines (Task 29.2), read under the stock lock (lockStock above): the active reservation in this bodega.
+  const orderLineIds = [...new Set(lines.flatMap((l) => (l.orderLineId ? [l.orderLineId] : [])))];
+  const allocationRows = orderLineIds.length === 0 ? [] : await ctx.tx<AllocationRow[]>`
+    select a.id, r.source_line_id as order_line_id, a.location_id, a.lot_id, a.serial_id, a.qty::text
+    from inventory.reservation_allocations a join inventory.reservations r on r.id = a.reservation_id
+    where r.company_id = ${ctx.companyId} and r.source_entity = ${ORDER_LINE_SOURCE} and r.source_line_id = any(${orderLineIds}::uuid[])
+      and r.warehouse_id = ${warehouse.id} and r.status = 'active'
+    order by a.seq`;
+  const allocationLeft = new Map(allocationRows.map((a) => [a.id, num(a.qty)]));
+  const used: AllocationUse[] = [];
+  const useAllocation = (a: AllocationRow, qty: number) => {
+    allocationLeft.set(a.id, round4((allocationLeft.get(a.id) ?? 0) - qty));
+    const seen = used.find((u) => u.allocationId === a.id);
+    if (seen) seen.qty = round4(seen.qty + qty);
+    else used.push({ allocationId: a.id, qty });
+  };
+  const allocationsOf = (line: PickLine) => (line.orderLineId ? allocationRows.filter((a) => a.order_line_id === line.orderLineId && (allocationLeft.get(a.id) ?? 0) > 0) : []);
+  const bucketOf = (productId: string, a: AllocationRow) => rows.find((r) => r.product_id === productId && r.location_id === a.location_id && r.lot_id === a.lot_id && r.serial_id === a.serial_id);
+  /** Takes up to `qty` of the line from its allocated buckets that `ok` accepts; answers the picks and what is still to take. */
+  const fromAllocations = (line: PickLine, qty: number, ok: (r: BucketRow) => boolean): { picks: Pick[]; need: number } => {
+    const picks: Pick[] = [];
+    let need = qty;
+    for (const a of allocationsOf(line)) {
+      if (need <= 0) break;
+      const bucket = bucketOf(line.productId, a);
+      if (!bucket || !ok(bucket)) continue;
+      const part = Math.min(need, allocationLeft.get(a.id) ?? 0, Math.max(leftOf(bucket), 0));
+      if (part <= 0) continue;
+      picks.push(take(bucket, part));
+      useAllocation(a, part);
+      need = round4(need - part);
+    }
+    return { picks, need };
+  };
   const leftOf = (r: BucketRow) => left.get(keyOf(r)) ?? 0;
   const take = (r: BucketRow, qty: number): Pick => {
     left.set(keyOf(r), round4(leftOf(r) - qty));
@@ -229,24 +269,28 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
         }
         namedCode = lot.lot_code;
         buckets = named.sort(bucketOrder(leftOf));
-      } else if (t && !t.fefo) {
-        refusals.add("lot_required", `${at}: ${line.sku} se sigue por lote y no sale por FEFO: indica el lote`);
-        picked.push([]);
-        continue;
       } else {
         buckets = lots.filter((r) => r.lot_status === "active" && !r.lot_deleted && !expired(r, blockExpired))
           .sort((a, b) => fefoOrder(a, b) || bucketOrder(leftOf)(a, b));
       }
-      const picks = fill(buckets, line.qty);
+      // Task 29.2: the allocated buckets first (of the named lot, or of a lot it may sell), then the rest as before.
+      const sellable = new Set(buckets.map(keyOf));
+      const allocated = fromAllocations(line, line.qty, (r) => sellable.has(keyOf(r)));
+      if (allocated.need > 0 && !line.lotId && t && !t.fefo) {
+        refusals.add("lot_required", `${at}: ${line.sku} se sigue por lote y no sale por FEFO: indica el lote`);
+        picked.push([]);
+        continue;
+      }
+      const picks = allocated.need > 0 ? fill(buckets, allocated.need) : [];
       if (!picks) {
-        const total = round4(buckets.reduce((sum, b) => sum + Math.max(leftOf(b), 0), 0));
+        const total = round4(buckets.reduce((sum, b) => sum + Math.max(leftOf(b), 0), 0) + (line.qty - allocated.need));
         refusals.add("lot_short", line.lotId
           ? `${at}: el lote ${namedCode ?? ""} de ${line.sku} tiene ${qtyText(total)} en la bodega y la línea saca ${qtyText(line.qty)}`
           : `${at}: los lotes vendibles de ${line.sku} (no bloqueados ni vencidos) suman ${qtyText(total)} en la bodega y la línea saca ${qtyText(line.qty)}`);
         picked.push([]);
         continue;
       }
-      picked.push(picks);
+      picked.push([...allocated.picks, ...picks]);
       continue;
     }
     if (kind === "serial") {
@@ -269,6 +313,9 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
           continue;
         }
         picks.push(take(holder, 1));
+        // Task 29.2: the serial's allocation (where the picker took it) is used up with it.
+        const allocation = allocationsOf(line).find((a) => a.serial_id === serialId);
+        if (allocation) useAllocation(allocation, 1);
       }
       picked.push(picks);
       continue;
@@ -280,6 +327,30 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
     }
     // Untracked (RG-2): one bucket per line, as before.
     const buckets = ofProduct.filter((r) => r.lot_id === null && r.serial_id === null);
+    // Task 29.2: an allocated bucket that covers the whole line (allocated and on hand) is the line's one bucket.
+    const allocatedBucket = (() => {
+      const byBucket = new Map<string, { bucket: BucketRow; qty: number; rows: AllocationRow[] }>();
+      for (const a of allocationsOf(line)) {
+        const bucket = a.lot_id === null && a.serial_id === null ? bucketOf(line.productId, a) : undefined;
+        if (!bucket) continue;
+        const entry = byBucket.get(keyOf(bucket)) ?? { bucket, qty: 0, rows: [] };
+        entry.qty = round4(entry.qty + (allocationLeft.get(a.id) ?? 0));
+        entry.rows.push(a);
+        byBucket.set(keyOf(bucket), entry);
+      }
+      return [...byBucket.values()].find((e) => e.qty >= line.qty && leftOf(e.bucket) >= line.qty);
+    })();
+    if (allocatedBucket) {
+      let need = line.qty;
+      for (const a of allocatedBucket.rows) {
+        const part = Math.min(need, allocationLeft.get(a.id) ?? 0);
+        if (part <= 0) continue;
+        useAllocation(a, part);
+        need = round4(need - part);
+      }
+      picked.push([take(allocatedBucket.bucket, line.qty)]);
+      continue;
+    }
     const own = buckets.find((b) => b.location_id === null);
     const best = buckets.filter((b) => b.location_id !== null).sort((a, b) => leftOf(b) - leftOf(a) || String(a.location_id).localeCompare(String(b.location_id)))[0];
     let choice: BucketRow | undefined;
@@ -301,7 +372,21 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
       picked.push([{ locationId: null, lotId: null, serialId: null, qty: line.qty }]);
     }
   }
-  return { picked, split, refused: refusals.first() };
+  return { picked, split, refused: refusals.first(), used };
+}
+
+/**
+ * Uses up what an issue took of the allocations (Task 29.2): each allocation is cut by it, and deleted when nothing is left, so a partial
+ * ship leaves the rest of the alistamiento's allocation for the next entrega and the free quantity of a bucket (inventory.reservation.allocate)
+ * stops counting what already left. Only inventory's processes write the allocations (rule 3).
+ */
+async function useUpAllocations(ctx: ProcessContext, used: AllocationUse[]): Promise<void> {
+  for (const u of used) {
+    const [row] = await ctx.tx<{ qty: string }[]>`select qty::text from inventory.reservation_allocations where id = ${u.allocationId} for update`;
+    if (!row) continue;
+    if (round4(num(row.qty) - u.qty) <= 0) await ctx.tx`delete from inventory.reservation_allocations where id = ${u.allocationId}`;
+    else await ctx.tx`update inventory.reservation_allocations set qty = qty - ${u.qty} where id = ${u.allocationId}`;
+  }
 }
 
 /**
@@ -398,8 +483,8 @@ export const saleIssue = defineProcess({
           if (!refused) throw error;
           return refuse(refused.code, refused.reason);
         }
-        const { picked, split, refused } = await pickBuckets(ctx, warehouse, d.date, moving.map((l) => ({
-          productId: l.productId, qty: l.qty, sku: goods.get(l.productId)!.sku, lineNo: l.lineNo, lotId: l.lotId, serialIds: l.serialIds,
+        const { picked, split, refused, used } = await pickBuckets(ctx, warehouse, d.date, moving.map((l) => ({
+          productId: l.productId, qty: l.qty, sku: goods.get(l.productId)!.sku, lineNo: l.lineNo, orderLineId: l.orderLineId, lotId: l.lotId, serialIds: l.serialIds,
         })));
         // pickBuckets holds the stock lock of every product of the lines: a concurrent run of the same lines has committed by now, and its
         // movement is the answer (no second issue, no second release).
@@ -429,7 +514,11 @@ export const saleIssue = defineProcess({
           if ("refused" in posted) return refuse(posted.refused.code, posted.refused.reason);
           movementId = posted.id;
           issuedNow = posted.created;
-          if (issuedNow) await emitAllocated(ctx, d.deliveryId, moving.map((l, i) => ({ deliveryLineId: l.lineId, picks: picked[i]! })));
+          if (issuedNow) {
+            // What left from the alistamiento's allocations is used up with them (Task 29.2), before the reservation's release below.
+            await useUpAllocations(ctx, used);
+            await emitAllocated(ctx, d.deliveryId, moving.map((l, i) => ({ deliveryLineId: l.lineId, picks: picked[i]! })));
+          }
         }
       }
     }

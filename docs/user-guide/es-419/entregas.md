@@ -29,6 +29,22 @@ En un pedido **Confirmado** pulsa **Crear entrega** (guía **Pedidos de venta**)
 
 Puedes pedir al asistente, por ejemplo: «haz la entrega del pedido PED-12 con 2 cafés de 500 g» o «despacha la entrega ENT-4».
 
+## Entrega desde un alistamiento
+
+Si la empresa tiene el módulo **Bodega**, un pedido confirmado se **alista** antes de salir: el alistador confirma de qué **ubicación**, **lote** y **serial** tomó cada línea. Confirmar el alistamiento no mueve existencias: el inventario **asigna** a la reserva del pedido lo que se tomó. Cuando la asignación alcanza y el parámetro de bodega **Crear la entrega al confirmar el alistamiento** está activo (lo normal), aparece sola una entrega **Por despachar** del pedido con lo alistado:
+
+- Una línea por línea del pedido, con la cantidad alistada. Si todo se tomó de un solo lote, la línea muestra ese **Lote**; un producto por serial lleva sus **Seriales**.
+- En **Documentos relacionados** la entrega aparece unida al pedido (*Pedido → Entrega*) y al alistamiento (*Alistamiento → Entrega*).
+- Se crea una sola vez por alistamiento. Si alguna línea del alistamiento no alcanzó (otra reserva ya tenía esas existencias), no se crea entrega: el alistamiento vuelve a **En proceso** para corregirlo. Tampoco se crea si el pedido se canceló o ya no le queda nada por entregar.
+
+Revisa la entrega y despáchala como cualquier otra: puedes bajar cantidades, cambiar la fecha o el centro de costo. Al **despachar**, cada línea sale **primero de lo asignado**: la ubicación, el lote y el serial que tomó el alistador, aunque FEFO o la ubicación con más existencias dijeran otra cosa; lo que falte (si la entrega lleva más de lo alistado) sale como siempre. Si despachas menos de lo alistado, lo demás queda asignado para la siguiente entrega del pedido.
+
+Con **Crear la entrega al confirmar el alistamiento** apagado, el alistamiento solo asigna y tú creas la entrega a mano: al despacharla, también sale de lo asignado. Un pedido sin alistamiento se entrega igual que siempre.
+
+Al **anular** una entrega que salió de un alistamiento, cada cantidad vuelve a la ubicación, lote y serial de donde salió; si pides reservar de nuevo, la reserva vuelve al pedido, pero ya sin ubicación ni lote asignados (un nuevo alistamiento los asigna).
+
+Un producto sin lote ni serial que el alistador tomó de **dos ubicaciones** para la misma línea sigue saliendo de una sola al despachar, como siempre (la que tiene más existencias): si ninguna tiene toda la cantidad, la entrega no se despacha (*la línea sale de una sola ubicación*); divide la línea en dos entregas.
+
 ## Despachar
 
 Pulsa **Despachar** en una entrega **Por despachar** (grabada). Al despachar:
