@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
   // The Workflow runtime loads the World named by WORKFLOW_TARGET_WORLD with a runtime require from the app root, so
   // the Postgres World must stay a real package in the standalone node_modules (lib/server/world.ts references it).
   serverExternalPackages: ["@workflow/world-postgres"],
+  // `next dev` only (item 205, option A): the e2e runs sign in on 127.0.0.1:3100, which Next 16 treats as a cross-origin dev request.
+  allowedDevOrigins: ["127.0.0.1"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

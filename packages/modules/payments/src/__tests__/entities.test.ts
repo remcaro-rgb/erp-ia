@@ -162,14 +162,15 @@ describe("the payments.received payload", () => {
       return composed.entry.lines.map((l) => [l.role, l.side, l.amountCompany, l.dimension ?? null, l.taxCode ?? null]);
     };
     const expected = [
-      ["cash", "debit", 1155340, "payment_method:transfer", null],
+      ["cash", "debit", 1155340, "payment_method_id:0192b4c0-0000-7000-8000-00000000e001", null],
       ["withholding_income_suffered", "debit", 25000, null, "RTEFTE_COMPRAS_2_5"],
       ["withholding_ica_suffered", "debit", 9660, null, "RTEICA_BOGOTA_0_966"],
       ["receivable", "credit", 1190000, null, null],
     ];
     expect(lines(payload)).toEqual(expected);
     // The 2A fixture itself still composes the same entry with the shipped rule (no advance in it).
-    expect(lines(receivedFixture)).toEqual(expected);
+    // 34.8b (e49d3af, item 135): the 2A fixture carries no methodId, so its primary dimension renders empty and the kind is the fallback.
+    expect(lines(receivedFixture)).toEqual([["cash", "debit", 1155340, "payment_method_id:", null], ...expected.slice(1)]);
   });
 
   it("one receipt over two invoices with money left over: the remainder is a customer advance (Cr customer_advances)", () => {
@@ -202,7 +203,7 @@ describe("the payments.received payload", () => {
     expect(composed.entry).toMatchObject({ currency: "USD", exchangeRate: 4000 });
     expect(composed.entry.roundingLine).toBeUndefined();
     expect(composed.entry.lines.map((l) => [l.role, l.side, l.amountDoc, l.amountCompany, l.dimension ?? null])).toEqual([
-      ["cash", "debit", 1500, 6000000, "payment_method:transfer"],
+      ["cash", "debit", 1500, 6000000, "payment_method_id:0192b4c0-0000-7000-8000-00000000e001"],
       ["fx_loss", "debit", 0, 100000, "fx_kind:realized"],
       ["receivable", "credit", 1000, 4100000, null],
       ["customer_advances", "credit", 500, 2000000, null],
