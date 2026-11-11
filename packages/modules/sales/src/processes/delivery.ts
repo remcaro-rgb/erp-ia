@@ -2,7 +2,7 @@ import { defineProcess, ProcessError, runLifecycle, writeSnapshot, type EventCon
 import { z } from "zod";
 import { deliveryEntity, RE_RESERVE_RESULTS, type DeliveryStage, type OrderStage, type ReReserveResult } from "../entities";
 import { assertSaleReady } from "../readiness";
-import { issuedForCommission } from "./commission";
+import { issuedForCommission, reverseAnnulledInvoice } from "./commission";
 import { linkDeliveryToOrder, markLinksVoided } from "./common";
 import { assertWarehouse, FIRM_STAGES, refuse, refuseState, today } from "./order";
 import { lockShipStock, pendingShipped, qtyText } from "./stock";
@@ -621,15 +621,21 @@ export const onInvoiceIssued: EventConsumer = async (ctx, payload) => {
   await ctx.runProcess("sales.commission.compute", { invoiceId, number, date, currency, exchangeRate, ...(costCenterId ? { costCenterId } : {}), commissionLines });
 };
 
-/** What sales reads of invoicing.invoice.annulled (Task 18): the voided invoice and the entregas it billed. */
-const invoiceAnnulled = z.looseObject({ invoiceId: id, deliveryIds: z.array(id) });
+/** What sales reads of invoicing.invoice.annulled (Task 18): the voided invoice, its annulment note and the entregas it billed. */
+const invoiceAnnulled = z.looseObject({ invoiceId: id, noteId: id.optional(), deliveryIds: z.array(id) });
 
-/** Consumer of invoicing.invoice.annulled: the entregas a voided invoice billed get back what it invoiced (invoiced_qty recomputed). */
+/**
+ * Consumer of invoicing.invoice.annulled: the entregas a voided invoice billed get back what it invoiced (invoiced_qty recomputed); then, as
+ * a SECOND, separate run (RG-12, plan 2B.2 Task 30.3), its commissions are reversed and its bases closed (sales.commission.adjust_for_note).
+ * The annulment note's own invoicing.note.issued usually did that already: the run of the same invoice answers the first.
+ */
 export const onInvoiceAnnulled: EventConsumer = async (ctx, payload) => {
   const parsed = invoiceAnnulled.safeParse(payload);
   if (!parsed.success) throw new ProcessError("invalid_input", `invoicing.invoice.annulled payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
-  if (parsed.data.deliveryIds.length === 0) return;
-  await ctx.runProcess("sales.delivery.record_invoiced", { invoiceId: parsed.data.invoiceId, deliveryIds: parsed.data.deliveryIds });
+  if (parsed.data.deliveryIds.length > 0) {
+    await ctx.runProcess("sales.delivery.record_invoiced", { invoiceId: parsed.data.invoiceId, deliveryIds: parsed.data.deliveryIds });
+  }
+  if (parsed.data.noteId) await reverseAnnulledInvoice(ctx, parsed.data.invoiceId, parsed.data.noteId);
 };
 
 /** What sales reads of inventory.movement.posted: a sale issue of one of its entregas (inventory's MovementEvent). */

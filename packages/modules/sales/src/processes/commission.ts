@@ -131,7 +131,8 @@ export const commissionConsultAll = defineProcess({
 //     the invoice made under on_invoice. A due event of an on_collection invoice does nothing.
 //   - receipt / advance (basis on_collection): run by sales' consumers of payments.received and payments.advance.applied; per allocation to an
 //     invoice with open on_collection bases, per base, `remaining × settledDoc / (settledDoc + openAfterDoc)` half up to the cent, where
-//     remaining = commission − accrued − reversed (pesos) and settledDoc is what the allocation took off the receivable in the invoice's
+//     remaining = commission − (accrued − reversed) (pesos: what is not accrued net of reversals, PG §5.2 «the base's commission not yet
+//     accrued»; Task 30.3: a voided receipt's reversal makes its share collectable again) and settledDoc is what the allocation took off the receivable in the invoice's
 //     currency (the receipt's allocation amount already holds the withholdings the customer practised: cash + withholdings, receiptTotals).
 //     The allocation that leaves the invoice open at 0 takes the whole remainder, so the accruals add up to the commission to the cent. The
 //     ratio is taken in document currency: an exchange difference never changes a commission.
@@ -208,7 +209,7 @@ async function accrualsOf(ctx: ProcessContext, input: AccrueInput): Promise<Accr
   }
   if (input.allocations.length === 0) return [];
   const bases = await openBases(ctx, [...new Set(input.allocations.map((a) => a.invoiceId))], "on_collection");
-  const remaining = new Map(bases.map((b) => [b.id, cents(b.commission) - cents(b.accrued) - cents(b.reversed)]));
+  const remaining = new Map(bases.map((b) => [b.id, cents(b.commission) - cents(b.accrued) + cents(b.reversed)]));
   const earned = new Map<string, bigint>();
   for (const a of input.allocations) {
     const settled = cents(a.amount);
@@ -251,45 +252,64 @@ export const commissionAccrue = defineProcess({
     const accruals = await accrualsOf(ctx, input);
     if (accruals.length === 0) return { commissionIds: [] };
 
-    const [company] = await ctx.tx<{ currency_code: string; today: string }[]>`
-      select currency_code, to_char((now() at time zone coalesce(timezone, 'UTC'))::date, 'YYYY-MM-DD') as today from kernel.companies where id = ${ctx.companyId}`;
-    const date = input.source === "invoice" ? accruals[0]!.base.invoice_date : input.date ?? company!.today;
-    // One documento per payee and plan (the plan gives the due date), in the order the bases were written.
-    const groups = new Map<string, Accrual[]>();
-    for (const a of accruals) {
-      const key = `${a.base.payee_party_id}:${a.base.plan_id}`;
-      groups.set(key, [...(groups.get(key) ?? []), a]);
-    }
-    const linkKind = source.kind === "invoice" ? "invoice_to_commission" : "receipt_to_commission";
-    const linkFrom = source.kind === "invoice" ? "invoicing.invoice" : source.kind === "receipt" ? "payments.receipt" : "payments.advance_application";
-    const commissionIds: string[] = [];
-    for (const lines of groups.values()) {
-      const first = lines[0]!.base;
-      const total = lines.reduce((s, l) => s + l.amount, ZERO);
-      if (total === ZERO) continue;
-      const [header] = await ctx.tx<{ id: string }[]>`
-        insert into sales.commissions (company_id, date, due_date, payee_party_id, payee_kind, plan_id, source_kind, source_id, currency, amount, stage, requires_approval, posts)
-        select ${ctx.companyId}, ${date}::date, ${date}::date + p.payment_days, ${first.payee_party_id}, ${first.payee_kind}, p.id, ${source.kind}, ${source.id},
-               ${company!.currency_code.trim()}, ${fromCents(total)}, 'posted', false, true
-        from sales.commission_plans p where p.id = ${first.plan_id}
-        returning id`;
-      const commissionId = header!.id;
-      await ctx.tx`insert into sales.commission_lines ${ctx.tx(lines.map((l, i) => ({
-        company_id: ctx.companyId, commission_id: commissionId, line_no: i + 1, base_id: l.base.id, cost_center_id: l.base.cost_center_id, amount: fromCents(l.amount),
-      })))}`;
-      const raised = lines.map((l) => ({ id: l.base.id, amount: fromCents(l.amount) }));
-      await ctx.tx`
-        update sales.commission_bases b set accrued = b.accrued + r.amount
-        from jsonb_to_recordset(${ctx.tx.json(raised as never)}::jsonb) as r(id uuid, amount numeric)
-        where b.id = r.id`;
-      await linksOf(ctx).sync({ to: { entity: commissionEntity.id, id: commissionId }, kind: linkKind, from: [{ entity: linkFrom, id: source.id }] });
-      // Grabar: the number (COM-, on save) and the posting (Contabiliza): the post hook emits sales.commission.accrued.
-      await runLifecycle(ctx, ctx.registry.entity(commissionEntity.id), commissionId, "save");
-      commissionIds.push(commissionId);
-    }
-    return { commissionIds };
+    const date = input.source === "invoice" ? accruals[0]!.base.invoice_date : input.date ?? (await companyToday(ctx));
+    const link = source.kind === "invoice"
+      ? { kind: "invoice_to_commission", entity: "invoicing.invoice" }
+      : { kind: "receipt_to_commission", entity: source.kind === "receipt" ? "payments.receipt" : "payments.advance_application" };
+    return { commissionIds: await writeCommissions(ctx, { kind: source.kind, id: source.id, date, link, accruals }) };
   },
 });
+
+/** The company's today (its timezone) and currency. */
+async function companyFacts(ctx: ProcessContext): Promise<{ currency: string; today: string }> {
+  const [company] = await ctx.tx<{ currency_code: string; today: string }[]>`
+    select currency_code, to_char((now() at time zone coalesce(timezone, 'UTC'))::date, 'YYYY-MM-DD') as today from kernel.companies where id = ${ctx.companyId}`;
+  return { currency: company!.currency_code.trim(), today: company!.today };
+}
+const companyToday = async (ctx: ProcessContext) => (await companyFacts(ctx)).today;
+
+/**
+ * Writes the commission documentos of one source: one per payee and plan (the plan gives the due date), in the order the bases were written;
+ * each lines its bases' amounts (negative for a credit note's difference, Task 30.3), raises `accrued` on them, links the source document to
+ * it and is saved through the typed lifecycle (Grabar numbers it COM-; its post hook emits sales.commission.accrued). Answers their ids.
+ */
+async function writeCommissions(
+  ctx: ProcessContext,
+  args: { kind: "invoice" | "receipt" | "advance" | "note"; id: string; date: string; link: { kind: string; entity: string }; accruals: Accrual[] },
+): Promise<string[]> {
+  const { currency } = await companyFacts(ctx);
+  const groups = new Map<string, Accrual[]>();
+  for (const a of args.accruals) {
+    const key = `${a.base.payee_party_id}:${a.base.plan_id}`;
+    groups.set(key, [...(groups.get(key) ?? []), a]);
+  }
+  const commissionIds: string[] = [];
+  for (const lines of groups.values()) {
+    const first = lines[0]!.base;
+    const total = lines.reduce((s, l) => s + l.amount, ZERO);
+    if (total === ZERO) continue;
+    const [header] = await ctx.tx<{ id: string }[]>`
+      insert into sales.commissions (company_id, date, due_date, payee_party_id, payee_kind, plan_id, source_kind, source_id, currency, amount, stage, requires_approval, posts)
+      select ${ctx.companyId}, ${args.date}::date, ${args.date}::date + p.payment_days, ${first.payee_party_id}, ${first.payee_kind}, p.id, ${args.kind}, ${args.id},
+             ${currency}, ${fromCents(total)}, 'posted', false, true
+      from sales.commission_plans p where p.id = ${first.plan_id}
+      returning id`;
+    const commissionId = header!.id;
+    await ctx.tx`insert into sales.commission_lines ${ctx.tx(lines.map((l, i) => ({
+      company_id: ctx.companyId, commission_id: commissionId, line_no: i + 1, base_id: l.base.id, cost_center_id: l.base.cost_center_id, amount: fromCents(l.amount),
+    })))}`;
+    const raised = lines.map((l) => ({ id: l.base.id, amount: fromCents(l.amount) }));
+    await ctx.tx`
+      update sales.commission_bases b set accrued = b.accrued + r.amount
+      from jsonb_to_recordset(${ctx.tx.json(raised as never)}::jsonb) as r(id uuid, amount numeric)
+      where b.id = r.id`;
+    await linksOf(ctx).sync({ to: { entity: commissionEntity.id, id: commissionId }, kind: args.link.kind, from: [{ entity: args.link.entity, id: args.id }] });
+    // Grabar: the number (COM-, on save) and the posting (Contabiliza): the post hook emits sales.commission.accrued.
+    await runLifecycle(ctx, ctx.registry.entity(commissionEntity.id), commissionId, "save");
+    commissionIds.push(commissionId);
+  }
+  return commissionIds;
+}
 
 /** The payload of sales.commission.accrued (Task 30.2's «Interfaces · Produces»): what the rule commission-accrued posts. */
 async function accruedPayload(ctx: ProcessContext, commissionId: string) {
@@ -340,6 +360,160 @@ export const commissionHooks: TypedHooks = {
     await postOrPend(ctx, COMMISSION_ACCRUED, await accruedPayload(ctx, record.id));
   },
 };
+
+// =============================================================================================================================================
+// Reversals (plan 2B.2 Task 30.3, Part G PG §5.3; RG-11; Review Focus 4, 5). No migration: 0156 holds the columns (stage, reversed, the
+// base's status and its base / commission columns, which only sales.commission.adjust_for_note moves).
+//
+// sales.commission.reverse reverses one commission documento whole: its stage becomes reversed (the kernel's status stays posted: a
+// commission is never voided by the lifecycle), each base it lines gets the line's amount added to `reversed` (signed: a note's negative
+// documento reverses negatively), and sales.commission.reversed reverses its entry (the rule commission-reversed, reverseOf the accrual by
+// the commission's id), posted as the accrual is (postOrPend). A reversed commission answers `reversed: true` again and writes nothing (a
+// redelivered void reverses once). A paid commission is never reversed automatically (PG §5.3): the run writes nothing of it, raises the
+// recommendation `commission_paid_reversal` (sales.recommendation.reason.commission_paid_reversal) for the holders of this process, one open
+// per commission (a second raise merges), and answers `refused: "commission_paid"`. The refusal is an answer, not an error: an error would
+// roll the recommendation back with the run and fail the annulment or void event that asked for it.
+//
+// What is reversed, by source (the consumers below):
+//   - annulment (invoicing.note.issued with annulment, at «Anular»; invoicing.invoice.annulled, when the DIAN accepts it; both name the
+//     invoice): sales.commission.adjust_for_note reverses every posted or paid commission of the invoice's bases (nested reverse runs) and
+//     closes the bases. Once per invoice (its key; the second event finds nothing posted).
+//   - partial credit note: adjust_for_note reduces each open base the note names by invoice line (`base += note subtotal`, signed negative,
+//     in pesos and in the invoice's currency) and recomputes the commission at the frozen rate, half up to the cent. What was accrued
+//     beyond the new commission (net of reversals) is given back by a commission documento of source `note` with negative lines (Dr payable
+//     / Cr expense: the engine flips a negative amount): under on_invoice that is the whole difference (everything was accrued at issue);
+//     under on_collection usually nothing (only what is left to accrue shrinks), except a refund of an invoice already collected beyond the
+//     new commission. Once per note (its key, and the documento of that source). A debit note changes no commission.
+//   - receipt void (payments.payment.voided) and advance unapply (payments.advance.unapplied): every commission of that source reversed
+//     (one reverse run each); what they had accrued is collectable again by the next receipt (remaining counts reversals back).
+
+/** The recommendation reason a paid commission raises (catalogue sales.recommendation.reason.commission_paid_reversal). */
+export const COMMISSION_PAID_REVERSAL = "commission_paid_reversal";
+
+const reverseOutput = z.object({ commissionId: z.string(), reversed: z.boolean(), refused: z.literal("commission_paid").optional() });
+
+export const commissionReverse = defineProcess({
+  id: "sales.commission.reverse",
+  module: "sales",
+  kind: "update",
+  recordAccess: { entity: commissionEntity.id, idField: "commissionId", right: "modify" },
+  feature: FEATURE_COMMISSIONS,
+  // ui: for the paid case of phase 3 (PG §5.5); in 2B.2 the events run it.
+  origins: ["event", "ui"],
+  emits: [COMMISSION_REVERSED],
+  description:
+    "Revierte una comisión causada: queda revertida y su asiento se reversa; una comisión ya pagada no se revierte y avisa a quien puede revertirla",
+  input: z.object({ commissionId: id, reason: z.string().trim().min(1, "Indica por qué se revierte la comisión").max(500) }).strict(),
+  output: reverseOutput,
+  handler: async (ctx, { commissionId, reason }) => {
+    const [c] = await ctx.tx<{ id: string; number: string | null; stage: string }[]>`
+      select id, number, stage from sales.commissions where id = ${commissionId} and company_id = ${ctx.companyId} for update`;
+    if (!c) throw new ProcessError("not_found", `sales.commission ${commissionId} not found`);
+    if (c.stage === "reversed") return { commissionId, reversed: true };
+    if (c.stage === "paid") {
+      await ctx.recommendations?.raise({
+        audienceProcess: "sales.commission.reverse",
+        subject: { entity: commissionEntity.id, id: commissionId },
+        reason: COMMISSION_PAID_REVERSAL,
+        titleKey: "sales.recommendation.commission_paid_reversal.title",
+        bodyKey: "sales.recommendation.commission_paid_reversal.body",
+        params: { number: { value: c.number }, reason: { value: reason.slice(0, 200) } },
+      });
+      return { commissionId, reversed: false, refused: "commission_paid" as const };
+    }
+    await ctx.tx`update sales.commissions set stage = 'reversed' where id = ${commissionId}`;
+    await ctx.tx`
+      update sales.commission_bases b set reversed = b.reversed + l.amount
+      from (select base_id, sum(amount) as amount from sales.commission_lines where commission_id = ${commissionId} group by base_id) l
+      where b.id = l.base_id`;
+    await postOrPend(ctx, COMMISSION_REVERSED, { commissionId, number: c.number, date: await companyToday(ctx), reason });
+    return { commissionId, reversed: true };
+  },
+});
+
+const noteLine = z.object({ invoiceLineId: id, subtotal: amount, subtotalDoc: amount }).strict();
+export const adjustForNoteInput = z.object({
+  noteId: id,
+  invoiceId: id,
+  annulment: z.boolean(),
+  /** The note's date (the documento of a partial note's difference is dated it); defaults to the company's today. */
+  date: z.iso.date().optional(),
+  /** The note's lines on invoice lines, company and invoice-currency subtotals signed as the note posts them (a credit's are negative). */
+  lines: z.array(noteLine).max(5000).default([]),
+}).strict();
+
+interface NotedBase extends OpenBase { invoice_line_id: string; rate_pct: string; base: string; base_doc: string }
+
+export const commissionAdjustForNote = defineProcess({
+  id: "sales.commission.adjust_for_note",
+  module: "sales",
+  kind: "update",
+  // The invoice's bases named by invoicing's event: no record of the caller's.
+  recordAccess: "none",
+  feature: FEATURE_COMMISSIONS,
+  origins: ["event"],
+  emits: [COMMISSION_ACCRUED, COMMISSION_REVERSED],
+  description:
+    "Ajusta las comisiones de una factura por una nota crédito: la anulación revierte todas sus comisiones no pagadas; una nota parcial reduce la base de las líneas que corrige y devuelve lo causado de más; solo lo ejecuta el evento de la nota",
+  idempotencyKey: (input) => {
+    const i = input as { annulment: boolean; invoiceId: string; noteId: string };
+    return i.annulment ? `annul:${i.invoiceId}` : `note:${i.noteId}`;
+  },
+  input: adjustForNoteInput,
+  output: z.object({ reversed: z.number().int(), adjusted: z.number().int(), commissionIds: z.array(z.string()) }),
+  handler: async (ctx, input) => {
+    if (input.annulment) {
+      const commissions = await ctx.tx<{ id: string }[]>`
+        select c.id from sales.commissions c
+        where c.company_id = ${ctx.companyId} and c.stage in ('posted', 'paid')
+          and exists (select 1 from sales.commission_lines l join sales.commission_bases b on b.id = l.base_id where l.commission_id = c.id and b.invoice_id = ${input.invoiceId})
+        order by c.seq`;
+      let reversed = 0;
+      for (const c of commissions) {
+        const out = await ctx.runProcess!<z.output<typeof reverseOutput>>("sales.commission.reverse", { commissionId: c.id, reason: "Anulación de la factura" });
+        if (out?.reversed) reversed += 1;
+      }
+      await ctx.tx`update sales.commission_bases set status = 'closed' where company_id = ${ctx.companyId} and invoice_id = ${input.invoiceId} and status = 'open'`;
+      return { reversed, adjusted: 0, commissionIds: [] };
+    }
+    // A redelivery after the first run committed (the key's row gone): the documento it wrote.
+    const done = await ctx.tx<{ id: string }[]>`select id from sales.commissions where company_id = ${ctx.companyId} and source_kind = 'note' and source_id = ${input.noteId} order by seq`;
+    if (done.length > 0) return { reversed: 0, adjusted: 0, commissionIds: done.map((c) => c.id) };
+    const byLine = new Map<string, { delta: bigint; deltaDoc: bigint }>();
+    for (const l of input.lines) {
+      const sum = byLine.get(l.invoiceLineId) ?? { delta: ZERO, deltaDoc: ZERO };
+      byLine.set(l.invoiceLineId, { delta: sum.delta + cents(l.subtotal), deltaDoc: sum.deltaDoc + cents(l.subtotalDoc) });
+    }
+    if (byLine.size === 0) return { reversed: 0, adjusted: 0, commissionIds: [] };
+    const bases = await ctx.tx<NotedBase[]>`
+      select id, invoice_id, invoice_line_id, invoice_date::text, plan_id, payee_party_id, payee_kind, cost_center_id, rate_pct::text, base::text, base_doc::text,
+             commission::text, accrued::text, reversed::text
+      from sales.commission_bases
+      where company_id = ${ctx.companyId} and invoice_id = ${input.invoiceId} and invoice_line_id = any(${[...byLine.keys()]}::uuid[]) and status = 'open'
+      order by seq for update`;
+    if (bases.length === 0) return { reversed: 0, adjusted: 0, commissionIds: [] };
+    const changed = bases.map((b) => {
+      const { delta, deltaDoc } = byLine.get(b.invoice_line_id)!;
+      return { id: b.id, base: fromCents(cents(b.base) + delta), base_doc: fromCents(cents(b.base_doc) + deltaDoc) };
+    });
+    // The commission at the frozen rate on the reduced base, half away from zero to the cent, in numeric (as compute writes it).
+    const updated = await ctx.tx<{ id: string; commission: string }[]>`
+      update sales.commission_bases b
+         set base = r.base, base_doc = r.base_doc, commission = round(r.base * b.rate_pct / 100, 2), commission_doc = round(r.base_doc * b.rate_pct / 100, 2)
+      from jsonb_to_recordset(${ctx.tx.json(changed as never)}::jsonb) as r(id uuid, base numeric, base_doc numeric)
+      where b.id = r.id
+      returning b.id, b.commission::text`;
+    const fresh = new Map(updated.map((u) => [u.id, cents(u.commission)]));
+    // What was accrued beyond the new commission (net of reversals) is given back; under on_collection what is left to accrue just shrinks.
+    const accruals = bases
+      .map((base) => ({ base, amount: fresh.get(base.id)! - (cents(base.accrued) - cents(base.reversed)) }))
+      .filter((a) => a.amount < ZERO);
+    const commissionIds = accruals.length === 0 ? [] : await writeCommissions(ctx, {
+      kind: "note", id: input.noteId, date: input.date ?? (await companyToday(ctx)), link: { kind: "note_to_commission", entity: "invoicing.note" }, accruals,
+    });
+    return { reversed: 0, adjusted: bases.length, commissionIds };
+  },
+});
 
 // =============================================================================================================================================
 // The consumers (RG-12): each runs sales.commission.accrue as its own run; none reads another module's tables (rule 3).
@@ -394,4 +568,61 @@ export const onPaymentReceived: EventConsumer = collectionConsumer("receipt");
 /** Consumer of payments.advance.applied: an advance applied to invoices collects them like a receipt. */
 export const onAdvanceApplied: EventConsumer = collectionConsumer("advance");
 
-export const COMMISSION_PROCESSES = [commissionCompute, commissionConsultAll, commissionAccrue];
+/** Whether the invoice has commission bases (a cheap read: most invoices of a company without plans have none). */
+async function hasBases(ctx: Parameters<EventConsumer>[0], invoiceId: string): Promise<boolean> {
+  const [row] = await ctx.sql`select 1 from sales.commission_bases where company_id = ${ctx.companyId} and invoice_id = ${invoiceId} limit 1`;
+  return Boolean(row);
+}
+
+const noteIssued = z.looseObject({
+  noteId: id,
+  invoiceId: id,
+  kind: z.enum(["credit", "debit"]),
+  annulment: z.boolean(),
+  date: z.iso.date().optional(),
+  lines: z.array(z.looseObject({ invoiceLineId: id.nullable().optional(), subtotal: amount, subtotalDoc: amount.optional() })).default([]),
+});
+
+/** Consumer of invoicing.note.issued: a credit note adjusts the invoice's commissions (the annulment reverses them); a debit note, nothing. */
+export const onNoteIssued: EventConsumer = async (ctx, payload) => {
+  const parsed = noteIssued.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `invoicing.note.issued payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  const note = parsed.data;
+  if (note.kind !== "credit" || !(await hasBases(ctx, note.invoiceId))) return;
+  const lines = note.lines.flatMap((l) => (l.invoiceLineId ? [{ invoiceLineId: l.invoiceLineId, subtotal: l.subtotal, subtotalDoc: l.subtotalDoc ?? l.subtotal }] : []));
+  await ctx.runProcess("sales.commission.adjust_for_note", {
+    noteId: note.noteId, invoiceId: note.invoiceId, annulment: note.annulment, ...(note.date ? { date: note.date } : {}), lines: note.annulment ? [] : lines,
+  });
+};
+
+/**
+ * The commission part of sales' consumer of invoicing.invoice.annulled (delivery.ts onInvoiceAnnulled runs it after the entregas): the
+ * invoice the DIAN annulled reverses its commissions, a run of its own (RG-12). Usually the annulment note's own event did it already: the
+ * run of the same invoice answers the first.
+ */
+export async function reverseAnnulledInvoice(ctx: Parameters<EventConsumer>[0], invoiceId: string, noteId: string): Promise<void> {
+  if (!(await hasBases(ctx, invoiceId))) return;
+  await ctx.runProcess("sales.commission.adjust_for_note", { noteId, invoiceId, annulment: true, lines: [] });
+}
+
+const sourceVoided = z.looseObject({ paymentId: id.optional(), applicationId: id.optional() });
+
+/** The consumers of a void of a collection: every posted or paid commission accrued from that document is reversed, one run each. */
+const voidConsumer = (source: "receipt" | "advance"): EventConsumer => async (ctx, payload) => {
+  const name = source === "receipt" ? "payments.payment.voided" : "payments.advance.unapplied";
+  const parsed = sourceVoided.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `${name} payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  const docId = source === "receipt" ? parsed.data.paymentId : parsed.data.applicationId ?? parsed.data.paymentId;
+  if (!docId) throw new ProcessError("invalid_input", `${name} payload names no document`);
+  const rows = await ctx.sql<{ id: string }[]>`
+    select id from sales.commissions where company_id = ${ctx.companyId} and source_kind = ${source} and source_id = ${docId} and stage in ('posted', 'paid') order by seq`;
+  const reason = source === "receipt" ? "Anulación del recibo de caja" : "Deshecha la aplicación del anticipo";
+  for (const c of rows) await ctx.runProcess("sales.commission.reverse", { commissionId: c.id, reason });
+};
+
+/** Consumer of payments.payment.voided: the receipt's commissions are reversed whole. */
+export const onPaymentVoided: EventConsumer = voidConsumer("receipt");
+/** Consumer of payments.advance.unapplied: the application's commissions are reversed whole. */
+export const onAdvanceUnapplied: EventConsumer = voidConsumer("advance");
+
+export const COMMISSION_PROCESSES = [commissionCompute, commissionConsultAll, commissionAccrue, commissionReverse, commissionAdjustForNote];

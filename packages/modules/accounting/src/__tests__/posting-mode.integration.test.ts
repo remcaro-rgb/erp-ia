@@ -149,6 +149,46 @@ describe("(2) asynchronous: each documento commits without its entry, the consum
     }
   });
 
+  asyncCase(["sales.commission.adjust_for_note", "sales.commission.reverse"], "a commission reversed by its invoice's annulment posts its reversal when the consumer runs", async () => {
+    // Plan 2B.2 Task 30.3: the previous case's plan (the admin sells under it), an on_invoice commission, then Anular of its invoice: the
+    // annulment note's event runs adjust_for_note, which reverses the commission (nested reverse); the reversal commits without its entry.
+    const [plan] = await h.sql<{ payee_party_id: string }[]>`
+      select p.payee_party_id from sales.commission_plans p join sales.commission_plan_users u on u.plan_id = p.id
+      where p.company_id = ${h.companyId} and u.user_id = ${h.admin.claims.sub}`;
+    expect(plan, "the accrual case's plan").toBeDefined();
+    await h.run(h.admin, "sales.settings.update", { commissionBasis: "on_invoice" });
+    await h.runStepUp("invoicing.settings.update", { defaultCostCenterId: h.costCenterId, invoiceCreation: "on_order_confirmation" });
+    try {
+      const order = await h.run<{ id: string }>(h.admin, "sales.order.create", {
+        partyId: h.customerId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId: h.servicio, qty: 1, unitPrice: 200000 }],
+      });
+      await h.run(h.admin, "sales.order.confirm", { id: order.id });
+      expect(await h.drain(["inventory", "invoicing"])).toEqual([]);
+      expect(await h.drain()).toEqual([]);
+      expect(await h.drain(["sales"])).toEqual([]);
+      expect(await h.drain()).toEqual([]);
+      const [invoice] = await h.sql<{ id: string }[]>`
+        select distinct i.id from invoicing.invoices i join invoicing.invoice_lines l on l.invoice_id = i.id where l.order_id = ${order.id}`;
+      const [commission] = await h.sql<{ id: string; amount: string }[]>`
+        select c.id, c.amount::text from sales.commissions c join sales.commission_lines l on l.commission_id = c.id
+        join sales.commission_bases b on b.id = l.base_id where b.invoice_id = ${invoice!.id}`;
+      expect(Number(commission!.amount)).toBe(10000);
+      expect(await h.entriesOf(commission!.id)).toHaveLength(1);
+      await h.sql`update invoicing.invoices set dian_status = 'submitted' where id = ${invoice!.id}`;
+      await h.sql`update invoicing.invoices set dian_status = 'accepted' where id = ${invoice!.id}`;
+      await h.runStepUp("invoicing.invoice.void", { id: invoice!.id, reason: "Precio equivocado" });
+      // The annulment note's own entry first; then sales' consumer of the note reverses the commission (its event waits).
+      expect(await h.drain(["invoicing", "accounting"])).toEqual([]);
+      expect(await h.drain(["sales"])).toEqual([]);
+      const [after] = await h.sql<{ stage: string }[]>`select stage from sales.commissions where id = ${commission!.id}`;
+      expect(after!.stage).toBe("reversed");
+      await postsLater(commission!.id, "sales.commission.reversed", "commissionId", { entries: 1, reversal: true });
+    } finally {
+      await h.runStepUp("invoicing.settings.update", { defaultCostCenterId: h.costCenterId, invoiceCreation: "manual" });
+      await h.run(h.admin, "sales.settings.update", { commissionBasis: "on_collection" });
+    }
+  });
+
   asyncCase(["costing.landed_cost.allocate", "costing.landed_cost.void"], "a landed cost and its void post when the consumer runs", async () => {
     const movementId = await h.stockReceipt("LC-A1");
     expect(await h.drain(["costing", "accounting"])).toEqual([]);

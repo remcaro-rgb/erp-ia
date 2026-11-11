@@ -3504,7 +3504,9 @@
       "commission": {
         "compute": "Calcular las bases de comisión de una factura",
         "consult_all": "Ver las comisiones de todos los vendedores",
-        "accrue": "Causar las comisiones de una factura o un recaudo"
+        "accrue": "Causar las comisiones de una factura o un recaudo",
+        "reverse": "Revertir una comisión",
+        "adjust_for_note": "Ajustar las comisiones de una factura por una nota crédito"
       }
     }
   },
@@ -5270,7 +5272,9 @@
             "costing_landed_cost_void": "Anular costo en destino",
             "payments_advance_apply": "Aplicar anticipo a facturas",
             "payments_advance_undo": "Deshacer aplicación de anticipo",
-            "sales_commission_accrue": "Causar comisiones"
+            "sales_commission_accrue": "Causar comisiones",
+            "sales_commission_adjust_for_note": "Ajustar comisiones por nota crédito",
+            "sales_commission_reverse": "Revertir comisiones"
           }
         }
       },
@@ -6161,7 +6165,9 @@
       "re_reserve_recorded": "Ventas: anota en la entrega anulada si el inventario reservó de nuevo las existencias para el pedido",
       "invoice_annulled": "Ventas: las entregas recuperan lo que la factura anulada había facturado",
       "commission_bases": "Ventas: calcula las bases de comisión de las líneas facturadas de un pedido",
-      "commission_accrual": "Ventas: causa las comisiones de la factura o del recaudo y las contabiliza"
+      "commission_accrual": "Ventas: causa las comisiones de la factura o del recaudo y las contabiliza",
+      "commission_reversal": "Ventas: revierte las comisiones causadas por el documento y reversa su asiento",
+      "commission_note": "Ventas: la nota crédito reduce la base de comisión de sus líneas y devuelve lo causado de más; la anulación revierte las comisiones de la factura"
     },
     "print": {
       "delivery_title": "Remisión de entrega"
@@ -6176,6 +6182,15 @@
       "own_flags": {
         "requires_approval": "No pide aprobación: la comisión la causa la factura o su recaudo.",
         "posts": "Contabiliza siempre: cada comisión causada genera su asiento con la cuenta por pagar."
+      }
+    },
+    "recommendation": {
+      "commission_paid_reversal": {
+        "title": "Comisión pagada sin revertir",
+        "body": "La comisión {number} ya está pagada y no se revirtió sola ({reason}): revísala y, si corresponde, reviértela a mano."
+      },
+      "reason": {
+        "commission_paid_reversal": "una comisión pagada no se revierte sola"
       }
     }
   },

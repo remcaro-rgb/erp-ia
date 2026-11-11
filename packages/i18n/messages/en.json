@@ -3504,7 +3504,9 @@
       "commission": {
         "compute": "Compute an invoice's commission bases",
         "consult_all": "See every salesperson's commissions",
-        "accrue": "Accrue the commissions of an invoice or a collection"
+        "accrue": "Accrue the commissions of an invoice or a collection",
+        "reverse": "Reverse a commission",
+        "adjust_for_note": "Adjust an invoice's commissions for a credit note"
       }
     }
   },
@@ -5270,7 +5272,9 @@
             "costing_landed_cost_void": "Void landed cost",
             "payments_advance_apply": "Apply advance to invoices",
             "payments_advance_undo": "Undo advance application",
-            "sales_commission_accrue": "Accrue commissions"
+            "sales_commission_accrue": "Accrue commissions",
+            "sales_commission_adjust_for_note": "Adjust commissions for a credit note",
+            "sales_commission_reverse": "Reverse commissions"
           }
         }
       },
@@ -6161,7 +6165,9 @@
       "re_reserve_recorded": "Sales: records on the voided delivery whether inventory reserved the stock for the order again",
       "invoice_annulled": "Sales: the deliveries get back what the annulled invoice had invoiced",
       "commission_bases": "Sales: computes the commission bases of the invoiced order lines",
-      "commission_accrual": "Sales: accrues the commissions of the invoice or the collection and posts them"
+      "commission_accrual": "Sales: accrues the commissions of the invoice or the collection and posts them",
+      "commission_reversal": "Sales: reverses the commissions the document accrued and their entry",
+      "commission_note": "Sales: the credit note reduces its lines' commission base and gives back what was over-accrued; the annulment reverses the invoice's commissions"
     },
     "print": {
       "delivery_title": "Delivery note"
@@ -6176,6 +6182,15 @@
       "own_flags": {
         "requires_approval": "Asks no approval: the invoice or its collection accrues the commission.",
         "posts": "Always posts: every accrued commission makes its entry with the payable."
+      }
+    },
+    "recommendation": {
+      "commission_paid_reversal": {
+        "title": "Paid commission not reversed",
+        "body": "Commission {number} is already paid and was not reversed automatically ({reason}): review it and reverse it by hand if needed."
+      },
+      "reason": {
+        "commission_paid_reversal": "a paid commission is not reversed automatically"
       }
     }
   },

@@ -74,6 +74,16 @@ La comisión se contabiliza sola, en la fuente **NC Notas de contabilidad**: dé
 
 Si la comisión no se puede contabilizar (por ejemplo, el beneficiario dejó de estar listo para facturar), la comisión se guarda igual y el comprobante queda en **Contabilidad › Pendientes de contabilizar**, donde se corrige y se reintenta; la factura y el recibo no se afectan. Con la contabilidad apagada, el comprobante espera y se registra al volver a activarla.
 
+### Cuándo se revierte una comisión
+
+La comisión sigue a la factura y al recaudo que la causaron; nadie tiene que revertirla a mano:
+
+- **Anular la factura** (la nota crédito de anulación): todas las comisiones de esa factura quedan **Revertidas** y su comprobante se reversa (débito a la cuenta por pagar del beneficiario, crédito al gasto). Las bases de la factura se cierran: ya no causan nada. La cuenta por pagar desaparece de **Cartera por edades**.
+- **Nota crédito parcial** (una devolución o un descuento sobre algunas líneas): la base de comisión de cada línea que corrige la nota baja en el valor de la nota (antes de impuestos) y la comisión se recalcula con la misma tasa que tenía al facturar. Si la comisión se causó al emitir la factura, se crea una comisión **COM-** de la nota por la diferencia, en negativo (por ejemplo, una nota del 30 % de una línea de $ 1.000.000 al 5 % devuelve $ 15.000). Si se causa al recaudar, solo baja lo que falta por causar: los recibos siguientes causan sobre la base nueva y, al saldar la factura, la suma es la tasa por la base menos la nota, al centavo. Una nota débito no cambia la comisión.
+- **Anular un recibo de caja** o **deshacer la aplicación de un anticipo**: la comisión que causó ese recibo o esa aplicación se revierte entera; las de los otros recibos siguen igual. Lo que había causado vuelve a quedar por causar: el siguiente recibo que pague la factura lo causa otra vez.
+
+Una comisión **Pagada** nunca se revierte sola: queda como está y quien puede revertir comisiones recibe una recomendación en **Inicio** para revisarla. (En esta versión las comisiones todavía no se pagan desde el sistema.)
+
 Cada vendedor ve solo los planes y las bases de los planes que lo incluyen. Quien tiene el permiso **Ver las comisiones de todos los vendedores** (en **Administración › Roles**; un rol nuevo no lo trae) ve todos. Las tasas y los valores son confidenciales: un rol que no ve datos confidenciales los ve ocultos.
 
 ## El PDF de una entrega

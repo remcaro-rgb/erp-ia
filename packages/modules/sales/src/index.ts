@@ -7,7 +7,7 @@ import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, order
 import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
 import { PRICING_PROCESSES } from "./processes/pricing";
-import { COMMISSION_ACCRUED, COMMISSION_DUE, COMMISSION_PROCESSES, commissionHooks, onAdvanceApplied, onCommissionDue, onPaymentReceived } from "./processes/commission";
+import { COMMISSION_ACCRUED, COMMISSION_DUE, COMMISSION_PROCESSES, COMMISSION_REVERSED, commissionHooks, onAdvanceApplied, onAdvanceUnapplied, onCommissionDue, onNoteIssued, onPaymentReceived, onPaymentVoided } from "./processes/commission";
 import { SALES_POSTING_RULES } from "./rules";
 import { COMMISSION_PLAN_PROCESSES, commissionPlanHooks } from "./processes/commission-plan";
 import { onReturnVoidRefused, RETURN_PROCESSES, RETURN_RECEIVED, RETURN_VOIDED, returnHooks } from "./processes/return";
@@ -44,6 +44,7 @@ export const sales: ModuleDef = defineModule({
   // Commissions (Task 30.1): the plans, the bases of an issued invoice (sales.commission.compute, from the invoicing.invoice.issued consumer)
   // and sales.commission.consult_all, the «all commissions» permission of the record rule (migration 0156).
   // Task 30.2: sales.commission.accrue, from sales.commission.due (on_invoice) and the payments events (on_collection), posts the provision.
+  // Task 30.3: sales.commission.reverse and sales.commission.adjust_for_note, from the credit notes, the annulment and the collection voids.
   processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES, ...COMMISSION_PLAN_PROCESSES, ...COMMISSION_PROCESSES],
   // The commission provision (plan 2B.2 Task 30.2, PG §5.4, RG-13): the two roles the country pack maps by payee kind (dimension
   // payee_kind:employee | payee_kind:agent), and the rules of the accrual and its reversal (rules/, twins of accounting's defaults).
@@ -56,7 +57,8 @@ export const sales: ModuleDef = defineModule({
   events: {
     // sales.commission.due { invoiceId, basis } (Task 30.1): an issued invoice wrote commission bases; Task 30.2's consumer accrues them.
     // sales.commission.accrued (Task 30.2): a commission documento, posted by the rule commission-accrued.
-    emits: [ORDER_CREATED, ORDER_CONFIRMED, ORDER_CANCELLED, DELIVERY_SHIPPED, DELIVERY_VOIDED, RETURN_RECEIVED, RETURN_VOIDED, COMMISSION_DUE, COMMISSION_ACCRUED],
+    // sales.commission.reversed (Task 30.3): a commission reversed, its entry reversed by the rule commission-reversed (reverseOf).
+    emits: [ORDER_CREATED, ORDER_CONFIRMED, ORDER_CANCELLED, DELIVERY_SHIPPED, DELIVERY_VOIDED, RETURN_RECEIVED, RETURN_VOIDED, COMMISSION_DUE, COMMISSION_ACCRUED, COMMISSION_REVERSED],
     consumes: {
       "inventory.movement.posted": onMovementPosted,
       // Inventory could not issue a despacho / take back a devolución's stock: the document goes back with the reason (Task 14 review).
@@ -67,8 +69,14 @@ export const sales: ModuleDef = defineModule({
       // What an issued invoice billed of each entrega line (Task 16: sales never imports invoicing; it reads invoicing's published view),
       // then the commission bases of its lines billed from a pedido (Task 30.1: a second, separate run).
       "invoicing.invoice.issued": onInvoiceIssued,
-      // An invoice voided by its accepted annulment note (Task 18): the entregas get back what it invoiced.
+      // An invoice voided by its accepted annulment note (Task 18): the entregas get back what it invoiced; then its commissions are
+      // reversed (Task 30.3, a second run).
       "invoicing.invoice.annulled": onInvoiceAnnulled,
+      // The commission reversals (Task 30.3): a credit note reduces the bases of its lines (the annulment reverses them all); a voided
+      // receipt or an undone advance application reverses the commissions it accrued.
+      "invoicing.note.issued": onNoteIssued,
+      "payments.payment.voided": onPaymentVoided,
+      "payments.advance.unapplied": onAdvanceUnapplied,
       // The commissions (Task 30.2, RG-12): its own sales.commission.due accrues an on_invoice invoice in a run of its own (a posting failure
       // retries only that event); a receipt or an advance application accrues the on_collection bases of the invoices it settles.
       "sales.commission.due": onCommissionDue,
@@ -85,7 +93,10 @@ export const sales: ModuleDef = defineModule({
     "inventory.sale_return_void.refused": ["sales.effects.return_void_refused"],
     "inventory.delivery_reservation.restored": ["sales.effects.re_reserve_recorded"],
     "invoicing.invoice.issued": ["sales.effects.invoice_issued", "sales.effects.commission_bases"],
-    "invoicing.invoice.annulled": ["sales.effects.invoice_annulled"],
+    "invoicing.invoice.annulled": ["sales.effects.invoice_annulled", "sales.effects.commission_reversal"],
+    "invoicing.note.issued": ["sales.effects.commission_note"],
+    "payments.payment.voided": ["sales.effects.commission_reversal"],
+    "payments.advance.unapplied": ["sales.effects.commission_reversal"],
     "sales.commission.due": ["sales.effects.commission_accrual"],
     "payments.received": ["sales.effects.commission_accrual"],
     "payments.advance.applied": ["sales.effects.commission_accrual"],

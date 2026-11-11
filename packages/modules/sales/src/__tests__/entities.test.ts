@@ -45,10 +45,14 @@ describe("sales manifest", () => {
     expect(sales.events.emits).toEqual([
       "sales.order.created", "sales.order.confirmed", "sales.order.cancelled",
       "sales.delivery.shipped", "sales.delivery.voided", "sales.return.received", "sales.return.voided", "sales.commission.due",
+      // Tasks 30.2 and 30.3: the provision and its reversal, posted by the module's rules.
+      "sales.commission.accrued", "sales.commission.reversed",
     ]);
     // The sale issue inventory posted for an entrega is recorded on its lines, and what inventory refused (a despacho it could not issue,
     // the Anular of a devolución it could not take back) puts the document back with the reason: by event, sales never calls inventory (rule 3).
-    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "invoicing.invoice.issued", "invoicing.invoice.annulled"]);
+    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "invoicing.invoice.issued", "invoicing.invoice.annulled",
+      // The commissions (Tasks 30.2, 30.3): accrued on the due event and the collections, adjusted by the notes, reversed by the voids.
+      "invoicing.note.issued", "payments.payment.voided", "payments.advance.unapplied", "sales.commission.due", "payments.received", "payments.advance.applied"]);
   });
 
   it("the pedido numbers on save, sets its own approval flag, never posts, and lists its lines", () => {
@@ -92,6 +96,8 @@ describe("sales manifest", () => {
         "sales.commission_plan.create", "sales.commission_plan.update", "sales.commission_plan.consult",
         "sales.commission_plan.save", "sales.commission_plan.submit", "sales.commission_plan.approve", "sales.commission_plan.reject", "sales.commission_plan.void", "sales.commission_plan.delete",
         "sales.commission.compute", "sales.commission.consult_all",
+        // Tasks 30.2, 30.3: the accrual, the reversal and the credit-note adjustment.
+        "sales.commission.accrue", "sales.commission.reverse", "sales.commission.adjust_for_note",
         "sales.commission.save", "sales.commission.submit", "sales.commission.approve", "sales.commission.reject", "sales.commission.void", "sales.commission.delete",
       ].sort(),
     );
