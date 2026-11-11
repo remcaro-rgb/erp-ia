@@ -12,7 +12,8 @@ export const ORDER_PRINT_FIELDS = ["number", "party_id", "issue_date", "delivery
 export const ORDER_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "qty", "unit_price", "discount_pct", "base", "iva", "total"];
 /** The header fields an entrega prints. */
 export const DELIVERY_PRINT_FIELDS = ["number", "order_id", "party_id", "date", "notes"];
-export const DELIVERY_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "qty"];
+/** Its lines table; `lots` is «Lote / Vence / Serie», what inventory issued of each lot and serial (Task 28.3), empty for an untracked line. */
+export const DELIVERY_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "qty", "lots"];
 /** The header fields a devolución prints: what came back, from which entrega, and why. */
 export const RETURN_PRINT_FIELDS = ["number", "delivery_id", "party_id", "date", "reason", "notes"];
 export const RETURN_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "qty"];

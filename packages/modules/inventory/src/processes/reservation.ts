@@ -1,7 +1,7 @@
 import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { entityId, id, idInput, num, productFacts, qtyText, quantity, refuse } from "./common";
-import { lockStock } from "./movement";
+import { companyToday, lockStock } from "./movement";
 import { ORDER_LINE_SOURCE } from "./sales-orders";
 
 // Reservations (plan 2B Task 6, used by the sales orders of Task 13 through their events): stock promised to a source line until it is
@@ -91,10 +91,13 @@ export const reservationCreate = defineProcess({
     if (existing?.status === "active") return answer(existing);
     if (existing && input.once) return answer(existing);
 
+    // RG-4 (Task 28.3): only the stock FEFO may issue today counts: a blocked lot, or (block_expired) an expired one, is not available.
+    const on = await companyToday(ctx);
     const [stock] = await ctx.tx<{ available: string; is_short: boolean }[]>`
       with on_hand as (
         select coalesce(sum(on_hand), 0) as v from inventory.stock_levels
         where company_id = ${ctx.companyId} and product_id = ${input.productId} and warehouse_id = ${input.warehouseId}
+          and inventory.lot_sellable(lot_id, ${on}::date)
       ), reserved as (
         select coalesce(sum(qty - released_qty), 0) as v from inventory.reservations
         where company_id = ${ctx.companyId} and product_id = ${input.productId} and warehouse_id = ${input.warehouseId} and status = 'active'
@@ -254,9 +257,12 @@ export const reservationReserveAgain = defineProcess({
       plan.push({ line, row, qty });
     }
     if (plan.length === 0) return { status: "nothing" as const, lines: [], short: [] };
+    // The stock FEFO may issue today (RG-4, Task 28.3): blocked and expired lots are not promised again.
+    const today = await companyToday(ctx);
     const stock = await ctx.tx<{ product_id: string; on_hand: string; reserved: string }[]>`
       select p as product_id,
-             coalesce((select sum(on_hand) from inventory.stock_levels where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p), 0)::text as on_hand,
+             coalesce((select sum(on_hand) from inventory.stock_levels where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p
+                         and inventory.lot_sellable(lot_id, ${today}::date)), 0)::text as on_hand,
              coalesce((select sum(qty - released_qty) from inventory.reservations where company_id = ${ctx.companyId} and warehouse_id = ${input.warehouseId} and product_id = p and status = 'active'), 0)::text as reserved
       from unnest(${[...new Set(plan.map((x) => x.line.productId))].sort()}::uuid[]) as p`;
     const short: z.output<typeof reserveAgainOutput>["short"] = [];

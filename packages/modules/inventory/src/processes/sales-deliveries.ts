@@ -1,6 +1,6 @@
 import { defineProcess, ProcessError, type EventConsumer, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { num, productFacts } from "./common";
+import { num, productFacts, qtyText } from "./common";
 import { lockStock, MOVEMENT_POSTED, MOVEMENT_VOIDED, postMovement, warehouseOf } from "./movement";
 import { ORDER_LINE_SOURCE } from "./sales-orders";
 
@@ -33,6 +33,8 @@ export const DELIVERY_SOURCE = "sales.delivery";
 /** The source entity of a devolución's movement. */
 export const RETURN_SOURCE = "sales.return";
 export const SALE_ISSUE_REFUSED = "inventory.sale_issue.refused";
+/** What a sale issue took of each lot and serial (Task 28.3): { deliveryId, lines: [{ deliveryLineId, lotId, lotCode, expiresOn, serialId, serialNo, qty }] }. */
+export const SALE_ISSUE_ALLOCATED = "inventory.sale_issue.allocated";
 export const SALE_RETURN_VOID_REFUSED = "inventory.sale_return_void.refused";
 /** The outcome of the re-reservation a voided entrega asked for (Task 43): { deliveryId, status, short, lines }; sales records it on the entrega. */
 export const DELIVERY_RESERVATION_RESTORED = "inventory.delivery_reservation.restored";
@@ -49,7 +51,8 @@ const shippedInput = z.object({
   warehouseId: uuid,
   date: z.iso.date(),
   costCenterId: uuid.optional(),
-  lines: z.array(z.object({ lineId: uuid, orderLineId: uuid.optional(), productId: uuid, qty: z.number().positive() })).min(1),
+  /** Task 28.3: a line may name its lot, or (serial products: required) one serial per unit; else a lot product leaves by FEFO. */
+  lines: z.array(z.object({ lineId: uuid, orderLineId: uuid.optional(), productId: uuid, qty: z.number().positive(), lotId: uuid.optional(), serialIds: z.array(uuid).min(1).max(500).optional() })).min(1),
 });
 const voidedInput = z.object({
   eventId,
@@ -67,7 +70,8 @@ const receivedInput = z.object({
   warehouseId: uuid,
   date: z.iso.date(),
   costCenterId: uuid.optional(),
-  lines: z.array(z.object({ lineId: uuid, deliveryLineId: uuid, productId: uuid, qty: z.number().positive() })).min(1),
+  /** Task 28.3: the lot or the serials coming back (sales defaults them from what the entrega issued); else the issue's own buckets. */
+  lines: z.array(z.object({ lineId: uuid, deliveryLineId: uuid, productId: uuid, qty: z.number().positive(), lotId: uuid.optional(), serialIds: z.array(uuid).min(1).max(500).optional() })).min(1),
 });
 const returnVoidedInput = z.object({ eventId, returnId: uuid, reason: z.string().min(1), lines: z.array(z.object({ productId: uuid })) });
 
@@ -96,41 +100,232 @@ const run = (ctx: ProcessContext) => {
 
 const isDuplicate = (error: unknown) => error instanceof ProcessError && error.code === "invalid_input" && error.message.startsWith("duplicate_source_line");
 
+/** One bucket a line leaves from, and how much. */
+interface Pick {
+  locationId: string | null;
+  lotId: string | null;
+  serialId: string | null;
+  qty: number;
+}
+interface PickLine { productId: string; qty: number; sku: string; lineNo: number; lotId?: string | undefined; serialIds?: string[] | undefined }
+interface BucketRow {
+  product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; on_hand: string;
+  lot_code: string | null; expires_on: string | null; produced_on: string | null; lot_status: string | null; lot_deleted: boolean | null; serial_no: string | null;
+}
+
+/** A refusal of the issue (deterministic): the first code met, with every line's detail of that code. */
+class IssueRefusals {
+  private readonly byCode = new Map<string, string[]>();
+  add(code: string, detail: string): void {
+    this.byCode.set(code, [...(this.byCode.get(code) ?? []), detail]);
+  }
+  first(): { code: string; reason: string } | null {
+    const [entry] = this.byCode.entries();
+    return entry ? { code: entry[0], reason: entry[1].join("; ") } : null;
+  }
+}
+
+/** FEFO order of lots (RG-4): expires_on asc nulls last, produced_on asc nulls last, code asc. */
+const fefoOrder = (a: BucketRow, b: BucketRow) =>
+  (a.expires_on ?? "9999-12-31").localeCompare(b.expires_on ?? "9999-12-31") ||
+  (a.produced_on ?? "9999-12-31").localeCompare(b.produced_on ?? "9999-12-31") ||
+  String(a.lot_code).localeCompare(String(b.lot_code));
+/** Within one lot: the bodega's own stock first, then the ubicación holding the most. */
+const bucketOrder = (left: (r: BucketRow) => number) => (a: BucketRow, b: BucketRow) =>
+  (a.location_id === null ? 0 : 1) - (b.location_id === null ? 0 : 1) || left(b) - left(a) || String(a.location_id).localeCompare(String(b.location_id));
+
 /**
- * Picks the bucket each line leaves from, under the stock locks of its products (lockStock): the bodega's own stock when it covers the
- * line, else the ubicación (not transit, not deleted) holding the most, after what earlier lines took. A line no single bucket covers is
- * named (split_location) unless the bodega allows backorders.
+ * Picks the buckets each line leaves from, under the stock locks of its products (lockStock), after what earlier lines took:
+ *   - an untracked product (RG-2, as before): ONE bucket, the bodega's own stock when it covers the line, else the ubicación (not transit,
+ *     not deleted) holding the most; a line no single bucket covers is named (split_location) unless the bodega allows backorders;
+ *   - a lot product (Task 28.3, RG-4): the named lot (lot_expired when expired at the date and the product blocks expired lots; lot_blocked
+ *     when blocked; lot_short when it holds less), else by FEFO over the lots that are active and not expired (block_expired), split over as
+ *     many buckets as it takes (lot_short when they hold less; lot_required when the product turned FEFO off);
+ *   - a serial product: the serials named, one per unit, each from the bucket holding it (serials_required, serials_count_mismatch,
+ *     serial_not_in_stock). Serials are scanned, never chosen by the system.
  */
-async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, lines: { productId: string; qty: number; sku: string; lineNo: number }[]) {
-  await lockStock(ctx, warehouse.id, lines.map((l) => l.productId));
-  const rows = await ctx.tx<{ product_id: string; location_id: string | null; on_hand: string }[]>`
-    select s.product_id, s.location_id, s.on_hand::text from inventory.stock_levels s left join inventory.locations l on l.id = s.location_id
-    where s.company_id = ${ctx.companyId} and s.warehouse_id = ${warehouse.id} and s.product_id = any(${[...new Set(lines.map((l) => l.productId))]}::uuid[])
-      and s.lot_id is null and s.serial_id is null and (s.location_id is null or (l.deleted_at is null and l.kind <> 'transit'))`;
-  const left = new Map(rows.map((r) => [`${r.product_id}|${r.location_id ?? ""}`, num(r.on_hand)]));
-  const picked: (string | null)[] = [];
+async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, date: string, lines: PickLine[]) {
+  const productIds = [...new Set(lines.map((l) => l.productId))];
+  await lockStock(ctx, warehouse.id, productIds);
+  const tracking = new Map((await ctx.tx<{ product_id: string; tracking: string; fefo: boolean; block_expired: boolean }[]>`
+    select product_id, tracking, fefo, block_expired from inventory.product_tracking where product_id = any(${productIds}::uuid[])`).map((r) => [r.product_id, r]));
+  const rows = await ctx.tx<BucketRow[]>`
+    select s.product_id, s.location_id, s.lot_id, s.serial_id, s.on_hand::text,
+           lt.code as lot_code, lt.expires_on::text as expires_on, lt.produced_on::text as produced_on, lt.lot_status, lt.deleted_at is not null as lot_deleted, sr.serial_no
+    from inventory.stock_levels s
+    left join inventory.locations l on l.id = s.location_id
+    left join inventory.lots lt on lt.id = s.lot_id
+    left join inventory.serials sr on sr.id = s.serial_id
+    where s.company_id = ${ctx.companyId} and s.warehouse_id = ${warehouse.id} and s.product_id = any(${productIds}::uuid[])
+      and (s.location_id is null or (l.deleted_at is null and l.kind <> 'transit'))`;
+  const keyOf = (r: { product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }) => `${r.product_id}|${r.location_id ?? ""}|${r.lot_id ?? ""}|${r.serial_id ?? ""}`;
+  const left = new Map(rows.map((r) => [keyOf(r), num(r.on_hand)]));
+  const leftOf = (r: BucketRow) => left.get(keyOf(r)) ?? 0;
+  const take = (r: BucketRow, qty: number): Pick => {
+    left.set(keyOf(r), round4(leftOf(r) - qty));
+    return { locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id, qty };
+  };
+  const expired = (r: BucketRow, blockExpired: boolean) => blockExpired && r.expires_on !== null && r.expires_on < date;
+  /** Fills `qty` from `buckets` in order; null when they hold less (nothing is taken then). */
+  const fill = (buckets: BucketRow[], qty: number): Pick[] | null => {
+    const total = round4(buckets.reduce((sum, b) => sum + Math.max(leftOf(b), 0), 0));
+    if (total < qty) return null;
+    const picks: Pick[] = [];
+    let need = qty;
+    for (const b of buckets) {
+      if (need <= 0) break;
+      const part = Math.min(need, Math.max(leftOf(b), 0));
+      if (part <= 0) continue;
+      picks.push(take(b, part));
+      need = round4(need - part);
+    }
+    return picks;
+  };
+
+  const refusals = new IssueRefusals();
   const split: string[] = [];
+  const picked: Pick[][] = [];
   for (const line of lines) {
-    const buckets = rows.filter((r) => r.product_id === line.productId).map((r) => ({ locationId: r.location_id, onHand: left.get(`${r.product_id}|${r.location_id ?? ""}`)! }));
-    const own = buckets.find((b) => b.locationId === null);
-    const best = buckets.filter((b) => b.locationId !== null).sort((a, b) => b.onHand - a.onHand || String(a.locationId).localeCompare(String(b.locationId)))[0];
-    let choice: string | null = null;
-    if (own && own.onHand >= line.qty) choice = null;
-    else if (best && best.onHand >= line.qty) choice = best.locationId;
+    const at = `Línea ${line.lineNo}`;
+    const t = tracking.get(line.productId);
+    const kind = t?.tracking ?? "none";
+    const blockExpired = t?.block_expired ?? true;
+    const ofProduct = rows.filter((r) => r.product_id === line.productId);
+    if (kind === "lot") {
+      const lots = ofProduct.filter((r) => r.lot_id !== null);
+      if (line.serialIds) {
+        refusals.add("invalid_movement", `${at}: ${line.sku} se sigue por lote, no por serial`);
+        picked.push([]);
+        continue;
+      }
+      let buckets: BucketRow[];
+      let namedCode: string | null = null;
+      if (line.lotId) {
+        const named = lots.filter((r) => r.lot_id === line.lotId);
+        const [lot] = named.length > 0 ? named : await ctx.tx<BucketRow[]>`
+          select ${line.productId}::uuid as product_id, null as location_id, id as lot_id, null as serial_id, '0' as on_hand, code as lot_code,
+                 expires_on::text as expires_on, produced_on::text as produced_on, lot_status, deleted_at is not null as lot_deleted, null as serial_no
+          from inventory.lots where id = ${line.lotId} and product_id = ${line.productId}`;
+        if (!lot) {
+          refusals.add("lot_not_found", `${at}: el lote no existe o es de otro producto`);
+          picked.push([]);
+          continue;
+        }
+        if (lot.lot_status === "blocked" || lot.lot_deleted) {
+          refusals.add("lot_blocked", `${at}: el lote ${lot.lot_code} de ${line.sku} está bloqueado`);
+          picked.push([]);
+          continue;
+        }
+        if (expired(lot, blockExpired)) {
+          refusals.add("lot_expired", `${at}: el lote ${lot.lot_code} de ${line.sku} venció el ${lot.expires_on}`);
+          picked.push([]);
+          continue;
+        }
+        namedCode = lot.lot_code;
+        buckets = named.sort(bucketOrder(leftOf));
+      } else if (t && !t.fefo) {
+        refusals.add("lot_required", `${at}: ${line.sku} se sigue por lote y no sale por FEFO: indica el lote`);
+        picked.push([]);
+        continue;
+      } else {
+        buckets = lots.filter((r) => r.lot_status === "active" && !r.lot_deleted && !expired(r, blockExpired))
+          .sort((a, b) => fefoOrder(a, b) || bucketOrder(leftOf)(a, b));
+      }
+      const picks = fill(buckets, line.qty);
+      if (!picks) {
+        const total = round4(buckets.reduce((sum, b) => sum + Math.max(leftOf(b), 0), 0));
+        refusals.add("lot_short", line.lotId
+          ? `${at}: el lote ${namedCode ?? ""} de ${line.sku} tiene ${qtyText(total)} en la bodega y la línea saca ${qtyText(line.qty)}`
+          : `${at}: los lotes vendibles de ${line.sku} (no bloqueados ni vencidos) suman ${qtyText(total)} en la bodega y la línea saca ${qtyText(line.qty)}`);
+        picked.push([]);
+        continue;
+      }
+      picked.push(picks);
+      continue;
+    }
+    if (kind === "serial") {
+      if (!line.serialIds || line.serialIds.length === 0) {
+        refusals.add("serials_required", `${at}: ${line.sku} se sigue por serial: indica un serial por unidad`);
+        picked.push([]);
+        continue;
+      }
+      if (!Number.isInteger(line.qty) || line.serialIds.length !== line.qty || new Set(line.serialIds).size !== line.serialIds.length) {
+        refusals.add("serials_count_mismatch", `${at}: la cantidad es ${qtyText(line.qty)} y se indican ${line.serialIds.length} seriales distintos`);
+        picked.push([]);
+        continue;
+      }
+      const picks: Pick[] = [];
+      for (const serialId of line.serialIds) {
+        const holder = ofProduct.find((r) => r.serial_id === serialId && leftOf(r) >= 1);
+        if (!holder) {
+          const [known] = await ctx.tx<{ serial_no: string }[]>`select serial_no from inventory.serials where id = ${serialId} and product_id = ${line.productId}`;
+          refusals.add("serial_not_in_stock", `${at}: el serial ${known?.serial_no ?? serialId} de ${line.sku} no está en la bodega`);
+          continue;
+        }
+        picks.push(take(holder, 1));
+      }
+      picked.push(picks);
+      continue;
+    }
+    if (line.lotId || line.serialIds) {
+      refusals.add("invalid_movement", `${at}: ${line.sku} no se sigue por lote ni por serial`);
+      picked.push([]);
+      continue;
+    }
+    // Untracked (RG-2): one bucket per line, as before.
+    const buckets = ofProduct.filter((r) => r.lot_id === null && r.serial_id === null);
+    const own = buckets.find((b) => b.location_id === null);
+    const best = buckets.filter((b) => b.location_id !== null).sort((a, b) => leftOf(b) - leftOf(a) || String(a.location_id).localeCompare(String(b.location_id)))[0];
+    let choice: BucketRow | undefined;
+    if (own && leftOf(own) >= line.qty) choice = own;
+    else if (best && leftOf(best) >= line.qty) choice = best;
     else {
       // Short in total: no split to report, the post refuses it (negative_stock_refused). Enough in total but in no single bucket: split.
-      const total = buckets.reduce((sum, b) => sum + b.onHand, 0);
+      const total = buckets.reduce((sum, b) => sum + leftOf(b), 0);
       if (!warehouse.allowBackorders && total >= line.qty) {
-        const most = Math.max(0, ...buckets.map((b) => b.onHand));
+        const most = Math.max(0, ...buckets.map((b) => leftOf(b)));
         split.push(`Línea ${line.lineNo}: ninguna ubicación de la bodega tiene ${line.qty} de ${line.sku} (la que más tiene, ${most}); cada línea sale de una sola ubicación`);
       }
-      choice = best && best.onHand > (own?.onHand ?? 0) ? best.locationId : null;
+      choice = best && leftOf(best) > (own ? leftOf(own) : 0) ? best : undefined;
     }
-    const key = `${line.productId}|${choice ?? ""}`;
-    left.set(key, round4((left.get(key) ?? 0) - line.qty));
-    picked.push(choice);
+    if (choice) picked.push([take(choice, line.qty)]);
+    else {
+      const key = `${line.productId}|||`;
+      left.set(key, round4((left.get(key) ?? 0) - line.qty));
+      picked.push([{ locationId: null, lotId: null, serialId: null, qty: line.qty }]);
+    }
   }
-  return { picked, split };
+  return { picked, split, refused: refusals.first() };
+}
+
+/**
+ * Tells sales what the issue took of each lot and serial (inventory.sale_issue.allocated, Task 28.3), per delivery line and lot or serial
+ * (buckets of one lot in two ubicaciones are summed). Only the lines of tracked products; nothing is emitted for an entrega without any,
+ * so an untracked entrega's events are as before (RG-2).
+ */
+async function emitAllocated(ctx: ProcessContext, deliveryId: string, lines: { deliveryLineId: string; picks: Pick[] }[]): Promise<void> {
+  const tracked = lines.flatMap((l) => l.picks.filter((p) => p.lotId || p.serialId).map((p) => ({ deliveryLineId: l.deliveryLineId, ...p })));
+  if (tracked.length === 0) return;
+  const lotIds = [...new Set(tracked.flatMap((t) => (t.lotId ? [t.lotId] : [])))];
+  const serialIds = [...new Set(tracked.flatMap((t) => (t.serialId ? [t.serialId] : [])))];
+  const lots = new Map((lotIds.length === 0 ? [] : await ctx.tx<{ id: string; code: string; expires_on: string | null }[]>`
+    select id, code, expires_on::text from inventory.lots where id = any(${lotIds}::uuid[])`).map((r) => [r.id, r]));
+  const serials = new Map((serialIds.length === 0 ? [] : await ctx.tx<{ id: string; serial_no: string }[]>`
+    select id, serial_no from inventory.serials where id = any(${serialIds}::uuid[])`).map((r) => [r.id, r.serial_no]));
+  const out: { deliveryLineId: string; lotId: string | null; lotCode: string | null; expiresOn: string | null; serialId: string | null; serialNo: string | null; qty: number }[] = [];
+  for (const t of tracked) {
+    const seen = out.find((o) => o.deliveryLineId === t.deliveryLineId && o.lotId === t.lotId && o.serialId === t.serialId);
+    if (seen) {
+      seen.qty = round4(seen.qty + t.qty);
+      continue;
+    }
+    const lot = t.lotId ? lots.get(t.lotId) : undefined;
+    out.push({
+      deliveryLineId: t.deliveryLineId, lotId: t.lotId, lotCode: lot?.code ?? null, expiresOn: lot?.expires_on ?? null,
+      serialId: t.serialId, serialNo: t.serialId ? (serials.get(t.serialId) ?? null) : null, qty: t.qty,
+    });
+  }
+  await ctx.emit(SALE_ISSUE_ALLOCATED, { deliveryId, lines: out });
 }
 
 /** Posts `input` in a savepoint: a refusal leaves nothing written; a concurrent post of the same source lines answers that movement. */
@@ -163,7 +358,7 @@ export const saleIssue = defineProcess({
   recordAccess: "none",
   feature: FEATURE,
   origins: ["event"],
-  emits: [MOVEMENT_POSTED, SALE_ISSUE_REFUSED],
+  emits: [MOVEMENT_POSTED, SALE_ISSUE_REFUSED, SALE_ISSUE_ALLOCATED],
   description: "Descarga las existencias de una entrega despachada y usa su reserva; si no puede, lo avisa a ventas. Solo lo ejecuta el evento de despacho",
   input: shippedInput,
   output: outcome,
@@ -197,13 +392,23 @@ export const saleIssue = defineProcess({
           if (!refused) throw error;
           return refuse(refused.code, refused.reason);
         }
-        const { picked, split } = await pickBuckets(ctx, warehouse, moving.map((l) => ({ productId: l.productId, qty: l.qty, sku: goods.get(l.productId)!.sku, lineNo: l.lineNo })));
+        const { picked, split, refused } = await pickBuckets(ctx, warehouse, d.date, moving.map((l) => ({
+          productId: l.productId, qty: l.qty, sku: goods.get(l.productId)!.sku, lineNo: l.lineNo, lotId: l.lotId, serialIds: l.serialIds,
+        })));
         // pickBuckets holds the stock lock of every product of the lines: a concurrent run of the same lines has committed by now, and its
         // movement is the answer (no second issue, no second release).
         const committed = await existingMovement();
         if (committed) movementId = committed;
         else {
+          if (refused) return refuse(refused.code, refused.reason);
           if (split.length > 0) return refuse("split_location", split.join("; "));
+          // One movement line per delivery line and bucket (Task 28.3: a FEFO split, one line per serial); untracked lines as before.
+          const movementLines = moving.flatMap((l, i) => picked[i]!.map((p) => ({
+            productId: l.productId, qty: -p.qty, sourceLineId: l.lineId,
+            ...(p.locationId ? { locationId: p.locationId } : {}),
+            ...(p.lotId ? { lotId: p.lotId } : {}),
+            ...(p.serialId ? { serialIds: [p.serialId] } : {}),
+          })));
           const posted = await postInSavepoint(ctx, {
             kind: "sale_issue",
             date: d.date,
@@ -212,11 +417,12 @@ export const saleIssue = defineProcess({
             sourceId: d.deliveryId,
             ...(d.number ? { reference: d.number } : {}),
             ...(d.costCenterId ? { costCenterId: d.costCenterId } : {}),
-            lines: moving.map((l, i) => ({ productId: l.productId, qty: -l.qty, sourceLineId: l.lineId, ...(picked[i] ? { locationId: picked[i]! } : {}) })),
+            lines: movementLines,
           } as Parameters<typeof postMovement>[1]);
           if ("refused" in posted) return refuse(posted.refused.code, posted.refused.reason);
           movementId = posted.id;
           issuedNow = posted.created;
+          if (issuedNow) await emitAllocated(ctx, d.deliveryId, moving.map((l, i) => ({ deliveryLineId: l.lineId, picks: picked[i]! })));
         }
       }
     }
@@ -308,15 +514,60 @@ export const saleReturn = defineProcess({
       select movement_id from inventory.movement_lines where company_id = ${ctx.companyId} and source_entity = ${RETURN_SOURCE}
         and source_line_id = any(${moving.map((l) => l.lineId)}::uuid[]) limit 1`;
     if (existing) return { status: "posted", movementId: existing.movement_id };
-    // Each line re-enters where its sale issue left from; an entrega line whose issue is not posted yet is retried.
-    const issued = await ctx.tx<{ source_line_id: string; location_id: string | null }[]>`
-      select l.source_line_id, l.location_id from inventory.movement_lines l join inventory.movements m on m.id = l.movement_id
+    // Each line re-enters where its sale issue left from; an entrega line whose issue is not posted yet is retried. A tracked line (Task
+    // 28.3) re-enters the lot or the serials it names, else the buckets its issue took, in the issue's order, each up to what it issued
+    // less what saved returns already brought back.
+    const issued = await ctx.tx<{ id: string; source_line_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string; returned: string }[]>`
+      select l.id, l.source_line_id, l.location_id, l.lot_id, l.serial_id, (-l.qty)::text as qty,
+             coalesce((select sum(r.qty) from inventory.movement_lines r join inventory.movements rm on rm.id = r.movement_id
+                       where r.return_of_line_id = l.id and rm.kind = 'sale_return' and rm.status <> 'voided'), 0)::text as returned
+      from inventory.movement_lines l join inventory.movements m on m.id = l.movement_id
       where l.company_id = ${ctx.companyId} and l.source_entity = ${DELIVERY_SOURCE} and m.status = 'saved'
-        and l.source_line_id = any(${moving.map((l) => l.deliveryLineId)}::uuid[])`;
-    const from = new Map(issued.map((i) => [i.source_line_id, i.location_id]));
-    if (moving.some((l) => !from.has(l.deliveryLineId))) {
+        and l.source_line_id = any(${moving.map((l) => l.deliveryLineId)}::uuid[])
+      order by l.line_no`;
+    if (moving.some((l) => !issued.some((i) => i.source_line_id === l.deliveryLineId))) {
       throw new ProcessError("handler_failed", `sales.return.received: the sale issue of a line of return ${r.returnId} is not posted yet`);
     }
+    const free = new Map(issued.map((i) => [i.id, round4(num(i.qty) - num(i.returned))]));
+    const returnOf = { sourceEntity: DELIVERY_SOURCE };
+    const lines: Record<string, unknown>[] = [];
+    const problems: string[] = [];
+    moving.forEach((l, n) => {
+      const ofLine = issued.filter((i) => i.source_line_id === l.deliveryLineId);
+      const tracked = ofLine.some((i) => i.lot_id || i.serial_id);
+      if (!tracked) {
+        // Untracked (RG-2): one line, where the issue left from, as before.
+        const locationId = ofLine[0]!.location_id;
+        lines.push({ productId: l.productId, qty: l.qty, sourceLineId: l.lineId, ...(locationId ? { locationId } : {}), returnOf: { ...returnOf, sourceLineId: l.deliveryLineId } });
+        return;
+      }
+      if (l.serialIds) {
+        for (const serialId of l.serialIds) {
+          const issue = ofLine.find((i) => i.serial_id === serialId && (free.get(i.id) ?? 0) >= 1);
+          if (!issue) {
+            problems.push(`Línea ${n + 1}: el serial no salió en esa línea de la entrega o ya se devolvió`);
+            continue;
+          }
+          free.set(issue.id, round4(free.get(issue.id)! - 1));
+          lines.push({ productId: l.productId, qty: 1, sourceLineId: l.lineId, ...(issue.location_id ? { locationId: issue.location_id } : {}), serialIds: [serialId], returnOf: { ...returnOf, sourceLineId: l.deliveryLineId } });
+        }
+        if (l.serialIds.length !== l.qty) problems.push(`Línea ${n + 1}: la cantidad es ${qtyText(l.qty)} y se indican ${l.serialIds.length} seriales`);
+        return;
+      }
+      const candidates = ofLine.filter((i) => !l.lotId || i.lot_id === l.lotId);
+      let need = l.qty;
+      for (const issue of candidates) {
+        if (need <= 0) break;
+        const part = Math.min(need, Math.max(free.get(issue.id) ?? 0, 0));
+        if (part <= 0 || issue.serial_id) continue;
+        free.set(issue.id, round4(free.get(issue.id)! - part));
+        need = round4(need - part);
+        lines.push({ productId: l.productId, qty: part, sourceLineId: l.lineId, ...(issue.location_id ? { locationId: issue.location_id } : {}), lotId: issue.lot_id!, returnOf: { ...returnOf, sourceLineId: l.deliveryLineId } });
+      }
+      if (need > 0) problems.push(`Línea ${n + 1}: se devuelven más unidades de las que salieron ${l.lotId ? "de ese lote " : ""}en esa línea de la entrega`);
+    });
+    // Deterministic: dead-lettered with its reason, as any refusal of the return.
+    if (problems.length > 0) throw new ProcessError("invalid_input", `invalid_return: ${problems.join("; ")}`, { details: problems });
     const posted = await postInSavepoint(ctx, {
       kind: "sale_return",
       date: r.date,
@@ -325,10 +576,7 @@ export const saleReturn = defineProcess({
       sourceId: r.returnId,
       ...(r.number ? { reference: r.number } : {}),
       ...(r.costCenterId ? { costCenterId: r.costCenterId } : {}),
-      lines: moving.map((l) => {
-        const locationId = from.get(l.deliveryLineId) ?? null;
-        return { productId: l.productId, qty: l.qty, sourceLineId: l.lineId, ...(locationId ? { locationId } : {}), returnOf: { sourceEntity: DELIVERY_SOURCE, sourceLineId: l.deliveryLineId } };
-      }),
+      lines,
     } as Parameters<typeof postMovement>[1]);
     // A return inventory refuses (its issue was voided meanwhile) cannot become valid by retrying: it is dead-lettered with its reason.
     if ("refused" in posted) throw new ProcessError("invalid_input", `${posted.refused.code}: ${posted.refused.reason}`, { details: [posted.refused.reason] });

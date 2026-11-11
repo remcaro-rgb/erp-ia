@@ -354,7 +354,9 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "sales.delivery_line": {
     title: "line_no",
-    shown: ["line_no", "product_id", "description", "qty", "invoiced_qty"],
+    // Lots and serials (Task 28.3): «Lote / Vence / Serie», what inventory issued of each lot and serial (FEFO or the one named); the record
+    // frame drops it when no line of the entrega is tracked.
+    shown: ["line_no", "product_id", "description", "qty", "invoiced_qty", "lots"],
     // order_line_id: a line of the pedido, possibly another salesperson's (Task 39, final review m1); the entrega's pedido is its header's.
     exclude: ["extra", "extra_free", "delivery_id", "movement_id", "order_line_id"],
     fields: {},
@@ -367,7 +369,8 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "sales.return_line": {
     title: "line_no",
-    shown: ["line_no", "product_id", "description", "qty"],
+    // Lots and serials (Task 28.3): the lot or the serials the line takes back; the record frame drops them when no line names one.
+    shown: ["line_no", "product_id", "description", "qty", "lot_id", "serial_ids"],
     exclude: ["extra", "extra_free", "return_id"],
     fields: {},
   },

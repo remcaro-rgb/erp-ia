@@ -276,7 +276,7 @@ export async function warehouseOf(ctx: ProcessContext, warehouseId: string): Pro
 async function existingForSource(ctx: ProcessContext, sourceEntity: string, sourceLineIds: string[], movableIds: string[], skippedLines: number): Promise<PostedMovement | null> {
   const rows = await ctx.tx<{ id: string; number: string | null; status: "saved" | "voided"; source_line_ids: string[] }[]>`
     select m.id, m.number, m.status,
-           (select array_agg(x.source_line_id::text) from inventory.movement_lines x where x.movement_id = m.id and x.source_entity = ${sourceEntity}) as source_line_ids
+           (select array_agg(distinct x.source_line_id::text) from inventory.movement_lines x where x.movement_id = m.id and x.source_entity = ${sourceEntity}) as source_line_ids
     from inventory.movements m
     where m.id in (select l.movement_id from inventory.movement_lines l
                    where l.company_id = ${ctx.companyId} and l.source_entity = ${sourceEntity} and l.source_line_id = any(${sourceLineIds}::uuid[]))`;
@@ -284,7 +284,7 @@ async function existingForSource(ctx: ProcessContext, sourceEntity: string, sour
   if (rows.length > 1) refuse("duplicate_source_line", ["Las líneas de origen ya están en movimientos distintos"]);
   const row = rows[0]!;
   const stored = [...(row.source_line_ids ?? [])].sort();
-  const asked = [...movableIds].sort();
+  const asked = [...new Set(movableIds)].sort();
   if (stored.length !== asked.length || stored.some((v, i) => v !== asked[i])) {
     refuse("duplicate_source_line", [`Las líneas de origen no son las del movimiento ${row.number ?? row.id}, que ya movió parte de ellas`]);
   }
@@ -304,14 +304,20 @@ const UNIQUE_VIOLATION = "23505";
 async function returnedLines(ctx: ProcessContext, moved: { line: z.output<typeof movementLineInput>; product: ProductFacts; index: number }[]): Promise<(string | undefined)[]> {
   const asked = moved.flatMap((m, i) => (m.line.returnOf ? [{ i, index: m.index, qty: m.line.qty, ...m.line.returnOf, productId: m.product.id }] : []));
   if (asked.length === 0) return [];
-  const found = await ctx.tx<{ id: string; source_entity: string; source_line_id: string; product_id: string; kind: string; status: string; qty: string }[]>`
-    select l.id, l.source_entity, l.source_line_id, l.product_id, m.kind, m.status, l.qty
+  const found = await ctx.tx<{ id: string; source_entity: string; source_line_id: string; product_id: string; kind: string; status: string; qty: string; location_id: string | null; lot_id: string | null; serial_id: string | null }[]>`
+    select l.id, l.source_entity, l.source_line_id, l.product_id, m.kind, m.status, l.qty, l.location_id, l.lot_id, l.serial_id
     from inventory.movement_lines l join inventory.movements m on m.id = l.movement_id
-    where l.company_id = ${ctx.companyId} and l.source_line_id = any(${asked.map((a) => a.sourceLineId)}::uuid[])`;
+    where l.company_id = ${ctx.companyId} and l.source_line_id = any(${asked.map((a) => a.sourceLineId)}::uuid[])
+    order by l.line_no`;
   const out: (string | undefined)[] = [];
   const problems: string[] = [];
   for (const a of asked) {
-    const line = found.find((f) => f.source_entity === a.sourceEntity && f.source_line_id === a.sourceLineId);
+    // The issue line of the returned source line: of the bucket the return names when the issue split it (Task 28.3: the lot or the
+    // serial, then the same ubicación), else its only line.
+    const fields = moved[a.i]!.line;
+    const ofSource = found.filter((f) => f.source_entity === a.sourceEntity && f.source_line_id === a.sourceLineId);
+    const ofBucket = ofSource.filter((f) => (fields.lotId === undefined || f.lot_id === fields.lotId) && (fields.serialIds?.length !== 1 || f.serial_id === fields.serialIds[0]));
+    const line = ofBucket.find((f) => f.location_id === (fields.locationId ?? null)) ?? ofBucket[0];
     if (!line || line.kind !== "sale_issue" || line.product_id !== a.productId) {
       problems.push(`Línea ${a.index + 1}: la línea devuelta no es una salida por venta de este producto`);
       continue;
@@ -358,8 +364,15 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
     if (line.sourceLineId && !input.sourceEntity) errors.push(`Línea ${i + 1}: una línea de origen necesita la entidad de origen`);
     if (line.returnOf && input.kind !== "sale_return") errors.push(`Línea ${i + 1}: solo una devolución de venta indica la salida que devuelve`);
   });
-  const sourceLineIds = input.lines.flatMap((l) => (l.sourceLineId ? [l.sourceLineId] : []));
-  if (new Set(sourceLineIds).size !== sourceLineIds.length) errors.push("Una línea de origen aparece dos veces");
+  const sourceLineIds = [...new Set(input.lines.flatMap((l) => (l.sourceLineId ? [l.sourceLineId] : [])))];
+  // A source line moves each bucket once (Task 28.3: a FEFO split or one line per serial moves several buckets of one delivery line); a
+  // line that names no lot or serial is its source line's only line, as before (RG-2).
+  const sourceKeys = input.lines.flatMap((l) => {
+    if (!l.sourceLineId) return [];
+    const tracked = l.lotId !== undefined || l.lot !== undefined || l.serialIds !== undefined || l.serials !== undefined;
+    return [tracked ? `${l.sourceLineId}|${l.locationId ?? ""}|${l.lotId ?? l.lot?.code ?? ""}|${(l.serialIds ?? l.serials?.map((x) => x.serialNo) ?? []).join(",")}` : l.sourceLineId];
+  });
+  if (new Set(sourceKeys).size !== sourceKeys.length) errors.push("Una línea de origen aparece dos veces");
   if (errors.length > 0) refuse("invalid_movement", errors);
 
   const products = await productFacts(ctx, input.lines.map((l) => l.productId));
@@ -523,7 +536,7 @@ export const movementPost = defineProcess({
   output: postedOutput,
   // A redelivered event (same source lines) answers the first run (the database keeps the source line unique as well).
   idempotencyKey: (input) => {
-    const ids = input.lines.flatMap((l) => (l.sourceLineId ? [l.sourceLineId] : [])).sort();
+    const ids = [...new Set(input.lines.flatMap((l) => (l.sourceLineId ? [l.sourceLineId] : [])))].sort();
     // No source lines, no key: runProcess runs the process without a replay.
     return input.sourceEntity && ids.length > 0 ? `${input.sourceEntity}:${ids.join(",")}` : undefined;
   },

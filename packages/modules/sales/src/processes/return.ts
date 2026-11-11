@@ -43,7 +43,9 @@ type ReturnOutput = z.output<typeof returnOutput>;
 
 interface DeliveryRow { id: string; number: string | null; status: string; stage: string; order_id: string; party_id: string; warehouse_id: string; date: string; cost_center_id: string | null }
 interface ReturnRow { id: string; number: string | null; status: string; stage: string; delivery_id: string; order_id: string; warehouse_id: string; date: string; cost_center_id: string | null; reason: string }
-interface ReturnLineRow { id: string; line_no: number; delivery_line_id: string; product_id: string; qty: string }
+interface ReturnLineRow { id: string; line_no: number; delivery_line_id: string; product_id: string; qty: string; lot_id: string | null; serial_ids: string[] | null }
+/** The columns of a ReturnLineRow, as a fragment of the caller's query. */
+const lineColumns = (tx: ProcessContext["tx"]) => tx`id, line_no, delivery_line_id, product_id, qty::text, lot_id, serial_ids::text[] as serial_ids`;
 
 const label = (r: { number: string | null; id: string }) => r.number ?? r.id;
 
@@ -82,7 +84,7 @@ async function outputOf(ctx: ProcessContext, returnId: string): Promise<ReturnOu
     select id, number, status, stage, delivery_id, date::text, to_char(received_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as received_at
     from sales.returns where id = ${returnId}`;
   if (!row) throw new ProcessError("not_found", `return ${returnId} not found`);
-  const lines = await ctx.tx<ReturnLineRow[]>`select id, line_no, delivery_line_id, product_id, qty::text from sales.return_lines where return_id = ${returnId} order by line_no`;
+  const lines = await ctx.tx<ReturnLineRow[]>`select ${lineColumns(ctx.tx)} from sales.return_lines where return_id = ${returnId} order by line_no`;
   return {
     id: row.id, number: row.number, status: row.status, stage: row.stage, deliveryId: row.delivery_id, date: row.date, receivedAt: row.received_at,
     lines: lines.map((l) => ({ id: l.id, lineNo: l.line_no, deliveryLineId: l.delivery_line_id, productId: l.product_id, qty: num(l.qty) })),
@@ -104,7 +106,8 @@ export const returnCreate = defineProcess({
     /** The cost center of the cost of sales taken back (accounting's id); default the entrega's. */
     costCenterId: id.optional(),
     notes: z.string().trim().max(2000).optional(),
-    lines: z.array(z.object({ deliveryLineId: id, qty }).strict()).min(1).max(200).optional(),
+    /** Task 28.3: a lot product's line may name the lot coming back, a serial product's the serials; else they default from what the entrega issued. */
+    lines: z.array(z.object({ deliveryLineId: id, qty, lotId: id.optional(), serialIds: z.array(id).min(1).max(500).optional() }).strict()).min(1).max(200).optional(),
   }).strict(),
   output: returnOutput,
   handler: async (ctx, input) => {
@@ -116,7 +119,7 @@ export const returnCreate = defineProcess({
       select id, line_no, product_id, qty::text from sales.delivery_lines where delivery_id = ${delivery.id} order by line_no`;
     const returned = await returnedByLine(ctx, delivery.id, null);
     const left = (l: { id: string; qty: string }) => round4(num(l.qty) - (returned.get(l.id) ?? 0));
-    let lines: { line: (typeof deliveryLines)[number]; qty: number }[];
+    let lines: { line: (typeof deliveryLines)[number]; qty: number; lotId?: string | undefined; serialIds?: string[] | undefined }[];
     if (!input.lines) {
       lines = deliveryLines.filter((l) => left(l) > 0).map((l) => ({ line: l, qty: left(l) }));
       if (lines.length === 0) refuseState("nothing_to_return", [`De la entrega ${label(delivery)} ya se devolvió todo`]);
@@ -134,11 +137,12 @@ export const returnCreate = defineProcess({
         if (a.qty > left(line)) {
           return over.push(`Línea ${i + 1}: se entregaron ${qtyText(num(line.qty))}, ya se devolvieron ${qtyText(returned.get(line.id) ?? 0)} y quedan ${qtyText(Math.max(left(line), 0))}; la devolución pide ${qtyText(a.qty)}`);
         }
-        lines.push({ line, qty: a.qty });
+        lines.push({ line, qty: a.qty, lotId: a.lotId, serialIds: a.serialIds });
       });
       if (problems.length > 0) refuse("invalid_delivery_line", problems);
       if (over.length > 0) refuse("over_return", over);
     }
+    const tracked = await lotsOfLines(ctx, delivery.id, lines);
     const [header] = await ctx.tx<{ id: string }[]>`
       insert into sales.returns ${ctx.tx({
         company_id: ctx.companyId,
@@ -157,11 +161,54 @@ export const returnCreate = defineProcess({
       returning id`;
     await ctx.tx`insert into sales.return_lines ${ctx.tx(lines.map((l, i) => ({
       company_id: ctx.companyId, return_id: header!.id, line_no: i + 1, delivery_line_id: l.line.id, product_id: l.line.product_id, qty: l.qty,
+      lot_id: tracked[i]!.lotId, serial_ids: tracked[i]!.serialIds,
     })))}`;
     await runLifecycle(ctx, ctx.registry.entity(returnEntity.id), header!.id, "save");
     return outputOf(ctx, header!.id);
   },
 });
+
+/**
+ * The lot or serials of each devolución line (Task 28.3), checked against what the entrega issued (sales.delivery_line_lots): a named lot
+ * or serial must have left on that entrega line (invalid_delivery_line); an unnamed line of an entrega line that left from ONE lot takes
+ * that lot, one that left by serial takes the serials not returned yet (serials_required when fewer remain); an entrega line that left from
+ * several lots names none and inventory brings the units back to the lots the issue took, in its order. An untracked line names nothing.
+ */
+async function lotsOfLines(ctx: ProcessContext, deliveryId: string, lines: { line: { id: string; line_no: number }; qty: number; lotId?: string | undefined; serialIds?: string[] | undefined }[]) {
+  const issued = await ctx.tx<{ delivery_line_id: string; lot_id: string | null; serial_id: string | null }[]>`
+    select x.delivery_line_id, x.lot_id, x.serial_id from sales.delivery_line_lots x join sales.delivery_lines l on l.id = x.delivery_line_id
+    where l.delivery_id = ${deliveryId} order by x.seq`;
+  const returnedSerials = new Set((await ctx.tx<{ serial_id: string }[]>`
+    select unnest(rl.serial_ids)::text as serial_id from sales.return_lines rl join sales.returns r on r.id = rl.return_id
+    where r.delivery_id = ${deliveryId} and r.status <> 'voided' and rl.serial_ids is not null`).map((r) => r.serial_id));
+  const problems: string[] = [];
+  const missing: string[] = [];
+  const out = lines.map((l, i) => {
+    const ofLine = issued.filter((x) => x.delivery_line_id === l.line.id);
+    const lots = [...new Set(ofLine.flatMap((x) => (x.lot_id ? [x.lot_id] : [])))];
+    const serials = ofLine.flatMap((x) => (x.serial_id ? [x.serial_id] : []));
+    if (l.lotId) {
+      if (!lots.includes(l.lotId)) problems.push(`Línea ${i + 1}: ese lote no salió en la línea ${l.line.line_no} de la entrega`);
+      return { lotId: l.lotId, serialIds: null };
+    }
+    if (l.serialIds) {
+      if (l.serialIds.length !== l.qty || l.serialIds.some((s) => !serials.includes(s) || returnedSerials.has(s))) {
+        problems.push(`Línea ${i + 1}: indica un serial por unidad, de los que salieron en la línea ${l.line.line_no} de la entrega y no se han devuelto`);
+      }
+      return { lotId: null, serialIds: l.serialIds };
+    }
+    if (serials.length > 0) {
+      const left = serials.filter((s) => !returnedSerials.has(s)).slice(0, l.qty);
+      if (left.length !== l.qty) missing.push(`Línea ${i + 1}: indica los seriales que vuelven`);
+      for (const s of left) returnedSerials.add(s);
+      return { lotId: null, serialIds: left.length > 0 ? left : null };
+    }
+    return { lotId: lots.length === 1 ? lots[0]! : null, serialIds: null };
+  });
+  if (problems.length > 0) refuse("invalid_delivery_line", problems);
+  if (missing.length > 0) refuse("serials_required", missing);
+  return out;
+}
 
 async function lockReturn(ctx: ProcessContext, returnId: string): Promise<{ delivery: DeliveryRow; ret: ReturnRow }> {
   const [head] = await ctx.tx<{ delivery_id: string }[]>`select delivery_id from sales.returns where id = ${returnId}`;
@@ -190,7 +237,7 @@ export const returnReceive = defineProcess({
     if (ret.stage === "received") refuseState("return_received", [`La devolución ${label(ret)} ya se recibió`]);
     if (ret.status !== "saved") refuseState("return_not_saved", [`La devolución ${label(ret)} no está grabada`]);
     assertReturnable(delivery);
-    const lines = await ctx.tx<ReturnLineRow[]>`select id, line_no, delivery_line_id, product_id, qty::text from sales.return_lines where return_id = ${returnId} order by line_no`;
+    const lines = await ctx.tx<ReturnLineRow[]>`select ${lineColumns(ctx.tx)} from sales.return_lines where return_id = ${returnId} order by line_no`;
     // Under the entrega's lock, once more: the other devoluciones that are not voided plus this one never exceed what was delivered.
     const delivered = new Map((await ctx.tx<{ id: string; qty: string }[]>`select id, qty::text from sales.delivery_lines where delivery_id = ${delivery.id}`).map((l) => [l.id, num(l.qty)] as const));
     const returned = await returnedByLine(ctx, delivery.id, returnId);
@@ -212,7 +259,11 @@ export const returnReceive = defineProcess({
       date: ret.date,
       reason: ret.reason,
       ...(ret.cost_center_id ? { costCenterId: ret.cost_center_id } : {}),
-      lines: lines.map((l) => ({ lineId: l.id, lineNo: l.line_no, deliveryLineId: l.delivery_line_id, productId: l.product_id, qty: num(l.qty) })),
+      lines: lines.map((l) => ({
+        lineId: l.id, lineNo: l.line_no, deliveryLineId: l.delivery_line_id, productId: l.product_id, qty: num(l.qty),
+        ...(l.lot_id ? { lotId: l.lot_id } : {}),
+        ...(l.serial_ids && l.serial_ids.length > 0 ? { serialIds: l.serial_ids } : {}),
+      })),
     });
     return outputOf(ctx, returnId);
   },
@@ -233,7 +284,7 @@ export const returnVoid = defineProcess({
     if (ret.stage === "received") await assertStockBack(ctx, ret);
     await runLifecycle(ctx, ctx.registry.entity(returnEntity.id), ret.id, "void", { reason: input.reason, ...(input.expectedUpdatedAt ? { expectedUpdatedAt: input.expectedUpdatedAt } : {}) });
     if (ret.stage === "received") {
-      const lines = await ctx.tx<ReturnLineRow[]>`select id, line_no, delivery_line_id, product_id, qty::text from sales.return_lines where return_id = ${ret.id} order by line_no`;
+      const lines = await ctx.tx<ReturnLineRow[]>`select ${lineColumns(ctx.tx)} from sales.return_lines where return_id = ${ret.id} order by line_no`;
       await ctx.emit(RETURN_VOIDED, {
         returnId: ret.id,
         number: ret.number,
@@ -254,7 +305,7 @@ export const returnVoid = defineProcess({
  * inventory has not posted the devolución yet (its void then follows the receipt) or in a bodega that allows backorders.
  */
 async function assertStockBack(ctx: ProcessContext, ret: ReturnRow): Promise<void> {
-  const lines = await ctx.tx<ReturnLineRow[]>`select id, line_no, delivery_line_id, product_id, qty::text from sales.return_lines where return_id = ${ret.id} order by line_no`;
+  const lines = await ctx.tx<ReturnLineRow[]>`select ${lineColumns(ctx.tx)} from sales.return_lines where return_id = ${ret.id} order by line_no`;
   await lockShipStock(ctx, ret.warehouse_id, lines.map((l) => l.product_id));
   const buckets = await ctx.tx<{ source_line_id: string; product_id: string; qty: string; on_hand: string; allow_backorders: boolean }[]>`
     select source_line_id, product_id, qty::text, on_hand::text, allow_backorders from inventory.source_line_stock('sales.return', ${lines.map((l) => l.id)}::uuid[])`;
@@ -263,12 +314,13 @@ async function assertStockBack(ctx: ProcessContext, ret: ReturnRow): Promise<voi
   const skus = new Map((await ctx.tx<{ id: string; sku: string }[]>`select id, sku from core.v_product_stock where id = any(${lines.map((l) => l.product_id)}::uuid[])`).map((r) => [r.id, r.sku]));
   const refusals: string[] = [];
   for (const l of lines) {
-    const bucket = buckets.find((b) => b.source_line_id === l.id);
-    if (!bucket) continue;
-    const pendingQty = pending.filter((p) => p.productId === l.product_id).reduce((sum, p) => sum + p.qty, 0);
-    const available = round4(num(bucket.on_hand) - pendingQty);
-    if (num(l.qty) > available) {
-      refusals.push(`Línea ${l.line_no}: el producto ${skus.get(l.product_id) ?? l.product_id} tiene ${qtyText(Math.max(available, 0))} disponibles donde entró la devolución y anularla saca ${qtyText(num(l.qty))}: la bodega no permite existencias negativas`);
+    // Each bucket the line entered (Task 28.3: a line of a lot product may have re-entered several lots), against what it holds now.
+    for (const bucket of buckets.filter((b) => b.source_line_id === l.id)) {
+      const pendingQty = pending.filter((p) => p.productId === l.product_id).reduce((sum, p) => sum + p.qty, 0);
+      const available = round4(num(bucket.on_hand) - pendingQty);
+      if (num(bucket.qty) > available) {
+        refusals.push(`Línea ${l.line_no}: el producto ${skus.get(l.product_id) ?? l.product_id} tiene ${qtyText(Math.max(available, 0))} disponibles donde entró la devolución y anularla saca ${qtyText(num(bucket.qty))}: la bodega no permite existencias negativas`);
+      }
     }
   }
   if (refusals.length > 0) refuse("negative_stock_refused", refusals);

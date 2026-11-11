@@ -54,6 +54,8 @@ export const DELIVERY_SHIPPED = "sales.delivery.shipped";
 export const DELIVERY_VOIDED = "sales.delivery.voided";
 /** Inventory could not issue a despacho (Task 14 review): the entrega goes back to open with the reason. */
 const SALE_ISSUE_REFUSED = "inventory.sale_issue.refused";
+/** What inventory's sale issue took of each lot and serial (Task 28.3): sales records it on the entrega lines. */
+export const SALE_ISSUE_ALLOCATED = "inventory.sale_issue.allocated";
 /** Inventory's answer to the re-reservation a voided entrega asked for (Task 43). */
 export const DELIVERY_RESERVATION_RESTORED = "inventory.delivery_reservation.restored";
 /** The source entity of the inventory movements of an entrega (inventory.movements.source_entity; the lines are its lines). */
@@ -70,7 +72,13 @@ const qty = z.number().finite().positive().refine((n) => n < 1e14 && Math.abs(Ma
 const num = (value: unknown): number => (value === null || value === undefined ? 0 : Number(value));
 const round4 = (n: number) => Math.round(n * 1e4) / 1e4;
 
-const lineInput = z.object({ orderLineId: id, qty }).strict();
+/**
+ * A line of an entrega: the pedido line and the quantity; for a lot product, optionally the lot (else inventory issues by FEFO at ship, Task
+ * 28.3); for a serial product, one serial per unit (serials are scanned or typed, never chosen by the system).
+ */
+const lineInput = z.object({ orderLineId: id, qty, lotId: id.optional(), serialIds: z.array(id).min(1).max(500).optional() }).strict()
+  .refine((l) => !(l.lotId && l.serialIds), "Indica el lote o los seriales, no ambos")
+  .refine((l) => !l.serialIds || (l.serialIds.length === l.qty && new Set(l.serialIds).size === l.serialIds.length), "Indica un serial distinto por unidad");
 
 const deliveryOutput = z.object({
   id: z.string(),
@@ -93,7 +101,9 @@ interface DeliveryRow {
   id: string; number: string | null; status: string; stage: DeliveryStage; order_id: string; party_id: string; warehouse_id: string; date: string;
   cost_center_id: string | null; shipped_at: string | null;
 }
-interface DeliveryLineRow { id: string; line_no: number; order_line_id: string; product_id: string; description: string | null; qty: string; invoiced_qty: string }
+interface DeliveryLineRow { id: string; line_no: number; order_line_id: string; product_id: string; description: string | null; qty: string; invoiced_qty: string; lot_id: string | null; serial_ids: string[] | null }
+/** The columns of a DeliveryLineRow, as a fragment of the caller's query. */
+const lineColumns = (tx: ProcessContext["tx"]) => tx`id, line_no, order_line_id, product_id, description, qty::text, invoiced_qty::text, lot_id, serial_ids::text[] as serial_ids`;
 
 const orderLabel = (o: Pick<OrderRow, "number" | "id">) => o.number ?? o.id;
 const label = (d: Pick<DeliveryRow, "number" | "id">) => d.number ?? d.id;
@@ -150,7 +160,7 @@ async function deliveryLines(ctx: ProcessContext, order: OrderRow, asked: z.outp
   const problems: string[] = [];
   const over: string[] = [];
   const seen = new Set<string>();
-  const lines: { line: OrderLineRow; qty: number }[] = [];
+  const lines: { line: OrderLineRow; qty: number; lotId?: string | undefined; serialIds?: string[] | undefined }[] = [];
   asked.forEach((a, i) => {
     const line = byId.get(a.orderLineId);
     if (!line) return problems.push(`Línea ${i + 1}: la línea no es del pedido ${orderLabel(order)}`);
@@ -159,11 +169,34 @@ async function deliveryLines(ctx: ProcessContext, order: OrderRow, asked: z.outp
     if (a.qty > left(line)) {
       return over.push(`Línea ${i + 1}: el pedido pide ${qtyText(num(line.qty))}, ya van ${qtyText(committed.get(line.id) ?? 0)} en entregas y quedan ${qtyText(Math.max(left(line), 0))}; la entrega pide ${qtyText(a.qty)}`);
     }
-    lines.push({ line, qty: a.qty });
+    lines.push({ line, qty: a.qty, lotId: a.lotId, serialIds: a.serialIds });
   });
   if (problems.length > 0) refuse("invalid_order_line", problems);
   if (over.length > 0) refuse("over_delivery", over);
+  await assertLotsOfProducts(ctx, lines);
   return lines;
+}
+
+/**
+ * Refuses a line naming a lot (lot_not_found) or serials (serial_not_in_stock) that are not of its product, read in inventory's published
+ * views (inventory.v_lots, inventory.v_serials, rule 3). Whether they are on hand is inventory's to say at ship (Task 28.3).
+ */
+async function assertLotsOfProducts(ctx: ProcessContext, lines: { line: OrderLineRow; lotId?: string | undefined; serialIds?: string[] | undefined }[]): Promise<void> {
+  const lotIds = [...new Set(lines.flatMap((l) => (l.lotId ? [l.lotId] : [])))];
+  const serialIds = [...new Set(lines.flatMap((l) => l.serialIds ?? []))];
+  if (lotIds.length === 0 && serialIds.length === 0) return;
+  const lots = new Map((lotIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string }[]>`
+    select id, product_id from inventory.v_lots where id = any(${lotIds}::uuid[])`).map((r) => [r.id, r.product_id]));
+  const serials = new Map((serialIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string }[]>`
+    select id, product_id from inventory.v_serials where id = any(${serialIds}::uuid[])`).map((r) => [r.id, r.product_id]));
+  const badLots: string[] = [];
+  const badSerials: string[] = [];
+  lines.forEach((l, i) => {
+    if (l.lotId && lots.get(l.lotId) !== l.line.product_id) badLots.push(`Línea ${i + 1}: el lote no existe o es de otro producto`);
+    if (l.serialIds?.some((s) => serials.get(s) !== l.line.product_id)) badSerials.push(`Línea ${i + 1}: un serial no existe o es de otro producto`);
+  });
+  if (badLots.length > 0) refuse("lot_not_found", badLots);
+  if (badSerials.length > 0) refuse("serial_not_in_stock", badSerials);
 }
 
 /** Recomputes the pedido's stage from what shipped (entregas not voided): confirmed, partially_delivered or delivered. */
@@ -194,7 +227,7 @@ async function outputOf(ctx: ProcessContext, deliveryId: string): Promise<Delive
     from sales.deliveries d join sales.orders o on o.id = d.order_id where d.id = ${deliveryId}`;
   if (!row) throw new ProcessError("not_found", `delivery ${deliveryId} not found`);
   const lines = await ctx.tx<DeliveryLineRow[]>`
-    select id, line_no, order_line_id, product_id, description, qty::text, invoiced_qty::text from sales.delivery_lines where delivery_id = ${deliveryId} order by line_no`;
+    select ${lineColumns(ctx.tx)} from sales.delivery_lines where delivery_id = ${deliveryId} order by line_no`;
   return {
     id: row.id,
     number: row.number,
@@ -208,9 +241,10 @@ async function outputOf(ctx: ProcessContext, deliveryId: string): Promise<Delive
   };
 }
 
-async function writeLines(ctx: ProcessContext, deliveryId: string, lines: { line: OrderLineRow; qty: number }[]): Promise<void> {
+async function writeLines(ctx: ProcessContext, deliveryId: string, lines: { line: OrderLineRow; qty: number; lotId?: string | undefined; serialIds?: string[] | undefined }[]): Promise<void> {
   await ctx.tx`insert into sales.delivery_lines ${ctx.tx(lines.map((l, i) => ({
     company_id: ctx.companyId, delivery_id: deliveryId, line_no: i + 1, order_line_id: l.line.id, product_id: l.line.product_id, description: l.line.description, qty: l.qty,
+    lot_id: l.lotId ?? null, serial_ids: l.serialIds ?? null,
   })))}`;
 }
 
@@ -326,7 +360,7 @@ async function assertStock(ctx: ProcessContext, delivery: DeliveryRow, lines: De
   if (products.length === 0) return;
   await lockShipStock(ctx, delivery.warehouse_id, products);
   const stock = await ctx.tx<{ product_id: string; on_hand: string; reserved: string; allow_backorders: boolean | null; max_bucket: string }[]>`
-    select product_id, on_hand::text, reserved::text, allow_backorders, max_bucket::text from inventory.sale_stock(${delivery.warehouse_id}::uuid, ${products}::uuid[])`;
+    select product_id, on_hand::text, reserved::text, allow_backorders, max_bucket::text from inventory.sale_stock(${delivery.warehouse_id}::uuid, ${products}::uuid[], ${delivery.date}::date)`;
   if (stock.length === 0 || stock[0]!.allow_backorders === null) refuse("invalid_warehouse", ["La bodega de la entrega no existe"]);
   if (stock[0]!.allow_backorders) return;
   // Entregas of this bodega already shipped whose stock inventory has not issued yet (their sale issue is still on its way).
@@ -372,6 +406,25 @@ async function assertStock(ctx: ProcessContext, delivery: DeliveryRow, lines: De
   if (split.length > 0) refuse("split_location", split);
 }
 
+/**
+ * Refuses (lot_expired, RG-4) an entrega line naming a lot that expired before the entrega's date when its product blocks expired lots
+ * (inventory.v_product_tracking.block_expired, default true), read in inventory's published views (rule 3). Transfers, adjustments and
+ * returns accept an expired lot; a sale does not. Inventory checks the same at the issue.
+ */
+async function assertLotsNotExpired(ctx: ProcessContext, delivery: DeliveryRow, lines: DeliveryLineRow[]): Promise<void> {
+  const lotIds = [...new Set(lines.flatMap((l) => (l.lot_id ? [l.lot_id] : [])))];
+  if (lotIds.length === 0) return;
+  const rows = await ctx.tx<{ id: string; code: string; expires_on: string }[]>`
+    select l.id, l.code, l.expires_on::text from inventory.v_lots l
+    left join inventory.v_product_tracking t on t.product_id = l.product_id
+    where l.id = any(${lotIds}::uuid[]) and l.expires_on < ${delivery.date}::date and coalesce(t.block_expired, true)`;
+  if (rows.length === 0) return;
+  refuse("lot_expired", lines.flatMap((l) => {
+    const lot = rows.find((r) => r.id === l.lot_id);
+    return lot ? [`Línea ${l.line_no}: el lote ${lot.code} venció el ${lot.expires_on}, antes de la fecha de la entrega`] : [];
+  }));
+}
+
 export const deliveryShip = defineProcess({
   id: "sales.delivery.ship",
   module: "sales",
@@ -401,7 +454,7 @@ export const deliveryShip = defineProcess({
     assertDeliverable(order, false);
 
     const lines = await ctx.tx<DeliveryLineRow[]>`
-      select id, line_no, order_line_id, product_id, description, qty::text, invoiced_qty::text from sales.delivery_lines where delivery_id = ${deliveryId} order by line_no`;
+      select ${lineColumns(ctx.tx)} from sales.delivery_lines where delivery_id = ${deliveryId} order by line_no`;
     // Never beyond the pedido: what the other shipped entregas delivered plus this one.
     const ordered = new Map((await ctx.tx<{ id: string; line_no: number; qty: string }[]>`
       select id, line_no, qty::text from sales.order_lines where order_id = ${order.id}`).map((l) => [l.id, l] as const));
@@ -414,6 +467,7 @@ export const deliveryShip = defineProcess({
     if (over.length > 0) refuse("over_delivery", over);
     // Rule 10 holds at ship too: a customer or product that stopped being invoice_ready since the entrega was written is refused.
     await assertSaleReady(ctx, order.party_id, lines.map((l) => l.product_id));
+    await assertLotsNotExpired(ctx, delivery, lines);
     await assertStock(ctx, delivery, lines);
 
     await ctx.tx`update sales.deliveries set stage = 'shipped', shipped_at = now(), stock_refusal = null, stock_refused_at = null where id = ${deliveryId}`;
@@ -428,7 +482,11 @@ export const deliveryShip = defineProcess({
       warehouseId: delivery.warehouse_id,
       date: delivery.date,
       ...(delivery.cost_center_id ? { costCenterId: delivery.cost_center_id } : {}),
-      lines: lines.map((l) => ({ lineId: l.id, lineNo: l.line_no, orderLineId: l.order_line_id, productId: l.product_id, qty: num(l.qty) })),
+      lines: lines.map((l) => ({
+        lineId: l.id, lineNo: l.line_no, orderLineId: l.order_line_id, productId: l.product_id, qty: num(l.qty),
+        ...(l.lot_id ? { lotId: l.lot_id } : {}),
+        ...(l.serial_ids && l.serial_ids.length > 0 ? { serialIds: l.serial_ids } : {}),
+      })),
     });
     return outputOf(ctx, deliveryId);
   },
@@ -454,7 +512,7 @@ export const deliveryVoid = defineProcess({
     const { order, delivery } = await lockDelivery(ctx, input.id);
     if (delivery.status === "voided") refuseState("delivery_voided", [`La entrega ${label(delivery)} ya está anulada`]);
     const lines = await ctx.tx<DeliveryLineRow[]>`
-      select id, line_no, order_line_id, product_id, description, qty::text, invoiced_qty::text from sales.delivery_lines where delivery_id = ${delivery.id} order by line_no`;
+      select ${lineColumns(ctx.tx)} from sales.delivery_lines where delivery_id = ${delivery.id} order by line_no`;
     const invoiced = lines.filter((l) => num(l.invoiced_qty) > 0);
     if (invoiced.length > 0) {
       refuseState("delivery_invoiced", invoiced.map((l) => `Línea ${l.line_no}: ya se facturaron ${qtyText(num(l.invoiced_qty))}: anula primero la factura (nota crédito)`));
@@ -673,9 +731,65 @@ export const onMovementPosted: EventConsumer = async (ctx, payload) => {
   if (!parsed.success) throw new ProcessError("invalid_input", `inventory.movement.posted payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
   const m = parsed.data;
   if (m.kind !== "sale_issue" || m.sourceEntity !== DELIVERY_SOURCE || !m.sourceId) return;
-  const lineIds = m.lines.flatMap((l) => (l.sourceLineId ? [l.sourceLineId] : []));
+  // One entrega line may leave from several buckets (a FEFO split, one serial per movement line, Task 28.3): each line once.
+  const lineIds = [...new Set(m.lines.flatMap((l) => (l.sourceLineId ? [l.sourceLineId] : [])))];
   if (lineIds.length === 0) return;
   await ctx.runProcess("sales.delivery.record_stock", { deliveryId: m.sourceId, movementId: m.movementId, lineIds });
+};
+
+/** What sales reads of inventory.sale_issue.allocated (Task 28.3): what the issue took of each lot and serial, per entrega line. */
+const allocatedLine = z.object({
+  deliveryLineId: id,
+  lotId: id.nullable(),
+  lotCode: z.string().max(60).nullable(),
+  expiresOn: date.nullable(),
+  serialId: id.nullable(),
+  serialNo: z.string().max(80).nullable(),
+  qty: z.number().positive(),
+});
+const allocatedPayload = z.looseObject({ deliveryId: id, lines: z.array(z.looseObject(allocatedLine.shape)).max(5000) });
+
+export const deliveryRecordLots = defineProcess({
+  id: "sales.delivery.record_lots",
+  module: "sales",
+  kind: "update",
+  // The lines of an entrega, named by inventory's answer: no record of the caller's is changed.
+  recordAccess: "none",
+  feature: FEATURE,
+  origins: ["event"],
+  description: "Registra en las líneas de una entrega los lotes y seriales que el inventario descargó (lote, vencimiento, serial, cantidad); solo lo ejecuta el evento del inventario",
+  // Keyed on inventory's event: a redelivery answers the first run.
+  idempotencyKey: (input) => `record_lots:${input.eventId}`,
+  input: z.object({ deliveryId: id, eventId: id, lines: z.array(allocatedLine.strict()).min(1).max(5000) }).strict(),
+  output: z.object({ recorded: z.number().int() }),
+  handler: async (ctx, { deliveryId, eventId, lines }) => {
+    const own = new Set((await ctx.tx<{ id: string }[]>`select id from sales.delivery_lines where delivery_id = ${deliveryId}`).map((r) => r.id));
+    // Written once: an entry already there (another event for the same issue) is not written again, and no `seq` is drawn for it (rule 7).
+    const existing = await ctx.tx<{ delivery_line_id: string; lot_id: string | null; serial_id: string | null }[]>`
+      select delivery_line_id, lot_id, serial_id from sales.delivery_line_lots where delivery_line_id = any(${[...own]}::uuid[])`;
+    const seen = new Set(existing.map((e) => `${e.delivery_line_id}|${e.lot_id ?? ""}|${e.serial_id ?? ""}`));
+    const rows = lines.filter((l) => own.has(l.deliveryLineId) && (l.lotId || l.serialId)).filter((l) => {
+      const key = `${l.deliveryLineId}|${l.lotId ?? ""}|${l.serialId ?? ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (rows.length === 0) return { recorded: 0 };
+    await ctx.tx`insert into sales.delivery_line_lots ${ctx.tx(rows.map((l) => ({
+      company_id: ctx.companyId, delivery_line_id: l.deliveryLineId, lot_id: l.lotId, lot_code: l.lotCode, expires_on: l.expiresOn,
+      serial_id: l.serialId, serial_no: l.serialNo, qty: l.qty, event_id: eventId,
+    })))}`;
+    return { recorded: rows.length };
+  },
+});
+
+/** Consumer of inventory.sale_issue.allocated: the lots and serials the issue took are recorded on the entrega's lines. */
+export const onSaleIssueAllocated: EventConsumer = async (ctx, payload) => {
+  const parsed = allocatedPayload.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `${SALE_ISSUE_ALLOCATED} payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  const lines = parsed.data.lines.map((l) => allocatedLine.parse(l));
+  if (lines.length === 0) return;
+  await ctx.runProcess("sales.delivery.record_lots", { deliveryId: parsed.data.deliveryId, eventId: ctx.event.id, lines });
 };
 
 const refusedPayload = z.looseObject({ deliveryId: id, shippedEventId: id.optional(), code: z.string().min(1), reason: z.string() });
@@ -769,4 +883,4 @@ export const deliveryHooks: TypedHooks = {
   },
 };
 
-export const DELIVERY_PROCESSES = [deliveryCreate, deliveryUpdate, deliveryShip, deliveryVoid, deliveryRecordStock, deliveryRecordInvoiced, deliveryReopen, deliveryRecordReReservation, deliveryConsult, deliveryLineConsult];
+export const DELIVERY_PROCESSES = [deliveryCreate, deliveryUpdate, deliveryShip, deliveryVoid, deliveryRecordStock, deliveryRecordLots, deliveryRecordInvoiced, deliveryReopen, deliveryRecordReReservation, deliveryConsult, deliveryLineConsult];

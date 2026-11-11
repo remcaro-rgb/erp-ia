@@ -1506,7 +1506,8 @@
       "commission_plan": "Commission plan",
       "commission_base": "Commission base",
       "commission": "Commission",
-      "commission_line": "Commission line"
+      "commission_line": "Commission line",
+      "delivery_line_lot": "Delivery line lot"
     },
     "invoicing": {
       "settings": "Invoicing settings",
@@ -2865,7 +2866,10 @@
         "qty": "Quantity",
         "invoiced_qty": "Invoiced quantity",
         "movement_id": "Inventory movement",
-        "stock_posted_at": "Stock issued"
+        "stock_posted_at": "Stock issued",
+        "lot_id": "Lot",
+        "serial_ids": "Serials",
+        "lots": "Lot / Expires / Serial"
       },
       "return": {
         "seq": "ID",
@@ -2901,7 +2905,9 @@
         "line_no": "Line",
         "delivery_line_id": "Delivery line",
         "product_id": "Product",
-        "qty": "Quantity"
+        "qty": "Quantity",
+        "lot_id": "Lot",
+        "serial_ids": "Serials"
       },
       "commission_plan": {
         "seq": "ID",
@@ -2987,6 +2993,21 @@
         "base_id": "Commission base",
         "cost_center_id": "Cost center",
         "amount": "Amount"
+      },
+      "delivery_line_lot": {
+        "seq": "ID",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "delivery_line_id": "Delivery line",
+        "lot_id": "Lot",
+        "lot_code": "Lot code",
+        "expires_on": "Expires",
+        "serial_id": "Serial",
+        "serial_no": "Serial number",
+        "qty": "Quantity",
+        "event_id": "Event"
       }
     },
     "invoicing": {
@@ -5621,7 +5642,10 @@
       "serials_required": "The product is tracked by serial: list one serial per unit",
       "serials_count_mismatch": "The quantity does not match the serials listed",
       "serial_exists": "The serial is already in stock",
-      "serial_not_in_stock": "The serial is not in stock in that warehouse and location"
+      "serial_not_in_stock": "The serial is not in stock in that warehouse and location",
+      "lot_expired": "The lot is expired and the product blocks expired lots",
+      "lot_blocked": "The lot is blocked: it cannot be shipped",
+      "invalid_return": "More is returned than left from that lot or serial"
     }
   },
   "costing": {
@@ -6167,7 +6191,8 @@
       "commission_bases": "Sales: computes the commission bases of the invoiced order lines",
       "commission_accrual": "Sales: accrues the commissions of the invoice or the collection and posts them",
       "commission_reversal": "Sales: reverses the commissions the document accrued and their entry",
-      "commission_note": "Sales: the credit note reduces its lines' commission base and gives back what was over-accrued; the annulment reverses the invoice's commissions"
+      "commission_note": "Sales: the credit note reduces its lines' commission base and gives back what was over-accrued; the annulment reverses the invoice's commissions",
+      "lots_recorded": "Sales: records on each delivery line the lots and serials inventory issued"
     },
     "print": {
       "delivery_title": "Delivery note"

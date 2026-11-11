@@ -109,7 +109,8 @@ describe("inventory manifest", () => {
       ].sort(),
     );
     // A despacho, or the Anular of a devolución, inventory cannot apply is never dead-lettered silently: it says so to sales by event.
-    expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored"]);
+    // What a sale issue took of each lot and serial travels to sales too (Task 28.3).
+    expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored"]);
     // The importer, the clone and Nuevo create a movement through movement.post.
     expect(registry.entity("inventory.movement").processIds?.create).toBe("inventory.movement.post");
   });

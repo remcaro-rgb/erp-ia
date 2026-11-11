@@ -38,6 +38,12 @@ const trailer = (f: F): FieldDef[] => [
 ];
 
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
+/**
+ * «Lote / Vence / Serie» of an entrega line (Task 28.3): what inventory issued, one entry per lot or serial in the order it left, as
+ * `code · expiry · qty` (a serial: `number · qty`). Codes, dates and figures only: the column's label carries the words (rule 24).
+ */
+const DELIVERY_LINE_LOTS_EXPR =
+  "(select string_agg(coalesce(x.lot_code, x.serial_no, '') || coalesce(' · ' || x.expires_on::text, '') || ' · ' || trim_scale(x.qty)::text, '; ' order by x.seq) from sales.delivery_line_lots x where x.delivery_line_id = delivery_lines.id)";
 const priceList = ref("core.price_list", "name");
 
 /** When a commission is earned (plan 2B.2 Task 30.1, owner item 162): on the customer's payment (default) or on the invoice's issue. */
@@ -230,7 +236,28 @@ export const deliveryLineEntity: EntityDef = entity("sales.delivery_line", "line
   f("movement_id", "uuid"),
   f("stock_posted_at", "datetime"),
   ...trailer(f),
+  // Lots and serials (Task 28.3, migration 0165, appended to the view): what the user asked for (a lot, or one serial per unit; else FEFO
+  // chooses at ship) and, read-only, what inventory issued («Lote / Vence / Serie»: sales.delivery_line_lots, one entry per lot or serial).
+  f("lot_id", "ref", ref("inventory.lot", "code")),
+  f("serial_ids", "text", { list: true, sortable: false, filterable: false }),
+  f("lots", "text", { sortable: false, filterable: false, viewExpr: DELIVERY_LINE_LOTS_EXPR }),
 ]);
+
+// What inventory issued of each lot and serial for an entrega line (plan 2B.2 Task 28.3, PG §3.3; migration 0165): written once per
+// inventory.sale_issue.allocated event by sales.delivery.record_lots, read-only everywhere. Its masked view sales.v_delivery_line_lots is
+// published (invoicing copies it onto the invoice line, Task 28.4).
+export const deliveryLineLotEntity: EntityDef = entity("sales.delivery_line_lot", "sistema", "delivery_line_lots", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("delivery_line_id", "ref", { required: true, ...ref("sales.delivery_line", "line_no") }),
+  f("lot_id", "ref", ref("inventory.lot", "code")),
+  f("lot_code", "text", { searchable: true }),
+  f("expires_on", "date"),
+  f("serial_id", "uuid"),
+  f("serial_no", "text", { searchable: true }),
+  f("qty", "number", { required: true }),
+  f("event_id", "uuid", { required: true }),
+  ...trailer(f),
+], { defaultSort: { field: "seq", dir: "asc" } });
 
 // Devolución de una entrega (plan 2B Task 14): goods the customer sends back, line by line against the entrega lines (never more than
 // was delivered, counting the other devoluciones). Numbered DEV- on save; sales.return.receive emits sales.return.received and inventory's
@@ -273,6 +300,9 @@ export const returnLineEntity: EntityDef = entity("sales.return_line", "lines", 
   f("product_id", "ref", { required: true, ...ref("core.product", "description") }),
   f("qty", "number", { required: true }),
   ...trailer(f),
+  // The lot or the serials coming back (Task 28.3, migration 0165, appended to the view): defaulted from what the entrega issued.
+  f("lot_id", "ref", ref("inventory.lot", "code")),
+  f("serial_ids", "text", { list: true, sortable: false, filterable: false }),
 ]);
 
 // Commissions (plan 2B.2 Task 30.1, Part G design PG §5.1, §5.2, §5.5; owner items 156–158, 162, 163; RG-11, RG-12, RG-14; migration 0156).
@@ -388,5 +418,5 @@ export const commissionLineEntity: EntityDef = entity("sales.commission_line", "
 
 export const SALES_ENTITIES: EntityDef[] = [
   salesSettingsEntity, customerTermsEntity, orderEntity, orderLineEntity, deliveryEntity, deliveryLineEntity, returnEntity, returnLineEntity,
-  commissionPlanEntity, commissionBaseEntity, commissionEntity, commissionLineEntity,
+  commissionPlanEntity, commissionBaseEntity, commissionEntity, commissionLineEntity, deliveryLineLotEntity,
 ];

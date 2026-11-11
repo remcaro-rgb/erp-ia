@@ -589,3 +589,17 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: an over-accrued payable after a refund.
 185. **The annulled-invoice reversal is a second run, not nested** (plan 30.3 «`onInvoiceAnnulled` … also runs the commission reversal nested»; RG-12). Nested inside `sales.delivery.record_invoiced`, a commission failure would roll back the entregas' invoiced quantities. 30.3 runs `sales.commission.adjust_for_note` as its own run after `record_invoiced`, as 30.1 did for compute; the reversal itself nests `sales.commission.reverse` per commission. Both annulment events (`invoicing.note.issued` with annulment, `invoicing.invoice.annulled`) share the key `annul:<invoiceId>`.
     Recommended: confirm. Cost if wrong: none for the totals; the delivery-invoicing coupling RG-12 forbids.
+
+## Z. Items met while executing 2B.2 Task 28.3 (FEFO issue, availability, deliveries and returns), 2026-11-10 · to decide
+
+(Numbered after 185: items 181–185 were taken by Task 30.3 while 28.3 ran.)
+
+186. **Expired means refused only when the product blocks expired lots** (PG §3.3, RG-4). `inventory.lot_sellable` skips an expired lot only when `product_tracking.block_expired` is on (default true); with it off an expired lot is sellable, reservable and FEFO takes it first (it expires first). A named expired lot is refused `lot_expired` at the ship (sales, against `inventory.v_lots`) and at the issue (inventory) under the same switch. **Confirm**.
+    Recommended: confirm (fefo.integration test (3)). Cost if wrong: one predicate in 0164.
+187. **Refusal codes of the sale issue** (RG-4). Besides the plan's `lot_expired`: `lot_blocked` (a named lot blocked), `lot_short` (the sellable lots of the bodega do not cover the line, or the named lot has less), `lot_required` (the product's `fefo` is off and the line names no lot), `serials_required` / `serials_count_mismatch` / `serial_not_in_stock` (as 28.2). They reach the entrega as **Motivo del rechazo de inventario** through `inventory.sale_issue.refused`. **Confirm**.
+    Recommended: confirm. Cost if wrong: copy only.
+188. **Return default when the delivery line left from several lots** (PG §3.7). A return line of a lot product names its lot; if not, and the delivery line left from one lot, that lot; if it left from several, the lot stays empty and inventory re-enters the issue's buckets in issue order, each up to what it issued less what was returned. A serial line defaults to the delivery's serials not yet returned. **Confirm**.
+    Recommended: confirm (fefo test (7), delivery-lots test (3)). Cost if wrong: the return form must ask the lot.
+189. **`inventory.sale_stock` for a tracked product counts all sellable buckets as `max_bucket`** (RG-2, RG-4). A lot or serial line may be split over buckets (FEFO split, one serial per bucket), so the single-bucket check of the ship applies only to untracked products; `reservation.create` and `reserve_again` count the same sellable buckets. `inventory.v_stock` is unchanged (it shows every bucket, blocked and expired included). **Confirm**.
+    Recommended: confirm. Cost if wrong: one case in 0164.
+190. **`inventory.sale_issue.allocated` is emitted only when the issue has a tracked line** (interface of 28.3). An entrega of untracked products emits exactly the events it emitted before (RG-2). **Note**.

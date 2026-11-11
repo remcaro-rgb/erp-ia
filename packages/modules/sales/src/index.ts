@@ -2,7 +2,7 @@ import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { SALES_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
-import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onSaleIssueRefused } from "./processes/delivery";
+import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onSaleIssueAllocated, onSaleIssueRefused } from "./processes/delivery";
 import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, orderHooks } from "./processes/order";
 import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
 import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
@@ -63,6 +63,8 @@ export const sales: ModuleDef = defineModule({
       "inventory.movement.posted": onMovementPosted,
       // Inventory could not issue a despacho / take back a devolución's stock: the document goes back with the reason (Task 14 review).
       "inventory.sale_issue.refused": onSaleIssueRefused,
+      // What the issue took of each lot and serial (Task 28.3): recorded on the entrega lines (sales.delivery_line_lots).
+      "inventory.sale_issue.allocated": onSaleIssueAllocated,
       "inventory.sale_return_void.refused": onReturnVoidRefused,
       // The outcome of the re-reservation a voided entrega asked for (Task 43): recorded on the entrega, «Reserva al anular».
       "inventory.delivery_reservation.restored": onReReservation,
@@ -90,6 +92,7 @@ export const sales: ModuleDef = defineModule({
   effects: {
     "inventory.movement.posted": ["sales.effects.movement_posted"],
     "inventory.sale_issue.refused": ["sales.effects.issue_refused"],
+    "inventory.sale_issue.allocated": ["sales.effects.lots_recorded"],
     "inventory.sale_return_void.refused": ["sales.effects.return_void_refused"],
     "inventory.delivery_reservation.restored": ["sales.effects.re_reserve_recorded"],
     "invoicing.invoice.issued": ["sales.effects.invoice_issued", "sales.effects.commission_bases"],

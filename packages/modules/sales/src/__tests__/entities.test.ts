@@ -21,10 +21,13 @@ const ownerIsolation = readFileSync(new URL("../../../../../supabase/migrations/
 const ownerFixes = readFileSync(new URL("../../../../../supabase/migrations/0140_sales_order_owner_isolation_fixes.sql", import.meta.url), "utf8");
 // Commissions (Task 30.1): 0156 creates the plans, bases and commissions and regenerates the settings' view with commission_basis.
 const commissions = readFileSync(new URL("../../../../../supabase/migrations/0156_sales_commissions.sql", import.meta.url), "utf8");
+// Lots and serials (Task 28.3): 0165 regenerates the entrega and devolución lines' views and creates sales.v_delivery_line_lots.
+const deliveryLots = readFileSync(new URL("../../../../../supabase/migrations/0165_sales_delivery_lots.sql", import.meta.url), "utf8");
 /** The migration holding the latest masked view of each entity. */
 const viewMigration = (entityId: string) =>
   entityId === "sales.settings" || entityId.startsWith("sales.commission") ? commissions
-    : entityId === "sales.delivery" ? ownerIsolation : /^sales\.(delivery_line|return|return_line)$/.test(entityId) ? deliveries : orders;
+    : /^sales\.(delivery_line|return_line|delivery_line_lot)$/.test(entityId) ? deliveryLots
+    : entityId === "sales.delivery" ? ownerIsolation : entityId === "sales.return" ? deliveries : orders;
 
 const loaded = () => {
   const registry = new Registry();
@@ -41,6 +44,8 @@ describe("sales manifest", () => {
       "sales.settings": "parametro", "sales.customer_terms": "parametro", "sales.order": "documento", "sales.order_line": "lines",
       "sales.delivery": "documento", "sales.delivery_line": "lines", "sales.return": "documento", "sales.return_line": "lines",
       "sales.commission_plan": "maestro", "sales.commission_base": "sistema", "sales.commission": "documento", "sales.commission_line": "lines",
+      // Task 28.3: what inventory issued of each lot and serial of an entrega line.
+      "sales.delivery_line_lot": "sistema",
     });
     expect(sales.events.emits).toEqual([
       "sales.order.created", "sales.order.confirmed", "sales.order.cancelled",
@@ -50,7 +55,7 @@ describe("sales manifest", () => {
     ]);
     // The sale issue inventory posted for an entrega is recorded on its lines, and what inventory refused (a despacho it could not issue,
     // the Anular of a devolución it could not take back) puts the document back with the reason: by event, sales never calls inventory (rule 3).
-    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "invoicing.invoice.issued", "invoicing.invoice.annulled",
+    expect(Object.keys(sales.events.consumes)).toEqual(["inventory.movement.posted", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "invoicing.invoice.issued", "invoicing.invoice.annulled",
       // The commissions (Tasks 30.2, 30.3): accrued on the due event and the collections, adjusted by the notes, reversed by the voids.
       "invoicing.note.issued", "payments.payment.voided", "payments.advance.unapplied", "sales.commission.due", "payments.received", "payments.advance.applied"]);
   });
@@ -87,7 +92,7 @@ describe("sales manifest", () => {
         "sales.order.consult", "sales.order_line.consult",
         // The kernel's generic lifecycle verbs the module does not declare itself (void is its own: it releases the reservations).
         "sales.order.save", "sales.order.submit", "sales.order.approve", "sales.order.reject", "sales.order.delete",
-        "sales.delivery.create", "sales.delivery.update", "sales.delivery.ship", "sales.delivery.void", "sales.delivery.record_stock", "sales.delivery.record_invoiced", "sales.delivery.reopen", "sales.delivery.record_re_reservation",
+        "sales.delivery.create", "sales.delivery.update", "sales.delivery.ship", "sales.delivery.void", "sales.delivery.record_stock", "sales.delivery.record_lots", "sales.delivery.record_invoiced", "sales.delivery.reopen", "sales.delivery.record_re_reservation",
         "sales.delivery.consult", "sales.delivery_line.consult",
         "sales.delivery.save", "sales.delivery.submit", "sales.delivery.approve", "sales.delivery.reject", "sales.delivery.delete",
         "sales.return.create", "sales.return.receive", "sales.return.void", "sales.return.restore", "sales.return.consult", "sales.return_line.consult",

@@ -1506,7 +1506,8 @@
       "commission_plan": "Plan de comisión",
       "commission_base": "Base de comisión",
       "commission": "Comisión",
-      "commission_line": "Línea de comisión"
+      "commission_line": "Línea de comisión",
+      "delivery_line_lot": "Lote de línea de entrega"
     },
     "invoicing": {
       "settings": "Parámetros de facturación",
@@ -2865,7 +2866,10 @@
         "qty": "Cantidad",
         "invoiced_qty": "Cantidad facturada",
         "movement_id": "Movimiento de inventario",
-        "stock_posted_at": "Existencias descargadas"
+        "stock_posted_at": "Existencias descargadas",
+        "lot_id": "Lote",
+        "serial_ids": "Seriales",
+        "lots": "Lote / Vence / Serie"
       },
       "return": {
         "seq": "ID",
@@ -2901,7 +2905,9 @@
         "line_no": "Línea",
         "delivery_line_id": "Línea de entrega",
         "product_id": "Producto",
-        "qty": "Cantidad"
+        "qty": "Cantidad",
+        "lot_id": "Lote",
+        "serial_ids": "Seriales"
       },
       "commission_plan": {
         "seq": "ID",
@@ -2987,6 +2993,21 @@
         "base_id": "Base de comisión",
         "cost_center_id": "Centro de costo",
         "amount": "Valor"
+      },
+      "delivery_line_lot": {
+        "seq": "ID",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "delivery_line_id": "Línea de entrega",
+        "lot_id": "Lote",
+        "lot_code": "Código del lote",
+        "expires_on": "Vence",
+        "serial_id": "Serial",
+        "serial_no": "Número de serie",
+        "qty": "Cantidad",
+        "event_id": "Evento"
       }
     },
     "invoicing": {
@@ -5621,7 +5642,10 @@
       "serials_required": "El producto se sigue por serial: lista un serial por unidad",
       "serials_count_mismatch": "La cantidad no coincide con los seriales listados",
       "serial_exists": "El serial ya está en existencia",
-      "serial_not_in_stock": "El serial no está en existencia en esa bodega y ubicación"
+      "serial_not_in_stock": "El serial no está en existencia en esa bodega y ubicación",
+      "lot_expired": "El lote está vencido y el producto bloquea los lotes vencidos",
+      "lot_blocked": "El lote está bloqueado: no se puede despachar",
+      "invalid_return": "Se devuelve más de lo que salió de ese lote o serial"
     }
   },
   "costing": {
@@ -6167,7 +6191,8 @@
       "commission_bases": "Ventas: calcula las bases de comisión de las líneas facturadas de un pedido",
       "commission_accrual": "Ventas: causa las comisiones de la factura o del recaudo y las contabiliza",
       "commission_reversal": "Ventas: revierte las comisiones causadas por el documento y reversa su asiento",
-      "commission_note": "Ventas: la nota crédito reduce la base de comisión de sus líneas y devuelve lo causado de más; la anulación revierte las comisiones de la factura"
+      "commission_note": "Ventas: la nota crédito reduce la base de comisión de sus líneas y devuelve lo causado de más; la anulación revierte las comisiones de la factura",
+      "lots_recorded": "Ventas: anota en cada línea de la entrega los lotes y seriales que el inventario descargó"
     },
     "print": {
       "delivery_title": "Remisión de entrega"

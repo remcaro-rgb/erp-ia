@@ -115,6 +115,9 @@ const LINES: Record<string, { entity: string; parent: string }> = {
   "crm.opportunity": { entity: "crm.opportunity_line", parent: "opportunity_id" },
 };
 
+/** The lot and serial columns of the lines of an entrega and a devolución (Task 28.3), shown only for a document with a tracked line. */
+const LOT_COLUMNS: Record<string, string[]> = { "sales.delivery": ["lots", "lot_id", "serial_ids"], "sales.return": ["lot_id", "serial_ids"] };
+
 /** The lifecycle statuses whose cotización or pedido lines may still change (entity types D3: Borrador, Grabado, No aprobado). */
 const EDITABLE = new Set(["draft", "saved", "rejected"]);
 
@@ -311,6 +314,16 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
     linkableEntities(deps, caller.claims, ["core.party", "crm.quote", "crm.opportunity", "crm.lead", "sales.order", "sales.delivery", "sales.return", "crm.pipeline", "inventory.warehouse"]),
     gridDef ? gridPageAccess(deps.sql, caller.claims, gridDef) : Promise.resolve(null),
   ]);
+  // Lots and serials (Task 28.3): the lot columns of an entrega or devolución show only when one of its lines is tracked (an untracked
+  // document reads as before, RG-2). Read through the masked line views, as the caller.
+  if (linesGrid && LOT_COLUMNS[entityId]) {
+    const tracked = await withClaims(deps.sql, caller.claims, (tx) =>
+      entityId === "sales.delivery"
+        ? tx<{ n: number }[]>`select 1 as n from sales.v_delivery_lines where delivery_id = ${record.id} and (lots is not null or lot_id is not null or serial_ids is not null) limit 1`
+        : tx<{ n: number }[]>`select 1 as n from sales.v_return_lines where return_id = ${record.id} and (lot_id is not null or serial_ids is not null) limit 1`,
+    );
+    if (tracked.length === 0) linesGrid.columns = linesGrid.columns.filter((c) => !LOT_COLUMNS[entityId]!.includes(c.field));
+  }
   // Rule 14 (Task 20 fix round 1): a field the role sees masked reads as the masked marker (never «$ 0,00» or a dropped fact).
   const modes: Record<string, FieldMode> = access?.modes ?? {};
   // The document's currency, else the company's (rule 8).

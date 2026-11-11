@@ -42,6 +42,17 @@ Pulsa **Despachar** en una entrega **Por despachar** (grabada). Al despachar:
 
 Si el mismo despacho llega dos veces (por ejemplo, un reintento), solo hay una salida de inventario y un asiento. Un pedido con entregas ya no se cancela: anula primero sus entregas.
 
+### Lotes y seriales: primero lo que vence primero (FEFO)
+
+Si el producto se sigue **por lote** o **por serial** (guía **Inventario**, *Lotes, seriales y seguimiento por producto*), la línea de la entrega puede indicar el **Lote** o los **Seriales** (uno por unidad, sin repetir). Si no indicas el lote, el inventario lo escoge al despachar con la regla **FEFO**: primero el lote que **vence primero**; entre lotes sin vencimiento o con la misma fecha, el más antiguo por fecha de producción y después por código. Si un lote no alcanza, la línea **se reparte** entre varios lotes, en ese orden.
+
+- Nunca sale de un lote **bloqueado** ni, si el producto **bloquea los lotes vencidos** (lo normal), de un lote **vencido** a la fecha de la entrega. Si indicas un lote vencido, la entrega no se despacha (*El lote está vencido…*); escoge otro o deja que FEFO lo escoja.
+- La **disponibilidad** que se revisa al confirmar, reservar y despachar cuenta solo los lotes que se pueden vender, así que una reserva nunca promete existencias que el despacho no puede sacar.
+- Un producto por serial necesita sus seriales: si la línea no los indica, el inventario no despacha la entrega y la devuelve con el motivo.
+- Después del despacho, la columna **Lote / Vence / Serie** de cada línea muestra lo que salió de cada lote (código, vencimiento y cantidad) o cada serial; el PDF de la entrega la imprime. Las columnas de lote solo aparecen en las entregas con productos seguidos por lote o serial: las demás se ven igual que antes.
+
+Al **anular** una entrega despachada, cada cantidad vuelve al mismo lote o serial de donde salió, y la reserva de nuevo (si la pides) cuenta los mismos lotes vendibles.
+
 ### Si el inventario no pudo descargar la entrega
 
 Inventario descarga la entrega unos instantes después del despacho. Si en ese lapso otra salida se llevó las existencias, Inventario no la descarga y lo avisa: la entrega **vuelve a Grabada** (abierta, editable), el campo **Motivo del rechazo de inventario** dice qué faltó y cuándo, y el pedido vuelve a su estado anterior. Nada queda descargado a medias ni contado como pendiente. Cuando haya existencias, despáchala de nuevo (el motivo se borra), o anúlala.
@@ -70,13 +81,14 @@ Lo **facturado** de una entrega solo baja cuando su factura se **anula** (la DIA
 En una entrega **Despachada** escribe el **Motivo de la devolución** (por ejemplo, producto averiado) y pulsa **Crear devolución**, o en **Devoluciones** pulsa **Nuevo** y elige la **Entrega**. Si no indicas las líneas, se devuelve todo lo que salió; nunca más de lo que salió, contando las otras devoluciones de la entrega. Un vendedor solo registra, recibe o anula devoluciones de entregas de **sus** pedidos: la de otro vendedor responde **No encontrado**, salvo que su rol pueda cambiar vendedor (guía [Visibilidad de pedidos](ventas-visibilidad-de-pedidos.md)). La devolución se abre **Por recibir**; al pulsar **Recibir**:
 
 - Las existencias vuelven a la bodega y ubicación de donde salieron, al **costo de la salida original** (no al promedio de hoy).
+- Con lotes o seriales, cada línea de la devolución vuelve al **lote o serial** de la salida: si la línea de la entrega salió de un solo lote, ese es el lote por defecto; si salió de varios, puedes indicar el **Lote**, o el inventario la reparte en el orden en que salieron. Para un producto por serial, indica los **Seriales** que vuelven (por defecto, los de la entrega que aún no se han devuelto). Nunca vuelve a un lote más de lo que salió de él.
 - Contabilidad devuelve ese costo de ventas (débito inventarios, crédito costo de ventas con el centro de costo).
 
 Anular una devolución recibida saca de nuevo esas existencias de la ubicación a la que entraron y reversa su asiento. Si esas existencias ya salieron (por ejemplo, se vendieron), la anulación se rechaza (*existencias negativas*). Si salen justo mientras Inventario procesa la anulación, la devolución **vuelve a Grabada (recibida)** con el **Motivo del rechazo de inventario**, y su asiento no se toca.
 
 ## Imprimir y listados
 
-El listado de **Entregas** muestra el número, el pedido, el cliente, la **Bodega**, la fecha, la etapa y el estado; el de **Devoluciones**, también su bodega y el motivo. **Imprimir** (en la barra de acciones) genera el PDF de una entrega o de una devolución con el membrete de la empresa: el número, el cliente, las fechas, la entrega de donde viene (en una devolución) y el motivo, y la tabla de líneas con producto, descripción y cantidad, sin precios.
+El listado de **Entregas** muestra el número, el pedido, el cliente, la **Bodega**, la fecha, la etapa y el estado; el de **Devoluciones**, también su bodega y el motivo. **Imprimir** (en la barra de acciones) genera el PDF de una entrega o de una devolución con el membrete de la empresa: el número, el cliente, las fechas, la entrega de donde viene (en una devolución) y el motivo, y la tabla de líneas con producto, descripción y cantidad, sin precios; con lotes o seriales, también **Lote / Vence / Serie**.
 
 ## Permisos
 
