@@ -46,20 +46,21 @@ export const MOVEMENT_STATUSES = ["draft", "saved", "pending", "rejected", "appr
 
 /**
  * The kinds of movement. `receipt`, `issue`, `sale_issue` (a delivery, Task 14) and `sale_return` are posted with inventory.movement.post;
- * `adjustment` (step-up) and the two legs of a transfer have their own processes (Task 7). Receipts and returns add (qty > 0), the rest take
- * (qty < 0); an adjustment carries either sign.
+ * `adjustment` (step-up) and the two legs of a transfer have their own processes (Task 7); `relocation` (Task 29.3, migration 0173) is
+ * inventory.relocation.post: stock moved between two ubicaciones of one bodega (− from, + to), no quantity of the bodega and no cost
+ * changes. Receipts and returns add (qty > 0), the rest take (qty < 0); an adjustment and a relocation carry either sign.
  */
-export const MOVEMENT_KINDS = ["receipt", "issue", "sale_issue", "sale_return", "adjustment", "transfer_out", "transfer_in"] as const;
+export const MOVEMENT_KINDS = ["receipt", "issue", "sale_issue", "sale_return", "adjustment", "transfer_out", "transfer_in", "relocation"] as const;
 export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 /** The kinds inventory.movement.post accepts. */
 export const POSTABLE_KINDS = ["receipt", "issue", "sale_issue", "sale_return"] as const satisfies readonly MovementKind[];
 /** The sign of the quantities of each kind: +1 adds stock, -1 takes it, 0 either. */
 export const KIND_SIGN: Record<MovementKind, 1 | -1 | 0> = {
-  receipt: 1, issue: -1, sale_issue: -1, sale_return: 1, adjustment: 0, transfer_out: -1, transfer_in: 1,
+  receipt: 1, issue: -1, sale_issue: -1, sale_return: 1, adjustment: 0, transfer_out: -1, transfer_in: 1, relocation: 0,
 };
-/** The prefix of the movement number per kind (company sequence, D9): Entrada, Salida, Salida por venta, Devolución, Ajuste, Traslado. */
+/** The prefix of the movement number per kind (company sequence, D9): Entrada, Salida, Salida por venta, Devolución, Ajuste, Traslado, Reubicación. */
 export const KIND_PREFIX: Record<MovementKind, string> = {
-  receipt: "EN-", issue: "SA-", sale_issue: "SV-", sale_return: "DV-", adjustment: "AJ-", transfer_out: "TS-", transfer_in: "TE-",
+  receipt: "EN-", issue: "SA-", sale_issue: "SV-", sale_return: "DV-", adjustment: "AJ-", transfer_out: "TS-", transfer_in: "TE-", relocation: "RU-",
 };
 
 /** A ubicación is where stock sits (`storage`) or the stock on its way between two bodegas (`transit`, Task 7). */

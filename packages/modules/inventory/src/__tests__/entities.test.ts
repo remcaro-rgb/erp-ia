@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ruleApplies, RuleTemplate, defineEntity, GENERIC_VERBS, isTypedEntity, kernelModule, loadModules, maskedViewSql, Registry, menuItemsOf, uncoveredMenuProcesses, uncoveredRecordWrites } from "@erp/kernel";
 import { needStub } from "@erp/kernel/testing";
 import { core } from "@erp/module-core";
-import { inventory, INVENTORY_ENTITIES, INVENTORY_POSTING_RULES } from "../index";
+import { inventory, INVENTORY_ENTITIES, INVENTORY_POSTING_RULES, KIND_PREFIX, KIND_SIGN, MOVEMENT_KINDS, POSTABLE_KINDS } from "../index";
 import adjustmentFixture from "../defaults/inventory-adjustment.fixture.json" with { type: "json" };
 import { savedMovementId } from "../processes/common";
 
@@ -97,7 +97,7 @@ describe("inventory manifest", () => {
         // What the entregas and devoluciones of sales move (Task 14 review): each event consumer runs a registered process.
         "inventory.sale.issue", "inventory.sale.void_issue", "inventory.sale.return", "inventory.sale.void_return",
         "inventory.transfer.create", "inventory.transfer.ship", "inventory.transfer.receive", "inventory.transfer.void", "inventory.transfer.consult", "inventory.transfer_line.consult",
-        "inventory.adjustment.post",
+        "inventory.adjustment.post", "inventory.relocation.post",
         "inventory.count.create", "inventory.count.record", "inventory.count.apply", "inventory.count.void", "inventory.count.consult", "inventory.count_line.consult",
         // Task 28.1: the lot and serial maestros and the tracking parametro.
         "inventory.lot.create", "inventory.lot.update", "inventory.lot.consult",
@@ -115,6 +115,15 @@ describe("inventory manifest", () => {
     expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "inventory.reservation.allocated"]);
     // The importer, the clone and Nuevo create a movement through movement.post.
     expect(registry.entity("inventory.movement").processIds?.create).toBe("inventory.movement.post");
+  });
+
+  it("the relocation (Task 29.3, migration 0173) is a kind of its own: numbered RU-, it changes no quantity of the bodega, nobody posts it by hand", () => {
+    const migration = readFileSync(new URL("../../../../../supabase/migrations/0173_inventory_relocation.sql", import.meta.url), "utf8");
+    expect(MOVEMENT_KINDS).toContain("relocation");
+    for (const kind of MOVEMENT_KINDS) expect(migration, kind).toContain(`'${kind}'`);
+    expect(KIND_SIGN.relocation).toBe(0);
+    expect(KIND_PREFIX.relocation).toBe("RU-");
+    expect(POSTABLE_KINDS).not.toContain("relocation");
   });
 
   it("every process belongs to one feature, sits under a menu item or the shared list, and declares its record guard", () => {
@@ -153,6 +162,7 @@ describe("inventory manifest", () => {
   it("consumes the pedidos, entregas and devoluciones of sales and the confirmed alistamientos of warehouse by event name (Tasks 13–14, 29.1); it depends on neither", () => {
     expect(Object.keys(inventory.events.consumes).sort()).toEqual([
       "sales.delivery.shipped", "sales.delivery.voided", "sales.order.cancelled", "sales.order.confirmed", "sales.return.received", "sales.return.voided",
+      "warehouse.pick.confirmed", "warehouse.putaway.confirmed",
     ]);
     expect(inventory.dependsOn).not.toContain("sales");
     expect(inventory.dependsOn).not.toContain("warehouse");

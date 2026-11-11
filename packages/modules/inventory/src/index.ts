@@ -4,7 +4,7 @@ import { INVENTORY_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { INVENTORY_REPORTS } from "./reports/lot-trace";
 import { INVENTORY_PROCESSES } from "./processes";
-import { MOVEMENT_POSTED, MOVEMENT_VOIDED, movementHooks } from "./processes/movement";
+import { MOVEMENT_POSTED, MOVEMENT_VOIDED, movementHooks, onPutawayConfirmed, PUTAWAY_CONFIRMED } from "./processes/movement";
 import { countHooks } from "./processes/count";
 import { lotHooks } from "./processes/lot";
 import { serialHooks } from "./processes/serial";
@@ -24,7 +24,7 @@ import { locationHooks, warehouseHooks } from "./processes/warehouse";
  * sales.order.cancelled (processes/sales-orders.ts), and the entregas and devoluciones (Task 14, processes/sales-deliveries.ts):
  * sales.delivery.shipped posts the sale issue and uses up the reservation, sales.delivery.voided voids it, sales.return.received posts
  * the sale return at the issue's cost, sales.return.voided voids it. A voided entrega may also promise its stock back to the pedido's lines
- * (Task 43: the nested inventory.reservation.reserve_again, answered to sales as inventory.delivery_reservation.restored). Lots and serials (Task 28, OD-8): the lot and serial maestros and the tracking per product (processes/lot.ts, serial.ts, tracking.ts); picking and put-away are the warehouse module's (Task 29).
+ * (Task 43: the nested inventory.reservation.reserve_again, answered to sales as inventory.delivery_reservation.restored). Lots and serials (Task 28, OD-8): the lot and serial maestros and the tracking per product (processes/lot.ts, serial.ts, tracking.ts); picking and put-away are the warehouse module's (Task 29): a confirmed alistamiento (warehouse.pick.confirmed) allocates the pedido lines' reservations to ubicación, lot and serial (inventory.reservation.allocate, answered by inventory.reservation.allocated), moving no stock (RG-7); a released reservation drops its allocations; a confirmed put-away (warehouse.putaway.confirmed, Task 29.3) relocates the stock between ubicaciones of the bodega (inventory.relocation.post, kind relocation, no cost).
  *
  * One read is declared in `needs`, not `dependsOn` (costing depends on inventory; Task 41): an adjustment is valued at costing's weighted average of its bodega through the published
  * definer function costing.average_costs() (migrations 0073 and 0075; processes/common.ts productCosts). It is a read of a published
@@ -52,6 +52,10 @@ export const inventory: ModuleDef = defineModule({
       "sales.delivery.voided": onDeliveryVoided,
       "sales.return.received": onReturnReceived,
       "sales.return.voided": onReturnVoided,
+      // The confirmed alistamientos of the warehouse module (Task 29.1): their allocation to the pedido lines' reservations.
+      [PICK_CONFIRMED]: onPickConfirmed,
+      // The put-away of a receipt the warehouse module confirmed (Task 29.3): inventory.relocation.post in the receipt's bodega.
+      [PUTAWAY_CONFIRMED]: onPutawayConfirmed,
     },
   },
   navigation: NAVIGATION,
@@ -67,6 +71,8 @@ export const inventory: ModuleDef = defineModule({
     "sales.delivery.voided": ["inventory.effects.delivery_reentry", "inventory.effects.delivery_reserve_again"],
     "sales.return.received": ["inventory.effects.return_reentry"],
     "sales.return.voided": ["inventory.effects.return_void"],
+    [PICK_CONFIRMED]: ["inventory.effects.pick_allocate"],
+    [PUTAWAY_CONFIRMED]: ["inventory.effects.putaway_relocate"],
   },
   // The lifecycle of the maestros and the movement (entity types spec §5): Grabar runs the update checks; a movement numbers on save and
   // never changes once it is in the stock.
@@ -89,7 +95,7 @@ export { onOrderCancelled, onOrderConfirmed, ORDER_LINE_SOURCE } from "./process
 export { RESERVATION_ALLOCATED } from "./processes/reservation";
 export { onPickConfirmed, PICK_CONFIRMED } from "./processes/warehouse-picks";
 export { DELIVERY_RESERVATION_RESTORED, SALE_ISSUE_ALLOCATED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
-export { applyStock, lockStockLegs, MOVEMENT_POSTED, MOVEMENT_VOIDED, postMovement } from "./processes/movement";
+export { applyStock, lockStockLegs, MOVEMENT_POSTED, MOVEMENT_VOIDED, onPutawayConfirmed, postMovement, postRelocation, PUTAWAY_CONFIRMED } from "./processes/movement";
 export type { MovementEvent, MovementEventLine, MovementInput, PostedMovement } from "./processes/movement";
 export { DEFAULT_TRACKING, trackingOf } from "./processes/tracking";
 export type { ProductTracking } from "./processes/tracking";

@@ -24,6 +24,7 @@ processes:
   - inventory.movement.post
   - inventory.movement.void
   - inventory.adjustment.post
+  - inventory.relocation.post
   - inventory.transfer.create
   - inventory.transfer.ship
   - inventory.transfer.receive
@@ -139,6 +140,10 @@ Ve a **Inventario › Documentos › Movimientos** › **Nuevo**.
 Un **ajuste** te pide tu **código de verificación** (la app de autenticación) antes de guardarse. Contabilidad lo registra con el costo de cada producto. En el registro del ajuste, la pestaña **Contabilidad** muestra su comprobante.
 
 Las entradas se numeran `EN-…`, las salidas `SA-…` y los ajustes `AJ-…`. Un movimiento guardado no se edita. Si hubo un error, usa **Anular** en la barra del registro.
+
+### Reubicaciones
+
+Una **reubicación** (`RU-…`) mueve existencias de una ubicación a otra **de la misma bodega**: no cambia cuánto hay en la bodega ni lo que vale, y no genera comprobante contable. Cada línea reubicada aparece dos veces: con cantidad negativa en la ubicación de donde sale y positiva en la de destino, con su mismo lote o serial. Las crea sola la **ubicación de lo recibido** del módulo Bodega (ver [Bodega](bodega.md)). Entre bodegas distintas no se reubica: se usa una transferencia. Una reubicación no se anula; si quedó mal, se corrige con otra reubicación.
 
 ## Transferencias entre bodegas
 

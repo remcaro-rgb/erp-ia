@@ -194,7 +194,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     title: "number",
     shown: ["number", "kind", "date", "warehouse_id", "reference", "description", "status", "applied_at"],
     exclude: ["extra", "extra_free", "requires_approval", "posts", "source_id"],
-    fields: { number: { display: "mono" }, kind: { valuesKey: "inventory.values.movement_kind", pills: { receipt: "ok", issue: "warn", sale_issue: "warn", sale_return: "info", adjustment: "danger", transfer_out: "gray", transfer_in: "gray" } }, status: documentStatus },
+    fields: { number: { display: "mono" }, kind: { valuesKey: "inventory.values.movement_kind", pills: { receipt: "ok", issue: "warn", sale_issue: "warn", sale_return: "info", adjustment: "danger", transfer_out: "gray", transfer_in: "gray", relocation: "gray" } }, status: documentStatus },
   },
   "inventory.movement_line": {
     title: "line_no",

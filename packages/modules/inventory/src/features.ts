@@ -30,8 +30,9 @@ export const NAVIGATION: NavItem[] = menuSections("inventory", {
     { id: "inventory.serials", label: "nav.inventory.serials", href: "/inventory/serials", icon: "tags", feature: "inventory.stock", entity: "inventory.serial" },
   ],
   documentos: [
-    // Movimientos also registers ajustes (inventory.adjustment.post, step-up): an ajuste is a movement of its own kind.
-    { id: "inventory.movements", label: "nav.inventory.movements", href: "/inventory/movements", icon: "arrow-left-right", feature: "inventory.stock", entity: "inventory.movement", runs: ["inventory.adjustment."] },
+    // Movimientos also registers ajustes (inventory.adjustment.post, step-up) and reubicaciones (inventory.relocation.post, Task 29.3): each
+    // is a movement of its own kind.
+    { id: "inventory.movements", label: "nav.inventory.movements", href: "/inventory/movements", icon: "arrow-left-right", feature: "inventory.stock", entity: "inventory.movement", runs: ["inventory.adjustment.", "inventory.relocation."] },
     { id: "inventory.transfers", label: "nav.inventory.transfers", href: "/inventory/transfers", icon: "truck", feature: "inventory.stock", entity: "inventory.transfer" },
     { id: "inventory.counts", label: "nav.inventory.counts", href: "/inventory/counts", icon: "clipboard-check", feature: "inventory.stock", entity: "inventory.count" },
   ],

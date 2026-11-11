@@ -12,6 +12,7 @@ export const ASYNC_BY_DESIGN: ReadonlyMap<string, string> = new Map([
   ["inventory.count.apply", "applying a physical count emits inventory.movement.posted for the accounting consumer, as every stock movement"],
   ["inventory.sale.issue", "the stock issue of a delivery (an event consumer) emits inventory.movement.posted for the accounting consumer (OD-4)"],
   ["inventory.sale.return", "the stock return of a sales return (an event consumer) emits inventory.movement.posted for the accounting consumer"],
+  ["inventory.relocation.post", "a relocation between ubicaciones of one bodega (plan 2B.2 Task 29.3) emits inventory.movement.posted like every stock movement; no rule posts its kind"],
   ["costing.movement.cost", "the cost of sales of a movement (an event consumer) emits costing.cogs.posted or costing.cogs.returned, posted by the accounting consumer"],
   ["costing.movement.void_cost", "the void of a movement's cost (an event consumer) emits costing.cogs.voided or costing.cogs.return_voided, posted by the accounting consumer"],
 ]);

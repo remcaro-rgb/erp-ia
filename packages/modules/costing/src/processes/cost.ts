@@ -109,6 +109,13 @@ export interface FeedMovement { id: string; seq: number; number: string | null; 
 
 export interface LayerRow extends Layer { id: string }
 
+/**
+ * The inventory movement kinds costing ignores (plan 2B.2 Task 29.3, migration 0173): a `relocation` moves stock between two ubicaciones of
+ * ONE bodega, and the layer is per product and bodega, so it changes no layer, no cost event and no entry. Its movement still takes its
+ * place in the feed (the seq is gap-free): catchUp steps over it, and its own event values nothing.
+ */
+export const IGNORED_KINDS: ReadonlySet<string> = new Set(["relocation"]);
+
 const num = (v: string | null): number | null => (v === null ? null : Number(v));
 
 /** The run's view of the layers it touches: read once, written after every line. */
@@ -416,7 +423,7 @@ export async function catchUp(ctx: ProcessContext, movementId: string): Promise<
   const unknownCostMode = settings?.unknown_cost_mode ?? "zero";
   const layers = new Layers(ctx, currency);
   try {
-    for (const m of movements) await valueMovement(ctx, m, layers, { categories, standard, unknownCostMode }, currency);
+    for (const m of movements) if (!IGNORED_KINDS.has(m.kind)) await valueMovement(ctx, m, layers, { categories, standard, unknownCostMode }, currency);
   } catch (error) {
     // A negative cost cannot be valued: refused for good (the outbox dead-letters it), never retried.
     if (error instanceof CostError) throw new ProcessError("invalid_input", error.message);
@@ -462,6 +469,7 @@ export const movementCost = defineProcess({
 /** The payload fields the consumer reads of inventory.movement.posted (inventory's MovementEvent). */
 const movementPosted = z.looseObject({
   movementId: id,
+  kind: z.string().optional(),
   costCenterId: id.optional(),
 });
 
@@ -469,6 +477,8 @@ const movementPosted = z.looseObject({
 export const onMovementPosted: EventConsumer = async (ctx, payload) => {
   const parsed = movementPosted.safeParse(payload);
   if (!parsed.success) throw new ProcessError("invalid_input", `inventory.movement.posted payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  // A relocation costs nothing (IGNORED_KINDS): the next movement's run steps over it in the feed.
+  if (parsed.data.kind && IGNORED_KINDS.has(parsed.data.kind)) return;
   await ctx.runProcess("costing.movement.cost", { movementId: parsed.data.movementId, ...(parsed.data.costCenterId ? { costCenterId: parsed.data.costCenterId } : {}) });
 };
 

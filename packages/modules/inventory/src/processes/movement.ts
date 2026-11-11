@@ -1,4 +1,4 @@
-import { defineProcess, ProcessError, runLifecycle, visibleExtra, type ProcessContext, type TypedHooks } from "@erp/kernel";
+import { defineProcess, ProcessError, runLifecycle, visibleExtra, type EventConsumer, type ProcessContext, type TypedHooks } from "@erp/kernel";
 import { z } from "zod";
 import { KIND_PREFIX, KIND_SIGN, movementEntity, POSTABLE_KINDS, type MovementKind } from "../entities";
 import { entityId, id, idInput, num, productCosts, productFacts, qtyText, quantity, refuse, type ProductFacts } from "./common";
@@ -568,8 +568,12 @@ export const movementVoid = defineProcess({
     const [linked] = await ctx.tx<{ source_entity: string | null; kind: MovementKind }[]>`select source_entity, kind from inventory.movements where id = ${movementId}`;
     // An adjustment is corrected by another adjustment (step-up, with its reason): voiding it would give the stock back without the
     // ledger entry the adjustment's event posted. The legs of a traslado follow their traslado.
-    if (linked && (linked.kind === "adjustment" || linked.kind === "transfer_out" || linked.kind === "transfer_in")) {
-      refuse("movement_kind_not_voidable", [linked.kind === "adjustment" ? "Un ajuste no se anula: se corrige con otro ajuste" : "El movimiento es parte de un traslado: no se anula por separado"]);
+    if (linked && (linked.kind === "adjustment" || linked.kind === "transfer_out" || linked.kind === "transfer_in" || linked.kind === "relocation")) {
+      refuse("movement_kind_not_voidable", [
+        linked.kind === "adjustment" ? "Un ajuste no se anula: se corrige con otro ajuste"
+          : linked.kind === "relocation" ? "Una reubicación no se anula: se corrige con otra reubicación"
+            : "El movimiento es parte de un traslado: no se anula por separado",
+      ]);
     }
     if (linked?.source_entity && ctx.origin !== "event") {
       refuse("source_linked_movement", [`El movimiento viene de ${linked.source_entity}: se anula anulando ese documento`]);
@@ -696,4 +700,186 @@ export const movementHooks: TypedHooks = {
   },
 };
 
-export const MOVEMENT_PROCESSES = [movementPost, movementVoid, movementConsult, movementLineConsult, stockLevelConsult];
+// -------------------------------------------------------------------------------------------------
+// Reubicación (plan 2B.2 Task 29.3, PG §4.3 step 8; migration 0173)
+// -------------------------------------------------------------------------------------------------
+// inventory.relocation.post moves stock between two ubicaciones of ONE bodega: a movement of kind `relocation` (RU-) with two lines per
+// relocated line, − from the source ubicación and + into the destination, the lot and the serial kept (a serial stays `available`: it
+// never left the bodega). No quantity of the bodega and no cost changes: costing skips the kind and accounting has no rule for it. A
+// ubicación of another bodega is refused (`relocation_cross_warehouse`: that is a traslado); the stock of the source never goes below zero,
+// whatever the bodega allows (a relocation moves what is there). Callable from the screen and from the warehouse module's put-away (the
+// consumer of warehouse.putaway.confirmed, origin event, idempotent on the event). A relocation is not voided: another one corrects it.
+
+export const PUTAWAY_CONFIRMED = "warehouse.putaway.confirmed";
+
+const relocationLineInput = z.object({
+  productId: id,
+  /** Where the stock is: a ubicación of the bodega, or null for the bodega's own stock (no ubicación). */
+  fromLocationId: id.nullable(),
+  /** Where it goes: a storage ubicación of the same bodega. */
+  toLocationId: id,
+  qty: quantity.refine((n) => n > 0, "La cantidad debe ser mayor que cero"),
+  /** A lot-tracked product: the lot moved (it stays the same lot). */
+  lotId: id.optional(),
+  /** A serial-tracked product: the serial moved (one unit). */
+  serialId: id.optional(),
+}).strict();
+
+export const relocationInput = z.object({
+  warehouseId: id,
+  /** Default: today in the company's time zone. */
+  date: date.optional(),
+  reference: z.string().trim().max(100).optional(),
+  description: z.string().trim().max(500).optional(),
+  /** Only the consumer of warehouse.putaway.confirmed: the event's id (a redelivery answers the first run). */
+  eventId: id.optional(),
+  lines: z.array(relocationLineInput).min(1).max(250),
+}).strict();
+
+export async function postRelocation(ctx: ProcessContext, input: z.output<typeof relocationInput>): Promise<PostedMovement> {
+  const warehouse = await warehouseOf(ctx, input.warehouseId);
+  await refuseTransitWarehouse(ctx, warehouse.id);
+  const locationIds = [...new Set(input.lines.flatMap((l) => [l.toLocationId, ...(l.fromLocationId ? [l.fromLocationId] : [])]))];
+  const locations = new Map((await ctx.tx<{ id: string; warehouse_id: string; kind: string }[]>`
+    select id, warehouse_id, kind from inventory.locations where id = any(${locationIds}::uuid[]) and deleted_at is null`).map((l) => [l.id, l]));
+  const products = await productFacts(ctx, input.lines.map((l) => l.productId));
+  const kinds = await trackingKinds(ctx, input.lines.map((l) => l.productId));
+  const lotIds = [...new Set(input.lines.flatMap((l) => (l.lotId ? [l.lotId] : [])))];
+  const serialIds = [...new Set(input.lines.flatMap((l) => (l.serialId ? [l.serialId] : [])))];
+  const lots = new Map((lotIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string; code: string }[]>`
+    select id, product_id, code from inventory.lots where id = any(${lotIds}::uuid[]) and deleted_at is null`).map((l) => [l.id, l]));
+  const serials = new Map((serialIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string; serial_no: string }[]>`
+    select id, product_id, serial_no from inventory.serials where id = any(${serialIds}::uuid[]) and deleted_at is null`).map((s) => [s.id, s]));
+
+  const problems = new Map<string, string[]>();
+  const add = (code: string, text: string) => problems.set(code, [...(problems.get(code) ?? []), text]);
+  input.lines.forEach((line, i) => {
+    const at = `Línea ${i + 1}`;
+    for (const locationId of [line.fromLocationId, line.toLocationId]) {
+      if (!locationId) continue;
+      const loc = locations.get(locationId);
+      if (!loc) add("invalid_movement", `${at}: la ubicación no existe`);
+      else if (loc.warehouse_id !== warehouse.id) add("relocation_cross_warehouse", `${at}: la ubicación es de otra bodega; entre bodegas se mueve con un traslado`);
+      else if (loc.kind !== "storage") add("invalid_movement", `${at}: la ubicación de tránsito solo la usan los traslados`);
+    }
+    if (line.fromLocationId === line.toLocationId) add("invalid_movement", `${at}: la ubicación de origen y la de destino son la misma`);
+    const product = products.get(line.productId);
+    if (!product) return add("invalid_movement", `${at}: el producto no existe o no es visible`);
+    if (product.kind === "service") return add("service_product_refused", `${at}: ${product.sku} es un servicio: no tiene existencias`);
+    if (!product.trackStock) return add("invalid_movement", `${at}: ${product.sku} no lleva existencias`);
+    const kind = kinds.get(product.id) ?? "none";
+    if (kind === "lot" && !line.lotId) add("lot_required", `${at}: ${product.sku} se sigue por lote: indica el lote`);
+    if (kind === "serial" && !line.serialId) add("serials_required", `${at}: ${product.sku} se sigue por serial: indica el serial`);
+    if (kind === "serial" && line.qty !== 1) add("serials_count_mismatch", `${at}: un serial es una unidad`);
+    if (kind !== "lot" && line.lotId) add("invalid_movement", `${at}: ${product.sku} no se sigue por lote`);
+    if (kind !== "serial" && line.serialId) add("invalid_movement", `${at}: ${product.sku} no se sigue por serial`);
+    if (line.lotId && lots.get(line.lotId)?.product_id !== product.id) add("lot_not_found", `${at}: el lote no existe o es de otro producto`);
+    if (line.serialId && serials.get(line.serialId)?.product_id !== product.id) add("serial_not_in_stock", `${at}: el serial no existe o es de otro producto`);
+  });
+  // The bodega's own boundary first (the code the put-away and the screen read), then the rest.
+  for (const code of ["relocation_cross_warehouse", ...problems.keys()]) if (problems.has(code)) refuse(code, problems.get(code)!);
+
+  const [company] = await ctx.tx<{ currency_code: string }[]>`select currency_code from kernel.companies where id = ${ctx.companyId}`;
+  const date = input.date ?? (await companyToday(ctx));
+  const [header] = await ctx.tx<{ id: string }[]>`
+    insert into inventory.movements ${ctx.tx({
+      company_id: ctx.companyId,
+      kind: "relocation",
+      date,
+      warehouse_id: warehouse.id,
+      reference: input.reference ?? null,
+      description: input.description ?? null,
+      currency: company?.currency_code ?? "COP",
+      exchange_rate: 1,
+      requires_approval: false,
+      posts: false,
+    })}
+    returning id`;
+  const movementId = header!.id;
+  const rows = input.lines.flatMap((line, i) => {
+    const product = products.get(line.productId)!;
+    const base = { company_id: ctx.companyId, movement_id: movementId, product_id: product.id, lot_id: line.lotId ?? null, serial_id: line.serialId ?? null, uom: product.uomCode, unit_cost: null };
+    return [
+      { ...base, line_no: 2 * i + 1, location_id: line.fromLocationId, qty: -line.qty },
+      { ...base, line_no: 2 * i + 2, location_id: line.toLocationId, qty: line.qty },
+    ];
+  });
+  const inserted = await ctx.tx<{ id: string; line_no: number }[]>`insert into inventory.movement_lines ${ctx.tx(rows)} returning id, line_no`;
+  // Never below zero in the source, whatever the bodega allows: a relocation moves what is there.
+  await applyStock(ctx, { id: warehouse.id, allowBackorders: false }, rows.map((r) => ({
+    productId: r.product_id, locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id, qty: r.qty, sku: products.get(r.product_id)!.sku,
+    ...(r.lot_id ? { label: lots.get(r.lot_id)?.code ?? "" } : r.serial_id ? { label: serials.get(r.serial_id)?.serial_no ?? "" } : {}),
+  })));
+  await ctx.tx`update inventory.movements set applied_at = now() where id = ${movementId}`;
+  const saved = await runLifecycle(ctx, ctx.registry.entity(movementEntity.id), movementId, "save");
+  const lineIds = new Map(inserted.map((r) => [r.line_no, r.id]));
+  const event: MovementEvent = {
+    movementId,
+    number: saved.number!,
+    kind: "relocation",
+    date,
+    warehouseId: warehouse.id,
+    sourceEntity: null,
+    sourceId: null,
+    lines: rows.map((r) => ({
+      lineId: lineIds.get(r.line_no)!, lineNo: r.line_no, productId: r.product_id, categoryId: products.get(r.product_id)!.categoryId, warehouseId: warehouse.id,
+      locationId: r.location_id, qty: r.qty, uom: r.uom, unitCost: null, sourceLineId: null,
+      ...(r.lot_id ? { lotId: r.lot_id } : {}),
+      ...(r.serial_id ? { serialId: r.serial_id } : {}),
+    })),
+  };
+  await ctx.emit(MOVEMENT_POSTED, event);
+  return { id: movementId, number: saved.number!, status: "saved", skippedLines: 0 };
+}
+
+export const relocationPost = defineProcess({
+  id: "inventory.relocation.post",
+  module: "inventory",
+  kind: "create",
+  // It creates a movement (RU-), not a record of an entity of its own name: no record guard, as inventory.adjustment.post.
+  recordAccess: "none",
+  feature: FEATURE,
+  origins: ["event", "ui"],
+  emits: [MOVEMENT_POSTED],
+  description:
+    "Reubica existencias entre dos ubicaciones de una misma bodega (el lote y el serial se conservan); no cambia la cantidad de la bodega ni el costo. Entre bodegas se usa un traslado",
+  input: relocationInput,
+  output: postedOutput,
+  auditInput: (input) => ({ warehouseId: input.warehouseId, lines: input.lines.length }),
+  idempotencyKey: (input) => (input.eventId ? `relocation:${input.eventId}` : undefined),
+  handler: async (ctx, input) => {
+    if (input.eventId && ctx.origin !== "event") refuse("invalid_movement", ["Solo la ubicación confirmada en bodega indica el evento"]);
+    return postRelocation(ctx, input);
+  },
+});
+
+const putawayConfirmedPayload = z.looseObject({
+  movementId: id,
+  lines: z.array(z.looseObject({
+    productId: id, lotId: id.nullable().optional(), serialId: id.nullable().optional(), qty: z.number().positive(), fromLocationId: id.nullable(), toLocationId: id,
+  })).min(1),
+});
+
+/**
+ * Consumer of warehouse.putaway.confirmed (the warehouse module's put-away of a receipt; inventory does not import warehouse): relocates the
+ * lines in the receipt's bodega, origin event, as the system user; a redelivered event answers the first run.
+ */
+export const onPutawayConfirmed: EventConsumer = async (ctx, payload) => {
+  const parsed = putawayConfirmedPayload.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `${PUTAWAY_CONFIRMED} payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  const putaway = parsed.data;
+  const [receipt] = await ctx.sql<{ warehouse_id: string; number: string | null }[]>`
+    select warehouse_id, number from inventory.movements where company_id = ${ctx.companyId} and id = ${putaway.movementId}`;
+  if (!receipt) throw new ProcessError("not_found", `${PUTAWAY_CONFIRMED}: movement ${putaway.movementId} not found`);
+  await ctx.runProcess("inventory.relocation.post", {
+    warehouseId: receipt.warehouse_id,
+    eventId: ctx.event.id,
+    reference: `Ubicación de ${receipt.number ?? putaway.movementId}`.slice(0, 100),
+    lines: putaway.lines.map((l) => ({
+      productId: l.productId, fromLocationId: l.fromLocationId, toLocationId: l.toLocationId, qty: l.qty,
+      ...(l.lotId ? { lotId: l.lotId } : {}), ...(l.serialId ? { serialId: l.serialId } : {}),
+    })),
+  });
+};
+
+export const MOVEMENT_PROCESSES = [movementPost, movementVoid, movementConsult, movementLineConsult, stockLevelConsult, relocationPost];
