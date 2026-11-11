@@ -27,7 +27,7 @@ const pair = (debitCode = "510506", extra: object = {}) => [
 const entryRow = async (id: string) => (await h.sql`select * from accounting.entries where id = ${id}`)[0]!;
 
 describe("entry-draft", () => {
-  it("creates a draft in NC with two lines, no number, totals by trigger; update replaces lines; void keeps the row with status voided", async () => {
+  it("creates a draft in NC with two lines, no number, totals by trigger; update replaces lines; a draft is deleted, not voided; void keeps a Grabado row with status voided", async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft(pair()));
     const row = await entryRow(id);
     expect(row).toMatchObject({ status: "draft", origin: "manual", number: null, total_debit: "100.0000", total_credit: "100.0000" });
@@ -45,22 +45,32 @@ describe("entry-draft", () => {
     expect(await entryRow(id)).toMatchObject({ description: "Corregido", total_debit: "255.0000", total_credit: "250.0000" });
     expect(await h.sql`select 1 from accounting.entry_lines where entry_id = ${id}`).toHaveLength(3);
 
-    await h.run(h.contador, "accounting.entry.void", { id, reason: "Duplicado" });
-    const voided = await entryRow(id);
-    expect(voided).toMatchObject({ status: "voided", number: null });
-    expect((voided.extra as { void_reason: string }).void_reason).toBe("Duplicado");
-    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_input" });
+    // Anular does not apply to a Borrador (D1): it is deleted with its lines.
+    await expect(h.run(h.contador, "accounting.entry.void", { id, reason: "Duplicado" })).rejects.toMatchObject({ code: "invalid_state" });
+    expect(await h.run(h.contador, "accounting.entry.delete", { id })).toMatchObject({ deleted: true });
+    expect(await h.sql`select 1 from accounting.entry_lines where entry_id = ${id}`).toHaveLength(0);
+    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "not_found" });
+
+    // A Grabado comprobante (it waits for approval) is voided: the row stays, with its reason and no number.
+    const waiting = (await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft([{ accountCode: "510506", debit: 100, credit: 0, costCenterId: ccLeaf }, { accountCode: "111005", debit: 0, credit: 100 }]))).id;
+    await h.sql`update accounting.entries set requires_approval = true where id = ${waiting}`;
+    expect(await h.run(h.contador, "accounting.entry.save", { id: waiting })).toMatchObject({ status: "saved" });
+    await h.run(h.contador, "accounting.entry.void", { id: waiting, reason: "Duplicado" });
+    expect(await entryRow(waiting)).toMatchObject({ status: "voided", number: null, void_reason: "Duplicado" });
+    await expect(h.run(h.contador, "accounting.entry.update", { id: waiting, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_state" });
   });
 
-  it("accepts an empty draft, takes the manual journal and header business unit, and a pending entry is returned before it is updated", async () => {
+  it("accepts an empty draft, takes the manual journal and header business unit, and a pending entry is not approved (No Aprobar) before it is updated", async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft([]));
     expect(await entryRow(id)).toMatchObject({ status: "draft", total_debit: "0.0000" });
     await h.sql`update accounting.entries set status = 'pending', submitted_by = ${h.contador.userId}, submitted_at = now() where id = ${id}`;
-    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_input" });
-    await h.run(h.contador, "accounting.entry.return_to_draft", { id });
-    expect(await entryRow(id)).toMatchObject({ status: "draft", submitted_by: null, submitted_at: null });
+    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_state" });
+    await h.run(h.contador, "accounting.entry.reject", { id, reason: "Incompleto" });
+    expect(await entryRow(id)).toMatchObject({ status: "rejected", submitted_by: h.contador.userId });
     await h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) });
+    expect(await entryRow(id)).toMatchObject({ status: "rejected", total_debit: "100.0000" });
     await h.run(h.contador, "accounting.entry.void", { id, reason: "Prueba" });
+    expect(await entryRow(id)).toMatchObject({ status: "voided", void_reason: "Prueba" });
   });
 
   it("refuses a line on a forbidden account by name, an inactive leaf, a group node, a journal without manual entries and a malformed line", async () => {
@@ -115,8 +125,8 @@ describe("entry-draft", () => {
   it("a posted entry cannot be updated or voided, and the company of the caller owns the entry", async () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", draft(pair()));
     await h.sql`update accounting.entries set status = 'posted', number = 'NC-9000' where id = ${id}`;
-    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_input" });
-    await expect(h.run(h.contador, "accounting.entry.void", { id, reason: "x" })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(h.run(h.contador, "accounting.entry.update", { id, ...draft(pair()) })).rejects.toMatchObject({ code: "invalid_state" });
+    await expect(h.run(h.contador, "accounting.entry.void", { id, reason: "x" })).rejects.toMatchObject({ code: "invalid_state" });
     await expect(h.run(h.contador, "accounting.entry.void", { id: newId(), reason: "x" })).rejects.toMatchObject({ code: "not_found" });
   });
 });

@@ -1,0 +1,85 @@
+{
+  "event": "payments.received",
+  "name": "Recibo de caja",
+  "journalCode": "RC",
+  "template": {
+    "date": "$.date",
+    "description": "Recibo de caja {{number}} · {{customer.legalName}}",
+    "party": "$.customer.partyId",
+    "currency": "$.currency",
+    "exchangeRate": "$.exchangeRate",
+    "source": {
+      "entity": "payments.receipt",
+      "id": "$.paymentId"
+    },
+    "lines": [
+      {
+        "role": "cash",
+        "side": "debit",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount",
+        "dimension": ["payment_method_id:{{methodId}}", "payment_method:{{method}}"]
+      },
+      {
+        "role": "withholding_income_suffered",
+        "side": "debit",
+        "forEach": "$.withholdings.income[*]",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      },
+      {
+        "role": "withholding_vat_suffered",
+        "side": "debit",
+        "forEach": "$.withholdings.vat[*]",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      },
+      {
+        "role": "withholding_ica_suffered",
+        "side": "debit",
+        "forEach": "$.withholdings.ica[*]",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      },
+      {
+        "role": "fx_loss",
+        "side": "debit",
+        "forEach": "$.allocations[*]",
+        "amount": "0",
+        "amountCompany": "$.fx.loss",
+        "dimension": "fx_kind:realized"
+      },
+      {
+        "role": "receivable",
+        "side": "credit",
+        "amount": "$.appliedDoc",
+        "amountCompany": "$.applied"
+      },
+      {
+        "role": "customer_advances",
+        "side": "credit",
+        "forEach": "$.advances[*]",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount"
+      },
+      {
+        "role": "fx_gain",
+        "side": "credit",
+        "forEach": "$.allocations[*]",
+        "amount": "0",
+        "amountCompany": "$.fx.gain",
+        "dimension": "fx_kind:realized"
+      }
+    ],
+    "reverseOf": null
+  }
+}

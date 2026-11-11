@@ -3,10 +3,13 @@ import { getTranslations } from "next-intl/server";
 import {
   auditEntityOf,
   hasRecordPage,
+  DEFAULT_NESTED_DEPTH,
+  ledgerOrStockReason,
   loadCustomFields,
+  NESTED_HARD_MAX,
   matrixProcesses,
-  flattenNav,
   moduleStates,
+  parkedNotEntitled,
   readAiUsage,
   readPermissionMatrix,
   registeredVerifiers,
@@ -15,7 +18,6 @@ import {
   type Caller,
   type CustomFieldRow,
   type MatrixProcess,
-  type ModuleState,
   type PermissionMatrix,
   type Registry,
   type Tx,
@@ -25,6 +27,7 @@ import { loadGridPage, type GridPageData } from "@/lib/grid/load";
 import type { AuditCatalogue } from "./audit-links";
 import { callerIsCompanyAdmin } from "./company-admin";
 import { processDeps, registrySynced } from "@/lib/server/runtime";
+import { buildModuleViews, type ModuleView } from "./modules-view";
 
 // What the administration screens show (design §6, prototype v5 "Administración"), read as the caller under RLS from
 // the kernel's admin views: plain reads, not consult processes, so opening a screen asks for no step-up and writes no
@@ -48,8 +51,8 @@ export interface AdminMember {
   photo: string | null;
   roleIds: string[];
   mfaEnrolled: boolean;
-  /** The admin exempted them from the admin role's second-step requirement (kernel.admin.user.mfa.set, design §22.19). */
-  mfaExempt: boolean;
+  /** An administrator requires their second step (kernel.admin.user.mfa.set, design §22.19). */
+  mfaRequired: boolean;
   /** The language the person uses the application in (`es-419`, `en`). */
   locale: string;
   /** False once the admin deactivated the membership (kernel.admin.user.update, design §22.16). */
@@ -70,7 +73,7 @@ interface Admin {
 }
 
 /** Runs `read` as the caller when they are the company admin, else answers null. */
-async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T | null> {
+export async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T | null> {
   const caller = await requireCaller();
   const deps = processDeps();
   await registrySynced();
@@ -80,7 +83,7 @@ async function asAdmin<T>(read: (tx: Tx, admin: Admin) => Promise<T>): Promise<T
   });
 }
 
-async function roles(tx: Tx): Promise<AdminRole[]> {
+export async function roles(tx: Tx): Promise<AdminRole[]> {
   const rows = await tx<{ id: string; name: string; description: string; party_scope: string; system_admin: boolean }[]>`
     select id, name, description, party_scope, is_system and name = 'admin' as system_admin
     from kernel.v_roles where company_id = kernel.current_company_id() order by is_system desc, created_at, id`;
@@ -96,13 +99,13 @@ type MemberRow = {
   photo: string | null;
   role_ids: string[];
   mfa_enrolled: boolean | null;
-  mfa_exempt: boolean;
+  mfa_required: boolean;
   locale: string | null;
   is_active: boolean;
 };
 
-async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
-  const rows = await tx<MemberRow[]>`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled, mfa_exempt, locale, is_active
+export async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
+  const rows = await tx<MemberRow[]>`select user_id, full_name, email, mobile_cc, mobile, photo, role_ids, mfa_enrolled, mfa_required, locale, is_active
     from kernel.v_memberships where company_id = kernel.current_company_id() and (${userId ?? null}::uuid is null or user_id = ${userId ?? null}::uuid)
     order by full_name, email`;
   return rows.map((r) => ({
@@ -114,14 +117,14 @@ async function members(tx: Tx, userId?: string): Promise<AdminMember[]> {
     photo: r.photo,
     roleIds: r.role_ids,
     mfaEnrolled: r.mfa_enrolled === true,
-    mfaExempt: r.mfa_exempt === true,
+    mfaRequired: r.mfa_required === true,
     locale: r.locale ?? "es-419",
     isActive: r.is_active,
   }));
 }
 
 /** The modules the company uses (the platform included). */
-async function usableModules(tx: Tx, registry: Registry): Promise<Set<string>> {
+export async function usableModules(tx: Tx, registry: Registry): Promise<Set<string>> {
   return new Set((await moduleStates(tx, registry)).filter((m) => m.enabled).map((m) => m.id));
 }
 
@@ -247,6 +250,72 @@ export const loadSensitive = (): Promise<SensitiveData | null> =>
     return { processes: matrixProcesses(registry, await usableModules(tx, registry)), sensitive: rows.map((r) => r.process_id) };
   });
 
+/** One process the nested-run screen offers as a parent or as a nested process (chosen from the registry, never typed: R32-13). */
+export interface NestedProcessOption {
+  id: string;
+  kind: string;
+  /** What the process does, in Spanish (the registry's description): its name where the catalogue has no label. */
+  description: string;
+  /** The parents a `nestedOnlyFrom` process may run in, or null when it may run in any. */
+  onlyFrom: string[] | null;
+  /** True when the process posts to the ledger or moves stock (derived from the registry): it may never continue after a failure. */
+  ledgerOrStock: boolean;
+  /** The process always asks for the step-up, or the company marked it sensitive. */
+  stepUp: boolean;
+}
+
+export interface NestedPair {
+  id: string;
+  parent: string;
+  nested: string;
+  totpCovers: boolean;
+  onFailure: "rollback" | "continue";
+}
+
+export interface NestedRunsData {
+  maxDepth: number;
+  defaultDepth: number;
+  hardMax: number;
+  pairs: NestedPair[];
+  processes: NestedProcessOption[];
+  /** Failures waiting in the queue (the link to /nested-failures). */
+  pending: number;
+}
+
+/** The processes that configure or work the nested runs themselves: never a parent or a nested process of a pair. */
+const NESTED_OWN = /^kernel\.(admin\.nested_run\.|nested_failure\.)/;
+
+export const loadNestedRuns = (): Promise<NestedRunsData | null> =>
+  asAdmin(async (tx, { registry }) => {
+    const [settings] = await tx<{ max_depth: number }[]>`select max_depth from kernel.nested_run_settings where company_id = kernel.current_company_id()`;
+    const pairs = await tx<{ id: string; parent_process: string; nested_process: string; parent_totp_covers: boolean; on_failure: string }[]>`
+      select id, parent_process, nested_process, parent_totp_covers, on_failure from kernel.nested_run_pairs
+      where company_id = kernel.current_company_id() order by parent_process, nested_process`;
+    const marked = new Set((await tx<{ process_id: string }[]>`select process_id from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`).map((r) => r.process_id));
+    const [count] = await tx<{ n: number }[]>`select count(*)::int as n from kernel.v_nested_run_failures where status = 'pending'`;
+    const usable = await usableModules(tx, registry);
+    const processes = registry
+      .processes()
+      .filter((p) => usable.has(p.module) && !NESTED_OWN.test(p.id))
+      .map((p) => ({
+        id: p.id,
+        kind: p.kind,
+        description: p.description,
+        onlyFrom: p.nestedOnlyFrom ? [...p.nestedOnlyFrom] : null,
+        ledgerOrStock: ledgerOrStockReason(registry, p.id) !== null,
+        stepUp: p.sensitivity === "step-up" || marked.has(p.id),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return {
+      maxDepth: settings?.max_depth ?? DEFAULT_NESTED_DEPTH,
+      defaultDepth: DEFAULT_NESTED_DEPTH,
+      hardMax: NESTED_HARD_MAX,
+      pairs: pairs.map((r) => ({ id: r.id, parent: r.parent_process, nested: r.nested_process, totpCovers: r.parent_totp_covers, onFailure: r.on_failure === "continue" ? "continue" : "rollback" })),
+      processes,
+      pending: count?.n ?? 0,
+    };
+  });
+
 export interface VerifiersData {
   providers: Record<string, string | null>;
   /** The providers with a registered adapter: the only ones kernel.verifier.set accepts. */
@@ -260,23 +329,13 @@ export const loadVerifiers = (): Promise<VerifiersData | null> =>
   });
 
 export interface ModulesData {
-  modules: (ModuleState & { usedBy: string[]; menu: string[] })[];
+  modules: ModuleView[];
 }
 
 export const loadModules = (): Promise<ModulesData | null> =>
   asAdmin(async (tx, { registry }) => {
     const states = (await moduleStates(tx, registry)).filter((m) => m.id !== "kernel");
-    return {
-      modules: states.map((state) => {
-        const def = registry.module(state.id);
-        const items = flattenNav([...def.navigation, ...def.features.flatMap((f) => f.nav ?? [])]).filter((item) => item.menu !== false);
-        return {
-          ...state,
-          usedBy: states.filter((other) => other.dependsOn.includes(state.id)).map((other) => other.id),
-          menu: [...new Set(items.map((item) => item.label))],
-        };
-      }),
-    };
+    return { modules: buildModuleViews(states, registry, await parkedNotEntitled(tx)) };
   });
 
 export interface CompanyData {
@@ -286,12 +345,20 @@ export interface CompanyData {
   countryCode: string;
   currencyCode: string;
   timezone: string;
+  /** The letterhead of the PDF templates. */
+  addressLine: string | null;
+  city: string | null;
+  phoneCc: string | null;
+  phone: string | null;
 }
 
 export const loadCompany = (): Promise<CompanyData | null> =>
   asAdmin(async (tx) => {
     const [row] = await tx<{ legal_name: string; trade_name: string | null; tax_id: string | null; country_code: string; currency_code: string; timezone: string }[]>`
       select legal_name, trade_name, tax_id, country_code, currency_code, timezone from kernel.v_companies`;
+    // What the PDF templates print in the letterhead (0048; kernel.admin.company.update): company RLS applies to the read.
+    const [print] = await tx<{ address_line: string | null; city: string | null; phone_cc: string | null; phone: string | null }[]>`
+      select address_line, city, phone_cc, phone from kernel.companies where id = kernel.current_company_id()`;
     return {
       legalName: row!.legal_name,
       tradeName: row!.trade_name,
@@ -299,6 +366,10 @@ export const loadCompany = (): Promise<CompanyData | null> =>
       countryCode: row!.country_code,
       currencyCode: row!.currency_code,
       timezone: row!.timezone,
+      addressLine: print?.address_line ?? null,
+      city: print?.city ?? null,
+      phoneCc: print?.phone_cc ?? null,
+      phone: print?.phone ?? null,
     };
   });
 

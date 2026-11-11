@@ -37,6 +37,12 @@ test.describe("accounting reports", () => {
     await expect(page.getByRole("navigation", { name: "Informes" }).getByRole("link")).toHaveCount(13);
     await page.getByRole("link", { name: /Balance de prueba/ }).click();
     await expect(page).toHaveURL(/\/accounting\/reports\/trial_balance$/);
+    // The tab is named by the report, also for a report reached by its address (never a second tab called "Informes").
+    const tabs = page.getByRole("navigation", { name: "Pestañas abiertas" });
+    await expect(tabs.getByRole("button", { name: "Balance de prueba", exact: true })).toBeVisible();
+    await page.goto("/accounting/reports/ledger");
+    await expect(tabs.getByRole("button", { name: "Libro mayor y balances", exact: true })).toBeVisible();
+    await page.goto("/accounting/reports/trial_balance");
 
     // The bar starts on the current period; level 4.
     const bar = page.getByRole("group", { name: "Parámetros del informe" });
@@ -65,7 +71,7 @@ test.describe("accounting reports", () => {
     // The account opens its Auxiliar in a tab of its own, for the range the balance was run on.
     await page.getByRole("button", { name: "4135" }).click();
     await expect(page).toHaveURL(/\/accounting\/reports\/account_detail\?p=/);
-    await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).getByRole("button", { name: "4135", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).getByRole("button", { name: /^4135 · .+ · octubre de 2026$/ })).toBeVisible();
     const detail = page.getByRole("region", { name: "Auxiliar por cuenta" });
     await expect(detail.getByText("Venta de octubre")).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Cuenta", exact: true })).toHaveValue(ledger.accounts["4135"]!);

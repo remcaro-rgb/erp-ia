@@ -1,0 +1,32 @@
+{
+  "event": "sales.commission.accrued",
+  "name": "Provisión de comisiones",
+  "journalCode": "NC",
+  "template": {
+    "date": "$.date",
+    "description": "Provisión de la comisión {{number}}",
+    "source": {
+      "entity": "sales.commission",
+      "id": "$.commissionId"
+    },
+    "lines": [
+      {
+        "role": "commission_expense",
+        "side": "debit",
+        "forEach": "$.lines[*]",
+        "amount": "$.amount",
+        "costCenter": "$.costCenterId",
+        "dimension": "payee_kind:{{$$.payeeKind}}"
+      },
+      {
+        "role": "commissions_payable",
+        "side": "credit",
+        "amount": "$.total",
+        "party": "$.payeePartyId",
+        "dueDate": "$.dueDate",
+        "dimension": "payee_kind:{{payeeKind}}"
+      }
+    ],
+    "reverseOf": null
+  }
+}

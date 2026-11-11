@@ -156,37 +156,42 @@ test.describe("record tabs", () => {
     await page.goto(`/r/core.party/${partyId}`);
     const department = page.getByRole("combobox", { name: /^Departamento/ });
     const municipality = page.getByRole("combobox", { name: /^Municipio/ });
-    await expect(municipality).toHaveValue("Bogotá D.C.");
+    await expect(municipality).toHaveValue("11001 · Bogotá D.C.");
     try {
       await department.fill("antioquia");
       await department.press("Enter");
-      await expect(department).toHaveValue("Antioquia");
-      // Without the accent, and the list holds only that department's municipalities.
+      await expect(department).toHaveValue("05 · Antioquia");
+      // Without the accent, and the list holds only that department's municipalities, each with its DANE code (owner 2026-11-05).
       await municipality.fill("medellin");
-      await expect(page.getByRole("option", { name: "Medellín" })).toBeVisible();
-      await expect(page.getByRole("option", { name: "Bogotá D.C." })).toHaveCount(0);
+      await expect(page.getByRole("option", { name: "05001 · Medellín" })).toBeVisible();
+      await expect(page.getByRole("option", { name: "11001 · Bogotá D.C." })).toHaveCount(0);
       await municipality.press("Enter");
-      await expect(municipality).toHaveValue("Medellín");
+      await expect(municipality).toHaveValue("05001 · Medellín");
       // A second Enter moves on to the next field instead of submitting.
       await municipality.press("Enter");
       await expect(page.getByLabel(/^Código postal/)).toBeFocused();
       await page.keyboard.press("Control+Enter");
       await expect.poll(async () => (await fixture.sql`select municipality_code from core.parties where id = ${partyId}`)[0]!.municipality_code).toBe("05001");
       await page.reload();
-      await expect(page.getByRole("combobox", { name: /^Municipio/ })).toHaveValue("Medellín");
-      await expect(page.getByRole("combobox", { name: /^Departamento/ })).toHaveValue("Antioquia");
+      await expect(page.getByRole("combobox", { name: /^Municipio/ })).toHaveValue("05001 · Medellín");
+      await expect(page.getByRole("combobox", { name: /^Departamento/ })).toHaveValue("05 · Antioquia");
     } finally {
       await fixture.sql`update core.parties set department_code = '11', municipality_code = '11001' where id = ${partyId}`;
     }
   });
 
-  test("the DIAN hints are off by default, turn on with the switch and stay on after a reload; the check digit copies", async ({ page, context }) => {
+  test("the DIAN codes always show and no technical label or switch does; the check digit copies; the buttons share the tabs bar", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await signIn(page, fixture);
     await page.goto(`/r/core.party/${partyId}`);
-    const toggle = page.getByRole("switch", { name: "Ver códigos DIAN" });
-    await expect(toggle).toHaveAttribute("aria-checked", "false");
-    await expect(page.getByText("AdditionalAccountID")).toHaveCount(0);
+    // Owner 2026-11-05: no "Ver códigos DIAN" switch, no XML/UBL names, the codes before the names of the DIAN lists.
+    const frame = page.locator(".erp-record").filter({ visible: true });
+    await expect(frame.getByRole("switch")).toHaveCount(0);
+    await expect(frame.getByText(/AdditionalAccountID|schemeName|TaxScheme|TaxLevelCode/)).toHaveCount(0);
+    await expect(frame.getByLabel(/^Tipo de documento/).locator("option:checked")).toHaveText("31 · NIT");
+    // The record's buttons live in the tabs bar, not in the footer, which keeps the status.
+    await expect(frame.locator(".erp-record__tabsbar").getByRole("group", { name: "Acciones del registro" })).toBeVisible();
+    await expect(frame.locator(".erp-record__footer").getByRole("button")).toHaveCount(0);
     // The check digit is readable (read-only, not disabled) and copyable.
     const dv = page.getByLabel("DV", { exact: true }).filter({ visible: true });
     // The page streams in: until the server's hidden copy of the form is swapped out there can be two.
@@ -197,15 +202,27 @@ test.describe("record tabs", () => {
     await page.getByRole("button", { name: "Copiar DV" }).click();
     await expect(page.getByText("Copiado")).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("3");
+    // An edit: «Cambios sin guardar» with «Descartar cambios» · «Guardar cambios» in the header, and no «Grabado» chip.
+    const header = frame.locator(".erp-record__header");
+    const tradeName = frame.getByLabel(/^Nombre comercial/);
+    const before = await tradeName.inputValue();
+    await tradeName.fill(`${before} (prueba)`);
+    await expect(header.getByText("Cambios sin guardar")).toBeVisible();
+    await expect(header.getByText("Grabado", { exact: true })).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "Guardar cambios" })).toBeVisible();
+    await header.getByRole("button", { name: "Descartar cambios" }).click();
+    await expect(tradeName).toHaveValue(before);
+    await expect(header.getByText("Cambios sin guardar")).toHaveCount(0);
+    await expect(header.getByRole("button", { name: "Guardar cambios" })).toHaveCount(0);
+    // «Guardar cambios» saves like the bar's Guardar.
+    const [stored] = await fixture.sql<{ trade_name: string | null }[]>`select trade_name from core.parties where id = ${partyId}`;
     try {
-      await toggle.click();
-      await expect(page.getByText("AdditionalAccountID")).toBeVisible();
-      await expect.poll(async () => (await fixture.sql`select value from kernel.user_prefs where user_id = ${fixture.userId} and key = 'forms.dian_hints'`)[0]?.value?.value).toBe(true);
-      await page.reload();
-      await expect(page.getByRole("switch", { name: "Ver códigos DIAN" })).toHaveAttribute("aria-checked", "true");
-      await expect(page.getByText("AdditionalAccountID")).toBeVisible();
+      await tradeName.fill("Nombre comercial de prueba");
+      await header.getByRole("button", { name: "Guardar cambios" }).click();
+      await expect.poll(async () => (await fixture.sql`select trade_name from core.parties where id = ${partyId}`)[0]!.trade_name).toBe("Nombre comercial de prueba");
+      await expect(frame.locator(".erp-record__header").getByText("Cambios sin guardar")).toHaveCount(0);
     } finally {
-      await fixture.sql`delete from kernel.user_prefs where user_id = ${fixture.userId} and key = 'forms.dian_hints'`;
+      await fixture.sql`update core.parties set trade_name = ${stored!.trade_name} where id = ${partyId}`;
     }
   });
 
@@ -376,12 +393,12 @@ test.describe("Duplicar on the demo company", () => {
     await expect(number).toHaveValue("");
 
     // Without a NIT the party's own create process refuses it, as for a hand-typed one.
-    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await page.getByRole("group", { name: "Acciones del registro" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(number).toHaveAttribute("aria-invalid", "true");
     await expect(page).toHaveURL(/\/r\/core\.party\/new$/);
 
     await number.fill(NIT);
-    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await page.getByRole("group", { name: "Acciones del registro" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(page).toHaveURL(/\/r\/core\.party\/[0-9a-f-]{36}$/);
     const [clone] = await sql<{ id: string; legal_name: string; check_digit: string }[]>`
       select id, legal_name, check_digit from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${NIT}`;

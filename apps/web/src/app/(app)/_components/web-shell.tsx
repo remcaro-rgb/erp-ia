@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { usePathname, useRouter, useServerInsertedHTML } from "next/navigation";
+import { usePathname, useRouter, useSearchParams, useServerInsertedHTML } from "next/navigation";
 import { AppShell, themeScript, UnsavedProvider, type TabsSnapshot, type ThemeMode, type UnsavedState } from "@erp/ui";
 import { setActiveCompany } from "@/lib/auth/active-company";
 import { signOut } from "@/lib/auth/actions";
-import { disableOwnMfaAction } from "@/lib/auth/mfa-actions";
+import { findRecordsById } from "@/lib/records/find-by-id";
+import { changeOwnPasswordAction, disableOwnMfaAction } from "@/lib/auth/mfa-actions";
 import { clearCloneHandoff } from "@/lib/records/clone-handoff";
 import { gridHref } from "@/lib/grid/hrefs";
 import { saveShellPrefAction } from "@/lib/prefs/actions";
@@ -49,6 +50,8 @@ type PendingSave = { key: "tabs"; value: TabsSnapshot; savedAt: number };
 export function WebShell({ data, children }: { data: ShellData; children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  // "Abrir en una pestaña nueva": the record alone, using the whole browser tab (no top bar, side menu or tabs).
+  const bare = useSearchParams().get("view") === "full" && pathname.startsWith("/r/");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<PendingSave | null>(null);
   // "Verificación en dos pasos" of the user menu: kernel.user.mfa.disable through the step-up flow every sensitive run uses.
@@ -98,6 +101,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
   return (
     <UnsavedProvider value={unsaved.value}>
     <AppShell
+      findRecords={findRecordsById}
       company={data.company}
       companies={data.companies}
       user={data.user}
@@ -107,14 +111,13 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
       assistantOptions={{ gridHref, columnsOf: (entity) => data.assistantColumns[entity], ...(data.company.timeZone ? { timeZone: data.company.timeZone } : {}) }}
       theme={data.theme}
       assistantOpen={data.assistantOpen}
-      dianHints={data.dianHints}
       initialTabs={data.tabs}
       currentHref={pathname}
+      bare={bare}
       // A screen with staged changes (the admin matrices) may ask before the shell leaves it.
       navigate={(href) => guardedNavigate(() => router.push(href))}
       onThemeChange={(mode: ThemeMode, savedAt: number) => void saveShellPrefAction({ key: "theme", value: mode, savedAt })}
       onAssistantOpenChange={(open, savedAt) => void saveShellPrefAction({ key: "assistant.open", value: open, savedAt })}
-      onDianHintsChange={(on, savedAt) => void saveShellPrefAction({ key: "forms.dian_hints", value: on, savedAt })}
       onTabsChange={saveTabs}
       confirmLeave={guardedNavigate}
       onSwitchCompany={(companyId) =>
@@ -133,6 +136,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
         )
       }
       mfa={data.mfa}
+      {...(data.notifications ? { notifications: data.notifications } : {})}
       mfaStepUpPrompt={mfaStepUpPrompt}
       onCancelMfaStepUp={cancelMfaStepUp}
       onDisableMfa={async () => {
@@ -147,6 +151,7 @@ export function WebShell({ data, children }: { data: ShellData; children: ReactN
         }
         return result;
       }}
+      onChangePassword={(currentPassword, newPassword) => changeOwnPasswordAction(currentPassword, newPassword)}
       signOutAction={() =>
         new Promise<void>((resolve) =>
           guardedNavigate(() => {

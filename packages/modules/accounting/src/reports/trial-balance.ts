@@ -10,7 +10,7 @@ const MONEY = ["opening_debit", "opening_credit", "debit", "credit", "closing_de
 const columns: ReportColumn[] = [
   { field: "account_code", label: "report.col.account_code", type: "text", mono: true, link: { entity: "accounting.account", idField: "account_id" } },
   { field: "account_name", label: "report.col.account_name", type: "text" },
-  ...MONEY.map((field) => ({ field, label: `report.col.${field}`, type: "money" as const, total: "sum" as const, mono: true })),
+  ...MONEY.map((field) => ({ field, label: `report.col.${field}`, type: "money" as const, currency: "company" as const, total: "sum" as const, mono: true })),
 ];
 
 export const trialBalanceParams = z.object({

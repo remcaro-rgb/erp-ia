@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GridState, runGridQuery } from "@erp/kernel";
 import { withClaims } from "@erp/kernel/testing";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 // Movimientos (accounting design §4.16, §5.14): the `accounting.ledger_line` query entity read through the grid layer, its
 // `.list` process and the assistant's `kernel.data.query`. Account security lives in the view, so every level of a grouped
@@ -24,12 +24,13 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Tiendas D1 S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
   const entry = async (month: number, day: number, lines: { code: string; debit?: number; credit?: number; cc?: string; party?: boolean }[]) => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
       date: dateIn(month, day), description: `Movimiento ${month}/${day}`,
       lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.cc ? { costCenterId: l.cc } : {}), ...(l.party ? { partyId } : {}) })),
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
   };
   await entry(1, 10, [{ code: "111005", debit: 10_000 }, { code: "310505", credit: 10_000 }]);
   await entry(2, 5, [{ code: "130505", debit: 1_190, party: true }, { code: "413595", credit: 1_000, cc: adm }, { code: "240801", credit: 190, party: true }]);

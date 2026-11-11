@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { withClaims } from "@erp/kernel/testing";
 import { accountingHarness, type AccountingHarness } from "./helpers";
 
 let h: AccountingHarness;
@@ -51,6 +52,24 @@ describe("account.create", () => {
     await h.run(h.admin, "accounting.account.create", { code: "13050503", name: "Clientes Jumbo", requiresParty: false, requiresCostCenter: true, requiresItem: true, statementSection: "assets_current" });
     expect(await accountRow("13050503")).toMatchObject({ requires_party: false, requires_cost_center: true, requires_item: true, statement_section: "assets_current" });
     await expect(h.run(h.auxiliar, "accounting.account.create", { code: "13050504", name: "No" })).rejects.toMatchObject({ code: "forbidden" });
+  });
+});
+
+describe("account invoice-ready flag (rule 10)", () => {
+  it("a create stores the flag; an update changes it; a create without it inherits the parent's flag", async () => {
+    await h.run(h.admin, "accounting.account.create", { code: "13050510", name: "Clientes nacionales", requiresInvoiceReady: true });
+    expect(await accountRow("13050510")).toMatchObject({ requires_invoice_ready: true });
+    const row = (await accountRow("13050510"))!;
+    await h.run(h.admin, "accounting.account.update", { id: row.id, requiresInvoiceReady: false });
+    expect(await accountRow("13050510")).toMatchObject({ requires_invoice_ready: false });
+    // Without the flag an auxiliary inherits its parent's (130505 is flagged by the pack).
+    await h.run(h.admin, "accounting.account.create", { code: "13050511", name: "Clientes varios" });
+    expect(await accountRow("13050511")).toMatchObject({ requires_invoice_ready: true });
+  });
+
+  it("the masked view publishes the flag, so the account form reads it back", async () => {
+    const [row] = await withClaims(h.sql, h.admin.claims, async (tx) => tx<{ requires_invoice_ready: boolean | null }[]>`select requires_invoice_ready from accounting.v_accounts where code = '13050511'`);
+    expect(row).toEqual({ requires_invoice_ready: true });
   });
 });
 

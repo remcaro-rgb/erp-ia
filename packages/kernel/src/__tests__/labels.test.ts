@@ -31,6 +31,9 @@ describe("valueText", () => {
   it("prints money as $ 1.234.567,00, booleans as Sí / No, dates in the company's zone and nothing as empty", () => {
     expect(valueText({ type: "money" }, "1234567", labels)).toBe("$ 1.234.567,00");
     expect(valueText({ type: "money" }, 50000.5, labels)).toBe("$ 50.000,50");
+    // Task 34.2 (item 129): another currency prints its ISO code.
+    expect(valueText({ type: "money" }, 12500, { ...labels, currency: "USD" })).toBe("USD 12.500,00");
+    expect(valueText({ type: "money" }, 12500, { ...labels, currency: "COP" })).toBe("$ 12.500,00");
     expect(valueText({ type: "boolean" }, true, labels)).toBe("Sí");
     expect(valueText(undefined, false, labels)).toBe("No");
     // 15:30 UTC is 10:30 in Bogotá.
@@ -56,7 +59,7 @@ describe("auditEntityOf", () => {
   const registry = new Registry();
   registry.registerEntity(
     defineEntity({
-      id: "core.product_category",
+      entityType: "maestro", id: "core.product_category",
       module: "core",
       schema: "core",
       table: "product_categories",

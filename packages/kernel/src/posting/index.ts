@@ -1,8 +1,10 @@
 export { ACCOUNT_ROLES } from "./roles";
 export type { AccountRole } from "./roles";
 export { PathError, interpolate, resolvePath } from "./path";
-export { RuleLine, RuleTemplate } from "./template";
-export { composeEntry } from "./compose";
+export { RuleCondition, RuleLine, RuleTemplate } from "./template";
+export { composeEntry, ruleApplies } from "./compose";
 export type { ComposeResult, ComposedEntry, ComposedLine, EventRef } from "./compose";
-export { postingConsumer, POSTING_CONSUMER } from "./engine";
-export type { DefaultPostingRule, PostingFailure, PostingFailureCode, PostingProvider, PostingRule, ResolvedAccount } from "./provider";
+export { lineDimensions, postingConsumer, POSTING_CONSUMER } from "./engine";
+export { asPostingEngine, dismissParkedEvents, emitAndPostStrict, inlinePostingProcesses } from "./inline";
+export type { InlinePosting } from "./inline";
+export type { DefaultPostingRule, PostingFailure, PostingFailureCode, PostingMode, PostingProvider, PostingRule, ResolvedAccount } from "./provider";

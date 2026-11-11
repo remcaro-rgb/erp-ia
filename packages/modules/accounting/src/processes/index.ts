@@ -6,9 +6,10 @@ import { DIMENSION_PROCESSES } from "./dimension";
 import { ENTRY_PROCESSES } from "./entry";
 import { EXOGENA_XML_PROCESSES } from "./exogena-xml";
 import { ENTRY_POST_PROCESSES } from "./entry-post";
-import { ENTRY_RETURN_PROCESSES } from "./entry-return";
+import { ENTRY_LIFECYCLE_PROCESSES } from "./entry-lifecycle";
 import { CONCEPT_MAPPING_PROCESSES } from "./concept-mapping";
 import { FISCAL_YEAR_PROCESSES } from "./fiscal-year";
+import { FX_REVALUATION_PROCESSES } from "./fx-revaluation";
 import { JOURNAL_PROCESSES } from "./journal";
 import { LEDGER_LINE_PROCESSES } from "./ledger-line";
 import { MAPPING_PROCESSES } from "./mapping";
@@ -16,6 +17,7 @@ import { OPENING_PROCESSES } from "./opening";
 import { PERIOD_PROCESSES } from "./period";
 import { PERMISSION_PROCESSES } from "./permission";
 import { POST_FROM_EVENT_PROCESSES } from "./post-from-event";
+import { POSTING_AGE_PROCESSES } from "./posting-age";
 import { POSTING_FAILURE_PROCESSES } from "./posting-failure";
 import { POSTING_RULE_PROCESSES } from "./posting-rule";
 import { SETTINGS_PROCESSES } from "./settings";
@@ -36,13 +38,15 @@ export const ACCOUNTING_PROCESSES: ProcessDef[] = [
   ...ENTRY_PROCESSES,
   ...TEMPLATE_PROCESSES,
   ...ENTRY_POST_PROCESSES,
-  ...ENTRY_RETURN_PROCESSES,
+  ...ENTRY_LIFECYCLE_PROCESSES,
   ...OPENING_PROCESSES,
   ...POST_FROM_EVENT_PROCESSES,
   ...POSTING_RULE_PROCESSES,
   ...POSTING_FAILURE_PROCESSES,
+  ...POSTING_AGE_PROCESSES,
   ...PERIOD_PROCESSES,
   ...YEAR_PROCESSES,
+  ...FX_REVALUATION_PROCESSES,
   ...REPORT_PROCESSES,
   ...EXOGENA_XML_PROCESSES,
   ...LEDGER_LINE_PROCESSES,

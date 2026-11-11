@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { PhoneField, phoneProblem } from "@erp/ui";
 import type { AdminMember, AdminRole } from "@/lib/admin/load";
-import { setUserMfaAction } from "@/lib/auth/mfa-actions";
+import { resetUserPasswordAction, setUserMfaAction } from "@/lib/auth/mfa-actions";
 import { AdminDialog } from "../_components/admin-dialog";
 import { useAdminAction } from "../_components/use-admin-action";
 import { draftOf, USER_LOCALES, userChanges, type UserDraft } from "./user-changes";
@@ -215,6 +215,71 @@ export function MfaResetDialog({ member, onClose }: { member: AdminMember; onClo
       }
     >
       <p className="erp-small">{t("common.admin.users.page.mfa_reset_confirm", { name: member.name })}</p>
+      {status}
+      {prompt}
+    </AdminDialog>
+  );
+}
+
+/**
+ * "Restablecer contraseña" (kernel.admin.user.password.reset, step-up): the admin types a new password twice; the member's
+ * sessions end and they sign in with it. The admin resetting their own password is signed out (the action answers where).
+ */
+export function PasswordResetDialog({ member, onClose }: { member: AdminMember; onClose: () => void }) {
+  const t = useTranslations();
+  const { execute, prompt, status, busy } = useAdminAction();
+  const [password, setPassword] = useState("");
+  const [again, setAgain] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const run = async () => {
+    if (password !== again) {
+      setProblem(t("common.admin.users.page.password_mismatch"));
+      return;
+    }
+    setProblem(null);
+    const result = await execute((stepUpToken) => resetUserPasswordAction(member.userId, password, stepUpToken));
+    if (!result.ok) return;
+    if (result.next) window.location.assign(result.next);
+    else {
+      setPassword("");
+      setAgain("");
+      setDone(true);
+    }
+  };
+  return (
+    <AdminDialog
+      open
+      title={t("common.admin.users.page.password_reset_title", { name: member.name })}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="erp-btn" onClick={onClose}>
+            {done ? t("common.close") : t("common.cancel")}
+          </button>
+          {!done && (
+            <button type="button" className="erp-btn erp-btn--primary" disabled={busy || password.length === 0} onClick={() => void run()}>
+              {t("common.admin.users.page.password_reset")}
+            </button>
+          )}
+        </>
+      }
+    >
+      <p className="erp-small">{t("common.admin.users.page.password_reset_confirm", { name: member.name })}</p>
+      {!done && (
+        <>
+          <label className="erp-field">
+            <span>{t("common.admin.users.page.password_new")}</span>
+            <input type="password" autoComplete="new-password" minLength={8} maxLength={72} value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <label className="erp-field">
+            <span>{t("common.admin.users.page.password_confirm")}</span>
+            <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+          </label>
+        </>
+      )}
+      {problem && <div role="alert" className="erp-dian erp-dian--bad">{problem}</div>}
+      {done && <div role="status" className="erp-dian erp-dian--ok">{t("common.admin.users.page.password_done", { name: member.name })}</div>}
       {status}
       {prompt}
     </AdminDialog>

@@ -1,4 +1,4 @@
-import { composeEntry, defineProcess, ProcessError, RuleTemplate, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
+import { composeEntry, defineProcess, lineDimensions, moduleStates, ProcessError, RuleTemplate, ruleApplies, visibleExtra, type ComposedLine, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { defined, invalid } from "./common";
 import { knownRoles, resolveRoleAccount } from "./mapping";
@@ -63,6 +63,7 @@ export const postingRuleUpdate = defineProcess({
   id: "accounting.posting_rule.update",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Modifica una regla contable; una regla que trajo un módulo queda marcada como modificada por la empresa",
@@ -86,6 +87,7 @@ export const postingRuleDisable = defineProcess({
   id: "accounting.posting_rule.disable",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Desactiva una regla contable: los eventos siguientes dejan de generar su comprobante",
@@ -112,9 +114,49 @@ export const postingRuleConsult = defineProcess({
       from accounting.v_posting_rules r left join accounting.v_journals j on j.id = r.journal_id
       where r.id = ${ruleId}`;
     if (!row) throw new ProcessError("not_found", `posting rule ${ruleId} not found`);
-    return { ...row, id: ruleId, extra: await visibleExtra(ctx, "accounting.posting_rule", row.extra) };
+    return { ...row, id: ruleId, stale: await ruleIsStale(ctx, ruleId), extra: await visibleExtra(ctx, "accounting.posting_rule", row.extra) };
   },
 });
+
+/** Most recent events of the rule's event read per rule when deciding it is stale (plan 50.6, ruling R50-6). */
+export const STALE_SCAN_CAP = 5000;
+
+/**
+ * Stale (Task 50.6): an active rule with a non-empty `when`, older than N days (`accounting.settings.rule_stale_days`), for which no
+ * `kernel.outbox` row of its event created in the last N days satisfies `ruleApplies`. The scan reads at most STALE_SCAN_CAP rows, newest
+ * first, so on a very busy event it is a heuristic. Reads the table as the company's rule check, not the caller's view: the answer is a
+ * boolean about the company's own events, never their content.
+ */
+async function ruleIsStale(ctx: ProcessContext, ruleId: string): Promise<boolean> {
+  const [rule] = await ctx.tx<{ event: string; template: unknown; is_active: boolean; old_enough: boolean }[]>`
+    select r.event, r.template, r.is_active,
+           greatest(r.created_at, r.updated_at) <= now() - make_interval(days => coalesce(s.rule_stale_days, 30)) as old_enough
+    from accounting.posting_rules r left join accounting.settings s on s.company_id = r.company_id
+    where r.id = ${ruleId} and r.company_id = ${ctx.companyId}`;
+  if (!rule || !rule.is_active || !rule.old_enough) return false;
+  // The raw jsonb, as the engine reads it: the template schema does not list `when`, so a parse would drop it.
+  const template = rule.template as RuleTemplate;
+  const when = (template as { when?: unknown[] }).when;
+  if (!Array.isArray(when) || when.length === 0) return false;
+  // Only the top-level payload keys the `when` paths start with leave the database (paths are `$.a.b`, checked by ruleApplies).
+  const keys = [...new Set((when as { path?: unknown }[]).map((c) => (typeof c?.path === "string" ? c.path.split(".")[1]?.replace(/\[\*\]$/, "") : undefined)).filter((k): k is string => !!k && /^[A-Za-z_][A-Za-z0-9_]*$/.test(k)))];
+  const events = await ctx.tx<{ payload: unknown }[]>`
+    select (select coalesce(jsonb_object_agg(k, o.payload -> k) filter (where o.payload ? k), '{}'::jsonb) from unnest(${keys}::text[]) as k) as payload
+    from (
+      select payload from kernel.outbox
+      where company_id = ${ctx.companyId} and event = ${rule.event}
+        and created_at > now() - make_interval(days => coalesce((select rule_stale_days from accounting.settings where company_id = ${ctx.companyId}), 30))
+      order by created_at desc limit ${STALE_SCAN_CAP}
+    ) o`;
+  for (const event of events) {
+    try {
+      if (ruleApplies(template, event.payload)) return false;
+    } catch {
+      // A malformed condition applies to nothing; the engine records it when the event posts.
+    }
+  }
+  return true;
+}
 
 export const postingRuleTest = defineProcess({
   id: "accounting.posting_rule.test",
@@ -145,7 +187,7 @@ export const postingRuleTest = defineProcess({
         lines.push(line);
         continue;
       }
-      const account = (line.dimension ? await resolveRoleAccount(ctx, line.role, line.dimension) : null) ?? (await resolveRoleAccount(ctx, line.role));
+      const account = await resolveRoleAccount(ctx, line.role, lineDimensions(line));
       if (!account) return { ok: false, code: "missing_account_mapping", detail: `Sin cuenta para el rol ${line.role}${line.dimension ? `:${line.dimension}` : ""}` };
       lines.push({ ...line, accountCode: account.code });
     }
@@ -153,11 +195,34 @@ export const postingRuleTest = defineProcess({
   },
 });
 
-/** Copies every loaded module's default rules into the company where the (event, name) is missing; never touches an existing or modified rule. */
-export async function syncDefaultRules(ctx: ProcessContext): Promise<number> {
-  let inserted = 0;
+export interface PostingRuleSync { inserted: number; activated: number; deactivated: number }
+
+/**
+ * Installs, for the active company, the `postingRules` of every module enabled for it (accounting design §5.4, plan 2B Task 1).
+ * Additive: a rule is added where its (event, name) is missing and nothing existing is rewritten. A module's default rule the admin
+ * never touched follows its module: inactive while the module is off (never deleted), active again when it is on. A rule the admin
+ * modified or disabled (`is_modified`) keeps its template and its state. A company without fuentes yet (the chart is not seeded) gets
+ * nothing; `chart.seed` runs this again.
+ */
+export async function syncPostingRules(ctx: ProcessContext): Promise<PostingRuleSync> {
+  const out: PostingRuleSync = { inserted: 0, activated: 0, deactivated: 0 };
+  const [seeded] = await ctx.tx<{ n: number }[]>`select count(*)::int as n from accounting.journals where company_id = ${ctx.companyId}`;
+  if (seeded!.n === 0) return out;
+  const enabled = new Set((await moduleStates(ctx.tx, ctx.registry)).filter((m) => m.enabled).map((m) => m.id));
   for (const module of ctx.registry.modules()) {
-    for (const rule of module.postingRules ?? []) {
+    if (!module.postingRules || module.postingRules.length === 0) continue;
+    if (!enabled.has(module.id)) {
+      const off = await ctx.tx`
+        update accounting.posting_rules set is_active = false
+        where company_id = ${ctx.companyId} and module = ${module.id} and is_default and not is_modified and is_active returning id`;
+      out.deactivated += off.length;
+      continue;
+    }
+    const on = await ctx.tx`
+      update accounting.posting_rules set is_active = true
+      where company_id = ${ctx.companyId} and module = ${module.id} and is_default and not is_modified and not is_active returning id`;
+    out.activated += on.length;
+    for (const rule of module.postingRules) {
       const [journal] = await ctx.tx<{ id: string }[]>`select id from accounting.journals where company_id = ${ctx.companyId} and code = ${rule.journalCode}`;
       if (!journal) throw invalid(`rule ${rule.name} names journal ${rule.journalCode}`, `La regla "${rule.name}" usa la fuente ${rule.journalCode}, que no existe`);
       const [have] = await ctx.tx<{ n: number }[]>`
@@ -166,21 +231,150 @@ export async function syncDefaultRules(ctx: ProcessContext): Promise<number> {
       await ctx.tx`
         insert into accounting.posting_rules (company_id, event, name, module, journal_id, template, priority, is_default)
         values (${ctx.companyId}, ${rule.event}, ${rule.name}, ${module.id}, ${journal.id}, ${json(ctx, rule.template)}, ${rule.priority ?? 100}, true)`;
-      inserted++;
+      out.inserted++;
     }
   }
-  return inserted;
+  out.deactivated += await retireSupersededRules(ctx);
+  out.deactivated += await retireRetiredRules(ctx);
+  await recommendRulesWithoutCurrency(ctx, enabled);
+  return out;
 }
+
+/** The reason of the R34-5 recommendation (catalogue accounting.recommendations.rule_without_currency.*). */
+export const RULE_WITHOUT_CURRENCY = "rule_without_currency";
+/** Who may act on it: the holders of the rule editor (the accounting role and the admin). */
+const RULE_AUDIENCE = "accounting.posting_rule.update";
+
+/**
+ * R34-5 (Task 34.4, FX §4): a shipped rule that now posts the document currency (its template has `currency`) whose company copy the admin
+ * edited before that (is_modified, active, no `currency` key) keeps posting correct company amounts at rate 1, but a foreign-currency
+ * document then carries debit_doc = debit. The accounting role is told once per rule: one open recommendation per copy (a second sync merges
+ * into it); editing the copy is the user's call, never the sync's.
+ */
+async function recommendRulesWithoutCurrency(ctx: ProcessContext, enabled: Set<string>): Promise<void> {
+  if (!ctx.recommendations) return;
+  for (const module of ctx.registry.modules()) {
+    if (!enabled.has(module.id)) continue;
+    for (const rule of module.postingRules ?? []) {
+      if ((rule.template as { currency?: unknown }).currency === undefined) continue;
+      const copies = await ctx.tx<{ id: string; name: string; stale: boolean }[]>`
+        select id, name, (is_modified and is_active and not (template ? 'currency')) as stale from accounting.posting_rules
+        where company_id = ${ctx.companyId} and event = ${rule.event} and name = ${rule.name}`;
+      for (const copy of copies) {
+        // A copy that now carries the currency (the admin edited it, or put it back to the default) closes what was raised for it.
+        if (!copy.stale) {
+          await ctx.recommendations.close({ subject: { entity: "accounting.posting_rule", id: copy.id }, reason: RULE_WITHOUT_CURRENCY });
+          continue;
+        }
+        await ctx.recommendations.raise({
+          audienceProcess: RULE_AUDIENCE,
+          subject: { entity: "accounting.posting_rule", id: copy.id },
+          reason: RULE_WITHOUT_CURRENCY,
+          titleKey: "accounting.recommendations.rule_without_currency.title",
+          bodyKey: "accounting.recommendations.rule_without_currency.body",
+          params: { rule: { value: copy.name } },
+        });
+      }
+    }
+  }
+}
+
+/**
+ * Default rules a later version split or replaced (accounting design §5.4): the old one's (event, name) and the names that replace it. The
+ * sync adds the new rules by their (event, name), so a company still holding the old copy would post both (final review I-1: the note rule
+ * of 2A split by migration 0098).
+ */
+const SUPERSEDED_RULES: readonly { event: string; name: string; by: readonly string[] }[] = [
+  { event: "invoicing.note.issued", name: "Nota crédito o débito de venta", by: ["Nota crédito de anulación de venta", "Nota crédito de venta", "Nota débito de venta"] },
+];
+
+/**
+ * Default rules no module ships any more (owner item 48, Task 52.5, migration 0142): `invoice-voided`, whose event is never emitted since an
+ * invoice is annulled by its credit note of annulment (OD-7).
+ */
+const RETIRED_RULES: readonly { event: string; name: string }[] = [{ event: "invoicing.invoice.voided", name: "Anulación de factura de venta" }];
+
+/**
+ * Retires the copies of `RETIRED_RULES` nobody touched, as migration 0142 does (so the order of the sync and the migration never matters):
+ * inactive and marked modified, as an admin's disable, never deleted (entries may reference them); one the admin modified stays as it is.
+ * Answers how many active rules it deactivated.
+ */
+async function retireRetiredRules(ctx: ProcessContext): Promise<number> {
+  let deactivated = 0;
+  for (const old of RETIRED_RULES) {
+    const off = await ctx.tx<{ was_active: boolean }[]>`
+      update accounting.posting_rules r set is_active = false, is_modified = true
+      from (select id, is_active as was_active from accounting.posting_rules
+            where company_id = ${ctx.companyId} and event = ${old.event} and name = ${old.name} and is_default and not is_modified for update) o
+      where r.id = o.id
+      returning o.was_active`;
+    deactivated += off.filter((r) => r.was_active).length;
+  }
+  return deactivated;
+}
+
+/**
+ * Keeps exactly one effective set where a company has both an old default rule and every rule that replaces it (the same as migration
+ * 0115, so the order of the sync and the migrations never matters): an old copy nobody touched is retired (inactive and marked modified, as
+ * an admin's disable, so the sync never activates it again; never deleted, entries may reference it); an old copy the admin modified and
+ * left active keeps posting, and the replacing rules the admin never touched are set inactive and marked modified for the admin to review
+ * (as 0098 adds them). Answers how many rules it deactivated.
+ */
+async function retireSupersededRules(ctx: ProcessContext): Promise<number> {
+  let deactivated = 0;
+  for (const old of SUPERSEDED_RULES) {
+    const [state] = await ctx.tx<{ replacing: number; untouched: number; modified_active: number }[]>`
+      select (select count(distinct name)::int from accounting.posting_rules
+               where company_id = ${ctx.companyId} and event = ${old.event} and name = any(${old.by as string[]}::text[])) as replacing,
+             count(*) filter (where is_default and not is_modified and not (template ? 'when'))::int as untouched,
+             count(*) filter (where is_modified and is_active)::int as modified_active
+      from accounting.posting_rules where company_id = ${ctx.companyId} and event = ${old.event} and name = ${old.name}`;
+    if (!state || state.replacing < old.by.length) continue;
+    if (state.modified_active > 0) {
+      const off = await ctx.tx`
+        update accounting.posting_rules set is_active = false, is_modified = true
+        where company_id = ${ctx.companyId} and event = ${old.event} and name = any(${old.by as string[]}::text[]) and is_default and not is_modified
+        returning is_active`;
+      deactivated += off.length;
+    }
+    if (state.untouched > 0) {
+      const off = await ctx.tx<{ was_active: boolean }[]>`
+        update accounting.posting_rules r set is_active = false, is_modified = true
+        from (select id, is_active as was_active from accounting.posting_rules
+              where company_id = ${ctx.companyId} and event = ${old.event} and name = ${old.name} and is_default and not is_modified and not (template ? 'when')
+              for update) o
+        where r.id = o.id
+        returning o.was_active`;
+      deactivated += off.filter((r) => r.was_active).length;
+    }
+  }
+  return deactivated;
+}
+
+export const postingRuleSync = defineProcess({
+  id: "accounting.posting_rule.sync",
+  module: "accounting",
+  kind: "create",
+  recordAccess: "none",
+  feature: "accounting.posting",
+  // Event-only: kernel.module.enabled triggers it; it is neither a button nor a tool, and the sensitive-processes page leaves it out.
+  origins: ["event"],
+  description: "Instala en la empresa las reglas contables de los módulos activos que aún no tiene y pone al día las de los módulos apagados; nunca toca las que la empresa modificó",
+  input: z.object({}).strict(),
+  output: z.object({ inserted: z.number(), activated: z.number(), deactivated: z.number() }),
+  handler: (ctx) => syncPostingRules(ctx),
+});
 
 export const postingRuleSyncDefaults = defineProcess({
   id: "accounting.posting_rule.sync_defaults",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.posting",
-  description: "Copia a la empresa las reglas contables por defecto de los módulos cargados que aún no tiene; nunca toca las existentes ni las modificadas",
+  description: "Copia a la empresa las reglas contables por defecto de los módulos activos que aún no tiene; nunca toca las existentes ni las modificadas",
   input: z.object({}).strict(),
   output: z.object({ inserted: z.number() }),
-  handler: async (ctx) => ({ inserted: await syncDefaultRules(ctx) }),
+  handler: async (ctx) => ({ inserted: (await syncPostingRules(ctx)).inserted }),
 });
 
-export const POSTING_RULE_PROCESSES = [postingRuleCreate, postingRuleUpdate, postingRuleDisable, postingRuleConsult, postingRuleTest, postingRuleSyncDefaults];
+export const POSTING_RULE_PROCESSES = [postingRuleCreate, postingRuleUpdate, postingRuleDisable, postingRuleConsult, postingRuleTest, postingRuleSync, postingRuleSyncDefaults];

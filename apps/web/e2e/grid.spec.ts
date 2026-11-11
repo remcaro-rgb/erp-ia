@@ -318,19 +318,19 @@ test.describe("universal grid", () => {
     await expect(bodyRows(page)).toHaveCount(10);
     const headers = async () => (await terceros.locator("thead tr").first().locator("th").allTextContents()).slice(1).map((h) => h.replace(/[▲▼↕]/g, "").trim());
     // OD-4: the identity column (Razón social) comes first, after the selection column.
-    expect((await headers()).slice(0, 3)).toEqual(["Razón social", "N.º", "Tipo de documento"]);
+    expect((await headers()).slice(0, 3)).toEqual(["Razón social", "ID", "Tipo de documento"]);
 
-    // Drag Municipio onto the left half of N.º: it lands in position 2 and the status row says so.
+    // Drag Municipio onto the left half of ID: it lands in position 2 and the status row says so.
     const header = (field: string) => terceros.locator(`thead tr:first-child th[data-field="${field}"]`);
     await header("municipality_code").dragTo(header("seq"), { targetPosition: { x: 4, y: 12 } });
     await expect(terceros.getByRole("status")).toHaveText("Columna Municipio movida a la posición 2");
-    expect((await headers()).slice(0, 3)).toEqual(["Razón social", "Municipio", "N.º"]);
+    expect((await headers()).slice(0, 3)).toEqual(["Razón social", "Municipio", "ID"]);
     // Alt+→ on a focused header moves it one place and keeps the caret on it.
-    await terceros.getByRole("button", { name: "Ordenar por N.º" }).focus();
+    await terceros.getByRole("button", { name: "Ordenar por ID" }).focus();
     await page.keyboard.press("Alt+ArrowRight");
-    await expect(terceros.getByRole("status")).toHaveText("Columna N.º movida a la posición 4");
-    await expect(terceros.getByRole("button", { name: "Ordenar por N.º" })).toBeFocused();
-    expect((await headers()).slice(0, 4)).toEqual(["Razón social", "Municipio", "Tipo de documento", "N.º"]);
+    await expect(terceros.getByRole("status")).toHaveText("Columna ID movida a la posición 4");
+    await expect(terceros.getByRole("button", { name: "Ordenar por ID" })).toBeFocused();
+    expect((await headers()).slice(0, 4)).toEqual(["Razón social", "Municipio", "Tipo de documento", "ID"]);
 
     // Scrolled all the way right, the selection and identity columns stay at the left edge, with a shadow.
     const body = terceros.locator(".erp-grid__body");
@@ -354,7 +354,7 @@ test.describe("universal grid", () => {
     await expect(page.getByText("Vista guardada: Municipio primero")).toBeVisible();
     await page.reload();
     await expect(bodyRows(page)).toHaveCount(10);
-    expect((await headers()).slice(0, 4)).toEqual(["Razón social", "Municipio", "Tipo de documento", "N.º"]);
+    expect((await headers()).slice(0, 4)).toEqual(["Razón social", "Municipio", "Tipo de documento", "ID"]);
     // The other specs of this file start from the default columns.
     await fixture.sql`delete from kernel.saved_views where company_id = ${companyId} and name = 'Municipio primero'`;
   });
@@ -369,7 +369,7 @@ test.describe("universal grid", () => {
     await expect(page.getByLabel("DV", { exact: true }).filter({ visible: true })).toHaveValue("4");
     await page.getByLabel(/^Razón social/).fill("Distribuidora Andina S.A.S.");
     await page.getByLabel(/^Correo de recepción de facturas de venta/).fill("fe@andina.co");
-    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    await page.getByRole("group", { name: "Acciones del registro" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await expect(page).toHaveURL(/\/r\/core\.party\/[0-9a-f-]{36}$/);
     await expect(page.getByRole("heading", { name: "Distribuidora Andina S.A.S." })).toBeVisible();
     const [row] = await fixture.sql<{ check_digit: string; dian_status: string }[]>`

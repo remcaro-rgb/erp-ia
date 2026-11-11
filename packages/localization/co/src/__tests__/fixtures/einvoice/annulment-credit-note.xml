@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CreditNote xmlns="urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+  xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"
+  xmlns:sts="dian:gov:co:facturaelectronica:Structures-2-1"
+  xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+  xmlns:xades="http://uri.etsi.org/01903/v1.3.2#">
+  <ext:UBLExtensions>
+    <ext:UBLExtension>
+      <ext:ExtensionContent>
+        <sts:DianExtensions>
+          <sts:InvoiceSource>
+            <cbc:IdentificationCode listAgencyID="6" listAgencyName="United Nations Economic Commission for Europe" listSchemeURI="urn:oasis:names:specification:ubl:codelist:gc:CountryIdentificationCode-2.1">CO</cbc:IdentificationCode>
+          </sts:InvoiceSource>
+          <sts:SoftwareProvider>
+            <sts:ProviderID schemeID="3" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">900373115</sts:ProviderID>
+            <sts:SoftwareID schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">software-uuid-here</sts:SoftwareID>
+          </sts:SoftwareProvider>
+          <sts:SoftwareSecurityCode schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">3fa68b3398d6cf64e22e63b4291b42aa25517ba782a89258d5ef3195c8127672c5897deca24fd8999d59352f3833af80</sts:SoftwareSecurityCode>
+          <sts:AuthorizationProvider>
+            <sts:AuthorizationProviderID schemeID="4" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">800197268</sts:AuthorizationProviderID>
+          </sts:AuthorizationProvider>
+        </sts:DianExtensions>
+      </ext:ExtensionContent>
+    </ext:UBLExtension>
+    <ext:UBLExtension>
+      <ext:ExtensionContent>
+        <!-- SIGNATURE_PLACEHOLDER -->
+      </ext:ExtensionContent>
+    </ext:UBLExtension>
+  </ext:UBLExtensions>
+  <cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>20</cbc:CustomizationID>
+  <cbc:ProfileID>DIAN 2.1: Nota Crédito de Factura Electrónica de Venta</cbc:ProfileID>
+  <cbc:ProfileExecutionID>2</cbc:ProfileExecutionID>
+  <cbc:ID>NC12</cbc:ID>
+  <cbc:UUID schemeID="2" schemeName="CUDE-SHA384">12fbfc74e006cc7623530178c5f476a912361550eedcfffefae5ad7e4f4a036f7c2e155d674495828e30ff3d989b9114</cbc:UUID>
+  <cbc:IssueDate>2026-11-01</cbc:IssueDate>
+  <cbc:IssueTime>08:00:00-05:00</cbc:IssueTime>
+  <cbc:CreditNoteTypeCode>91</cbc:CreditNoteTypeCode>
+  <cbc:DocumentCurrencyCode>COP</cbc:DocumentCurrencyCode>
+  <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+  <cac:DiscrepancyResponse>
+    <cbc:ReferenceID>SETP990000007</cbc:ReferenceID>
+    <cbc:ResponseCode>2</cbc:ResponseCode>
+    <cbc:Description>Anulación de factura electrónica</cbc:Description>
+  </cac:DiscrepancyResponse>
+  <cac:BillingReference>
+    <cac:InvoiceDocumentReference>
+      <cbc:ID>SETP990000007</cbc:ID>
+      <cbc:UUID schemeName="CUFE-SHA384">9c7850e16d6d0ac31be7898b50b07dccdfa72525dd9e9a1a5c9aa7c7ed5a866a677707dcf0e7e09e0f63c43f92e41ac9</cbc:UUID>
+      <cbc:IssueDate>2026-10-30</cbc:IssueDate>
+    </cac:InvoiceDocumentReference>
+  </cac:BillingReference>
+  <cac:AccountingSupplierParty>
+    <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
+    <cac:Party>
+      <cac:PartyName>
+        <cbc:Name>Café del Norte</cbc:Name>
+      </cac:PartyName>
+      <cac:PhysicalLocation><cac:Address>
+          <cbc:ID>05001</cbc:ID>
+          <cbc:CityName>Medellín</cbc:CityName>
+          <cbc:CountrySubentity>05</cbc:CountrySubentity><cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
+          <cac:AddressLine><cbc:Line>Calle 10 # 5-20</cbc:Line></cac:AddressLine>
+          <cac:Country><cbc:IdentificationCode>CO</cbc:IdentificationCode></cac:Country>
+        </cac:Address></cac:PhysicalLocation>
+      <cac:PartyTaxScheme>
+        <cbc:RegistrationName>Café del Norte S.A.S.</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="3" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">900373115</cbc:CompanyID>
+        <cbc:TaxLevelCode listName="48">O-13</cbc:TaxLevelCode>
+        <cac:RegistrationAddress>
+          <cbc:ID>05001</cbc:ID>
+          
+          <cbc:CountrySubentity>05</cbc:CountrySubentity><cbc:CountrySubentityCode>05</cbc:CountrySubentityCode>
+          <cac:AddressLine><cbc:Line>Calle 10 # 5-20</cbc:Line></cac:AddressLine>
+          <cac:Country><cbc:IdentificationCode>CO</cbc:IdentificationCode></cac:Country>
+        </cac:RegistrationAddress>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+          <cbc:Name>IVA</cbc:Name>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Café del Norte S.A.S.</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="3" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">900373115</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+      <cac:Contact><cbc:ElectronicMail>facturas@cafedelnorte.co</cbc:ElectronicMail></cac:Contact>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cbc:AdditionalAccountID>1</cbc:AdditionalAccountID>
+    <cac:Party>
+      <cac:PartyName>
+        <cbc:Name>Distribuidora Andina S.A.S.</cbc:Name>
+      </cac:PartyName>
+      <cac:PhysicalLocation><cac:Address>
+          <cbc:ID>11001</cbc:ID>
+          <cbc:CityName>Bogotá D.C.</cbc:CityName>
+          <cbc:CountrySubentity>11</cbc:CountrySubentity><cbc:CountrySubentityCode>11</cbc:CountrySubentityCode>
+          <cac:AddressLine><cbc:Line>Cra 1 # 2-3</cbc:Line></cac:AddressLine>
+          <cac:Country><cbc:IdentificationCode>CO</cbc:IdentificationCode></cac:Country>
+        </cac:Address></cac:PhysicalLocation>
+      <cac:PartyTaxScheme>
+        <cbc:RegistrationName>Distribuidora Andina S.A.S.</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="4" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">860002964</cbc:CompanyID>
+        <cbc:TaxLevelCode listName="48">O-13</cbc:TaxLevelCode>
+        <cac:RegistrationAddress>
+          <cbc:ID>11001</cbc:ID>
+          
+          <cbc:CountrySubentity>11</cbc:CountrySubentity><cbc:CountrySubentityCode>11</cbc:CountrySubentityCode>
+          <cac:AddressLine><cbc:Line>Cra 1 # 2-3</cbc:Line></cac:AddressLine>
+          <cac:Country><cbc:IdentificationCode>CO</cbc:IdentificationCode></cac:Country>
+        </cac:RegistrationAddress>
+        <cac:TaxScheme>
+          <cbc:ID>01</cbc:ID>
+          <cbc:Name>IVA</cbc:Name>
+        </cac:TaxScheme>
+      </cac:PartyTaxScheme>
+      <cac:PartyLegalEntity>
+        <cbc:RegistrationName>Distribuidora Andina S.A.S.</cbc:RegistrationName>
+        <cbc:CompanyID schemeID="4" schemeName="31" schemeAgencyID="195" schemeAgencyName="CO, DIAN (Dirección de Impuestos y Aduanas Nacionales)">860002964</cbc:CompanyID>
+      </cac:PartyLegalEntity>
+      <cac:Contact><cbc:ElectronicMail>fe@cliente.example</cbc:ElectronicMail></cac:Contact>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:PaymentMeans>
+    <cbc:ID>2</cbc:ID>
+    <cbc:PaymentMeansCode>10</cbc:PaymentMeansCode>
+    <cbc:PaymentDueDate>2026-11-29</cbc:PaymentDueDate>
+  </cac:PaymentMeans>
+  
+  
+  <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="COP">11400.00</cbc:TaxAmount>
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="COP">60000.00</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="COP">11400.00</cbc:TaxAmount>
+        <cac:TaxCategory>
+          <cbc:Percent>19.00</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>01</cbc:ID>
+            <cbc:Name>IVA</cbc:Name>
+          </cac:TaxScheme>
+        </cac:TaxCategory>
+      </cac:TaxSubtotal>
+    </cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="COP">60000.00</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="COP">60000.00</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="COP">71400.00</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="COP">71400.00</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:CreditNoteLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:CreditedQuantity unitCode="94">3</cbc:CreditedQuantity>
+    <cbc:LineExtensionAmount currencyID="COP">60000.00</cbc:LineExtensionAmount>
+    
+    
+    <cac:TaxTotal>
+      <cbc:TaxAmount currencyID="COP">11400.00</cbc:TaxAmount>
+      <cac:TaxSubtotal>
+        <cbc:TaxableAmount currencyID="COP">60000.00</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="COP">11400.00</cbc:TaxAmount>
+        <cac:TaxCategory>
+          <cbc:Percent>19.00</cbc:Percent>
+          <cac:TaxScheme>
+            <cbc:ID>01</cbc:ID>
+            <cbc:Name>IVA</cbc:Name>
+          </cac:TaxScheme>
+        </cac:TaxCategory>
+      </cac:TaxSubtotal>
+    </cac:TaxTotal>
+    <cac:Item>
+      <cbc:Description>Café de exportación 500 g</cbc:Description>
+      <cbc:BrandName>Café del Norte</cbc:BrandName>
+      <cbc:ModelName>Excelso</cbc:ModelName>
+      <cac:SellersItemIdentification>
+        <cbc:ID>CAF-500</cbc:ID>
+      </cac:SellersItemIdentification>
+      <cac:StandardItemIdentification>
+        <cbc:ID schemeID="999" schemeName="Estándar de adopción del contribuyente">CAF-500</cbc:ID>
+      </cac:StandardItemIdentification>
+    </cac:Item>
+    <cac:Price>
+      <cbc:PriceAmount currencyID="COP">20000.00</cbc:PriceAmount>
+      <cbc:BaseQuantity unitCode="94">1</cbc:BaseQuantity>
+    </cac:Price>
+  </cac:CreditNoteLine>
+</CreditNote>

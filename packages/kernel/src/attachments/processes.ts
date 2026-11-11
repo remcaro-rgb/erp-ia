@@ -1,6 +1,6 @@
 import { ProcessError } from "../process/errors";
 import { defineProcess } from "../process/define";
-import { registeredEntity, requireOwnerUpdate, requireVisibleRecord } from "./guards";
+import { registeredEntity, requireOwnerUpdate, requireVisibleRecord, requireWritableRecord } from "./guards";
 import { insertAttachment, refuse, selectAttachments, summary, type AttachmentRow } from "./rows";
 import { addInput, addOutput, entityRecord, listOutput, removeInput, removeOutput, reorderInput, reorderOutput } from "./schemas";
 
@@ -18,12 +18,13 @@ export const attachmentAdd = defineProcess({
   kind: "update",
   feature: FEATURE,
   description: "Adjunta un archivo ya almacenado a un registro, con su etiqueta; exige poder actualizar la entidad dueña",
+  recordAccess: "handler",
   input: addInput,
   output: addOutput,
   handler: async (ctx, input) => {
     const entity = registeredEntity(ctx, input.entity);
     await requireOwnerUpdate(ctx, entity.id);
-    await requireVisibleRecord(ctx, entity, input.recordId);
+    await requireWritableRecord(ctx, entity, input.recordId);
 
     // The file must sit in this record's own folder: an upload can never point at another tenant's, company's or record's file.
     const folder = `${ctx.tenantId}/${ctx.companyId}/${entity.id}/${input.recordId}/`;
@@ -42,6 +43,7 @@ export const attachmentRemove = defineProcess({
   kind: "delete",
   feature: FEATURE,
   description: "Quita un archivo adjunto (borrado lógico: la fila y el archivo se conservan para la auditoría)",
+  recordAccess: "handler",
   input: removeInput,
   output: removeOutput,
   handler: async (ctx, { id }) => {
@@ -51,7 +53,7 @@ export const attachmentRemove = defineProcess({
     await requireOwnerUpdate(ctx, row.entity);
     // An entity this deployment no longer registers has no masked view to consult.
     if (ctx.registry.entities().some((e) => e.id === row.entity)) {
-      await requireVisibleRecord(ctx, ctx.registry.entity(row.entity), row.record_id);
+      await requireWritableRecord(ctx, ctx.registry.entity(row.entity), row.record_id);
     }
     await ctx.tx`update kernel.attachments set removed_at = now(), removed_by = ${ctx.userId} where id = ${id}`;
     return { id };
@@ -84,12 +86,13 @@ export const attachmentReorder = defineProcess({
   feature: FEATURE,
   description:
     "Cambia el orden de los archivos adjuntos de un registro (la primera foto es la principal); la foto sugerida por IA que queda primera se da por aprobada",
+  recordAccess: "handler",
   input: reorderInput,
   output: reorderOutput,
   handler: async (ctx, { entity: entityId, recordId, orderedIds }) => {
     const entity = registeredEntity(ctx, entityId);
     await requireOwnerUpdate(ctx, entity.id);
-    await requireVisibleRecord(ctx, entity, recordId);
+    await requireWritableRecord(ctx, entity, recordId);
     if (new Set(orderedIds).size !== orderedIds.length) throw refuse("repeated attachment", "Un archivo aparece más de una vez en el orden");
 
     // Every id must be a live file of this record. The rows are locked in id order, so two reorders of the same record

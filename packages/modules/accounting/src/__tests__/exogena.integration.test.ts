@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runReport } from "@erp/kernel";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let year: number;
@@ -22,10 +22,13 @@ afterAll(async () => {
   await h.cleanup();
 });
 
-const party = async (document: string, name: string, dv: string, dpto: string | null, mun: string | null) =>
-  (await h.sql<{ id: string }[]>`
+const party = async (document: string, name: string, dv: string, dpto: string | null, mun: string | null) => {
+  const [row] = await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, check_digit, legal_name, department_code, municipality_code, dian_status)
-    values (${h.companyId}, '{customer,supplier}', '1', '31', ${document}, ${dv}, ${name}, ${dpto}, ${mun}, 'complete') returning id`)[0]!.id;
+    values (${h.companyId}, '{customer,supplier}', '1', '31', ${document}, ${dv}, ${name}, ${dpto}, ${mun}, 'complete') returning id`;
+  await markInvoiceReady(h, row!.id, "1");
+  return row!.id;
+};
 const dateIn = (month: number, day = 15) => `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 const state = { filters: [], sort: [], page: 1, pageSize: 500 };
 // Report rows are read cell by cell in the assertions: a loose record keeps them readable.
@@ -43,7 +46,7 @@ const post = async (date: string, lines: L[], flags: { opening?: boolean } = {})
       ...(l.taxCode ? { taxCode: l.taxCode, taxBase: l.taxBase, taxRate: l.taxRate } : {}),
     })),
   });
-  await h.run(h.contador, "accounting.entry.post", { id });
+  await h.run(h.contador, "accounting.entry.save", { id });
   if (flags.opening) await h.sql`update accounting.entries set is_opening = true where id = ${id}`;
   return id;
 };
@@ -155,6 +158,37 @@ describe("exógena", () => {
       expect((await h.run<{ xml: string }>(h.admin, "accounting.report.exogena_xml", { year, format: "1008" })).xml).toContain('nid="900777888"');
     } finally {
       await h.runStepUp(h.admin, "accounting.account_permission.update", { accountId, access: "open", grants: [] });
+    }
+  });
+
+  it("D11: a restricted user's exógena totals equal the admin's; hidden comprobantes and parties are counted, never named", async () => {
+    const entryOf = async (code: string, amount: number) =>
+      (await h.sql<{ id: string; number: string }[]>`
+        select e.id, e.number from accounting.entries e join accounting.entry_lines l on l.entry_id = e.id join accounting.accounts a on a.id = l.account_id
+        where e.company_id = ${h.companyId} and a.code = ${code} and l.debit = ${amount} limit 1`)[0]!;
+    const services = await entryOf("513505", 2_000_000);
+    const noParty = await entryOf("519595", 50_000);
+    const rules: [string, string][] = [["accounting.entry", services.id], ["accounting.entry", noParty.id], ["core.party", p1]];
+    for (const [entity, recordId] of rules) {
+      await h.sql`insert into kernel.record_access (company_id, entity, record_id, grantee_role_id, can_read) values (${h.companyId}, ${entity}, ${recordId}, ${h.contador.roleId}, true)`;
+    }
+    try {
+      for (const format of ["1001", "1008"]) {
+        const asAdmin = (await runReport(h.deps, h.admin, "accounting.exogena", { year, format }, state)) as Out;
+        const asAux = (await runReport(h.deps, h.auxiliar, "accounting.exogena", { year, format }, state)) as Out;
+        for (const col of ["col1", "col2", "col3"]) expect(asAux.aggregates[col] ?? 0, `${format} ${col}`).toBe(asAdmin.aggregates[col] ?? 0);
+        expect(asAux.rows.map((r) => r.party_document)).not.toContain("900555666");
+        expect(asAux.rows.some((r) => r.party_document === "🔒")).toBe(true);
+        const errors = asAux.aggregates.errors as string[];
+        expect(errors.some((e) => e.includes("900555666"))).toBe(false);
+        if (format === "1001") {
+          expect((asAdmin.aggregates.errors as string[]).some((e) => e.includes(`comprobante ${noParty.number} `))).toBe(true);
+          expect(errors.some((e) => e.includes(`comprobante ${noParty.number} `))).toBe(false);
+          expect(errors.some((e) => /restringid/i.test(e))).toBe(true);
+        }
+      }
+    } finally {
+      await h.sql`delete from kernel.record_access where company_id = ${h.companyId}`;
     }
   });
 });

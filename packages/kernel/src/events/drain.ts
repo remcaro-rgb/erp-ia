@@ -28,6 +28,15 @@ export interface DrainOptions {
 export async function drainOutbox(sql: Sql, limit = 100, options: DrainOptions = {}): Promise<number> {
   if (registry.modules().length === 0) throw new Error("outbox: no modules loaded");
 
+  // Dead letters of a module the company may use now (bought by any path, or the dispatcher raced the purchase) go back first.
+  // A failing sweep must not stop the drain (Task 52.2, R52-3): it is logged (the admin failure queue only lists nested runs, so server logs
+  // are where it shows) and the claim goes on; the next drain sweeps again.
+  try {
+    await sql`select kernel.parked_events_sweep(${options.companyIds ? [...options.companyIds] : null}::uuid[])`;
+  } catch (error) {
+    console.error("outbox: parked-event sweep failed", error);
+  }
+
   const ids = await sql.begin(async (tx) => {
     const gates = tx.json(consumers.pairs());
     const companies = options.companyIds ? [...options.companyIds] : null;

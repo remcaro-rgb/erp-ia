@@ -2,7 +2,7 @@
 
 import { useId, useLayoutEffect, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
-import { useDianHints } from "../form-context";
+import { useShowCodes } from "../form-context";
 import type { CodeOption } from "../save-model";
 
 // A typeahead over a code table (municipality, department, unit of measure, category): type part of the name or the
@@ -41,7 +41,7 @@ export interface CodeComboboxProps {
 
 export function CodeCombobox({ id, value, options, onChange, empty, showCode: hasCodes = true, disabled, className, ...aria }: CodeComboboxProps) {
   const t = useTranslations("common.forms");
-  const showCode = useDianHints() && hasCodes;
+  const showCode = useShowCodes() && hasCodes;
   const listId = useId();
   const optionId = (code: string) => `${listId}-${code}`;
   const [editing, setEditing] = useState(false);

@@ -6,6 +6,9 @@ import type { ExportColumn, WriterOptions } from "./types";
 /** What a masked field prints in every channel (rule 14). */
 export const MASK = "••••••";
 
+/** A masked cell of a «••••» placeholder row (D20): the line exists, its value is not the caller's to see. */
+export const PLACEHOLDER_CELL = "••••";
+
 export type Cell =
   | { type: "empty" }
   | { type: "mask" }
@@ -63,6 +66,7 @@ function labelled(column: ExportColumn, value: unknown): string {
 /** The typed cell of one value of `column`. Empty values and values of an unexpected shape never throw. */
 export function cellOf(column: ExportColumn, value: unknown, options: WriterOptions = {}): Cell {
   if (column.masked) return { type: "mask" };
+  if (value === PLACEHOLDER_CELL) return { type: "text", value: PLACEHOLDER_CELL };
   if (value === null || value === undefined || value === "") return { type: "empty" };
   switch (column.type) {
     case "money":
@@ -114,17 +118,29 @@ function grouped(amount: number): string {
   return `${units},${pad(cents % 100)}`;
 }
 
-/** `$ 1.234.567,00` (rule 23); a negative amount is `-$ 50,00`. */
-export function moneyText(amount: number): string {
+/**
+ * `$ 1.234.567,00` for COP (rule 23); any other currency by its ISO code with the same digits, `USD 12.500,00` (owner item 129,
+ * FX design §10). A negative amount is `-$ 50,00`, `-USD 50,00`.
+ */
+export function moneyText(amount: number, currency = "COP"): string {
   const sign = amount < 0 && Math.round(Math.abs(amount) * 100) > 0 ? "-" : "";
-  return `${sign}$ ${grouped(amount)}`;
+  return `${sign}${currency === "COP" ? "$" : currency} ${grouped(amount)}`;
+}
+
+/** An exchange rate with es-CO separators and up to six decimals, trailing zeros dropped down to two: `4.123,45`, `4.123,456789`. */
+export function rateText(rate: number): string {
+  const [int, dec] = Math.abs(rate).toFixed(6).split(".");
+  const decimals = dec!.replace(/0+$/, "").padEnd(2, "0");
+  const sign = rate < 0 && Number(`${int}.${dec}`) > 0 ? "-" : "";
+  return `${sign}${int!.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${decimals}`;
 }
 
 /**
- * The text of one value as the file or the page prints it. `paper` is the PDF: money as `$ 1.234.567,00` and dates as
- * `AAAA/MM/DD`; without it, the plain form of CSV (money as a bare decimal, dates in ISO).
+ * The text of one value as the file or the page prints it. `paper` is the PDF: money as `$ 1.234.567,00` (or `USD 12.500,00`
+ * when `currency` names another currency, item 129) and dates as `AAAA/MM/DD`; without it, the plain form of CSV (money as a
+ * bare decimal, dates in ISO).
  */
-export function cellText(column: ExportColumn, value: unknown, options: WriterOptions & { paper?: boolean } = {}): string {
+export function cellText(column: ExportColumn, value: unknown, options: WriterOptions & { paper?: boolean; currency?: string | undefined } = {}): string {
   const cell = cellOf(column, value, options);
   switch (cell.type) {
     case "empty":
@@ -134,7 +150,7 @@ export function cellText(column: ExportColumn, value: unknown, options: WriterOp
     case "text":
       return cell.value;
     case "number": {
-      if (options.paper && cell.money) return moneyText(cell.value);
+      if (options.paper && cell.money) return moneyText(cell.value, options.currency);
       const text = cell.money ? cell.value.toFixed(2) : String(cell.value);
       return isSpanish(options.locale) ? text.replace(".", ",") : text;
     }

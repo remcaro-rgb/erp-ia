@@ -44,6 +44,8 @@ async function login(page: Page, account: DemoAccount) {
 /** A new conversation in the drawer, so an earlier run's messages and cards are not on screen. */
 async function freshAssistant(page: Page) {
   const drawer = page.getByRole("complementary", { name: "Asistente" });
+  // Below 1280 px the drawer is an overlay that starts closed (rule 19): open it from the top bar.
+  if (!(await drawer.isVisible())) await page.getByRole("button", { name: "Asistente", exact: true }).click();
   await expect(drawer).toBeVisible();
   await expect(drawer.getByLabel("Escribe")).toBeEnabled();
   // The button shows once the stored conversation has messages.
@@ -98,12 +100,14 @@ test.describe("phase 1 smoke on the demo company", () => {
     await login(page, LAURA);
     await expect(page.locator("header").first().getByRole("button", { name: /Café del Norte/ })).toBeVisible();
 
-    // Terceros from the module bar opens its tab; the name filter finds Éxito on the server.
-    await page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("link", { name: "Terceros" }).click();
+    // Terceros sits in Contabilidad › Maestros (ModuleDef.adopts): pick the module in the side menu, then the item in the bar; it opens its tab; the name filter finds Éxito on the server.
+    await page.getByRole("navigation", { name: "Módulos" }).getByRole("button", { name: "Contabilidad" }).click();
+    await page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Maestros", exact: true }).click();
+    await page.getByRole("menu", { name: "Maestros" }).getByRole("menuitem", { name: "Terceros" }).click();
     await expect(page).toHaveURL(/\/parties$/);
     await expect(page.getByRole("navigation", { name: "Pestañas abiertas" }).getByRole("button", { name: "Terceros", exact: true })).toHaveAttribute("aria-current", "page");
     const terceros = page.getByRole("region", { name: "Terceros" });
-    await expect(terceros.getByText("40 registros")).toBeVisible();
+    await expect(terceros.getByText("42 registros")).toBeVisible();
     await terceros.getByLabel("Filtrar Razón social").fill("Éxito");
     await expect(bodyRows(page)).toHaveCount(1);
     await expect(bodyRows(page).first()).toContainText("Almacenes Éxito S.A.");
@@ -119,6 +123,8 @@ test.describe("phase 1 smoke on the demo company", () => {
     await ask(page, "busca el cliente Éxito");
     const table = drawer.getByRole("table");
     await expect(table.getByText("Almacenes Éxito S.A.")).toBeVisible();
+    // UX-OD-6: six columns at first; the credit limit sits behind «Ver todas las columnas».
+    await drawer.getByRole("button", { name: /^Ver todas las columnas/ }).click();
     await expect(table.getByRole("columnheader", { name: "Cupo de crédito" })).toBeVisible();
 
     // A write: the assistant prepares the confirmation card, nothing exists until Laura confirms.
@@ -220,6 +226,8 @@ test.describe("phase 1 smoke on the demo company", () => {
     await ask(page, "busca el cliente Éxito");
     const table = drawer.getByRole("table");
     await expect(table.getByText("Almacenes Éxito S.A.")).toBeVisible();
+    // UX-OD-6: six columns at first; the credit limit sits behind «Ver todas las columnas».
+    await drawer.getByRole("button", { name: /^Ver todas las columnas/ }).click();
     await expect(table.getByRole("columnheader", { name: "Cupo de crédito" })).toHaveCount(0);
     await expect
       .poll(async () => (await sql`select 1 from kernel.agent_messages where company_id = ${DEMO_COMPANY_ID} and role = 'assistant' and parts::text like '%Almacenes Éxito%' and created_at > now() - interval '5 minutes'`).length)

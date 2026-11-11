@@ -7,17 +7,22 @@ processes:
   - core.party.update
   - core.party.deactivate
   - core.party.consult
+  - core.party.save
+  - core.party.submit
+  - core.party.approve
+  - core.party.reject
+  - core.party.delete
 ---
 
 # Terceros: clientes, proveedores y empleados
 
 **Terceros** es el maestro de las personas y empresas con las que trabajas. Cada tercero lleva los datos que pide la DIAN para la facturación electrónica y la información exógena, de modo que se pueda usar en una factura sin sorpresas.
 
-Entra desde el módulo **Núcleo › Terceros**, o con **⌘K** escribiendo «terc».
+Entra desde **Contabilidad › Maestros › Terceros** (o **Núcleo › Maestros › Terceros** si tu empresa no tiene Contabilidad), o con **⌘K** escribiendo «terc».
 
 ## El listado
 
-El listado de Terceros trae, al comienzo, las columnas N.º, Tipo de documento, Número de documento, Razón social, Nombre comercial, Tipo de tercero, Municipio, Correo de facturación, Teléfono, Cupo de crédito, Saldo, Estado DIAN, Listo para facturar y Activo. En **Columnas** puedes mostrar otras (departamento, responsabilidades fiscales, CIIU…).
+El listado de Terceros trae, al comienzo, las columnas ID, Tipo de documento, Número de documento, Razón social, Nombre comercial, Tipo de tercero, Municipio, Correo de facturación, Teléfono, Cupo de crédito, Saldo, Estado DIAN, Listo para facturar y Activo. En **Columnas** puedes mostrar otras (departamento, responsabilidades fiscales, CIIU…).
 
 Como en todos los listados, puedes ordenar, filtrar, paginar, guardar vistas, exportar e importar: la guía **Listados** explica cómo. Lo propio de Terceros:
 
@@ -39,9 +44,9 @@ Haz clic en una fila para abrir el tercero en su propia pestaña.
 7. En **Correos y teléfono para documentos electrónicos** (ver más abajo) escribe el correo que corresponda y el teléfono.
 8. Mira el cuadro de estado DIAN al pie del formulario y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** no guarda: pasa al campo siguiente (**Mayús+Enter** vuelve al anterior). Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
 
-El interruptor **Ver códigos DIAN**, arriba a la derecha, muestra los nombres técnicos de la DIAN junto a cada etiqueta (por ejemplo «DANE» o «schemeName») y los códigos delante de los nombres de las listas; empieza apagado. **Departamento** y **Municipio** son cajas de búsqueda: escribe «medellin» y pulsa **Enter**. El **DV** y el **Nombre para documentos** no se editan, pero se pueden seleccionar y copiar con el botón de copiar que tienen al lado; el **Resumen RUT** también copia la identificación completa («NIT 900373115-3»). Todo esto se explica en la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
+Las listas de la DIAN muestran el código delante del nombre («31 · NIT», «05 · Antioquia»). **Departamento** y **Municipio** son cajas de búsqueda: escribe «medellin» y pulsa **Enter**. El **DV** y el **Nombre para documentos** no se editan, pero se pueden seleccionar y copiar con el botón de copiar que tienen al lado; el **Resumen RUT** también copia la identificación completa («NIT 900373115-3»). Todo esto se explica en la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
 
-Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **N.º** consecutivo y su identificador (UUID).
+Al guardar, la pestaña pasa a mostrar el tercero ya creado, con su **ID** consecutivo y su identificador (UUID).
 
 ## Correos y teléfono
 
@@ -68,13 +73,27 @@ Un tercero está **Listo para facturar** solo cuando cumple las tres condiciones
 
 Si además tu empresa definió **datos adicionales obligatorios**, uno que falte aparece como «Dato adicional: …» en los datos pendientes.
 
-Mientras no esté listo para facturar, el tercero no se puede elegir en una factura. En la parte baja del formulario, el panel **No se puede usar en facturas** te dice por qué. El pie del registro repite las dos cosas: «✓ Se puede usar en facturas» o «✕ No se puede usar en facturas», y el estado DIAN en palabras («DIAN: completo», «DIAN: faltan 4 datos»).
+Mientras no esté listo para facturar, el tercero no se puede elegir en una factura.
+
+**En la cadena de venta.** La misma condición se exige al cliente de una **cotización**, un **pedido**, una **entrega**, una **factura** y un **recibo de caja**, y se vuelve a revisar en cada paso (al aceptar la cotización, al confirmar el pedido, al despachar, al emitir la factura y al registrar el pago): un cliente que deja de estar listo detiene el paso siguiente, con el motivo en el mensaje (por ejemplo «Faltan datos DIAN: Dirección»). En los cuadros de búsqueda de esos documentos el cliente que no está listo aparece deshabilitado con ese motivo. Si el tercero **requiere aprobación**, además debe estar aprobado. La factura electrónica toma del tercero su tipo y número de documento, su DV, su dirección y municipio, sus responsabilidades fiscales y su **correo de facturación**; lo que corrijas aquí entra en el siguiente envío a la DIAN (guía **Facturación electrónica**).
+
+El campo **Cupo de crédito** del tercero es informativo. El cupo que revisan los pedidos es el de **Ventas › Parámetros › Condiciones comerciales** (guías **Ventas** y **Pedidos de venta**). En la parte baja del formulario, el panel **No se puede usar en facturas** te dice por qué. El pie del registro repite las dos cosas: «✓ Se puede usar en facturas» o «✕ No se puede usar en facturas», y el estado DIAN en palabras («DIAN: completo», «DIAN: faltan 4 datos»).
 
 ## Cambiar un tercero
 
-Abre la fila, modifica lo que necesites y pulsa **Guardar**. **Descartar cambios** devuelve el formulario a lo guardado. El estado DIAN se recalcula en cada guardado. Si cambias el número de documento a uno que ya existe en la empresa, el sistema lo rechaza: no puede haber dos terceros con el mismo documento.
+Abre la fila, modifica lo que necesites y pulsa **Guardar** (en la fila de las pestañas) o **Guardar cambios** (junto al título, donde aparece **Cambios sin guardar**). **Descartar cambios**, al lado, devuelve el formulario a lo guardado. El estado DIAN se recalcula en cada guardado. Si cambias el número de documento a uno que ya existe en la empresa, el sistema lo rechaza: no puede haber dos terceros con el mismo documento.
 
 Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar tercero», con su propio permiso; en esta versión el formulario no tiene un botón para hacerlo): un tercero inactivo deja de estar disponible para documentos nuevos, pero se conserva todo su historial.
+
+## Estados, aprobación, impresión y acceso
+
+Los terceros son un **maestro** (guía [Maestros y documentos](maestros-y-documentos.md)):
+
+- Cada un tercero tiene un **ID** consecutivo que nunca se repite; búscalo en la columna **ID** del listado o escribiéndolo en **⌘K**.
+- La barra de acciones del registro tiene **Nuevo**, **Duplicar**, **Imprimir** (el PDF del registro, guía [Plantillas PDF e Imprimir](plantillas-pdf.md)) y **Guardar**. Si el administrador activó **Requiere aprobación** en **Parámetros › Configuración de tipos**, aparece también **Guardar y enviar a aprobación**, y quien tiene el permiso ve **Aprobar** y **No aprobar**. En un tercero aprobado, cambiar el documento, el nombre o los datos tributarios lo devuelve a **Pendiente de Aprobación** al guardar.
+- Un maestro se puede usar en documentos cuando está **Activo** y aprobado (o grabado, si no requiere aprobación). Para dejar de usarlo, cambia **Activo** a «No»; **Eliminar** solo funciona si nada lo usa.
+- El pie dice **Creado en … por …** y **Modificado en … por …**. Los maestros no tienen **Notificar** ni **Versiones**: sus cambios quedan en la auditoría.
+- Un administrador puede restringir un tercero concreto a ciertos roles o usuarios en la pestaña **Acceso** (guía [Acceso por registro](acceso-por-registro.md)).
 
 ## Quién puede ver y cambiar qué
 
@@ -84,7 +103,7 @@ Para sacar de circulación a un tercero se **desactiva** (proceso «Desactivar t
 
 ## Más
 
-- Pestañas del registro: **Datos · Contactos · Datos adicionales · Archivos**.
+- Pestañas del registro: **Datos · Contactos · Datos adicionales · Archivos** y, para los administradores, **Acceso**.
 - **Duplicar** (o **Ctrl+D**) crea un tercero nuevo a partir de este, sin número de documento ni DV, contactos ni archivos (guía **Moverse por el sistema**, «Duplicar un registro»).
 - Cada acción (crear, actualizar, desactivar) queda en la auditoría con quién la hizo y desde dónde.
 - Para cargar muchos terceros de una vez, usa **Importar** (guía **Importar datos**).

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { refLabelKey } from "@erp/kernel/query";
+import { refFoundKey, refLabelKey, ROW_MASKED } from "@erp/kernel/query";
 import { cn } from "@erp/ui/lib/utils";
 import { RecordLink } from "../record/RecordLink";
 import { shortId } from "../record/record-model";
@@ -47,14 +47,38 @@ export function GridCell({ column, row, className, render }: { column: GridColum
       </td>
     );
   }
+  // D20: a placeholder row (a line the viewer may not see, from the masked view) shows «••••» wherever the view left its value out.
+  if (row[ROW_MASKED] === true && [null, undefined, ""].includes(cellValue(row, column.field) as never)) {
+    return (
+      <td className={cn(base, "erp-masked")}>
+        <span title={t("grid.masked_row")}>••••</span>
+      </td>
+    );
+  }
   const custom = render?.(column, row);
   if (custom !== undefined) return <td className={base}>{custom}</td>;
   const value = cellValue(row, column.field);
+  const mark = column.marked;
+  if (mark && String(value) === mark.whenValue && ![null, undefined, ""].includes(cellValue(row, mark.field) as never)) {
+    return (
+      <td className={base}>
+        <Pill tone={mark.tone}>{mark.label}</Pill>
+      </td>
+    );
+  }
   if (column.ref && typeof value === "string" && value !== "") {
     // A reference names its record (the row's `<field>_label`, else the column's option, else the short id) and links
     // to the record's page when the viewer may open it (rule 21).
     const named = row[refLabelKey(column.field)];
     const label = typeof named === "string" && named !== "" ? named : column.options?.some((o) => o.value === value) ? text(column, value) : null;
+    if (label === null && column.unavailable) {
+      // «Pedido no disponible» only for a record the viewer cannot read; a readable one whose name they do not see is «—» (Task 39 m2).
+      return (
+        <td className={base}>
+          <span className="erp-muted">{row[refFoundKey(column.field)] === true ? "—" : column.unavailable}</span>
+        </td>
+      );
+    }
     const shown = label ?? shortId(value);
     return (
       <td className={base}>
@@ -72,6 +96,16 @@ export function GridCell({ column, row, className, render }: { column: GridColum
     const pill = dianPill(value);
     return <td className={className}>{pill ? <Pill tone={pill.tone}>{t(`grid.dian.${pill.key}`, { count: pill.count })}</Pill> : <span className="erp-muted">—</span>}</td>;
   }
+  // An empty list (a category with no "otros impuestos") says so in words: a dash read as "unknown" and "0 elementos" as a count of products.
+  if (column.type === "json" && typeof value === "object" && value !== null && (Array.isArray(value) ? value.length === 0 : Object.keys(value).length === 0)) {
+    return (
+      <td className={base}>
+        <span className="erp-muted" title={t("grid.json_none_title", { label: column.label })}>
+          {t("grid.json_none")}
+        </span>
+      </td>
+    );
+  }
   const shown = text(column, value);
   if (shown === "" || isEmptyCell(column, value)) {
     return (
@@ -82,5 +116,16 @@ export function GridCell({ column, row, className, render }: { column: GridColum
   }
   const tone = column.pills?.[String(value)];
   if (column.type === "json" && typeof value === "object") return <td className={base}><span title={JSON.stringify(value)}>{shown}</span></td>;
-  return <td className={base}>{tone ? <Pill tone={tone}>{shown}</Pill> : shown}</td>;
+  return (
+    <td className={base}>
+      {tone ? (
+        <Pill tone={tone}>{shown}</Pill>
+      ) : (
+        // A long value (company name, e-mail) is cut with an ellipsis; the whole text is the tooltip.
+        <span className="erp-grid__text" title={shown.length > 24 ? shown : undefined}>
+          {shown}
+        </span>
+      )}
+    </td>
+  );
 }

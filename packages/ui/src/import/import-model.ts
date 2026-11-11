@@ -8,6 +8,9 @@ export interface ImportPreviewRow {
   errors: string[];
   /** The row's cells in header order. */
   cells: string[];
+  /** A documento's lines (their Líneas row and cells, in `lineHeaders` order). */
+  lines?: { rowNo: number; cells: string[] }[];
+  lineHeaders?: string[];
 }
 
 /** The route's preview of a file (kernel `ImportPreview`). */
@@ -20,6 +23,8 @@ export interface ImportPreviewData {
   missingColumns: string[];
   total: number;
   rows: ImportPreviewRow[];
+  /** A documento's lines refused on their own (their ref names no document), by their Líneas row: line errors, not refused rows. */
+  lineErrors?: { rowNo: number; errors: string[] }[];
 }
 
 /** One import of the history (kernel `ImportItem`). */

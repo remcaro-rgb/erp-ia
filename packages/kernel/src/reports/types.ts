@@ -12,6 +12,11 @@ export interface ReportColumn {
   /** The footer sums this column over the whole filter (from the consult's `aggregates`). */
   total?: "sum";
   mono?: boolean;
+  /**
+   * Whose currency a money column's figures are in (FX §7, check:rules «report-currency»): the company's, or the ISO code a field of each
+   * row holds. No report adds two currencies into one figure.
+   */
+  currency?: "company" | { field: string };
   /** The cell links to a record of another entity (rule 21): `idField` of the row holds its id. */
   link?: { entity: string; idField: string };
 }

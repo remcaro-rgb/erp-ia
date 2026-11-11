@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Caller } from "@erp/kernel";
-import { decideConfirmation } from "../runtime/confirm";
+import { createConfirmation, decideConfirmation } from "../runtime/confirm";
 import { buildTools } from "../tools/build";
 import { agentHarness, exito, type AgentHarness } from "./harness";
 
@@ -160,5 +160,17 @@ describe("decideConfirmation", () => {
     } finally {
       await h.sql`delete from kernel.sensitive_processes where company_id = ${h.companyId}`;
     }
+  });
+
+  it("a dry-run denial in the preflight writes no audit row and is counted once; the refusal reaches the model (rule 16, design §22.28)", async () => {
+    const cashier: Caller = { ...h.cashier, conversationId: await h.conversation(h.cashier), chainId: randomUUID() };
+    const def = h.deps.registry.process("core.party.create");
+    const counted = async () =>
+      Number((await h.sql`select coalesce(sum(count), 0) as n from kernel.dry_run_denial_counters where company_id = ${h.companyId} and process_id = 'core.party.create' and code = 'forbidden'`)[0]!.n);
+    const before = await counted();
+    const out = await createConfirmation(h.deps, cashier, def, { ...exito, documentNumber: "700111222", legalName: "Éxito 700111222" });
+    expect(out).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await h.sql`select 1 from kernel.audit_log where chain_id = ${cashier.chainId!}`).toHaveLength(0);
+    expect(await counted()).toBe(before + 1);
   });
 });

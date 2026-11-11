@@ -1,7 +1,7 @@
 import { defineProcess, defineReport, ProcessError, type ExogenaFormat, type ExogenaRow, type ProcessContext, type ReportColumn } from "@erp/kernel";
 import { z } from "zod";
 import { companyPack } from "../processes/common";
-import { cents, reportInput, reportOutput, windowOf } from "./common";
+import { cents, reportInput, reportOutput, RESTRICTED_CODE, RESTRICTED_PARTIES, windowOf } from "./common";
 
 // Información exógena (accounting design §5.11, §4.13): for each party and concept, the year's movement of the accounts the concept
 // mapping names (descendants included), on the side the format reports. The opposite side counts only for reversals and credit
@@ -18,7 +18,7 @@ const columns: ReportColumn[] = [
   { field: "party_document_type", label: "report.col.document_type", type: "text", mono: true },
   { field: "party_document", label: "report.col.party_document", type: "text", mono: true, link: { entity: "core.party", idField: "party_id" } },
   { field: "party_name", label: "report.col.party", type: "text" },
-  ...Array.from({ length: MAX_COLUMNS }, (_, i) => ({ field: `col${i + 1}`, label: `report.col.value_${i + 1}`, type: "money" as const, total: "sum" as const, mono: true })),
+  ...Array.from({ length: MAX_COLUMNS }, (_, i) => ({ field: `col${i + 1}`, label: `report.col.value_${i + 1}`, type: "money" as const, currency: "company" as const, total: "sum" as const, mono: true })),
 ];
 
 interface PartyInfo {
@@ -72,85 +72,49 @@ export async function exogenaData(ctx: ProcessContext, year: number, formatId: s
     return entry;
   };
 
-  const mappings = await ctx.tx<{ concept: string; code: string }[]>`
-    select m.concept, a.code from accounting.fiscal_concept_mappings m join accounting.accounts a on a.id = m.account_id
-    where m.company_id = ${ctx.companyId} and m.format = ${formatId} and m.is_active`;
-  const codes = mappings.map((m) => m.code);
-  const concepts = mappings.map((m) => m.concept);
+  // The figures come from the security-definer aggregates of 0046 (D11, Task 9 review I1): a comprobante, an account or a party a
+  // record rule hides from the caller still counts; a line with no party in a hidden comprobante is counted, never named.
+  const [{ n: mapped } = { n: 0 }] = await ctx.tx<{ n: number }[]>`
+    select count(*)::int as n from accounting.fiscal_concept_mappings where company_id = ${ctx.companyId} and format = ${formatId} and is_active`;
+  const missingParty = (line: { entry: string | null; line_no: number | null; code: string | null }) =>
+    errors.push(`Línea sin tercero: comprobante ${line.entry ?? "(borrador)"} línea ${line.line_no} en la cuenta ${line.code}`);
+  const hiddenMissing = (count: number) => {
+    if (count > 0) errors.push(`${count} ${count === 1 ? "línea sin tercero en un comprobante restringido" : "líneas sin tercero en comprobantes restringidos"} para tu usuario`);
+  };
+  type Cell = { concept: string | null; party_id: string | null; amount: string | null; base: string | null; has_base: boolean; entry: string | null; line_no: number | null; code: string | null; hidden_lines: number };
 
-  if (mappings.length > 0 && format.side === "balance") {
-    const lines = await ctx.tx<{ concept: string; party_id: string | null; entry: string | null; line_no: number; code: string; balance: string }[]>`
-      with mapped as (select * from unnest(${concepts}::text[], ${codes}::text[]) as t(concept, mcode)),
-      raw as (
-        select distinct on (l.id) mp.concept, l.party_id, e.number as entry, l.line_no, a.code,
-               case when a.nature = 'debit' then l.debit - l.credit else l.credit - l.debit end as balance
-        from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
-        join mapped mp on a.code like mp.mcode || '%'
-        where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date <= ${last}::date and accounting.can_view_account(l.account_id)
-        order by l.id, length(mp.mcode) desc
-      )
-      select * from raw`;
+  if (mapped > 0 && format.side === "balance") {
+    const lines = await ctx.tx<Cell[]>`select * from accounting.exogena_cells(${formatId}, ${first}::date, ${last}::date, 'balance')`;
     for (const line of lines) {
-      if (!line.party_id) {
-        errors.push(`Línea sin tercero: comprobante ${line.entry ?? "(borrador)"} línea ${line.line_no} en la cuenta ${line.code}`);
-        continue;
-      }
-      bump(cell(line.concept, line.party_id).values, columnIds[0]!, Number(line.balance));
+      if (line.hidden_lines > 0) hiddenMissing(line.hidden_lines);
+      else if (!line.party_id) missingParty(line);
+      else bump(cell(line.concept!, line.party_id).values, columnIds[0]!, Number(line.amount));
     }
     // Only balances in the account's own direction are reported.
     for (const [key, entry] of cells) if ((entry.values[columnIds[0]!] ?? 0) <= 0) cells.delete(key);
-  } else if (mappings.length > 0) {
-    const lines = await ctx.tx<{ concept: string; party_id: string | null; entry: string | null; line_no: number; code: string; debit: string; credit: string; tax_base: string | null; contra: boolean }[]>`
-      with mapped as (select * from unnest(${concepts}::text[], ${codes}::text[]) as t(concept, mcode)),
-      raw as (
-        select distinct on (l.id) mp.concept, l.party_id, l.entry_id, e.number as entry, l.line_no, a.code, l.debit, l.credit, l.tax_base,
-               (e.reversal_of_id is not null or e.source_entity = 'invoicing.note') as contra
-        from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
-        join mapped mp on a.code like mp.mcode || '%'
-        where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date between ${first}::date and ${last}::date
-          and not e.is_opening and not e.is_closing and accounting.can_view_account(l.account_id)
-        order by l.id, length(mp.mcode) desc
-      ),
-      fallback as (
-        select l.entry_id, (array_agg(distinct l.party_id))[1] as party from accounting.entry_lines l
-        where l.entry_id in (select entry_id from raw) and l.party_id is not null group by l.entry_id having count(distinct l.party_id) = 1
-      )
-      select r.concept, coalesce(r.party_id, f.party) as party_id, r.entry, r.line_no, r.code, r.debit, r.credit, r.tax_base, r.contra
-      from raw r left join fallback f on f.entry_id = r.entry_id`;
-    const sums = new Map<string, { amount: number; base: number; hasBase: boolean }>();
+  } else if (mapped > 0) {
+    const lines = await ctx.tx<Cell[]>`select * from accounting.exogena_cells(${formatId}, ${first}::date, ${last}::date, ${format.side})`;
     for (const line of lines) {
-      const own = Number(format.side === "debit" ? line.debit : line.credit);
-      const opposite = Number(format.side === "debit" ? line.credit : line.debit);
-      const amount = own - (line.contra ? opposite : 0);
-      // A line on the other side that is not a reversal or a credit note adds nothing: it needs no party either.
-      if (amount === 0 && !(line.tax_base !== null && own > 0)) continue;
-      if (!line.party_id) {
-        errors.push(`Línea sin tercero: comprobante ${line.entry ?? "(borrador)"} línea ${line.line_no} en la cuenta ${line.code}`);
+      if (line.hidden_lines > 0) {
+        hiddenMissing(line.hidden_lines);
         continue;
       }
-      const key = `${line.concept}|${line.party_id}`;
-      const sum = sums.get(key) ?? { amount: 0, base: 0, hasBase: false };
-      sum.amount += amount;
-      if (line.tax_base !== null && own > 0) {
-        sum.base += Number(line.tax_base);
-        sum.hasBase = true;
+      if (!line.party_id) {
+        missingParty(line);
+        continue;
       }
-      sums.set(key, sum);
-    }
-    for (const [key, sum] of sums) {
-      const [concept, partyId] = key.split("|") as [string, string];
-      const target = cell(concept, partyId);
+      const target = cell(line.concept!, line.party_id);
+      const amount = Number(line.amount);
       for (const column of format.columns) {
-        if (column.source === "amount") bump(target.values, column.id, sum.amount);
-        else if (column.source === "base") bump(target.values, column.id, sum.hasBase ? sum.base : sum.amount);
+        if (column.source === "amount") bump(target.values, column.id, amount);
+        else if (column.source === "base") bump(target.values, column.id, line.has_base ? Number(line.base) : amount);
       }
     }
     // Withholdings practised or suffered (tax:FAMILY columns): from the tax lines, on the party's principal concept.
     const taxColumns = format.columns.filter((c) => c.source.startsWith("tax:"));
     if (taxColumns.length > 0) {
       const tax = await ctx.tx<{ party_id: string; family: string; amount: string }[]>`
-        select party_id, split_part(tax_code, '_', 1) as family, sum(credit - debit) as amount
-        from accounting.v_tax_lines where date between ${first}::date and ${last}::date and party_id is not null group by party_id, split_part(tax_code, '_', 1)`;
+        select party_id, family, amount from accounting.exogena_tax_sums(${first}::date, ${last}::date)`;
       for (const t of tax) {
         const principal = [...cells.values()].filter((c) => c.partyId === t.party_id).sort((a, b) => b.values[columnIds[0]!]! - a.values[columnIds[0]!]! || a.concept.localeCompare(b.concept))[0];
         if (!principal) continue;
@@ -158,26 +122,14 @@ export async function exogenaData(ctx: ProcessContext, year: number, formatId: s
       }
     }
 
-    // Accounts with movement the mapping does not cover, when the format maps result accounts (§5.11, errors).
+    // Accounts with movement the mapping does not cover, when the format maps result accounts (§5.11, errors): an account of a
+    // section of the mapped result accounts the mapping leaves out is a gap (cost of sales, for one, is not covered by 1001).
     const balanceSheet = pack.statementLayouts().balanceSheet.map((s) => s.code);
-    // The statement sections of the mapped result accounts: an account of one of them the mapping leaves out is a gap (cost of sales,
-    // for one, is not covered by 1001 and is not asked for).
-    const covered = await ctx.tx<{ section: string }[]>`
-      select distinct a.statement_section as section from accounting.fiscal_concept_mappings m join accounting.accounts a on a.id = m.account_id
-      where m.company_id = ${ctx.companyId} and m.format = ${formatId} and m.is_active and a.statement_section is not null and a.statement_section <> all(${balanceSheet}::text[])`;
-    if (covered.length > 0) {
-      const sections = covered.map((c) => c.section);
-      const unmapped = await ctx.tx<{ code: string; name: string; movement: string }[]>`
-        select a.code, a.name, sum(case ${format.side} when 'debit' then l.debit else l.credit end) as movement
-        from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
-        where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date between ${first}::date and ${last}::date
-          and not e.is_opening and not e.is_closing and accounting.can_view_account(a.id)
-          and a.statement_section = any(${sections}::text[])
-          and not exists (select 1 from accounting.fiscal_concept_mappings c join accounting.accounts mapped on mapped.id = c.account_id
-                          where c.company_id = ${ctx.companyId} and c.format = ${formatId} and c.is_active and a.code like mapped.code || '%')
-        group by a.code, a.name having sum(case ${format.side} when 'debit' then l.debit else l.credit end) > 0 order by a.code`;
-      for (const u of unmapped) errors.push(`Cuenta sin concepto en el formato ${formatId}: ${u.code} · ${u.name} (movimiento $ ${cents(Number(u.movement))})`);
-    }
+    const unmapped = await ctx.tx<{ code: string | null; name: string | null; restricted: boolean; movement: string }[]>`
+      select code, name, restricted, movement from accounting.exogena_unmapped(${formatId}, ${first}::date, ${last}::date, ${format.side}, ${balanceSheet}::text[])`;
+    const hiddenUnmapped = unmapped.filter((u) => u.restricted).length;
+    for (const u of unmapped.filter((x) => !x.restricted)) errors.push(`Cuenta sin concepto en el formato ${formatId}: ${u.code} · ${u.name} (movimiento $ ${cents(Number(u.movement))})`);
+    if (hiddenUnmapped > 0) errors.push(`${hiddenUnmapped} ${hiddenUnmapped === 1 ? "cuenta restringida" : "cuentas restringidas"} para tu usuario sin concepto en el formato ${formatId}`);
   }
 
   // Parties: data the file needs.
@@ -209,6 +161,7 @@ export async function exogenaData(ctx: ProcessContext, year: number, formatId: s
     });
   };
   const flagged = new Set<string>();
+  const hiddenParties = new Map<string, { count: number; values: Record<string, number> }>();
   for (const entry of [...cells.values()].sort((a, b) => a.concept.localeCompare(b.concept) || a.partyId.localeCompare(b.partyId))) {
     if (Object.values(entry.values).every((v) => Math.abs(v) < 0.005)) continue;
     const mainValue = entry.values[columnIds[0]!]!;
@@ -220,7 +173,11 @@ export async function exogenaData(ctx: ProcessContext, year: number, formatId: s
     }
     const party = parties.get(entry.partyId);
     if (!party || !party.document_number) {
-      errors.push(`El tercero ${entry.partyId} no existe o no es visible`);
+      // A party the caller may not read (a record rule or the party scope): its figures stay, under the lock line of its concept.
+      const acc = hiddenParties.get(entry.concept) ?? { count: 0, values: Object.fromEntries(columnIds.map((id) => [id, 0])) };
+      for (const id of columnIds) bump(acc.values, id, entry.values[id] ?? 0);
+      acc.count += 1;
+      hiddenParties.set(entry.concept, acc);
       continue;
     }
     const name = party.legal_name ?? party.document_number;
@@ -240,6 +197,13 @@ export async function exogenaData(ctx: ProcessContext, year: number, formatId: s
   }
   for (const [concept, values] of [...small].sort((a, b) => a[0].localeCompare(b[0]))) {
     emit(concept, { id: null, type: UNIDENTIFIED_TYPE, document: format.cuantiasMenoresNit, name: CUANTIAS_NAME, country: "CO" }, values);
+  }
+  const hiddenCount = [...hiddenParties.values()].reduce((sum, h) => sum + h.count, 0);
+  for (const [concept, { values }] of [...hiddenParties].sort((a, b) => a[0].localeCompare(b[0]))) {
+    emit(concept, { id: null, type: "", document: RESTRICTED_CODE, name: RESTRICTED_PARTIES, country: "CO" }, values);
+  }
+  if (hiddenCount > 0) {
+    errors.push(`${hiddenCount === 1 ? "Un tercero no es visible" : `${hiddenCount} terceros no son visibles`} para tu usuario (restringidos): el archivo lo genera quien pueda verlos`);
   }
   return { format, rows, exogenaRows, errors: [...new Set(errors)] };
 }

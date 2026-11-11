@@ -9,7 +9,7 @@ processes:
 
 # Consulta de movimientos
 
-**Movimientos** es la pantalla para preguntarle cualquier cosa al libro contable: cada línea de cada comprobante, con todos sus datos, incluidas las dimensiones analíticas. Entra por **Contabilidad › Movimientos**.
+**Movimientos** es la pantalla para preguntarle cualquier cosa al libro contable: cada línea de cada comprobante, con todos sus datos, incluidas las dimensiones analíticas. Entra por **Contabilidad › Reportes › Movimientos**.
 
 ![Movimientos agrupado por Cuenta y Centro de costo](img/movimientos-agrupado.png)
 

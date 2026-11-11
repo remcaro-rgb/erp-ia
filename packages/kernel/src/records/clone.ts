@@ -32,7 +32,14 @@ export function cloneDraft(registry: Registry, entityId: string, record: Readonl
   const draft: Record<string, unknown> = {};
   for (const column of importColumns(registry, entityId)) {
     const value = record[column.field];
-    if (!copied(column.field) || isEmpty(value)) continue;
+    if (!copied(column.field)) continue;
+    // A date or timestamp arrives from the driver as a Date (no own keys, so not "empty"): a calendar date goes back as yyyy-mm-dd (the
+    // create input's form; the driver reads it at UTC midnight), a timestamp as ISO (Task 28.5: a lot's expiry on «Duplicar»).
+    if (value instanceof Date) {
+      if (!Number.isNaN(value.getTime())) draft[column.key] = entity.fields.find((f) => f.name === column.field)?.type === "date" ? value.toISOString().slice(0, 10) : value.toISOString();
+      continue;
+    }
+    if (isEmpty(value)) continue;
     if (column.type === "number") {
       const number = typeof value === "number" ? value : Number(value);
       if (Number.isFinite(number)) draft[column.key] = number;

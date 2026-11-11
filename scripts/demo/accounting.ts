@@ -11,7 +11,7 @@
  *     the revenue accounts of the categories bebidas and comida.
  *  3. The analytic masters: 3 centros de costo (Tiendas is a group of Chapinero and Usaquén), 2 auxiliares abiertos, 2 ítems,
  *     4 unidades de negocio; `settings.update` turns the three optional dimensions on.
- *  4. Grants: the accounting processes of the contador and the cajero, `entry.post` raised to step-up, and the security by
+ *  4. Grants: the accounting processes of the contador (and the exchange-rate set and import, Task 34.1) and the cajero, `entry.approve` raised to step-up, and the security by
  *     account (5105, class 3, Davivienda).
  *  5. The 2026 opening balances (`opening.create` + `opening.post`), 40 posted entries January to October from the posting
  *     fixtures of design §5.4 (synthetic outbox rows delivered to the accounting consumer, as the dispatch workflow does),
@@ -25,6 +25,9 @@ import type { Sql } from "postgres";
 import { accounting } from "@erp/module-accounting";
 import { ATTACHMENT_PROCESSES, buildConsumerContext, consumers, enqueueEvent, runProcess, type Caller, type RunProcessDeps } from "@erp/kernel";
 import { DEMO_COMPANY_ID, DEMO_ROLE_IDS } from "./accounts";
+import { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, HOTEL_CUMBRE, BOSQUE, TRILLADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, ANNULMENT_NOTES, type InvoiceSpec } from "./ledger-data";
+
+export { DEMO_YEAR, LEDGER_STARTS_ON, BANCOLOMBIA, EXITO, COLINA, HOTEL_CUMBRE, CARIBE_EXPRESS, SOL_DEL_CARIBE, CATERING_ANDES, ANDINAS, BOSQUE, TRILLADORA, TOSTADORA, ELECTRIC, OPENING_LINES, INVOICES, CREDIT_NOTES, ANNULMENT_NOTES, type InvoiceSpec } from "./ledger-data";
 
 /** A signed-in demo account: the caller of its processes and, when it has a second step, a fresh step-up. */
 export interface DemoSession {
@@ -39,8 +42,6 @@ interface Who {
   ids: Map<string, string>;
 }
 
-export const DEMO_YEAR = 2026;
-export const LEDGER_STARTS_ON = `${DEMO_YEAR}-01-01`;
 
 type Run = <T = { id: string }>(session: DemoSession, processId: string, input: unknown, options?: { stepUp?: boolean }) => Promise<T>;
 
@@ -53,24 +54,11 @@ const addDays = (iso: string, days: number) => {
 };
 
 /** A fixed UUID v7-shaped id for the event payloads, so a rerun names the same documents. */
-const documentId = (kind: "a" | "b" | "c" | "d" | "e", n: number) => `019a2c4e-0000-7000-8000-${kind}${pad(n, 11)}`;
+export const documentId = (kind: "a" | "b" | "c" | "d" | "e", n: number) => `019a2c4e-0000-7000-8000-${kind}${pad(n, 11)}`;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The data
 
-/** Customers the invoices go to (all in scripts/demo/data.ts). */
-export const EXITO = "890900608";
-export const COLINA = "900456781";
-export const HOTEL_CUMBRE = "860512347";
-export const CARIBE_EXPRESS = "900888123";
-export const SOL_DEL_CARIBE = "890112233";
-export const CATERING_ANDES = "900667788";
-export const ANDINAS = "901642753";
-export const BOSQUE = "900531642";
-/** Suppliers on the accounts payable. */
-export const TRILLADORA = "900135791";
-export const TOSTADORA = "900246802";
-export const ELECTRIC = "900975310";
 
 export interface Node {
   code: string;
@@ -107,57 +95,6 @@ export const BUSINESS_UNITS: Node[] = [
   { code: "INS-DIS", name: "Distribuidores", kind: "leaf", parent: "INS" },
 ];
 
-export const OPENING_LINES = [
-  { accountCode: "110505", debit: 5_000_000 },
-  { accountCode: "11100502", debit: 80_000_000 },
-  { accountCode: "11100501", debit: 15_000_000 },
-  { accountCode: "130505", partyDocument: EXITO, debit: 40_000_000, dueDate: `${DEMO_YEAR}-01-31` },
-  { accountCode: "130505", partyDocument: COLINA, debit: 12_000_000, dueDate: `${DEMO_YEAR}-01-31` },
-  { accountCode: "143505", debit: 60_000_000 },
-  { accountCode: "220505", partyDocument: TRILLADORA, credit: 18_000_000 },
-  { accountCode: "220505", partyDocument: TOSTADORA, credit: 12_000_000 },
-  { accountCode: "310505", credit: 100_000_000 },
-  { accountCode: "370505", credit: 82_000_000 },
-];
-
-export interface InvoiceSpec {
-  number: string;
-  date: string;
-  customer: string;
-  beverages: number;
-  food: number;
-  costCenter: string;
-  businessUnit: string;
-  /** Receipt: days after the invoice, the share of it collected (1 = all), and how it was paid. */
-  receipt?: { days: number; share?: number; method: "transfer" | "cash" };
-}
-
-export const INVOICES: InvoiceSpec[] = [
-  { number: "FE-1001", date: "2026-01-12", customer: EXITO, beverages: 8_000_000, food: 4_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 26, method: "transfer" } },
-  { number: "FE-1002", date: "2026-01-26", customer: HOTEL_CUMBRE, beverages: 3_000_000, food: 2_000_000, costCenter: "TOS", businessUnit: "INS-HOR", receipt: { days: 29, method: "transfer" } },
-  { number: "FE-1003", date: "2026-02-09", customer: COLINA, beverages: 6_000_000, food: 3_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 24, method: "transfer" } },
-  { number: "FE-1004", date: "2026-02-23", customer: CATERING_ANDES, beverages: 2_500_000, food: 1_500_000, costCenter: "CHA", businessUnit: "INS-HOR", receipt: { days: 20, method: "cash" } },
-  { number: "FE-1005", date: "2026-03-10", customer: EXITO, beverages: 9_000_000, food: 5_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 28, method: "transfer" } },
-  { number: "FE-1006", date: "2026-03-24", customer: SOL_DEL_CARIBE, beverages: 4_000_000, food: 3_000_000, costCenter: "TOS", businessUnit: "INS-HOR", receipt: { days: 27, method: "transfer" } },
-  { number: "FE-1007", date: "2026-04-13", customer: ANDINAS, beverages: 7_000_000, food: 2_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 25, method: "transfer" } },
-  // Never collected: more than 90 days overdue in the aging report.
-  { number: "FE-1008", date: "2026-05-11", customer: COLINA, beverages: 5_000_000, food: 2_500_000, costCenter: "TOS", businessUnit: "INS-DIS" },
-  { number: "FE-1009", date: "2026-06-15", customer: EXITO, beverages: 10_000_000, food: 4_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 30, method: "transfer" } },
-  { number: "FE-1010", date: "2026-07-13", customer: BOSQUE, beverages: 3_500_000, food: 2_500_000, costCenter: "USA", businessUnit: "CON-TIE", receipt: { days: 21, method: "cash" } },
-  { number: "FE-1011", date: "2026-08-10", customer: CARIBE_EXPRESS, beverages: 6_000_000, food: 2_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 26, method: "transfer" } },
-  // Half collected: the rest is 1 to 30 days overdue.
-  { number: "FE-1012", date: "2026-09-14", customer: EXITO, beverages: 11_000_000, food: 4_000_000, costCenter: "TOS", businessUnit: "INS-DIS", receipt: { days: 27, share: 0.5, method: "transfer" } },
-  // Collected, then the receipt is voided: open again.
-  { number: "FE-1013", date: "2026-10-05", customer: BOSQUE, beverages: 3_000_000, food: 2_000_000, costCenter: "CHA", businessUnit: "CON-WEB", receipt: { days: 14, method: "transfer" } },
-  { number: "FE-1014", date: "2026-10-12", customer: COLINA, beverages: 6_000_000, food: 3_000_000, costCenter: "TOS", businessUnit: "INS-DIS" },
-  // Issued and voided in the same month.
-  { number: "FE-1015", date: "2026-10-19", customer: SOL_DEL_CARIBE, beverages: 2_000_000, food: 1_000_000, costCenter: "USA", businessUnit: "INS-HOR" },
-];
-
-export const CREDIT_NOTES = [
-  { number: "NC-301", date: "2026-06-20", customer: EXITO, subtotal: 1_000_000, costCenter: "TOS" },
-  { number: "NC-302", date: "2026-09-22", customer: COLINA, subtotal: 500_000, costCenter: "TOS" },
-];
 
 export const COGS = [
   { number: "CV-01", date: "2026-02-28", cost: 3_000_000, costCenter: "TOS" },
@@ -172,6 +109,90 @@ export const COGS = [
 export const ADJUSTMENTS = [
   { number: "AJ-11", date: "2026-05-31", value: -120_000, costCenter: "TOS" },
   { number: "AJ-12", date: "2026-10-29", value: -35_000, costCenter: "TOS" },
+];
+
+/** A manual comprobante line with its party and cost center named by document number and code. */
+export interface SampleLine {
+  accountCode: string;
+  partyDocument?: string;
+  costCenter?: string;
+  debit?: number;
+  credit?: number;
+  description: string;
+}
+
+/** The maintenance supplier: services, retefuente 4 %, a payable on 2335 (not gated by invoice readiness). */
+export const BARISTA_PRO = "900864213";
+
+/**
+ * October's sample comprobantes of the purchase side (owner order 2026-11-02): a purchase of green coffee with IVA 5 %, retefuente
+ * 2,5 %, ReteIVA 15 % and ReteICA 4,14 ‰, a return to the supplier, the payment of the opening payable, a maintenance service, the
+ * social benefits provision and the bank's interest. Every line follows the chart's demands: parties on groups 13 and 22 to 25,
+ * cost centers on classes 4 to 7.
+ */
+export const SAMPLE_COMPROBANTES: { description: string; date: string; lines: SampleLine[] }[] = [
+  {
+    description: "Compra de café verde a Trilladora La Montaña",
+    date: "2026-10-06",
+    lines: [
+      { accountCode: "143505", debit: 10_000_000, description: "Café verde excelso, 800 kg" },
+      { accountCode: "240810", partyDocument: TRILLADORA, debit: 500_000, description: "IVA descontable 5 %" },
+      { accountCode: "236540", partyDocument: TRILLADORA, credit: 250_000, description: "Retención en la fuente por compras 2,5 %" },
+      { accountCode: "236701", partyDocument: TRILLADORA, credit: 75_000, description: "ReteIVA 15 % del IVA" },
+      { accountCode: "236801", partyDocument: TRILLADORA, credit: 41_400, description: "ReteICA 4,14 por mil" },
+      { accountCode: "220505", partyDocument: TRILLADORA, credit: 10_133_600, description: "Factura de compra FC-8812" },
+    ],
+  },
+  {
+    description: "Devolución de café verde a Trilladora La Montaña",
+    date: "2026-10-09",
+    lines: [
+      { accountCode: "220505", partyDocument: TRILLADORA, debit: 1_050_000, description: "Nota crédito del proveedor NC-221" },
+      { accountCode: "143505", credit: 1_000_000, description: "Café verde devuelto, 80 kg" },
+      { accountCode: "240810", partyDocument: TRILLADORA, credit: 50_000, description: "IVA descontable de la devolución" },
+    ],
+  },
+  {
+    description: "Pago a Trilladora La Montaña",
+    date: "2026-10-15",
+    lines: [
+      { accountCode: "220505", partyDocument: TRILLADORA, debit: 18_000_000, description: "Saldo inicial de proveedores" },
+      { accountCode: "530505", costCenter: "ADM", debit: 15_000, description: "Comisión por transferencia" },
+      { accountCode: "11100502", credit: 18_015_000, description: "Transferencia Bancolombia" },
+    ],
+  },
+  {
+    description: "Mantenimiento de la tostadora",
+    date: "2026-10-22",
+    lines: [
+      { accountCode: "514515", costCenter: "TOS", debit: 1_200_000, description: "Mantenimiento preventivo de la tostadora" },
+      { accountCode: "240810", partyDocument: BARISTA_PRO, debit: 228_000, description: "IVA descontable 19 %" },
+      { accountCode: "236525", partyDocument: BARISTA_PRO, credit: 48_000, description: "Retención en la fuente por servicios 4 %" },
+      { accountCode: "233535", partyDocument: BARISTA_PRO, credit: 1_380_000, description: "Servicio de mantenimiento por pagar" },
+    ],
+  },
+  {
+    description: "Provisión de prestaciones sociales de octubre",
+    date: "2026-10-31",
+    lines: [
+      { accountCode: "510530", costCenter: "ADM", debit: 1_457_750, description: "Cesantías 8,33 %" },
+      { accountCode: "510533", costCenter: "ADM", debit: 175_000, description: "Intereses sobre cesantías 1 %" },
+      { accountCode: "510536", costCenter: "ADM", debit: 1_457_750, description: "Prima de servicios 8,33 %" },
+      { accountCode: "510539", costCenter: "ADM", debit: 729_750, description: "Vacaciones 4,17 %" },
+      { accountCode: "261005", credit: 1_457_750, description: "Provisión de cesantías" },
+      { accountCode: "261010", credit: 175_000, description: "Provisión de intereses sobre cesantías" },
+      { accountCode: "261020", credit: 1_457_750, description: "Provisión de prima de servicios" },
+      { accountCode: "261015", credit: 729_750, description: "Provisión de vacaciones" },
+    ],
+  },
+  {
+    description: "Rendimientos financieros de octubre",
+    date: "2026-10-31",
+    lines: [
+      { accountCode: "11100502", debit: 320_000, description: "Intereses de la cuenta de ahorros" },
+      { accountCode: "421005", partyDocument: BANCOLOMBIA, costCenter: "ADM", credit: 320_000, description: "Intereses financieros" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -237,8 +258,12 @@ async function grantAccounting(run: Run, laura: DemoSession): Promise<void> {
   const ids = accounting.processes.map((p) => ({ id: p.id, kind: p.kind }));
   const consults = ids.filter((p) => p.kind === "consult").map((p) => p.id);
   const entries = ids.filter((p) => /^accounting\.(entry|entry_template|entry_line)\./.test(p.id)).map((p) => p.id);
-  const contador = [...new Set([...consults, ...entries, "accounting.opening.create"])];
-  const cajero = [...new Set([...consults, ...entries.filter((id) => /^accounting\.entry\.(create|update|void|submit|from_template)$/.test(id))])];
+  // Tasas de cambio (plan 2B.2 Task 34.1): the accountant registers manual rates and brings the TRM; replacing a TRM stays the admin's.
+  const rates = ["core.exchange_rate.set", "core.exchange_rate.import_official", "core.exchange_rate.for_date"];
+  // Diferencia en cambio (plan 2B.2 Task 34.7): admin and contador run and void the month-end revaluation (step-up).
+  const fx = ["accounting.fx_revaluation.run", "accounting.fx_revaluation.void"];
+  const contador = [...new Set([...consults, ...entries, "accounting.opening.create", ...rates, ...fx])];
+  const cajero = [...new Set([...consults, ...entries.filter((id) => /^accounting\.entry\.(create|update|void|delete|submit|from_template)$/.test(id))])];
   const attachments = ATTACHMENT_PROCESSES.map((p) => p.id);
   const changes = [
     ...[...contador, ...attachments].map((processId) => ({ roleId: DEMO_ROLE_IDS.contador, processId, allowed: true })),
@@ -247,10 +272,10 @@ async function grantAccounting(run: Run, laura: DemoSession): Promise<void> {
   await run(laura, "kernel.admin.permission.set_many", { changes }, { stepUp: true });
 }
 
-/** Approving a comprobante asks for the TOTP code (design §6: the admin may raise `entry.post` to step-up). */
+/** Approving a comprobante asks for the TOTP code (design §6: the admin may raise `entry.approve` to step-up). */
 async function raiseEntryPost(sql: Sql, run: Run, laura: DemoSession): Promise<void> {
-  const [raised] = await sql`select 1 from kernel.sensitive_processes where company_id = ${DEMO_COMPANY_ID} and process_id = 'accounting.entry.post'`;
-  if (!raised) await run(laura, "kernel.admin.sensitive_process.set", { processId: "accounting.entry.post", sensitive: true }, { stepUp: true });
+  const [raised] = await sql`select 1 from kernel.sensitive_processes where company_id = ${DEMO_COMPANY_ID} and process_id = 'accounting.entry.approve'`;
+  if (!raised) await run(laura, "kernel.admin.sensitive_process.set", { processId: "accounting.entry.approve", sensitive: true }, { stepUp: true });
 }
 
 /** Security by account (design §5.13): 5105 and class 3 are restricted, the Davivienda account is Laura's to post. */
@@ -271,7 +296,7 @@ async function setUpAccountSecurity(sql: Sql, run: Run, laura: DemoSession, laur
 
 /** The 2026 opening balances: a draft in Apertura, posted by the human step. */
 async function setUpOpening(sql: Sql, run: Run, laura: DemoSession): Promise<void> {
-  const [done] = await sql`select 1 from accounting.entries where company_id = ${DEMO_COMPANY_ID} and is_opening and status in ('posted', 'reversed')`;
+  const [done] = await sql`select 1 from accounting.entries where company_id = ${DEMO_COMPANY_ID} and is_opening and status = 'posted'`;
   if (done) return;
   const draft = await one(sql<{ id: string }[]>`select id from accounting.entries where company_id = ${DEMO_COMPANY_ID} and is_opening and status = 'draft'`);
   const id = draft?.id ?? (await run(laura, "accounting.opening.create", { date: LEDGER_STARTS_ON, description: `Saldos iniciales ${DEMO_YEAR}`, lines: OPENING_LINES })).id;
@@ -280,6 +305,15 @@ async function setUpOpening(sql: Sql, run: Run, laura: DemoSession): Promise<voi
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The posted history
+
+/**
+ * Whether the annulment of `invoiceNumber` was already posted by the seed before Task 53.3, which sent `invoicing.invoice.voided` for it
+ * instead of the credit note NC-303. Sending the note then would credit the invoice a second time (review F-6.1); `legacyVoided` holds the
+ * invoice numbers of the outbox's `invoicing.invoice.voided` rows of the demo company.
+ */
+export function annulmentAlreadyPosted(invoiceNumber: string, legacyVoided: ReadonlySet<string>): boolean {
+  return legacyVoided.has(invoiceNumber);
+}
 
 /** A synthetic outbox event delivered to the accounting consumer, as `dispatchOutboxRow` does (the CLI has no workflow world). */
 async function deliver(sql: Sql, deps: RunProcessDeps, event: string, payload: Record<string, unknown>): Promise<boolean> {
@@ -290,7 +324,10 @@ async function deliver(sql: Sql, deps: RunProcessDeps, event: string, payload: R
   const outboxId = await sql.begin((tx) => enqueueEvent(tx, { companyId: DEMO_COMPANY_ID, event, payload, chainId }));
   const [row] = await sql<{ id: string; event: string; payload: unknown; created_at: Date }[]>`select id, event, payload, created_at from kernel.outbox where id = ${outboxId}`;
   const ctx = buildConsumerContext(sql, { id: row!.id, event: row!.event, createdAt: row!.created_at, companyId: DEMO_COMPANY_ID, chainId }, deps.registry);
-  for (const consumer of consumers.for(event)) {
+  // These are the 2A posting fixtures: their documents exist only in the ledger. Only the accounting consumer receives them; the phase 2B
+  // modules the seed also loads (invoicing, payments...) consume the same event names for documents of their own tables, which these are not
+  // (plan 2B Task 26; scripts/demo/sales.ts posts a real chain through those modules).
+  for (const consumer of consumers.for(event).filter((c) => c.moduleId === "accounting")) {
     await consumer.fn(ctx, row!.payload);
     await sql`insert into kernel.outbox_deliveries (outbox_id, module_id) values (${outboxId}, ${consumer.moduleId}) on conflict do nothing`;
   }
@@ -313,6 +350,69 @@ async function partyIds(sql: Sql): Promise<Map<string, { id: string; name: strin
 }
 
 /** The 40 posted entries of January to October, from the §5.4 payloads. Returns how many events were new. */
+/** The annulment concept of the Colombian pack's table 13.2.4 (packages/localization/co: ANNULMENT_CONCEPT). */
+const ANNULMENT_REASON_CODE = "2";
+
+interface SalePayload extends Record<string, unknown> {
+  totals: { total: number };
+  lines: { subtotal: number }[];
+  taxes: { amount: number }[];
+}
+
+/**
+ * A peso sale payload as invoicing emits it since Task 34.4 (R34-4): each company amount beside its document twin (`*Doc`, equal in COP),
+ * the currency and the rate (1). The rules post `amount` from the twin and `amountCompany` from the field, so a peso entry is as before.
+ */
+export function inPesos<T extends SalePayload>(payload: T): Record<string, unknown> {
+  return {
+    ...payload, currency: "COP", exchangeRate: 1,
+    totals: { ...payload.totals, totalDoc: payload.totals.total },
+    lines: payload.lines.map((l) => ({ ...l, subtotalDoc: l.subtotal })),
+    taxes: payload.taxes.map((t) => ({ ...t, amountDoc: t.amount })),
+  };
+}
+
+interface ReceiptPayload {
+  amount: number;
+  applied: number;
+  withholdings: { income: { amount: number }[]; vat: { amount: number }[]; ica: { amount: number }[] };
+  advances?: { amount: number }[];
+}
+
+/**
+ * A peso receipt payload as payments emits it since Task 34.5 (R34-4): each company amount beside its document twin (`*Doc`, equal in COP),
+ * the currency, the rate (1) and the allocations' exchange difference (none: an empty list, so no fx line).
+ */
+export function receiptInPesos<T extends ReceiptPayload>(payload: T): Record<string, unknown> {
+  const twin = (rows: { amount: number }[]) => rows.map((r) => ({ ...r, amountDoc: r.amount }));
+  return {
+    ...payload, currency: "COP", exchangeRate: 1, amountDoc: payload.amount, appliedDoc: payload.applied, allocations: [],
+    withholdings: { income: twin(payload.withholdings.income), vat: twin(payload.withholdings.vat), ica: twin(payload.withholdings.ica) },
+    advances: twin(payload.advances ?? []),
+  };
+}
+
+/**
+ * The invoicing.note.issued payload of an annulment, mirroring what invoicing.invoice.void / note.issue_annulment emits (processes/note.ts):
+ * a credit note whose amounts are the invoice's, negative (the posting engine flips the side of a negative amount). R53-2: the seed's
+ * invoices are ledger events with no invoicing.invoices row, so the seed sends the event itself.
+ */
+export function annulmentPayload(
+  note: { number: string; date: string; invoice: string },
+  spec: InvoiceSpec,
+  ids: { noteId: string; invoiceId: string; customer: { partyId: string; legalName: string }; costCenterId: string | undefined },
+): Record<string, unknown> {
+  const base = spec.beverages + spec.food;
+  const tax = money(base * 0.19);
+  return inPesos({
+    date: note.date, number: note.number, noteId: ids.noteId, kind: "credit", annulment: true, reasonCode: ANNULMENT_REASON_CODE, dueDate: note.date,
+    invoiceId: ids.invoiceId, invoiceNumber: spec.number, customer: ids.customer, costCenterId: ids.costCenterId,
+    totals: { total: -(base + tax) },
+    lines: [{ subtotal: -spec.beverages, categoryId: "bebidas", costCenterId: ids.costCenterId }, { subtotal: -spec.food, categoryId: "comida", costCenterId: ids.costCenterId }],
+    taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -base }],
+  });
+}
+
 async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
   const costCenters = await nodeIds(sql, "cost_centers");
   const units = await nodeIds(sql, "business_units");
@@ -332,12 +432,12 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
     const base = spec.beverages + spec.food;
     const tax = money(base * 0.19);
     issued.set(spec.number, { index: i + 1, spec, base, total: base + tax });
-    await send("invoicing.invoice.issued", {
+    await send("invoicing.invoice.issued", inPesos({
       date: spec.date, number: spec.number, invoiceId: documentId("a", i + 1), dueDate: addDays(spec.date, 30), customer: customer(spec.customer),
       costCenterId: costCenters.get(spec.costCenter), businessUnitId: units.get(spec.businessUnit), totals: { total: base + tax },
       lines: [{ subtotal: spec.beverages, categoryId: "bebidas" }, { subtotal: spec.food, categoryId: "comida" }],
       taxes: [{ code: "IVA19", rate: 19, amount: tax, base }],
-    });
+    }));
   }
 
   // Receipts: the customer withholds retefuente 2.5 % and ICA Bogotá 0.966 % on the base it pays.
@@ -351,7 +451,7 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
     const ica = money(paidBase * 0.00966);
     receiptNo++;
     const number = `RC-${receiptNo}`;
-    await send("payments.received", {
+    await send("payments.received", receiptInPesos({
       date: addDays(spec.date, spec.receipt!.days), number, paymentId: documentId("b", index), method: spec.receipt!.method, amount: applied - rte - ica, applied,
       customer: customer(spec.customer),
       withholdings: {
@@ -359,7 +459,7 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
         vat: [],
         ica: [{ code: "RTEICA_BOGOTA_0_966", rate: 0.966, base: paidBase, amount: ica }],
       },
-    });
+    }));
     return { number, date: addDays(spec.date, spec.receipt!.days) };
   };
   let voidedReceipt: { number: string; date: string; index: number } | null = null;
@@ -371,11 +471,11 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
 
   for (const [i, note] of CREDIT_NOTES.entries()) {
     const tax = money(note.subtotal * 0.19);
-    await send("invoicing.note.issued", {
+    await send("invoicing.note.issued", inPesos({
       date: note.date, number: note.number, noteId: documentId("e", i + 1), reasonCode: "return", dueDate: note.date, customer: customer(note.customer),
       costCenterId: costCenters.get(note.costCenter), totals: { total: -(note.subtotal + tax) }, lines: [{ subtotal: -note.subtotal }],
       taxes: [{ code: "IVA19", rate: 19, amount: -tax, base: -note.subtotal }],
-    });
+    }));
   }
   for (const [i, cogs] of COGS.entries()) {
     await send("costing.cogs.posted", { date: cogs.date, number: cogs.number, cogsId: documentId("c", i + 1), lines: [{ cost: cogs.cost, costCenterId: costCenters.get(cogs.costCenter) }] });
@@ -387,9 +487,20 @@ async function postHistory(sql: Sql, deps: RunProcessDeps): Promise<number> {
     });
   }
 
-  // Voids: the receipt of FE-1013 (open again) and the invoice FE-1015, each in its own month and open period.
+  // The receipt of FE-1013 voided (open again), and the annulment note of the invoice FE-1015, each in its own open period.
   if (voidedReceipt) await send("payments.payment.voided", { date: addDays(voidedReceipt.date, 3), number: voidedReceipt.number, paymentId: documentId("b", voidedReceipt.index) });
-  await send("invoicing.invoice.voided", { date: "2026-10-20", number: "FE-1015", invoiceId: documentId("a", 15) });
+  // FE-1015 is annulled by its credit note of annulment (Task 53.3), numbered after the partial notes.
+  const legacyVoided = new Set(
+    (await sql<{ number: string }[]>`select payload->>'number' as number from kernel.outbox where company_id = ${DEMO_COMPANY_ID} and event = 'invoicing.invoice.voided'`).map((r) => r.number),
+  );
+  for (const [i, note] of ANNULMENT_NOTES.entries()) {
+    // A database seeded before Task 53 already holds the reversal as `invoicing.invoice.voided`: the note would credit the invoice twice.
+    if (annulmentAlreadyPosted(note.invoice, legacyVoided)) continue;
+    const spec = issued.get(note.invoice)!;
+    await send("invoicing.note.issued", annulmentPayload(note, spec.spec, {
+      noteId: documentId("e", CREDIT_NOTES.length + i + 1), invoiceId: documentId("a", spec.index), customer: customer(spec.spec.customer), costCenterId: costCenters.get(spec.spec.costCenter),
+    }));
+  }
   return delivered;
 }
 
@@ -431,11 +542,23 @@ async function manualNotes(sql: Sql, run: Run, laura: DemoSession): Promise<void
       ],
     },
   ];
+  for (const sample of SAMPLE_COMPROBANTES) {
+    notes.push({
+      description: sample.description,
+      date: sample.date,
+      lines: sample.lines.map(({ partyDocument, costCenter, ...line }) => ({
+        ...line,
+        ...(partyDocument ? { partyId: party(partyDocument) } : {}),
+        ...(costCenter ? { costCenterId: cc(costCenter) } : {}),
+      })),
+    });
+  }
   for (const note of notes) {
     const [exists] = await sql`select 1 from accounting.entries where company_id = ${DEMO_COMPANY_ID} and description = ${note.description}`;
     if (exists) continue;
     const { id } = await run(laura, "accounting.entry.create", { date: note.date, description: note.description, ...(note.reverseOn ? { reverseOn: note.reverseOn } : {}), lines: note.lines });
-    await run(laura, "accounting.entry.post", { id }, { stepUp: true });
+    // Grabar posts it (no approval yet: four-eyes is switched on later, for Andrés' provision).
+    await run(laura, "accounting.entry.save", { id });
   }
 }
 
@@ -467,6 +590,8 @@ async function pendingProvision(sql: Sql, run: Run, laura: DemoSession, andres: 
       { accountCode: "233540", partyId: parties.get(BOSQUE)!.id, credit: 2_500_000, description: "Arriendo por pagar" },
     ],
   });
+  // With approval Grabar leaves it Grabado; Enviar a aprobación makes it wait for somebody else.
+  await run(andres, "accounting.entry.save", { id });
   await run(andres, "accounting.entry.submit", { id });
 }
 

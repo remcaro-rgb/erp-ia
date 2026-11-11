@@ -1,4 +1,4 @@
-import { customData, defineProcess, ProcessError, visibleExtra, type CustomData, type PartyValidation, type ProcessContext } from "@erp/kernel";
+import { customData, defineProcess, ProcessError, visibleExtra, type CustomData, type PartyValidation, type ProcessContext, type TypedHooks } from "@erp/kernel";
 import { z } from "zod";
 import {
   assertScopeCovers,
@@ -16,12 +16,16 @@ import {
   undefinedAsNull,
   writableParty,
 } from "./common";
+import { party } from "../entities";
+import { assertWritable, changedColumns, followLifecycle, initialLifecycle, lifecycleProcesses, writableColumns } from "./lifecycle";
 import { documentType, extra, extraFree, extraPatch, id, optionalText, partyKind, taxScheme } from "./schemas";
 
 // Parties (design §5.8a, §5.18): customers, suppliers and employees as one model. The company's
 // country pack validates every create and update: its errors refuse the run with invalid_input, its
 // missing data is stored as dian_status / dian_missing. The party scope bounds reads (core.v_parties)
-// and writes (every non-employee kind of the record, stored and written, must be in the scope).
+// and writes (every non-employee kind of the record, stored and written, must be in the scope). A party is a maestro (entity types
+// spec §2.2): it is created Grabado (Pendiente de Aprobación when the company requires approval), the update process follows the
+// lifecycle (D10), and the generic Grabar runs the same validation through the validate hook (Task 8a).
 
 const fields = {
   kind: z.array(partyKind).min(1),
@@ -61,6 +65,9 @@ const createInput = z.object({
 type PartyInput = z.output<typeof createInput>;
 
 const updateInput = z.object(fields).partial().extend({ id, extraPatch });
+
+/** What the generic Grabar may write: the update process's columns (no balance, DIAN status / missing data, readiness, check digit). */
+const PARTY_WRITABLE = writableColumns(fields);
 
 /** Unique constraint on (company_id, document_type, document_number). */
 const DOCUMENT_KEY = "parties_company_id_document_type_document_number_key";
@@ -156,11 +163,12 @@ export const partyCreate = defineProcess({
   handler: async (ctx, input) => {
     const custom = await customData(ctx, "core.party", null, input.extra);
     const row = await validated(ctx, "core.party.create", input, custom);
+    const state = await initialLifecycle(ctx, "core.party");
     const [inserted] = await refuseDuplicate(
       "core.party.create",
       DOCUMENT_KEY,
       duplicateDetail(row),
-      () => ctx.tx<{ id: string }[]>`insert into core.parties ${ctx.tx({ company_id: ctx.companyId, ...defined(row) })} returning id`,
+      () => ctx.tx<{ id: string }[]>`insert into core.parties ${ctx.tx({ company_id: ctx.companyId, ...defined(row), ...state })} returning id`,
     );
     await ctx.emit("core.party.created", { id: inserted!.id });
     return { id: inserted!.id };
@@ -178,7 +186,7 @@ export const partyUpdate = defineProcess({
   handler: async (ctx, { id: partyId, extraPatch: patch, ...changes }) => {
     // The stored kinds must be in scope (a dual party is off limits to a one-sided role) …
     await writableParty(ctx, partyId);
-    const [current] = await ctx.tx`select * from core.parties where id = ${partyId} for update`;
+    const [current] = await ctx.tx`select * from core.parties where id = ${partyId} and deleted_at is null for update`;
     if (!current) throw new ProcessError("not_found", `party ${partyId} not found`);
     const merged: PartyInput = { ...inputOf(current), ...defined(changes) };
     // … and so must the kinds it would have after the update (checked in validated).
@@ -189,7 +197,8 @@ export const partyUpdate = defineProcess({
     // Unset optional columns are cleared; credit limit and extra data change only when given.
     const set = { ...undefinedAsNull(rest), ...defined({ credit_limit, extra: extraValue, extra_free: freeValue }) };
     await refuseDuplicate("core.party.update", DOCUMENT_KEY, duplicateDetail(row), () => ctx.tx`update core.parties set ${ctx.tx(set)} where id = ${partyId}`);
-    await ctx.emit("core.party.updated", { id: partyId });
+    // Grabar's lifecycle step: the state, the validate hook (which emits core.party.updated) and D10.
+    await followLifecycle(ctx, "core.party", partyId, current);
     return { id: partyId };
   },
 });
@@ -225,4 +234,45 @@ export const partyConsult = defineProcess({
   },
 });
 
-export const PARTY_PROCESSES = [partyCreate, partyUpdate, partyDeactivate, partyConsult];
+/**
+ * The validate hook of core.party (Grabar, Aprobar): the whole record as stored after the step goes through the same checks as the
+ * update process: the party scope over its kinds, the country pack (errors refuse the run), the custom fields; the pack's normalized
+ * values and the DIAN status / missing data it derives are written back (rule 10), and Grabar emits core.party.updated. Grabar does
+ * not deactivate: Activo = no is core.party.deactivate, which a company may make sensitive (step-up).
+ */
+export const partyHooks: TypedHooks = {
+  async validate(ctx, record, mode, { previous, data }) {
+    const processId = `core.party.${mode === "approve" ? "approve" : "save"}`;
+    assertWritable(processId, data, PARTY_WRITABLE);
+    if (previous.is_active === true && record.is_active === false) {
+      rejectErrors(processId, ["Para desactivar un tercero usa Desactivar (Activo = no)"]);
+    }
+    const custom = await customData(ctx, "core.party", record.extra as Record<string, unknown> | null, undefined);
+    const row = await validated(ctx, processId, inputOf(record), custom);
+    // The credit limit and the extra data are what the step stored (the runner checked extra against the custom fields).
+    const columns: Record<string, unknown> = { ...row };
+    for (const name of ["credit_limit", "extra", "extra_free"]) delete columns[name];
+    const set = changedColumns(record, undefinedAsNull(columns));
+    if (Object.keys(set).length > 0) await ctx.tx`update core.parties set ${ctx.tx(set)} where id = ${record.id}`;
+    if (mode === "save") await ctx.emit("core.party.updated", { id: record.id });
+  },
+};
+
+/** The generic lifecycle processes of core.party, each behind the party scope of the stored record; Grabar refuses a duplicate document. */
+export const PARTY_LIFECYCLE = lifecycleProcesses(party, "core.parties", {
+  guard: async (ctx, partyId) => {
+    await writableParty(ctx, partyId);
+  },
+  duplicate: {
+    constraint: DOCUMENT_KEY,
+    detail: async (ctx, partyId, data) => {
+      const [stored] = await ctx.tx<{ document_type: string; document_number: string }[]>`select document_type, document_number from core.parties where id = ${partyId}`;
+      return duplicateDetail({
+        document_type: String(data.document_type ?? stored?.document_type ?? ""),
+        document_number: String(data.document_number ?? stored?.document_number ?? ""),
+      });
+    },
+  },
+});
+
+export const PARTY_PROCESSES = [partyCreate, partyUpdate, partyDeactivate, partyConsult, ...PARTY_LIFECYCLE];

@@ -50,6 +50,6 @@ export async function renderExport(sql: Sql, claims: JwtClaims, plan: ExportPlan
 
 /** Plans (as the caller, in one transaction) and renders `spec`: the file the caller would get from the grid's state. */
 export async function openExport(sql: Sql, registry: Registry, claims: JwtClaims, spec: ExportSpec): Promise<RenderedExport & { plan: ExportPlan }> {
-  const plan = await withClaims(sql, claims, (tx) => planExport(tx, registry, spec));
+  const plan = await withClaims(sql, claims, (tx) => planExport(tx, registry, spec, claims.locale));
   return { ...(await renderExport(sql, claims, plan, spec)), plan };
 }

@@ -3,11 +3,12 @@ import { fileStore } from "../files/store";
 import type { Caller } from "../process/context";
 import { ProcessError } from "../process/errors";
 import { runProcess, type RunProcessDeps } from "../process/run";
-import type { ImportColumn } from "./columns";
+import { LINES_LABEL_PREFIX, REF_KEY, type ImportColumn } from "./columns";
 import { failImport, SOURCE_TAG } from "./job";
-import { columnLabel, inFileDuplicates, mapSheet, type ImportLabels } from "./map";
+import { columnLabel, inFileDuplicates, lineLabels, type ImportLabels } from "./map";
 import { importFormatOf, type ImportFormat } from "./format";
-import { ImportFileError, parseImportFile } from "./parse";
+import { ImportFileError } from "./parse";
+import { readImport } from "./read";
 import { resolveReferences, runRecords } from "./validate";
 
 // What a server entry point (the import route, later the assistant) does with an uploaded file, as the caller.
@@ -46,7 +47,9 @@ export interface ImportPreview {
   /** Data rows in the file. */
   total: number;
   /** The first `PREVIEW_ROWS` rows, validated with the create process in a dry run. */
-  rows: { rowNo: number; ok: boolean; errors: string[]; cells: string[] }[];
+  rows: { rowNo: number; ok: boolean; errors: string[]; cells: string[]; lines?: { rowNo: number; cells: string[] }[]; lineHeaders?: string[] }[];
+  /** A documento's lines refused on their own (their ref names no header row), by their Líneas row (D14). */
+  lineErrors: { rowNo: number; errors: string[] }[];
 }
 
 /** Storage keys avoid accents and spaces; the original name stays in the attachment row. */
@@ -64,32 +67,52 @@ export async function previewImport(deps: RunProcessDeps, caller: Caller, upload
     fileName: upload.fileName,
     sizeBytes: upload.bytes.byteLength,
   })) as { columns: ImportColumn[]; createProcess: string };
-  let sheet;
+  let read;
   try {
-    sheet = await parseImportFile(upload.bytes, upload.fileName);
+    read = await readImport(deps.registry, upload.entity, upload.bytes, upload.fileName, labels, caller.claims.locale);
   } catch (error) {
     if (error instanceof ImportFileError) throw fileRefusal(error);
     throw error;
   }
-  const mapped = mapSheet(columns, sheet, labels);
+  const { sheet: mapped, lines } = read;
   const shown = mapped.records.slice(0, PREVIEW_ROWS);
-  await resolveReferences(deps, caller, columns, shown, labels);
-  const run = await runRecords(deps, caller, createProcess, columns, shown.map((record, index) => ({ index, record })), { dryRun: true, labels });
+  await resolveReferences(deps, caller, columns, shown, labels, lines);
+  const target = { entity: deps.registry.entity(upload.entity), lines };
+  const run = await runRecords(deps, caller, createProcess, columns, shown.map((record, index) => ({ index, record })), { dryRun: true, labels, target });
   // A denial of the caller on the rows is the same for every row: one refusal for the whole file.
   if (run.stoppedBy) throw new ProcessError("invalid_input", `import rows refused: ${run.stoppedBy}`, { details: [STOP_DETAILS[run.stoppedBy] ?? run.stoppedBy] });
   // Among the valid rows, a repeat of an earlier one is refused as the run refuses it.
   const duplicates = inFileDuplicates(columns, run.outcomes.filter((o) => o.ok).map((o) => ({ index: o.index, record: shown[o.index]! })), deps.registry.entity(upload.entity).importKey, labels);
   const outcomes = run.outcomes.map((o) => (duplicates.has(o.index) ? { ...o, ok: false, errors: [duplicates.get(o.index)!] } : o));
-  const byKey = new Map(columns.map((c) => [c.key, c]));
+  const byKey = new Map<string, ImportColumn>(columns.map((c) => [c.key, c]));
+  const ofLines = lineLabels(labels);
+  const lineColumns = (lines?.columns ?? []).filter((c) => c.key !== REF_KEY);
+  for (const c of lines?.columns ?? []) byKey.set(`${LINES_LABEL_PREFIX}${c.key}`, c);
+  const labelOf = (key: string) => columnLabel(byKey.get(key)!, key.startsWith(LINES_LABEL_PREFIX) ? ofLines : labels);
   return {
     entity: upload.entity,
     fileName: upload.fileName,
-    columns: columns.map((c) => ({ key: c.key, label: columnLabel(c, labels), required: c.required })),
+    columns: [
+      ...columns.map((c) => ({ key: c.key, label: columnLabel(c, labels), required: c.required })),
+      ...lineColumns.map((c) => ({ key: `${LINES_LABEL_PREFIX}${c.key}`, label: columnLabel(c, ofLines), required: c.required })),
+    ],
     headers: mapped.headers,
     unknownHeaders: mapped.unknownHeaders,
-    missingColumns: mapped.missingColumns.map((key) => columnLabel(byKey.get(key)!, labels)),
+    missingColumns: mapped.missingColumns.map(labelOf),
     total: mapped.records.length,
-    rows: outcomes.map((o) => ({ rowNo: o.rowNo, ok: o.ok, errors: o.errors, cells: mapped.headers.map((h) => shown[o.index]!.raw[h] ?? "") })),
+    rows: outcomes.map((o) => {
+      const record = shown[o.index]!;
+      // A documento's row carries its lines (their Líneas row and cells, in the sheet's header order) so the preview can show them.
+      const lineHeaders = mapped.lineHeaders ?? [];
+      return {
+        rowNo: o.rowNo,
+        ok: o.ok,
+        errors: o.errors,
+        cells: mapped.headers.map((h) => record.raw[h] ?? ""),
+        ...(record.lines ? { lines: record.lines.map((l) => ({ rowNo: l.rowNo, cells: lineHeaders.map((h) => l.raw[h] ?? "") })), lineHeaders } : {}),
+      };
+    }),
+    lineErrors: (mapped.lineFailures ?? []).map((l) => ({ rowNo: l.rowNo, errors: l.errors })),
   };
 }
 
@@ -112,7 +135,7 @@ export async function submitImport(deps: RunProcessDeps, caller: Caller, upload:
   const record = { importId, claims: caller.claims, chainId };
 
   try {
-    await parseImportFile(upload.bytes, upload.fileName);
+    await readImport(deps.registry, upload.entity, upload.bytes, upload.fileName);
   } catch (error) {
     if (!(error instanceof ImportFileError)) throw error;
     await failImport(deps.sql, record, error.message);

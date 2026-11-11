@@ -16,8 +16,8 @@ const columns: ReportColumn[] = [
   { field: "account_name", label: "report.col.account_name", type: "text" },
   { field: "party_name", label: "report.col.party", type: "text" },
   { field: "description", label: "report.col.description", type: "text" },
-  { field: "debit", label: "report.col.debit", type: "money", total: "sum", mono: true },
-  { field: "credit", label: "report.col.credit", type: "money", total: "sum", mono: true },
+  { field: "debit", label: "report.col.debit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "credit", label: "report.col.credit", type: "money", currency: "company", total: "sum", mono: true },
 ];
 
 export const journalBookConsult = defineProcess({
@@ -33,11 +33,11 @@ export const journalBookConsult = defineProcess({
       select entry_id, date::text as date, number, journal_code, line_no, account_code, account_name, party_name, coalesce(description, entry_description) as description,
              debit::float8 as debit, credit::float8 as credit
       from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and date between ${p.from}::date and ${p.to}::date and (${p.journalId ?? null}::uuid is null or journal_id = ${p.journalId ?? null})
+      where status = 'posted' and date between ${p.from}::date and ${p.to}::date and (${p.journalId ?? null}::uuid is null or journal_id = ${p.journalId ?? null})
       order by date, number, line_no`;
     const [raw] = await ctx.tx<{ n: number }[]>`
       select count(*)::int as n from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id
-      where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date between ${p.from}::date and ${p.to}::date
+      where l.company_id = ${ctx.companyId} and e.status = 'posted' and e.date between ${p.from}::date and ${p.to}::date
         and (${p.journalId ?? null}::uuid is null or e.journal_id = ${p.journalId ?? null})`;
     return windowOf(rows, state, { totals: ["debit", "credit"], extra: { omitted: raw!.n - rows.length } });
   },

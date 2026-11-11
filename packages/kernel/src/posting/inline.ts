@@ -1,0 +1,213 @@
+import type { Sql } from "postgres";
+import { SYSTEM_USER_ID } from "../events/consumers";
+import { moduleStates } from "../admin/modules-state";
+import type { ModuleGate } from "../entitlements/resolver";
+import { enqueueEvent } from "../events/outbox";
+import type { ProcessContext } from "../process/context";
+import { ProcessError } from "../process/errors";
+import { reportEmitted } from "../process/nested-policy";
+import type { ModuleDef, ConsumerContext } from "../registry/types";
+import { composeEntry, ruleApplies, type EventRef } from "./compose";
+import { resolveRoles } from "./engine";
+import { resolvePath } from "./path";
+import type { PostingMode, PostingProvider } from "./provider";
+import type { Registry } from "../registry";
+
+// Inline strict posting (entity types spec §5.2 and D8, controller rulings of Task 9): a documento that posts (contabiliza) puts its
+// entry in the ledger in the SAME transaction as the lifecycle action that posts it, and the whole action rolls back when it cannot.
+// `emitAndPostStrict` is what its `post` hook calls: it writes the business event to the outbox (the chain and the audit keep it) and
+// posts every rule that applies to it right now through the module that provides the PostingProvider (the kernel names no module, rule 4).
+// Unlike the asynchronous engine (engine.ts) it never records a posting failure: any refusal throws and runProcess undoes the action.
+//  - Only a posting module ENABLED for the company counts, and the entitlement resolver decides exactly as it does for the dispatcher
+//    (`gateOf`, owner 2026-11-06, decision item 9): a module the company switched off gets `{ posted: false, reason: "accounting_disabled" }`
+//    (silent: the action succeeds and the event stays in the outbox, NOT marked handled, so it parks and the accounting consumer posts it
+//    when accounting is switched on again, plan Task 24); a module the tenant NEVER bought gets `{ posted: false, reason: "not_entitled" }`
+//    (visible: the action succeeds, the event stays in the outbox unhandled and the dispatcher dead-letters it `not_entitled:<module>`,
+//    where Admin › Módulos shows it as «módulo no contratado» and replays it once the module is bought and enabled). A process with no posting
+//    module at all is `accounting_disabled`.
+//  - A ledger that was never started (no start date) is refused: `ledger_not_started`, "Configura la contabilidad". An event dated before
+//    the start posts nothing (`before_ledger_start`): it is counted as skipped, as the engine does.
+//  - Whatever the module posted or skipped inline, the event is marked as handled by that module (kernel.outbox_deliveries, migration
+//    0078): the dispatcher skips it and the engine returns early, so the asynchronous consumer never composes it again, whatever the
+//    configuration has become (a mapping removed, a rule added, the ledger start moved): no spurious failure, no second entry.
+//  - A reversal rule reverses the entry of its source through the provider's exact lookup (every entry, whoever may read it); a source
+//    with no entry (the allocation parked or predated the ledger) reverses nothing. Either way the provider records the source as voided
+//    under the void's event and dismisses its pendings (plan 2B Task 33 fix round 1), so a pending of the original never posts afterwards. `dismissParkedEvents` lets a document that is voided
+//    before its parked event reached the ledger make sure the event never posts afterwards.
+//  - The posting mode (plan 2B Task 33, owner decisions item 5, R33-3): the provider's `postingMode` answers, each time, `inline_strict`
+//    (the default, and when the provider has no such method: everything above) or `asynchronous`. Asynchronous keeps the same order up to the
+//    gates (enqueue, report to the nested-run collector, the parked states of a module switched off or never bought: identical in both
+//    modes) and the two deterministic preconditions without which the event could never become an entry (`ledger_not_started`, and with
+//    `requireRule` `no_rule`, evaluated with the rules' `when`, nothing composed); everything else the ledger could say (mapping, closed period,
+//    party, balance, template, a date before the ledger start) is deferred: the function answers `{ posted: false, reason: "queued" }`, writes
+//    nothing more and does NOT mark the event handled, so the accounting consumer posts it (its refusals go to the retry queue) and counts a
+//    predated one as skipped. Every combination of a switch and an action in flight yields one entry: inline marks the event handled in its
+//    own transaction, the consumer returns early on a handled event, and `posting:<event_id>:<rule_id>` makes a retry or a replay idempotent.
+
+export type InlinePosting =
+  | { posted: true; eventId: string; entryIds: string[] }
+  | { posted: false; eventId: string; reason: "before_ledger_start" | "accounting_disabled" | "not_entitled" }
+  | { posted: false; eventId: string; reason: "queued" };
+
+const refuse = (code: string, detail: string): never => {
+  throw new ProcessError("invalid_input", `${code}: ${detail}`, { details: [detail] });
+};
+
+/**
+ * The posting date of the event: its own `date`; without one, today in the company's time zone (final review M-5; never UTC, which is
+ * already tomorrow in the evening in Colombia). Every posting event in the plan carries its own date.
+ */
+const dateOf = async (ctx: ProcessContext, payload: unknown): Promise<string> => {
+  const own = payload !== null && typeof payload === "object" ? (payload as { date?: unknown }).date : undefined;
+  if (typeof own === "string" && /^\d{4}-\d{2}-\d{2}/.test(own)) return own.slice(0, 10);
+  const [company] = await ctx.tx<{ today: string }[]>`
+    select to_char((now() at time zone coalesce(timezone, 'UTC'))::date, 'YYYY-MM-DD') as today from kernel.companies where id = ${ctx.companyId}`;
+  return company?.today ?? new Date().toISOString().slice(0, 10);
+};
+
+/** The module that provides posting, and the entitlement gate of the active company for it. */
+async function postingModule(ctx: ProcessContext): Promise<{ module: ModuleDef; provider: PostingProvider; gate: ModuleGate } | null> {
+  const module = ctx.registry.modules().find((m) => m.postingProvider !== undefined);
+  if (!module) return null;
+  const state = (await moduleStates(ctx.tx, ctx.registry)).find((m) => m.id === module.id);
+  return { module, provider: module.postingProvider!, gate: state?.gate ?? "not_purchased" };
+}
+
+const markHandled = async (ctx: ProcessContext, eventId: string, moduleId: string): Promise<void> => {
+  await ctx.tx`select kernel.mark_event_handled(${eventId}::uuid, ${moduleId})`;
+};
+
+/**
+ * Emits `name` with `payload` and posts its rules in the caller's transaction (see above). `requireRule` makes an event no rule applies to
+ * a refusal (`no_rule`), for a documento whose entry is mandatory.
+ */
+export async function emitAndPostStrict(ctx: ProcessContext, name: string, payload: unknown, options: { requireRule?: boolean } = {}): Promise<InlinePosting> {
+  const posting = await postingModule(ctx);
+  const eventId = await enqueueEvent(ctx.tx, { companyId: ctx.companyId, event: name, payload, chainId: ctx.chainId });
+  // A nested run inside a `continue` pair must know it set off a ledger event (plan 2B Task 32, R32-5): such a failure is never swallowed.
+  reportEmitted(ctx, name);
+  // No posting module, or switched off for the company: the event parks in the outbox for the consumer of a later activation. Never bought:
+  // the same parking, but visible (the dispatcher dead-letters it `not_entitled`, see the header).
+  if (!posting || posting.gate === "switched_off") return { posted: false, eventId, reason: "accounting_disabled" };
+  if (posting.gate === "not_purchased") return { posted: false, eventId, reason: "not_entitled" };
+  const { provider, module } = posting;
+  if (!provider.postInline || !provider.reverseInline) return refuse("no_posting_provider", "El módulo contable no puede contabilizar este documento en línea");
+
+  const createdAt = new Date();
+  // The provider's reads need the connection, the company and the event; its writes use the process context.
+  const reader: ConsumerContext = {
+    sql: ctx.tx as unknown as Sql, companyId: ctx.companyId, chainId: ctx.chainId, event: { id: eventId, name, createdAt },
+    runProcess: () => { throw new Error("inline posting runs in the caller's transaction: no nested process"); },
+  };
+  const date = await dateOf(ctx, payload);
+  const mode: PostingMode = (await provider.postingMode?.(reader)) ?? "inline_strict";
+  const starts = await provider.ledgerStartsOn(reader);
+  if (starts === null) return refuse("ledger_not_started", "Configura la contabilidad: la empresa aún no inicia su libro contable");
+  if (mode === "asynchronous") {
+    // Only what can never become an entry is refused now; the consumer composes, posts or records a pending (see the header).
+    if (options.requireRule) {
+      const rules = await provider.rulesFor(reader, name);
+      let applies = false;
+      for (const rule of rules) {
+        try {
+          if (ruleApplies(rule.template, payload)) applies = true;
+        } catch {
+          // A malformed `when` is the consumer's to record as a pending of that rule: it counts as a rule for the event.
+          applies = true;
+        }
+        if (applies) break;
+      }
+      if (!applies) refuse("no_rule", `No hay una regla contable activa para el evento ${name}`);
+    }
+    return { posted: false, eventId, reason: "queued" };
+  }
+  if (date < starts.toISOString().slice(0, 10)) {
+    await provider.countSkipped(reader, eventId);
+    await markHandled(ctx, eventId, module.id);
+    return { posted: false, eventId, reason: "before_ledger_start" };
+  }
+
+  const event: EventRef = { id: eventId, event: name, payload, createdAt, chainId: ctx.chainId };
+  const settings = await provider.composeSettings(reader);
+  const rules = [...(await provider.rulesFor(reader, name))].sort((a, b) => a.priority - b.priority);
+  const entryIds: string[] = [];
+  let applied = 0;
+  for (const rule of rules) {
+    let applies: boolean;
+    try {
+      applies = ruleApplies(rule.template, payload);
+    } catch (error) {
+      return refuse("invalid_template", `when: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!applies) continue;
+    applied += 1;
+    if (rule.template.reverseOf) {
+      const ref = rule.template.reverseOf;
+      const reversed = await provider.reverseInline(ctx, { event: ref.event, sourceId: String(resolvePath(payload, ref.sourceId) ?? "") }, date, name, eventId);
+      if (reversed) entryIds.push(reversed.entryId);
+      continue;
+    }
+    const composed = composeEntry(rule.template, event, settings);
+    if (!composed.ok) return refuse(composed.code, composed.detail);
+    const resolved = await resolveRoles(provider, reader, composed.entry);
+    if (!resolved.ok) return refuse("missing_account_mapping", resolved.detail);
+    entryIds.push((await provider.postInline(ctx, resolved.entry, rule)).entryId);
+  }
+  if (applied === 0 && options.requireRule) refuse("no_rule", `No hay una regla contable activa para el evento ${name}`);
+  await markHandled(ctx, eventId, module.id);
+  return { posted: true, eventId, entryIds };
+}
+
+/**
+ * Marks as handled by the posting module the company's events `event` whose payload contains `match` that it has not run yet, so they never
+ * post: a document voided while its own event is still parked (accounting was off) must not reach the ledger when accounting is enabled.
+ * Answers how many it marked (0 when nothing was parked, or no module posts).
+ */
+export async function dismissParkedEvents(ctx: ProcessContext, event: string, match: Record<string, unknown>): Promise<number> {
+  const module = ctx.registry.modules().find((m) => m.postingProvider !== undefined);
+  if (!module) return 0;
+  const [row] = await ctx.tx<{ n: number }[]>`select kernel.dismiss_events(${module.id}, ${event}, ${ctx.tx.json(match as never)}::jsonb) as n`;
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Runs `work` in the caller's transaction acting as the system user holding the company's system admin role, exactly as the asynchronous
+ * engine posts (its consumer runs the posting process as that user, events/consumers.ts): the posting the rules decide is not narrowed by
+ * what the person who triggered the document may read or post (record rules, account grants). Only the request claims of the transaction
+ * change (so the `kernel.current_*` helpers, RLS and row defaults see the system user, as for an event); the role stays `authenticated`,
+ * and the person's claims are restored afterwards, also when `work` throws. The chain still names the person's action. Valid on the
+ * service connection only (`current_role_ids` keeps the system user's role there and nowhere else). For posting providers' inline methods.
+ */
+export async function asPostingEngine<T>(ctx: ProcessContext, work: () => Promise<T>): Promise<T> {
+  const [saved] = await ctx.tx<{ claims: string | null }[]>`select current_setting('request.jwt.claims', true) as claims`;
+  const [role] = await ctx.tx<{ id: string }[]>`select id from kernel.roles where company_id = ${ctx.companyId} and is_system and name = 'admin'`;
+  if (!role) throw new ProcessError("invalid_input", `no_admin_role: la empresa ${ctx.companyId} no tiene el rol administrador del sistema`);
+  const system = {
+    role: "authenticated", sub: SYSTEM_USER_ID, tenant_id: ctx.tenantId, company_ids: [ctx.companyId], active_company_id: ctx.companyId, role_ids: [role.id], locale: ctx.locale,
+  };
+  await ctx.tx`select set_config('request.jwt.claims', ${JSON.stringify(system)}, true)`;
+  try {
+    return await work();
+  } finally {
+    // When `work` failed in SQL the transaction is already aborted and about to roll back: do not mask its error with this one.
+    await ctx.tx`select set_config('request.jwt.claims', ${saved?.claims ?? ""}, true)`.catch(() => undefined);
+  }
+}
+
+/**
+ * The contabiliza documentos the posting mode applies to (plan 2B Task 33, R33-4), derived from the registry, sorted: the processes of any
+ * module but the posting module that emit an event some module's `postingRules` post, minus the posting provider's `asyncByDesign` (processes
+ * whose events the consumer posts by design). Informative (the screen lists it, the coverage test pins a case per process): the mode itself is
+ * enforced at the seam, emitAndPostStrict, which every such documento calls.
+ */
+export function inlinePostingProcesses(registry: Pick<Registry, "modules" | "processes">): string[] {
+  const modules = registry.modules();
+  const poster = modules.find((m) => m.postingProvider !== undefined);
+  if (!poster) return [];
+  const posted = new Set(modules.flatMap((m) => (m.postingRules ?? []).map((r) => r.event)));
+  const byDesign = poster.postingProvider!.asyncByDesign ?? new Map<string, string>();
+  return registry.processes()
+    .filter((p) => p.module !== poster.id && !byDesign.has(p.id) && (p.emits ?? []).some((e) => posted.has(e)))
+    .map((p) => p.id)
+    .sort();
+}

@@ -98,11 +98,11 @@ async function main(): Promise<void> {
     const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${userId}, ${companyId}) returning id`;
     await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${role!.id})`;
     await sql.begin(async (tx) => {
-      // Bulk fixture rows bypass the triggers (audit, seq): seq is given.
+      // Bulk fixture rows bypass the triggers (audit, seq): seq is given, and so is requires_approval (typed_copy_flags, 0040 / 0042).
       await tx`set local session_replication_role = replica`;
       await tx`
-        insert into core.parties (company_id, seq, kind, person_type, document_type, document_number, legal_name, credit_limit, dian_status)
-        select ${companyId}, n, array['customer'], '1', '31', 'S' || n, 'Smoke ' || lpad(n::text, 5, '0'), 0, 'complete'
+        insert into core.parties (company_id, seq, kind, person_type, document_type, document_number, legal_name, credit_limit, dian_status, requires_approval)
+        select ${companyId}, n, array['customer'], '1', '31', 'S' || n, 'Smoke ' || lpad(n::text, 5, '0'), 0, 'complete', false
         from generate_series(1, ${ROWS}::int) as n`;
     });
     log(`seeded company ${companyId} with ${ROWS} parties and member ${userId}`);

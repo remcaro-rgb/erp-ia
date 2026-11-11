@@ -16,7 +16,7 @@ processes:
 
 # Informes contables
 
-Entra por **Contabilidad › Informes**: una tarjeta por informe. Solo ves los que tu rol puede consultar.
+Entra por **Contabilidad › Reportes › Informes**: una tarjeta por informe. Solo ves los que tu rol puede consultar.
 
 ![tarjetas de Informes](img/informes-tarjetas.png)
 
@@ -31,6 +31,9 @@ Entra por **Contabilidad › Informes**: una tarjeta por informe. Solo ves los q
 - **Auxiliar por tercero**: los movimientos de un tercero en las cuentas que elijas.
 - **Auxiliar por dimensión analítica**: un centro de costo, auxiliar abierto, ítem o unidad de negocio por cuenta.
 - **Cartera y cuentas por pagar por edades**, **Información exógena**, **Conciliación de control** y **Auditoría de comprobantes manuales**: tienen su propia guía.
+  - En **Cartera y cuentas por pagar por edades**, lo pendiente de cada factura sale de dos formas. Sin el módulo **Pagos**, los abonos de un cliente se aplican a sus partidas más antiguas primero. Con **Pagos** activo para la empresa, la cartera sigue lo que cada recibo de caja aplicó a cada factura y cada nota crédito a su factura; los anticipos y saldos a favor salen en su propia columna (guía **Cartera y cuentas por pagar por edades**).
+
+  - En **Información exógena**, las facturas, las notas y los recibos de caja se contabilizan con el cliente como tercero, así que su movimiento entra solo en los formatos cuyas cuentas asociaste a un concepto (por ejemplo ingresos o cuentas por cobrar). Una línea del libro sin tercero en una cuenta asociada impide generar el archivo: el aviso **«No se generó el archivo:»** dice cuál (guía **Información exógena**).
 
 ## Usar un informe
 

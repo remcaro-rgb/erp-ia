@@ -20,6 +20,7 @@ export const fiscalConceptMappingUpdate = defineProcess({
   id: "accounting.fiscal_concept_mapping.update",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Asigna cuentas a los conceptos de información exógena de cada formato; una cuenta pertenece a un solo concepto por formato",
@@ -89,7 +90,7 @@ export const fiscalConceptMappingConsult = defineProcess({
         select l.account_id,
                sum(case ${side} when 'debit' then l.debit when 'credit' then l.credit else l.debit + l.credit end) as movement
         from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id
-        where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed')
+        where l.company_id = ${ctx.companyId} and e.status = 'posted'
           and e.date >= make_date(${year}, 1, 1) and e.date <= make_date(${year}, 12, 31)
         group by l.account_id
       )

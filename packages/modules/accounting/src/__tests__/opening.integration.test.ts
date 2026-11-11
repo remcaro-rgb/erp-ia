@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let ccId: string;
@@ -7,9 +7,10 @@ beforeAll(async () => {
   h = await accountingHarness();
   await h.runStepUp(h.admin, "accounting.chart.seed", {});
   ccId = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
-  await h.sql`
+  const [party] = await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
-    values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors')`;
+    values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors') returning id`;
+  await markInvoiceReady(h, party!.id, "2");
 }, 180_000);
 afterAll(async () => {
   await h.cleanup();
@@ -52,6 +53,21 @@ describe("opening balances", () => {
     const ok = await h.run<{ id: string }>(h.contador, "accounting.opening.create", { lines: [{ accountCode: "510506", costCenterCode: "ADM", debit: 50, credit: 0 }, { accountCode: "111005", debit: 0, credit: 40 }] });
     expect((await h.sql`select cost_center_id from accounting.entry_lines where entry_id = ${ok.id} and line_no = 1`)[0]!.cost_center_id).toBe(ccId);
     await expect(h.runStepUp(h.admin, "accounting.opening.post", { id: ok.id })).rejects.toMatchObject({ code: "invalid_input", message: expect.stringContaining("unbalanced") });
+  });
+
+  it("opening.post refuses a line naming a Pendiente maestro (D10, usability at Contabilizar) and leaves the draft unnumbered", async () => {
+    const pending = (await h.sql<{ id: string }[]>`
+      insert into accounting.cost_centers (company_id, code, name, kind, status, requires_approval) values (${h.companyId}, 'PEN', 'Pendiente', 'leaf', 'pending', true) returning id`)[0]!.id;
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.opening.create", {
+      lines: [{ accountCode: "510506", costCenterCode: "PEN", debit: 7, credit: 0 }, { accountCode: "310505", debit: 0, credit: 7 }],
+    });
+    await expect(h.runStepUp(h.admin, "accounting.opening.post", { id })).rejects.toMatchObject({
+      code: "maestro_not_usable", details: { field: "cost_center_id", entity: "accounting.cost_center", recordId: pending },
+    });
+    expect((await h.sql`select status, number from accounting.entries where id = ${id}`)[0]).toMatchObject({ status: "draft", number: null });
+    // Approved, it posts.
+    await h.sql`update accounting.cost_centers set status = 'approved' where id = ${pending}`;
+    expect(await h.runStepUp(h.admin, "accounting.opening.post", { id })).toMatchObject({ number: expect.any(String) });
   });
 
   it("an opening entry dated in a closed period is a closed_period refusal", async () => {

@@ -98,11 +98,14 @@ describe("admin", () => {
   it("every admin process that changes something is listed in sensitive_processes after the seed; the consults are not", async () => {
     const rows = await sql<{ process_id: string }[]>`select process_id from kernel.sensitive_processes where company_id = ${h.companyId}`;
     const sensitive = new Set(rows.map((r) => r.process_id));
-    const writes = ADMIN_PROCESSES.filter((p) => p.kind !== "consult");
+    // Owner 2026-11-06 (item 9, Task 50.9): dismissing events parked for a module that was not bought is audited and asks for no step-up.
+    const NO_STEP_UP: Record<string, string> = { "kernel.admin.module.parked_events.dismiss": "the owner decided it needs no step-up; the events are kept and the audit records who dismissed them" };
+    const writes = ADMIN_PROCESSES.filter((p) => p.kind !== "consult" && !(p.id in NO_STEP_UP));
+    expect(Object.keys(NO_STEP_UP).filter((id) => sensitive.has(id) || ADMIN_PROCESSES.find((p) => p.id === id)?.sensitivity === "step-up")).toEqual([]);
     const consults = ADMIN_PROCESSES.filter((p) => p.kind === "consult").map((p) => p.id);
     expect(writes.map((p) => p.id).filter((id) => !sensitive.has(id))).toEqual([]);
     expect(writes.every((p) => p.sensitivity === "step-up")).toBe(true);
-    expect(consults.sort()).toEqual(["kernel.admin.ai_usage.consult", "kernel.admin.permission.matrix"]);
+    expect(consults.sort()).toEqual(["kernel.admin.ai_usage.consult", "kernel.admin.module.parked_events", "kernel.admin.permission.matrix"]);
     expect(consults.filter((id) => sensitive.has(id))).toEqual([]);
     expect(ADMIN_PROCESSES.filter((p) => p.kind === "consult").every((p) => p.sensitivity !== "step-up")).toBe(true);
     // The consults run without a code.

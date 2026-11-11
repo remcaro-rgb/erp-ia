@@ -1,7 +1,9 @@
-import { defineProcess, ProcessError, visibleExtra } from "@erp/kernel";
+import { defineProcess, ProcessError, visibleExtra, type ProcessContext, type TypedHooks } from "@erp/kernel";
 import { z } from "zod";
-import { companyPack, defined, invalid, refuseDuplicate } from "./common";
+import { entityDef } from "../entities";
+import { companyPack, defined, invalid, OPEN_ENTRY_STATES, refuseDuplicate } from "./common";
 import { extraForCreate, extraForUpdate } from "./extra";
+import { assertWritable, followLifecycle, initialLifecycle, lifecycleProcesses } from "./lifecycle";
 import { extra, extraFree, extraPatch, id, idOutput, name, rowOutput } from "./schemas";
 
 // The chart of accounts (accounting design §4.1, §6). A company grows its chart below the subcuenta level only: it creates
@@ -11,12 +13,38 @@ const CODE_KEY = "accounts_company_id_code_key";
 const nature = z.enum(["debit", "credit"]);
 const flags = {
   requiresParty: z.boolean().optional(),
+  requiresInvoiceReady: z.boolean().optional(),
   requiresCostCenter: z.boolean().optional(),
   requiresOpenAuxiliary: z.boolean().optional(),
   requiresItem: z.boolean().optional(),
   requiresBusinessUnit: z.boolean().optional(),
 };
 const statementSection = z.string().trim().min(1).max(100).optional();
+
+/** The columns account.update writes, and so the only ones the generic Grabar may write (the code, level, tree and access are the chart's). */
+const WRITABLE = new Set([
+  "name", "nature", "requires_party", "requires_invoice_ready", "requires_cost_center", "requires_open_auxiliary", "requires_item",
+  "requires_business_unit", "statement_section", "is_active", "extra", "extra_free",
+]);
+
+/** An account with lines in a comprobante that is not final cannot be deactivated (§4.1). */
+async function assertNoOpenLines(ctx: ProcessContext, accountId: string): Promise<void> {
+  const [open] = await ctx.tx<{ used: boolean }[]>`
+    select exists (select 1 from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id
+                   where l.account_id = ${accountId} and e.status = any(${[...OPEN_ENTRY_STATES]}::text[])) as used`;
+  if (open!.used) throw invalid(`account ${accountId} has open lines`, "No se puede desactivar: hay comprobantes sin contabilizar con líneas en esta cuenta");
+}
+
+/** The account's lifecycle hook: Grabar writes only the update process's columns and runs its checks (Task 8b). */
+export const accountHooks: TypedHooks = {
+  async validate(ctx, record, mode, change) {
+    if (mode !== "save") return;
+    assertWritable("accounting.account.save", change.data, WRITABLE);
+    if (typeof record.name !== "string" || record.name.trim() === "") throw invalid("account name is empty", "La cuenta lleva un nombre");
+    if (typeof record.statement_section === "string" && record.statement_section.trim() === "") throw invalid("statement_section is empty", "La sección del estado financiero no puede quedar vacía");
+    if (record.is_active === false && change.previous.is_active !== false) await assertNoOpenLines(ctx, record.id);
+  },
+};
 
 export const accountCreate = defineProcess({
   id: "accounting.account.create",
@@ -33,8 +61,8 @@ export const accountCreate = defineProcess({
     if (own.level !== "auxiliary") {
       throw invalid(`level ${own.level} cannot be created by a company`, "Solo se pueden crear cuentas auxiliares (8 o más dígitos) bajo una subcuenta; el plan hasta subcuenta lo trae el país");
     }
-    const [parent] = await ctx.tx<{ id: string; code: string; level: string; nature: "debit" | "credit"; requires_party: boolean; requires_cost_center: boolean; requires_open_auxiliary: boolean; requires_item: boolean; requires_business_unit: boolean; statement_section: string | null }[]>`
-      select id, code, level, nature, requires_party, requires_cost_center, requires_open_auxiliary, requires_item, requires_business_unit, statement_section
+    const [parent] = await ctx.tx<{ id: string; code: string; level: string; nature: "debit" | "credit"; requires_party: boolean; requires_invoice_ready: boolean; requires_cost_center: boolean; requires_open_auxiliary: boolean; requires_item: boolean; requires_business_unit: boolean; statement_section: string | null }[]>`
+      select id, code, level, nature, requires_party, requires_invoice_ready, requires_cost_center, requires_open_auxiliary, requires_item, requires_business_unit, statement_section
       from accounting.accounts
       where company_id = ${ctx.companyId} and length(code) < ${input.code.length} and ${input.code} like code || '%'
       order by length(code) desc limit 1 for update`;
@@ -47,6 +75,7 @@ export const accountCreate = defineProcess({
     const [used] = await ctx.tx<{ used: boolean }[]>`select exists (select 1 from accounting.entry_lines where account_id = ${parent.id}) as used`;
     if (used!.used) throw invalid(`parent ${parent.code} has lines`, "La cuenta padre ya tiene movimientos");
     const custom = await extraForCreate(ctx, "accounting.account", "accounting.account.create", input);
+    const lifecycle = await initialLifecycle(ctx, "accounting.account");
     const [inserted] = await refuseDuplicate("accounting.account.create", CODE_KEY, `Ya existe la cuenta ${input.code}`, () => ctx.tx<{ id: string }[]>`
       insert into accounting.accounts ${ctx.tx({
         company_id: ctx.companyId,
@@ -55,12 +84,14 @@ export const accountCreate = defineProcess({
         nature: input.nature ?? parent.nature,
         allows_movement: true,
         requires_party: input.requiresParty ?? parent.requires_party,
+        requires_invoice_ready: input.requiresInvoiceReady ?? parent.requires_invoice_ready,
         requires_cost_center: input.requiresCostCenter ?? parent.requires_cost_center,
         requires_open_auxiliary: input.requiresOpenAuxiliary ?? parent.requires_open_auxiliary,
         requires_item: input.requiresItem ?? parent.requires_item,
         requires_business_unit: input.requiresBusinessUnit ?? parent.requires_business_unit,
         statement_section: input.statementSection ?? parent.statement_section,
         ...defined(custom),
+        ...lifecycle,
       })}
       returning id`);
     // The parent is now a heading: only leaves take movements (§4.1).
@@ -78,19 +109,16 @@ export const accountUpdate = defineProcess({
   input: z.object({ id, name: name.optional(), nature: nature.optional(), ...flags, statementSection, isActive: z.boolean().optional(), extra, extraPatch, extraFree: extraFree.optional() }).strict(),
   output: idOutput,
   handler: async (ctx, { id: accountId, extraPatch: patch, ...input }) => {
-    const [current] = await ctx.tx<{ extra: Record<string, unknown> }[]>`select extra from accounting.accounts where id = ${accountId} and company_id = ${ctx.companyId} for update`;
+    const [current] = await ctx.tx<{ extra: Record<string, unknown>; is_active: boolean }[]>`
+      select * from accounting.accounts where id = ${accountId} and company_id = ${ctx.companyId} and deleted_at is null for update`;
     if (!current) throw new ProcessError("not_found", `account ${accountId} not found`);
-    if (input.isActive === false) {
-      const [draft] = await ctx.tx<{ used: boolean }[]>`
-        select exists (select 1 from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id
-                       where l.account_id = ${accountId} and e.status in ('draft', 'pending')) as used`;
-      if (draft!.used) throw invalid(`account ${accountId} has draft lines`, "No se puede desactivar: hay comprobantes en borrador con líneas en esta cuenta");
-    }
+    if (input.isActive === false && current.is_active) await assertNoOpenLines(ctx, accountId);
     const custom = await extraForUpdate(ctx, "accounting.account", "accounting.account.update", current.extra, { ...input, extraPatch: patch });
     const set = defined({
       name: input.name,
       nature: input.nature,
       requires_party: input.requiresParty,
+      requires_invoice_ready: input.requiresInvoiceReady,
       requires_cost_center: input.requiresCostCenter,
       requires_open_auxiliary: input.requiresOpenAuxiliary,
       requires_item: input.requiresItem,
@@ -100,6 +128,7 @@ export const accountUpdate = defineProcess({
       ...custom,
     });
     if (Object.keys(set).length > 0) await ctx.tx`update accounting.accounts set ${ctx.tx(set)} where id = ${accountId}`;
+    await followLifecycle(ctx, "accounting.account", accountId, current);
     return { id: accountId };
   },
 });
@@ -119,4 +148,4 @@ export const accountConsult = defineProcess({
   },
 });
 
-export const ACCOUNT_PROCESSES = [accountCreate, accountUpdate, accountConsult];
+export const ACCOUNT_PROCESSES = [accountCreate, accountUpdate, accountConsult, ...lifecycleProcesses(entityDef("accounting.account"), "accounting.ledger", { writable: WRITABLE })];

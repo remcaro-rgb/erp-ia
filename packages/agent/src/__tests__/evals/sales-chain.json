@@ -1,0 +1,101 @@
+{
+  "$comment": "Phase 2B (plan Task 25): the sales chain from quote to receipt. Every write ends in a confirmation card that lists what the other modules will do (Inventario, Costo de ventas, Facturación DIAN, Contabilidad: asiento en Ventas / Recibos de caja, Nota crédito DIAN); nothing runs before the accept (rule 17). A customer or product that is not invoice_ready gets no card: the tool answers the readiness refusal with its reasons and the assistant explains them (sales-tools.integration.test.ts). The step-up processes (invoicing.invoice.void, payments.payment.void, inventory.adjustment.post) get a card that asks for the code.",
+  "cases": [
+    {
+      "id": "sales-quote-create",
+      "prompt": "cotiza 10 café a Distribuidora X",
+      "tier": "core",
+      "expect": { "process": "crm.quote.create", "confirmation": true, "input": { "lines": [{ "qty": 10 }] } }
+    },
+    {
+      "id": "sales-order-confirm",
+      "prompt": "confirma el pedido 12",
+      "tier": "core",
+      "expect": { "process": "sales.order.confirm", "confirmation": true }
+    },
+    {
+      "id": "sales-invoice-delivered",
+      "prompt": "factura lo entregado",
+      "tier": "core",
+      "expect": { "process": "invoicing.invoice.from_orders", "confirmation": true, "input": { "orderIds": [] } }
+    },
+    {
+      "id": "sales-receive-payment",
+      "prompt": "registra el pago de la factura FE-1234",
+      "tier": "core",
+      "expect": { "process": "payments.payment.receive", "confirmation": true, "input": { "allocations": [] } }
+    },
+    {
+      "id": "sales-void-invoice",
+      "prompt": "anula la factura FE-1234: el cliente devolvió todo el pedido",
+      "tier": "core",
+      "expect": { "process": "invoicing.invoice.void", "confirmation": true }
+    },
+    {
+      "id": "sales-issue-invoice",
+      "prompt": "emite la factura en borrador de Distribuidora Andina",
+      "tier": "extended",
+      "expect": { "process": "invoicing.invoice.issue", "confirmation": true }
+    },
+    {
+      "id": "sales-ship-delivery",
+      "prompt": "despacha la entrega ENT-0003",
+      "tier": "extended",
+      "expect": { "process": "sales.delivery.ship", "confirmation": true }
+    },
+    {
+      "id": "sales-void-receipt",
+      "prompt": "anula el recibo de caja RC-0007, se registró dos veces",
+      "tier": "extended",
+      "expect": { "process": "payments.payment.void", "confirmation": true }
+    },
+    {
+      "id": "sales-stock-adjustment",
+      "prompt": "ajusta el inventario del café en la bodega principal: sobran 2 unidades",
+      "tier": "extended",
+      "expect": { "process": "inventory.adjustment.post", "confirmation": true }
+    },
+    {
+      "id": "core-trm-today",
+      "prompt": "¿Cuál es la TRM de hoy?",
+      "tier": "extended",
+      "expect": { "process": "core.exchange_rate.for_date", "input": { "currency": "USD" } }
+    },
+    {
+      "id": "payments-receive-usd",
+      "prompt": "Registra un recibo de USD 5.000 de Northwind",
+      "tier": "extended",
+      "expect": { "process": "payments.payment.receive", "confirmation": true, "input": { "currency": "USD", "amount": 5000 } }
+    },
+    {
+      "id": "fx-revaluation-october",
+      "prompt": "Calcula la diferencia en cambio de octubre",
+      "tier": "extended",
+      "expect": { "process": "accounting.fx_revaluation.run", "confirmation": true }
+    },
+    {
+      "id": "sales-commissions-owed",
+      "prompt": "¿Cuánto le debemos en comisiones a Andrea?",
+      "tier": "extended",
+      "expect": { "process": "kernel.data.query", "input": { "entity": "sales.commission" } }
+    },
+    {
+      "id": "sales-commission-plan-create",
+      "prompt": "Crea un plan de comisión del 5 % para Bruno",
+      "tier": "extended",
+      "expect": { "process": "sales.commission_plan.create", "confirmation": true, "input": { "defaultRatePct": 5 } }
+    },
+    {
+      "id": "inventory-lot-recall",
+      "prompt": "¿A qué clientes fue el lote L-2311?",
+      "tier": "extended",
+      "expect": { "process": "inventory.report.lot_trace" }
+    },
+    {
+      "id": "warehouse-pick-create",
+      "prompt": "Crea un alistamiento para el pedido 18",
+      "tier": "extended",
+      "expect": { "process": "warehouse.pick.create", "confirmation": true }
+    }
+  ]
+}

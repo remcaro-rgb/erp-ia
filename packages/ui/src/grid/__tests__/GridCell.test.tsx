@@ -22,6 +22,49 @@ const inRow = (cell: React.ReactNode) => (
 );
 
 describe("GridCell", () => {
+  it("a reference the viewer cannot read (no label) that the column marks unavailable is plain text: no id, no link", () => {
+    const ref = { entity: "sales.order", display: "number" };
+    const id = "01a1b6fb-7438-72b1-a9dc-af0df7f1f287";
+    renderEs(
+      <NavigateProvider navigate={vi.fn()}>
+        {inRow(<GridCell column={column({ field: "order_id", type: "ref", ref, linkable: true, unavailable: "Pedido no disponible" })} row={{ id: "1", order_id: id }} />)}
+        {inRow(<GridCell column={column({ field: "order_id", type: "ref", ref, linkable: true, unavailable: "Pedido no disponible" })} row={{ id: "2", order_id: id, order_id_label: "PED-7" }} />)}
+      </NavigateProvider>,
+    );
+    expect(screen.getByText("Pedido no disponible")).toBeTruthy();
+    expect(screen.queryByText(id.slice(0, 8), { exact: false })).toBeNull();
+    // A readable one still names and links.
+    expect(screen.getByText("PED-7")).toBeTruthy();
+    expect(document.querySelectorAll(`a[href*="${id}"]`)).toHaveLength(1);
+  });
+
+  it("a readable pedido whose number the viewer does not see (marked found, no label) shows «—», not «Pedido no disponible» (Task 39 m2)", () => {
+    const ref = { entity: "sales.order", display: "number" };
+    const id = "01a1b6fb-7438-72b1-a9dc-af0df7f1f287";
+    renderEs(
+      <NavigateProvider navigate={vi.fn()}>
+        {inRow(<GridCell column={column({ field: "order_id", type: "ref", ref, linkable: true, unavailable: "Pedido no disponible" })} row={{ id: "1", order_id: id, order_id_found: true }} />)}
+      </NavigateProvider>,
+    );
+    expect(screen.queryByText("Pedido no disponible")).toBeNull();
+    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.queryByText(id.slice(0, 8), { exact: false })).toBeNull();
+    expect(document.querySelectorAll(`a[href*="${id}"]`)).toHaveLength(0);
+  });
+
+  it("D20: a placeholder row shows «••••» in every cell it masks and its own values (the line number) as they are", () => {
+    const row = { id: "1", __row_masked: true, line_no: 3, debit: null, account_id: null };
+    renderEs(
+      <NavigateProvider navigate={vi.fn()}>
+        {inRow(<GridCell column={column({ field: "line_no", type: "number" })} row={row} />)}
+        {inRow(<GridCell column={column({ field: "debit", type: "money" })} row={row} />)}
+        {inRow(<GridCell column={column({ field: "account_id", type: "ref", ref: { entity: "accounting.account", labelField: "name" } as never })} row={row} />)}
+      </NavigateProvider>,
+    );
+    expect(screen.getByText("3")).toBeTruthy();
+    expect(screen.getAllByText("••••")).toHaveLength(2);
+  });
+
   it("shows a date and time in the company's zone given by the shell, and a date alone as the same day", () => {
     renderEs(
       <CellFormatProvider timeZone="Asia/Tokyo">
@@ -133,5 +176,32 @@ describe("GridCell: a reference to another record is a link to its page (rule 21
     expect(screen.getByText("—")).toBeTruthy();
     expect(screen.getByText("••••••")).toBeTruthy();
     expect(screen.queryByText("Oculto")).toBeNull();
+  });
+});
+
+describe("GridCell · empty lists", () => {
+  it("says 'Ninguno' (with the column in its tooltip) for an empty list, and counts a filled one", () => {
+    const other = column({ field: "other_taxes", label: "Otros impuestos", type: "json", kind: "json" });
+    renderEs(
+      <>
+        {inRow(<GridCell column={other} row={{ id: "1", other_taxes: [] }} />)}
+        {inRow(<GridCell column={other} row={{ id: "2", other_taxes: [{ a: 1 }, { a: 2 }] }} />)}
+      </>,
+    );
+    expect(screen.getByText("Ninguno").getAttribute("title")).toBe("Otros impuestos: ninguno definido");
+    expect(screen.getByText("2 elementos")).toBeTruthy();
+  });
+
+  it("a posted comprobante that was reversed shows «Revertido» in red instead of its state", () => {
+    const status = column({ field: "status", type: "enum", kind: "enum", options: [{ value: "posted", label: "Contabilizado" }], pills: { posted: "ok" }, marked: { field: "reversed_by_id", whenValue: "posted", label: "Revertido", tone: "danger" } });
+    renderEs(
+      <>
+        {inRow(<GridCell column={status} row={{ id: "1", status: "posted", reversed_by_id: "e2" }} />)}
+        {inRow(<GridCell column={status} row={{ id: "2", status: "posted", reversed_by_id: null }} />)}
+      </>,
+    );
+    const reversed = screen.getByText("Revertido");
+    expect(reversed.className).toContain("erp-pill--danger");
+    expect(screen.getByText("Contabilizado").className).toContain("erp-pill--ok");
   });
 });

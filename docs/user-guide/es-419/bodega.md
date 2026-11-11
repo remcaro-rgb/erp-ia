@@ -1,0 +1,120 @@
+---
+title: "Bodega: alistamiento, empaque y ubicación de lo recibido"
+routes:
+  - /warehouse/picks
+  - /warehouse/packs
+  - /warehouse/putaway
+  - /warehouse/pending-picks
+  - /warehouse/putaway-rules
+  - /warehouse/settings
+  - /warehouse/parametros/plantillas
+  - /inventory/movements
+processes:
+  - warehouse.report.pending_picks
+  - warehouse.pick.create
+  - warehouse.pick.update
+  - warehouse.pick.start
+  - warehouse.pick.confirm
+  - warehouse.pick.void
+  - warehouse.settings.update
+  - warehouse.pack.create
+  - warehouse.pack.update
+  - warehouse.pack.close
+  - warehouse.pack.void
+  - warehouse.putaway_rule.create
+  - warehouse.putaway_rule.update
+  - warehouse.putaway_rule.delete
+  - warehouse.putaway.suggest
+  - warehouse.putaway.confirm
+  - inventory.relocation.post
+---
+
+# Bodega
+
+El módulo **Bodega** ordena el trabajo físico de la bodega en tres pasos: **alistar** lo que sale en un pedido, **empacarlo** en paquetes con su lista de empaque, y **ubicar** en los estantes lo que llega en una entrada. Funciona sobre el módulo **Inventario**: las existencias siguen cambiando solo con sus documentos.
+
+Sus pantallas están en el menú **Bodega**:
+
+- **Documentos**: **Alistamientos**, **Empaques** y **Ubicar recibidos**.
+- **Reportes**: **Pendientes por alistar**.
+- **Parámetros**: **Reglas de ubicación**, **Configuración** y **Plantillas** (el diseño de la Lista de empaque).
+
+En la demostración, Café del Norte tiene Bodega activa: el pedido que sale por FEFO en dos lotes se alistó, se entregó desde su alistamiento y se empacó en una caja; hay una estantería por categoría con su regla, y una entrada de café en grano ya ubicada en su estantería.
+
+## Alistamiento
+
+Un **alistamiento** (`ALI-…`) es la lista de lo que hay que tomar de la bodega para un pedido confirmado, con la **ubicación**, el **lote** y el **serial** propuestos para cada línea.
+
+- Si en **Bodega › Parámetros › Configuración** está activo **Crear el alistamiento al confirmar un pedido**, el alistamiento se crea solo al confirmar el pedido. Si no, ábrelo desde el pedido: la pestaña **Alistamientos** del pedido lista sus alistamientos y tiene el botón **Crear alistamiento**, que alista lo que el pedido aún tiene por entregar. Si el pedido ya tiene uno abierto, o ya se entregó completo, el botón lo dice y no crea otro. También puedes pedírselo al asistente («Crea un alistamiento para el pedido 18»): te muestra una tarjeta para confirmar antes de crearlo.
+- **Bodega › Documentos › Alistamientos** lista todos, con su etapa (**Por alistar**, **En proceso**, **Confirmado**) y su asignación. Abre uno para trabajarlo.
+- En el alistamiento, **Iniciar** lo pasa a **En proceso**. Cada línea muestra el producto, lo pedido, **Tomado de** (la ubicación, el lote o el serial, con lo que hay) y la cantidad **Tomada**. **Guardar** conserva lo que cambiaste. **Confirmar alistamiento** lo envía: una línea que no tocaste se toma tal como se propuso (FEFO: primero el lote que vence antes). Confirmar no mueve existencias: Inventario **asigna** a la reserva del pedido lo que se tomó.
+- Si la asignación alcanza y está activo **Crear la entrega en borrador al confirmar un alistamiento**, aparece sola la entrega del pedido, **Por despachar**, con lo alistado, sus lotes y seriales (ver [Entregas](entregas.md)); la encuentras en la pestaña **Relacionados** del alistamiento. Despáchala desde la entrega. Si alguna línea no alcanzó, el alistamiento muestra **Faltante** y vuelve a **En proceso** para corregirlo.
+- Un lote **bloqueado**, o **vencido** cuando el producto bloquea los lotes vencidos, no se alista: guardar o confirmar el alistamiento con ese lote muestra «El lote está bloqueado: no se puede despachar» o «El lote está vencido y el producto bloquea los lotes vencidos»; elige otro lote. Si el lote se bloquea o vence después de confirmar y antes de que Inventario asigne, esa línea queda **Faltante** y el alistamiento vuelve a **En proceso**.
+- Si anulas la entrega de un alistamiento antes de despacharla (o la entrega automática está desactivada), **Crear alistamiento** hace uno nuevo para lo que el pedido tiene por entregar. Al confirmarlo, su asignación **reemplaza** la del alistamiento anterior: la mercancía que este tenía apartada vuelve a contar para el nuevo.
+- Si el pedido se cancela, sus alistamientos se anulan solos, y también su empaque si estaba abierto.
+
+## Empaque
+
+Un **empaque** (`EMP-…`) reparte lo alistado en **paquetes**, con su peso, sus dimensiones y lo que lleva cada uno. Sirve para preparar el despacho y para imprimir la **Lista de empaque** que viaja con la mercancía.
+
+1. En un **alistamiento confirmado**, **Crear empaque** lo crea y lo abre. Empieza con un solo paquete que lleva todo lo tomado. Cada alistamiento tiene un solo empaque: si lo pides otra vez, te muestra el que ya existe. **Bodega › Documentos › Empaques** los lista todos.
+2. En el empaque, escribe el **peso (kg)** y las **medidas** (por ejemplo `40x30x30 cm`) de cada paquete y pulsa **Guardar paquetes**. Repartir lo alistado en varios paquetes (cada uno con sus líneas y cantidades) se hace hoy con el asistente; una línea puede repartirse entre varios paquetes.
+3. El empaque muestra cuántos **paquetes** tiene y su **peso total**. En cada paquete, **Contenido** dice el código del producto, el lote o serial y la cantidad.
+4. **Cerrar empaque** cuando esté listo. Cerrado, sus paquetes ya no cambian. Si hubo un error, **anúlalo** y crea otro.
+
+El empaque no frena la entrega: la entrega del alistamiento se despacha esté el empaque abierto, cerrado o sin crear. Tampoco mueve existencias ni contabiliza.
+
+### Lista de empaque
+
+Desde el empaque, **Imprimir** genera el PDF **Lista de empaque**: número del empaque, alistamiento, pedido, cliente, bodega, paquetes y peso total, y una tabla con cada paquete (número, contenido, peso y dimensiones). La empresa puede cambiar el diseño en **Bodega › Parámetros › Plantillas**.
+
+Lo que se ve si algo falla:
+
+- «El alistamiento no está confirmado»: confirma primero el alistamiento.
+- «Se empacó más de lo alistado»: la suma de una línea en todos los paquetes supera lo que se tomó.
+- «El número de paquete está repetido» o «La línea no es de este alistamiento».
+- «El empaque ya está cerrado» o «El empaque está anulado».
+- «El alistamiento está anulado»: su pedido se canceló; el empaque ya no cambia.
+
+## Ubicación de lo recibido
+
+Cuando entra mercancía a una bodega (una **entrada**), normalmente queda en la ubicación de recibo. La **ubicación de lo recibido** te dice a qué estante llevar cada línea y, al confirmarla, mueve las existencias allá.
+
+### Reglas de ubicación
+
+Una **regla de ubicación** dice a qué ubicación va lo que llega a una bodega: para una **categoría** de producto, o para **Cualquier mercancía** si la dejas sin categoría. Cada regla tiene una **prioridad**: entre varias que aplican, gana la de número más bajo. No puede haber dos reglas iguales (misma bodega, categoría y ubicación), y la ubicación debe ser de esa bodega.
+
+En **Bodega › Parámetros › Reglas de ubicación** ves las reglas de todas las bodegas. En cada fila puedes cambiar la categoría, la ubicación o la prioridad y pulsar **Guardar**, o **Eliminar** la regla. Abajo, **Nueva regla**: elige bodega, categoría, ubicación y prioridad y pulsa **Agregar regla**.
+
+### Sugerencia y confirmación
+
+1. Al guardar una entrada, Bodega la marca **Recibido por ubicar**: en la campana aparece el aviso con el número de la entrada, la bodega y cuántas líneas faltan.
+2. Abre **Bodega › Documentos › Ubicar recibidos** y elige la entrada (el aviso de la campana te lleva directo). Para cada línea, la columna **Ubicar en** propone la ubicación así, en este orden, y **Por qué** dice cuál aplicó:
+   - **Mismo lote**: si ese lote ya está guardado en otra ubicación de la bodega, lo propone allí, para que el lote quede junto.
+   - **Regla de la categoría** del producto.
+   - **Regla general** (sin categoría).
+   - Sin regla, la línea queda sin propuesta y la eliges tú.
+3. Revisa o cambia las ubicaciones (o elige **Dejar donde está**) y pulsa **Confirmar ubicación**. Inventario crea una **reubicación** (`RU-…`, ver [Inventario](inventario.md)) que saca las existencias de la ubicación de recibo y las pone en la de destino, con su mismo lote o serial. No cambia el costo ni genera comprobante. El aviso de la campana se cierra.
+
+Solo se ubica lo que todavía queda de **esa entrada** en la ubicación de recibo: lo que ya se ubicó de ella (o se movió de allí) se descuenta, y lo demás que tenga la ubicación (otras entradas) no se mueve con esta. Una entrada ya reubicada no aparece de nuevo en la sugerencia. Mientras Inventario hace la reubicación de una confirmación, lo confirmado cuenta como ubicado: confirmar otra vez lo mismo, o más de lo que queda, muestra «Se ubica más de lo que queda de la entrada en esa ubicación». Si Inventario no puede hacer la reubicación (por ejemplo, la mercancía salió de la ubicación de recibo antes), las existencias no se mueven y la sugerencia vuelve a mostrar lo que queda; esa confirmación se reintenta sola, así que espera a que se resuelva antes de confirmar de nuevo. Una línea de un producto por lote o por serial necesita su lote o su serial. Una ubicación de otra bodega muestra «La ubicación es de otra bodega: entre bodegas se mueve con un traslado».
+
+Las entradas guardadas antes de activar el módulo Bodega no se marcan ni se sugieren.
+
+## Pendientes por alistar
+
+**Bodega › Reportes › Pendientes por alistar** lista los pedidos confirmados que tienen mercancía por entregar y ningún alistamiento confirmado, del más antiguo al más reciente: cuándo se confirmó, el pedido, el cliente, la bodega, cuántas líneas y cuánto falta por alistar, y el alistamiento abierto con su etapa si lo hay. Filtra por **Bodega** y por fechas (**Desde**, **Hasta**), y expórtalo a PDF, Excel o CSV. Los servicios no se alistan y no cuentan. Un pedido sale de la lista cuando su alistamiento se confirma.
+
+## Configuración
+
+**Bodega › Parámetros › Configuración** tiene dos opciones, activas mientras no las cambies:
+
+- **Crear el alistamiento al confirmar un pedido.**
+- **Crear la entrega en borrador al confirmar un alistamiento.**
+
+Guardar pide tu código de verificación.
+
+## Preguntas frecuentes
+
+- **«¿Por qué no se anula una reubicación?»** Porque no cambia cantidades ni costos. Si quedó mal, haz otra reubicación de vuelta.
+- **«¿El empaque descuenta inventario?»** No. Las existencias salen al despachar la entrega.
+- **«En la lista de empaque no se ve todo el contenido de un paquete»**: cada celda imprime una línea; si un paquete lleva muchos productos, repártelos en más paquetes o revisa el contenido completo en el registro del empaque.

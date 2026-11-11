@@ -42,7 +42,7 @@ const manifest = (processes = [consult("probe.trial.consult")], reports = [repor
   version: "1",
   dependsOn: [],
   entities: [
-    defineEntity({ id: "probe.thing", module: "probe", schema: "probe", table: "things", label: "entity.probe.thing", displayField: "name", defaultSort: { field: "name", dir: "asc" }, fields: [{ name: "name", type: "text", label: "field.name" }] }),
+    defineEntity({ entityType: "maestro", id: "probe.thing", module: "probe", schema: "probe", table: "things", label: "entity.probe.thing", displayField: "name", defaultSort: { field: "name", dir: "asc" }, fields: [{ name: "name", type: "text", label: "field.name" }] }),
   ],
   processes,
   features: [{ id: "probe.reports", label: "feature.reports", processes: processes.map((p) => p.id), entities: ["probe.thing"] }],

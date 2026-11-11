@@ -19,7 +19,7 @@ import { submitImport } from "../submit";
 
 const MODULE = `wfimp${randomUUID().slice(0, 6)}`;
 const probe = defineEntity({
-  id: `${MODULE}.probe`,
+  entityType: "maestro", id: `${MODULE}.probe`,
   module: MODULE,
   schema: "kernel",
   table: "role_probe",

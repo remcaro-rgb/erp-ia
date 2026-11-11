@@ -1,5 +1,4 @@
 import { Writable } from "node:stream";
-import ExcelJS from "exceljs";
 import { cellOf } from "./format";
 import type { ExportColumn, RowSource, WriterOptions } from "./types";
 
@@ -35,8 +34,10 @@ export async function writeXlsx(columns: readonly ExportColumn[], rows: RowSourc
       callback();
     },
   });
+  // Loaded when a spreadsheet is written: ExcelJS costs a few hundred milliseconds to evaluate, which a cold server pays on every page otherwise.
+  const { default: ExcelJS } = await import("exceljs");
   const book = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: sink, useStyles: true, useSharedStrings: false });
-  book.creator = "ERP-IA";
+  book.creator = "Goliatt";
   book.created = new Date();
   const sheet = book.addWorksheet(sheetName(options.title), { views: [{ state: "frozen", xSplit: 0, ySplit: 1 }], properties: { outlineProperties: { summaryBelow: true, summaryRight: true } } });
   sheet.columns = columns.map((c) => ({ key: c.field, width: widthOf(c) }));

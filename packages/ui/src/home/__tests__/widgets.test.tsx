@@ -41,7 +41,7 @@ describe("RecommendationsWidget", () => {
 
   it("says when there is nothing pending and when a decision could not be saved", () => {
     renderEs(<RecommendationsWidget items={[]} error="failed" onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} />);
-    expect(screen.getByText("Sin recomendaciones pendientes.")).toBeTruthy();
+    expect(screen.getByText("Sin recomendaciones pendientes")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toBe("No se pudo guardar tu decisión. Inténtalo de nuevo.");
   });
 });
@@ -88,5 +88,22 @@ describe("HelpWidget", () => {
     renderEs(<HelpWidget shortcuts={[{ id: "parties", labelKey: "home.help.parties.label", questionKey: "home.help.parties.question" }]} onAsk={onAsk} />);
     fireEvent.click(screen.getByRole("button", { name: "Crear o buscar un tercero" }));
     expect(onAsk).toHaveBeenCalledWith("¿Cómo creo un tercero?");
+  });
+});
+
+describe("RecommendationsWidget states", () => {
+  const props = { items: [], onAction: vi.fn(), onLink: vi.fn(), onDismiss: vi.fn() };
+
+  it("explains an empty list, and tells loading and a failed read apart from it", () => {
+    const { unmount } = renderEs(<RecommendationsWidget {...props} />);
+    expect(screen.getByTestId("recommendations-empty").textContent).toContain("Cuando un agente encuentre algo");
+    unmount();
+    const loading = renderEs(<RecommendationsWidget {...props} status="loading" />);
+    expect(screen.getByRole("status").textContent).toBe("Cargando recomendaciones…");
+    expect(screen.queryByTestId("recommendations-empty")).toBeNull();
+    loading.unmount();
+    renderEs(<RecommendationsWidget {...props} status="unavailable" />);
+    expect(screen.getByRole("alert").textContent).toContain("No se pudieron cargar las recomendaciones");
+    expect(screen.queryByTestId("recommendations-empty")).toBeNull();
   });
 });

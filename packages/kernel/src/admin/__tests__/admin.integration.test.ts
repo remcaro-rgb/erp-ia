@@ -21,7 +21,7 @@ import { registerVerifier, unregisterVerifier } from "../../verify/adapters";
 
 const thing = (confidential: string[], module = "probe") =>
   defineEntity({
-    id: `${module}.thing`,
+    entityType: "maestro", id: `${module}.thing`,
     module,
     schema: module,
     table: "thing",

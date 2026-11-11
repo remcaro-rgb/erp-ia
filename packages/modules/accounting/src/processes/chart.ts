@@ -2,7 +2,7 @@ import { defineProcess, type AccountSeed, type ProcessContext } from "@erp/kerne
 import { z } from "zod";
 import { companyPack, requireAdmin } from "./common";
 import { openFiscalYear } from "./fiscal-year";
-import { syncDefaultRules } from "./posting-rule";
+import { syncPostingRules } from "./posting-rule";
 
 // accounting.chart.seed (accounting design §5.9, §6): installs the country's chart, role mappings, fuentes, concept mappings,
 // the settings row, the fiscal year of today and the default posting rules from the pack and the loaded modules. Additive
@@ -30,6 +30,7 @@ async function seedAccounts(ctx: ProcessContext, seeds: AccountSeed[], levelOf: 
         nature: s.nature,
         allows_movement: ["subaccount", "auxiliary"].includes(levelOf(s.code) ?? "") && !prefixes.has(s.code),
         requires_party: s.requiresParty,
+        requires_invoice_ready: s.requiresInvoiceReady,
         requires_cost_center: s.requiresCostCenter,
         statement_section: s.statementSection ?? null,
         is_opening_result: s.isOpeningResult,
@@ -43,6 +44,7 @@ export const chartSeed = defineProcess({
   id: "accounting.chart.seed",
   module: "accounting",
   kind: "create",
+  recordAccess: "none",
   feature: "accounting.posting",
   sensitivity: "step-up",
   description: "Configura la contabilidad de la empresa: plan de cuentas, mapeo de roles, fuentes, conceptos de exógena, año fiscal y reglas contables por defecto; solo agrega lo que falta",
@@ -96,8 +98,8 @@ export const chartSeed = defineProcess({
       year = 1;
     }
 
-    // Default posting rules the loaded modules ship, accounting's own included (design §5.4)
-    const rules = await syncDefaultRules(ctx);
+    // Posting rules of the modules enabled for the company, accounting's own included (design §5.4)
+    const rules = (await syncPostingRules(ctx)).inserted;
 
     return { accounts, mappings: roleRows.length + conceptRows.length, journals: newJournals.length, rules, year };
   },

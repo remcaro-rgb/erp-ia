@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { withClaims } from "@erp/kernel/testing";
-import { accountingHarness, newId, type AccountingHarness } from "./helpers";
+import { accountingHarness, newId, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let year: number;
@@ -14,6 +14,7 @@ beforeAll(async () => {
   partyId = (await h.sql<{ id: string }[]>`
     insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
     values (${h.companyId}, '{customer}', '2', '13', '900111222', 'Cliente de prueba S.A.S.', 'errors') returning id`)[0]!.id;
+  await markInvoiceReady(h, partyId, "2");
 }, 180_000);
 afterAll(async () => {
   await h.cleanup();
@@ -32,14 +33,14 @@ async function post(date: string, lines: { code: string; debit?: number; credit?
     date, description: "Prueba de cierre",
     lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.party ? { partyId } : {}), ...(l.cc ? { costCenterId: ccId } : {}) })),
   });
-  if (status === "post") await h.run(h.contador, "accounting.entry.post", { id });
+  if (status === "post") await h.run(h.contador, "accounting.entry.save", { id });
   return id;
 }
 const funding = (date: string, amount = 1000) => post(date, [{ code: "111005", debit: amount }, { code: "310505", credit: amount }]);
 const failedChecks = (r: Close) => r.checks.filter((c) => !c.passed).map((c) => c.check);
 
 describe("period close", () => {
-  it("close succeeds in order (N−1 first), records ten passed checks with user and time, clears reopened_for; closing N+1 before N is refused", async () => {
+  it("close succeeds in order (N−1 first), records eleven passed checks (the diferencia en cambio warning of Task 34.7 included) with user and time, clears reopened_for; closing N+1 before N is refused", async () => {
     await funding(dateIn(1, 10));
     await expect(close(2)).rejects.toMatchObject({ code: "invalid_input", details: [expect.stringContaining("anterior")] });
     expect(await h.sql`select 1 from accounting.period_close_checks where company_id = ${h.companyId}`).toHaveLength(0);
@@ -49,13 +50,13 @@ describe("period close", () => {
     expect(done).toMatchObject({ closed: true, failed: [] });
     expect(done.checks.map((c) => c.check)).toEqual([
       "drafts", "pending_approvals", "pending_failures", "undispatched_events", "control_receivable", "control_payable", "control_inventory",
-      "suspense_zero", "rounding_within_tolerance", "contra_nature_balances",
+      "suspense_zero", "rounding_within_tolerance", "contra_nature_balances", "fx_revaluation",
     ]);
     expect(done.checks.every((c) => c.passed && c.note.length > 0)).toBe(true);
     expect(await period(1)).toMatchObject({ status: "closed", closed_by: h.seed.users.both, reopened_for: null });
     expect((await period(1)).closed_at).toBeTruthy();
     const rows = await h.sql`select "check", passed, created_by, created_at from accounting.period_close_checks where period_id = ${await periodId(1)}`;
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(11);
     expect(rows.every((r) => r.passed && r.created_by === h.seed.users.both && r.created_at)).toBe(true);
     expect(await h.sql`select 1 from kernel.outbox where company_id = ${h.companyId} and event = 'accounting.period.closed'`).toHaveLength(1);
     await expect(close(1)).rejects.toMatchObject({ code: "invalid_input" });
@@ -84,18 +85,18 @@ describe("period close", () => {
     expect(byName.suspense_zero!.value).toMatchObject({ balance: 50 });
     expect(byName.suspense_zero!.note).toContain("$ 50,00");
     expect(byName.control_receivable!.value).toMatchObject({ ledger: -100, open: 0, count: 1 });
-    expect(byName.control_receivable!.note).toContain("$ -100,00");
+    expect(byName.control_receivable!.note).toContain("-$ 100,00");
     // The suspense account sits in the payables group: its unapplied debit shows there too.
     expect(byName.control_payable!.passed).toBe(false);
     expect(refused.failed.length).toBe(failedChecks(refused).length);
     // The refusal commits: the period is open and every check of the attempt is on record.
     expect(await period(2)).toMatchObject({ status: "open", closed_at: null });
     const rows = await h.sql`select "check", passed, value from accounting.period_close_checks where period_id = ${await periodId(2)}`;
-    expect(rows).toHaveLength(10);
+    expect(rows).toHaveLength(11);
     expect(rows.filter((r) => !r.passed).map((r) => r.check).sort()).toEqual(failedChecks(refused).sort());
 
     // Fix each cause and close.
-    await h.run(h.contador, "accounting.entry.void", { id: draft, reason: "Prueba" });
+    await h.run(h.contador, "accounting.entry.delete", { id: draft });
     await h.run(h.contador, "accounting.entry.void", { id: pending, reason: "Prueba" });
     await h.sql`update accounting.posting_failures set status = 'dismissed' where company_id = ${h.companyId}`;
     await h.run(h.admin, "accounting.entry.reverse", { id: suspense, date: dateIn(2, 20), reason: "Aclarada" });
@@ -103,7 +104,7 @@ describe("period close", () => {
     const second = await close(2);
     expect(second).toMatchObject({ closed: true });
     // A second set of ten rows: the attempt that failed is kept beside the one that signed off.
-    expect(await h.sql`select 1 from accounting.period_close_checks where period_id = ${await periodId(2)}`).toHaveLength(20);
+    expect(await h.sql`select 1 from accounting.period_close_checks where period_id = ${await periodId(2)}`).toHaveLength(22);
     expect(await period(2)).toMatchObject({ status: "closed" });
   });
 
@@ -121,13 +122,13 @@ describe("period close", () => {
     expect(await period(1)).toMatchObject({ status: "open", reopened_count: 1 });
     expect(String((await period(1)).reopened_for).slice(0, 10)).toBeTruthy();
     const other = await post(dateIn(1, 12), [{ code: "111005", debit: 7 }, { code: "310505", credit: 7 }], "draft");
-    await expect(h.run(h.contador, "accounting.entry.post", { id: other })).rejects.toMatchObject({ code: "invalid_input", message: expect.stringContaining("closed_period") });
+    await expect(h.run(h.contador, "accounting.entry.save", { id: other })).rejects.toMatchObject({ code: "invalid_input", message: expect.stringContaining("closed_period") });
     const right = await post(dateIn(1, 11), [{ code: "111005", debit: 9 }, { code: "310505", credit: 9 }]);
     expect((await h.sql`select status from accounting.entries where id = ${right}`)[0]).toMatchObject({ status: "posted" });
-    await h.run(h.contador, "accounting.entry.void", { id: other, reason: "Otro día" });
+    await h.run(h.contador, "accounting.entry.delete", { id: other });
     expect(await close(1)).toMatchObject({ closed: true });
     expect(await period(1)).toMatchObject({ status: "closed", reopened_for: null, reopened_count: 1 });
-    expect(await h.sql`select 1 from accounting.period_close_checks where period_id = ${await periodId(1)}`).toHaveLength(20);
+    expect(await h.sql`select 1 from accounting.period_close_checks where period_id = ${await periodId(1)}`).toHaveLength(22);
   });
 
   it("reopened post moves later opening balances: an entry posted into January after February closed changes February's opening in v_account_balances with no other write", async () => {

@@ -117,15 +117,19 @@ function ClosePeriodDialog({ period, onClose }: { period: PeriodSummary; onClose
   const locale = useLocale();
   const { execute, prompt, status, busy } = useAdminAction();
   const [checks, setChecks] = useState<CloseCheckResult[] | null>(null);
+  const [closed, setClosed] = useState(false);
   const name = periodName(period.startsOn, locale);
+  const isWarning = (c: CloseCheckResult) => !c.passed && c.severity === "warning";
 
   const run = async () => {
     const result = await execute((token) => closePeriodAction(period.id, token));
     if (!result.ok) return;
-    if (result.closed) onClose();
-    else setChecks(result.checks);
+    // Closed with a warning (FX §5): the period is closed and the dialog stays to show what was warned.
+    if (result.closed && !result.checks.some(isWarning)) return onClose();
+    setClosed(result.closed);
+    setChecks(result.checks);
   };
-  const failed = checks?.filter((c) => !c.passed) ?? [];
+  const failed = checks?.filter((c) => !c.passed && !isWarning(c)) ?? [];
 
   return (
     <AdminDialog
@@ -137,9 +141,11 @@ function ClosePeriodDialog({ period, onClose }: { period: PeriodSummary; onClose
           <button type="button" className="erp-btn" onClick={onClose}>
             {tc("cancel")}
           </button>
-          <button type="button" className="erp-btn erp-btn--primary" disabled={busy} onClick={() => void run()}>
-            {checks ? t("retry") : t("close_confirm")}
-          </button>
+          {!closed && (
+            <button type="button" className="erp-btn erp-btn--primary" disabled={busy} onClick={() => void run()}>
+              {checks ? t("retry") : t("close_confirm")}
+            </button>
+          )}
         </>
       }
     >
@@ -147,13 +153,17 @@ function ClosePeriodDialog({ period, onClose }: { period: PeriodSummary; onClose
       {period.open > 0 && <p className="erp-small erp-muted">{t("close_open_note", { count: period.open })}</p>}
       {checks && (
         <>
-          <p role="alert" className="erp-field__error">
-            {t("close_failed", { count: failed.length })}
-          </p>
+          {closed ? (
+            <p role="status">{t("closed_with_warnings")}</p>
+          ) : (
+            <p role="alert" className="erp-field__error">
+              {t("close_failed", { count: failed.length })}
+            </p>
+          )}
           <ul aria-label={t("checks")} className="erp-checklist">
             {checks.map((c) => (
               <li key={c.check} data-passed={c.passed}>
-                <Pill tone={c.passed ? "ok" : "danger"}>{c.passed ? t("check_ok") : t("check_failed")}</Pill> <b>{tv.has(`close_check.${c.check}`) ? tv(`close_check.${c.check}`) : c.check}</b>
+                <Pill tone={c.passed ? "ok" : isWarning(c) ? "warn" : "danger"}>{c.passed ? t("check_ok") : isWarning(c) ? t("check_warning") : t("check_failed")}</Pill> <b>{tv.has(`close_check.${c.check}`) ? tv(`close_check.${c.check}`) : c.check}</b>
                 {!c.passed && <div className="erp-small">{c.note}</div>}
               </li>
             ))}

@@ -40,6 +40,12 @@ export interface DashboardProps {
   initial: Saved<unknown> | null;
   /** The greeting row's left side. */
   heading?: ReactNode;
+  /** Layout ids of this dashboard that are valid though not in the default (a module page's charts); the default's ids by default. */
+  knownId?: (id: string) => boolean;
+  /** A dashboard of its own (a module's page): its browser cache is kept apart from the company-wide home's. */
+  scope?: string;
+  /** Next to "Restablecer tarjetas" (the customize button). */
+  actions?: ReactNode;
   /** Every change of the layout with its time, to save it (the dashboard already caches it in localStorage). */
   onChange?: (layout: WidgetLayout[], savedAt: number) => void;
   /** The preference cache; the browser's localStorage by default. */
@@ -53,8 +59,8 @@ interface Preview {
 }
 
 type Valid = Saved<WidgetLayout[]> | null;
-const validSaved = (saved: Saved<unknown> | null | undefined, ids: string[]): Valid => {
-  const layout = saved ? sanitizeHomeLayout(saved.value, ids) : null;
+const validSaved = (saved: Saved<unknown> | null | undefined, known: (id: string) => boolean): Valid => {
+  const layout = saved ? sanitizeHomeLayout(saved.value, known) : null;
   return saved && layout ? { value: layout, savedAt: saved.savedAt } : null;
 };
 
@@ -64,12 +70,14 @@ const validSaved = (saved: Saved<unknown> | null | undefined, ids: string[]): Va
  * is the user's own: every change is saved (the caller's `onChange`, plus the browser cache so a change the server never
  * received survives a reload) and "Restablecer tarjetas" returns to the default. Nothing is ever rearranged by itself.
  */
-export function Dashboard({ userId, companyId, widgets, defaultLayout = DEFAULT_HOME_LAYOUT, initial, heading, onChange, storage: storageProp }: DashboardProps) {
+export function Dashboard({ userId, companyId, widgets, defaultLayout = DEFAULT_HOME_LAYOUT, initial, heading, onChange, storage: storageProp, knownId, scope, actions }: DashboardProps) {
   const t = useTranslations("home.dashboard");
   const [storage] = useState<Storage | null>(() => (storageProp === undefined ? browserStorage() : storageProp));
   const ids = defaultLayout.map((w) => w.id);
+  const known = knownId ?? ((id: string) => ids.includes(id));
+  const cacheKey = homeStorageKey(scope ? `${userId}:${scope}` : userId);
 
-  const [layout, setLayout] = useState<WidgetLayout[]>(() => resolveHomeLayout(initial?.value ?? null, defaultLayout));
+  const [layout, setLayout] = useState<WidgetLayout[]>(() => resolveHomeLayout(initial?.value ?? null, defaultLayout, known));
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -84,20 +92,20 @@ export function Dashboard({ userId, companyId, widgets, defaultLayout = DEFAULT_
   const commit = useCallback(
     (next: WidgetLayout[], savedAt: number = Date.now()) => {
       setLayout(next);
-      writeCachedPref(storage, homeStorageKey(userId), companyId, { value: next, savedAt });
+      writeCachedPref(storage, cacheKey, companyId, { value: next, savedAt });
       latest.current.onChange?.(next, savedAt);
     },
-    [storage, userId, companyId],
+    [storage, cacheKey, companyId],
   );
 
   // Once mounted (the server render had no cache): this browser's copy wins when it is newer than the server's, e.g. a
   // change made just before the page closed that never reached the server. The newer copy is then saved.
   useEffect(() => {
-    const server = validSaved(initial, ids);
-    const cached = validSaved(readCachedPref(storage, homeStorageKey(userId), companyId), ids);
+    const server = validSaved(initial, known);
+    const cached = validSaved(readCachedPref(storage, cacheKey, companyId), known);
     const winner = newerSaved(server, cached);
     if (winner && winner === cached && cached !== server) {
-      const next = resolveHomeLayout(cached.value, defaultLayout);
+      const next = resolveHomeLayout(cached.value, defaultLayout, known);
       setLayout(next);
       latest.current.onChange?.(next, cached.savedAt);
     }
@@ -195,6 +203,7 @@ export function Dashboard({ userId, companyId, widgets, defaultLayout = DEFAULT_
         <button type="button" className="erp-btn" onClick={() => commit(defaultLayout.map((w) => ({ ...w })))}>
           {t("reset")}
         </button>
+        {actions}
       </div>
       <p className="erp-home__hint">{t("hint")}</p>
       <div className="erp-dash" data-testid="dashboard-grid" ref={gridRef}>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { DataGrid, defaultView, ImportDialog, ImportIcon, TreePane, viewFromSaved, type SavedGridState, type TreeItem } from "@erp/ui";
+import { DataGrid, defaultView, ImportDialog, ImportIcon, RecordLink, TreePane, viewFromSaved, type CellRenderer, type SavedGridState, type TreeItem } from "@erp/ui";
 import type { MasterTree } from "@erp/module-accounting";
 import { loadMasterTreeAction, saveMasterViewAction } from "@/lib/accounting/actions";
 import { canHangAuxiliary, type MasterView } from "@/lib/accounting/masters";
@@ -102,6 +102,12 @@ export function MasterPage({ data }: { data: MasterPageData }) {
   );
   const params = useMemo(() => (view === "table" && periodId ? { period_id: periodId } : undefined), [view, periodId]);
 
+  // The código of a row opens the record's page, in the table and in the tree's grid alike.
+  const renderCell = useCallback<CellRenderer>(
+    (column, row) => (column.field === "code" && typeof row.code === "string" && row.code !== "" ? <RecordLink entity={entity} id={row.id} label={row.code} mono inRow /> : undefined),
+    [entity],
+  );
+
   const changeViews = async (result: Awaited<ReturnType<typeof saveViewAction>>) => {
     if (!result.ok) throw new Error(result.code);
     setViews(result.views);
@@ -144,6 +150,7 @@ export function MasterPage({ data }: { data: MasterPageData }) {
       baseFilters={baseFilters}
       params={params}
       headerExtra={toggle}
+      renderCell={renderCell}
       onRowOpen={view === "tree" ? (row) => setSelectedId(row.id) : undefined}
       toolbar={
         <>
@@ -183,6 +190,7 @@ export function MasterPage({ data }: { data: MasterPageData }) {
             onSelect={setSelectedId}
             label={t("accounting.master.tree_label", { title: grid.title })}
             figureLabel={figureLabel}
+            recordEntity={entity}
           />
           <div className="erp-master__grid">{gridView}</div>
         </div>

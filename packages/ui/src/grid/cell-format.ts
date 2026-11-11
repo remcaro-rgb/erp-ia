@@ -33,6 +33,8 @@ export function isEmptyCell(column: Pick<CellColumn, "type">, value: unknown): b
 export function formatCellValue(column: CellColumn, value: unknown, options: CellFormatOptions): string {
   if (value === null || value === undefined || value === "") return "";
   const label = (v: unknown) => column.options?.find((o) => o.value === String(v))?.label ?? String(v);
+  // An empty structured value (no "otros impuestos") is no value: a dash, not "0 elementos", which read as a count of products.
+  if (column.type === "json" && typeof value === "object" && (Array.isArray(value) ? value.length === 0 : Object.keys(value as object).length === 0)) return "";
   if (column.type === "json" && options.json && typeof value === "object") return Array.isArray(value) ? options.json(value.length, "items") : options.json(Object.keys(value as object).length, "fields");
   if (Array.isArray(value)) return value.map(label).join(", ");
   if (typeof value === "boolean") return column.options ? label(value) : value ? options.yes : options.no;

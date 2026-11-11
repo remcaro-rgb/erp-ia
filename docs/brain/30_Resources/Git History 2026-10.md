@@ -1,0 +1,223 @@
+---
+tags: [resource, git]
+date: 2026-11-07
+status: active
+---
+
+# Git history 2026-10
+
+211 commits.
+
+- 2026-10-31 `38a4e28` test(e2e): accounting posting spec follows the new tab title and the link items
+- 2026-10-31 `c7725d3` fix(ui): grids, forms, entry feedback, report parameters, labels, assistant tables, KPI links, guides
+- 2026-10-31 `7144781` fix(ui): responsive shell, assistant by width, tab titles, ⌘K creates, unsaved-changes guard
+- 2026-10-31 `8645504` fix(kernel): roll-up totals, date and period labels, KPI links, nav validator, matrix descriptions
+- 2026-10-31 `2e076f1` docs: record the UI/UX remediation decisions (design §22.21, rule 19)
+- 2026-10-31 `a8da2e4` feat(accounting): AAAA/MM/DD dates, comprobante full width, line export, column choice, line description
+- 2026-10-30 `7422f3f` merge: gaps task 7 follow-up fix
+- 2026-10-30 `33551a1` fix(accounting): period_figure keeps the per-entity label keys and the 0031 view check skips the computed column
+- 2026-10-30 `0e23a30` merge: gaps task 10 guide screenshots
+- 2026-10-30 `5ed8792` merge: gaps task 8 accounting i18n namespace
+- 2026-10-30 `a95a0bd` docs(accounting): screenshots in the accounting guides, captured from the demo company
+- 2026-10-30 `abe17e6` refactor(i18n): accounting page copy under the accounting namespace, no orphan keys
+- 2026-10-30 `dcf43b6` merge: gaps task 7 tabla period figure
+- 2026-10-30 `b403b28` feat(accounting): the period figure in the masters' Tabla through declared grid parameters
+- 2026-10-30 `d08d35c` merge: gaps task 9 restricted cuenta frame
+- 2026-10-30 `5cfafae` merge: gaps task 5 exogena xml export
+- 2026-10-30 `33f4399` feat(accounting): Exportar XML on the exógena report through a report file action and a signed download
+- 2026-10-30 `198d3e1` fix(accounting): restricted Cuenta frame with status footer, deep link and a masked number
+- 2026-10-30 `b6973ef` merge: gaps task 6 return to draft
+- 2026-10-30 `43a1528` merge: gaps task 4 refusal notes
+- 2026-10-30 `ace61e8` feat(accounting): Devolver a borrador as its own process, in place, with a reason
+- 2026-10-30 `6d921a7` fix(ui): refused reports and grids show the process's note; Auxiliar answers Sin acceso alike for missing and restricted accounts
+- 2026-10-30 `e6428d3` merge: gaps task 1 restricted row keeps each side
+- 2026-10-30 `a86859f` merge: gaps task 3 model-backed evals
+- 2026-10-30 `4ce22dc` merge: gaps task 2 year-close e2e
+- 2026-10-30 `1cf2cc0` fix(accounting): restricted-accounts row keeps each side so every statement total equals the admin's
+- 2026-10-30 `45b9eed` feat(agent): model-backed eval run with a nightly opt-in job and a mock fallback
+- 2026-10-30 `8250629` test(accounting): year close and reopen end to end with the preview and step-up
+- 2026-10-30 `0667891` docs(accounting): phase 2A gaps plan, per-task prompts and owner decisions OD-1 to OD-4
+- 2026-10-30 `99113c6` docs(accounting): user guides for phase 2A, roadmap update
+- 2026-10-30 `95bb206` feat(accounting): demo ledger for Café del Norte and end-to-end smoke
+- 2026-10-30 `09fc53e` feat(accounting): Spanish and English catalogues, PUC-code rule check and assistant evals
+- 2026-10-30 `c7cab39` feat(accounting-ui): periods, reports, posting rules pages, setup action, home widgets and contributed tabs
+- 2026-10-30 `70b5626` feat(accounting-ui): account, dimension, fuente, template, period and posting rule records
+- 2026-10-30 `8accbe0` feat(accounting-ui): comprobante record with keyboard lines editor, approval flow and origin timeline
+- 2026-10-30 `a63a882` feat(accounting-ui): tree pane and the Tabla · Árbol master page for chart, dimensions and fuentes
+- 2026-10-30 `e32183d` feat(accounting): Movimientos ledger-line query with grouped aggregates, in the grid and the assistant
+- 2026-10-30 `b767615` feat(accounting): control reconciliation, manual entries audit, aging and exógena with XML export
+- 2026-10-30 `8462e67` test(accounting): name the fiscal year when a report test looks up a period
+- 2026-10-30 `d590637` feat(accounting): libro diario and auxiliares por cuenta, tercero y dimensión analítica
+- 2026-10-30 `396d36d` feat(accounting): statement reports with level, dimensions and the aggregated restricted-accounts row
+- 2026-10-30 `08dff14` feat(accounting): period close behind control checks with sign-off rows, reopen by day, year close and reopen
+- 2026-10-30 `e6b833b` feat(accounting): posting provider, engine write path with idempotency, failures inbox and default rules
+- 2026-10-30 `aa8ae33` feat(accounting): posting with validations, four-eyes approval, auto-reversing accruals, reversals and opening balances
+- 2026-10-30 `5bd95d1` feat(accounting): entry drafts, voids, templates and the shared line validation
+- 2026-10-30 `ca861f9` feat(accounting): published views, FIFO open items and the ledger-line query view with account security
+- 2026-10-30 `73299f1` feat(accounting): role mappings, security by account grants and exógena concept mappings
+- 2026-10-30 `d0561e6` feat(accounting): analytic dimensions (centro de costo, auxiliar abierto, ítem, unidad de negocio) with one process factory
+- 2026-10-30 `d679cc1` feat(accounting): chart seed from the pack, account, journal, fiscal year and settings processes
+- 2026-10-30 `e05366b` feat(accounting): ledger schema: entries, lines, posting rules and failures, templates, close checks
+- 2026-10-30 `2c2c30d` feat(accounting): module skeleton, masters schema with account security functions, entities and views
+- 2026-10-30 `7b06871` feat(loc-co): exógena catalogue 2026, default concept mappings and prevalidador XML writer
+- 2026-10-30 `a84848d` feat(loc-co): accounting pack: PUC chart, role mappings, journals, layouts, code validation, tax codes
+- 2026-10-30 `c9a7cbc` feat(kernel): posting consumer over the provider interface and accounting effects on confirmation cards
+- 2026-10-30 `3d775b2` feat(kernel): posting engine core: role catalogue, rule template schema, path resolver, composition
+- 2026-10-30 `7bbe8ec` feat(grid): multi-sort levels, group by up to three fields with aggregates, grouped exports
+- 2026-10-30 `d8d6a85` feat(grid): grouped aggregates with up to three group levels in the query builder
+- 2026-10-30 `a41fe88` feat(ui): report page with generated parameter bar, totals footer and saved parameter sets
+- 2026-10-30 `fa0dea2` feat(kernel): report definitions with a report route, saved parameter sets and report exports
+- 2026-10-30 `5c1f994` feat(kernel): record-tab contributions (grid and mapping) declared by module manifests
+- 2026-10-30 `839f30e` feat(shell): navigation groups rendered as dropdowns in the items bar
+- 2026-10-30 `d6b71f9` feat(kernel): process origins and wildcard event consumers for the posting engine
+- 2026-10-30 `9873296` docs(design): accounting module design (approved 2026-10-29), HTML presentation and prototype v6
+- 2026-10-30 `1c4897c` docs(plan): phase 2A accounting plan, HTML presentation and one session prompt per task
+- 2026-10-30 `a77f6aa` Merge phase-1c-mfa: two-step verification opt-out (self-disable, admin reset and exemption, session revocation)
+- 2026-10-30 `518fea3` test(e2e): a reset ends the user's other session
+- 2026-10-30 `fb16fb1` feat(auth): 10-minute access tokens and a revocation check for a removed factor
+- 2026-10-30 `7edec1a` feat(kernel): a second-step reset or opt-out ends the user's sessions
+- 2026-10-29 `6490f33` docs: §22.19 rulings, plan wording, exemption persistence
+- 2026-10-29 `e2b0bc3` fix(agent): the second-step processes are not chat tools
+- 2026-10-29 `5b48ac6` fix(kernel): no second-step reset for an identity shared with another organization
+- 2026-10-29 `8d5fa0b` fix(web): explicit mfa.set input and self-check, Esc and focus in the no-factor prompt, guide wording
+- 2026-10-29 `eb024d6` feat(web): turn off the second step from the user menu; admins reset or exempt it on the user page
+- 2026-10-29 `096d24a` fix(kernel): user_requires_mfa answers only for the caller
+- 2026-10-29 `7a3a0a2` fix(kernel): the second-step opt-out checks the admin role across the user's memberships; exemption flag confidential
+- 2026-10-29 `83456cf` feat(kernel): users may turn off their second step; admins may reset or exempt a user's second step
+- 2026-10-29 `519ee49` docs: plan and decision for the two-step verification opt-out (§22.19)
+- 2026-10-29 `f96e9c1` docs: phase 2A plan reference, accounting review notes in the roadmap, 37 rules
+- 2026-10-29 `220f26c` ci(docker): services that reuse a locally built image never pull it
+- 2026-10-29 `169d097` ci(e2e): run the specs against the production build; the matrix spec counts roles instead of assuming three
+- 2026-10-29 `aa79a2e` ci: mirror the base images from a developer machine (the runners are throttled during the copy too)
+- 2026-10-29 `1667b86` ci: pull the compose stack's base images from a GHCR mirror
+- 2026-10-29 `67ffc6a` chore(dev): local stack on OrbStack is the development default; hosted project for the demo and Vercel
+- 2026-10-29 `d46df30` chore(dev): transaction pooler for the hosted database, pnpm with-env runner
+- 2026-10-29 `0a0cc30` test(web): the outbox cron test accepts the Hobby-plan daily schedule
+- 2026-10-29 `6154051` test(kernel): the PostgREST-login check runs against a local database only
+- 2026-10-29 `a8df2ed` chore(vercel): daily outbox cron on the Hobby plan, ignore build caches in CLI uploads
+- 2026-10-29 `59847c5` chore(dev): develop against the hosted Supabase project and Vercel previews
+- 2026-10-29 `12ad5f0` Merge phase-1b: density decisions, movable columns, batch admin, audit detail, cloning, entity links, editable users, forms, KPI trends
+- 2026-10-29 `4c5e89c` fix(shell): choosing a module in the Módulos menu shows its bar and fronts its open tab
+- 2026-10-29 `b8e3590` docs: guide corrections after the branch review
+- 2026-10-29 `8c0c742` fix(grid,records): saved views keep column order, admin-only user links, shared ref labels, kernel verifies the clone source
+- 2026-10-29 `cbb6864` fix(forms): Ctrl+S commits open choices, neutral first row, label text for listboxes
+- 2026-10-29 `6b837d4` fix(auth): idempotent company settle, guarded membership_missing move, leave-guard listener
+- 2026-10-29 `d696750` fix(agent): refuse an inactive membership on every assistant route
+- 2026-10-29 `d86aa37` test(e2e): wait out next dev's streaming staging copy after a full page load
+- 2026-10-29 `c78131d` fix(admin): leaving a staged screen with Back goes past the guard's spare entries
+- 2026-10-29 `ebb2f5f` docs: phase 1b guides and prototype status
+- 2026-10-29 `70ed63a` feat(home,import): KPI trends and errors-only import preview
+- 2026-10-29 `e7888bb` fix(forms): lookups join Enter navigation without silent picks, Ctrl+Enter saves the committed draft
+- 2026-10-29 `d1582e8` feat(forms): enter-to-next, DIAN hints toggle, code combobox, read-only computed fields
+- 2026-10-29 `497d69d` fix(auth): automatic company moves are stored and audited, lock order, gate-only inactive denial
+- 2026-10-29 `54f52e2` fix(admin): deactivation is per company, last-admin guard on role removal, stored country code kept
+- 2026-10-29 `bdcb0dc` feat(admin): editable users with activation state
+- 2026-10-29 `f2ecead` fix(ui): shared record href, grid links out of the tab order, v_users active-caller check
+- 2026-10-29 `02ac7f9` feat(ui): every entity reference is a link
+- 2026-10-29 `1c18d86` feat(kernel): kernel.user entity over v_users and reference labels on grid pages
+- 2026-10-29 `96593bb` fix(records): ticket duplicate, enter-right carry, shortcut scope, handoff lifetime, shared column lists
+- 2026-10-29 `ba79325` feat(records): clone any entity with the source recorded in the audit
+- 2026-10-29 `0a7c243` fix(audit): detail fails closed on platform tables, secret columns never audited, forward grant, card zone
+- 2026-10-29 `65fee1d` feat(audit): before/after per field with friendly names, source record of clones
+- 2026-10-29 `75b4916` fix(admin): module toggles skip admin processes, leave guard and refusal polish
+- 2026-10-29 `2125037` feat(admin): batch permission and visibility changes with one step-up
+- 2026-10-29 `f736f32` fix(grid): reordering columns keeps rows, selection and caret
+- 2026-10-29 `65be4e1` feat(grid): sticky identity column, footer totals under columns, movable columns
+- 2026-10-29 `debdfd7` fix(ui): no drawer flash on narrow screens, link colours, widget mode, tabular pill
+- 2026-10-29 `81af9a5` feat(ui): density tokens, scrolling tabs row, drawer default, popover focus, allowance bar, widget keyboard mode
+- 2026-10-29 `46ebbb0` docs(plan): phase 1b density decisions, cloning, audit detail, entity links, editable users
+- 2026-10-29 `4d27330` docs: owner decisions of 2026-10-29 (density audit ODs, movable columns, cloning, audit before/after, entity links, editable users)
+- 2026-10-29 `4ee0fee` test(grid): an export job that times out off-screen is reported in a toast
+- 2026-10-29 `c85006d` fix(ui): narrower focus-ring reset, scroll padding under the record header, pasted chat codes, ListFormat fallback
+- 2026-10-29 `420f688` fix(ui): keys from portalled dialogs stay in the dialog; Ctrl+/ guards; grid caret after errors and Limpiar
+- 2026-10-29 `335d7e1` fix(ui): LiveStatus announces state changes only, not the clock of every read
+- 2026-10-29 `912e78e` fix(grid): ExportJobsProvider aborts its jobs when it unmounts; the toast names the entity
+- 2026-10-29 `8d3d193` fix(forms): no save from Ctrl/Cmd+S while a step-up is pending or verifying
+- 2026-10-29 `9b6f189` test(e2e): the unknown-record tab reads No encontrado since QA round 1
+- 2026-10-29 `624e601` feat(grid): exports live in the shell (ExportJobsProvider) and a toast reports the ones finished off-screen
+- 2026-10-29 `4060aad` feat(import): live status of the history polling, pause in hidden tabs, Reanudar, progress per import
+- 2026-10-29 `65d11c0` feat(home): quieter dashboard, styled recent records and an Actualizado hh:mm line
+- 2026-10-29 `d05186d` feat(admin): matrix outcome in a fixed bar under the table, sticky process and field column
+- 2026-10-29 `ef15a9f` feat(assistant): follow the log only while the reader is at the bottom, Ir al final, aria-busy, fixed status row
+- 2026-10-29 `317ba77` feat(shell): keyboard in the tabs row and the record tabs, sticky record header
+- 2026-10-29 `41e6032` feat(forms): fast step-up codes (autofocus, verify at the 6th digit, Esc cancels, caret to Confirmar)
+- 2026-10-29 `ff88f24` feat(forms): record forms as <form> with Ctrl/Cmd+S and Ctrl/Cmd+Enter, focus on the first error, one alert
+- 2026-10-29 `cdb7dd8` feat(grid): advanced filter keyboard (Enter applies, Alt+Down to the results, roving rows, Enter picks)
+- 2026-10-29 `bbafadf` test(grid): flush React effects before advancing the export-ready timer
+- 2026-10-29 `910c47c` feat(grid): roving tabindex, keyboard navigation and a stable header and footer
+- 2026-10-29 `e7627cb` feat(ui): file choosers as real buttons and the Archivos tab from the catalogue
+- 2026-10-29 `2807800` feat(shell): skip link, main landmark focus, assistant toggle state and Ctrl+/ shortcut
+- 2026-10-29 `4de49f8` feat(ui): focus ring token, base focus-visible rule, reduced motion and small CSS fixes
+- 2026-10-29 `fa6df23` docs: prototype v6 (densidad) built from the UI audit, with a v5 → v6 owner-decision panel
+- 2026-10-28 `797ab87` docs: UI density, keyboard and stream-stability audit (phase 1 QA)
+- 2026-10-28 `6cb566c` fix: QA round 1, label filters on coded columns, record tab styles, translated status and cards, Spanish 404, grid loading state
+- 2026-10-28 `ad5f6bd` docs: phase 1 hand-off report (owner decisions, parked items, verification)
+- 2026-10-28 `ac2e2db` fix(kernel): live role ids in the process context, helper grants, carve-out test
+- 2026-10-28 `fd6f950` fix: final review round, live role claims, hashed login limiter, typed hook refusals and hygiene
+- 2026-10-28 `bca8a34` fix(seed): review round 1, Éxito's NIT, demo kept out of production, invoice-ready parties, guarded mock model
+- 2026-10-28 `140e673` feat: demo seed, audit viewer and end-to-end smoke for phase 1
+- 2026-10-28 `bb724af` fix(infra): review round 2, edge forwards the host with its port
+- 2026-10-28 `ce39c74` fix(infra): review round 1, edge in front of the flow route, owned outbox drains, worker delivery evidence
+- 2026-10-28 `c439342` feat(infra): outbox tick, docker-compose with Workflow Postgres World and CI integration job
+- 2026-10-28 `a717e10` fix(home): review round 1, refuse unrunnable recommendation actions, validate KPI consult gates, beacon layout saves
+- 2026-10-28 `da9a630` feat(home): KPI providers, recommendations inbox and widget dashboard on the home screen
+- 2026-10-28 `14da3e8` fix(admin): review round 2, view barrier, build-phase guard, oracle revoke
+- 2026-10-28 `15b9478` fix(admin): review round 1, one tenant per account, admin holds every process and field, consults without step-up
+- 2026-10-28 `6568cc5` docs(plan): Task 19 admin processes live in the kernel as kernel.admin.* (rule 3)
+- 2026-10-28 `9a8d0f7` feat(admin): roles, permission matrix, field visibility, sensitive processes, modules and AI usage
+- 2026-10-28 `52dfe39` fix(ui): assistant review round 1, address decoded once, company time zone, masked cells, minors
+- 2026-10-28 `2a6449b` feat(ui): assistant drawer with streaming, confirmation and step-up cards
+- 2026-10-28 `0c84697` fix(agent): review round 2, bounded reject on stale cards
+- 2026-10-28 `51fabd6` fix(agent): review round 1, kernel.data.query process, per-step metering, lock-free confirmations, policy attribution
+- 2026-10-28 `559c7d8` docs: gateway model ids with dots and WorkflowAgent naming (verified against the gateway model list 2026-10-28)
+- 2026-10-28 `bb9bc3e` feat(agent): registry-generated tools, durable turns, confirmations, model policy and usage limits
+- 2026-10-28 `2d9d054` fix(web): record tabs review round 2, key-stable files panel
+- 2026-10-28 `7850bb3` fix(web): record tabs review round 1, photo refresh, process-bound attachment columns, verify de-duplication, extra patch and step-up
+- 2026-10-28 `81d6365` feat(web): wire record tabs, photo order, AI photo placeholder and required-file checklist
+- 2026-10-28 `b662a64` fix(help): review round 2, platform-scoped locale probe
+- 2026-10-28 `14b77cf` fix(help): review round 1, isolated test locale, HNSW index, fake embedder fallback and guide wording
+- 2026-10-28 `109ea59` feat(help): pgvector knowledge index over user guides and process registry
+- 2026-10-28 `7ec0b8b` fix(support): review round 2, safe console capture and non-empty close toast
+- 2026-10-28 `5d3999e` fix(support): review round 1, process write guard, core dependency, redacted console capture and closed-ticket files
+- 2026-10-28 `22fb476` feat(support): tickets with captured context and role-scoped visibility
+- 2026-10-28 `236b8ed` fix(exports): review round 1, PDF memory limits, zone offsets in CSV, single job audit and client budget
+- 2026-10-28 `df4066e` feat(exports): CSV, XLSX and PDF export process with durable job for large sets
+- 2026-10-28 `c270d75` fix(kernel): import review round 3, strict zip reader and rebuilt archive for ExcelJS
+- 2026-10-28 `384f8b3` fix(kernel): import review round 2, bounded XLSX inflate, gate-stage denials and corrected duplicates
+- 2026-10-28 `f02f77e` fix(kernel): import review round 1, visibility, per-batch counts, row idempotency and file caps
+- 2026-10-28 `f795306` feat(kernel): mass import from Excel/CSV templates with per-row validation
+- 2026-10-28 `bdcf57e` fix(grid): review round 1, lazy datetime zone, own consult per entity, per-field process messages
+- 2026-10-28 `8580a96` feat(grid): universal DataGrid with server-side filters, sort, masking and saved views
+- 2026-10-28 `aae310a` fix(ui): shell review round 1, prefs read without audit, newer-copy persistence and per-company shell
+- 2026-10-28 `6179d50` feat(ui): design tokens, shadcn base and application shell with tabs and command palette
+- 2026-10-28 `d4453ff` feat(i18n): es-419 default catalogue with en mirror and locale plumbing
+- 2026-10-28 `2526173` fix(web): per-account auth attempt limiter, 429 handling and client IP forwarding
+- 2026-10-28 `731fe46` feat(web): Supabase auth with TOTP MFA, active company and step-up endpoint
+- 2026-10-28 `8f969bb` fix(kernel): custom fields review round 1
+- 2026-10-28 `eec1a9d` feat(kernel): custom fields, record frame with tabs and deep links, phone/e-mail fields with verification hooks
+- 2026-10-28 `d4ae5e2` fix(kernel): attachments review round 1
+- 2026-10-28 `58b055e` feat(kernel): attachments on any entity with soft delete and signed downloads
+- 2026-10-28 `07d0979` data(loc-co): full DIVIPOLA municipalities and DIAN 13.3.6 units of measure
+- 2026-10-28 `bc5bdd8` fix(core): party scope bounds every written kind, rule 11 contact phones, duplicate mapping and missing views
+- 2026-10-28 `fac873f` feat(core): parties, products, price lists and gap-free document sequences
+- 2026-10-28 `e008110` docs(design): standard cost is optional and never affects DIAN status
+- 2026-10-28 `e4f2d49` fix(loc-co): cost is not DIAN-pending, foreign party DANE data is cleared, reject non-finite numbers
+- 2026-10-28 `17857ec` feat(loc-co): country pack interface and Colombian tax id validation
+- 2026-10-28 `e847c1c` fix(kernel): outbox claims and per-consumer deliveries, refuse drain without modules
+- 2026-10-28 `3f14951` feat(kernel): durable outbox dispatch with consumer registry and dead letters
+- 2026-10-28 `69d77a0` fix(kernel): runProcess checks only the process entitlement key, specificity-aware limits
+- 2026-10-28 `425bf59` feat(kernel): module manifests, loader and tenant entitlements
+- 2026-10-28 `48d12d1` fix(kernel): audit denied process runs, service-role-only step-up verifications
+- 2026-10-28 `df17a14` feat(kernel): process registry and runProcess pipeline with permissions, step-up and idempotency
+- 2026-10-28 `f211cdd` fix(kernel): evaluate field visibility once per statement in masked views
+- 2026-10-28 `0a4b03b` feat(kernel): entity registry and field-level masked views
+- 2026-10-28 `73fd8a0` fix(kernel): audit company rows under their own id, outbox index on created_at
+- 2026-10-28 `6da87ea` feat(kernel): append-only audit log with row triggers and outbox
+- 2026-10-28 `a09c65c` fix(kernel): admin-only writes on identity tables, audit columns, stronger tenancy tests
+- 2026-10-28 `683bdd3` feat(kernel): tenancy tables, JWT claims hook and RLS helpers
+- 2026-10-28 `a84d44b` docs(plan): numeric migration names and rule-3 write-verb check per Task 1 rulings
+- 2026-10-28 `77f8aa9` fix(scripts): rule 3 reads vs writes, multi-line matching, numeric migration names, identical agent docs
+- 2026-10-28 `54fa0ba` chore: scaffold monorepo, packages, supabase config and CI
+- 2026-10-28 `1d0bb4c` docs: design, roadmap, rules, phase 1 plan and prototype v5
+
+Index: [[Git History]].

@@ -7,18 +7,20 @@ import { Toaster } from "@erp/ui/components/ui/sonner";
 import { AssistantDrawer, screenOf, type ResultColumn } from "../assistant";
 import { CellFormatProvider } from "../grid/cell-format";
 import { ExportJobsProvider } from "../grid/export-jobs";
-import { FormPrefsProvider } from "../forms/form-context";
 import { gridQueryHref } from "../grid/query-link";
 import type { GridStateInput } from "../grid/types";
 import { CommandPalette } from "./CommandPalette";
 import { MfaDialog, type MfaDisableResult, type MfaState } from "./MfaDialog";
-import { isActiveHref } from "./ModuleBar";
+import { PasswordDialog, type PasswordChangeResult } from "./PasswordDialog";
+import { isActiveHref, ModuleBar } from "./ModuleBar";
+import { SideMenu } from "./SideMenu";
 import { TabsBar } from "./TabsBar";
 import { AskAssistantProvider } from "./ask-assistant";
 import { NavigateProvider } from "./navigate";
-import { assistantOpenStorageKey, browserStorage, dianHintsStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
+import { assistantOpenStorageKey, browserStorage, sideMenuStorageKey, newerSaved, readCachedPref, themeStorageKey, writeCachedPref } from "./prefs-cache";
 import { createTabsStore, loadCachedTabs, TabsProvider, type TabsStore } from "./tabs-store";
 import { applyTheme, isThemeMode } from "./theme";
+import type { RecommendationItem } from "../home/RecommendationCard";
 import { TopBar } from "./TopBar";
 import { moduleOf, type CommandItem, type NavItem, type Saved, type ShellCompany, type ShellModule, type ShellUser, type TabKind, type TabsSnapshot, type ThemeMode } from "./types";
 
@@ -32,6 +34,8 @@ export interface AssistantOptions {
 }
 
 export interface AppShellProps {
+  /** ⌘K by ID (D16): the records whose ID is `id`. */
+  findRecords?: (id: number) => Promise<CommandItem[]>;
   company: ShellCompany;
   /** Every company of the user (the switcher). */
   companies: ShellCompany[];
@@ -45,6 +49,8 @@ export interface AppShellProps {
   /** What the app tells the assistant drawer about its screens. */
   assistantOptions?: AssistantOptions;
   children: ReactNode;
+  /** A page opened alone in its own browser tab: only the page, without the top bar, side menu, tabs or assistant; nothing of it is saved to the tabs. */
+  bare?: boolean;
   /** Path of the page being shown (no query). */
   currentHref: string;
   /** Client-side navigation (the app's router). */
@@ -57,10 +63,6 @@ export interface AppShellProps {
   assistantOpen?: Saved<boolean> | null;
   /** The user opened or closed the drawer, with the time, to save it (the shell already caches it in localStorage). */
   onAssistantOpenChange?: (open: boolean, savedAt: number) => void;
-  /** Whether the user turned on "Ver códigos DIAN" in the record forms (`kernel.user_prefs`, key `forms.dian_hints`), or null: off. */
-  dianHints?: Saved<boolean> | null;
-  /** The user switched the DIAN hints, with the time, to save it (the shell already caches it in localStorage). */
-  onDianHintsChange?: (on: boolean, savedAt: number) => void;
   /** The user's saved tabs in this company (`kernel.user_prefs`, key `tabs`), or null. */
   initialTabs?: Saved<unknown> | null;
   /** Every change of the tabs with its time, to save them (the shell already caches them in localStorage). */
@@ -71,8 +73,12 @@ export interface AppShellProps {
   signOutAction?: () => void | Promise<void>;
   /** The caller's second step (design §22.19); with `onDisableMfa`, the user menu offers "Verificación en dos pasos". */
   mfa?: MfaState;
+  /** The caller's open recommendations for the bell (plan 2B Task 38): the open count and the newest few. */
+  notifications?: { total: number; items: RecommendationItem[] };
   /** Runs kernel.user.mfa.disable through the app's step-up flow; on success the app ends the session. */
   onDisableMfa?: () => Promise<MfaDisableResult>;
+  /** Runs kernel.user.password.change; with it, the user menu offers "Cambiar contraseña". */
+  onChangePassword?: (currentPassword: string, newPassword: string) => Promise<PasswordChangeResult>;
   /** The app's step-up prompt while that run waits for the code (rendered inside the dialog). */
   mfaStepUpPrompt?: ReactNode;
   /** Cancels that waiting step-up (the dialog was closed). */
@@ -87,7 +93,13 @@ const ASSISTANT_MIN_WIDTH = 1280;
 const SHEET_BELOW = 768;
 
 /** Grid and admin routes use the tighter page padding (OD-1); the home and the record page keep v5's. */
-const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/");
+/** From this viewport width the side menu starts expanded when the viewer never chose (shell v7, design §22.24). */
+const SIDE_MENU_OPEN_FROM = 1440;
+
+const denseRoute = (href: string): boolean => href !== "/" && !href.startsWith("/r/") && !href.startsWith("/inicio/");
+
+/** The module of an Inicio page `/inicio/<module>`, else undefined. */
+const inicioModuleOf = (href: string): string | undefined => /^\/inicio\/([a-z][a-z0-9_]*)(?:[?#]|$)/.exec(href)?.[1];
 
 function readBooleanPref(storage: Storage | null, key: string, companyId: string): Saved<boolean> | null {
   const cached = readCachedPref(storage, key, companyId);
@@ -114,9 +126,19 @@ const ROUTE_TITLES: Record<string, string> = {
   "/admin/companies": "nav.shell.routes.admin_companies",
 };
 
+/** The name of a module's report page (`/accounting/reports/trial_balance`, query allowed), not the menu item covering all of them. */
+function reportTitleOf(href: string, t: ReturnType<typeof useTranslations>): string | undefined {
+  const report = /^\/([a-z_]+)\/reports\/([a-z_]+)(?:\?|$)/.exec(href);
+  return report && t.has(`report.${report[1]}.${report[2]}`) ? t(`report.${report[1]}.${report[2]}`) : undefined;
+}
+
 function routeTitle(href: string, items: readonly NavItem[], t: ReturnType<typeof useTranslations>): string {
+  const inicio = inicioModuleOf(href);
+  if (inicio && t.has(`nav.modules.${inicio}`)) return t("nav.shell.module_home", { module: t(`nav.modules.${inicio}`) });
   const entity = recordEntityOf(href);
   if (entity) return t.has(`entity.${entity}`) ? t(`entity.${entity}`) : t("nav.shell.record");
+  const report = reportTitleOf(href, t);
+  if (report) return report;
   const named = ROUTE_TITLES[href];
   if (named) return t(named);
   const covering = items.filter((i) => i.href !== "#" && isActiveHref(i.href, href)).sort((a, b) => b.href.length - a.href.length)[0];
@@ -127,7 +149,7 @@ function routeTitle(href: string, items: readonly NavItem[], t: ReturnType<typeo
 }
 
 /**
- * The application shell (design §19a, prototype v5): navy top bar with the module items, the tinted tabs row,
+ * The application shell (design §19a, shell v7 §22.24): navy top bar, the side menu of module names, the items bar of the active module's sections, the tinted tabs row,
  * the page, the assistant drawer (400 px) and the ⌘K palette. Tabs follow the URL: opening a page opens or
  * activates its tab; activating or closing a tab navigates. Tabs and theme are per user and company: switching
  * company mounts a fresh shell that starts from the new company's saved preferences.
@@ -151,9 +173,11 @@ function ShellFrame(props: AppShellProps) {
     createTabsStore({
       userId: user.id,
       companyId: company.id,
-      storage,
-      initial: props.initialTabs?.value,
-      onChange: (snapshot, savedAt) => latest.current.onTabsChange?.(snapshot, savedAt),
+      storage: props.bare ? null : storage,
+      initial: props.bare ? undefined : props.initialTabs?.value,
+      onChange: (snapshot, savedAt) => {
+        if (!latest.current.bare) latest.current.onTabsChange?.(snapshot, savedAt);
+      },
     }),
   );
 
@@ -171,6 +195,7 @@ function ShellFrame(props: AppShellProps) {
   // Once mounted (the server render used the server's copies): this browser's cache wins when it is newer, e.g. a
   // change made just before the page closed that never reached the server. The newer copy is then saved.
   useEffect(() => {
+    if (props.bare) return;
     const tabs = newerSaved(props.initialTabs ?? null, loadCachedTabs(storage, user.id, company.id));
     if (tabs && tabs !== props.initialTabs) store.getState().hydrate(tabs.value);
     const cachedTheme = readCachedPref(storage, themeStorageKey(user.id), company.id);
@@ -195,7 +220,7 @@ function ShellFrame(props: AppShellProps) {
   useEffect(
     () =>
       store.subscribe((state, previous) => {
-        if (state.activeId === previous.activeId) return;
+        if (state.activeId === previous.activeId || latest.current.bare) return;
         const tab = state.tabs.find((x) => x.id === state.activeId);
         if (tab && tab.href !== current.current) latest.current.navigate(tab.href);
       }),
@@ -218,38 +243,79 @@ function ShellFrame(props: AppShellProps) {
 
   // The page decides the tab: a menu screen, a record (named after its entity), Inicio, or any other path.
   useEffect(() => {
+    if (props.bare) return;
     const flat = nav.flatMap((i) => i.children ?? [i]);
     const item = flat.find((i) => i.href === currentHref);
     const kind: TabKind = currentHref === "/" ? "home" : currentHref.startsWith("/r/") ? "record" : "grid";
     const title = item ? t(item.label) : routeTitle(currentHref, flat, t);
     const landed = activated.current;
     activated.current = null;
+    // A tab the user opened for this page with parameters ("…/account_detail?p=…", the drill-down of a report row) already is
+    // this page: the shell sees only the path, so it must not open a second, bare tab for it.
+    const shown = store.getState().tabs.find((x) => x.id === store.getState().activeId);
+    if (shown && shown.href !== currentHref && shown.href.split("?")[0] === currentHref) return;
     if (landed && landed.href.split("?")[0] !== currentHref.split("?")[0] && !store.getState().tabs.some((x) => x.href === currentHref)) store.getState().close(landed.id);
     opening.current = true;
     store.getState().open({ title, href: currentHref, kind });
     opening.current = false;
   }, [currentHref, nav, store, t]);
 
+  // Tabs saved before reports were named by the report still read "Informes": they take the report's name once, on load.
+  useEffect(() => {
+    const flat = nav.flatMap((i) => i.children ?? [i]);
+    for (const tab of store.getState().tabs) {
+      const name = reportTitleOf(tab.href, t);
+      const covering = flat.find((i) => i.href !== "#" && isActiveHref(i.href, tab.href.split("?")[0]!));
+      if (name && covering && tab.title === t(covering.label)) store.getState().rename(tab.href, name);
+    }
+  }, [nav, store, t]);
+
   // The module bar follows the page being shown, except right after the user picks a module in the Módulos menu: that
   // choice wins until the page changes (a pick from a page of another module would otherwise never show).
   const [selectedModule, setSelectedModule] = useState<string | undefined>(undefined);
-  const hrefModule = nav.flatMap((i) => i.children ?? [i]).find((i) => isActiveHref(i.href, currentHref));
-  // A record page (/r/<module>.<entity>/<id>) belongs to its entity's module.
-  const recordModule = visibleModules.find((m) => m.id === recordEntityOf(currentHref)?.split(".")[0])?.id;
-  const activeModuleId = selectedModule ?? (hrefModule ? moduleOf(hrefModule) : undefined) ?? recordModule ?? visibleModules[0]?.id;
+  // The module is the one whose bar lists the item (an adopted item sits under another module's section: ModuleDef.adopts).
+  const barModuleOf = (match: (item: NavItem) => boolean) => {
+    const top = nav.find((i) => match(i) || i.children?.some(match));
+    return top ? moduleOf(top) : undefined;
+  };
+  const inicioModule = inicioModuleOf(currentHref);
+  const hrefModule = (inicioModule && visibleModules.some((m) => m.id === inicioModule) ? inicioModule : undefined) ?? barModuleOf((i) => i.href !== "#" && isActiveHref(i.href, currentHref));
+  // A record page (/r/<module>.<entity>/<id>) belongs to the module whose bar lists its entity, else to its entity's module.
+  const recordEntity = recordEntityOf(currentHref);
+  const recordModule = (recordEntity ? barModuleOf((i) => i.entity === recordEntity) : undefined) ?? visibleModules.find((m) => m.id === recordEntity?.split(".")[0])?.id;
+  const activeModuleId = selectedModule ?? hrefModule ?? recordModule ?? visibleModules[0]?.id;
   useEffect(() => setSelectedModule(undefined), [currentHref]);
 
-  /** Picking a module brings its open tab to the front, or opens its first option when none of its pages is open. */
+  const activeModule = visibleModules.find((m) => m.id === activeModuleId);
+
+  /**
+   * Picking a module shows its bar. With none of its pages open it opens the module's own Inicio; with one open the current tab stays
+   * where it is (the user goes to the module's tabs from the tab row), so a click on the side menu never moves the user off their work.
+   */
   const selectModule = (moduleId: string) => {
     setSelectedModule(moduleId);
     const items = (itemsByModule[moduleId] ?? []).filter((i) => i.menu !== false).flatMap((i) => i.children ?? [i]);
-    const openTab = store.getState().tabs.find((tab) => items.some((i) => isActiveHref(i.href, tab.href)));
-    if (openTab) store.getState().activate(openTab.id);
-    else if (items[0]) navigate(items[0].href);
+    const hasOpenTab = store.getState().tabs.some((tab) => inicioModuleOf(tab.href) === moduleId || items.some((i) => isActiveHref(i.href, tab.href)));
+    if (!hasOpenTab) navigate(`/inicio/${moduleId}`);
+  };
+
+  // Shell v7 side menu (design §22.24): the viewer's saved choice of the 60 px rail, else collapsed below 1440 px. The server render and
+  // hydration use the CSS-first `auto` state (null), so the first paint is right; the effect then resolves it before the first paint.
+  const [sideCollapsed, setSideCollapsed] = useState<boolean | null>(null);
+  useLayoutEffect(() => {
+    const saved = readBooleanPref(storage, sideMenuStorageKey(user.id), company.id);
+    setSideCollapsed(saved ? saved.value : window.innerWidth < SIDE_MENU_OPEN_FROM);
+    // Once per mounted shell, like the drawer.
+  }, []);
+  const toggleSide = () => {
+    const next = !(sideCollapsed ?? window.innerWidth < SIDE_MENU_OPEN_FROM);
+    setSideCollapsed(next);
+    writeCachedPref(storage, sideMenuStorageKey(user.id), company.id, { value: next, savedAt: Date.now() });
   };
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mfaOpen, setMfaOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const mfaWired = props.mfa !== undefined && props.onDisableMfa !== undefined;
   // The drawer: the user's saved choice when there is one (the server's copy, or this browser's when it is newer), else
   // closed below 1280 px (OD-10). Decided once, on the first mount; the server render and hydration use the saved choice
@@ -277,26 +343,6 @@ function ShellFrame(props: AppShellProps) {
       latest.current.onAssistantOpenChange?.(open, savedAt);
     },
     [storage, user.id, company.id],
-  );
-  // "Ver códigos DIAN" in the record forms: the server's saved choice renders first (no flash), a newer one of this
-  // browser's cache replaces it before the first paint. Off when never chosen.
-  const [dianHints, setDianHintsState] = useState(props.dianHints?.value ?? false);
-  useLayoutEffect(() => {
-    const saved = newerSaved(props.dianHints ?? null, readBooleanPref(storage, dianHintsStorageKey(user.id), company.id));
-    if (saved) setDianHintsState(saved.value);
-    // Once per mounted shell, like the drawer.
-  }, []);
-  const formPrefs = useMemo(
-    () => ({
-      dianHints,
-      setDianHints: (on: boolean) => {
-        setDianHintsState(on);
-        const savedAt = Date.now();
-        writeCachedPref(storage, dianHintsStorageKey(user.id), company.id, { value: on, savedAt });
-        latest.current.onDianHintsChange?.(on, savedAt);
-      },
-    }),
-    [dianHints, storage, user.id, company.id],
   );
   const [focusInput, setFocusInput] = useState(0);
   /** Opening puts the caret in the composer; closing returns the focus to the toggle (UX-OD-2). */
@@ -367,6 +413,13 @@ function ShellFrame(props: AppShellProps) {
       <TabsProvider store={store}>
         {/* Exports outlive the grid that started them: a tab change no longer aborts a background job. */}
         <ExportJobsProvider>
+        {props.bare ? (
+          <main id="erp-main" tabIndex={-1} className="erp-main h-dvh overflow-auto">
+            <AskAssistantProvider ask={ask}>
+              {props.children}
+            </AskAssistantProvider>
+          </main>
+        ) : (
         <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-page text-text">
           <a
             href="#erp-main"
@@ -379,11 +432,8 @@ function ShellFrame(props: AppShellProps) {
             companies={companies}
             user={user}
             modules={visibleModules}
-            itemsByModule={itemsByModule}
             activeModuleId={activeModuleId}
             onSelectModule={selectModule}
-            activeHref={currentHref}
-            onNavigate={(target) => navigate(target.href)}
             theme={theme}
             onThemeChange={(mode) => changeTheme(mode)}
             onOpenPalette={() => setPaletteOpen(true)}
@@ -391,28 +441,47 @@ function ShellFrame(props: AppShellProps) {
             onToggleAssistant={() => (assistantOpen ? closeAssistant() : openAssistant())}
             onSwitchCompany={props.onSwitchCompany}
             signOutAction={props.signOutAction}
+            {...(props.notifications ? { notifications: props.notifications, onOpenNotification: (href: string) => navigate(href) } : {})}
             {...(mfaWired ? { mfaEnrolled: props.mfa!.enrolled, onOpenMfa: () => setMfaOpen(true) } : {})}
+            {...(props.onChangePassword ? { onOpenPassword: () => setPasswordOpen(true) } : {})}
           />
-          <TabsBar onNew={() => setPaletteOpen(true)} {...(props.confirmLeave ? { confirmLeave: props.confirmLeave } : {})} />
           <div className="flex min-h-0 flex-1">
-            <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
-              <AskAssistantProvider ask={ask}>
-                <FormPrefsProvider value={formPrefs}>{props.children}</FormPrefsProvider>
-              </AskAssistantProvider>
-            </main>
-            <AssistantDrawer
-              open={assistantOpen}
-              auto={assistantAuto}
-              focusInput={focusInput}
-              onClose={closeAssistant}
-              context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
-              screen={screenOf(currentHref)}
-              {...(asked ? { ask: asked } : {})}
-              onNavigate={navigate}
-              onOpenGrid={openGrid}
-              canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
-              {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
-            />
+            <SideMenu modules={visibleModules} activeModuleId={activeModuleId} onSelectModule={selectModule} collapsed={sideCollapsed} onToggle={toggleSide} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              {activeModule && (
+                <div className="erp-itemsbar">
+                  <span className="erp-itemsbar-mod">{t(activeModule.label)}</span>
+                  <ModuleBar
+                    items={(itemsByModule[activeModule.id] ?? []).filter((item) => item.menu !== false)}
+                    showHome
+                    homeHref={`/inicio/${activeModule.id}`}
+                    activeHref={currentHref}
+                    onNavigate={(target) => navigate(target.href)}
+                  />
+                </div>
+              )}
+              <TabsBar onNew={() => setPaletteOpen(true)} {...(props.confirmLeave ? { confirmLeave: props.confirmLeave } : {})} />
+              <div className="flex min-h-0 flex-1">
+                <main id="erp-main" tabIndex={-1} className="erp-main" {...(denseRoute(currentHref) ? { "data-density": "tight" } : {})}>
+                  <AskAssistantProvider ask={ask}>
+                    {props.children}
+                  </AskAssistantProvider>
+                </main>
+                <AssistantDrawer
+                  open={assistantOpen}
+                  auto={assistantAuto}
+                  focusInput={focusInput}
+                  onClose={closeAssistant}
+                  context={activeTab && activeTab.kind !== "home" ? activeTab.title : t("nav.shell.home")}
+                  screen={screenOf(currentHref)}
+                  {...(asked ? { ask: asked } : {})}
+                  onNavigate={navigate}
+                  onOpenGrid={openGrid}
+                  canOpenGrid={(entity) => gridHref?.(entity) !== undefined}
+                  {...(props.assistantOptions?.columnsOf ? { columnsOf: props.assistantOptions.columnsOf } : {})}
+                />
+              </div>
+            </div>
           </div>
           <CommandPalette
             items={paletteItems}
@@ -420,7 +489,9 @@ function ShellFrame(props: AppShellProps) {
             onOpenChange={setPaletteOpen}
             onAsk={ask}
             onSelect={(item) => navigate(item.href)}
+            {...(props.findRecords ? { findRecords: props.findRecords } : {})}
           />
+          {props.onChangePassword && <PasswordDialog open={passwordOpen} onOpenChange={setPasswordOpen} onChange={props.onChangePassword} />}
           {mfaWired && (
             <MfaDialog
               open={mfaOpen}
@@ -433,6 +504,7 @@ function ShellFrame(props: AppShellProps) {
           )}
           <Toaster position="bottom-center" />
         </div>
+        )}
         </ExportJobsProvider>
       </TabsProvider>
       </NavigateProvider>

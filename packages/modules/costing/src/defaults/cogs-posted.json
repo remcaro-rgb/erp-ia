@@ -1,0 +1,29 @@
+{
+  "event": "costing.cogs.posted",
+  "name": "Costo de ventas",
+  "journalCode": "NC",
+  "template": {
+    "date": "$.date",
+    "description": "Costo de ventas {{number}}",
+    "source": {
+      "entity": "inventory.movement",
+      "id": "$.movementId"
+    },
+    "lines": [
+      {
+        "role": "cogs",
+        "side": "debit",
+        "forEach": "$.lines[*]",
+        "amount": "$.cost",
+        "costCenter": "$.costCenterId"
+      },
+      {
+        "role": "inventory",
+        "side": "credit",
+        "forEach": "$.lines[*]",
+        "amount": "$.cost"
+      }
+    ],
+    "reverseOf": null
+  }
+}

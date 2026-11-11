@@ -19,6 +19,7 @@ export const userEntity = defineEntity({
   schema: "kernel",
   table: "users",
   label: "entity.kernel.user",
+  entityType: "sistema",
   displayField: "full_name",
   defaultSort: { field: "full_name", dir: "asc" },
   // A user's page is under Administración › Usuarios (`recordHref`).
@@ -31,9 +32,9 @@ export const userEntity = defineEntity({
     { name: "created_at", type: "datetime", label: "field.kernel.user.created_at" },
     // The member's state in the active company (kernel.admin.user.update, design §22.16): a deactivated user stays listed.
     { name: "is_active", type: "boolean", label: "field.kernel.user.is_active" },
-    // Exempt from the system admin role's second step in the active company (kernel.admin.user.mfa.set, design §22.19).
-    // Confidential: the role defaults show it to the admin only.
-    { name: "mfa_exempt", type: "boolean", label: "field.kernel.user.mfa_exempt", sensitivity: "confidential" },
+    // An administrator requires this member's second step in the active company (kernel.admin.user.mfa.set, design §22.19,
+    // owner decision 2026-11-04: no role requires it by itself). Confidential: the role defaults show it to the admin only.
+    { name: "mfa_required", type: "boolean", label: "field.kernel.user.mfa_required", sensitivity: "confidential" },
   ],
 });
 

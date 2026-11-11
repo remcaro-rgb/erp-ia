@@ -2,18 +2,24 @@
   "date": "2026-11-02",
   "number": "NC-208",
   "noteId": "0192b4c0-0000-7000-8000-00000000f002",
-  "reasonCode": "return",
+  "kind": "credit",
+  "annulment": false,
+  "reasonCode": "1",
   "dueDate": "2026-11-02",
   "customer": {
     "partyId": "0192b4c0-0000-7000-8000-00000000c001",
     "legalName": "Tiendas D1 S.A.S."
   },
   "totals": {
-    "total": -119000
+    "total": -119000,
+    "totalDoc": -119000
   },
   "lines": [
     {
-      "subtotal": -100000
+      "subtotal": -100000,
+      "subtotalDoc": -100000,
+      "categoryId": "0192b4c0-0000-7000-8000-00000000a001",
+      "invoiceLineId": "0192b4c0-0000-7000-8000-00000000f101"
     }
   ],
   "taxes": [
@@ -21,7 +27,10 @@
       "code": "IVA19",
       "rate": 19,
       "amount": -19000,
+      "amountDoc": -19000,
       "base": -100000
     }
-  ]
+  ],
+  "currency": "COP",
+  "exchangeRate": 1
 }

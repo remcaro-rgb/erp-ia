@@ -55,6 +55,17 @@ Vercel builds `apps/web` from every push to `main` (project `erpia`); the deploy
 demo passwords are public. The access-token hook must be enabled once in the hosted project's dashboard
 (Authentication › Hooks › `kernel.custom_access_token_hook`).
 
+**Sharing the dev environment (2026-11-04).** `scripts/share/upload-dev.sh` (double-click `~/Desktop/Subir ERP-IA.command`)
+wipes the hosted database, applies the migrations and the demo seed, deploys to the Vercel production alias and smoke-tests
+`/login`. It asks for `SI` first; `--skip-checks` skips lint, typecheck and check:rules; `--yes` skips the prompt.
+`scripts/share/update-site.sh` (`~/Desktop/Actualizar ERP-IA.command`) updates the site without touching its data: it applies only
+the migrations the hosted database lacks (`supabase db push`, forward-only), deploys to production and smoke-tests `/login`.
+
+**Hosted checklist: worker image.** The Docker worker loads the same modules as the web app. When a release adds a module,
+rebuild and redeploy the worker image (`Dockerfile.worker`) before the hosted outbox runs on it. At start the worker compares its
+modules with `kernel.manifest_hashes` and refuses to start in production (`NODE_ENV=production`) when a deployed module is missing
+from its image, warning only elsewhere; `WORKER_MODULE_CHECK=refuse|warn|off` overrides it (a rollback image needs `warn`).
+
 ### Demo accounts (local use only)
 
 | Account | Password | Roles | Second step |
@@ -89,6 +100,31 @@ closed. Four-eyes is on, and approving a comprobante asks for the TOTP code.
    **Nómina octubre** shows its lines masked and the account lookup of a new comprobante offers no 5105.
 3. **Andrés** (contador): Comprobantes › Nuevo, a note with a centro de costo, Enviar a aprobación; the approve button is
    disabled for him, Laura approves it. Borradores holds the accrual's auto-reversal dated 01/11/2026.
+
+### Sale chain demo (CRM, Ventas, Inventario, Costos, Facturación, Pagos)
+
+The six phase 2B modules are manual entitlements of the demo tenant only (`supabase/seed.sql`; no plan includes them).
+After the ledger, `pnpm db:seed` enables them and runs `scripts/demo/sales.ts`, every write through its process and dated
+today (never October, which the accounting smoke reads). It is idempotent: a second run finds each document and runs nothing.
+
+- **Bodega Principal** (PRIN, ubicación EST-A) with an opening receipt of every stocked product at standard cost;
+  REP-TOR-ZAN and ACC-PRE-FRA get a stock mínimo, so **Stock bajo mínimo** has something to show.
+- Medios de pago TRF (Transferencia Bancolombia) and EFE (Efectivo); the pipeline **Ventas institucionales** with one open
+  oportunidad.
+- Facturación: manual invoice creation; a DIAN resolution **in habilitación** (prefix SETP, 990000000–995000000) with the
+  DIAN's published test technical key (not a secret); numbering for credit and debit notes; fake software and test-set
+  ids. **No certificate and no software PIN**: they belong in Vault (rule 12) and the demo never talks to the DIAN, so the
+  firma stays `not_configured` and the seed accepts the invoice through the mock DIAN (the e-invoice workflow's processes,
+  as `apps/web/e2e/test-support/mock-dian.mts` does).
+- One full chain for Almacenes Éxito: COT-1 → PED-1 → ENT-1 → factura SETP990000000 accepted by the mock DIAN → RC-1
+  with a 2.5 % retefuente, so the invoice is **Pagada**. Two halfway pedidos: Hotel Cumbre Andina's is shipped (it shows
+  in **Por facturar**), La Colina's is confirmed (**Pedidos abiertos**).
+- The gerente comercial, cajero and contador roles get the sale chain's processes they need.
+- Not seeded: a price list (no process creates one yet; prices come from the product's list price).
+
+Walkthrough: as Laura, open Inicio de Ventas, Facturación, Pagos, CRM and Inventario for their cards (Pedidos abiertos,
+Por facturar, Por cobrar, Recaudo del mes, Pipeline, Stock bajo mínimo), then follow the chain from the cotización. The
+same chain in the UI is `apps/web/e2e/sales-chain.spec.ts`.
 
 ## Run in Docker
 

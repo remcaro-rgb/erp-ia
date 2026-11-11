@@ -112,14 +112,22 @@ test.describe("administration", () => {
     await fixture.cleanup();
   });
 
-  /** Pedro's module bar, read in a fresh session (his roles are claims of the session's JWT). */
+  /** Pedro's module bar, read in a fresh session (his roles are claims of the session's JWT): its links and the items of each section. */
   async function pedroMenu(browser: Browser): Promise<string[]> {
-    const context = await browser.newContext();
+    // The admin's width: at the default 1280 px the assistant panel pushes Parámetros into "Más".
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await signIn(page, pedro.email, pedro.password);
-    const items = page.locator("header").first().getByRole("navigation", { name: "Menú del módulo" }).getByRole("link");
+    const bar = page.getByRole("navigation", { name: "Menú del módulo" });
+    const items = bar.getByRole("link");
     await expect(items.first()).toBeVisible();
     const texts = await items.allTextContents();
+    // The four sections (entity types spec §2.4) open a menu each.
+    for (const section of ["Maestros", "Documentos", "Reportes", "Parámetros"]) {
+      await bar.getByRole("button", { name: section, exact: true }).click();
+      texts.push(...(await page.getByRole("menu", { name: section }).getByRole("menuitem").allTextContents()));
+      await page.keyboard.press("Escape");
+    }
     await context.close();
     return texts.map((t) => t.trim());
   }
@@ -399,7 +407,7 @@ test.describe("administration", () => {
     ];
     for (const [href, heading] of sections) {
       await page.goto(href);
-      await expect(page.getByText(heading, { exact: true }).first()).toBeVisible();
+      await expect(page.locator("#erp-main").getByText(heading, { exact: true }).first()).toBeVisible();
     }
     // Field visibility: the confidential credit limit of parties is marked.
     await page.goto("/admin/fields");
@@ -529,18 +537,18 @@ test.describe("editable users on the demo company", () => {
   });
 });
 
-// Design §22.19: the admin removes a user's second step ("Quitar segundo paso", step-up) and exempts a holder of the admin
-// role from the role's requirement ("Exento del segundo paso", step-up), both through kernel.admin.user.mfa.set. On the
-// demo company Laura removes Marcela's factor (the session Marcela had open ends; she signs in with her password only) and
-// exempts herself.
+// Design §22.19, owner decision 2026-11-04: the admin removes a user's second step ("Quitar segundo paso", step-up) and
+// requires it of anyone, an admin included ("Exigir verificación en dos pasos", step-up), both through
+// kernel.admin.user.mfa.set. On the demo company Laura removes Marcela's factor (the session Marcela had open ends; she
+// signs in with her password only) and requires the second step of herself.
 test.describe("the second step of the demo users", () => {
   const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
   const admin = adminClient();
   let marcelaId = "";
-  /** As the seed leaves them: Marcela has no factor and nobody of the demo company is exempt. */
+  /** As the seed leaves them: Marcela has no factor and nobody of the demo company is required to have one. */
   const restoreSeed = async () => {
     await removeTotpFactors(admin, marcelaId);
-    await sql`update kernel.memberships set mfa_exempt = false where company_id = ${DEMO_COMPANY_ID}`;
+    await sql`update kernel.memberships set mfa_required = false where company_id = ${DEMO_COMPANY_ID}`;
   };
   test.beforeAll(async () => {
     marcelaId = (await sql<{ id: string }[]>`select id from kernel.users where email = ${MARCELA.email}`)[0]!.id;
@@ -551,7 +559,7 @@ test.describe("the second step of the demo users", () => {
     await sql.end({ timeout: 5 });
   });
 
-  test("Laura removes Marcela's factor so she signs in with her password only, and exempts herself", async ({ page, browser }) => {
+  test("Laura removes Marcela's factor so she signs in with her password only, and requires the second step of herself", async ({ page, browser }) => {
     test.setTimeout(150_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     const marcelaSecret = await enrolTotp(MARCELA);
@@ -569,8 +577,8 @@ test.describe("the second step of the demo users", () => {
     await page.getByRole("row", { name: /Marcela Rojas/ }).getByRole("link", { name: "Marcela Rojas" }).click();
     const user = page.getByRole("region", { name: "Marcela Rojas" });
     await expect(user).toContainText("Activa");
-    // A cashier holds no admin role: nothing to exempt her from.
-    await expect(user.getByRole("switch", { name: "Exento del segundo paso" })).toHaveCount(0);
+    // Every user has the requirement switch, a cashier included; nobody is required by default.
+    await expect(user.getByRole("switch", { name: "Exigir verificación en dos pasos" })).toHaveAttribute("aria-checked", "false");
     await user.getByRole("button", { name: "Quitar segundo paso" }).click();
     const confirm = page.getByRole("dialog", { name: "¿Quitar el segundo paso de Marcela Rojas?" });
     await expect(confirm).toContainText("Marcela Rojas entrará solo con su contraseña");
@@ -592,27 +600,27 @@ test.describe("the second step of the demo users", () => {
     await signIn(await marcelaContext.newPage(), MARCELA.email, MARCELA.password);
     await marcelaContext.close();
 
-    // Laura's own page: she holds the admin role, so the exemption switch is there; it asks for the code.
+    // Laura's own page: the admin role requires nothing by itself, so the switch starts off; it asks for the code.
     await page.goto("/admin/users");
     await page.getByRole("row", { name: /Laura Méndez/ }).getByRole("link", { name: "Laura Méndez" }).click();
     const own = page.getByRole("region", { name: "Laura Méndez" });
-    const exempt = own.getByRole("switch", { name: "Exento del segundo paso" });
-    await expect(exempt).toHaveAttribute("aria-checked", "false");
-    await exempt.click();
+    const required = own.getByRole("switch", { name: "Exigir verificación en dos pasos" });
+    await expect(required).toHaveAttribute("aria-checked", "false");
+    await required.click();
     await confirmStepUp(page, LAURA.totpSecret!);
     await expect(own.getByRole("status")).toHaveText("Cambios guardados");
-    await expect(exempt).toHaveAttribute("aria-checked", "true");
-    await expect(own.locator(".erp-pill", { hasText: "exenta" })).toBeVisible();
+    await expect(required).toHaveAttribute("aria-checked", "true");
+    await expect(own.locator(".erp-pill", { hasText: "exigida" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("region", { name: "Laura Méndez" }).getByRole("switch", { name: "Exento del segundo paso" })).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("region", { name: "Laura Méndez" }).getByRole("switch", { name: "Exigir verificación en dos pasos" })).toHaveAttribute("aria-checked", "true");
     await expect
-      .poll(async () => (await sql`select m.mfa_exempt from kernel.memberships m join kernel.users u on u.id = m.user_id where u.email = ${LAURA.email} and m.company_id = ${DEMO_COMPANY_ID}`)[0]?.mfa_exempt)
+      .poll(async () => (await sql`select m.mfa_required from kernel.memberships m join kernel.users u on u.id = m.user_id where u.email = ${LAURA.email} and m.company_id = ${DEMO_COMPANY_ID}`)[0]?.mfa_required)
       .toBe(true);
   });
 });
 
-// Review Focus 3: after a reset, the next sign-in asks for enrolment while the requirement still applies (an admin who is
-// not exempt), and is password only once the admin exempts them.
+// Review Focus 3: after a reset, the next sign-in is password only while nothing requires the second step (an admin
+// included), asks for enrolment once an administrator requires it, and is password only again when they stop requiring it.
 test.describe("an admin resets another admin's second step", () => {
   let fixture: AuthFixture;
   let secret: string;
@@ -648,7 +656,7 @@ test.describe("an admin resets another admin's second step", () => {
     await fixture.cleanup();
   });
 
-  test("Rosa enrols again at her next sign-in, and signs in with her password only once exempt", async ({ page, browser }) => {
+  test("Rosa signs in with her password only after the reset, enrols once an admin requires it, and is password only again when they stop", async ({ page, browser }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await signInWithCode(page, fixture.email, fixture.password, secret);
@@ -659,26 +667,97 @@ test.describe("an admin resets another admin's second step", () => {
     await confirmStepUp(page, secret);
     await expect(user).toContainText("No configurada");
 
-    // Her role still requires the second step: the sign-in goes to the enrolment.
+    // No role requires the second step (an admin's included): her next sign-in is the password only.
     const context = await browser.newContext();
     const rosaPage = await context.newPage();
+    await signIn(rosaPage, rosa.email, rosa.password);
+    await context.clearCookies();
+
+    // The admin requires it of her: the sign-in goes to the enrolment, with no way around it.
+    await user.getByRole("switch", { name: "Exigir verificación en dos pasos" }).click();
+    await confirmStepUp(page, secret);
+    await expect(user.getByRole("status")).toHaveText("Cambios guardados");
+    await expect(user.getByRole("switch", { name: "Exigir verificación en dos pasos" })).toHaveAttribute("aria-checked", "true");
+    await page.goto("/admin/users");
+    await expect(page.getByRole("row", { name: /Rosa Pardo/ })).toContainText("exigida");
     await rosaPage.goto("/login");
     await rosaPage.getByLabel("Correo").fill(rosa.email);
     await rosaPage.getByLabel("Contraseña", { exact: true }).fill(rosa.password);
     await rosaPage.getByRole("button", { name: "Entrar" }).click();
     await expect(rosaPage).toHaveURL(/\/mfa\/enroll$/);
-    // Required: no way around it.
     await expect(rosaPage.getByRole("link", { name: "Omitir por ahora" })).toHaveCount(0);
     await context.clearCookies();
 
-    // Exempt: the list says so (no factor), and her sign-in is password only.
-    await user.getByRole("switch", { name: "Exento del segundo paso" }).click();
+    // Not required any more: her sign-in is password only again.
+    await page.goto(`/admin/users/${rosa.id}`);
+    await page.getByRole("region", { name: "Rosa Pardo" }).getByRole("switch", { name: "Exigir verificación en dos pasos" }).click();
     await confirmStepUp(page, secret);
-    await expect(user.getByRole("status")).toHaveText("Cambios guardados");
-    await expect(user.getByRole("switch", { name: "Exento del segundo paso" })).toHaveAttribute("aria-checked", "true");
-    await page.goto("/admin/users");
-    await expect(page.getByRole("row", { name: /Rosa Pardo/ })).toContainText("exenta");
+    await expect(page.getByRole("region", { name: "Rosa Pardo" }).getByRole("switch", { name: "Exigir verificación en dos pasos" })).toHaveAttribute("aria-checked", "false");
     await signIn(rosaPage, rosa.email, rosa.password);
     await context.close();
+  });
+});
+
+// Owner decision 2026-11-04: a user changes their own password from the user menu (the current one proves who they are),
+// and the admin resets another's (step-up): the person's sessions end and they sign in with the new one.
+test.describe("passwords", () => {
+  const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
+  const admin = adminClient();
+  let marcelaId = "";
+  const restore = async () => {
+    await admin.auth.admin.updateUserById(marcelaId, { password: MARCELA.password });
+  };
+  test.beforeAll(async () => {
+    marcelaId = (await sql<{ id: string }[]>`select id from kernel.users where email = ${MARCELA.email}`)[0]!.id;
+    await restore();
+  });
+  test.afterAll(async () => {
+    await restore();
+    await sql.end({ timeout: 5 });
+  });
+
+  test("Marcela changes her own password and signs in with the new one; Laura resets it and Marcela signs in with that", async ({ page, browser }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const own = "nueva-clave-marcela-1";
+    await signIn(page, MARCELA.email, MARCELA.password);
+    await page.getByRole("button", { name: "Menú de usuario" }).click();
+    await page.getByRole("menuitem", { name: "Cambiar contraseña" }).click();
+    const box = page.getByRole("dialog", { name: "Cambiar contraseña" });
+    // A wrong current password changes nothing.
+    await box.getByLabel("Contraseña actual").fill("equivocada-123");
+    await box.getByLabel("Contraseña nueva", { exact: true }).fill(own);
+    await box.getByLabel("Repite la contraseña nueva").fill(own);
+    await box.getByRole("button", { name: "Cambiar contraseña" }).click();
+    await expect(box.getByRole("alert")).toContainText("La contraseña actual no es correcta");
+    await box.getByLabel("Contraseña actual").fill(MARCELA.password);
+    await box.getByRole("button", { name: "Cambiar contraseña" }).click();
+    await expect(box.getByRole("status")).toHaveText("Tu contraseña se cambió.");
+
+    const fresh = await browser.newContext();
+    await signIn(await fresh.newPage(), MARCELA.email, own);
+    await fresh.close();
+
+    // Laura resets it; the step-up asks for her code.
+    const reset = "clave-restablecida-2";
+    const laura = await browser.newContext();
+    const lauraPage = await laura.newPage();
+    await lauraPage.setViewportSize({ width: 1440, height: 900 });
+    await signInWithCode(lauraPage, LAURA.email, LAURA.password, LAURA.totpSecret!);
+    await lauraPage.goto(`/admin/users/${marcelaId}`);
+    await lauraPage.getByRole("region", { name: "Marcela Rojas" }).getByRole("button", { name: "Restablecer contraseña" }).click();
+    const dialog = lauraPage.getByRole("dialog", { name: "¿Restablecer la contraseña de Marcela Rojas?" });
+    await dialog.getByLabel("Contraseña nueva", { exact: true }).fill(reset);
+    await dialog.getByLabel("Repite la contraseña nueva").fill(reset);
+    await dialog.getByRole("button", { name: "Restablecer contraseña" }).click();
+    await confirmStepUp(lauraPage, LAURA.totpSecret!);
+    await expect(dialog.getByText("La contraseña de Marcela Rojas se restableció")).toBeVisible();
+    await laura.close();
+
+    // The old password no longer works; the reset one does.
+    const after = await browser.newContext();
+    const afterPage = await after.newPage();
+    await signIn(afterPage, MARCELA.email, reset);
+    await after.close();
   });
 });

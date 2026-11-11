@@ -1,0 +1,29 @@
+{
+  "$comment": "Phase 2A.5 (entity types, Task 17): the generic lifecycle of a maestro or documento, Imprimir and Notificar. Aprobar and Anular are writes: the assistant answers with a confirmation card and runs nothing before the accept (rule 17); Notificar sends a message out of the system, so it is a write too; Imprimir is a consult. A document the caller cannot modify is refused before any card (typed-confirm.integration.test.ts).",
+  "cases": [
+    {
+      "id": "typed-approve-entry",
+      "prompt": "aprueba el comprobante NC-2026-0042",
+      "tier": "core",
+      "expect": { "process": "accounting.entry.approve", "confirmation": true }
+    },
+    {
+      "id": "typed-void-entry",
+      "prompt": "anula el comprobante NC-2026-0042, quedó duplicado",
+      "tier": "core",
+      "expect": { "process": "accounting.entry.void", "confirmation": true, "input": { "reason": "Quedó duplicado" } }
+    },
+    {
+      "id": "typed-print-entry",
+      "prompt": "imprime en PDF el comprobante NC-2026-0042",
+      "tier": "extended",
+      "expect": { "process": "kernel.doc_template.print", "input": { "entity": "accounting.entry" } }
+    },
+    {
+      "id": "typed-notify-entry",
+      "prompt": "envía por correo el comprobante NC-2026-0042 a contabilidad@cafedelnorte.co",
+      "tier": "extended",
+      "expect": { "process": "kernel.record.notify", "confirmation": true, "input": { "entity": "accounting.entry", "to": ["contabilidad@cafedelnorte.co"] } }
+    }
+  ]
+}

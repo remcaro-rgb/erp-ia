@@ -206,7 +206,7 @@ const CUSTOM_TYPES: Record<string, string> = { number: "number", bool: "boolean"
 async function modesOf(tx: Tx, entity: ResolvedEntityDef | undefined, fields: string[]): Promise<Map<string, string>> {
   if (!entity || fields.length === 0) return new Map();
   const rows = await tx<{ field: string; mode: string }[]>`
-    select f as field, kernel.field_mode(${entity.id}, f) as mode from unnest(${fields}::text[]) as f`;
+    select field, mode from kernel.field_modes(${entity.id}, ${fields}::text[])`;
   return new Map(rows.map((r) => [r.field, r.mode]));
 }
 

@@ -1,4 +1,4 @@
-import { ProcessError, ReportState, type ProcessContext, type ReportResult } from "@erp/kernel";
+import { ProcessError, ReportState, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 
 // Shared machinery of the accounting reports (accounting design §5.13, §10a.5): the balances query with the restricted-accounts
@@ -8,6 +8,8 @@ import { z } from "zod";
 
 export const RESTRICTED_CODE = "🔒";
 export const RESTRICTED_NAME = "report.restricted_accounts";
+/** The name of the lock line that stands for parties a record rule hides from the caller (D11). */
+export const RESTRICTED_PARTIES = "report.restricted_parties";
 
 const optionalId = z.uuid().optional();
 
@@ -90,43 +92,28 @@ const num = (value: unknown) => Number(value ?? 0);
  * the opening net before `from`, the debits and credits within the range. A node the caller may not view is flagged `restricted`;
  * the caller folds those into one line with `foldRestricted`. Entries posted and reversed count; an opening or closing entry
  * dated inside the range counts only when asked; one dated before it is always part of the opening.
+ *
+ * Record-level access (entity types spec D11, Phase 2A.5 Task 9): the amounts and the nodes come from `accounting.ledger_sums`, a
+ * grouped security-definer aggregate of the caller's company only (0046), so a comprobante or a cuenta a record rule hides
+ * from the caller still counts in every total; a node the caller cannot read is `restricted` too and folded, never named.
  */
 export async function balanceRows(ctx: ProcessContext, q: BalanceQuery): Promise<BalanceRow[]> {
+  // The grouped aggregate of 0046 (D11): every comprobante counts whoever looks; a node the caller cannot read has no id, code or name.
   const rows = await ctx.tx<{
-    node_id: string | null; code: string; name: string | null; nature: "debit" | "credit" | null; statement_section: string | null;
-    restricted: boolean; opening_net: string | null; debit: string | null; credit: string | null;
-    cost_center_id: string | null; cc_code: string | null; cc_name: string | null;
+    node_id: string | null; node_code: string | null; name: string | null; nature: "debit" | "credit" | null; statement_section: string | null;
+    restricted: boolean; opening_net: string | null; debit: string | null; credit: string | null; cost_center_id: string | null;
+    cc_code: string | null; cc_name: string | null;
   }[]>`
-    with src as (
-      select case when length(a.code) >= ${q.level} then left(a.code, ${q.level}) else a.code end as node_code,
-             case when ${q.byCostCenter === true} then l.cost_center_id end as cost_center_id,
-             l.debit, l.credit, e.date, e.is_opening, e.is_closing
-      from accounting.entry_lines l
-      join accounting.entries e on e.id = l.entry_id
-      join accounting.accounts a on a.id = l.account_id
-      where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date <= ${q.to}::date
-        and (${q.costCenterId ?? null}::uuid is null or l.cost_center_id = ${q.costCenterId ?? null})
-        and (${q.openAuxiliaryId ?? null}::uuid is null or l.open_auxiliary_id = ${q.openAuxiliaryId ?? null})
-        and (${q.itemId ?? null}::uuid is null or l.item_id = ${q.itemId ?? null})
-        and (${q.businessUnitId ?? null}::uuid is null or l.business_unit_id = ${q.businessUnitId ?? null})
-        and (${q.partyId ?? null}::uuid is null or l.party_id = ${q.partyId ?? null})
-    ),
-    agg as (
-      select node_code, cost_center_id,
-             sum(debit - credit) filter (where date < ${q.from}::date) as opening_net,
-             sum(debit) filter (where date >= ${q.from}::date and (${q.includeOpening} or not is_opening) and (${q.includeClosing} or not is_closing)) as debit,
-             sum(credit) filter (where date >= ${q.from}::date and (${q.includeOpening} or not is_opening) and (${q.includeClosing} or not is_closing)) as credit
-      from src group by node_code, cost_center_id
-    )
-    select n.id as node_id, agg.node_code as code, n.name, n.nature, n.statement_section,
-           case when n.id is null then false else not accounting.can_view_account(n.id) end as restricted,
-           agg.opening_net, agg.debit, agg.credit, agg.cost_center_id, cc.code as cc_code, cc.name as cc_name
-    from agg left join accounting.accounts n on n.company_id = ${ctx.companyId} and n.code = agg.node_code
-    left join accounting.cost_centers cc on cc.id = agg.cost_center_id
-    order by agg.node_code, cc.code nulls last`;
+    select s.node_id, s.node_code, s.name, s.nature, s.statement_section, s.restricted, s.opening_net, s.debit, s.credit, s.cost_center_id,
+           cc.code as cc_code, cc.name as cc_name
+    from accounting.ledger_sums(${q.from}::date, ${q.to}::date, ${q.level}, ${q.byCostCenter === true}, ${q.costCenterId ?? null}::uuid,
+                                ${q.openAuxiliaryId ?? null}::uuid, ${q.itemId ?? null}::uuid, ${q.businessUnitId ?? null}::uuid, ${q.partyId ?? null}::uuid,
+                                ${q.includeOpening}, ${q.includeClosing}) s
+    left join accounting.cost_centers cc on cc.id = s.cost_center_id
+    order by s.node_code nulls last, cc.code nulls last`;
   return rows.map((r) => ({
-    nodeId: r.node_id, code: r.code, name: r.name ?? r.code, nature: r.nature, section: r.statement_section, restricted: r.restricted,
-    openingNet: num(r.opening_net), debit: num(r.debit), credit: num(r.credit),
+    nodeId: r.node_id, code: r.node_code ?? RESTRICTED_CODE, name: r.name ?? r.node_code ?? RESTRICTED_NAME, nature: r.nature, section: r.statement_section,
+    restricted: r.restricted, openingNet: num(r.opening_net), debit: num(r.debit), credit: num(r.credit),
     ...(q.byCostCenter ? { costCenterId: r.cost_center_id, costCenterCode: r.cc_code, costCenterName: r.cc_name } : {}),
   }));
 }
@@ -141,84 +128,9 @@ export function foldRestricted<T extends { restricted: boolean }>(rows: T[], zer
   return { visible, restricted: folded, count: hidden.length };
 }
 
-// ---- the window of a report ------------------------------------------------------------------------------------------
+// ---- the window of a report: the kernel's (shared with the other modules' reports) ------------------------------------
 
-type GridFilter = ReportState["filters"][number];
-
-const cell = (row: Record<string, unknown>, field: string): unknown => row[field];
-
-function matches(row: Record<string, unknown>, f: GridFilter): boolean {
-  const v = cell(row, f.field);
-  const text = (x: unknown) => String(x ?? "").toLowerCase();
-  const cmp = (a: unknown, b: unknown): number => {
-    const na = Number(a);
-    const nb = Number(b);
-    if (!Number.isNaN(na) && !Number.isNaN(nb) && a !== "" && b !== "") return na - nb;
-    return String(a ?? "").localeCompare(String(b ?? ""));
-  };
-  switch (f.op) {
-    case "eq": return String(v ?? "") === String(f.value ?? "") || (typeof v === "number" && v === Number(f.value));
-    case "neq": return !matches(row, { ...f, op: "eq" });
-    case "contains": return text(v).includes(text(f.value));
-    case "ncontains": return !text(v).includes(text(f.value));
-    case "starts": return text(v).startsWith(text(f.value));
-    case "ends": return text(v).endsWith(text(f.value));
-    case "gt": return cmp(v, f.value) > 0;
-    case "gte": return cmp(v, f.value) >= 0;
-    case "lt": return cmp(v, f.value) < 0;
-    case "lte": return cmp(v, f.value) <= 0;
-    case "between": return cmp(v, f.value) >= 0 && cmp(v, f.value2) <= 0;
-    case "in": return Array.isArray(f.value) && f.value.map(String).includes(String(v ?? ""));
-    case "nin": return !(Array.isArray(f.value) && f.value.map(String).includes(String(v ?? "")));
-    case "is_null": return v === null || v === undefined || v === "";
-    case "not_null": return !(v === null || v === undefined || v === "");
-    default: return true;
-  }
-}
-
-/** AND binds tighter than OR, as in the grids. */
-function passes(row: Record<string, unknown>, filters: readonly GridFilter[]): boolean {
-  if (filters.length === 0) return true;
-  const groups: boolean[][] = [[]];
-  filters.forEach((f, i) => {
-    if (i > 0 && f.join === "or") groups.push([]);
-    groups[groups.length - 1]!.push(matches(row, f));
-  });
-  return groups.some((g) => g.every(Boolean));
-}
-
-export interface WindowOptions {
-  /** Columns whose sum over the whole filter goes to `aggregates`. */
-  totals?: readonly string[];
-  /** Rows that are subtotals or footers are kept out of the sums. */
-  isDetail?: (row: Record<string, unknown>) => boolean;
-  /** Extra aggregates the report adds (omitted lines, differences). */
-  extra?: Record<string, unknown>;
-}
-
-/** Filters, sorts and pages the computed rows as the grid state asks, and sums the totals over the whole filter. */
-export function windowOf(rows: Record<string, unknown>[], state: ReportState, options: WindowOptions = {}): ReportResult {
-  const filtered = rows.filter((r) => passes(r, state.filters));
-  if (state.sort.length > 0) {
-    const sorted = [...filtered];
-    sorted.sort((a, b) => {
-      for (const s of state.sort) {
-        const av = cell(a, s.field);
-        const bv = cell(b, s.field);
-        const diff = typeof av === "number" && typeof bv === "number" ? av - bv : String(av ?? "").localeCompare(String(bv ?? ""));
-        if (diff !== 0) return s.dir === "asc" ? diff : -diff;
-      }
-      return 0;
-    });
-    filtered.splice(0, filtered.length, ...sorted);
-  }
-  const aggregates: Record<string, unknown> = { ...(options.extra ?? {}) };
-  for (const field of options.totals ?? []) {
-    aggregates[field] = filtered.filter((r) => options.isDetail?.(r) ?? true).reduce((sum, r) => sum + Number(r[field] ?? 0), 0);
-  }
-  const start = (state.page - 1) * state.pageSize;
-  return { rows: filtered.slice(start, start + state.pageSize), total: filtered.length, aggregates };
-}
+export { windowOf, type WindowOptions } from "@erp/kernel";
 
 /** Two decimals half away from zero, so sums of rounded cents do not drift. */
 export const cents = (value: number): number => Math.round(value * 100) / 100 || 0;

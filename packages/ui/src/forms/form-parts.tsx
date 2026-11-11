@@ -1,11 +1,14 @@
 "use client";
 
+import { useRecordBridge, useRegisterRecordForm } from "../record/record-bridge";
+import { useUnsavedSlot } from "../record/RecordFrame";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import type { FieldLabels } from "../fields/field-model";
 import { invoiceBlockers } from "../lookup/lookup-model";
 import { CodeCombobox } from "./fields/CodeCombobox";
-import { DianHintsProvider, useDianHints, useFormPrefs } from "./form-context";
+import { ShowCodesProvider, useShowCodes } from "./form-context";
 import { enterTarget, focusField, isEnterSource } from "./form-keyboard";
 import { ProcessId } from "./ProcessId";
 import { StepUpPrompt } from "./StepUpPrompt";
@@ -41,32 +44,37 @@ export interface RecordFormProps {
   save?: () => Promise<boolean>;
   /** The last refusal: when it changes, the caret goes to the first field in error or to the error summary. */
   failure: SaveFlow["failure"];
-  /** Shows the "Ver códigos DIAN" switch (default); a form with no DIAN codes leaves it out. */
-  dianToggle?: boolean;
+  /**
+   * Puts the form back as it was loaded. Inside a record frame the frame's header shows «Descartar cambios» next to «Cambios sin
+   * guardar» and runs it (owner 2026-11-05); the form's own footer then leaves its Descartar out.
+   */
+  onDiscard?: () => void;
   children: ReactNode;
-}
-
-/** Whether the DIAN schema hints show: the user's saved choice when the shell provides it, else this form's own switch. Off by default (OD-12). */
-function useDianHintsState(): [boolean, (on: boolean) => void] {
-  const prefs = useFormPrefs();
-  const [local, setLocal] = useState(false);
-  return prefs ? [prefs.dianHints, prefs.setDianHints] : [local, setLocal];
 }
 
 /**
  * The record forms' frame (party, product, category): a real <form> where Ctrl/⌘+S and Ctrl/⌘+Enter save from any
  * field, Enter moves to the next field and Shift+Enter back (OD-11; a textarea keeps its newline and the last field
  * keeps the caret), Enter never submits (a form of many text boxes), and after a refusal (or a shortcut on a blocked
- * form) the caret goes to the first field in error, else to the error summary (`data-error-summary`). The "Ver
- * códigos DIAN" switch shows or hides the schema hints and the codes before names for every field below (OD-12).
+ * form) the caret goes to the first field in error, else to the error summary (`data-error-summary`). Every list below
+ * shows its codes before the names (owner 2026-11-05: no "Ver códigos DIAN" switch).
  */
-export function RecordForm({ canSave, onSave, dirty = false, save, failure, dianToggle = true, children }: RecordFormProps) {
+export function RecordForm({ canSave, onSave, dirty = false, save, failure, onDiscard, children }: RecordFormProps) {
   const t = useTranslations("common.forms");
   // The shell's "Guardar" saves only what the form itself would let the user save (blocked or read-only forms do not).
   useUnsavedChanges(dirty, async () => (canSave && save ? save() : false));
+  // Inside a record frame with the action bar (Task 15) the bar's Guardar saves this form, and ⌘S runs that Guardar.
+  const bridge = useRegisterRecordForm(dirty, canSave, save, onDiscard);
+  const bridged = useRef(bridge);
+  bridged.current = bridge;
   const ref = useRef<HTMLFormElement>(null);
-  const [dianHints, setDianHints] = useDianHintsState();
-  const switchId = useId();
+  // Inside a record frame the note sits beside the title; elsewhere it stays on top of the form.
+  const unsavedSlot = useUnsavedSlot();
+  const unsavedPill = (
+    <span className="erp-pill erp-pill--warn">
+      <i aria-hidden="true" className="erp-unsaved-dot" /> {t("unsaved")}
+    </span>
+  );
   const focusFirstProblem = (summaryFirst = false) => {
     const form = ref.current;
     const field = form?.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)');
@@ -85,7 +93,8 @@ export function RecordForm({ canSave, onSave, dirty = false, save, failure, dian
   const [saveAsked, setSaveAsked] = useState(0);
   useEffect(() => {
     if (saveAsked === 0) return;
-    if (latest.current.canSave) latest.current.onSave();
+    if (bridged.current?.registered) bridged.current.shortcut();
+    else if (latest.current.canSave) latest.current.onSave();
     else focusFirstProblem();
   }, [saveAsked]);
   useEffect(() => {
@@ -114,50 +123,33 @@ export function RecordForm({ canSave, onSave, dirty = false, save, failure, dian
   return (
     <form ref={ref} className="erp-form" noValidate onKeyDown={onKeyDown} onSubmit={(event) => event.preventDefault()} aria-keyshortcuts={SAVE_SHORTCUTS}>
       <div role="status" className="erp-form__unsaved-note">
-        {dirty && (
-          <span className="erp-pill erp-pill--warn">
-            <i aria-hidden="true" className="erp-unsaved-dot" /> {t("unsaved")}
-          </span>
-        )}
+        {dirty && (unsavedSlot ? createPortal(unsavedPill, unsavedSlot) : unsavedPill)}
       </div>
-      {dianToggle && (
-        <div className="erp-form__tools">
-          <span className="erp-switch">
-            <button type="button" id={switchId} role="switch" aria-checked={dianHints} aria-labelledby={`${switchId}-label`} className={dianHints ? "erp-toggle is-on" : "erp-toggle"} onClick={() => setDianHints(!dianHints)} />
-            <span id={`${switchId}-label`}>{t("dian_hints")}</span>
-          </span>
-        </div>
-      )}
-      <DianHintsProvider value={dianHints}>{children}</DianHintsProvider>
+      <ShowCodesProvider value>{children}</ShowCodesProvider>
     </form>
   );
 }
 
 /**
  * A labelled control; `children` receives the control's id and the ids that describe it (hint, error). The error is
- * not an alert of its own: the form announces one summary and moves the caret to the first field in error.
+ * not an alert of its own: the form announces one summary and moves the caret to the first field in error. A hint is
+ * help for the person ("solo dígitos · máx. 10"), never an XML/UBL field name (owner 2026-11-05).
  */
-/** `dian` marks a schema annotation (`DANE`, `schemeName`): shown only with "Ver códigos DIAN". `help` (the default) always shows. */
-export type HintKind = "dian" | "help";
-
 export function Field({
   label,
   hint,
-  hintKind = "help",
   error,
   className,
   children,
 }: {
   label: ReactNode;
   hint?: ReactNode;
-  hintKind?: HintKind;
   error?: string | null;
   className?: string;
   children: (id: string, describedBy?: string) => ReactNode;
 }) {
   const id = useId();
-  const dian = useDianHints();
-  const shown = hint && (hintKind === "help" || dian) ? hint : null;
+  const shown = hint ? hint : null;
   const describedBy = [shown ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
   return (
     <div className={["erp-field", className].filter(Boolean).join(" ")}>
@@ -184,7 +176,6 @@ export function Field({
 export interface SelectFieldProps {
   label: ReactNode;
   hint?: ReactNode;
-  hintKind?: HintKind;
   error?: string | null;
   value: string;
   options: readonly CodeOption[];
@@ -192,22 +183,22 @@ export interface SelectFieldProps {
   disabled?: boolean;
   /** A first option with this text and an empty value. */
   empty?: string;
-  /** Shows `code · name` (prototype `sel`) while "Ver códigos DIAN" is on; the name alone otherwise. */
+  /** Shows `code · name` (prototype `sel`) inside a record form; false for lists whose codes are internal (ids, relations). */
   showCode?: boolean;
   className?: string;
 }
 
-export function SelectField({ label, hint, hintKind, error, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
-  const dian = useDianHints();
+export function SelectField({ label, hint, error, value, options, onChange, disabled, empty, showCode = true, className }: SelectFieldProps) {
+  const codes = useShowCodes();
   return (
-    <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
+    <Field label={label} hint={hint} error={error} className={className}>
       {(id, describedBy) => (
         <select id={id} value={value} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} className={error ? "erp-input--bad" : undefined} onChange={(e) => onChange(e.target.value)}>
           {empty !== undefined && <option value="">{empty}</option>}
           {!options.some((o) => o.code === value) && value !== "" && <option value={value}>{value}</option>}
           {options.map((o) => (
             <option key={o.code} value={o.code}>
-              {showCode && dian ? `${o.code} · ${o.name}` : o.name}
+              {showCode && codes ? `${o.code} · ${o.name}` : o.name}
             </option>
           ))}
         </select>
@@ -217,9 +208,9 @@ export function SelectField({ label, hint, hintKind, error, value, options, onCh
 }
 
 /** A `SelectField` for a long code table: type to search by name or code (see `CodeCombobox`). */
-export function CodeComboboxField({ label, hint, hintKind, error, value, options, onChange, disabled, empty, showCode, className }: SelectFieldProps) {
+export function CodeComboboxField({ label, hint, error, value, options, onChange, disabled, empty, showCode, className }: SelectFieldProps) {
   return (
-    <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
+    <Field label={label} hint={hint} error={error} className={className}>
       {(id, describedBy) => <CodeCombobox id={id} aria-labelledby={`${id}-label-text`} value={value} options={options} onChange={onChange} empty={empty} showCode={showCode} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={describedBy} />}
     </Field>
   );
@@ -228,7 +219,6 @@ export function CodeComboboxField({ label, hint, hintKind, error, value, options
 export interface TextFieldProps {
   label: ReactNode;
   hint?: ReactNode;
-  hintKind?: HintKind;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -237,12 +227,15 @@ export interface TextFieldProps {
   mono?: boolean;
   error?: string | null;
   className?: string;
+  /** Beside the box, inside the field (a copy button). */
+  trailing?: ReactNode;
 }
 
-export function TextField({ label, hint, hintKind, value, onChange, disabled, maxLength, inputMode, mono, error, className }: TextFieldProps) {
+export function TextField({ label, hint, value, onChange, disabled, maxLength, inputMode, mono, error, className, trailing }: TextFieldProps) {
   return (
-    <Field label={label} hint={hint} hintKind={hintKind} error={error} className={className}>
+    <Field label={label} hint={hint} error={error} className={className}>
       {(id, describedBy) => (
+        <div className={trailing ? "erp-input-row" : undefined}>
         <input
           id={id}
           value={value}
@@ -254,19 +247,20 @@ export function TextField({ label, hint, hintKind, value, onChange, disabled, ma
           className={[mono && "erp-mono", error && "erp-input--bad"].filter(Boolean).join(" ") || undefined}
           onChange={(e) => onChange(e.target.value)}
         />
+        {trailing}
+        </div>
       )}
     </Field>
   );
 }
 
 /** A set of codes as checkboxes (responsibilities, other taxes). */
-export function Checks({ label, hint, hintKind = "help", options, value, onToggle, disabled, row }: { label: ReactNode; hint?: ReactNode; hintKind?: HintKind; options: readonly CodeOption[]; value: readonly string[]; onToggle: (code: string, on: boolean) => void; disabled?: boolean; row?: boolean }) {
-  const dian = useDianHints();
+export function Checks({ label, hint, options, value, onToggle, disabled, row }: { label: ReactNode; hint?: ReactNode; options: readonly CodeOption[]; value: readonly string[]; onToggle: (code: string, on: boolean) => void; disabled?: boolean; row?: boolean }) {
   return (
     <fieldset className="erp-field">
       <legend>
         {label}
-        {hint && (hintKind === "help" || dian) && <span className="erp-field__hint"> {hint}</span>}
+        {hint && <span className="erp-field__hint"> {hint}</span>}
       </legend>
       <div className={row ? "erp-checks erp-checks--row" : "erp-checks"}>
         {options.map((o) => (
@@ -428,6 +422,7 @@ export interface FormActionsProps {
 export function FormActions({ flow, isNew, dirty, blocked, pendingCount, onSave, onDiscard, process }: FormActionsProps) {
   const t = useTranslations("common.forms");
   const common = useTranslations("common");
+  const bridge = useRecordBridge();
   const status = blocked || flow.failure ? t("fix_errors") : pendingCount === null ? t("dian_on_save") : pendingCount > 0 ? t("will_save_missing", { count: pendingCount }) : t("dian_complete_status");
   return (
     <div className="erp-form__actions">
@@ -436,15 +431,19 @@ export function FormActions({ flow, isNew, dirty, blocked, pendingCount, onSave,
         <span className="erp-small erp-muted erp-grow" role="status">
           {flow.saving ? t("saving") : status} · <kbd className="erp-mono">{t("save_hint")}</kbd> · <ProcessId id={process} />
         </span>
-        {dirty && !isNew && (
+        {/* In a frame with the action bar the frame's header carries «Descartar cambios» (owner 2026-11-05). */}
+        {dirty && !isNew && !bridge?.registered && (
           <button type="button" className="erp-btn" onClick={onDiscard} disabled={flow.saving}>
             {t("discard")}
           </button>
         )}
-        {/* type="button": a submit button would make Enter in any text box save (implicit submission). */}
-        <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={onSave} disabled={blocked || flow.saving || (!dirty && !isNew)}>
-          {isNew ? t("create") : common("save")}
-        </button>
+        {/* type="button": a submit button would make Enter in any text box save (implicit submission). In a frame with the action bar
+            its Guardar saves the form instead (Task 15). */}
+        {!bridge?.registered && (
+          <button type="button" className="erp-btn erp-btn--primary" aria-keyshortcuts={SAVE_SHORTCUTS} onClick={onSave} disabled={blocked || flow.saving || (!dirty && !isNew)}>
+            {isNew ? t("create") : common("save")}
+          </button>
+        )}
       </div>
     </div>
   );

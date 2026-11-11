@@ -28,6 +28,8 @@ export function KpisWidget({ kpis }: KpisWidgetProps) {
 
 export interface RecommendationsWidgetProps {
   items: RecommendationItem[];
+  /** `loading`: still being read; `unavailable`: they could not be read. Both differ from "none pending". */
+  status?: "ready" | "loading" | "unavailable";
   /** Id of the recommendation whose decision is being saved. */
   pendingId?: string | null;
   /** `failed`: the decision could not be saved; `refused`: the suggested action is not the caller's to take. */
@@ -35,9 +37,11 @@ export interface RecommendationsWidgetProps {
   onAction: (id: string, processId: string, input: Record<string, unknown>, index: number) => void;
   onLink: (id: string, href: string, index: number) => void;
   onDismiss: (id: string) => void;
+  /** Opens the record a process row is about (plan 2B Task 38). */
+  onOpen?: (href: string) => void;
 }
 
-export function RecommendationsWidget({ items, pendingId = null, error = null, onAction, onLink, onDismiss }: RecommendationsWidgetProps) {
+export function RecommendationsWidget({ items, status = "ready", pendingId = null, error = null, onAction, onLink, onDismiss, onOpen }: RecommendationsWidgetProps) {
   const t = useTranslations("home.recommendations");
   return (
     <div className="erp-home-recs">
@@ -47,8 +51,20 @@ export function RecommendationsWidget({ items, pendingId = null, error = null, o
           {t(error)}
         </div>
       ) : null}
-      {items.length === 0 ? (
-        <div className="erp-muted erp-small">{t("empty")}</div>
+      {status === "loading" ? (
+        <div role="status" aria-busy="true" className="erp-home-empty">
+          <p className="erp-muted erp-small">{t("loading")}</p>
+        </div>
+      ) : status === "unavailable" ? (
+        <div role="alert" className="erp-home-empty erp-home-empty--error">
+          <p className="erp-home-empty__title">{t("unavailable_title")}</p>
+          <p className="erp-muted erp-small">{t("unavailable_body")}</p>
+        </div>
+      ) : items.length === 0 ? (
+        <section className="erp-home-empty" data-testid="recommendations-empty" aria-label={t("empty")}>
+          <p className="erp-home-empty__title">{t("empty")}</p>
+          <p className="erp-muted erp-small">{t("empty_hint")}</p>
+        </section>
       ) : (
         <div className="erp-home-recs__list">
           {items.map((item) => (
@@ -59,6 +75,7 @@ export function RecommendationsWidget({ items, pendingId = null, error = null, o
               onAction={(processId, input, index) => onAction(item.id, processId, input, index)}
               onLink={(href, index) => onLink(item.id, href, index)}
               onDismiss={onDismiss}
+              {...(onOpen ? { onOpen } : {})}
             />
           ))}
         </div>

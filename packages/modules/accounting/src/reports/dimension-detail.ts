@@ -11,9 +11,9 @@ const params = z.object({ dimension: z.enum(DIMENSIONS), nodeId: z.uuid(), from:
 const columns: ReportColumn[] = [
   { field: "account_code", label: "report.col.account_code", type: "text", mono: true },
   { field: "account_name", label: "report.col.account_name", type: "text" },
-  { field: "debit", label: "report.col.debit", type: "money", total: "sum", mono: true },
-  { field: "credit", label: "report.col.credit", type: "money", total: "sum", mono: true },
-  { field: "net", label: "report.col.net", type: "money", total: "sum", mono: true },
+  { field: "debit", label: "report.col.debit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "credit", label: "report.col.credit", type: "money", currency: "company", total: "sum", mono: true },
+  { field: "net", label: "report.col.net", type: "money", currency: "company", total: "sum", mono: true },
 ];
 
 export const dimensionDetailConsult = defineProcess({
@@ -44,7 +44,7 @@ export const dimensionDetailConsult = defineProcess({
     const rows = await ctx.tx<{ account_code: string; account_name: string; debit: string; credit: string }[]>`
       select account_code, account_name, sum(debit) as debit, sum(credit) as credit
       from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and date between ${p.from}::date and ${p.to}::date and ${column} in (${tree})
+      where status = 'posted' and date between ${p.from}::date and ${p.to}::date and ${column} in (${tree})
         and (${accountLike}::text is null or account_code like ${accountLike})
       group by account_code, account_name order by account_code`;
     const [raw] = await ctx.tx<{ n: number }[]>`
@@ -53,7 +53,7 @@ export const dimensionDetailConsult = defineProcess({
         union all select c.id from ${table} c join tree t on c.parent_id = t.id
       )
       select count(*)::int as n from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
-      where l.company_id = ${ctx.companyId} and e.status in ('posted', 'reversed') and e.date between ${p.from}::date and ${p.to}::date
+      where l.company_id = ${ctx.companyId} and e.status = 'posted' and e.date between ${p.from}::date and ${p.to}::date
         and l.${column} in (select id from tree) and (${accountLike}::text is null or a.code like ${accountLike})`;
     const [shown] = await ctx.tx<{ n: number }[]>`
       with recursive tree as (
@@ -61,7 +61,7 @@ export const dimensionDetailConsult = defineProcess({
         union all select c.id from ${table} c join tree t on c.parent_id = t.id
       )
       select count(*)::int as n from accounting.v_ledger_lines
-      where status in ('posted', 'reversed') and date between ${p.from}::date and ${p.to}::date and ${column} in (select id from tree)
+      where status = 'posted' and date between ${p.from}::date and ${p.to}::date and ${column} in (select id from tree)
         and (${accountLike}::text is null or account_code like ${accountLike})`;
     const out = rows.map((r) => ({
       account_code: r.account_code, account_name: r.account_name, debit: cents(Number(r.debit)), credit: cents(Number(r.credit)), net: cents(Number(r.debit) - Number(r.credit)),

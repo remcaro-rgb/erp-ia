@@ -10,6 +10,7 @@ const party: EntityDef = {
   schema: "core",
   table: "parties",
   label: "entity.core.party",
+  entityType: "maestro",
   displayField: "name",
   defaultSort: { field: "name", dir: "asc" },
   fields: [
@@ -27,6 +28,38 @@ describe("entity registry", () => {
     registry.registerEntity(e);
     expect(registry.entity("core.party").fields).toHaveLength(2);
     expect(() => registry.registerEntity(e)).toThrow(/already registered/);
+  });
+
+  it("requires an entityType on table entities and refuses one on query entities (entity types, spec 2.1)", () => {
+    const untyped = { ...party, entityType: undefined };
+    expect(() => defineEntity(untyped)).toThrow("entity core.party: entityType is required");
+    expect(() => defineEntity({ ...untyped, kind: "table" })).toThrow("entity core.party: entityType is required");
+    expect(() => defineEntity({ ...untyped, kind: "query" })).not.toThrow();
+    expect(() => defineEntity({ ...party, kind: "query" })).toThrow("entity core.party: query entities carry no entityType");
+    expect(() => defineEntity({ ...party, entityType: "otro" as never })).toThrow(/entityType must be one of/);
+    expect(defineEntity({ ...party, entityType: "documento" }).entityType).toBe("documento");
+  });
+
+  it("accepts the five roles and gives lines, parametro and sistema no lifecycle block (D13)", () => {
+    for (const role of ["maestro", "documento", "lines", "parametro", "sistema"] as const) {
+      expect(defineEntity({ ...party, entityType: role }).entityType).toBe(role);
+    }
+    for (const role of ["lines", "parametro", "sistema"] as const) {
+      expect(() => defineEntity({ ...party, entityType: role, typed: {} })).toThrow(`entity core.party: ${role} entities carry no typed block`);
+    }
+  });
+
+  it("validates the typed block: approvalFields, lines and numbering", () => {
+    const doc = { ...party, entityType: "documento" as const };
+    expect(() => defineEntity({ ...doc, typed: { approvalFields: ["nope"] } })).toThrow("entity core.party: typed.approvalFields nope is not a field");
+    expect(() => defineEntity({ ...doc, typed: { lines: { entity: "core.party", parentField: "nope" } } })).toThrow("entity core.party: typed.lines.parentField nope is not a field");
+    expect(() => defineEntity({ ...doc, typed: { lines: { entity: "bad", parentField: "name" } } })).toThrow(/typed.lines.entity/);
+    expect(() => defineEntity({ ...doc, typed: { numbering: "sometimes" as never } })).toThrow(/typed.numbering/);
+    expect(() => defineEntity({ ...party, typed: { numbering: "on_post" } })).toThrow(/typed.numbering is for documento/);
+    expect(defineEntity({ ...party, typed: { lines: { entity: "core.line", parentField: "name" } } }).typed?.lines?.entity).toBe("core.line");
+    const ok = defineEntity({ ...doc, typed: { approvalFields: ["name"], lines: { entity: "core.line", parentField: "name" }, numbering: "on_post" } });
+    expect(ok.typed).toEqual({ approvalFields: ["name"], lines: { entity: "core.line", parentField: "name" }, numbering: "on_post" });
+    expect(() => defineEntity({ ...party, kind: "query", entityType: undefined, typed: {} })).toThrow(/query entities carry no typed/);
   });
 
   it("maskedViewSql wraps every field in a visibility case", () => {
@@ -76,6 +109,18 @@ describe("entity registry", () => {
     expect(searchable).toMatchObject({ searchable: true, sortable: false });
   });
 
+  it("accepts a list field (a text[] column) of type text, enum or json", () => {
+    const fields = defineEntity({
+      ...party,
+      fields: [
+        { name: "name", type: "text", label: "field.name", list: true },
+        { name: "kind", type: "enum", label: "field.kind", enumValues: ["customer"], list: true },
+        { name: "codes", type: "json", label: "field.codes", list: true },
+      ],
+    }).fields;
+    expect(fields.map((f) => f.list)).toEqual([true, true, true]);
+  });
+
   it("rejects invalid declarations", () => {
     const text = (name: string) => ({ name, type: "text" as const, label: `field.${name}` });
     expect(() => defineEntity({ ...party, fields: [text("name"), text("name")] })).toThrow(/duplicate field name/);
@@ -87,6 +132,9 @@ describe("entity registry", () => {
     expect(() =>
       defineEntity({ ...party, fields: [text("name"), { name: "owner", type: "ref", label: "field.owner" }] }),
     ).toThrow(/ref fields need ref/);
+    expect(() => defineEntity({ ...party, fields: [text("name"), { name: "total", type: "number", label: "field.total", list: true }] })).toThrow(
+      /list only applies to text, enum and json fields/,
+    );
     expect(() =>
       defineEntity({
         ...party,

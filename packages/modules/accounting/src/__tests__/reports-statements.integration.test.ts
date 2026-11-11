@@ -19,7 +19,7 @@ beforeAll(async () => {
       date: dateIn(year, month), description: "Movimiento de prueba",
       lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.cc ? { costCenterId: l.cc } : {}) })),
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
     return id;
   };
   await entry(1, [{ code: "111005", debit: 10_000 }, { code: "310505", credit: 10_000 }]);
@@ -171,7 +171,7 @@ describe("statement reports", () => {
       date: dateIn(year - 1, 12), description: "Aporte del año anterior",
       lines: [{ accountCode: "111005", debit: 2_000 }, { accountCode: "310505", credit: 2_000 }],
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
     const out = await report(h.admin, "accounting.balance_sheet", { asOfPeriod: await periodId(10), level: 4 });
     expect(out.aggregates).toMatchObject({ assets: 13_500, liabilities: 0, equity: 13_500, result: 1_500, difference: 0, restricted: 0 });
     expect(out.rows.find((r) => r.account_code === "1110")).toMatchObject({ section: "assets_current", amount: 13_500, previous: 2_000 });
@@ -207,7 +207,7 @@ describe("statement reports", () => {
     const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", {
       date: dateIn(year, 3, 20), description: "Línea de cierre", lines: [{ accountCode: "111005", debit: 77 }, { accountCode: "413595", credit: 77, costCenterId: adm }],
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
     await h.sql`update accounting.entries set is_closing = true where id = ${id}`;
 
     const params = { from: await periodId(1), to: await periodId(3) };
@@ -246,7 +246,7 @@ describe("statement reports", () => {
     expect(out.aggregates).toMatchObject({ income: 3_000, expense: 1_500, net: 1_500 });
     const subtree = await report(h.admin, "accounting.cost_center_statement", { ...params, nodeId: adm });
     expect(subtree.rows.map((r) => r.cost_center_code)).toEqual(["ADM"]);
-    await expect(report(h.admin, "accounting.cost_center_statement", { ...params, nodeId: group.replace(/.$/, "0") })).rejects.toMatchObject({ code: "invalid_input" });
+    await expect(report(h.admin, "accounting.cost_center_statement", { ...params, nodeId: "00000000-0000-4000-8000-000000000000" })).rejects.toMatchObject({ code: "invalid_input" });
     await h.sql`update accounting.cost_centers set parent_id = null where id in (${adm}, ${otr})`;
   });
 

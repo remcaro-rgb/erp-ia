@@ -132,7 +132,7 @@ const BOGOTA = ["11", "11001"] as const;
 const MEDELLIN = ["05", "05001"] as const;
 const CALI = ["76", "76001"] as const;
 
-/** 40 parties: 28 customers, 10 suppliers and 2 that are both. */
+/** 41 parties: 28 customers, 11 suppliers and 2 that are both. */
 export const PARTIES: DemoParty[] = [
   company(["customer"], "890900608", "Almacenes Éxito S.A.", ["05", "05266", "Carrera 48 # 32B Sur-139", "055422"], {
     tradeName: "Éxito",
@@ -180,6 +180,8 @@ export const PARTIES: DemoParty[] = [
   company(["supplier"], "901357924", "Vasos y Desechables El Roble S.A.S.", [...MEDELLIN, "Carrera 52 # 14-30", "050024"], { ciiu: "1702" }),
   person(["supplier"], "4567890", { firstName: "Jorge", otherNames: "Eliécer", firstSurname: "Cárdenas", secondSurname: "Montoya" }, ["17", "17001", "Vereda La Cabaña, finca El Paraíso"], "finca.elparaiso@correo.co", "3128765432"),
   company(["supplier"], "900864213", "Mantenimiento Industrial Barista Pro S.A.S.", [...BOGOTA, "Calle 72 # 20-45", "111211"], { ciiu: "3312" }),
+  // The bank of the demo's interest income (421005 sample line, exógena 1007); NIT 890903938-8.
+  company(["supplier"], "890903938", "Bancolombia S.A.", ["05", "05001", "Carrera 48 # 26-85", "050015"], { ciiu: "6411", taxResponsibilities: ["O-13", "O-23"] }),
   // Customer and supplier.
   company(["customer", "supplier"], "900531642", "Café del Bosque S.A.S.", [...MEDELLIN, "Carrera 37 # 8A-32", "050021"], { ciiu: "1062", creditLimit: 22_000_000 }),
   company(["customer", "supplier"], "901642753", "Distribuciones Andinas del Café S.A.S.", [...BOGOTA, "Avenida Carrera 68 # 13-45", "111611"], { ciiu: "4631", creditLimit: 55_000_000 }),
@@ -188,9 +190,14 @@ export const PARTIES: DemoParty[] = [
 /**
  * Parties (by document number) the seed gives their required files (RUT, and Cámara de Comercio for a company) through
  * kernel.attachment.add, so they are invoice-ready: Éxito first, two more customers, a supplier, a party that is both,
- * and a natural person (RUT only).
+ * and a natural person (RUT only); then every other party the demo ledger puts on receivables (1305) or payables (2205),
+ * which only take invoice-ready parties (rule 10, design §22.22): the customers of the invoices and the two coffee suppliers.
+ * The rest stay without files so the first recommendation has something to point out.
  */
-export const INVOICE_READY_PARTIES = ["890900608", "900456781", "860512347", "890801234", "900531642", "71654321"];
+export const INVOICE_READY_PARTIES = [
+  "890900608", "900456781", "860512347", "890801234", "900531642", "71654321",
+  "890112233", "901642753", "900888123", "900667788", "900135791", "900246802",
+];
 
 /** The input of core.product.create, with the category and the main supplier named instead of their ids. */
 export interface DemoProduct {
@@ -223,7 +230,7 @@ const good = (sku: string, description: string, category: string, listPrice: num
   ...extra,
 });
 
-/** 25 products: taxes and units come from their category unless the product says otherwise. */
+/** 26 products: taxes and units come from their category unless the product says otherwise. */
 export const PRODUCTS: DemoProduct[] = [
   good("CAF-GRA-KG", "Café en grano Norte Especial · kilo", "Café en grano", 62_000, 38_000, { supplier: "900135791", minStock: 20 }),
   good("CAF-GRA-500", "Café en grano Norte Especial 500 g", "Café en grano", 32_000, 19_500, { uomCode: "94", supplier: "900135791" }),
@@ -247,6 +254,7 @@ export const PRODUCTS: DemoProduct[] = [
   good("REP-GAL-AVE", "Galletas de avena x 6", "Repostería", 9_000, 3_600, { minStock: 12 }),
   good("ACC-PRE-FRA", "Prensa francesa 1 litro", "Accesorios y empaques", 89_000, 52_000, { brand: "Barista Pro", minStock: 4 }),
   good("ACC-FIL-V60", "Filtros de papel V60 x 100", "Accesorios y empaques", 28_000, 16_000, { brand: "Barista Pro", minStock: 6 }),
+  good("ACC-MOL-ELE", "Molino de café eléctrico", "Accesorios y empaques", 320_000, 190_000, { brand: "Barista Pro", minStock: 1 }),
   good("ACC-MUG-NOR", "Mug Café del Norte 12 oz", "Accesorios y empaques", 32_000, 14_000, { supplier: "901357924", minStock: 10 }),
   { sku: "SER-BAR-CUR", description: "Curso de barismo básico (8 horas)", kind: "service", category: "Servicios", listPrice: 450_000, trackStock: false },
   { sku: "SER-MAN-MAQ", description: "Mantenimiento preventivo de máquina espresso", kind: "service", category: "Servicios", listPrice: 280_000, standardCost: 150_000, trackStock: false, supplier: "900864213" },

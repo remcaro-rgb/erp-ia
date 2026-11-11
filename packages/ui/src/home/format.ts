@@ -21,3 +21,7 @@ export function detailParams(locale: string, params: Record<string, string | num
 export function clockTime(locale: string, at: string | Date, timeZone?: string, seconds = false): string {
   return new Intl.DateTimeFormat(numberLocale(locale), { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}), hourCycle: "h23", ...(timeZone ? { timeZone } : {}) }).format(new Date(at));
 }
+
+/** `1,85`: a quotient with two decimals. */
+export const formatRatio = (locale: string, value: number): string =>
+  new Intl.NumberFormat(numberLocale(locale), { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);

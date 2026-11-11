@@ -12,13 +12,13 @@ afterEach(cleanup);
 
 // "Verificación en dos pasos" in the user menu (design §22.19): the dialog shows whether the second step is on; when it
 // is, "Desactivar" runs kernel.user.mfa.disable through the app's step-up flow (the prompt the app hands over shows
-// inside the dialog); when it is not, "Activar" leads to /mfa/enroll. A role that requires the second step (system admin,
-// not exempt) cannot turn it off and the dialog says so.
+// inside the dialog); when it is not, "Activar" leads to /mfa/enroll. A member whose second step an administrator requires
+// (owner decision 2026-11-04) cannot turn it off and the dialog says so.
 
 const dialog = (props: Partial<Parameters<typeof MfaDialog>[0]> = {}) => {
   const onDisable = vi.fn(async (): Promise<MfaDisableResult> => ({ ok: true }));
   const onOpenChange = vi.fn();
-  renderEs(<MfaDialog open onOpenChange={onOpenChange} enrolled={false} requiredByRole={false} exempt={false} onDisable={onDisable} {...props} />);
+  renderEs(<MfaDialog open onOpenChange={onOpenChange} enrolled={false} required={false} onDisable={onDisable} {...props} />);
   return { onDisable, onOpenChange, box: screen.getByRole("dialog", { name: "Verificación en dos pasos" }) };
 };
 
@@ -33,14 +33,14 @@ describe("MfaDialog", () => {
   it("on: Desactivar runs the disable through the app, which shows its step-up prompt inside the dialog", async () => {
     let settle: (result: MfaDisableResult) => void = () => {};
     const onDisable = vi.fn(() => new Promise<MfaDisableResult>((resolve) => (settle = resolve)));
-    const { rerender } = renderEs(<MfaDialog open onOpenChange={vi.fn()} enrolled requiredByRole={false} exempt={false} onDisable={onDisable} />);
+    const { rerender } = renderEs(<MfaDialog open onOpenChange={vi.fn()} enrolled required={false} onDisable={onDisable} />);
     const box = screen.getByRole("dialog", { name: "Verificación en dos pasos" });
     expect(box.textContent).toContain("Activa");
     expect(within(box).queryByRole("link", { name: "Activar" })).toBeNull();
     await userEvent.setup().click(within(box).getByRole("button", { name: "Desactivar" }));
     expect(onDisable).toHaveBeenCalledTimes(1);
     // The app's flow asks for the code: its prompt renders in the dialog (a modal hides what is outside).
-    rerender(<MfaDialog open onOpenChange={vi.fn()} enrolled requiredByRole={false} exempt={false} onDisable={onDisable} stepUpPrompt={<div>código aquí</div>} />);
+    rerender(<MfaDialog open onOpenChange={vi.fn()} enrolled required={false} onDisable={onDisable} stepUpPrompt={<div>código aquí</div>} />);
     expect(within(screen.getByRole("dialog")).getByText("código aquí")).toBeTruthy();
     expect((within(screen.getByRole("dialog")).getByRole("button", { name: "Desactivar" }) as HTMLButtonElement).disabled).toBe(true);
     settle({ ok: true });
@@ -70,7 +70,7 @@ describe("MfaDialog", () => {
       const onDisable = vi.fn(() => new Promise<MfaDisableResult>((resolve) => (settle = resolve)));
       // The app's flow: cancelling its prompt resolves the run with the first refusal (step_up_required).
       const cancel = () => settle({ ok: false, code: "step_up_required", details: [] });
-      const props = { open: true, onOpenChange: vi.fn(), enrolled: true, requiredByRole: false, exempt: false, onDisable, ...extra };
+      const props = { open: true, onOpenChange: vi.fn(), enrolled: true, required: false, exempt: false, onDisable, ...extra };
       const view = renderEs(<MfaDialog {...props} />);
       fireEvent.click(screen.getByRole("button", { name: "Desactivar" }));
       view.rerender(<MfaDialog {...props} stepUpPrompt={<StepUpPrompt onConfirm={vi.fn()} onCancel={cancel} error="no_factor" />} />);
@@ -100,18 +100,18 @@ describe("MfaDialog", () => {
     });
   });
 
-  it("a role that requires the second step: the note says so and Desactivar is off", () => {
-    const { box, onDisable } = dialog({ enrolled: true, requiredByRole: true });
-    expect(box.textContent).toContain("Tu rol exige la verificación en dos pasos");
+  it("a second step an administrator requires: the note says so and Desactivar is off", () => {
+    const { box, onDisable } = dialog({ enrolled: true, required: true });
+    expect(box.textContent).toContain("Un administrador exige la verificación en dos pasos");
     const off = within(box).getByRole("button", { name: "Desactivar" }) as HTMLButtonElement;
     expect(off.disabled).toBe(true);
     fireEvent.click(off);
     expect(onDisable).not.toHaveBeenCalled();
   });
 
-  it("an exempt user is told an administrator exempted them", () => {
-    const { box } = dialog({ enrolled: true, exempt: true });
-    expect(box.textContent).toContain("Un administrador te eximió");
+  it("an admin is not required by their role: they may turn it off", () => {
+    const { box } = dialog({ enrolled: true });
+    expect(box.textContent).not.toContain("Un administrador exige");
     expect((within(box).getByRole("button", { name: "Desactivar" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -145,7 +145,7 @@ describe("the user menu", () => {
     );
 
   it("offers Verificación en dos pasos, which opens the dialog with the session's state", async () => {
-    shell({ mfa: { enrolled: false, requiredByRole: false, exempt: false }, onDisableMfa: vi.fn() });
+    shell({ mfa: { enrolled: false, required: false }, onDisableMfa: vi.fn() });
     fireEvent.keyDown(screen.getByRole("button", { name: "Menú de usuario" }), { key: "Enter" });
     const item = screen.getByRole("menuitem", { name: /Verificación en dos pasos/ });
     expect(item.textContent).toContain("no configurada");

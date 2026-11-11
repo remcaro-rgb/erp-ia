@@ -3,22 +3,24 @@
 // outlive the page). The dashboard's own browser cache is the last resort: the next visit saves the newer copy again.
 
 export interface LayoutPref {
-  key: "home_layout";
+  key: string;
   value: unknown;
   savedAt: number;
 }
 
 export interface LayoutSaverDeps {
+  /** The preference the layout is stored under: `home_layout` (the company-wide Inicio, the default) or `home_layout.<module>`. */
+  key?: string;
   action: (pref: LayoutPref) => Promise<{ ok: boolean }>;
   beacon: (pref: LayoutPref) => void;
 }
 
-export function createLayoutSaver({ action, beacon }: LayoutSaverDeps) {
+export function createLayoutSaver({ action, beacon, key = "home_layout" }: LayoutSaverDeps) {
   /** The newest layout whose save has not been confirmed. */
   let pending: LayoutPref | null = null;
   return {
     async save(layout: unknown, savedAt: number): Promise<void> {
-      const pref: LayoutPref = { key: "home_layout", value: layout, savedAt };
+      const pref: LayoutPref = { key, value: layout, savedAt };
       pending = pref;
       try {
         const result = await action(pref);

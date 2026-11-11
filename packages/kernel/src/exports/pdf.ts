@@ -15,8 +15,9 @@ const TEXT = {
   en: { page: (n: number, total: number) => `Page ${n} of ${total}`, total: "Total", rows: (n: number) => `${n} ${n === 1 ? "record" : "records"}` },
 };
 
-const WEIGHT: Record<ExportColumn["type"], number> = { text: 2, enum: 1.3, json: 2, money: 1.3, number: 0.8, date: 1, datetime: 1.4, boolean: 0.7 };
-const NUMERIC = new Set<ExportColumn["type"]>(["money", "number"]);
+/** The relative width of a column of each type (the template tables use it too). */
+export const WEIGHT: Record<ExportColumn["type"], number> = { text: 2, enum: 1.3, json: 2, money: 1.3, number: 0.8, date: 1, datetime: 1.4, boolean: 0.7 };
+export const NUMERIC = new Set<ExportColumn["type"]>(["money", "number"]);
 /** Rows laid out on one page of A4 landscape at this size. */
 const ROWS_PER_PAGE = 28;
 const INK = "#1f2937";
@@ -53,6 +54,8 @@ interface PdfOptions extends WriterOptions {
 
 interface TableOptions extends WriterOptions {
   totalFields?: readonly string[];
+  /** Every money cell and total is in this currency (one document's lines, Task 34.4); absent: the company's (`$`). */
+  currency?: string | undefined;
 }
 
 /** What the table prints, cell by cell, as text: the body and the totals row of the money columns (null: none). */
@@ -76,7 +79,7 @@ export async function pdfTable(columns: readonly ExportColumn[], rows: RowSource
     );
   }
   const summed = columns.map((column) => !column.masked && (options.totalFields ? options.totalFields.includes(column.field) : column.type === "money"));
-  const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? (columns[i]!.type === "money" ? moneyText(sums[i] ?? 0) : String(sums[i] ?? 0)) : i === 0 ? text.total : "")) : null;
+  const totals = summed.some(Boolean) && body.length > 0 ? columns.map((_, i) => (summed[i] ? (columns[i]!.type === "money" ? moneyText(sums[i] ?? 0, options.currency) : String(sums[i] ?? 0)) : i === 0 ? text.total : "")) : null;
   return { body, totals: grouped ? null : totals, kinds };
 }
 
@@ -121,7 +124,7 @@ export async function writePdf(columns: readonly ExportColumn[], rows: RowSource
       h(Page, { key: i, size: "A4", orientation: "landscape", style: styles.page }, heading(), tableHead, ...tableRows.slice(i * ROWS_PER_PAGE, (i + 1) * ROWS_PER_PAGE), last ? totalsRow : null, footer()),
     );
   }
-  const document = h(Document, { title: options.title, author: options.company, creator: "ERP-IA", producer: "ERP-IA" }, ...pages);
+  const document = h(Document, { title: options.title, author: options.company, creator: "Goliatt", producer: "Goliatt" }, ...pages);
   return renderToBuffer(document);
 }
 

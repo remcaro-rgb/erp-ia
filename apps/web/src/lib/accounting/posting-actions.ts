@@ -83,10 +83,23 @@ export interface SettingsEdit {
   roundingTolerance: number;
   manualJournalId: string;
   niifGroup: "1" | "2" | "3";
+  ruleStaleDays: number;
+  postingAlertMinutes: number;
 }
 
 /** Configuración: `accounting.settings.update` (admin, step-up). */
 export async function saveSettingsAction(edit: SettingsEdit, stepUpToken?: string): Promise<ActionResult> {
-  if (!edit || !UUID.test(String(edit.manualJournalId)) || !["1", "2", "3"].includes(edit.niifGroup) || typeof edit.roundingTolerance !== "number") return bad;
+  if (!edit || !UUID.test(String(edit.manualJournalId)) || !["1", "2", "3"].includes(edit.niifGroup) || typeof edit.roundingTolerance !== "number" || !Number.isInteger(edit.ruleStaleDays) || edit.ruleStaleDays < 1 || edit.ruleStaleDays > 3650 || !Number.isInteger(edit.postingAlertMinutes) || edit.postingAlertMinutes < 5 || edit.postingAlertMinutes > 10080) return bad;
   return perform<{ id: string }, object>("accounting.settings.update", edit, () => ({}), stepUpToken);
+}
+
+/** Mapeo de cuentas, modo de contabilización: `accounting.posting_mode.set` (step-up). Switching rewrites nothing; the answer carries what still awaits the ledger. */
+export async function setPostingModeAction(mode: string, stepUpToken?: string): Promise<ActionResult<{ mode: string; previous: string; pendingDocuments: number; pendingFailures: number }>> {
+  if (mode !== "inline_strict" && mode !== "asynchronous") return bad;
+  return perform<{ mode: string; previous: string; pendingDocuments: number; pendingFailures: number }, { mode: string; previous: string; pendingDocuments: number; pendingFailures: number }>(
+    "accounting.posting_mode.set",
+    { mode },
+    (out) => ({ mode: out.mode, previous: out.previous, pendingDocuments: out.pendingDocuments, pendingFailures: out.pendingFailures }),
+    stepUpToken,
+  );
 }

@@ -1,41 +1,39 @@
 import { describe, it, expect } from "vitest";
-import { defineEntity, loadModules, Registry } from "@erp/kernel";
+import { defineEntity, loadModules, menuItemsOf, Registry, uncoveredMenuProcesses } from "@erp/kernel";
 import { core } from "@erp/module-core";
 import { accounting, ACCOUNTING_ENTITIES, DIMENSIONS } from "../index";
 
 describe("accounting manifest", () => {
-  it("defineModule accepts the manifest: six bar items, the Maestros group with six children, three features, 20 entities", () => {
+  it("defineModule accepts the manifest: the four menu sections (Maestros with the six masters), three features, 22 entities", () => {
     expect(accounting.id).toBe("accounting");
     expect(accounting.dependsOn).toEqual(["core"]);
-    expect(accounting.navigation.map((n) => n.id)).toEqual([
-      "accounting.entries", "accounting.movements", "accounting.masters", "accounting.periods", "accounting.reports", "accounting.posting",
-    ]);
-    const masters = accounting.navigation.find((n) => n.id === "accounting.masters")!;
-    expect(masters.href).toBe("#");
-    expect(masters.children?.map((n) => n.href)).toEqual([
-      "/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items",
-      "/accounting/business-units", "/accounting/journals",
+    // Entity types spec §2.4, design §22.23: the level-1 items are Maestros, Documentos, Reportes and Parámetros.
+    expect(accounting.navigation.map((n) => [n.id, n.href, n.section, n.children?.map((c) => c.href)])).toEqual([
+      ["accounting.maestros", "#", "maestros", ["/accounting/accounts", "/accounting/cost-centers", "/accounting/open-auxiliaries", "/accounting/items", "/accounting/business-units", "/accounting/journals", "/accounting/entry-templates"]],
+      ["accounting.documentos", "#", "documentos", ["/accounting/entries"]],
+      ["accounting.reportes", "#", "reportes", ["/accounting/movements", "/accounting/reports"]],
+      ["accounting.parametros", "#", "parametros", ["/accounting/periods", "/accounting/posting"]],
     ]);
     expect(accounting.features.map((f) => f.id)).toEqual(["accounting.ledger", "accounting.periods", "accounting.posting"]);
-    expect(accounting.entities).toHaveLength(20);
-    expect(new Set(accounting.entities.map((e) => e.id)).size).toBe(20);
+    expect(accounting.entities).toHaveLength(22);
+    expect(new Set(accounting.entities.map((e) => e.id)).size).toBe(22);
     // Every entity belongs to exactly one feature.
     const listed = accounting.features.flatMap((f) => f.entities).sort();
     expect(listed).toEqual(accounting.entities.map((e) => e.id).sort());
   });
 
-  it("emits the seven events of the design and consumes every event through the posting engine marker", () => {
+  it("emits the seven events of the design plus the diferencia en cambio (Task 34.7) and consumes every event through the posting engine marker", () => {
     expect(accounting.events.emits).toEqual([
       "accounting.entry.submitted", "accounting.entry.posted", "accounting.entry.reversed", "accounting.period.closed",
-      "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed",
+      "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed", "accounting.fx_revaluation.posted",
     ]);
-    expect(Object.keys(accounting.events.consumes)).toEqual(["*"]);
+    expect(Object.keys(accounting.events.consumes)).toEqual(["*", "kernel.module.enabled"]);
   });
 
   it("loads into a registry after core and registers every entity with i18n keys for labels", () => {
     const registry = new Registry();
     loadModules(registry, [core, accounting]);
-    expect(registry.entities("accounting")).toHaveLength(20);
+    expect(registry.entities("accounting")).toHaveLength(22);
     for (const entity of ACCOUNTING_ENTITIES) {
       const resolved = defineEntity(entity);
       expect(resolved.label).toBe(`entity.${entity.id}`);
@@ -70,7 +68,7 @@ describe("accounting manifest", () => {
     expect(target("business_unit_id")).toEqual({ entity: "accounting.business_unit", display: "name" });
   });
 
-  it("contributes the Contabilidad tab to every record, the revenue account to categories and Cuentas to roles and users; four home cards", () => {
+  it("contributes the Contabilidad tab to every record, the revenue account to categories and Cuentas to roles and users; ten home KPIs", () => {
     const registry = new Registry();
     loadModules(registry, [core, accounting]);
     const ids = (entity: string) => registry.recordTabsFor(entity).map((t) => t.id);
@@ -82,7 +80,7 @@ describe("accounting manifest", () => {
     expect(revenue).toMatchObject({ kind: "mapping", dimension: "category:{id}", roles: ["revenue"], lookupEntity: "accounting.account", saveProcess: "accounting.account_role_mapping.update" });
     // Every grid tab reads a registered entity.
     for (const tab of accounting.recordTabs ?? []) if (tab.kind === "grid") expect(registry.entity(tab.source!).id).toBe(tab.source);
-    expect(accounting.homeKpis?.map((k) => k.id)).toEqual(["accounting.result_month", "accounting.pending_failures", "accounting.open_periods", "accounting.draft_entries"]);
+    expect(accounting.homeKpis?.map((k) => k.id)).toEqual(["accounting.result_month", "accounting.income_month", "accounting.expenses_month", "accounting.margin_month", "accounting.working_capital", "accounting.current_ratio", "accounting.posted_entries", "accounting.pending_failures", "accounting.open_periods", "accounting.draft_entries"]);
   });
 });
 
@@ -100,5 +98,27 @@ describe("period names (T3)", () => {
     const period = ACCOUNTING_ENTITIES.find((e) => e.id === "accounting.period")!;
     expect(period.displayField).toBe("starts_on");
     expect(period.fields.find((f) => f.name === "starts_on")?.displayFormat).toBe("month");
+  });
+
+  it("every process sits under a menu item or is declared shared: hiding an item refuses what its screen runs (spec §9.2)", () => {
+    const registry = new Registry();
+    loadModules(registry, [core, accounting]);
+    const module = registry.module("accounting");
+    expect(uncoveredMenuProcesses(module)).toEqual([]);
+    const under = (navKey: string) => menuItemsOf(module).find((r) => r.navKey === navKey)!.processIds;
+    expect(under("accounting.periods")).toEqual(expect.arrayContaining(["accounting.year.close", "accounting.year.reopen", "accounting.period.close", "accounting.fiscal_year.open", "accounting.fx_revaluation.run", "accounting.fx_revaluation.void"]));
+    expect(under("accounting.posting")).toEqual(expect.arrayContaining(["accounting.posting.retry", "accounting.settings.update", "accounting.chart.seed"]));
+    expect(under("accounting.entries")).toEqual(expect.arrayContaining(["accounting.entry_template.create", "accounting.entry_template.consult", "accounting.opening.create", "accounting.opening.post"]));
+    expect(under("accounting.accounts")).toEqual(expect.arrayContaining(["accounting.account_permission.update", "accounting.account_permission.consult"]));
+    // Shared: read by many screens, never hidden with one of them.
+    expect(module.menuShared).toEqual(["accounting.settings.consult"]);
+  });
+});
+
+describe("the exchange-difference roles (plan 2B.2 Task 34.5, FX §5)", () => {
+  it("declares fx_gain and fx_loss, and the fx_kind dimension realized | unrealized the rules narrow them by", async () => {
+    const { FX_KINDS } = await import("../index");
+    expect(accounting.accountRoles).toEqual(expect.arrayContaining(["fx_gain", "fx_loss"]));
+    expect(FX_KINDS).toEqual(["realized", "unrealized"]);
   });
 });

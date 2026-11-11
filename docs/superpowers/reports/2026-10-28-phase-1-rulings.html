@@ -1,0 +1,548 @@
+<title>Phase 1 Rulings Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a left sticky index of themes, one running column of ruling cards, diagrams between themes. */
+:root{
+  --bg:#f6f4ef; --paper:#fffdf8; --fg:#1d2433; --muted:#5d6678; --line:#d9d4c7;
+  --navy:#1f2d4a; --navy-ink:#f3f6fb; --accent:#b4651e; --accent-soft:#f3e3d1;
+  --ok:#2d7a4f; --ok-soft:#dcefe3; --warn:#9a6b00; --warn-soft:#f6ecc8; --gone:#7a5c8c; --gone-soft:#ece3f1;
+  --display:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141922; --paper:#1c2330; --fg:#e8e9ee; --muted:#a2a9b8; --line:#2f3847;
+  --navy:#0f1726; --navy-ink:#e8edf6; --accent:#e49a52; --accent-soft:#3a2a1a;
+  --ok:#6cc595; --ok-soft:#1d3a2a; --warn:#e5bb4a; --warn-soft:#3a3115; --gone:#bfa3d0; --gone-soft:#2e2538;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141922; --paper:#1c2330; --fg:#e8e9ee; --muted:#a2a9b8; --line:#2f3847;
+  --navy:#0f1726; --navy-ink:#e8edf6; --accent:#e49a52; --accent-soft:#3a2a1a;
+  --ok:#6cc595; --ok-soft:#1d3a2a; --warn:#e5bb4a; --warn-soft:#3a3115; --gone:#bfa3d0; --gone-soft:#2e2538;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.5;margin:0}
+.band{background:var(--navy);color:var(--navy-ink)}
+.band .in{max-width:1180px;margin:0 auto;padding-block:40px 36px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.75}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(30px,4.2vw,46px);line-height:1.1;margin:8px 0 10px;text-wrap:balance}
+.lede{max-width:66ch;font-size:17px;opacity:.9;margin:0}
+.stats{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}
+.stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:10px 14px;min-width:120px}
+.stat b{display:block;font-family:var(--mono);font-size:22px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;opacity:.8}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:220px minmax(0,1fr);gap:36px}
+@media (max-width:820px){.wrap{grid-template-columns:minmax(0,1fr)}}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;font-size:14px}
+@media (max-width:820px){nav.toc{position:static}}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:2px solid var(--line)}
+nav.toc li a{display:block;padding:5px 12px;color:var(--muted);text-decoration:none;border-left:2px solid transparent;margin-left:-2px}
+nav.toc li a:hover,nav.toc li a:focus-visible{color:var(--fg);border-left-color:var(--accent);outline:none}
+nav.toc .n{font-family:var(--mono);font-size:11px;color:var(--accent);margin-right:6px}
+main{min-width:0}
+section.theme{margin-bottom:48px}
+h2{font-family:var(--display);font-weight:600;font-size:28px;line-height:1.15;margin:0 0 6px;text-wrap:balance}
+h2 .k{font-family:var(--mono);font-size:13px;color:var(--accent);display:block;margin-bottom:4px;letter-spacing:.06em}
+.theme-intro{color:var(--muted);max-width:68ch;margin:0 0 18px}
+h3{font-family:var(--display);font-weight:600;font-size:19px;margin:28px 0 8px}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--muted);margin:14px 0 0}
+.pill{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.04em;padding:2px 8px;border-radius:999px;border:1px solid transparent}
+.p-force{background:var(--ok-soft);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.p-owner{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+.p-gone{background:var(--gone-soft);color:var(--gone);border-color:color-mix(in srgb,var(--gone) 35%,transparent)}
+.cards{display:grid;gap:12px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px 16px 12px;display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.card header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px}
+.card .id{font-family:var(--mono);font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums}
+.card .task{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.card h4{margin:0;font-size:17px;font-weight:600;flex:1 1 100%;text-wrap:balance}
+.card dl{margin:4px 0 0;display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:15px}
+.card dt{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:3px}
+.card dd{margin:0}
+code{font-family:var(--mono);font-size:.88em;background:color-mix(in srgb,var(--line) 45%,transparent);padding:1px 5px;border-radius:4px}
+figure{margin:22px 0 10px;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:16px;overflow-x:auto}
+figure svg{display:block;max-width:100%;height:auto;min-width:560px}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;max-width:72ch}
+.svg-t{font-family:var(--sans);font-size:13px;fill:var(--fg)}
+.svg-m{font-family:var(--mono);font-size:11.5px;fill:var(--fg)}
+.svg-mu{font-family:var(--sans);font-size:12px;fill:var(--muted)}
+.box{fill:var(--paper);stroke:var(--line);stroke-width:1.2}
+.box-n{fill:var(--navy);stroke:var(--navy)}
+.box-a{fill:var(--accent-soft);stroke:var(--accent)}
+.box-ok{fill:var(--ok-soft);stroke:var(--ok)}
+.box-w{fill:var(--warn-soft);stroke:var(--warn)}
+.box-g{fill:var(--gone-soft);stroke:var(--gone)}
+.arrow{stroke:var(--muted);stroke-width:1.4;fill:none;marker-end:url(#ah)}
+.arrow-a{stroke:var(--accent);stroke-width:1.6;fill:none;marker-end:url(#aha)}
+.arrow-bad{stroke:var(--warn);stroke-width:1.6;fill:none;stroke-dasharray:5 4;marker-end:url(#ahw)}
+.bar{fill:var(--accent)}
+.bar2{fill:var(--navy)}
+.grid line{stroke:var(--line);stroke-width:1}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.note{border-left:3px solid var(--accent);padding:8px 14px;background:color-mix(in srgb,var(--accent-soft) 60%,transparent);border-radius:0 6px 6px 0;margin:14px 0}
+footer.end{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:14px;margin-top:30px;max-width:72ch}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .15s}.card:hover{border-color:var(--accent)}}
+</style>
+
+<div class="band"><div class="in">
+  <div class="eyebrow">ERP-IA · phase 1 · fundación · 2026-10-28</div>
+  <h1>Every ruling the controller made while executing the phase 1 plan</h1>
+  <p class="lede">A running plan does not wait on a human. When a task's text contradicted another task, the design, a rule or reality, the controller decided, wrote the decision in the ledger as <em>what · why · cost if wrong</em>, and kept going. This page explains all 102 of them, grouped by the part of the system they shaped, with diagrams for the mechanisms that several rulings built together.</p>
+  <div class="stats">
+    <div class="stat"><b>102</b><span>rulings</span></div>
+    <div class="stat"><b>24</b><span>tasks executed</span></div>
+    <div class="stat"><b>10</b><span>pre-flight conflicts</span></div>
+    <div class="stat"><b>12</b><span>await owner ratification</span></div>
+    <div class="stat"><b>5</b><span>superseded by a later ruling</span></div>
+  </div>
+</div></div>
+
+<div class="wrap">
+<nav class="toc" aria-label="Themes">
+  <ol>
+    <li><a href="#overview"><span class="n">00</span>Overview</a></li>
+    <li><a href="#preflight"><span class="n">01</span>Pre-flight conflicts</a></li>
+    <li><a href="#repo"><span class="n">02</span>Migrations &amp; repo</a></li>
+    <li><a href="#pipeline"><span class="n">03</span>The process pipeline</a></li>
+    <li><a href="#identity"><span class="n">04</span>Tenancy, roles, step-up</a></li>
+    <li><a href="#masking"><span class="n">05</span>Field visibility</a></li>
+    <li><a href="#files"><span class="n">06</span>Files &amp; readiness</a></li>
+    <li><a href="#pack"><span class="n">07</span>Colombia pack &amp; data</a></li>
+    <li><a href="#import"><span class="n">08</span>Imports &amp; exports</a></li>
+    <li><a href="#assistant"><span class="n">09</span>Assistant &amp; AI</a></li>
+    <li><a href="#admin"><span class="n">10</span>Admin</a></li>
+    <li><a href="#infra"><span class="n">11</span>Workflows &amp; Docker</a></li>
+    <li><a href="#discipline"><span class="n">12</span>Process discipline</a></li>
+    <li><a href="#owner"><span class="n">13</span>What the owner decides</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section class="theme" id="overview">
+  <h2><span class="k">00</span>Where the rulings landed</h2>
+  <p class="theme-intro">Most rulings resolved plan-vs-rule tensions in two places: the write path (who may change state, and how) and what each role may see. The rest renumbered migrations, chose libraries, or decided where a feature lives.</p>
+  <figure>
+    <svg viewBox="0 0 760 330" role="img" aria-label="Rulings per theme, horizontal bars">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+        <marker id="aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker>
+        <marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--warn)"/></marker>
+      </defs>
+      <g class="grid">
+        <line x1="250" y1="14" x2="250" y2="300"/><line x1="370" y1="14" x2="370" y2="300"/><line x1="490" y1="14" x2="490" y2="300"/><line x1="610" y1="14" x2="610" y2="300"/><line x1="730" y1="14" x2="730" y2="300"/>
+      </g>
+      <g class="svg-mu"><text x="250" y="316" text-anchor="middle">0</text><text x="370" y="316" text-anchor="middle">5</text><text x="490" y="316" text-anchor="middle">10</text><text x="610" y="316" text-anchor="middle">15</text><text x="730" y="316" text-anchor="middle">20</text></g>
+      <!-- bars: 24px per ruling -->
+      <g class="svg-t" text-anchor="end">
+        <text x="240" y="32">Pre-flight plan conflicts</text><rect class="bar2" x="250" y="20" width="240" height="18"/><text x="498" y="33" text-anchor="start" class="svg-m">10</text>
+        <text x="240" y="60">Migrations &amp; repo conventions</text><rect class="bar2" x="250" y="48" width="264" height="18"/><text x="522" y="61" text-anchor="start" class="svg-m">11</text>
+        <text x="240" y="88">Process pipeline</text><rect class="bar" x="250" y="76" width="216" height="18"/><text x="474" y="89" text-anchor="start" class="svg-m">9</text>
+        <text x="240" y="116">Tenancy, roles, step-up</text><rect class="bar" x="250" y="104" width="240" height="18"/><text x="498" y="117" text-anchor="start" class="svg-m">10</text>
+        <text x="240" y="144">Field visibility</text><rect class="bar" x="250" y="132" width="168" height="18"/><text x="426" y="145" text-anchor="start" class="svg-m">7</text>
+        <text x="240" y="172">Files &amp; readiness</text><rect class="bar2" x="250" y="160" width="144" height="18"/><text x="402" y="173" text-anchor="start" class="svg-m">6</text>
+        <text x="240" y="200">Colombia pack &amp; data</text><rect class="bar2" x="250" y="188" width="192" height="18"/><text x="450" y="201" text-anchor="start" class="svg-m">8</text>
+        <text x="240" y="228">Imports &amp; exports</text><rect class="bar" x="250" y="216" width="288" height="18"/><text x="546" y="229" text-anchor="start" class="svg-m">12</text>
+        <text x="240" y="256">Assistant &amp; AI</text><rect class="bar" x="250" y="244" width="264" height="18"/><text x="522" y="257" text-anchor="start" class="svg-m">11</text>
+        <text x="240" y="284">Admin · Workflows &amp; Docker · discipline</text><rect class="bar2" x="250" y="272" width="432" height="18"/><text x="690" y="285" text-anchor="start" class="svg-m">18</text>
+      </g>
+    </svg>
+    <figcaption>Count of rulings per theme as grouped on this page. Amber bars are the security-bearing themes: the write path, identity and what each role sees.</figcaption>
+  </figure>
+  <div class="legend">
+    <span class="pill p-force">in force</span> applied in the branch and still the rule
+    <span class="pill p-owner">owner</span> applied, but the owner must ratify or reverse it in design §22
+    <span class="pill p-gone">superseded</span> replaced by a later ruling on this page
+  </div>
+  <p class="note">Reading a card: <strong>Decision</strong> is what the code does now. <strong>Why</strong> names the rule, spec section or fact that forced it. <strong>Cost if wrong</strong> is what it takes to undo. Task numbers refer to the phase 1 plan.</p>
+</section>
+
+<section class="theme" id="preflight">
+  <h2><span class="k">01</span>Pre-flight: the plan disagreed with itself</h2>
+  <p class="theme-intro">Before Task 1 was dispatched, the whole plan was scanned for pairs of tasks that share a file or an interface. Ten conflicts surfaced. Each was ruled against the plan text that caused it, so no implementer had to guess.</p>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-01</span><span class="task">Task 1</span><span class="pill p-force">in force</span><h4>Skip <code>git init</code>; commit on a branch</h4></header><dl><dt>Decision</dt><dd>The repo already held the docs on <code>main</code>. Task 1 commits on <code>phase-1-foundation</code> instead of initialising a repo.</dd><dt>Why</dt><dd>Docs must precede code; re-initialising would have discarded them.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-02</span><span class="task">Task 1 vs 9, 9b, 9c, 15</span><span class="pill p-gone">superseded</span><h4>Rename the migrations that failed the name check</h4></header><dl><dt>Decision</dt><dd><code>0006_core.sql</code> and friends became <code>0006_core_master_data.sql</code>, <code>0006b_kernel_attachments.sql</code>, and so on, to satisfy the plan's own regex.</dd><dt>Why</dt><dd>Rule 34 names the pattern <code>NNNN_&lt;module&gt;_&lt;topic&gt;.sql</code>.</dd><dt>Cost if wrong</dt><dd>None. Superseded by R-11, which dropped letter suffixes entirely.</dd></dl></article>
+    <article class="card"><header><span class="id">R-03</span><span class="task">Task 8 vs 9</span><span class="pill p-force">in force</span><h4>The DV of NIT 900373115 is 3, not 6</h4></header><dl><dt>Decision</dt><dd>The DIAN mod-11 algorithm gives 3. <code>validateTaxId("900373115-3")</code> normalises to <code>900373115</code> with check digit <code>3</code>; the number is stored without the DV.</dd><dt>Why</dt><dd>Spec §5.8a stores the number and the check digit apart; the plan's "6" was a typo that would have poisoned every seed NIT.</dd><dt>Cost if wrong</dt><dd>Every seeded NIT would fail validation.</dd></dl></article>
+    <article class="card"><header><span class="id">R-04</span><span class="task">Task 17 vs 9</span><span class="pill p-force">in force</span><h4>Agent tests use the real party input shape</h4></header><dl><dt>Decision</dt><dd>Task 17's tests, written against an older shape (<code>taxId</code>, <code>name</code>), use <code>PartyFiscalInput</code>: <code>personType</code>, <code>documentType "31"</code>, <code>documentNumber</code>, <code>legalName</code>.</dd><dt>Why</dt><dd>Task 9 is the authority on the party contract.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-05</span><span class="task">Task 4 vs 13</span><span class="pill p-force">in force</span><h4><code>FieldDef.searchable</code> exists from Task 4</h4></header><dl><dt>Decision</dt><dd>The lookup control in Task 13 needs to know which fields to search; the field definition gains <code>searchable?: boolean</code> (default false) in Task 4.</dd><dt>Why</dt><dd>An interface a later task consumes must be produced by the earlier one.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-06</span><span class="task">Task 9 vs 9b</span><span class="pill p-force">in force</span><h4>Readiness is computed in two steps</h4></header><dl><dt>Decision</dt><dd>Task 9 computes <code>invoice_ready</code> from DIAN status and active flag in a row trigger. Task 9b, which creates <code>kernel.attachments</code>, adds the attachment-aware function and the trigger on attachments.</dd><dt>Why</dt><dd>A trigger cannot reference a table that does not exist yet.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-07</span><span class="task">Task 9 vs 9c vs 15</span><span class="pill p-force">in force</span><h4>Who adds the <code>extra</code> columns</h4></header><dl><dt>Decision</dt><dd>The core migration adds <code>extra</code>, <code>extra_free</code>, <code>seq</code> and <code>invoice_ready</code> to core tables; the custom-fields migration creates only <code>kernel.custom_fields</code>; the support migration adds the columns to <code>support.tickets</code>.</dd><dt>Why</dt><dd>Task 9c's text added columns to a table Task 15 had not created yet.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-08</span><span class="task">Task 12 vs 20</span><span class="pill p-force">in force</span><h4>User preferences table arrives with the shell</h4></header><dl><dt>Decision</dt><dd>Task 12 creates <code>kernel.user_prefs(user_id, company_id, key, value)</code> and the <code>kernel.user_prefs.set/get</code> processes; the home dashboard reuses them.</dd><dt>Why</dt><dd>The theme toggle persists a preference long before the dashboard exists.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-09</span><span class="task">Tasks 5, 9</span><span class="pill p-force">in force</span><h4>No test may assert nothing</h4></header><dl><dt>Decision</dt><dd>Where the plan showed placeholder test bodies (<code>{ ... }</code>), implementers write the assertions the comment describes.</dd><dt>Why</dt><dd>A plan-mandated empty test is still a defect under the review rubric.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-10</span><span class="task">Task 1</span><span class="pill p-force">in force</span><h4>Node 22 is the floor; the laptop runs 26</h4></header><dl><dt>Decision</dt><dd><code>.nvmrc</code> says <code>22</code>, <code>engines</code> says <code>&gt;=22</code> (later <code>&gt;=22.2</code>, see R-M10 in the final fixes); local development on Node 26 is fine.</dd><dt>Why</dt><dd>The container images and CI pin 22; nothing requires newer APIs.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="repo">
+  <h2><span class="k">02</span>Migrations and repository conventions</h2>
+  <p class="theme-intro">The plan numbered migrations with letter suffixes and left several numbers in collision. The Supabase CLI ignores non-numeric prefixes, so one early ruling renumbered everything and a script now picks the next number. Later rulings simply assigned the next free number to each task.</p>
+  <figure>
+    <svg viewBox="0 0 760 150" role="img" aria-label="Migration numbering before and after the ruling">
+      <text x="0" y="16" class="svg-mu">Plan text (skipped by the CLI)</text>
+      <g class="svg-m">
+        <rect class="box-w" x="0" y="24" width="88" height="26" rx="4"/><text x="44" y="41" text-anchor="middle">0006_core</text>
+        <rect class="box-w" x="96" y="24" width="96" height="26" rx="4"/><text x="144" y="41" text-anchor="middle">0006b_attach</text>
+        <rect class="box-w" x="200" y="24" width="96" height="26" rx="4"/><text x="248" y="41" text-anchor="middle">0006c_custom</text>
+        <rect class="box-w" x="304" y="24" width="96" height="26" rx="4"/><text x="352" y="41" text-anchor="middle">0006d_verif</text>
+        <rect class="box-w" x="408" y="24" width="96" height="26" rx="4"/><text x="456" y="41" text-anchor="middle">0006e_prefs</text>
+        <rect class="box-w" x="512" y="24" width="96" height="26" rx="4"/><text x="560" y="41" text-anchor="middle">0012_imports</text>
+        <rect class="box-w" x="616" y="24" width="96" height="26" rx="4"/><text x="664" y="41" text-anchor="middle">0013_exports</text>
+      </g>
+      <path class="arrow-a" d="M380 58 L380 80"/>
+      <text x="0" y="78" class="svg-mu">Shipped (4-digit, picked by pnpm db:migrate:new)</text>
+      <g class="svg-m">
+        <rect class="box-ok" x="0" y="88" width="56" height="26" rx="4"/><text x="28" y="105" text-anchor="middle">0006</text>
+        <rect class="box-ok" x="60" y="88" width="56" height="26" rx="4"/><text x="88" y="105" text-anchor="middle">0007</text>
+        <rect class="box-ok" x="120" y="88" width="56" height="26" rx="4"/><text x="148" y="105" text-anchor="middle">0008</text>
+        <rect class="box-ok" x="180" y="88" width="56" height="26" rx="4"/><text x="208" y="105" text-anchor="middle">0009</text>
+        <rect class="box-ok" x="240" y="88" width="56" height="26" rx="4"/><text x="268" y="105" text-anchor="middle">0012</text>
+        <rect class="box-ok" x="300" y="88" width="56" height="26" rx="4"/><text x="328" y="105" text-anchor="middle">0014</text>
+        <rect class="box-ok" x="360" y="88" width="56" height="26" rx="4"/><text x="388" y="105" text-anchor="middle">0016</text>
+        <rect class="box-ok" x="420" y="88" width="56" height="26" rx="4"/><text x="448" y="105" text-anchor="middle">…</text>
+        <rect class="box-ok" x="480" y="88" width="56" height="26" rx="4"/><text x="508" y="105" text-anchor="middle">0024</text>
+      </g>
+      <g class="svg-mu"><text x="0" y="140">core</text><text x="60" y="140">attachments</text><text x="150" y="140">custom</text><text x="195" y="140">verifiers</text><text x="250" y="140">prefs</text><text x="305" y="140">imports</text><text x="365" y="140">exports</text><text x="480" y="140">role claims</text></g>
+    </svg>
+    <figcaption>Letter-suffixed names would have been silently skipped by <code>supabase db reset</code>. The final sequence is 0001–0024, each assigned when its task was dispatched.</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-11</span><span class="task">Task 1</span><span class="pill p-force">in force</span><h4>Purely numeric 4-digit prefixes, next number by script</h4></header><dl><dt>Decision</dt><dd>Names are <code>NNNN_&lt;module&gt;_&lt;topic&gt;.sql</code>; <code>pnpm db:migrate:new &lt;module&gt; &lt;topic&gt;</code> picks the next number and validates the name; the whole plan was renumbered.</dd><dt>Why</dt><dd>The CLI applies only migrations whose prefix is numeric; rule 34.</dd><dt>Cost if wrong</dt><dd>Renaming files later.</dd></dl></article>
+    <article class="card"><header><span class="id">R-12</span><span class="task">Task 1</span><span class="pill p-force">in force</span><h4><code>AGENTS.md</code> is byte-identical to <code>CLAUDE.md</code></h4></header><dl><dt>Decision</dt><dd>The one differing note line was dropped and <code>check:rules</code> asserts identity.</dd><dt>Why</dt><dd>The owner's order: the same standing instructions for every model and tool.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-13</span><span class="task">Task 2</span><span class="pill p-force">in force</span><h4>Database tests are <code>*.integration.test.ts</code></h4></header><dl><dt>Decision</dt><dd>The unit config excludes them; a separate integration config runs them against the local stack.</dd><dt>Why</dt><dd>The plan's <code>rls.test.ts</code> would have run without a database and passed vacuously.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-14</span><span class="task">Task 2</span><span class="pill p-force">in force</span><h4>Local Supabase ports 55321/55323/55324</h4></header><dl><dt>Decision</dt><dd>The committed <code>config.toml</code> moves API, Studio and Inbucket off the defaults (the database stays on 54322).</dd><dt>Why</dt><dd>Another project on the owner's machine holds the default ports; CI is unaffected.</dd><dt>Cost if wrong</dt><dd>A one-line port edit.</dd></dl></article>
+    <article class="card"><header><span class="id">R-15</span><span class="task">Task 2</span><span class="pill p-force">in force</span><h4>Kernel identity tables follow rule 7 too</h4></header><dl><dt>Decision</dt><dd>Roles, memberships and companies carry <code>created_at</code>, <code>updated_at</code>, <code>created_by</code>, <code>updated_by</code>.</dd><dt>Why</dt><dd>Rule 7 does not exempt the kernel.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-16</span><span class="task">Task 17</span><span class="pill p-force">in force</span><h4>…but bookkeeping tables do not carry <code>seq</code>/<code>extra</code></h4></header><dl><dt>Decision</dt><dd>Rule 7's gap-free sequence and extra-data columns apply to business tables in module schemas. Kernel bookkeeping (agent conversations, usage, policies, jobs) keeps id, company, timestamps and actors only.</dd><dt>Why</dt><dd>A consecutive number on an LLM usage row is noise; consistent with the earlier kernel tables.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-17</span><span class="task">Tasks 13b, 14, 15, 16, 17, 20</span><span class="pill p-force">in force</span><h4>Next-free-number assignments</h4></header><dl><dt>Decision</dt><dd>Imports 0014, export jobs 0016, support tickets 0017, help index 0018, agent 0019, recommendations 0022, admin 0021, audit view 0023, role claims 0024. The plan's numbers were already taken by earlier tasks.</dd><dt>Why</dt><dd>R-11.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-18</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4>Subagent commits keep their author's trailer</h4></header><dl><dt>Decision</dt><dd>A commit written by Sonnet or Opus carries that model's <code>Co-Authored-By</code>; the controller's own commits carry Fable's.</dd><dt>Why</dt><dd>Honest attribution; the plan's constraint is satisfied by the controller's commits.</dd><dt>Cost if wrong</dt><dd>Trailer edits.</dd></dl></article>
+    <article class="card"><header><span class="id">R-19</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4><code>@erp/kernel/limits</code> is a dependency-free subpath</h4></header><dl><dt>Decision</dt><dd>Constants shared with client components live there; UI code never imports the kernel root.</dd><dt>Why</dt><dd>The kernel root pulls Node-only modules into the browser bundle.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-20</span><span class="task">Task 9</span><span class="pill p-force">in force</span><h4><code>@erp/kernel/testing</code> for other packages' tests</h4></header><dl><dt>Decision</dt><dd>Test helpers (<code>testDb</code>, <code>seedTenant</code>, <code>withClaims</code>) are exported from a subpath instead of being imported by relative path across packages.</dd><dt>Why</dt><dd>No cross-package relative imports.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-21</span><span class="task">Task 21</span><span class="pill p-owner">owner</span><h4>Docker applies migrations with <code>psql</code></h4></header><dl><dt>Decision</dt><dd>The compose init job applies <code>supabase/migrations/*.sql</code> in order with <code>psql</code> and records them in the same migrations table the CLI uses.</dd><dt>Why</dt><dd>Rule 34's "applied by the Supabase CLI" is read as "applied in order, once, never by hand"; the CLI is not part of the on-prem image.</dd><dt>Cost if wrong</dt><dd>None; the owner may prefer to ship the CLI in the image.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="pipeline">
+  <h2><span class="k">03</span>The process pipeline</h2>
+  <p class="theme-intro">Rule 1 says every state change runs through <code>runProcess</code>. Nine rulings shaped what that pipeline does when a handler refuses, when a caller only wants to validate, and which tables accept writes from nowhere else.</p>
+  <figure>
+    <svg viewBox="0 0 760 290" role="img" aria-label="The runProcess pipeline with gate stages, handler stage and dry-run rollback">
+      <g class="svg-t">
+        <rect class="box-n" x="0" y="40" width="92" height="40" rx="5"/><text x="46" y="64" text-anchor="middle" fill="var(--navy-ink)">resolve</text>
+        <rect class="box-n" x="104" y="40" width="92" height="40" rx="5"/><text x="150" y="64" text-anchor="middle" fill="var(--navy-ink)">entitled</text>
+        <rect class="box-n" x="208" y="40" width="92" height="40" rx="5"/><text x="254" y="64" text-anchor="middle" fill="var(--navy-ink)">permitted</text>
+        <rect class="box-n" x="312" y="40" width="92" height="40" rx="5"/><text x="358" y="64" text-anchor="middle" fill="var(--navy-ink)">step-up</text>
+        <rect class="box-n" x="416" y="40" width="92" height="40" rx="5"/><text x="462" y="64" text-anchor="middle" fill="var(--navy-ink)">input (Zod)</text>
+        <rect class="box-a" x="540" y="30" width="220" height="60" rx="5"/><text x="650" y="54" text-anchor="middle">handler · outbox · audit</text><text x="650" y="74" text-anchor="middle" class="svg-mu">one transaction as the caller</text>
+      </g>
+      <path class="arrow" d="M92 60 L104 60"/><path class="arrow" d="M196 60 L208 60"/><path class="arrow" d="M300 60 L312 60"/><path class="arrow" d="M404 60 L416 60"/><path class="arrow" d="M508 60 L540 60"/>
+      <path d="M0 18 L508 18" stroke="var(--warn)" stroke-width="2"/><text x="254" y="12" text-anchor="middle" class="svg-m" fill="var(--warn)">stage: "gate"  →  denial audited as "denied"</text>
+      <path d="M540 18 L760 18" stroke="var(--accent)" stroke-width="2"/><text x="650" y="12" text-anchor="middle" class="svg-m" fill="var(--accent)">stage: "handler"</text>
+      <!-- handler outcomes -->
+      <path class="arrow" d="M650 90 L650 118"/>
+      <g class="svg-t">
+        <rect class="box-ok" x="430" y="118" width="130" height="38" rx="5"/><text x="495" y="142" text-anchor="middle">commit</text>
+        <rect class="box-w" x="572" y="118" width="188" height="38" rx="5"/><text x="666" y="135" text-anchor="middle">ProcessError keeps its code</text><text x="666" y="150" text-anchor="middle" class="svg-mu">e.g. invalid_input, forbidden</text>
+      </g>
+      <path class="arrow" d="M640 118 L560 118" style="marker-end:none"/>
+      <!-- dry run -->
+      <g class="svg-t">
+        <rect class="box-g" x="0" y="190" width="760" height="84" rx="6"/>
+        <text x="14" y="214" font-weight="600">options.dryRun = true</text>
+        <text x="14" y="236">Same five gates, same handler, same transaction, then an unconditional ROLLBACK.</text>
+        <text x="14" y="256" class="svg-mu">No audit, outbox or idempotency row is written (denials are still audited). ctx.dryRun tells handlers to skip effects outside the database.</text>
+      </g>
+      <!-- SQL refusal -->
+      <g class="svg-m"><text x="0" y="172" class="svg-mu">SQL hook raising  erp:invalid_input:&lt;message&gt;  (SQLSTATE P0001)  →  invalid_input with that message; any other error → handler_failed</text></g>
+    </svg>
+    <figcaption>Five gates run before the transaction. Anything the pipeline itself refuses is a <em>gate</em> denial; anything the handler throws keeps its own code and is a <em>handler</em> refusal. The distinction matters to the importer (R-56) and the dry run matters to every "validate only" caller.</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-22</span><span class="task">Task 9</span><span class="pill p-force">in force</span><h4>A handler-thrown <code>ProcessError</code> keeps its code</h4></header><dl><dt>Decision</dt><dd>The pipeline used to wrap every handler error as <code>handler_failed</code>. Now a <code>ProcessError</code> thrown by the handler propagates with its own code; the transaction still rolls back and denial codes are still audited.</dd><dt>Why</dt><dd>Domain validation (the country pack, duplicates) lives in handlers and must reach the user as <code>invalid_input</code>, not as a server error.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-23</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4><code>stage: "gate" | "handler"</code> on every <code>ProcessError</code></h4></header><dl><dt>Decision</dt><dd>Refusals raised by the pipeline (entitlement, permission, step-up, not found) carry <code>stage "gate"</code>; anything a handler throws carries <code>"handler"</code> by default.</dd><dt>Why</dt><dd>The importer must stop the whole file when the <em>caller</em> is denied, but treat a per-row <code>forbidden</code> from the party-scope check as one rejected row.</dd><dt>Cost if wrong</dt><dd>A small API addition.</dd></dl></article>
+    <article class="card"><header><span class="id">R-24</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4><code>dryRun</code>: the full pipeline, always rolled back</h4></header><dl><dt>Decision</dt><dd><code>runProcess(deps, caller, id, input, { dryRun: true })</code> runs every gate and the handler inside a transaction that is always rolled back; it returns the handler's output or throws the same errors; only denials are audited.</dd><dt>Why</dt><dd>The plan asked for "validate and return errors without writing"; reusing the real pipeline keeps validation identical to the real run.</dd><dt>Cost if wrong</dt><dd>Database triggers still fire inside the rolled-back transaction (acceptable).</dd></dl></article>
+    <article class="card"><header><span class="id">R-25</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4>Kernel processes are always entitled</h4></header><dl><dt>Decision</dt><dd><code>runProcess</code> skips the entitlement check when <code>def.module === "kernel"</code>; no migration redefines the SQL <code>kernel.entitled</code>.</dd><dt>Why</dt><dd>The kernel is the platform, not something a tenant buys; duplicating a SQL function body across migrations is a maintenance trap.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-26</span><span class="task">Task 5</span><span class="pill p-force">in force</span><h4>Denied runs are audited with action <code>denied</code></h4></header><dl><dt>Decision</dt><dd><code>not_entitled</code>, <code>forbidden</code> and <code>step_up_required</code> write an audit row (<code>{code, process_id}</code>) in their own committed transaction; the audit check constraint gained the action.</dd><dt>Why</dt><dd>Design §5.4 and rule 16: a refusal is part of the history.</dd><dt>Cost if wrong</dt><dd>One constraint edit.</dd></dl></article>
+    <article class="card"><header><span class="id">R-27</span><span class="task">Task 12</span><span class="pill p-force">in force</span><h4>Preference reads bypass the process registry</h4></header><dl><dt>Decision</dt><dd><code>readUserPrefs(sql, claims, keys)</code> is a plain RLS-bound read with no audit row; writes stay in <code>kernel.user_prefs.set</code>.</dd><dt>Why</dt><dd>Two audit rows per page load are noise; rule 1 governs state changes, not reads under RLS.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-28</span><span class="task">Task 12</span><span class="pill p-force">in force</span><h4><code>permission: "none"</code> only for user preferences</h4></header><dl><dt>Decision</dt><dd><code>defineProcess</code> asserts that a process without a permission check is in module <code>kernel</code>, of kind update or consult, and its id starts with <code>kernel.user_prefs.</code>.</dd><dt>Why</dt><dd>A convenience for one feature must not become a hole anyone can use.</dd><dt>Cost if wrong</dt><dd>An allow-list edit.</dd></dl></article>
+    <article class="card"><header><span class="id">R-29</span><span class="task">Task 13</span><span class="pill p-force">in force</span><h4>A grid read needs the entity's own consult process</h4></header><dl><dt>Decision</dt><dd>The grid route refuses when <code>&lt;entity&gt;.consult</code> is not granted; five core entities that had no consult process (units, price lists and items, contacts, sequences) gained one.</dd><dt>Why</dt><dd>Rule 13, permission per process and per entity; falling back to any consult process let a category-only role read price lists.</dd><dt>Cost if wrong</dt><dd>Five small processes.</dd></dl></article>
+    <article class="card"><header><span class="id">R-30</span><span class="task">Final review</span><span class="pill p-force">in force</span><h4>SQL hooks refuse with a typed prefix</h4></header><dl><dt>Decision</dt><dd>A trigger or hook that raises <code>erp:invalid_input:&lt;message&gt;</code> (SQLSTATE <code>P0001</code>) surfaces as <code>invalid_input</code> with that message; anything else stays <code>handler_failed</code>.</dd><dt>Why</dt><dd>A closed ticket's file freeze lives in SQL and the UI must be able to show why it refused.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="identity">
+  <h2><span class="k">04</span>Tenancy, roles and step-up</h2>
+  <p class="theme-intro">Who a caller is, what their roles mean, and how a revoked role stops counting. The last ruling in this group came from the final review and changed every policy in the database with one function.</p>
+  <figure>
+    <svg viewBox="0 0 760 210" role="img" aria-label="Role ids: JWT claim intersected with live memberships">
+      <g class="svg-t">
+        <rect class="box" x="0" y="20" width="200" height="70" rx="6"/><text x="100" y="44" text-anchor="middle" font-weight="600">JWT claim role_ids</text><text x="100" y="64" text-anchor="middle" class="svg-mu">minted at sign-in, lives ≤ 1 h</text><text x="100" y="80" text-anchor="middle" class="svg-m">[admin, gerente, cajero]</text>
+        <rect class="box" x="0" y="120" width="200" height="70" rx="6"/><text x="100" y="144" text-anchor="middle" font-weight="600">membership_roles ⋈ memberships</text><text x="100" y="164" text-anchor="middle" class="svg-mu">live, after user_role.set</text><text x="100" y="180" text-anchor="middle" class="svg-m">[gerente, cajero]</text>
+        <rect class="box-a" x="280" y="70" width="200" height="70" rx="6"/><text x="380" y="96" text-anchor="middle" font-weight="600">kernel.current_role_ids()</text><text x="380" y="116" text-anchor="middle" class="svg-mu">security definer, stable</text><text x="380" y="132" text-anchor="middle" class="svg-m">∩ = [gerente, cajero]</text>
+        <rect class="box-ok" x="560" y="20" width="200" height="34" rx="5"/><text x="660" y="42" text-anchor="middle">is_company_admin() → false</text>
+        <rect class="box-ok" x="560" y="64" width="200" height="34" rx="5"/><text x="660" y="86" text-anchor="middle">can_run_process(…) → live</text>
+        <rect class="box-ok" x="560" y="108" width="200" height="34" rx="5"/><text x="660" y="130" text-anchor="middle">field_mode(…) → live</text>
+        <rect class="box-ok" x="560" y="152" width="200" height="34" rx="5"/><text x="660" y="174" text-anchor="middle">ctx.roleIds in the handler</text>
+      </g>
+      <path class="arrow" d="M200 55 L280 95"/><path class="arrow" d="M200 155 L280 115"/>
+      <path class="arrow" d="M480 95 L560 37"/><path class="arrow" d="M480 100 L560 81"/><path class="arrow" d="M480 110 L560 125"/><path class="arrow" d="M480 120 L560 169"/>
+    </svg>
+    <figcaption>Migration 0024: every authorisation helper now reads the claim's roles intersected with the live memberships, so removing a role takes effect on the next statement instead of at token refresh. The kernel's system user (nil uuid) keeps its claimed admin role only on a service connection.</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-31</span><span class="task">Task 2</span><span class="pill p-force">in force</span><h4>Identity tables: DML for members, admin gate on writes</h4></header><dl><dt>Decision</dt><dd><code>authenticated</code> keeps grants on roles, memberships and membership roles (processes run as that role), but every write additionally requires <code>kernel.is_company_admin()</code>; per-process permissions sit on top.</dd><dt>Why</dt><dd>Blanket grants let a member self-assign the admin role; rules 1 and 13.</dd><dt>Cost if wrong</dt><dd>A policy to relax.</dd></dl></article>
+    <article class="card"><header><span class="id">R-32</span><span class="task">Task 3</span><span class="pill p-force">in force</span><h4>A company's audit rows belong to itself</h4></header><dl><dt>Decision</dt><dd>Audit entries for <code>kernel.companies</code> use <code>company_id = id</code>.</dd><dt>Why</dt><dd>A company admin must be able to see their own company's history; null would have hidden it.</dd><dt>Cost if wrong</dt><dd>One trigger branch.</dd></dl></article>
+    <article class="card"><header><span class="id">R-33</span><span class="task">Task 5</span><span class="pill p-force">in force</span><h4>Only the service role inserts step-up verifications</h4></header><dl><dt>Decision</dt><dd>The Task 10 endpoint, after a valid TOTP code, inserts the verification with the service client; <code>authenticated</code> can only read its own rows.</dd><dt>Why</dt><dd>A self-inserted verification would bypass 2FA (the controller's earlier draft had it the other way, and the reviewer was right).</dd><dt>Cost if wrong</dt><dd>None; the endpoint uses the service client by design.</dd></dl></article>
+    <article class="card"><header><span class="id">R-34</span><span class="task">Task 10</span><span class="pill p-force">in force</span><h4>Login throttling: a distinct 429 and an app-level limiter</h4></header><dl><dt>Decision</dt><dd>GoTrue's 429 maps to "demasiados intentos" instead of "wrong credentials"; the client IP is forwarded; <code>kernel.auth_attempts</code> adds a per-account limiter (10 per 5 minutes); session cookies are httpOnly; server modules import <code>server-only</code>.</dd><dt>Why</dt><dd>A shared IP bucket locked out whole offices and the error text was misleading.</dd><dt>Cost if wrong</dt><dd>None. The final review later hashed the keys and added a purge.</dd></dl></article>
+    <article class="card"><header><span class="id">R-35</span><span class="task">Task 15</span><span class="pill p-gone">superseded</span><h4>Support visibility: reporter or holder of <code>reply</code></h4></header><dl><dt>Decision</dt><dd>With no role keys in the schema, ticket visibility was "reporter, or anyone who may run <code>support.ticket.reply</code>".</dd><dt>Why</dt><dd>Rule 13: roles are admin-created and carry no fixed names.</dd><dt>Cost if wrong</dt><dd>Superseded by R-36 because reporters also need <code>reply</code>.</dd></dl></article>
+    <article class="card"><header><span class="id">R-36</span><span class="task">Task 15</span><span class="pill p-owner">owner</span><h4>The support agent is whoever may close tickets</h4></header><dl><dt>Decision</dt><dd>Agent marker = <code>kernel.can_run_process('support.ticket.close')</code>; agents see every ticket and internal notes, reporters see their own.</dd><dt>Why</dt><dd>Reporters must be able to reply to their own tickets, so <code>reply</code> cannot mark an agent.</dd><dt>Cost if wrong</dt><dd>A reporter role cannot close its own tickets without becoming an agent.</dd></dl></article>
+    <article class="card"><header><span class="id">R-37</span><span class="task">Task 19</span><span class="pill p-owner">owner</span><h4>Step-up tokens stay single-use</h4></header><dl><dt>Decision</dt><dd>Each sensitive run consumes one verification; editing a role and its users costs two codes.</dd><dt>Why</dt><dd>The stricter reading of rule 15; whether one verification should cover a 5-minute window is the owner's call.</dd><dt>Cost if wrong</dt><dd>Extra codes for admins until decided.</dd></dl></article>
+    <article class="card"><header><span class="id">R-38</span><span class="task">Task 19</span><span class="pill p-force">in force</span><h4>One account, one tenant</h4></header><dl><dt>Decision</dt><dd><code>kernel.admin.user.create</code> refuses an e-mail already registered under another tenant and never reads or fills that profile; same-tenant users are added without a new invitation.</dd><dt>Why</dt><dd>The review found an admin could pull another tenant's user into their company and see their mobile, photo and MFA state (rules 12, 36).</dd><dt>Cost if wrong</dt><dd>A consultant working for two tenants needs two accounts until multi-tenant users are designed.</dd></dl></article>
+    <article class="card"><header><span class="id">R-39</span><span class="task">Task 19</span><span class="pill p-owner">owner</span><h4>The system admin role has everything, by definition</h4></header><dl><dt>Decision</dt><dd><code>kernel.can_run_process</code> short-circuits for company admins and <code>kernel.field_mode</code> returns <code>visible</code> for them; the manifest sync masks confidential fields for every existing non-admin role and grants a module's consults when it is enabled.</dd><dt>Why</dt><dd>Admin grants were a one-time snapshot and a multi-role admin lost sight of masked fields; rules 13 and 14.</dd><dt>Cost if wrong</dt><dd>An admin cannot be restricted (by design); the owner should confirm.</dd></dl></article>
+    <article class="card"><header><span class="id">R-40</span><span class="task">Final review</span><span class="pill p-owner">owner</span><h4>Revoked roles stop counting immediately</h4></header><dl><dt>Decision</dt><dd>Migration 0024 (see the figure). The process context's <code>roleIds</code> also comes from the live function, so custom-field role checks follow a revocation. The kernel system user keeps its claimed admin role only on a service connection.</dd><dt>Why</dt><dd>A removed admin kept admin rights for up to an hour, including step-up-protected writes.</dd><dt>Cost if wrong</dt><dd>One membership lookup per statement; the system-user carve-out is a §22 decision.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="masking">
+  <h2><span class="k">05</span>Field visibility in every channel</h2>
+  <p class="theme-intro">Rule 14 says a masked field is masked in grids, forms, exports and the assistant alike. The rulings here pushed masking down to the database views and then closed the places where data leaked around them.</p>
+  <figure>
+    <svg viewBox="0 0 760 230" role="img" aria-label="One masked view feeds every output channel">
+      <g class="svg-t">
+        <rect class="box" x="0" y="80" width="150" height="60" rx="6"/><text x="75" y="105" text-anchor="middle">core.parties</text><text x="75" y="124" text-anchor="middle" class="svg-mu">base table, RLS</text>
+        <rect class="box-a" x="200" y="60" width="200" height="100" rx="6"/><text x="300" y="86" text-anchor="middle" font-weight="600">core.v_parties</text><text x="300" y="106" text-anchor="middle" class="svg-m">field_visible(role, f) ? f : null</text><text x="300" y="124" text-anchor="middle" class="svg-m">mask_extra(entity, extra)</text><text x="300" y="146" text-anchor="middle" class="svg-mu">security_invoker · party scope</text>
+        <rect class="box-ok" x="470" y="10" width="130" height="30" rx="5"/><text x="535" y="30" text-anchor="middle">grid &amp; lookup</text>
+        <rect class="box-ok" x="470" y="50" width="130" height="30" rx="5"/><text x="535" y="70" text-anchor="middle">record form</text>
+        <rect class="box-ok" x="470" y="90" width="130" height="30" rx="5"/><text x="535" y="110" text-anchor="middle">CSV · XLSX · PDF</text>
+        <rect class="box-ok" x="470" y="130" width="130" height="30" rx="5"/><text x="535" y="150" text-anchor="middle">assistant results</text>
+        <rect class="box-ok" x="470" y="170" width="130" height="30" rx="5"/><text x="535" y="190" text-anchor="middle">imports (dry-run refs)</text>
+        <rect class="box-w" x="630" y="80" width="130" height="60" rx="6"/><text x="695" y="104" text-anchor="middle">check:rules</text><text x="695" y="122" text-anchor="middle" class="svg-mu">no base-table reads</text><text x="695" y="134" text-anchor="middle" class="svg-mu">in web / agent</text>
+      </g>
+      <path class="arrow" d="M150 110 L200 110"/>
+      <path class="arrow" d="M400 95 L470 25"/><path class="arrow" d="M400 100 L470 65"/><path class="arrow" d="M400 110 L470 105"/><path class="arrow" d="M400 120 L470 145"/><path class="arrow" d="M400 130 L470 185"/>
+      <text x="300" y="215" text-anchor="middle" class="svg-mu">masked → ••••••   ·   hidden → column omitted   ·   a masked field never filters or sorts (403)</text>
+    </svg>
+    <figcaption>Because every reader goes through the generated view, a new channel inherits masking for free. The lint rule makes it hard to write a reader that does not.</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-41</span><span class="task">Task 9c</span><span class="pill p-force">in force</span><h4><code>extra</code> is masked inside the view</h4></header><dl><dt>Decision</dt><dd>The view wraps the admin-defined extra data as <code>kernel.mask_extra('&lt;entity&gt;', extra)</code>, a security-definer function that strips keys whose custom field excludes every caller role.</dd><dt>Why</dt><dd>Rule 14: grids, exports and the agent must never see a hidden extra key, and they all read the view.</dd><dt>Cost if wrong</dt><dd>One view regeneration.</dd></dl></article>
+    <article class="card"><header><span class="id">R-42</span><span class="task">Task 9c</span><span class="pill p-force">in force</span><h4>Defining custom fields is a sensitive process</h4></header><dl><dt>Decision</dt><dd><code>kernel.custom_field.set/remove</code> carry <code>sensitivity: "step-up"</code> on their definition.</dd><dt>Why</dt><dd>Rule 15: admin processes are sensitive by default.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-43</span><span class="task">Task 15</span><span class="pill p-force">in force</span><h4><code>confidential</code> must mean masked by default</h4></header><dl><dt>Decision</dt><dd>A field declared <code>sensitivity: "confidential"</code> gets a <code>masked</code> row for every non-admin role when a role is created and when a module first registers (built in Task 19).</dd><dt>Why</dt><dd>Until then the tag was metadata only; <code>credit_limit</code>, <code>balance</code> and ticket context were visible to everyone.</dd><dt>Cost if wrong</dt><dd>None; an admin can still open a field per role.</dd></dl></article>
+    <article class="card"><header><span class="id">R-44</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>An import's files are visible to its starter and admins</h4></header><dl><dt>Decision</dt><dd>Import records (and so their source file and <code>errores.csv</code>) are visible only to the user who started them and to company admins.</dd><dt>Why</dt><dd>The files hold raw rows; any member with <code>kernel.attachment.list</code> could otherwise download data their role never sees.</dd><dt>Cost if wrong</dt><dd>A non-admin cannot review a colleague's import.</dd></dl></article>
+    <article class="card"><header><span class="id">R-45</span><span class="task">Task 12b</span><span class="pill p-force">in force</span><h4>Extra-data saves send only changed keys</h4></header><dl><dt>Decision</dt><dd>The record tab sends a patch (<code>extraPatch</code>) that the process merges server-side; the panel is read-only when the <code>extra</code> column is masked for the caller.</dd><dt>Why</dt><dd>Sending the whole document let a stale form overwrite keys another user added, and a masked column must not be editable.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-46</span><span class="task">Task 8</span><span class="pill p-force">in force</span><h4>Pack messages are exempt from the catalogue</h4></header><dl><dt>Decision</dt><dd>Country-pack validation messages are domain content in the pack's own language (es-CO) and are shown verbatim; a second pack ships its own language.</dd><dt>Why</dt><dd>Packs are localised by definition (rule 5); rule 24's catalogue targets UI chrome.</dd><dt>Cost if wrong</dt><dd>A later migration of messages to keys.</dd></dl></article>
+    <article class="card"><header><span class="id">R-47</span><span class="task">Task 13</span><span class="pill p-force">in force</span><h4>Zod speaks Spanish</h4></header><dl><dt>Decision</dt><dd>The kernel sets <code>z.config(z.locales.es())</code> once at package init, so schema messages under form fields are Spanish.</dd><dt>Why</dt><dd>Rule 24.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="files">
+  <h2><span class="k">06</span>Files and invoice readiness</h2>
+  <p class="theme-intro">Attachments decide whether a party can be invoiced, so their write path got the strictest treatment in the branch: writes outside a process are refused by the database itself.</p>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-48</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4>Attachments accept writes only from their own processes</h4></header><dl><dt>Decision</dt><dd>A restrictive policy requires the transaction's <code>erp.audit_process_id</code> to start with <code>kernel.attachment.</code>; later rulings bound columns to processes (remove may touch only removal columns, reorder only order columns) and reused the pattern for saved views, verifiers, support, imports and recommendations.</dd><dt>Why</dt><dd>These rows drive <code>invoice_ready</code>; defence in depth beyond "the schema is not exposed".</dd><dt>Cost if wrong</dt><dd>Tests must go through the processes (they should anyway).</dd></dl></article>
+    <article class="card"><header><span class="id">R-49</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4>Magic bytes before the bucket</h4></header><dl><dt>Decision</dt><dd>The upload route sniffs PDF and image signatures and refuses a mismatch with the declared type before a byte is stored; the process keeps the declared-type check.</dd><dt>Why</dt><dd>A declared type is a client claim.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-50</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4>A missing readiness hook is a loud failure</h4></header><dl><dt>Decision</dt><dd>When files change, the kernel calls <code>&lt;module&gt;.attachments_changed</code>; if the owning module has no such function the trigger raises instead of doing nothing.</dd><dt>Why</dt><dd>Silent drift of <code>invoice_ready</code> is worse than a failed upload. Every module ships the hook (support's is a no-op that also freezes closed tickets).</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-51</span><span class="task">Task 9b</span><span class="pill p-force">in force</span><h4>Attachment tables carry the standard columns</h4></header><dl><dt>Decision</dt><dd><code>kernel.attachments</code> and <code>kernel.required_attachments</code> have created/updated timestamps and actors (uploaded-by may alias them).</dd><dt>Why</dt><dd>Rule 7.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-52</span><span class="task">Task 8</span><span class="pill p-force">in force</span><h4>Standard cost never blocks invoicing</h4></header><dl><dt>Decision</dt><dd>"Costo estándar" is removed from the DIAN missing-data list; the spec line that called it pending was corrected to "optional, never affects <code>dian_status</code>/<code>invoice_ready</code>".</dd><dt>Why</dt><dd>Cost is a costing datum (§5.8b defines missing as required for e-invoicing or exógena); blocking sales for it is a non-fiscal reason.</dd><dt>Cost if wrong</dt><dd>The owner reverts one spec line.</dd></dl></article>
+    <article class="card"><header><span class="id">R-53</span><span class="task">Task 16</span><span class="pill p-force">in force</span><h4>Task 12b: wire the record tabs</h4></header><dl><dt>Decision</dt><dd>Writing the guides revealed that contacts and extra data were read-only in the record page, photos had no actions and the required-file checklist was not shown. A task was added to wire them (photo order, AI photo placeholder, required-file checklist).</dd><dt>Why</dt><dd>Rules 20–22 and prototype v5 are the contract; a guide must not describe what the app cannot do.</dd><dt>Cost if wrong</dt><dd>One extra task.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="pack">
+  <h2><span class="k">07</span>Colombia pack and reference data</h2>
+  <p class="theme-intro">Fiscal rules live in the country pack. These rulings fixed wrong constants in the plan, decided how much reference data phase 1 carries, and where the shared validators live.</p>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-54</span><span class="task">Task 8</span><span class="pill p-force">in force</span><h4>Load the full DIVIPOLA and DIAN unit tables</h4></header><dl><dt>Decision</dt><dd>A data-only follow-up after Task 9 loads all 1,124 DANE municipalities and the 1,080 DIAN 13.3.6 unit codes as JSON; until it landed, the strict short lists stood (data quality over permissiveness).</dd><dt>Why</dt><dd>The plan says "full DANE tables"; sourcing them is a separate data task.</dd><dt>Cost if wrong</dt><dd>A blocked save on a rare unit for a few hours.</dd></dl></article>
+    <article class="card"><header><span class="id">R-55</span><span class="task">Task 9</span><span class="pill p-force">in force</span><h4>E-mail and phone validators live in the kernel</h4></header><dl><dt>Decision</dt><dd><code>validateEmail</code> and <code>validatePhone(cc, number)</code> (cc 57: 10 digits starting 3 or 60, or 7 digits; other countries 6–14) in <code>packages/kernel/src/validation.ts</code>, used by the pack, contacts and users.</dd><dt>Why</dt><dd>Rule 11: one phone rule for every entity that stores one.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-56</span><span class="task">Task 9</span><span class="pill p-force">in force</span><h4>The unit "Mes" is <code>LUN</code></h4></header><dl><dt>Decision</dt><dd>DIAN table 13.3.6 codes a month as <code>LUN</code>; the prototype's <code>MON</code> was wrong.</dd><dt>Why</dt><dd>DIAN rejects <code>MON</code>.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-57</span><span class="task">Task 8</span><span class="pill p-force">in force</span><h4>Foreign parties drop DANE codes silently</h4></header><dl><dt>Decision</dt><dd>A party outside Colombia that carries department or municipality codes has them cleared in the normalised output instead of raising an error.</dd><dt>Why</dt><dd>The codes are meaningless abroad; an error would block legitimate saves.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-58</span><span class="task">Task 9</span><span class="pill p-force">in force</span><h4>Party scope applies to writes</h4></header><dl><dt>Decision</dt><dd>A role scoped to <code>clientes</code> gets <code>not_found</code> on suppliers through the view and <code>forbidden</code> when creating or updating a party whose kinds include one outside its scope (so a customer-and-supplier party needs a role that sees both). A service call without claims is <code>ninguno</code>.</dd><dt>Why</dt><dd>The simplest rule that keeps supplier data out of reach for a customer-only role.</dd><dt>Cost if wrong</dt><dd>Customer-only users need a broader role for dual parties.</dd></dl></article>
+    <article class="card"><header><span class="id">R-59</span><span class="task">Task 22</span><span class="pill p-force">in force</span><h4>Éxito's NIT is 890900608-9</h4></header><dl><dt>Decision</dt><dd>The demo seed uses Almacenes Éxito's real NIT; the number the controller had carried from the old plan text (890903938) belongs to Bancolombia.</dd><dt>Why</dt><dd>The implementer flagged it and the pack's algorithm confirmed DV 9.</dd><dt>Cost if wrong</dt><dd>Smoke selectors updated.</dd></dl></article>
+    <article class="card"><header><span class="id">R-60</span><span class="task">Task 17</span><span class="pill p-force">in force</span><h4>Gateway model ids carry dots</h4></header><dl><dt>Decision</dt><dd>The policy seed uses <code>anthropic/claude-opus-5.5</code>, <code>anthropic/claude-haiku-5.5</code>, <code>openai/text-embedding-3-small</code>, verified against the gateway's model list on 2026-10-28; the rules and plan text with dashes were corrected in a docs commit.</dd><dt>Why</dt><dd>A factual correction, not a design change: the dashed ids do not exist on the gateway.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-61</span><span class="task">Task 8</span><span class="pill p-force">in force</span><h4>Spec §5.8b corrected on the branch</h4></header><dl><dt>Decision</dt><dd>The line "missing cost is pending" became "optional, never affects readiness" (see R-52).</dd><dt>Why</dt><dd>The design must match what the validator does.</dd><dt>Cost if wrong</dt><dd>One line to revert.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="import">
+  <h2><span class="k">08</span>Imports and exports</h2>
+  <p class="theme-intro">Mass import was the task with the most rulings and the most fix rounds. The picture below is the import as it shipped; each numbered box traces back to a ruling.</p>
+  <figure>
+    <svg viewBox="0 0 760 300" role="img" aria-label="Import pipeline: parse, validate with dry run, screen duplicates, create in batches with idempotency keys, write errors">
+      <g class="svg-t">
+        <rect class="box" x="0" y="20" width="140" height="56" rx="6"/><text x="70" y="42" text-anchor="middle">upload</text><text x="70" y="60" text-anchor="middle" class="svg-mu">25 MB · MIME from format</text>
+        <rect class="box-w" x="160" y="20" width="160" height="56" rx="6"/><text x="240" y="42" text-anchor="middle">strict zip reader</text><text x="240" y="60" text-anchor="middle" class="svg-mu">bounded inflate → rebuilt archive</text>
+        <rect class="box" x="340" y="20" width="120" height="56" rx="6"/><text x="400" y="42" text-anchor="middle">exceljs / csv</text><text x="400" y="60" text-anchor="middle" class="svg-mu">≤ 50,000 rows</text>
+        <rect class="box-a" x="480" y="20" width="140" height="56" rx="6"/><text x="550" y="42" text-anchor="middle">dry run per row</text><text x="550" y="60" text-anchor="middle" class="svg-mu">runProcess(dryRun)</text>
+        <rect class="box" x="640" y="20" width="120" height="56" rx="6"/><text x="700" y="42" text-anchor="middle">duplicates</text><text x="700" y="60" text-anchor="middle" class="svg-mu">among valid rows</text>
+      </g>
+      <path class="arrow" d="M140 48 L160 48"/><path class="arrow" d="M320 48 L340 48"/><path class="arrow" d="M460 48 L480 48"/><path class="arrow" d="M620 48 L640 48"/>
+      <path class="arrow-bad" d="M550 76 L550 118"/>
+      <g class="svg-t">
+        <rect class="box-w" x="430" y="118" width="240" height="44" rx="6"/><text x="550" y="136" text-anchor="middle">gate denial (stage "gate")</text><text x="550" y="153" text-anchor="middle" class="svg-mu">stop the whole import, one denial audit</text>
+        <rect class="box-ok" x="0" y="118" width="400" height="44" rx="6"/><text x="200" y="136" text-anchor="middle">handler refusal (invalid_input, scope forbidden)</text><text x="200" y="153" text-anchor="middle" class="svg-mu">one rejected row, import continues</text>
+      </g>
+      <path class="arrow" d="M700 76 L700 200"/>
+      <g class="svg-t">
+        <rect class="box-a" x="440" y="200" width="320" height="80" rx="6"/><text x="600" y="222" text-anchor="middle" font-weight="600">create in batches of 500 as the caller</text><text x="600" y="242" text-anchor="middle" class="svg-m">idempotencyKey = import:&lt;id&gt;:&lt;row&gt;</text><text x="600" y="262" text-anchor="middle" class="svg-mu">counts persisted after every batch; a retried batch replays</text>
+        <rect class="box" x="0" y="200" width="260" height="80" rx="6"/><text x="130" y="222" text-anchor="middle">errores.csv</text><text x="130" y="242" text-anchor="middle" class="svg-mu">formula-injection guard, round-trips on re-import</text><text x="130" y="262" text-anchor="middle" class="svg-mu">visible to the starter and admins</text>
+      </g>
+      <path class="arrow" d="M440 240 L260 240"/>
+    </svg>
+    <figcaption>What each ruling bought: the rebuilt archive closes a whole class of zip-bomb tricks (R-67); the dry run reuses the real validation (R-24); the gate/handler split decides what stops the file (R-23); idempotency keys make retries safe (R-64).</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-62</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>Import processes belong to the kernel</h4></header><dl><dt>Decision</dt><dd><code>kernel.import.template/preview/run/list</code> live in the kernel module and resolve <code>&lt;entity&gt;.create</code> through the registry.</dd><dt>Why</dt><dd>Rules 3 and 4: the core module cannot write <code>kernel.imports</code>, and the kernel never names a module.</dd><dt>Cost if wrong</dt><dd>File location only.</dd></dl></article>
+    <article class="card"><header><span class="id">R-63</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>The route starts the workflow after the process commits</h4></header><dl><dt>Decision</dt><dd><code>kernel.import.run</code> inserts a <code>queued</code> row; the web route then starts the durable workflow with <code>{ importId, claims }</code>; the workflow creates each row as that caller with origin <code>api</code>; the files are attachments on a <code>kernel.import</code> entity.</dd><dt>Why</dt><dd>Starting a workflow inside a transaction is a side effect that cannot roll back.</dd><dt>Cost if wrong</dt><dd>Rework if the workflow start pattern changes (it did not).</dd></dl></article>
+    <article class="card"><header><span class="id">R-64</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>Per-row idempotency and honest counts</h4></header><dl><dt>Decision</dt><dd>Each row's create uses the idempotency key <code>import:&lt;importId&gt;:&lt;rowIndex&gt;</code>; <code>rows_ok</code>/<code>rows_failed</code> are persisted after every batch; a failed import keeps its counts.</dd><dt>Why</dt><dd>Design §5.11 and rule 36 "import partial failures": a retried batch must replay, never duplicate or count created rows as rejected.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-65</span><span class="task">Task 13b</span><span class="pill p-owner">owner</span><h4>A sensitive target stops the import at the first row</h4></header><dl><dt>Decision</dt><dd>If the entity's create process needs a step-up, the import fails at the first <code>step_up_required</code> with one message and one denial audit rather than one per row.</dd><dt>Why</dt><dd>The import's own step-up does not cover row creation today; whether it should is the owner's call.</dd><dt>Cost if wrong</dt><dd>Imports of sensitive entities wait for the decision.</dd></dl></article>
+    <article class="card"><header><span class="id">R-66</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>Row and column caps after the first sheet loads</h4></header><dl><dt>Decision</dt><dd>Caps are applied once the first sheet is in memory, bounded by the 64 MB inflate limit.</dd><dt>Why</dt><dd>exceljs's streaming reader is unreliable on files written by exceljs itself.</dd><dt>Cost if wrong</dt><dd>Up to 64 MB transient per import.</dd></dl></article>
+    <article class="card"><header><span class="id">R-67</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>Never hand the upload to exceljs</h4></header><dl><dt>Decision</dt><dd>A strict in-house zip reader walks the directory, inflates each part under a hard bound, verifies size and CRC, and rebuilds a fresh stored archive; exceljs loads only that.</dd><dt>Why</dt><dd>Two rounds of mirroring JSZip's quirks (declared sizes, entry counts, offset shifts) still left bypasses; removing the shared parser removes the class.</dd><dt>Cost if wrong</dt><dd>One extra zip write per import.</dd></dl></article>
+    <article class="card"><header><span class="id">R-68</span><span class="task">Task 13b</span><span class="pill p-gone">superseded</span><h4>SheetJS if installable, else exceljs</h4></header><dl><dt>Decision</dt><dd>The implementer found npm's <code>xlsx</code> stuck at 0.18.5 with known CVEs on untrusted input and unable to write dropdowns, so exceljs 4.4 became the library for imports and exports.</dd><dt>Why</dt><dd>The plan named SheetJS; security trumped the plan text.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-69</span><span class="task">Task 14</span><span class="pill p-gone">superseded</span><h4>PDF capped at 20,000 rows (provisional)</h4></header><dl><dt>Decision</dt><dd>react-pdf holds the whole table in memory (≈150 MB per 1,000 rows); a provisional cap was accepted.</dd><dt>Why</dt><dd>Rule 20 "all pages" cannot be met for PDF without a streaming engine.</dd><dt>Cost if wrong</dt><dd>Superseded by R-70.</dd></dl></article>
+    <article class="card"><header><span class="id">R-70</span><span class="task">Task 14</span><span class="pill p-owner">owner</span><h4>PDF: 2,000 rows inline, 10,000 per job</h4></header><dl><dt>Decision</dt><dd>Above 2,000 rows a PDF goes to a background job; above 10,000 it is refused with <code>pdf_too_large</code> and the user is pointed to Excel or CSV. CSV and XLSX keep "all pages".</dd><dt>Why</dt><dd>Rule 6 allows single-process deployments; a 10,000-row PDF rendered inline needs about 1.5 GB of heap.</dd><dt>Cost if wrong</dt><dd>The owner may pick a streaming PDF engine later.</dd></dl></article>
+    <article class="card"><header><span class="id">R-71</span><span class="task">Task 14</span><span class="pill p-force">in force</span><h4>exceljs for XLSX, react-pdf for PDF</h4></header><dl><dt>Decision</dt><dd>Exports reuse the import's exceljs; the PDF writer uses <code>@react-pdf/renderer</code> (as <code>pdf.ts</code> with <code>createElement</code>, because the workflow bundler could not load <code>.tsx</code>).</dd><dt>Why</dt><dd>One spreadsheet library in the kernel; the plan's file name was a hint, not a requirement.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-72</span><span class="task">Task 13b</span><span class="pill p-force">in force</span><h4>Tests written after the code are rejected</h4></header><dl><dt>Decision</dt><dd>The implementer admitted the four brief scenarios never went red. The fix round had to show each one failing under a mutation before passing.</dd><dt>Why</dt><dd>Rule 31 (test first) is binding; a mutation proves the test can fail.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-73</span><span class="task">Task 14</span><span class="pill p-force">in force</span><h4>…but a fix round may write test and fix together</h4></header><dl><dt>Decision</dt><dd>For six small items in a fix round, tests written alongside the fix were accepted; feature work still goes red first.</dd><dt>Why</dt><dd>The mutation discipline is for behaviour, not for one-line hygiene.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="assistant">
+  <h2><span class="k">09</span>Assistant and AI</h2>
+  <p class="theme-intro">Rule 17 says the assistant acts strictly as the user and never writes without a confirmation card. The confirmation card's state machine below is where three rulings and two review rounds converged.</p>
+  <figure>
+    <svg viewBox="0 0 760 240" role="img" aria-label="Confirmation card state machine with compare-and-set transitions">
+      <g class="svg-t">
+        <rect class="box" x="0" y="80" width="130" height="50" rx="25"/><text x="65" y="110" text-anchor="middle" font-weight="600">pending</text>
+        <rect class="box-a" x="220" y="80" width="130" height="50" rx="25"/><text x="285" y="110" text-anchor="middle" font-weight="600">confirmed</text>
+        <rect class="box-ok" x="440" y="80" width="130" height="50" rx="25"/><text x="505" y="110" text-anchor="middle" font-weight="600">executed</text>
+        <rect class="box-g" x="220" y="180" width="130" height="44" rx="22"/><text x="285" y="207" text-anchor="middle" font-weight="600">rejected</text>
+      </g>
+      <path class="arrow-a" d="M130 105 L220 105"/><text x="175" y="96" text-anchor="middle" class="svg-m">CAS where status='pending'</text>
+      <path class="arrow-a" d="M350 105 L440 105"/><text x="395" y="96" text-anchor="middle" class="svg-m">runProcess(key = token)</text>
+      <path class="arrow" d="M65 130 Q65 202 220 202"/><text x="90" y="178" class="svg-mu">Cancelar · expired (15 min)</text>
+      <path class="arrow" d="M285 130 L285 180"/><text x="300" y="160" class="svg-mu">stale confirmed (crashed decider) → reject or take over</text>
+      <path class="arrow-bad" d="M285 80 Q285 30 130 60 L130 80" /><text x="200" y="40" text-anchor="middle" class="svg-mu">forbidden / step_up_required → back to pending</text>
+      <text x="505" y="160" text-anchor="middle" class="svg-mu">second confirm → stored result (idempotent)</text>
+      <text x="380" y="232" text-anchor="middle" class="svg-mu">no held transaction around runProcess · bound to the card's user and company · confirm by cardId after a reload</text>
+    </svg>
+    <figcaption>Each arrow is a single compare-and-set <code>UPDATE</code>. The earlier design held a row lock across the process run and could exhaust the five-connection service pool under five parallel confirmations.</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-74</span><span class="task">Task 17</span><span class="pill p-force">in force</span><h4>Compare-and-set confirmations, no held transaction</h4></header><dl><dt>Decision</dt><dd>pending → confirmed → executed with a CAS per step; the process runs between them with the token as idempotency key; a refusal returns the card to pending; a stale confirmed card can be rejected or taken over, bounded by one deadline.</dd><dt>Why</dt><dd>Pool safety and the plan's state machine; the first version deadlocked and the second looped on a stale reject.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-75</span><span class="task">Task 17</span><span class="pill p-owner">owner</span><h4><code>data.query</code> is a registered process</h4></header><dl><dt>Decision</dt><dd>The plan's built-in query tool became <code>kernel.data.query</code>: permissioned per role, audited with the conversation id, rows capped at 50, masked through the grid runner. <code>ui.navigate</code> and <code>ui.open_record</code> stay built-in because they execute nothing on the server.</dd><dt>Why</dt><dd>Rule 1: the assistant has no tool that is not a registered process. The plan's <code>builtin.ts</code> contradicted it.</dd><dt>Cost if wrong</dt><dd>One more grant in the role seeds.</dd></dl></article>
+    <article class="card"><header><span class="id">R-76</span><span class="task">Task 17</span><span class="pill p-force">in force</span><h4><code>WorkflowAgent</code> instead of the deprecated <code>DurableAgent</code></h4></header><dl><dt>Decision</dt><dd>The runtime uses AI SDK 7's <code>WorkflowAgent</code> from <code>@ai-sdk/workflow</code>; the design's wording was corrected.</dd><dt>Why</dt><dd><code>@workflow/ai</code>'s <code>DurableAgent</code> is deprecated and pinned to ai@6; the repo is on ai@7.</dd><dt>Cost if wrong</dt><dd>None; same durable semantics.</dd></dl></article>
+    <article class="card"><header><span class="id">R-77</span><span class="task">Task 16</span><span class="pill p-force">in force</span><h4>The embedder takes its model id as an argument</h4></header><dl><dt>Decision</dt><dd><code>GatewayEmbedder(modelId)</code> defaults to the embedding model; Task 17 wires <code>resolveModel(…, "embeddings")</code> from <code>kernel.model_policies</code>.</dd><dt>Why</dt><dd>The policy table arrives one task later; this avoided a cross-task migration.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-78</span><span class="task">Task 16</span><span class="pill p-force">in force</span><h4>HNSW, not ivfflat, for the help index</h4></header><dl><dt>Decision</dt><dd>The pgvector index is HNSW (m 16, ef_construction 64).</dd><dt>Why</dt><dd>ivfflat built on an empty table has untrained centroids and poor recall for any reader that forgets to raise <code>probes</code>; HNSW needs no training.</dd><dt>Cost if wrong</dt><dd>None at phase-1 sizes.</dd></dl></article>
+    <article class="card"><header><span class="id">R-79</span><span class="task">Task 16</span><span class="pill p-force">in force</span><h4>A fake embedder without a gateway key</h4></header><dl><dt>Decision</dt><dd><code>pnpm help:index</code> uses a deterministic hash embedder when <code>AI_GATEWAY_API_KEY</code> is absent (local, CI) and the gateway otherwise.</dd><dt>Why</dt><dd>Local development and CI must not need a paid key.</dd><dt>Cost if wrong</dt><dd>Local search quality is hash-based only.</dd></dl></article>
+    <article class="card"><header><span class="id">R-80</span><span class="task">Task 16</span><span class="pill p-force">in force</span><h4>Guides for every shipped feature, now</h4></header><dl><dt>Decision</dt><dd>Task 16 wrote guides for login and 2FA, navigation, terceros, contacts, products, categories, files, extra data and grids on top of the plan's five; the assistant guide moved to Task 18 and the admin guide to Task 19.</dd><dt>Why</dt><dd>Rule 35: a feature without its guide is not finished.</dd><dt>Cost if wrong</dt><dd>A bigger task.</dd></dl></article>
+    <article class="card"><header><span class="id">R-81</span><span class="task">Task 18</span><span class="pill p-force">in force</span><h4>The drawer renders model output as data only</h4></header><dl><dt>Decision</dt><dd><code>useChat</code> from the installed SDK against <code>/api/agent/turn</code>; cards POST <code>/api/agent/confirm</code>; no remote images, no raw HTML, links only to internal routes; tool results drawn from structured data.</dd><dt>Why</dt><dd>Prompt injection through tool results and help chunks is mitigated structurally, not by trusting the model.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-82</span><span class="task">Task 17</span><span class="pill p-force">in force</span><h4>Confirm by card id after a reload</h4></header><dl><dt>Decision</dt><dd>The raw token is scrubbed from stored messages, so the owning user can confirm a still-pending card by its id; the server resolves the token.</dd><dt>Why</dt><dd>Without it a reloaded conversation could never confirm.</dd><dt>Cost if wrong</dt><dd>One route branch.</dd></dl></article>
+    <article class="card"><header><span class="id">R-83</span><span class="task">Task 18</span><span class="pill p-force">in force</span><h4>History route and "Abrir como grid" stay in Task 18</h4></header><dl><dt>Decision</dt><dd>The conversation history route, <code>GridPage ?q=</code> and the assistant column metadata were kept; mid-turn reconnect moved to Task 21.</dd><dt>Why</dt><dd>They are the minimum for "a reload shows pending cards" and for opening a result as a grid.</dd><dt>Cost if wrong</dt><dd>A reload during a turn waits for the turn to finish (closed in Task 21).</dd></dl></article>
+    <article class="card"><header><span class="id">R-84</span><span class="task">Final review</span><span class="pill p-owner">owner</span><h4>Rule 30's evaluation set is a plan gap</h4></header><dl><dt>Decision</dt><dd>No Spanish-prompt → expected-tool-call suite was built in phase 1; the recommendation is to start it at the beginning of phase 2 when real tools exist.</dd><dt>Why</dt><dd>The plan never scheduled it; adding it in the last fix round would have been a new task, not a fix.</dd><dt>Cost if wrong</dt><dd>Rule 30 unmet until the owner decides.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="admin">
+  <h2><span class="k">10</span>Admin</h2>
+  <p class="theme-intro">The plan put the admin processes in the core module. They write kernel tables, which rule 3 forbids, so they moved. The second ruling here changed what "admin" means.</p>
+  <figure>
+    <svg viewBox="0 0 760 200" role="img" aria-label="Admin processes own kernel tables; roles get baseline grants and masks">
+      <g class="svg-t">
+        <rect class="box-n" x="0" y="20" width="240" height="160" rx="6"/>
+        <text x="120" y="44" text-anchor="middle" fill="var(--navy-ink)" font-weight="600">kernel.admin.*  (kernel module)</text>
+        <text x="16" y="70" fill="var(--navy-ink)" class="svg-m">role.create / update</text>
+        <text x="16" y="90" fill="var(--navy-ink)" class="svg-m">user.create · user_role.set</text>
+        <text x="16" y="110" fill="var(--navy-ink)" class="svg-m">permission.set · field_permission.set</text>
+        <text x="16" y="130" fill="var(--navy-ink)" class="svg-m">sensitive_process.set · module.enable</text>
+        <text x="16" y="150" fill="var(--navy-ink)" class="svg-m">required_file.set · verifier.set</text>
+        <text x="16" y="170" fill="var(--navy-ink)" class="svg-mu">all step-up (writes) · consults without</text>
+        <rect class="box" x="290" y="20" width="200" height="70" rx="6"/><text x="390" y="44" text-anchor="middle" font-weight="600">new non-admin role</text><text x="390" y="64" text-anchor="middle" class="svg-mu">baseline consults + help, prefs,</text><text x="390" y="80" text-anchor="middle" class="svg-mu">saved views, export, data.query</text>
+        <rect class="box-w" x="290" y="110" width="200" height="70" rx="6"/><text x="390" y="134" text-anchor="middle" font-weight="600">confidential fields</text><text x="390" y="154" text-anchor="middle" class="svg-mu">masked row seeded per role,</text><text x="390" y="170" text-anchor="middle" class="svg-mu">on creation and on module sync</text>
+        <rect class="box-ok" x="540" y="20" width="220" height="160" rx="6"/><text x="650" y="44" text-anchor="middle" font-weight="600">system admin role</text><text x="650" y="70" text-anchor="middle" class="svg-mu">can_run_process → true</text><text x="650" y="90" text-anchor="middle" class="svg-mu">field_mode → visible</text><text x="650" y="110" text-anchor="middle" class="svg-mu">cannot be restricted</text><text x="650" y="140" text-anchor="middle" class="svg-mu">one tenant per account;</text><text x="650" y="156" text-anchor="middle" class="svg-mu">cross-tenant e-mails refused</text>
+      </g>
+      <path class="arrow" d="M240 55 L290 55"/><path class="arrow" d="M240 145 L290 145"/>
+    </svg>
+    <figcaption>Admin writes are kernel processes guarded three ways: <code>requireAdmin</code> in the handler, a process-GUC policy on each table, and the admin RLS policies from the tenancy migrations.</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-85</span><span class="task">Task 19</span><span class="pill p-owner">owner</span><h4><code>kernel.admin.*</code>, not <code>core.admin.*</code></h4></header><dl><dt>Decision</dt><dd>Every admin process that writes roles, permissions, field visibility, sensitive processes, entitlements, companies or memberships is a kernel process in feature <code>kernel.admin</code>; custom fields, required files and verifiers map to kernel processes; invitations go through an <code>AuthAdmin</code> adapter that uses the service role only server-side.</dd><dt>Why</dt><dd>Rule 3: one schema per module; core cannot write kernel tables.</dd><dt>Cost if wrong</dt><dd>Process ids differ from the plan text (a note was added to the plan).</dd></dl></article>
+    <article class="card"><header><span class="id">R-86</span><span class="task">Task 19</span><span class="pill p-force">in force</span><h4>Consult-kind admin processes need no step-up</h4></header><dl><dt>Decision</dt><dd><code>permission.matrix</code> and <code>ai_usage.consult</code> run without a code; every write-kind admin process keeps it.</dd><dt>Why</dt><dd>The admin pages show the same data without a code; a step-up on a read protected nothing.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-87</span><span class="task">Task 6</span><span class="pill p-force">in force</span><h4>Most-specific entitlement wins; disabling cascades</h4></header><dl><dt>Decision</dt><dd>An explicit <code>enabled=false</code> on a feature or process denies it inside an entitled module; a company row beats a tenant row; <code>module.disable</code> refuses while another enabled module depends on the target (support → core).</dd><dt>Why</dt><dd>Spec §5.12 wants feature-level toggles.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-88</span><span class="task">Task 6</span><span class="pill p-force">in force</span><h4>Every boot syncs the module manifests</h4></header><dl><dt>Decision</dt><dd>The web server's instrumentation hook and the worker call <code>syncModuleManifest</code> for every loaded module before serving.</dd><dt>Why</dt><dd>Feature-level toggles and confidential-field masks depend on the registry rows being current.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-89</span><span class="task">Task 15</span><span class="pill p-force">in force</span><h4>Support depends on core</h4></header><dl><dt>Decision</dt><dd>The support manifest declares <code>dependsOn: ["core"]</code> and uses core's sequence helper for <code>seq</code>.</dd><dt>Why</dt><dd>Rule 7 binds every module's consecutive number to core's helper; core is the base module.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-90</span><span class="task">Task 15</span><span class="pill p-force">in force</span><h4>Support tables get the process-GUC write guard</h4></header><dl><dt>Decision</dt><dd>Restrictive policies require the transaction's process id to start with <code>support.ticket</code>, and a message's author must be the caller.</dd><dt>Why</dt><dd>Rule 1 at the database level; without it a reporter could reopen a closed ticket or spoof an author with a direct statement.</dd><dt>Cost if wrong</dt><dd>None. Core tables still lack the same guard (parked for phase 2).</dd></dl></article>
+    <article class="card"><header><span class="id">R-91</span><span class="task">Task 20</span><span class="pill p-force">in force</span><h4>KPI providers belong to the owning module</h4></header><dl><dt>Decision</dt><dd>Modules register home KPI providers through <code>ModuleDef.homeKpis</code> (core: parties, products; support: open tickets); the kernel provides only AI usage. This superseded the controller's own instruction that the kernel register all four.</dd><dt>Why</dt><dd>Rule 4: the kernel never reads a module's view by name. The implementer was right to deviate.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-92</span><span class="task">Task 20</span><span class="pill p-force">in force</span><h4>Home layout and recommendations</h4></header><dl><dt>Decision</dt><dd>The layout persists in <code>kernel.user_prefs</code> under <code>home_layout</code>; the role default is the kernel default until phase 3; accepting a recommendation action opens the assistant with the process pre-filled, after checking the caller may run it; demo rows moved to the seed.</dd><dt>Why</dt><dd>Reuse of existing paths; a user must never get a card for a process they cannot run.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="infra">
+  <h2><span class="k">11</span>Workflows, outbox and Docker</h2>
+  <p class="theme-intro">Durable work runs on the Workflow DevKit. On Vercel the managed world authenticates its own routes; in Docker nothing did, which produced the one Critical finding of the infra task.</p>
+  <figure>
+    <svg viewBox="0 0 760 260" role="img" aria-label="Docker topology: edge is the only published service and guards workflow and internal routes">
+      <g class="svg-t">
+        <rect class="box" x="0" y="100" width="110" height="50" rx="6"/><text x="55" y="130" text-anchor="middle">browser</text>
+        <rect class="box-a" x="170" y="60" width="150" height="130" rx="6"/><text x="245" y="84" text-anchor="middle" font-weight="600">edge (nginx)</text><text x="245" y="104" text-anchor="middle" class="svg-mu">127.0.0.1:56300</text><text x="245" y="126" text-anchor="middle" class="svg-mu">only published port</text><text x="245" y="150" text-anchor="middle" class="svg-m">/.well-known/workflow/*</text><text x="245" y="166" text-anchor="middle" class="svg-m">/api/internal/* → 403</text><text x="245" y="182" text-anchor="middle" class="svg-mu">unless internal token</text>
+        <rect class="box" x="400" y="20" width="150" height="60" rx="6"/><text x="475" y="44" text-anchor="middle">web (Next, standalone)</text><text x="475" y="64" text-anchor="middle" class="svg-mu">no host port · consumes too</text>
+        <rect class="box" x="400" y="100" width="150" height="60" rx="6"/><text x="475" y="124" text-anchor="middle">worker</text><text x="475" y="144" text-anchor="middle" class="svg-mu">Postgres World · tick 30 s · sync</text>
+        <rect class="box" x="400" y="180" width="150" height="60" rx="6"/><text x="475" y="204" text-anchor="middle">db · kong · auth · storage</text><text x="475" y="224" text-anchor="middle" class="svg-mu">internal network only</text>
+        <rect class="box-g" x="600" y="100" width="160" height="60" rx="6"/><text x="680" y="124" text-anchor="middle">docker-compose.test.yml</text><text x="680" y="144" text-anchor="middle" class="svg-mu">demo seed · DEMO_SEED=1</text>
+      </g>
+      <path class="arrow" d="M110 125 L170 125"/>
+      <path class="arrow" d="M320 110 L400 55"/>
+      <path class="arrow" d="M475 100 L475 80"/><text x="490" y="94" class="svg-mu">flow deliveries, internal</text>
+      <path class="arrow" d="M475 160 L475 180"/><path class="arrow" d="M475 80 L475 100" style="marker-end:none"/>
+      <path class="arrow-bad" d="M55 100 Q55 30 400 40" /><text x="150" y="28" class="svg-mu">direct to web: no longer possible</text>
+      <path class="arrow" d="M600 130 L550 130"/>
+    </svg>
+    <figcaption>The WDK docs say the Postgres World's flow route accepts any well-formed request; a forged delivery could have started a workflow carrying any user's claims. The edge is the fix the docs allow (middleware that reads the body breaks execution).</figcaption>
+  </figure>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-93</span><span class="task">Task 7</span><span class="pill p-force">in force</span><h4>Outbox rows are claimed and delivered per consumer</h4></header><dl><dt>Decision</dt><dd><code>kernel.outbox.claimed_at</code> (re-claimable after 10 minutes) and <code>kernel.outbox_deliveries(outbox_id, module_id)</code>; a consumer with a delivery row is not run again.</dd><dt>Why</dt><dd>§5.5 needs at-least-once with exactly-once per consumer; two drains could dispatch the same row.</dd><dt>Cost if wrong</dt><dd>Two columns.</dd></dl></article>
+    <article class="card"><header><span class="id">R-94</span><span class="task">Task 7</span><span class="pill p-force">in force</span><h4>A drain with no modules loaded throws</h4></header><dl><dt>Decision</dt><dd><code>drainOutbox</code> refuses to run when the registry is empty; dead-lettering after three retries or a <code>FatalError</code>.</dd><dt>Why</dt><dd>An unbootstrapped process must not mark rows dispatched.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-95</span><span class="task">Task 21</span><span class="pill p-force">in force</span><h4>Workers boot like the web: load modules, sync, then serve</h4></header><dl><dt>Decision</dt><dd>The worker (and the web instrumentation hook) loads kernel, core and support and syncs the registry before draining or serving; a reconnect route for a running turn was added; integration suites run serially and own their outbox rows.</dd><dt>Why</dt><dd>Cold step workers had failed in two earlier tasks; suites sharing one outbox broke each other.</dd><dt>Cost if wrong</dt><dd>A larger task.</dd></dl></article>
+    <article class="card"><header><span class="id">R-96</span><span class="task">Task 21</span><span class="pill p-force">in force</span><h4>An edge is the only published service</h4></header><dl><dt>Decision</dt><dd>nginx publishes one port, refuses the workflow and internal routes without <code>WORKFLOW_INTERNAL_TOKEN</code>, strips the header, and forwards the host with its port (Next's Server Action CSRF check needs it) with buffers sized for Supabase cookies.</dd><dt>Why</dt><dd>Rule 12 and the one Critical finding of the task; the first ruling ("a proxy rule") was refined when the docs showed in-app middleware would break deliveries.</dd><dt>Cost if wrong</dt><dd>One more container.</dd></dl></article>
+    <article class="card"><header><span class="id">R-97</span><span class="task">Task 22</span><span class="pill p-force">in force</span><h4>Demo data only in the test compose path</h4></header><dl><dt>Decision</dt><dd>The seed job and the demo <code>seed.sql</code> loading live in <code>docker-compose.test.yml</code>; <code>pnpm db:seed</code> requires <code>DEMO_SEED=1</code> plus a local host; the production compose boots with no accounts.</dd><dt>Why</dt><dd>The demo admin has a public password and TOTP secret; shipping it to a customer stack would defeat MFA for that account.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-98</span><span class="task">Task 22</span><span class="pill p-force">in force</span><h4>What the seed does, and the tag</h4></header><dl><dt>Decision</dt><dd>The seed syncs the registry, runs <code>kernel.seed_company_defaults</code>, inserts the two recommendations, builds the help index and marks admin processes sensitive; the tag <code>phase-1-foundation</code> is local only and was created at the branch tip after the final review.</dd><dt>Why</dt><dd>Seeds must produce the same state a real boot would; tags are a git action the owner controls.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="discipline">
+  <h2><span class="k">12</span>Process discipline</h2>
+  <p class="theme-intro">A few rulings were about how the work was run rather than what was built.</p>
+  <div class="cards">
+    <article class="card"><header><span class="id">R-99</span><span class="task">Task 16</span><span class="pill p-force">in force</span><h4>Guides are the truth test</h4></header><dl><dt>Decision</dt><dd>Guide writers verify every claim in the code; a mechanical check fails <code>help:index</code> when a guide names a route or process that does not exist, or a menu screen has no guide.</dd><dt>Why</dt><dd>Rule 35 and honesty toward the user.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-100</span><span class="task">Task 9</span><span class="pill p-force">in force</span><h4>Answering an implementer's question is a ruling</h4></header><dl><dt>Decision</dt><dd>When Task 9's implementer reported <code>NEEDS_CONTEXT</code> on error propagation, the answer (R-22) was written into the ledger like any other ruling.</dd><dt>Why</dt><dd>A decision that only lives in a chat message is lost after compaction.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-101</span><span class="task">Several</span><span class="pill p-force">in force</span><h4>Reviewers can be wrong; evidence settles it</h4></header><dl><dt>Decision</dt><dd>A reviewer's «Sin resultados» finding was dropped when the implementer showed the second message key exists; a controller instruction (kernel registers all KPI providers) was reversed when the implementer cited rule 4. Each reversal is a ledger line.</dd><dt>Why</dt><dd>The spec is the authority, then the rules, then whoever has the evidence.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+    <article class="card"><header><span class="id">R-102</span><span class="task">Final</span><span class="pill p-force">in force</span><h4>The final review gets one fix round and one residual</h4></header><dl><dt>Decision</dt><dd>Four Important findings and eight "fix now" deferred items went into one dispatch; the single residual (live role ids in the process context) was closed in a tiny commit the controller verified; the rest was parked with reasons.</dd><dt>Why</dt><dd>The skill's cap on fix rounds exists so a review does not become an endless loop.</dd><dt>Cost if wrong</dt><dd>None.</dd></dl></article>
+  </div>
+</section>
+
+<section class="theme" id="owner">
+  <h2><span class="k">13</span>What the owner decides</h2>
+  <p class="theme-intro">Every ruling is applied in the branch. These are the ones that bend a rule or the design and should be ratified or reversed in design §22, with a date.</p>
+  <table>
+    <thead><tr><th>#</th><th>Ruling</th><th>Rule or design text it bends</th><th>If reversed</th></tr></thead>
+    <tbody>
+      <tr><td>R-84</td><td>Rule 30 evaluation set deferred to phase 2</td><td>Rule 30</td><td>Build a seed prompt set now, gated on the gateway key</td></tr>
+      <tr><td>R-70</td><td>PDF caps 2,000 inline / 10,000 per job</td><td>Rule 20 "all pages"</td><td>Choose a streaming PDF engine</td></tr>
+      <tr><td>R-65</td><td>Import stops at the first step-up-protected row</td><td>Rule 15 scope</td><td>Let the import's step-up cover row creation</td></tr>
+      <tr><td>R-37</td><td>Step-up tokens single-use per run</td><td>Rule 15 "≤ 5 minutes"</td><td>One verification covers a 5-minute window</td></tr>
+      <tr><td>R-21</td><td>Docker applies migrations with psql</td><td>Rule 34 "by the Supabase CLI"</td><td>Ship the CLI in the init image</td></tr>
+      <tr><td>R-85</td><td>Admin processes are <code>kernel.admin.*</code></td><td>Plan text <code>core.admin.*</code></td><td>Not advisable: rule 3 would be broken</td></tr>
+      <tr><td>R-75</td><td><code>kernel.data.query</code> is a registered process</td><td>Design §7.1 calls it a tool</td><td>Not advisable: rule 1 would be broken</td></tr>
+      <tr><td>R-36</td><td>Support agent = may close tickets</td><td>Design §8 (support) is silent</td><td>Introduce a role key for agents</td></tr>
+      <tr><td>R-39 / M6</td><td>Admin sees everything; multi-role users get the most restrictive field mode</td><td>Plan (most restrictive) vs additive permissions</td><td>Make visibility additive like permissions</td></tr>
+      <tr><td>R-40</td><td>Kernel system user keeps its claimed admin role on service connections</td><td>Rule 13 (roles come from memberships)</td><td>A positive service-session check or a kernel GUC in phase 2/3</td></tr>
+      <tr><td>§22.1</td><td>Company switcher ships in phase 1</td><td>Design §22.1 said phase 3</td><td>Align the design text with rule 19 and the prototype</td></tr>
+      <tr><td>R-60</td><td>Gateway model ids with dots</td><td>Rule 26 text (already corrected)</td><td>Nothing; factual</td></tr>
+    </tbody>
+  </table>
+  <footer class="end">Source: the SDD ledger of the phase 1 run (102 <code>Ruling:</code> lines), the final whole-branch review and the hand-off report at <code>docs/superpowers/reports/2026-10-28-phase-1-handoff.md</code>. Branch merged into <code>main</code> at <code>ad5f6bd</code>; nothing pushed.</footer>
+</section>
+
+</main>
+</div>

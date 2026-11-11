@@ -1,0 +1,53 @@
+{
+  "event": "invoicing.note.issued",
+  "name": "Nota débito de venta",
+  "journalCode": "VT",
+  "template": {
+    "date": "$.date",
+    "description": "Nota {{number}} · {{customer.legalName}}",
+    "party": "$.customer.partyId",
+    "costCenter": "$.costCenterId",
+    "currency": "$.currency",
+    "exchangeRate": "$.exchangeRate",
+    "source": {
+      "entity": "invoicing.note",
+      "id": "$.noteId"
+    },
+    "when": [
+      {
+        "path": "$.kind",
+        "equals": "debit"
+      }
+    ],
+    "lines": [
+      {
+        "role": "receivable",
+        "side": "debit",
+        "amount": "$.totals.totalDoc",
+        "amountCompany": "$.totals.total",
+        "dueDate": "$.dueDate"
+      },
+      {
+        "role": "revenue",
+        "side": "credit",
+        "forEach": "$.lines[*]",
+        "amount": "$.subtotalDoc",
+        "amountCompany": "$.subtotal",
+        "dimension": "category:{{categoryId}}",
+        "costCenter": "$.costCenterId"
+      },
+      {
+        "role": "vat_out",
+        "side": "credit",
+        "forEach": "$.taxes[*]",
+        "amount": "$.amountDoc",
+        "amountCompany": "$.amount",
+        "dimension": "tax:{{code}}",
+        "taxCode": "$.code",
+        "taxRate": "$.rate",
+        "taxBase": "$.base"
+      }
+    ],
+    "reverseOf": null
+  }
+}

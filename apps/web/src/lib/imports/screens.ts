@@ -20,6 +20,8 @@ export interface ImportScreen {
   /** `<schema>.<table>`, as the prototype's card shows it. */
   table: string;
   columns: number;
+  /** A documento imports from its .xlsx template only: the dialog offers no «Plantilla CSV» (Task 13 ruling). */
+  xlsxOnly: boolean;
 }
 
 /** The processes to ask permission for. */
@@ -32,6 +34,6 @@ export function importScreens(registry: Registry, runnable: ReadonlySet<string>)
     const record = recordEntity(entity);
     const def = registry.entities().find((e) => e.id === entity);
     if (!record || !def || !runnable.has(record.create)) return [];
-    return [{ entity, href, table: `${def.schema}.${def.table}`, columns: importColumns(registry, entity).length }];
+    return [{ entity, href, table: `${def.schema}.${def.table}`, columns: importColumns(registry, entity).length, xlsxOnly: def.entityType === "documento" }];
   });
 }

@@ -63,18 +63,12 @@ describe("parseShellPref, the assistant drawer", () => {
   });
 });
 
-describe("parseShellPref, the DIAN hints toggle of the record forms", () => {
-  it("accepts a boolean with its save time under the key forms.dian_hints", () => {
-    expect(parseShellPref({ key: "forms.dian_hints", value: true, savedAt: now }, now)).toEqual({ key: "forms.dian_hints", stored: { value: true, savedAt: now } });
-    expect(parseShellPref({ key: "forms.dian_hints", value: false, savedAt: now }, now)).toEqual({ key: "forms.dian_hints", stored: { value: false, savedAt: now } });
-  });
-
-  it("refuses anything that is not a boolean, and absurd times", () => {
-    for (const value of ["true", 1, 0, null, undefined, {}, []]) expect(parseShellPref({ key: "forms.dian_hints", value, savedAt: now }, now)).toBeNull();
-    expect(parseShellPref({ key: "forms.dian_hints", value: true }, now)).toBeNull();
-    expect(parseShellPref({ key: "forms.dian_hints", value: true, savedAt: now + 2 * 86_400_000 }, now)).toBeNull();
+describe("parseShellPref, the retired DIAN hints toggle", () => {
+  it("refuses forms.dian_hints: the record forms always show the DIAN codes and have no switch (owner 2026-11-05)", () => {
+    expect(parseShellPref({ key: "forms.dian_hints", value: true, savedAt: now }, now)).toBeNull();
   });
 });
+
 
 describe("savedFrom", () => {
   it("reads the stored envelope; a bare legacy value takes the row's time", () => {
@@ -82,5 +76,32 @@ describe("savedFrom", () => {
     expect(savedFrom({ value: { value: "dark", savedAt: 5 }, updatedAt })).toEqual({ value: "dark", savedAt: 5 });
     expect(savedFrom({ value: "light", updatedAt })).toEqual({ value: "light", savedAt: now });
     expect(savedFrom(undefined)).toBeNull();
+  });
+});
+
+describe("parseShellPref, the Inicio pages of the modules", () => {
+  const now = 1_700_000_000_000;
+  const layout = [{ id: "kpis", w: 4, h: 170 }, { id: "chart:accounting.top_expenses", w: 2, h: 300 }];
+
+  it("stores a module page's layout under home_layout.<module>, repaired", () => {
+    expect(parseShellPref({ key: "home_layout.accounting", value: layout, savedAt: now }, now)).toEqual({ key: "home_layout.accounting", stored: { value: layout, savedAt: now } });
+    const parsed = parseShellPref({ key: "home_layout.core", value: [{ id: "kpis", w: 9, h: 5 }], savedAt: now }, now);
+    expect(parsed?.stored.value).toEqual([{ id: "kpis", w: 4, h: 160 }]);
+  });
+
+  it("refuses a module layout with a widget that is not one of that page's, or a malformed module key", () => {
+    expect(parseShellPref({ key: "home_layout.accounting", value: [{ id: "recent", w: 2, h: 300 }], savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout.Accounting", value: layout, savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout.a.b", value: layout, savedAt: now }, now)).toBeNull();
+    expect(parseShellPref({ key: "home_layout.", value: layout, savedAt: now }, now)).toBeNull();
+  });
+
+  it("stores the switched-off KPIs and charts cleaned, and refuses anything else under home_hidden", () => {
+    expect(parseShellPref({ key: "home_hidden", value: ["core.parties", "accounting.top_expenses", "core.parties"], savedAt: now }, now)).toEqual({
+      key: "home_hidden",
+      stored: { value: ["accounting.top_expenses", "core.parties"], savedAt: now },
+    });
+    expect(parseShellPref({ key: "home_hidden", value: [], savedAt: now }, now)?.stored.value).toEqual([]);
+    for (const bad of ["core.parties", [1], ["kpis"], { a: 1 }, null]) expect(parseShellPref({ key: "home_hidden", value: bad, savedAt: now }, now)).toBeNull();
   });
 });

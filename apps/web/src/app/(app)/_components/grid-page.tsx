@@ -3,18 +3,20 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { DataGrid, decodeGridQuery, defaultView, ImportDialog, ImportIcon, partyKindFilters, PartyScopeSwitches, useTabs, viewFromSaved, type GridRow, type PartySwitches, type SavedGridState } from "@erp/ui";
+import { DataGrid, decodeGridQuery, defaultView, ImportDialog, ImportIcon, partyKindFilters, PartyScopeSwitches, useTabs, viewFromSaved, type GridRow, type GridStateInput, type PartySwitches, type SavedGridState } from "@erp/ui";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { deleteViewAction, saveViewAction } from "@/lib/grid/actions";
 import type { GridPageData } from "@/lib/grid/load";
 import { NEW_RECORD_ID } from "@/lib/records/entities";
+import { printListAction } from "@/lib/records/lifecycle-actions";
+import { downloadPrint } from "@/lib/records/print-client";
 
 /** A toggle that narrows the grid (Hoy, Borradores…); one per group is on at a time, and the groups combine with AND. */
 export interface QuickFilter {
   id: string;
   group: string;
   label: string;
-  filters: { field: string; op: "eq" | "between"; value: string; value2?: string }[];
+  filters: { field: string; op: "eq" | "in" | "between"; value: string | string[]; value2?: string }[];
 }
 
 /**
@@ -63,6 +65,13 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // Imprimir (Task 16): the grid's list with the entity's list template; a refusal comes back as its text next to the button.
+  const printList = async (state: GridStateInput): Promise<string | null> => {
+    const printed = await printListAction(data.entity, state, data.title);
+    if (!printed.ok) return printed.messages.length > 0 ? printed.messages.join(" · ") : t.has(`errors.${printed.code}`) ? t(`errors.${printed.code}`) : t("errors.unknown");
+    return (await downloadPrint(printed.fileId)) ? null : t("grid.print_failed");
+  };
+
   const changeViews = async (result: Awaited<ReturnType<typeof saveViewAction>>) => {
     if (!result.ok) throw new Error(result.code);
     setViews(result.views);
@@ -78,6 +87,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
         initialState={initialState}
         baseFilters={baseFilters}
         onRowOpen={openRow}
+        {...(data.canPrint ? { onPrint: printList } : {})}
         emptyAction={data.canCreate ? <button type="button" className="erp-btn erp-btn--primary" onClick={openNew}>{t("grid.new")}</button> : undefined}
         headerExtra={data.partyScope ? <PartyScopeSwitches scope={data.partyScope} value={switches} onChange={setSwitches} /> : null}
         toolbar={
@@ -94,7 +104,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
                   <button
                     key={q.id}
                     type="button"
-                    className="erp-btn"
+                    className="erp-chip-toggle"
                     aria-pressed={quick[q.group] === q.id}
                     onClick={() => setQuick((current) => {
                       const { [q.group]: on, ...rest } = current;
@@ -120,7 +130,7 @@ export function GridPage({ data, quickFilters = [], toolbarExtra = null }: { dat
           onDelete: async (id: string) => changeViews(await deleteViewAction(data.entity, id)),
         }}
       />
-      {data.canImport && <ImportDialog open={importing} onOpenChange={setImporting} entity={data.entity} entityLabel={data.title} requestStepUp={requestStepUp} />}
+      {data.canImport && <ImportDialog open={importing} onOpenChange={setImporting} entity={data.entity} entityLabel={data.title} requestStepUp={requestStepUp} xlsxOnly={data.xlsxOnly} />}
     </>
   );
 }

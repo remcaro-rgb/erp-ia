@@ -112,6 +112,7 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
 
   const edit = (index: number, patch: Partial<EditorLine>) => onChange(lines.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   const remove = (index: number) => {
+    if (lines[index]?.locked) return;
     if (lines.length <= 1) onChange([blankLine()]);
     else onChange(lines.filter((_, i) => i !== index));
   };
@@ -212,7 +213,7 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
           </thead>
           <tbody>
             {lines.map((line, row) => (
-              <tr key={line.key} data-restricted={line.restricted ? "" : undefined}>
+              <tr key={line.key} data-restricted={line.restricted ? "" : undefined} data-locked={line.locked ? "" : undefined}>
                 <td className="erp-lines__no erp-muted">{row + 1}</td>
                 {line.restricted ? (
                   <td colSpan={columns.length} className="erp-lines__masked" title={t("restricted_line")}>
@@ -225,7 +226,7 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
                         <MoneyInput
                           data-cell={`${row}:${col}`}
                           aria-label={`${t(`col.${LABEL_KEY[c]}`)}, ${t("line_n", { n: row + 1 })}`}
-                          disabled={readOnly}
+                          disabled={readOnly || line.locked === true}
                           value={line[c]}
                           onChange={(value) => {
                             const amount = value && value > 0 ? value : null;
@@ -250,7 +251,7 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
                           value={line[FIELD[c]] as Chosen | null}
                           placeholder={c === "businessUnit" && !line.businessUnit ? (headerBusinessUnit ?? undefined) : undefined}
                           inherit={c === "businessUnit" && !line.businessUnit && !!headerBusinessUnit}
-                          disabled={readOnly}
+                          disabled={readOnly || (line.locked === true && c === "account")}
                           lookup={lookup}
                           debounceMs={debounceMs}
                           onPick={(picked) => edit(row, { [FIELD[c]]: picked } as Partial<EditorLine>)}
@@ -260,7 +261,7 @@ export function LinesEditor({ lines, onChange, columns: available, lookup, heade
                   ))
                 )}
                 <td className="erp-lines__act">
-                  {!readOnly && (
+                  {!readOnly && !line.locked && (
                     <button type="button" className="erp-iconbtn" tabIndex={-1} aria-label={t("remove_line", { n: row + 1 })} onClick={() => remove(row)}>
                       <X size={14} aria-hidden="true" />
                     </button>

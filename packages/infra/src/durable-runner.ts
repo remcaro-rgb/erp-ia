@@ -23,7 +23,11 @@ export interface DurableRunner {
    * World with a background worker has anything to start (the Vercel World delivers over HTTP, so it is a no-op).
    */
   startWorld(): Promise<void>;
+  /** Where a run stands (`getRun(runId).status`); `not_found` when the World has no such run (Task 17 fix round 1: a stale run's escape). */
+  status(runId: string): Promise<DurableRunStatus>;
 }
+
+export type DurableRunStatus = "pending" | "running" | "completed" | "failed" | "cancelled" | "not_found";
 
 class WorkflowRunner implements DurableRunner {
   constructor(readonly world: DurableRunner["world"]) {}
@@ -32,6 +36,15 @@ class WorkflowRunner implements DurableRunner {
     const { start } = await import("workflow/api");
     const run = await start(workflow as never, args as never);
     return { runId: run.runId };
+  }
+
+  async status(runId: string): Promise<DurableRunStatus> {
+    const { getRun } = await import("workflow/api");
+    try {
+      return (await getRun(runId).status) as DurableRunStatus;
+    } catch {
+      return "not_found";
+    }
   }
 
   async startWorld(): Promise<void> {

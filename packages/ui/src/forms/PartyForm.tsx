@@ -120,14 +120,12 @@ export function PartyForm({ record, initial: copy, tables, modes, readOnly = fal
   const submit = () => void send();
 
   return (
-    <RecordForm canSave={!readOnly && !blocked && !flow.saving && !flow.stepUp && (dirty || record === null)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !blocked && !flow.saving && !flow.stepUp && (dirty || record === null)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(record ? { onDiscard: () => setDraft(initial) } : {})}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("identification")}>
         <div className="erp-form3">
           <SelectField
             label={t("person_type")}
-            hint="AdditionalAccountID"
-            hintKind="dian"
             value={draft.personType}
             disabled={dis}
             options={[
@@ -137,7 +135,7 @@ export function PartyForm({ record, initial: copy, tables, modes, readOnly = fal
             error={fe("personType")}
             onChange={set("personType")}
           />
-          <SelectField label={t("document_type")} hint="schemeName" hintKind="dian" value={draft.documentType} disabled={dis} options={docTypes} error={fe("documentType")} onChange={set("documentType")} />
+          <SelectField label={t("document_type")} value={draft.documentType} disabled={dis} options={docTypes} error={fe("documentType")} onChange={set("documentType")} />
           <div className="erp-row erp-row--top">
             <TextField
               className="erp-grow"
@@ -185,14 +183,13 @@ export function PartyForm({ record, initial: copy, tables, modes, readOnly = fal
           <Checks
             label={t("responsibilities")}
             hint={t("responsibilities_hint")}
-            hintKind="dian"
             options={tables.responsibilities}
             value={draft.taxResponsibilities}
             disabled={dis}
             onToggle={(code, on) => setDraft((d) => toggleResponsibility(d, code, on, tables.exclusiveResponsibility))}
           />
           <div className="erp-stack">
-            <SelectField label={t("tax_scheme")} hint="TaxScheme" hintKind="dian" value={draft.taxScheme} disabled={dis} options={tables.taxSchemes} error={fe("taxScheme")} onChange={set("taxScheme")} />
+            <SelectField label={t("tax_scheme")} value={draft.taxScheme} disabled={dis} options={tables.taxSchemes} error={fe("taxScheme")} onChange={set("taxScheme")} />
             <TextField label={t("ciiu")} hint={t("ciiu_hint")} value={draft.ciiu} maxLength={4} inputMode="numeric" mono disabled={dis} error={fe("ciiu")} onChange={set("ciiu")} />
           </div>
           <div className="erp-field">
@@ -224,11 +221,11 @@ export function PartyForm({ record, initial: copy, tables, modes, readOnly = fal
 
       <Section title={t("location")}>
         <div className="erp-form4">
-          <SelectField label={t("country")} hint="ISO 3166-1" hintKind="dian" value={draft.countryCode} disabled={dis} options={tables.countries} error={fe("countryCode")} onChange={set("countryCode")} />
+          <SelectField label={t("country")} value={draft.countryCode} disabled={dis} options={tables.countries} error={fe("countryCode")} onChange={set("countryCode")} />
           {home ? (
             <>
-              <CodeComboboxField label={t("department")} hint="DANE" hintKind="dian" value={draft.departmentCode} disabled={dis} options={tables.departments} empty="—" error={fe("departmentCode")} onChange={set("departmentCode")} />
-              <CodeComboboxField label={t("municipality")} hint="DANE" hintKind="dian" value={draft.municipalityCode} disabled={dis} options={municipalities} empty="—" error={fe("municipalityCode")} onChange={set("municipalityCode")} />
+              <CodeComboboxField label={t("department")} value={draft.departmentCode} disabled={dis} options={tables.departments} empty="—" error={fe("departmentCode")} onChange={set("departmentCode")} />
+              <CodeComboboxField label={t("municipality")} value={draft.municipalityCode} disabled={dis} options={municipalities} empty="—" error={fe("municipalityCode")} onChange={set("municipalityCode")} />
               <TextField label={t("postal_code")} hint={t("postal_hint")} value={draft.postalCode} maxLength={6} inputMode="numeric" mono disabled={dis} error={fe("postalCode")} onChange={set("postalCode")} />
             </>
           ) : (
@@ -270,7 +267,8 @@ export function PartyForm({ record, initial: copy, tables, modes, readOnly = fal
       </Section>
 
       <Section title={t("emails")}>
-        <div className="erp-form3">
+        {/* The e-mail and phone boxes line up whatever their labels wrap to (owner 2026-11-05). */}
+        <div className="erp-form3 erp-form-aligned">
           {includesCustomer(draft.relation) && (
             <div className="erp-field-wrap">
               <EmailField label={t("invoice_email")} hint={`${t("pill_customer")} · ${t("invoice_email_hint")}`} value={draft.invoiceEmail} required disabled={dis} announce={false} labels={fieldLabels} onChange={set("invoiceEmail")} />
@@ -283,17 +281,19 @@ export function PartyForm({ record, initial: copy, tables, modes, readOnly = fal
               <FieldError message={fe("supplierEmail")} />
             </div>
           )}
-          <PhoneField
-            announce={false}
-            label={t("phone")}
-            hint={t("phone_hint")}
-            cc={draft.phoneCc}
-            number={draft.phone}
-            disabled={dis}
-            labels={fieldLabels}
-            onChange={({ cc, number }) => setDraft((d) => ({ ...d, phoneCc: cc, phone: number }))}
-          />
-          <FieldError message={fe("phone") ?? fe("phoneCc")} />
+          <div className="erp-field-wrap">
+            <PhoneField
+              announce={false}
+              label={t("phone")}
+              hint={t("phone_hint")}
+              cc={draft.phoneCc}
+              number={draft.phone}
+              disabled={dis}
+              labels={fieldLabels}
+              onChange={({ cc, number }) => setDraft((d) => ({ ...d, phoneCc: cc, phone: number }))}
+            />
+            <FieldError message={fe("phone") ?? fe("phoneCc")} />
+          </div>
         </div>
         <span className="erp-small erp-muted">{draft.relation === "both" ? t("both_emails") : t("more_contacts")}</span>
       </Section>

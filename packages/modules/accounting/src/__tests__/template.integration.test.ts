@@ -64,8 +64,88 @@ describe("entry templates", () => {
   });
 
   it("from_template refuses a line with no amount, a template that is not the company's and an inactive account", async () => {
-    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", await rent());
+    // The name is unique per company (0043, D14 import key).
+    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name: "Arriendo de la bodega" });
     await expect(h.run(h.contador, "accounting.entry.from_template", { templateId, date: "2026-10-31" })).rejects.toMatchObject({ code: "invalid_input", details: [expect.stringContaining("2")] });
     await expect(h.run(h.contador, "accounting.entry.from_template", { templateId: newId(), date: "2026-10-31" })).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  // Record-level access (entity types spec §9.1; Task 9 M4 → Task 13): a comprobante from a plantilla needs the `use` right on it. A
+  // plantilla the caller cannot read is refused exactly as one that does not exist; one they read without `use` is record_forbidden.
+  it("from_template needs the use right on the template: hidden is not_found (as a random id), read-only is record_forbidden", async () => {
+    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name: "Arriendo reservado" });
+    await h.sql`insert into kernel.record_access (company_id, entity, record_id, grantee_role_id, can_read, can_use)
+                values (${h.companyId}, 'accounting.entry_template', ${templateId}, ${h.contador.roleId}, true, false)`;
+    try {
+      const entries = async () => (await h.sql<{ n: number }[]>`select count(*)::int as n from accounting.entries where company_id = ${h.companyId}`)[0]!.n;
+      const before = await entries();
+      const refusal = (caller: typeof h.contador, id: string) =>
+        h.run(caller, "accounting.entry.from_template", { templateId: id, date: "2026-10-31", amounts: { 2: 3_000_000 } }).then(() => null, (e: unknown) => e as { code: string; message: string; details?: unknown });
+      const hidden = await refusal(h.auxiliar, templateId);
+      const ghost = await refusal(h.auxiliar, newId());
+      expect(hidden?.code).toBe("not_found");
+      expect(hidden?.details).toEqual(ghost?.details);
+      expect(await refusal(h.contador, templateId)).toMatchObject({ code: "record_forbidden", details: { entity: "accounting.entry_template", recordId: templateId, right: "use" } });
+      expect(await entries()).toBe(before);
+    } finally {
+      await h.sql`delete from kernel.record_access where company_id = ${h.companyId} and record_id = ${templateId}`;
+    }
+  });
+  it("keeps the note and whether the values may be changed, on create and update", async () => {
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name: "Arriendo fijo", valuesEditable: false, note: "Solo el contador la cambia" });
+    expect(await h.run(h.contador, "accounting.entry_template.consult", { id })).toMatchObject({ values_editable: false, note: "Solo el contador la cambia" });
+    await h.run(h.contador, "accounting.entry_template.update", { id, valuesEditable: true, note: null });
+    expect(await h.run(h.contador, "accounting.entry_template.consult", { id })).toMatchObject({ values_editable: true, note: null });
+    const { id: plain } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name: "Arriendo libre" });
+    expect(await h.run(h.contador, "accounting.entry_template.consult", { id: plain })).toMatchObject({ values_editable: true, note: null });
+  });
+
+  const fromRent = async (name: string, valuesEditable: boolean) => {
+    const { id: templateId } = await h.run<{ id: string }>(h.contador, "accounting.entry_template.create", { ...(await rent()), name, valuesEditable });
+    const [nc, a512, a111] = [await journalId("NC"), ...(await Promise.all(["512010", "111005"].map(async (code) => (await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = ${code}`)[0]!.id)))];
+    const lines = (debit: number, credit: number) => [
+      { accountId: a512, costCenterId: ccLeaf, debit, credit: 0 },
+      { accountId: a111, debit: 0, credit },
+    ];
+    const input = (amounts: [number, number]) => ({ journalId: nc, date: "2026-10-31", description: "Arriendo", businessUnitId: buLeaf, templateId, lines: lines(...amounts) });
+    return { templateId, input };
+  };
+
+  it("entry.create with a templateId stores the origin Plantilla and the template, and the page can read it back", async () => {
+    const { templateId, input } = await fromRent("Arriendo con origen", true);
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", input([3_000_000, 3_000_000]));
+    expect(await h.sql`select origin, template_id from accounting.entries where id = ${id}`).toEqual([{ origin: "template", template_id: templateId }]);
+    expect(await h.run(h.contador, "accounting.entry.consult", { id })).toMatchObject({ origin: "template", template_id: templateId });
+  });
+
+  it("a template whose values are not editable refuses a changed fixed amount on create and on update, and accepts the open ones", async () => {
+    const { input: full } = await fromRent("Arriendo bloqueado", false);
+    const input = (amounts: [number, number]) => full(amounts);
+    const forUpdate = (amounts: [number, number]) => {
+      const rest: Record<string, unknown> = { ...full(amounts) };
+      delete rest.templateId;
+      return rest;
+    };
+    await expect(h.run(h.contador, "accounting.entry.create", input([2_000_000, 2_000_000]))).rejects.toMatchObject({ code: "invalid_input", details: [expect.stringContaining("3.000.000")] });
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", input([3_000_000, 3_000_000]));
+    await expect(h.run(h.contador, "accounting.entry.update", { id, ...forUpdate([2_500_000, 2_500_000]) })).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await h.run(h.contador, "accounting.entry.update", { id, ...forUpdate([3_000_000, 3_000_000]), description: "Arriendo de noviembre" })).toMatchObject({ id });
+  });
+
+  it("a template whose values are editable accepts other amounts", async () => {
+    const { input } = await fromRent("Arriendo editable", true);
+    const { id } = await h.run<{ id: string }>(h.contador, "accounting.entry.create", input([2_000_000, 2_000_000]));
+    expect(await h.sql`select total_debit from accounting.entries where id = ${id}`).toEqual([{ total_debit: "2000000.0000" }]);
+  });
+
+  it("entry.create from a template needs the use right on it", async () => {
+    const { templateId, input } = await fromRent("Arriendo restringido", true);
+    await h.sql`insert into kernel.record_access (company_id, entity, record_id, grantee_role_id, can_read, can_use)
+                values (${h.companyId}, 'accounting.entry_template', ${templateId}, ${h.contador.roleId}, true, false)`;
+    try {
+      await expect(h.run(h.contador, "accounting.entry.create", input([3_000_000, 3_000_000]))).rejects.toMatchObject({ code: "record_forbidden" });
+    } finally {
+      await h.sql`delete from kernel.record_access where company_id = ${h.companyId} and record_id = ${templateId}`;
+    }
   });
 });

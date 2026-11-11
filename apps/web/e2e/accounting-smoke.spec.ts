@@ -10,7 +10,7 @@ import { testEnv } from "../test-support/env";
 // creates users, roles, accounts or entries beyond the comprobante the third test writes; it signs in with the seeded accounts and
 // walks Contabilidad.
 //
-//  1. Laura (admin): Balance de prueba Este período with equal totals, Movimientos grouped by Cuenta then Centro de costo with
+//  1. Laura (admin): Balance de prueba of October 2026 with equal totals, Movimientos grouped by Cuenta then Centro de costo with
 //     subtotals, September already closed, and the assistant's answer to "gastos de octubre por centro de costo".
 //  2. Marcela (cajero, no view on 5105, class 3 nor the Davivienda account): the restricted accounts collapse into one row with the
 //     same totals, the Auxiliar of 510506 answers Sin acceso, "Nómina octubre" shows masked lines and a new comprobante offers no 5105.
@@ -29,6 +29,15 @@ async function login(page: Page, account: DemoAccount) {
     await page.getByLabel("Dígito 1").fill(totpCode(account.totpSecret));
   }
   await expect(page).toHaveURL(/\/$/);
+}
+
+/**
+ * The Balance de prueba of October 2026, the month that holds the demo samples, named explicitly so the spec does not depend on
+ * today's date ("Este período" follows the calendar).
+ */
+async function octoberTrialBalance(): Promise<string> {
+  const [october] = await sql<{ id: string }[]>`select id from accounting.periods where company_id = ${DEMO_COMPANY_ID} and starts_on = '2026-10-01'`;
+  return `/accounting/reports/trial_balance?p=${encodeURIComponent(JSON.stringify({ from: october!.id, to: october!.id }))}`;
 }
 
 /** The text of the money cells of a footer, in order. */
@@ -52,13 +61,13 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     await sql.end();
   });
 
-  test("laura: Contabilidad → Balance de prueba Este período shows equal totals; Movimientos grouped by Cuenta then Centro de costo shows subtotals; Cerrar septiembre is already closed; assistant 'gastos de octubre por centro de costo' answers with a table and a link to Movimientos", async ({ page }) => {
+  test("laura: Contabilidad → Balance de prueba of October 2026 shows equal totals; Movimientos grouped by Cuenta then Centro de costo shows subtotals; Cerrar septiembre is already closed; assistant 'gastos de octubre por centro de costo' answers with a table and a link to Movimientos", async ({ page }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1600, height: 900 });
     await login(page, LAURA);
 
-    // Balance de prueba, Este período: the footer's debit equals its credit, opening and closing too.
-    await page.goto("/accounting/reports/trial_balance");
+    // Balance de prueba of October 2026: the footer's debit equals its credit, opening and closing too.
+    await page.goto(await octoberTrialBalance());
     const balance = page.getByRole("region", { name: "Balance de prueba" });
     await expect(balance.locator("tfoot")).toContainText("$");
     const cells = await money(balance.locator("tfoot").locator("th, td"));
@@ -70,8 +79,11 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     expect(debit).not.toBe("$ 0,00");
 
     // Movimientos: Agrupar por Cuenta, then Centro de costo.
-    await page.goto("/accounting/movements");
+    // October 2026 (the demo samples), named in the link's query instead of the open period of today's date.
+    const october = { filters: [{ field: "date", op: "between", value: "2026-10-01", value2: "2026-10-31" }, { field: "status", op: "eq", value: "posted", join: "and" }] };
+    await page.goto(`/accounting/movements?q=${encodeURIComponent(JSON.stringify(october))}`);
     await expect(page.locator(".erp-grid__body tbody tr").first()).toBeVisible();
+    await expect(page.locator(".erp-grid__body tbody tr").first()).not.toContainText("Sin resultados");
     await page.getByRole("button", { name: "Agrupar por", exact: true }).click();
     const add = page.getByLabel("Agregar campo para agrupar");
     await add.selectOption({ label: "Cuenta" });
@@ -92,6 +104,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
 
     // The assistant answers with a table and a way into Movimientos.
     const drawer = page.getByRole("complementary", { name: "Asistente" });
+    if (!(await drawer.isVisible())) await page.getByRole("button", { name: "Asistente", exact: true }).click();
     await expect(drawer.getByLabel("Escribe")).toBeEnabled();
     const fresh = drawer.getByRole("button", { name: "Nueva conversación" });
     if (await fresh.isVisible()) await fresh.click();
@@ -116,7 +129,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     expect(books!.debit).toBe(books!.credit);
 
     await login(page, MARCELA);
-    await page.goto("/accounting/reports/trial_balance");
+    await page.goto(await octoberTrialBalance());
     const balance = page.getByRole("region", { name: "Balance de prueba" });
     await expect(balance.locator("tfoot")).toContainText("$");
     // Every row on one page (the restricted line sorts after the accounts).
@@ -134,7 +147,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     const lauraPage = await other.newPage();
     await lauraPage.setViewportSize({ width: 1600, height: 900 });
     await login(lauraPage, LAURA);
-    await lauraPage.goto("/accounting/reports/trial_balance");
+    await lauraPage.goto(await octoberTrialBalance());
     const lauraBalance = lauraPage.getByRole("region", { name: "Balance de prueba" });
     await expect(lauraBalance.locator("tfoot")).toContainText("$");
     // The restricted row keeps each side of its accounts, so all six totals are Laura's to the peso.
@@ -151,11 +164,23 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     await page.goto(`/accounting/reports/account_detail?p=${encodeURIComponent(JSON.stringify(params))}`);
     await expect(page.getByRole("region", { name: "Auxiliar por cuenta" }).getByRole("alert")).toHaveText("Sin acceso");
 
-    // Nómina octubre: the comprobante shows, its 5105 lines masked.
-    const [payroll] = await sql<{ id: string }[]>`select id from accounting.entries where company_id = ${DEMO_COMPANY_ID} and description = 'Nómina octubre'`;
+    // Nómina octubre (D20): the comprobante's lines read in the universal grid; its 5105 lines are «••••» placeholder rows and the
+    // grid's totals are the comprobante's true totals.
+    const [payroll] = await sql<{ id: string; total_debit: string; total_credit: string; lines: number; restricted: number }[]>`
+      select e.id, e.total_debit, e.total_credit, (select count(*)::int from accounting.entry_lines l where l.entry_id = e.id) as lines,
+             (select count(*)::int from accounting.entry_lines l join accounting.accounts a on a.id = l.account_id where l.entry_id = e.id and a.code like '5105%') as restricted
+      from accounting.entries e where e.company_id = ${DEMO_COMPANY_ID} and e.description = 'Nómina octubre'`;
+    expect(payroll!.restricted).toBeGreaterThan(0);
     await page.goto(`/r/accounting.entry/${payroll!.id}`);
     await expect(page.getByText("Este comprobante tiene líneas de cuentas restringidas").first()).toBeVisible();
-    await expect(page.getByText("••••").first()).toBeVisible();
+    const linesGrid = page.locator("section.erp-grid").filter({ visible: true });
+    await expect(linesGrid.getByRole("button", { name: "Filtro avanzado" })).toBeVisible();
+    await expect(linesGrid.locator("tbody tr")).toHaveCount(payroll!.lines);
+    await expect(linesGrid.locator("tbody tr").filter({ hasText: "••••" })).toHaveCount(payroll!.restricted);
+    const peso = (value: string) => `$ ${Math.floor(Number(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${String(Math.round(Number(value) * 100) % 100).padStart(2, "0")}`;
+    const foot = linesGrid.locator("tfoot");
+    await expect(foot).toContainText(peso(payroll!.total_debit));
+    await expect(foot).toContainText(peso(payroll!.total_credit));
 
     // A new comprobante: the account lookup offers no 5105.
     await page.goto("/r/accounting.entry/new");
@@ -170,7 +195,7 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     await expect(page.getByRole("option", { name: /^5105/ })).toHaveCount(0);
   });
 
-  test("andres: creates a draft, Enviar a aprobación; cannot approve it; laura approves with TOTP → NC-<n>; the auto-reversal draft of the accrual appears in Borradores dated 2026/11/01", async ({ page, browser }) => {
+  test("andres: writes a comprobante, Guardar y enviar a aprobación; laura approves with TOTP → NC-<n>; the auto-reversal draft of the accrual appears in Borradores dated 2026/11/01", async ({ page, browser }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1600, height: 900 });
     await login(page, ANDRES);
@@ -195,25 +220,23 @@ test.describe("phase 2A smoke on the demo ledger", () => {
     await page.keyboard.type("45000");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("group", { name: "Totales del comprobante" })).toContainText("Cuadrado");
-    await page.getByRole("button", { name: "Crear", exact: true }).click();
+    // With approval «Guardar y enviar a aprobación» saves and sends it in one action (D15).
+    const bar = (p: typeof page) => p.getByRole("group", { name: "Acciones del registro" });
+    await bar(page).getByRole("button", { name: "Guardar y enviar a aprobación", exact: true }).click();
     await expect(page).toHaveURL(/\/r\/accounting\.entry\/[0-9a-f-]{36}$/);
     const entryId = page.url().split("/").pop()!;
     created.push(entryId);
+    await expect.poll(async () => (await sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("pending");
 
-    await page.getByRole("button", { name: "Enviar a aprobación" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Enviado a aprobación" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Aprobar y contabilizar" })).toBeDisabled();
-    await expect(page.getByText("Otra persona debe aprobar")).toBeVisible();
-
-    // Laura approves with her code.
+    // Laura approves with her code; Aprobar posts it in the same action.
     const other = await browser.newContext();
     const lauraPage = await other.newPage();
     await lauraPage.setViewportSize({ width: 1600, height: 900 });
     await login(lauraPage, LAURA);
     await lauraPage.goto(`/r/accounting.entry/${entryId}`);
-    await lauraPage.getByRole("button", { name: "Aprobar y contabilizar" }).click();
+    await bar(lauraPage).getByRole("button", { name: "Aprobar", exact: true }).click();
     await confirmStepUp(lauraPage, LAURA.totpSecret!);
-    await expect(lauraPage.getByRole("status").filter({ hasText: /Contabilizado como NC-\d+/ })).toBeVisible();
+    await expect.poll(async () => (await sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("posted");
     const [row] = await sql`select number, status from accounting.entries where id = ${entryId}`;
     expect(row).toMatchObject({ status: "posted" });
     expect(row!.number).toMatch(/^NC-\d+$/);

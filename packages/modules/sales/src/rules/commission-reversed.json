@@ -1,0 +1,14 @@
+{
+  "event": "sales.commission.reversed",
+  "name": "Reversión de comisiones",
+  "journalCode": "NC",
+  "template": {
+    "date": "$.date",
+    "description": "Reversión de la comisión {{number}}",
+    "lines": [],
+    "reverseOf": {
+      "event": "sales.commission.accrued",
+      "sourceId": "$.commissionId"
+    }
+  }
+}

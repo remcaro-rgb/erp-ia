@@ -5,7 +5,7 @@ import type { ProcessDef } from "../registry/types";
  * The only processes that may skip the role matrix: the kernel's own self-service processes, a user's preferences and
  * their own second step of the sign-in (design §22.19).
  */
-const SELF_SERVICE_PREFIXES = ["kernel.user_prefs.", "kernel.user.mfa."] as const;
+const SELF_SERVICE_PREFIXES = ["kernel.user_prefs.", "kernel.user.mfa.", "kernel.user.password."] as const;
 
 /**
  * Declares a process; typing the handler's input and output from the Zod schemas. Throws when a process

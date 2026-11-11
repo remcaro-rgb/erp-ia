@@ -8,7 +8,7 @@ import type { SaveRecord } from "../save-model";
 
 afterEach(cleanup);
 
-// The product form's search boxes (unit of measure, category), its computed fields and the DIAN hints switch.
+// The product form's search boxes (unit of measure, category), its computed fields and the DIAN codes (always shown, owner 2026-11-05).
 
 const tables: ProductTables = {
   idSchemes: [{ code: "999", name: "Estándar de adopción del contribuyente", kind: "own", length: 0, standardCodeLabel: "Código" }],
@@ -59,10 +59,10 @@ describe("ProductForm", () => {
     expect(category.value).toContain("Lácteos");
     // A new product takes its category's unit.
     const uom = screen.getByRole("combobox", { name: /^Unidad de medida/ }) as HTMLInputElement;
-    expect(uom.value).toBe("Litro");
+    expect(uom.value).toBe("LTR · Litro");
     fireEvent.change(uom, { target: { value: "kil" } });
     fireEvent.keyDown(uom, { key: "Enter" });
-    expect(uom.value).toBe("Kilogramo");
+    expect(uom.value).toBe("KGM · Kilogramo");
     fireEvent.change(screen.getByLabelText(/^Descripción/), { target: { value: "Café" } });
     fireEvent.click(screen.getByRole("button", { name: "Crear" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
@@ -103,14 +103,12 @@ describe("ProductForm", () => {
     expect(save.mock.calls[0]![0]).toMatchObject({ supplierId: "s1" });
   });
 
-  it("the unit shows its DIAN code only with the hints on", () => {
+  it("the unit always shows its DIAN code, and no XML/UBL name shows on the form (owner 2026-11-05)", () => {
     setup({ id: "p1", sku: "X", description: "X", kind: "good", uom_code: "KGM" });
-    const uom = screen.getByRole("combobox", { name: /^Unidad de medida/ }) as HTMLInputElement;
-    expect(uom.value).toBe("Kilogramo");
-    expect(screen.queryByText(/UN\/ECE/)).toBeNull();
-    fireEvent.click(screen.getByRole("switch", { name: "Ver códigos DIAN" }));
+    expect(screen.queryByRole("switch")).toBeNull();
     expect((screen.getByRole("combobox", { name: /^Unidad de medida/ }) as HTMLInputElement).value).toBe("KGM · Kilogramo");
-    expect(screen.getByText("@unitCode UN/ECE Rec. 20")).toBeTruthy();
+    const labels = [...document.querySelectorAll("form label, form legend")].map((l) => l.textContent ?? "").join(" | ");
+    expect(labels).not.toMatch(/UN\/ECE|@unitCode|schemeID|StandardItemIdentification|PriceTypeCode|BrandName|ModelName|cbc:/);
     // The category's codes are internal ids: never shown, never searched.
     const category = screen.getByRole("combobox", { name: /^Categoría/ });
     fireEvent.change(category, { target: { value: "cat-" } });

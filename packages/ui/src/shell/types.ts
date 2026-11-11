@@ -50,6 +50,8 @@ export interface ShellModule {
   id: string;
   /** i18n key, e.g. `nav.modules.core`. */
   label: string;
+  /** `NavItem.icon` name of the module's mark in the side menu. */
+  icon?: string;
 }
 
 /** One entry of the ⌘K palette: navigation, a create process, or (built by the palette) a question. */
@@ -57,7 +59,8 @@ export interface CommandItem {
   id: string;
   /** Already translated. */
   label: string;
-  kind: "go" | "create";
+  /** `record`: a record found by its ID (D16). */
+  kind: "go" | "create" | "record";
   href: string;
   /** Extra words that find the item ("clientes" finds Terceros). */
   keywords?: string[];

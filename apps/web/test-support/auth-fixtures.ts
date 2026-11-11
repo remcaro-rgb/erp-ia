@@ -31,9 +31,11 @@ export function anonClient(): SupabaseClient {
 }
 
 export interface AuthFixtureOptions {
-  /** `admin` is the system admin role (it requires MFA); `member` is a plain role. */
+  /** `admin` is the system admin role; `member` is a plain role. Neither requires the second step by itself. */
   role: "admin" | "member";
   companies?: number;
+  /** An administrator requires the user's second step (kernel.memberships.mfa_required, owner decision 2026-11-04). */
+  mfaRequired?: boolean;
 }
 
 export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFixture> {
@@ -64,7 +66,7 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
   const userId = data.user.id;
   await sql`insert into kernel.users(id, email, full_name) values (${userId}, ${email}, ${`Auth user ${suffix}`})`;
   for (const [i, companyId] of companyIds.entries()) {
-    const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id) values (${userId}, ${companyId}) returning id`;
+    const [membership] = await sql<{ id: string }[]>`insert into kernel.memberships(user_id, company_id, mfa_required) values (${userId}, ${companyId}, ${options.mfaRequired === true}) returning id`;
     await sql`insert into kernel.membership_roles(membership_id, role_id) values (${membership!.id}, ${roleIds[i]!})`;
   }
 
@@ -84,6 +86,22 @@ export async function seedAuthUser(options: AuthFixtureOptions): Promise<AuthFix
         // The outbox is shared by every suite and drained across companies: take this fixture's rows with it.
         await sql`delete from kernel.outbox where company_id = any(${companyIds}::uuid[])`;
         await sql`delete from kernel.outbox_dead_letter where company_id = any(${companyIds}::uuid[])`;
+        // Snapshots are append-only (entity types spec §8): replica role skips their guard trigger for the cleanup only, as test-db does.
+        await sql.begin(async (tx) => {
+          await tx`set local session_replication_role = replica`;
+          await tx`delete from kernel.record_snapshots where company_id = any(${companyIds}::uuid[])`;
+        });
+        // Access rules name roles and users (kernel.record_access, 0044; kernel.menu_access, 0047).
+        await sql`delete from kernel.record_access where company_id = any(${companyIds}::uuid[])`;
+        await sql`delete from kernel.menu_access where company_id = any(${companyIds}::uuid[])`;
+        // The action bar runs its steps under an idempotency key (Phase 2A.5 minor 2): its rows go with the company.
+        await sql`delete from kernel.process_idempotency where company_id = any(${companyIds}::uuid[])`;
+        // Nested-run settings, pairs and queued failures belong to the company (0126).
+        await sql`delete from kernel.nested_run_failures where company_id = any(${companyIds}::uuid[])`;
+        await sql`delete from kernel.nested_run_pairs where company_id = any(${companyIds}::uuid[])`;
+        await sql`delete from kernel.nested_run_settings where company_id = any(${companyIds}::uuid[])`;
+        // PDF templates belong to the company (kernel.doc_templates, 0048).
+        await sql`delete from kernel.doc_templates where company_id = any(${companyIds}::uuid[])`;
         await sql`delete from kernel.membership_roles where membership_id in (select id from kernel.memberships where user_id = ${userId})`;
         await sql`delete from kernel.memberships where user_id = ${userId}`;
         await sql`delete from kernel.roles where company_id = any(${companyIds}::uuid[])`;

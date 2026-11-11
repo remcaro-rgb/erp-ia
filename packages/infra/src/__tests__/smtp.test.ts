@@ -78,9 +78,9 @@ describe("SmtpMailer", () => {
     await expect(mailer.send({ to: "nadie@cafe.co", subject: "x", text: "y" })).rejects.toThrow(/550 no such user/);
   });
 
-  it("refuses header injection in the recipient or the subject", async () => {
+  it("refuses header injection in a recipient (a subject's line breaks are folded into spaces, mailer.test.ts)", async () => {
     const mailer = new SmtpMailer({ host: "127.0.0.1", port: 1, from: "erp@cafedelnorte.test" });
     await expect(mailer.send({ to: "ana@cafe.co\r\nBcc: x@y.z", subject: "x", text: "y" })).rejects.toThrow(/invalid/);
-    await expect(mailer.send({ to: "ana@cafe.co", subject: "x\r\nBcc: x@y.z", text: "y" })).rejects.toThrow(/invalid/);
+    await expect(mailer.send({ bcc: ["ana@cafe.co\r\nBcc: x@y.z"], subject: "x", text: "y" })).rejects.toThrow(/invalid/);
   });
 });

@@ -12,7 +12,7 @@ processes:
 
 Cuando una factura, un recibo u otro documento llega a contabilidad y ninguna regla logra convertirlo en un comprobante, no se pierde: queda como **evento pendiente**. Hay una insignia con el número de pendientes en **Reglas contables** y una tarjeta **Pendientes de contabilizar** en Inicio («3 eventos sin contabilizar»).
 
-Entra por **Contabilidad › Reglas contables › Pendientes de contabilizar**.
+Entra por **Contabilidad › Parámetros › Reglas contables › Pendientes de contabilizar**.
 
 ![lista de Pendientes de contabilizar](img/pendientes-de-contabilizar.png)
 
@@ -32,6 +32,12 @@ Cada fila trae el **Evento**, la **Fecha**, la **Regla**, la **Causa** (en palab
 1. Lee la **Causa** y corrige lo que dice (mapeo, cuenta, período…).
 2. Pulsa **Reintentar**. Si funciona, la fila dice «Contabilizado en el comprobante …» con el número; si no, «Sigue pendiente: …» con la razón.
 3. Si el evento no debe contabilizarse, pulsa **Descartar**, escribe el **Motivo** y confirma. Queda en el historial y el pendiente sale de la cuenta.
+
+## Documentos que esperan y fallos
+
+Esta lista guarda los **fallos**: eventos que una regla intentó contabilizar y no pudo. Es distinta de los **documentos que esperan su asiento**, que aparecen con el modo **Asíncrona con reintentos** (guía **Reglas contables**, sección **Modo de contabilización**): el documento ya está guardado y su comprobante todavía no se ha registrado, pero no ha fallado; el sistema lo registra solo en unos instantes. Si falla, pasa a esta lista. Arriba de **Mapeo de cuentas** ves los dos contadores, y en la ficha de cada documento la insignia **Pendiente de contabilizar** (esperando) o **Contabilización fallida · ver pendientes** (aquí).
+
+En el modo asíncrono, si un documento lleva esperando o fallado más de los minutos configurados (por defecto 60), quienes pueden **Reintentar** reciben un aviso en **Inicio** y en la campana que lleva al documento; se cierra solo cuando el asiento queda registrado (guía **Reglas contables**, «El aviso de asientos atrasados»).
 
 ## Por qué importa
 

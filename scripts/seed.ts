@@ -21,6 +21,10 @@
  *     25 products (scripts/demo/data.ts), so audit, outbox and consecutive numbers are real; then the required files
  *     (placeholder PDFs) of 6 parties through kernel.attachment.add, so they are invoice-ready.
  *  7. Two recommendations for Laura, with the evidence computed in SQL (rule 29).
+ *  8. The demo ledger (scripts/demo/accounting.ts): January to October 2026.
+ *  9. The phase 2B sale chain (scripts/demo/sales.ts, plan 2B Task 26), after the ledger and dated today: CRM, Ventas, Inventario,
+ *     Costos, Facturación and Pagos enabled; a bodega with stock, the medios de pago, the DIAN resolution of habilitación, and one
+ *     sale from the oportunidad to the paid invoice (accepted by the mock DIAN), plus a pedido shipped and one confirmed.
  *
  * The help index is built apart: `pnpm help:index` (the compose `help-index` job).
  */
@@ -32,16 +36,24 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import * as OTPAuth from "otpauth";
 import type { Sql } from "postgres";
 import { co } from "@erp/loc-co";
+import { einvoicePack } from "@erp/loc-co/einvoice";
 import { accounting } from "@erp/module-accounting";
 import { core } from "@erp/module-core";
+import { costing } from "@erp/module-costing";
+import { crm } from "@erp/module-crm";
+import { inventory } from "@erp/module-inventory";
+import { invoicing } from "@erp/module-invoicing";
+import { payments } from "@erp/module-payments";
+import { warehouse as warehouseModule } from "@erp/module-warehouse";
+import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { SupabaseAuthAdmin, SupabaseFileStore, type FileStore } from "@erp/infra";
 import {
+  disableModule,
   enableModule,
   getServiceDb,
   kernelModule,
   loadModules,
-  precheckAttachment,
   registerCountryPack,
   Registry,
   runProcess,
@@ -52,8 +64,10 @@ import {
   type RunProcessDeps,
 } from "@erp/kernel";
 import { CATEGORIES, INVOICE_READY_PARTIES, PARTIES, PRODUCTS } from "./demo/data";
+import { attachRequiredFiles } from "./demo/files";
 import { ANDRES, DEMO_ACCOUNTS, DEMO_COMPANY_ID, DEMO_ROLE_IDS, LAURA, MARCELA, type DemoAccount } from "./demo/accounts";
 import { seedAccounting } from "./demo/accounting";
+import { enableSalesChain, seedSalesChain } from "./demo/sales";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 const SEED_SQL = join(ROOT, "supabase", "seed.sql");
@@ -318,29 +332,6 @@ async function seedMasterData(sql: Sql, deps: RunProcessDeps, caller: Caller): P
   return created;
 }
 
-/** A one-page PDF that says it stands in for the document (the required files need a real PDF). */
-function placeholderPdf(title: string): Buffer {
-  const text = title.replace(/[()\\]/g, "");
-  const stream = `BT /F1 14 Tf 72 720 Td (${text} - documento de demostracion) Tj ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-  ];
-  let body = "%PDF-1.4\n";
-  const offsets: number[] = [];
-  objects.forEach((object, i) => {
-    offsets.push(body.length);
-    body += `${i + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xref = body.length;
-  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
-  body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return Buffer.from(body, "latin1");
-}
-
 /**
  * The required files of the INVOICE_READY_PARTIES (RUT, and Cámara de Comercio for a company), as Laura, the way the
  * Archivos tab adds them (POST /api/attachments): precheck, the bytes in the store, then kernel.attachment.add. A tag
@@ -352,19 +343,7 @@ async function seedRequiredFiles(sql: Sql, deps: RunProcessDeps, caller: Caller,
     const party = PARTIES.find((p) => p.documentNumber === document)!;
     const [row] = await sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${document}`;
     const tags = party.personType === "1" ? ["RUT", "Cámara de Comercio"] : ["RUT"];
-    for (const tag of tags) {
-      const [present] = await sql`
-        select 1 from kernel.attachments where company_id = ${DEMO_COMPANY_ID} and entity = 'core.party' and record_id = ${row!.id} and tag = ${tag} and removed_at is null`;
-      if (present) continue;
-      const bytes = placeholderPdf(`${tag} ${party.legalName ?? `${party.firstName} ${party.firstSurname}`}`);
-      const fileName = `${tag === "RUT" ? "rut" : "camara-de-comercio"}-${document}.pdf`;
-      const target = { entity: "core.party", recordId: row!.id, tag, fileName, mimeType: "application/pdf", sizeBytes: bytes.length };
-      await precheckAttachment(deps, caller, target);
-      const storagePath = `${caller.claims.tenant_id}/${DEMO_COMPANY_ID}/core.party/${row!.id}/${randomBytes(8).toString("hex")}-${fileName}`;
-      await store.put(storagePath, bytes, "application/pdf");
-      await runProcess(deps, caller, "kernel.attachment.add", { ...target, storagePath });
-      added++;
-    }
+    added += await attachRequiredFiles(sql, deps, caller, store, { partyId: row!.id, document, name: party.legalName ?? `${party.firstName} ${party.firstSurname}`, tags });
   }
   return added;
 }
@@ -418,25 +397,37 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
   assertSeedAllowed(env, flags);
   process.env.DATABASE_URL = env.databaseUrl;
   const sql = getServiceDb();
+  const step = (what: string) => console.log(`[seed] ${what}`);
   try {
+    step("seed.sql");
     await sql.file(SEED_SQL);
 
+    step("registry sync");
     const registry = new Registry();
-    loadModules(registry, [kernelModule, core, accounting, support]);
-    registerCountryPack(co);
+    // The app's modules (apps/web/src/lib/server/runtime.ts), the phase 2B sale chain included, and the country pack with its e-invoice part.
+    loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouseModule]);
+    registerCountryPack({ ...co, einvoice: einvoicePack });
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
+    // Pagos stays switched off while the 2A history is seeded and its periods close: with it entitled, receivable open items follow payment
+    // allocations only (0112) and the history's receipts have none, so period 2 would not close. Owner items 57 and 113, decided 2026-11-09:
+    // demo only; the real rule (FIFO for documents older than the first allocation) is 2C. Through the kernel's module helper;
+    // enableSalesChain switches it on.
+    await disableModule(sql, DEMO_COMPANY_ID, "payments", registry);
 
+    step("auth users");
     const admin = createClient(env.supabaseUrl, env.serviceKey, noSession);
     // kernel.admin.user.create looks people up through the AuthAdmin adapter: this stack's.
     setAuthAdmin(new SupabaseAuthAdmin(admin));
     const ids = new Map<string, string>();
     for (const account of DEMO_ACCOUNTS) ids.set(account.email, await ensureAuthUser(sql, admin, account));
     await bootstrapAdmin(sql, ids.get(LAURA.email)!, LAURA);
+    step("totp");
     await ensureTotp(sql, env, admin, LAURA, ids.get(LAURA.email)!);
 
     await sql`select kernel.seed_company_defaults(${DEMO_COMPANY_ID})`;
 
+    step("permissions and master data");
     const deps: RunProcessDeps = { sql, registry };
     const laura = await signIn(sql, env, LAURA);
     const adminRuns = await seedPermissions(sql, deps, laura, ids);
@@ -444,13 +435,25 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     const files = await seedRequiredFiles(sql, deps, laura.caller, new SupabaseFileStore(admin));
     const recommendations = await seedRecommendations(sql, ids.get(LAURA.email)!, ids.get(MARCELA.email)!);
     const andres = await signIn(sql, env, ANDRES);
+    step("accounting");
     const ledger = await seedAccounting(sql, deps, { laura, andres, ids }, ids.get(LAURA.email)!);
+
+    // The sale chain after the accounting history (its months keep their figures): the modules enabled, the posting rules they ship
+    // installed (accounting.chart.seed syncs them, as Activar módulo does), then the chain dated today (scripts/demo/sales.ts).
+    step("sale chain");
+    await enableSalesChain(sql, registry);
+    await runProcess(deps, await laura.stepUp(), "accounting.chart.seed", {});
+    const chain = await seedSalesChain(sql, deps, { laura }, new SupabaseFileStore(admin));
 
     console.log(
       `db:seed done: Café del Norte S.A.S. · ${adminRuns} admin change(s), ${created.categories} categories, ${created.parties} parties, ` +
         `${created.products} products, ${files} required file(s) and ${recommendations} recommendation(s) created (existing ones kept).`,
     );
     console.log(`  Contabilidad: ${ledger.entriesFromEvents} document(s) posted from events, ${ledger.periodsClosed} period(s) closed (existing ones kept).`);
+    console.log(
+      `  Ventas: ${chain.actions} action(s) run; the chain ${chain.chain.quote} → ${chain.chain.order} → ${chain.chain.delivery} → ${chain.chain.invoice} (DIAN simulada: aceptada) → ${chain.chain.receipt} (existing documents kept).`,
+    );
+    console.log(`  Exportación: ${chain.foreign.invoice} a Northwind Roasters LLC en USD (DIAN simulada: aceptada) → ${chain.foreign.receipt}, abono de USD 5.000 (existing documents kept).`);
     console.log("Demo accounts (LOCAL USE ONLY):");
     console.log(`  ${LAURA.email} / ${LAURA.password} · admin + gerente comercial · TOTP secret ${LAURA.totpSecret}`);
     console.log(`  ${MARCELA.email} / ${MARCELA.password} · cajero · no second step`);

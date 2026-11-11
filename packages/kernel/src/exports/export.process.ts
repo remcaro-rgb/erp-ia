@@ -24,6 +24,13 @@ export const FEATURE = "kernel.exports";
 const MAX_LABELS = 300;
 const MAX_OPTIONS = 5000;
 
+/** Header by field, as the user's screen shows it (cosmetic; also the PDF templates' labels). */
+export const presentationLabels = z.record(z.string().max(80), z.string().max(200)).refine((r) => Object.keys(r).length <= MAX_LABELS, "demasiadas etiquetas");
+/** Value labels by field. */
+export const presentationValues = z
+  .record(z.string().max(80), z.record(z.string().max(200), z.string().max(200)))
+  .refine((r) => Object.keys(r).length <= MAX_LABELS && Object.values(r).reduce((n, o) => n + Object.keys(o).length, 0) <= MAX_OPTIONS, "demasiados valores");
+
 const exportInput = z.object({
   /** The grid's entity; ignored (and recorded as `report:<id>`) when `source` names a report. */
   entity: z.string().min(1).max(100),
@@ -34,12 +41,9 @@ const exportInput = z.object({
   state: GridState,
   title: z.string().trim().min(1).max(120).optional(),
   /** Header by field, as the user's screen shows it. */
-  labels: z.record(z.string().max(80), z.string().max(200)).refine((r) => Object.keys(r).length <= MAX_LABELS, "demasiadas etiquetas").optional(),
+  labels: presentationLabels.optional(),
   /** Value labels by field. */
-  values: z
-    .record(z.string().max(80), z.record(z.string().max(200), z.string().max(200)))
-    .refine((r) => Object.keys(r).length <= MAX_LABELS && Object.values(r).reduce((n, o) => n + Object.keys(o).length, 0) <= MAX_OPTIONS, "demasiados valores")
-    .optional(),
+  values: presentationValues.optional(),
 });
 export type ExportInput = z.infer<typeof exportInput>;
 
@@ -53,7 +57,7 @@ const exportOutput = z.discriminatedUnion("mode", [
 export type ExportOutput = z.infer<typeof exportOutput>;
 
 /** A grid state the grid would refuse is refused the same way: a hidden or masked field is a denial, the rest a bad request. */
-const asProcessError = (error: unknown): unknown =>
+export const asProcessError = (error: unknown): unknown =>
   error instanceof QueryError
     ? new ProcessError(error.code === "field_hidden" ? "forbidden" : "invalid_input", error.message, { details: [error.field] })
     : error;
@@ -90,7 +94,7 @@ export const exportRun = defineProcess({
     if (!entity) throw new ProcessError("invalid_input", `unknown entity ${input.entity}`, { details: [`La entidad ${input.entity} no existe`] });
 
     const spec: ExportSpec = input;
-    const plan = await planExport(ctx.tx, ctx.registry, spec).catch((error) => {
+    const plan = await planExport(ctx.tx, ctx.registry, spec, ctx.locale).catch((error) => {
       throw asProcessError(error);
     });
     return deliver(ctx, input, input.entity, plan.total, plan.access.timeZone);

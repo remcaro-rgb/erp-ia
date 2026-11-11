@@ -67,3 +67,11 @@ export async function setAuditContext(tx: Tx, ctx: AuditContext): Promise<void> 
       set_config('erp.audit_conversation_id', ${ctx.conversationId ?? ""}, true),
       set_config('erp.audit_source_row_id', ${ctx.sourceRowId ?? ""}, true)`;
 }
+
+/**
+ * Counts one denial of a dry run (rule 16 second exception, design §22.28): no audit row, one more on the (company, day, process, code)
+ * counter through `kernel.count_dry_run_denial` (migration 0119). Read by the service connection only.
+ */
+export async function countDryRunDenial(tx: Tx, companyId: string, processId: string, code: string): Promise<void> {
+  await tx`select kernel.count_dry_run_denial(${companyId}, ${processId}, ${code})`;
+}

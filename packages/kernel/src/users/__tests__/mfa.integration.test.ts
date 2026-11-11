@@ -12,13 +12,14 @@ import type { Caller } from "../../process/context";
 import { setAuthAdmin } from "../../admin/auth-admin";
 import { syncRegistry } from "../../admin/sync";
 
-// Two-step verification opt-out (design §22.19) and migration 0028_kernel_mfa_exempt (rule 34). A user turns off their own
-// second step with kernel.user.mfa.disable (self-service, step-up), unless they hold the system admin role without an
-// exemption; the admin removes a member's factor and exempts a member from the admin role's requirement with
+// Two-step verification opt-out (design §22.19) and migrations 0028_kernel_mfa_exempt and 0056_kernel_mfa_required_passwords (rule 34). A user turns off their own
+// second step with kernel.user.mfa.disable (self-service, step-up), unless an administrator requires it of them (owner
+// decision 2026-11-04: mandatory only when an admin sets it, an admin included); the admin removes a member's factor and
+// requires or stops requiring it with
 // kernel.admin.user.mfa.set (step-up). The factors go through the AuthAdmin adapter (here the database double, which
-// deletes the rows of auth.mfa_factors); the exemption is kernel.memberships.mfa_exempt, which the access-token hook honours.
+// deletes the rows of auth.mfa_factors); the requirement is kernel.memberships.mfa_required, which the access-token hook reads.
 
-const ROLE_COPY = "Tu rol exige la verificación en dos pasos; pídele a un administrador que te exima";
+const ROLE_COPY = "Un administrador exige tu verificación en dos pasos; pídele que deje de exigirla";
 const SHARED_COPY = "Ese usuario pertenece también a otra organización; su segundo paso no se cambia desde aquí";
 
 describe("the user's second step", () => {
@@ -57,7 +58,7 @@ describe("the user's second step", () => {
     (await sql<{ n: number }[]>`select ((select count(*) from auth.sessions where user_id = ${userId}) + (select count(*) from auth.refresh_tokens where user_id = ${userId}))::int as n`)[0]!.n;
   const factors = async (userId: string) =>
     (await sql<{ n: number }[]>`select count(*)::int as n from auth.mfa_factors where user_id = ${userId}`)[0]!.n;
-  const exempt = (userId: string, value: boolean) => sql`update kernel.memberships set mfa_exempt = ${value} where user_id = ${userId} and company_id = ${companyId}`;
+  const require = (userId: string, value: boolean) => sql`update kernel.memberships set mfa_required = ${value} where user_id = ${userId} and company_id = ${companyId}`;
   const details = (error: unknown) => (error instanceof ProcessError && Array.isArray(error.details) ? error.details.map(String) : []);
   const lastRun = async (processId: string, actor: string) =>
     (
@@ -101,7 +102,7 @@ describe("the user's second step", () => {
     auth.signedOut.length = 0;
     await sql`delete from auth.sessions where user_id = any(${[seed.users.both, seed.users.boss!, seed.users.clerk!, seed.users.idle!]}::uuid[])`;
     await sql`delete from auth.mfa_factors where user_id = any(${[seed.users.both, seed.users.boss!, seed.users.clerk!, seed.users.idle!]}::uuid[])`;
-    await sql`update kernel.memberships set mfa_exempt = false where company_id = ${companyId} and mfa_exempt`;
+    await sql`update kernel.memberships set mfa_required = false where company_id = ${companyId} and mfa_required`;
   });
 
   describe("kernel.user.mfa.disable", () => {
@@ -139,8 +140,9 @@ describe("the user's second step", () => {
       expect(await sessions(seed.users.idle!)).toBe(2);
     });
 
-    it("refuses a system admin without an exemption, before reaching the identity provider", async () => {
+    it("refuses a member whose second step an administrator requires, before reaching the identity provider", async () => {
       await enrol(seed.users.boss!);
+      await require(seed.users.boss!, true);
       const error = await disable(boss).catch((e: unknown) => e);
       expect(error).toMatchObject({ code: "invalid_input" });
       expect(details(error)).toEqual([ROLE_COPY]);
@@ -149,21 +151,21 @@ describe("the user's second step", () => {
       expect(await factors(seed.users.boss!)).toBe(1);
     });
 
-    it("lets an exempt system admin turn it off", async () => {
+    it("lets a system admin turn it off: no role requires it by itself", async () => {
       await enrol(seed.users.boss!);
-      await exempt(seed.users.boss!, true);
       await expect(disable(boss)).resolves.toEqual({ removed: 1 });
       expect(auth.deletedFactorsOf).toEqual([seed.users.boss]);
       expect(await factors(seed.users.boss!)).toBe(0);
     });
 
-    it("refuses an admin of another company of the tenant while they stand in one where they are a plain member", async () => {
-      // `dual` is a plain member of company A and the (not exempt) admin of company B; the factor is the identity's.
+    it("refuses a member required in another company of the tenant while they stand in one where nothing requires it", async () => {
+      // `dual` is a plain member of company A and the admin of company B, where the second step is required; the factor is the identity's.
       const tenant = await seedTenant(sql, { companies: 2, entitlements: [], users: [{ name: "dual", companies: [0, 1], role: "member" }] });
       try {
         const [a, b] = [tenant.companies[0]!, tenant.companies[1]!];
         const dual = tenant.users.dual!;
         await tenant.holdRoles(dual, b.id, [b.adminRoleId]);
+        await sql`update kernel.memberships set mfa_required = true where user_id = ${dual} and company_id = ${b.id}`;
         await enrol(dual);
         const inA = async (options: { dryRun?: boolean } = {}) => {
           const stepUpToken = randomUUID();
@@ -176,14 +178,14 @@ describe("the user's second step", () => {
         expect(auth.deletedFactorsOf).toEqual([]);
         expect(await factors(dual)).toBe(1);
 
-        // An inactive admin membership requires nothing.
+        // An inactive membership requires nothing.
         await sql`update kernel.memberships set is_active = false where user_id = ${dual} and company_id = ${b.id}`;
         await expect(inA({ dryRun: true })).resolves.toEqual({ removed: 0 });
         await sql`update kernel.memberships set is_active = true where user_id = ${dual} and company_id = ${b.id}`;
         await expect(inA()).rejects.toMatchObject({ code: "invalid_input" });
 
-        // Exempt in B: allowed from A.
-        await sql`update kernel.memberships set mfa_exempt = true where user_id = ${dual} and company_id = ${b.id}`;
+        // Not required in B any more: allowed from A.
+        await sql`update kernel.memberships set mfa_required = false where user_id = ${dual} and company_id = ${b.id}`;
         await expect(inA()).resolves.toEqual({ removed: 1 });
         expect(auth.deletedFactorsOf).toEqual([dual]);
         expect(await factors(dual)).toBe(0);
@@ -192,10 +194,11 @@ describe("the user's second step", () => {
       }
     });
 
-    it("asks kernel.user_requires_mfa only about the caller: another user's answer is false, even for an un-exempt admin", async () => {
+    it("asks kernel.user_requires_mfa only about the caller: another user's answer is false, even for a member whose second step is required", async () => {
       const ask = (who: Caller, userId: string) =>
         withClaims(sql, who.claims, async (tx) => (await tx<{ required: boolean }[]>`select kernel.user_requires_mfa(${userId}) as required`)[0]!.required);
-      // boss is an un-exempt admin: true when boss asks, false when anyone else asks (a member, another admin, another tenant).
+      // boss is required: true when boss asks, false when anyone else asks (a member, another admin, another tenant).
+      await require(seed.users.boss!, true);
       expect(await ask(boss, seed.users.boss!)).toBe(true);
       expect(await ask(clerk, seed.users.boss!)).toBe(false);
       expect(await ask(admin, seed.users.boss!)).toBe(false);
@@ -240,7 +243,7 @@ describe("the user's second step", () => {
       (await sql<{ id: string }[]>`select id from kernel.memberships where user_id = ${userId} and company_id = ${companyId}`)[0]!.id;
     /** What the admin reads of a member through kernel.v_memberships, as the admin. */
     const seen = (userId: string) =>
-      withClaims(sql, admin.claims, async (tx) => (await tx<{ mfa_exempt: boolean }[]>`select mfa_exempt from kernel.v_memberships where user_id = ${userId}`)[0]);
+      withClaims(sql, admin.claims, async (tx) => (await tx<{ mfa_required: boolean }[]>`select mfa_required from kernel.v_memberships where user_id = ${userId}`)[0]);
 
     it("is a step-up update of the admin feature that the system admin role holds", async () => {
       expect(registry.process("kernel.admin.user.mfa.set")).toMatchObject({ module: "kernel", kind: "update", feature: "kernel.admin", sensitivity: "step-up" });
@@ -272,7 +275,7 @@ describe("the user's second step", () => {
       expect(JSON.stringify(nothing instanceof ProcessError ? nothing.details : null)).toContain("Indica qué cambiar");
     });
 
-    it("refuses to reset the factor of a member who also belongs to another organization, and still exempts them", async () => {
+    it("refuses to reset the factor of a member who also belongs to another organization, and still requires or releases their second step", async () => {
       // `shared` belongs to another tenant and is also a member of this company (data from before the one-tenant rule):
       // the factor is the identity's, so removing it here would strip the other organization's second step too.
       const other = await seedTenant(sql, { companies: 1, entitlements: [], users: [{ name: "shared", companies: [0] }] });
@@ -282,7 +285,7 @@ describe("the user's second step", () => {
         await sql`insert into kernel.membership_roles (membership_id, role_id) values (${membership!.id}, ${seed.companies[0]!.memberRoleId})`;
         await enrol(shared);
 
-        for (const input of [{ userId: shared, reset: true }, { userId: shared, reset: true, exempt: true }]) {
+        for (const input of [{ userId: shared, reset: true }, { userId: shared, reset: true, required: true }]) {
           const refused = await setMfa(input).catch((e: unknown) => e);
           expect(refused).toMatchObject({ code: "invalid_input" });
           expect(details(refused)).toEqual([SHARED_COPY]);
@@ -292,12 +295,12 @@ describe("the user's second step", () => {
         expect(auth.deletedFactorsOf).toEqual([]);
         expect(auth.signedOut).toEqual([]);
         expect(await factors(shared)).toBe(1);
-        expect(await seen(shared)).toEqual({ mfa_exempt: false });
+        expect(await seen(shared)).toEqual({ mfa_required: false });
 
-        // The exemption is per membership (this company's only): allowed.
-        await expect(setMfa({ userId: shared, exempt: true })).resolves.toEqual({ userId: shared, removed: 0, exempt: true });
-        expect(await seen(shared)).toEqual({ mfa_exempt: true });
-        await expect(setMfa({ userId: shared, exempt: false })).resolves.toMatchObject({ exempt: false });
+        // The requirement is per membership (this company's only): allowed.
+        await expect(setMfa({ userId: shared, required: true })).resolves.toEqual({ userId: shared, removed: 0, required: true });
+        expect(await seen(shared)).toEqual({ mfa_required: true });
+        await expect(setMfa({ userId: shared, required: false })).resolves.toMatchObject({ required: false });
         expect(auth.deletedFactorsOf).toEqual([]);
         expect(await factors(shared)).toBe(1);
       } finally {
@@ -308,26 +311,26 @@ describe("the user's second step", () => {
       }
     });
 
-    it("exempts a member: v_memberships shows it and the membership's audit row records false → true", async () => {
-      await expect(setMfa({ userId: seed.users.boss!, exempt: true })).resolves.toEqual({ userId: seed.users.boss, removed: 0, exempt: true });
-      expect(await seen(seed.users.boss!)).toEqual({ mfa_exempt: true });
+    it("requires a member's second step: v_memberships shows it and the membership's audit row records false → true", async () => {
+      await expect(setMfa({ userId: seed.users.boss!, required: true })).resolves.toEqual({ userId: seed.users.boss, removed: 0, required: true });
+      expect(await seen(seed.users.boss!)).toEqual({ mfa_required: true });
       const membershipId = await membershipOf(seed.users.boss!);
       const [row] = await sql<{ diff: Record<string, { old: unknown; new: unknown }>; actor_user_id: string; process_id: string }[]>`
         select diff, actor_user_id, process_id from kernel.audit_log
-        where entity = 'kernel.memberships' and row_id = ${membershipId} and diff ? 'mfa_exempt' order by occurred_at desc, id desc limit 1`;
-      expect(row).toMatchObject({ diff: { mfa_exempt: { old: false, new: true } }, actor_user_id: seed.users.both, process_id: "kernel.admin.user.mfa.set" });
+        where entity = 'kernel.memberships' and row_id = ${membershipId} and diff ? 'mfa_required' order by occurred_at desc, id desc limit 1`;
+      expect(row).toMatchObject({ diff: { mfa_required: { old: false, new: true } }, actor_user_id: seed.users.both, process_id: "kernel.admin.user.mfa.set" });
       expect(auth.deletedFactorsOf).toEqual([]);
       expect(auth.signedOut).toEqual([]);
 
-      await expect(setMfa({ userId: seed.users.boss!, exempt: false })).resolves.toMatchObject({ exempt: false });
-      expect(await seen(seed.users.boss!)).toEqual({ mfa_exempt: false });
+      await expect(setMfa({ userId: seed.users.boss!, required: false })).resolves.toMatchObject({ required: false });
+      expect(await seen(seed.users.boss!)).toEqual({ mfa_required: false });
     });
 
     it("resets a member's factor through the adapter, ends the member's sessions (not the admin's), and audits the input with the target", async () => {
       await enrol(seed.users.clerk!);
       await openSession(seed.users.clerk!);
       await openSession(seed.users.both);
-      await expect(setMfa({ userId: seed.users.clerk!, reset: true })).resolves.toEqual({ userId: seed.users.clerk, removed: 1, exempt: false });
+      await expect(setMfa({ userId: seed.users.clerk!, reset: true })).resolves.toEqual({ userId: seed.users.clerk, removed: 1, required: false });
       expect(auth.deletedFactorsOf).toEqual([seed.users.clerk]);
       expect(await factors(seed.users.clerk!)).toBe(0);
       expect(auth.signedOut).toEqual([seed.users.clerk]);
@@ -338,27 +341,27 @@ describe("the user's second step", () => {
 
     it("ends no session when the reset found no factor to remove", async () => {
       await openSession(seed.users.idle!);
-      await expect(setMfa({ userId: seed.users.idle!, reset: true })).resolves.toEqual({ userId: seed.users.idle, removed: 0, exempt: false });
+      await expect(setMfa({ userId: seed.users.idle!, reset: true })).resolves.toEqual({ userId: seed.users.idle, removed: 0, required: false });
       expect(auth.deletedFactorsOf).toEqual([seed.users.idle]);
       expect(auth.signedOut).toEqual([]);
       expect(await sessions(seed.users.idle!)).toBe(2);
     });
 
-    it("lets the admin exempt and reset themselves", async () => {
+    it("lets the admin require and reset their own second step", async () => {
       await enrol(seed.users.both);
-      await expect(setMfa({ userId: seed.users.both, exempt: true, reset: true })).resolves.toEqual({ userId: seed.users.both, removed: 1, exempt: true });
-      expect(await seen(seed.users.both)).toEqual({ mfa_exempt: true });
+      await expect(setMfa({ userId: seed.users.both, required: true, reset: true })).resolves.toEqual({ userId: seed.users.both, removed: 1, required: true });
+      expect(await seen(seed.users.both)).toEqual({ mfa_required: true });
       expect(await factors(seed.users.both)).toBe(0);
     });
 
     it("changes nothing in a dry run", async () => {
       await enrol(seed.users.clerk!);
-      await expect(setMfa({ userId: seed.users.clerk!, reset: true, exempt: true }, admin, { dryRun: true })).resolves.toEqual({ userId: seed.users.clerk, removed: 0, exempt: true });
+      await expect(setMfa({ userId: seed.users.clerk!, reset: true, required: true }, admin, { dryRun: true })).resolves.toEqual({ userId: seed.users.clerk, removed: 0, required: true });
       expect(auth.deletedFactorsOf).toEqual([]);
       expect(auth.signedOut).toEqual([]);
       expect(await factors(seed.users.clerk!)).toBe(1);
-      const [row] = await sql<{ mfa_exempt: boolean }[]>`select mfa_exempt from kernel.memberships where user_id = ${seed.users.clerk!} and company_id = ${companyId}`;
-      expect(row!.mfa_exempt).toBe(false);
+      const [row] = await sql<{ mfa_required: boolean }[]>`select mfa_required from kernel.memberships where user_id = ${seed.users.clerk!} and company_id = ${companyId}`;
+      expect(row!.mfa_required).toBe(false);
     });
   });
 
@@ -383,14 +386,15 @@ describe("the user's second step", () => {
       }
     };
 
-    it("requires the second step of an admin unless the membership is exempt", async () => {
-      expect(await hook(seed.users.boss!)).toMatchObject({ requires_mfa: true, active_company_id: companyId });
-      await exempt(seed.users.boss!, true);
+    it("requires the second step only where an administrator set it on the membership, an admin's included", async () => {
+      // No role requires it by itself (owner decision 2026-11-04): the admin and the member start without it.
       expect(await hook(seed.users.boss!)).toMatchObject({ requires_mfa: false, active_company_id: companyId });
-      await exempt(seed.users.boss!, false);
-      expect(await hook(seed.users.boss!)).toMatchObject({ requires_mfa: true });
-      // A member's role never required it, exempt or not.
-      expect(await hook(seed.users.clerk!)).toMatchObject({ requires_mfa: false });
+      await require(seed.users.boss!, true);
+      expect(await hook(seed.users.boss!)).toMatchObject({ requires_mfa: true, active_company_id: companyId });
+      await require(seed.users.boss!, false);
+      expect(await hook(seed.users.boss!)).toMatchObject({ requires_mfa: false });
+      await require(seed.users.clerk!, true);
+      expect(await hook(seed.users.clerk!)).toMatchObject({ requires_mfa: true });
     });
   });
 });

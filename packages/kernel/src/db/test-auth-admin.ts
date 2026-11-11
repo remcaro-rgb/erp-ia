@@ -39,6 +39,18 @@ export class DbAuthAdmin implements AuthAdmin {
     return removed.length;
   }
 
+  /** The passwords set, by user id (the last one wins), for the tests to read; `verifyPassword` checks against them. */
+  readonly passwords = new Map<string, string>();
+
+  async setPassword(userId: string, password: string): Promise<void> {
+    this.passwords.set(userId, password);
+  }
+
+  async verifyPassword(email: string, password: string): Promise<boolean> {
+    const [row] = await this.sql<{ id: string }[]>`select id from auth.users where lower(email) = lower(${email}) limit 1`;
+    return row !== undefined && this.passwords.get(row.id) === password;
+  }
+
   /** Ends the user's sessions as the server does (the kernel's `revokeUserSessions`) and records the call. */
   async signOutUser(userId: string): Promise<void> {
     await revokeUserSessions(this.sql, userId);

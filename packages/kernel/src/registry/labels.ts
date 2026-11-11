@@ -6,7 +6,7 @@ import type { FieldDef } from "./fields";
 // How a stored value reads for a person (design §22.14, rule 23), in ONE place for every channel that shows values outside
 // a grid: the audit viewer's before/after and the assistant's confirmation card. An enum by its catalogue label
 // (`FieldDef.valuesKey`), a fiscal code by the country pack's (`FieldDef.codes`: "31 · NIT", "Medellín"), money as
-// `$ 1.234.567,00`, dates and times in the company's zone, Sí / No; never the stored code alone. The kernel has no
+// `$ 1.234.567,00` (`USD 12.500,00` in another currency), dates and times in the company's zone, Sí / No; never the stored code alone. The kernel has no
 // catalogue of its own: the caller passes its translator (`next-intl` on the web, the i18n catalogue in the agent).
 
 /** A catalogue lookup: the message at `key`, or undefined when the catalogue has none. */
@@ -20,6 +20,8 @@ export interface ValueLabels {
   pack?: Pick<CountryPack, "codeLabel"> | undefined;
   /** The company's IANA zone: a date and time reads as the wall clock there. */
   timeZone?: string | undefined;
+  /** The currency of the money values (the input's or the document's, item 129): `USD 12.500,00`; COP when absent. */
+  currency?: string | undefined;
 }
 
 /** What the text of a value depends on: the field's type and where its value labels come from. */
@@ -34,7 +36,7 @@ export function valueText(field: LabelledField | undefined, value: unknown, labe
   if (Array.isArray(value)) return value.map((v) => valueText(field, v, labels)).filter((text) => text !== "").join(", ");
   if (typeof value === "object" && !(value instanceof Date)) return JSON.stringify(value);
   const type = field?.type ?? undefined;
-  if (type && FORMATTED.has(type)) return cellText({ field: "", label: "", type: type as ExportType }, value, { paper: true, timeZone: labels.timeZone, locale: labels.locale });
+  if (type && FORMATTED.has(type)) return cellText({ field: "", label: "", type: type as ExportType }, value, { paper: true, timeZone: labels.timeZone, locale: labels.locale, currency: labels.currency });
   const text = value instanceof Date ? value.toISOString() : String(value);
   if (field?.valuesKey) return labels.t(`${field.valuesKey}.${text}`) ?? text;
   if (field?.codes) return labels.pack?.codeLabel(field.codes as CodeTable, text, labels.locale) ?? text;
@@ -56,4 +58,24 @@ export function countryPackOf(country: string | null | undefined): CountryPack |
   } catch {
     return undefined;
   }
+}
+
+/** The application's catalogue (packages/i18n): the message at `key` in `locale`, or undefined. */
+export type Catalogue = (locale: string, key: string) => string | undefined;
+
+// What the kernel prints outside a screen (the PDF templates' page number and field labels) reads through the app's catalogue, which the
+// app registers at boot (the kernel never imports packages/i18n, which depends on it). On globalThis, like the registry: a bundle may
+// load this module more than once.
+const CATALOGUE_KEY = Symbol.for("erp.kernel.catalogue");
+const catalogueGlobals = globalThis as { [CATALOGUE_KEY]?: Catalogue };
+
+/** Registers the application's catalogue (undefined removes it). */
+export function registerCatalogue(catalogue: Catalogue | undefined): void {
+  catalogueGlobals[CATALOGUE_KEY] = catalogue;
+}
+
+/** The registered catalogue in `locale` (a lookup that finds nothing when none is registered). */
+export function translatorFor(locale: string): Translate {
+  const catalogue = catalogueGlobals[CATALOGUE_KEY];
+  return (key) => catalogue?.(locale, key);
 }

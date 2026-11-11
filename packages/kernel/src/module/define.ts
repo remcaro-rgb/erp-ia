@@ -28,6 +28,14 @@ function checkNavigation(moduleId: string, items: readonly NavItem[]): void {
 export function defineModule(def: ModuleDef): ModuleDef {
   if (!MODULE_ID.test(def.id)) throw new Error(`invalid module id "${def.id}": use lowercase letters, digits and underscores`);
   if (def.dependsOn.includes(def.id)) throw new Error(`module ${def.id} depends on itself`);
+  for (const need of def.needs ?? []) {
+    if (typeof need !== "string") throw new Error(`module ${def.id}: needs must be module id strings`);
+    if (need === def.id) throw new Error(`module ${def.id} needs itself`);
+  }
+  for (const { item, under } of def.shortcuts ?? []) {
+    if (!/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/.test(under)) throw new Error(`module ${def.id}: shortcut ${item.id} must sit under <module>.<section>, got "${under}"`);
+    if (!def.dependsOn.includes(under.slice(0, under.indexOf(".")))) throw new Error(`module ${def.id}: shortcut ${item.id} under ${under} needs ${under.slice(0, under.indexOf("."))} in dependsOn`);
+  }
 
   const processIds = new Set<string>();
   for (const process of def.processes) {
@@ -64,6 +72,16 @@ export function defineModule(def: ModuleDef): ModuleDef {
     }
   }
 
+  // Card effects (plan 2B Task 25): keyed by an event or by one of the module's processes, each an i18n key of the module's namespace.
+  for (const [key, lines] of Object.entries(def.effects ?? {})) {
+    if (!ENTITY_ID.test(key)) throw new Error(`effects of module ${def.id}: "${key}" is neither an event nor a process id`);
+    if (key.startsWith(`${def.id}.`) && !processIds.has(key) && !def.events.emits.includes(key) && def.events.consumes[key] === undefined) {
+      throw new Error(`effects of module ${def.id}: "${key}" is none of its processes or events`);
+    }
+    if (lines.length === 0) throw new Error(`effects of module ${def.id}: "${key}" lists no effect`);
+    for (const line of lines) if (!line.startsWith(`${def.id}.effects.`)) throw new Error(`effects of module ${def.id}: "${line}" must be an i18n key named "${def.id}.effects.<name>"`);
+  }
+
   const tabIds = new Set<string>();
   for (const tab of def.recordTabs ?? []) {
     if (!tab.id.startsWith(`${def.id}.`)) throw new Error(`record tab ${tab.id} must be named "${def.id}.<name>"`);
@@ -72,6 +90,11 @@ export function defineModule(def: ModuleDef): ModuleDef {
     if (!featureIds.has(tab.feature)) throw new Error(`record tab ${tab.id} names feature ${tab.feature}, which module ${def.id} does not declare`);
     if (tab.forEntities !== "*" && tab.forEntities.length === 0) throw new Error(`record tab ${tab.id} names no entity`);
     if (tab.kind === "grid" && !tab.source) throw new Error(`grid contribution ${tab.id} needs a source`);
+    if (tab.action) {
+      if (tab.kind !== "grid") throw new Error(`record tab ${tab.id}: only a grid contribution takes an action`);
+      if (!processIds.has(tab.action.process)) throw new Error(`record tab ${tab.id} names action ${tab.action.process}, which is none of module ${def.id}'s processes`);
+      if (!tab.action.inputField || !tab.action.label) throw new Error(`record tab ${tab.id}: its action needs a label and an input field`);
+    }
     if (tab.kind === "mapping" && (!tab.dimension || !tab.roles?.length || !tab.lookupEntity || !tab.saveProcess)) {
       throw new Error(`mapping contribution ${tab.id} needs dimension, roles, lookupEntity and saveProcess`);
     }
@@ -91,6 +114,14 @@ export function defineModule(def: ModuleDef): ModuleDef {
     if (providerIds.has(provider.id)) throw new Error(`duplicate KPI provider ${provider.id} in module ${def.id}`);
     providerIds.add(provider.id);
     if (!featureIds.has(provider.feature)) throw new Error(`KPI provider ${provider.id} names feature ${provider.feature}, which module ${def.id} does not declare`);
+  }
+
+  const chartIds = new Set<string>();
+  for (const provider of def.homeCharts ?? []) {
+    if (!provider.id.startsWith(`${def.id}.`)) throw new Error(`chart provider ${provider.id} must be named "${def.id}.<name>"`);
+    if (chartIds.has(provider.id) || providerIds.has(provider.id)) throw new Error(`duplicate home provider ${provider.id} in module ${def.id}`);
+    chartIds.add(provider.id);
+    if (!featureIds.has(provider.feature)) throw new Error(`chart provider ${provider.id} names feature ${provider.feature}, which module ${def.id} does not declare`);
   }
 
   const roles = new Set<string>([...ACCOUNT_ROLES, ...(def.accountRoles ?? [])]);

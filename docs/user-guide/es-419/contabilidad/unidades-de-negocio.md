@@ -17,7 +17,7 @@ Es opcional. **Unidades de negocio** aparece en **Contabilidad › Maestros** so
 
 ## Encenderla
 
-1. **Contabilidad › Reglas contables › Configuración**.
+1. **Contabilidad › Parámetros › Reglas contables › Configuración**.
 2. En **Dimensiones analíticas en uso**, marca **Usar unidades de negocio**.
 3. **Guardar** (pide tu código de verificación).
 

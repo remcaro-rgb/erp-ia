@@ -1,0 +1,20 @@
+// Server-only entry (uses node:crypto): import from "@erp/loc-co/einvoice", never from client code.
+export { buildInvoiceXml, buildNoteXml, buildDocumentCharges, assertEInvoiceDocument } from "./xml-builder";
+export type { DocumentCharge, EInvoiceDocument, EInvoiceItem, EInvoiceLine, EInvoiceNote, EInvoiceParty } from "./xml-builder";
+export { computeCUDE, computeCUFE, computeCude, computeCufe, computeSoftwareSecurityCode, payableAmount } from "./cufe";
+export { round2, splitInclusive } from "./amounts";
+export { computeNitDv, validateNitOrCedula } from "./nit";
+export * from "./constants";
+export * from "./resolution";
+export { signInvoice, verifySignedInvoice } from "./signer";
+export type { VerifyResult } from "./signer";
+export { buildP12, CertificateNotConfiguredError, deleteCertificate, inspectCertificate, loadCertificate, parseCertificate, saveCertificate } from "./certificate";
+export type { CertificateInfo, CertificateMeta, SoapCertificate } from "./certificate";
+export { certificateHolds, dianQrPayload, resolutionLegend } from "./representation";
+export { buildSecuredEnvelope } from "./ws-security";
+export { buildSoapEnvelope, createInvoiceZip, getStatus, parseSoapFault, parseSoapResponse, postSoap, sendBillSync, sendTestSetAsync } from "./soap-client";
+export type { DianEnvironment, DIANResponse } from "./soap-client";
+export { assertTransportEnvironment, createEInvoiceTransport, DianSoapTransport, EInvoiceEnvironmentMismatchError } from "./transport";
+export type { DianSoapTransportOptions, EInvoiceTransportKind } from "./transport";
+export { einvoicePack } from "./pack";
+export { DIAN_CHECKLIST, DIAN_CHECKLIST_GROUPS } from "./dian-checklist";

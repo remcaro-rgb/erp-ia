@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Check, Copy } from "lucide-react";
 import { DEFAULT_RECORD_LABELS, shortId, type RecordLabels, type RecordTab, type RecordTabId } from "./record-model";
 
 export type { RecordLabels, RecordTab, RecordTabId } from "./record-model";
+
+/** The header's place next to the title for the "Cambios sin guardar" note: the Datos form puts it there (a portal), wherever its tab is. */
+const UnsavedSlotContext = createContext<HTMLElement | null>(null);
+export const useUnsavedSlot = () => useContext(UnsavedSlotContext);
 
 export interface RecordFrameProps {
   title: string;
@@ -11,14 +16,34 @@ export interface RecordFrameProps {
   seq?: number | null | "masked";
   /** The record's UUID; absent while the record is new. */
   uuid?: string | null;
+  /** A documento's number and reference, shown next to the ID with a copy button each (D16). */
+  number?: string | null;
+  reference?: string | null;
+  /** The state chip next to the title. */
+  chip?: ReactNode;
+  /** Above the footer's status: «Creado en … por …» / «Modificado en … por …». */
+  meta?: ReactNode;
   /** `/r/<entity>/<id>`: the button that opens the same form as a full page in a new browser tab. Absent while the record is new. */
   deepLinkHref?: string;
   /** Only the tabs passed are rendered, in this order. */
   tabs: readonly RecordTab[];
   /** Left of the footer: the DIAN status and the like. */
   status?: ReactNode;
-  /** Right of the footer: save, cancel and the like. */
+  /** Right of the footer: a frame without the action bar may put its own controls here. */
   footer?: ReactNode;
+  /**
+   * The record's buttons (the action bar): in the tabs bar, right of the tabs, on the same line while they fit and above the tabs when
+   * they do not (owner 2026-11-05). The footer keeps the status.
+   */
+  toolbar?: ReactNode;
+  /** The form holds unsaved changes: the state chip steps aside for «Cambios sin guardar», and the header offers the pair below. */
+  dirty?: boolean;
+  /** «Descartar cambios» in the header while dirty; absent: not offered. */
+  onDiscardChanges?: () => void;
+  /** «Guardar cambios» (primary) in the header while dirty: the same save as the bar's Guardar. */
+  onSaveChanges?: () => void;
+  /** The changes cannot be saved yet (client errors, missing data, busy): «Guardar cambios» waits. */
+  saveBlocked?: boolean;
   initialTab?: RecordTabId;
   onTabChange?: (tab: RecordTabId) => void;
   labels?: Partial<Omit<RecordLabels, "tabs">> & { tabs?: Partial<RecordLabels["tabs"]> };
@@ -29,6 +54,8 @@ export interface RecordFrameProps {
   onDuplicate?: () => void;
   /** A duplicate is under way: the action waits. */
   duplicating?: boolean;
+  /** The header's Duplicar button; off when the action bar carries it (Ctrl+D still works). Default true. */
+  duplicateButton?: boolean;
   /** A new record started from a copy: the banner "Copia de <nombre>" names the source, linked when `href` is given. */
   copyOf?: { title: string; href?: string } | null;
   /** Appended to the root's `erp-record` class. Parts are `erp-record__*`. */
@@ -37,12 +64,13 @@ export interface RecordFrameProps {
 
 /**
  * The frame every record opens in (design §5.16): header with title, N.º, UUID and the open-in-a-new-tab
- * link, the tabs the entity needs, and the status footer. Panels stay mounted when hidden, so a form that is
+ * link, the tabs the entity needs with the record's buttons on their bar, and the status footer. Panels stay mounted when hidden, so a form that is
  * half filled or an upload that is staged survives a change of tab.
  */
-export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, footer, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, copyOf }: RecordFrameProps) {
+export function RecordFrame({ title, seq, uuid, number, reference, chip, meta, deepLinkHref, tabs, status, footer, toolbar, dirty = false, onDiscardChanges, onSaveChanges, saveBlocked = false, initialTab, onTabChange, labels: overrides, className, onDuplicate, duplicating = false, duplicateButton = true, copyOf }: RecordFrameProps) {
   const labels: RecordLabels = { ...DEFAULT_RECORD_LABELS, ...overrides, tabs: { ...DEFAULT_RECORD_LABELS.tabs, ...overrides?.tabs } };
   const base = useId();
+  const [unsavedSlot, setUnsavedSlot] = useState<HTMLElement | null>(null);
   const first = tabs[0]?.id;
   const [selected, setSelected] = useState<RecordTabId | undefined>(initialTab ?? first);
   const active = tabs.some((t) => t.id === selected) ? selected : first;
@@ -83,23 +111,69 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
   };
 
   return (
+    <UnsavedSlotContext.Provider value={unsavedSlot}>
     <section ref={root} className={["erp-record", className].filter(Boolean).join(" ")}>
       {/* Title and tabs stay in view while a long Datos form scrolls (the shell's <main> is the scroller). */}
       <div className="erp-record__top">
         <header className="erp-record__header">
           <h2>{title}</h2>
-          <span className="erp-record__ids">{seq != null && uuid ? `${labels.number} ${seq === "masked" ? "••••" : seq} · ${labels.uuid} ${shortId(uuid)}…` : labels.assignedOnCreate}</span>
+          <span ref={setUnsavedSlot} className="erp-record__unsaved" />
+          {dirty && (onDiscardChanges || onSaveChanges) && (
+            <span className="erp-record__dirty">
+              {onDiscardChanges && (
+                <button type="button" className="erp-btn erp-btn--sm" onClick={onDiscardChanges}>
+                  {labels.discardChanges}
+                </button>
+              )}
+              {onSaveChanges && (
+                <button type="button" className="erp-btn erp-btn--sm erp-btn--primary" onClick={onSaveChanges} disabled={saveBlocked}>
+                  {labels.saveChanges}
+                </button>
+              )}
+            </span>
+          )}
+          {/* While «Cambios sin guardar» shows, the stored state («Grabado») steps aside (owner 2026-11-05). */}
+          {!dirty && chip}
+          <span className="erp-record__ids">
+            {seq != null && uuid ? (
+              <>
+                <span>
+                  {labels.number} {seq === "masked" ? "••••" : seq}
+                  {seq !== "masked" && <CopyButton value={String(seq)} label={labels.copy.replace("{what}", labels.number)} />}
+                </span>
+                {number ? (
+                  <span>
+                    {labels.docNumber} {number}
+                    <CopyButton value={number} label={labels.copy.replace("{what}", labels.docNumber)} />
+                  </span>
+                ) : null}
+                {reference ? (
+                  <span>
+                    {labels.reference} {reference}
+                    <CopyButton value={reference} label={labels.copy.replace("{what}", labels.reference)} />
+                  </span>
+                ) : null}
+                <span title={uuid}>
+                  {labels.uuid} {shortId(uuid)}…
+                  <CopyButton value={uuid} label={labels.copy.replace("{what}", labels.uuid)} />
+                </span>
+              </>
+            ) : (
+              labels.assignedOnCreate
+            )}
+          </span>
           {deepLinkHref && (
             <a className="erp-record__open" href={deepLinkHref} target="_blank" rel="noopener noreferrer">
               {labels.openInNewTab} ↗
             </a>
           )}
-          {onDuplicate && (
+          {onDuplicate && duplicateButton && (
             <button type="button" className="erp-btn erp-btn--sm" onClick={onDuplicate} disabled={duplicating} aria-keyshortcuts="Control+D Meta+D">
               {labels.duplicate}
             </button>
           )}
         </header>
+        <div className="erp-record__tabsbar">
         <div role="tablist" className="erp-record__tabs">
           {tabs.map((tab, index) => (
             <button
@@ -125,6 +199,8 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
             </button>
           ))}
         </div>
+        {toolbar && <div className="erp-record__toolbar">{toolbar}</div>}
+        </div>
       </div>
       {copyOf && (
         <div role="status" className="erp-dian erp-dian--info erp-record__copy">
@@ -142,10 +218,12 @@ export function RecordFrame({ title, seq, uuid, deepLinkHref, tabs, status, foot
         </div>
       ))}
       <footer className="erp-record__footer">
+        {meta && <div className="erp-record__meta">{meta}</div>}
         <div className="erp-record__status">{status}</div>
         <div className="erp-record__actions">{footer}</div>
       </footer>
     </section>
+    </UnsavedSlotContext.Provider>
   );
 }
 
@@ -160,4 +238,25 @@ function isEditable(target: EventTarget | null): boolean {
 /** An open dialog that does not contain the frame (a frame shown in a sheet still answers its shortcut). */
 function dialogOver(frame: HTMLElement | null): boolean {
   return [...document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]')].some((dialog) => !frame || !dialog.contains(frame));
+}
+
+/** Copies an identifier (ID, Número, Referencia, UUID) to the clipboard; says so for a moment. */
+export function CopyButton({ value, label }: { value: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      className="erp-copy"
+      aria-label={label}
+      title={label}
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(() => {
+          setDone(true);
+          setTimeout(() => setDone(false), 1500);
+        });
+      }}
+    >
+      {done ? <Check aria-hidden size={14} /> : <Copy aria-hidden size={14} />}
+    </button>
+  );
 }

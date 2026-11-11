@@ -50,12 +50,32 @@ export async function disableOwnMfaAction(stepUpToken?: string): Promise<MfaActi
   return result.output.removed > 0 ? signedOut() : { ok: true, next: null };
 }
 
-/** Removes a member's factor (`reset`) and/or sets their exemption from the admin role's requirement (kernel.admin.user.mfa.set). */
-export async function setUserMfaAction(userId: string, change: { reset?: boolean; exempt?: boolean }, stepUpToken?: string): Promise<MfaActionResult> {
+/** Removes a member's factor (`reset`) and/or requires or stops requiring it (`required`) (kernel.admin.user.mfa.set). */
+export async function setUserMfaAction(userId: string, change: { reset?: boolean; required?: boolean }, stepUpToken?: string): Promise<MfaActionResult> {
   // The input is built from the named arguments only: whatever else a tampered call puts in `change` (a userId) is dropped.
-  const input = { userId, ...(change.reset !== undefined ? { reset: change.reset } : {}), ...(change.exempt !== undefined ? { exempt: change.exempt } : {}) };
-  const result = await run<{ userId: string; removed: number; exempt: boolean }>("kernel.admin.user.mfa.set", input, stepUpToken);
+  const input = { userId, ...(change.reset !== undefined ? { reset: change.reset } : {}), ...(change.required !== undefined ? { required: change.required } : {}) };
+  const result = await run<{ userId: string; removed: number; required: boolean }>("kernel.admin.user.mfa.set", input, stepUpToken);
   if (!result.ok) return result;
   // Whose factor went is what the process answers, not what the browser asked.
   return result.output.removed > 0 && result.output.userId === result.sub ? signedOut() : { ok: true, next: null };
+}
+
+/** Changes the caller's own password (kernel.user.password.change): the current one proves who they are, no step-up. */
+export async function changeOwnPasswordAction(currentPassword: string, newPassword: string): Promise<ActionResult> {
+  const result = await run<{ changed: boolean }>("kernel.user.password.change", { currentPassword, newPassword }, undefined);
+  return result.ok ? { ok: true } : result;
+}
+
+/**
+ * Resets a member's password (kernel.admin.user.password.reset, step-up). The process ends the member's sessions; when
+ * that member is the caller this session is dead too, so its cookies are cleared and the browser goes to the sign-in page.
+ */
+export async function resetUserPasswordAction(userId: string, newPassword: string, stepUpToken?: string): Promise<MfaActionResult> {
+  const result = await run<{ userId: string }>("kernel.admin.user.password.reset", { userId, newPassword }, stepUpToken);
+  if (!result.ok) return result;
+  if (result.output.userId === result.sub) {
+    await logout(await cookies());
+    return { ok: true, next: "/login" };
+  }
+  return { ok: true, next: null };
 }

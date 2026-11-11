@@ -1,4 +1,5 @@
 import { getLocale, getTranslations } from "next-intl/server";
+import { loadLifecycle, type LoadedLifecycle } from "./lifecycle-load";
 import {
   addRefLabels,
   GridState,
@@ -26,10 +27,15 @@ import { linkableEntities } from "@/lib/grid/links";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
 import { loadEntryForm, type EntryFormData } from "@/lib/accounting/entry-load";
-import { loadAccountingTabs, loadMasterOptions, type AccountingTabs, type MasterOptions, type TemplateLineView } from "@/lib/accounting/record-tabs";
+import { gridTab, loadAccountingTabs, loadMasterOptions, type AccountingTabs, type GridTab, type MasterOptions, type TemplateLineView } from "@/lib/accounting/record-tabs";
 import { loadContributedTabs, type LoadedContribution } from "./contributed-load";
 import { NEW_RECORD_ID, recordEntity, type RecordEntity } from "./entities";
 import { partyTables, productTables } from "./tables";
+import { loadStockForm, STOCK_FORMS, type StockFormData } from "@/lib/inventory/record";
+import { loadSalesForm, SALES_FORMS, type SalesFormData } from "@/lib/sales/record";
+import { INVOICING_FORMS, loadInvoicingForm, type InvoicingFormData } from "@/lib/invoicing/record";
+import { loadPaymentsForm, PAYMENTS_FORMS, type PaymentsFormData } from "@/lib/payments/record";
+import { loadWarehouseForm, WAREHOUSE_FORMS, type WarehouseFormData } from "@/lib/warehouse/record";
 
 // Server-side loading of one record for the full-page frame. Every read is a consult process (or the grid query) run
 // as the session's user, so company RLS, the party scope, field masking and roles_view apply exactly as in the grid.
@@ -45,9 +51,19 @@ export type FormData =
       supplier: { fields: GridColumn[]; label: string | null; entityLabel: string; linkable: boolean };
     }
   | { kind: "category"; tables: ProductTables; productCount: number }
-  | ({ kind: "entry" } & EntryFormData)
+  | ({ kind: "entry"; linesGrid: GridTab | null } & EntryFormData)
   // The accounting masters (Task 28): Cuenta, the four analytic nodes, Fuente, Plantilla, Período and Regla contable share one form.
-  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean } | null };
+  | { kind: "master"; master: MasterKind; options: MasterOptions; templateLines: TemplateLineView[] | null; rule: { isDefault: boolean; isModified: boolean; stale: boolean; staleDays: number } | null }
+  // The inventory and costing records (plan 2B Task 10): bodega, ubicación, movimiento, traslado, conteo, costo en destino.
+  | StockFormData
+  // The CRM and sales records (plan 2B Task 14b): prospecto, embudo, oportunidad, actividad, cotización, pedido, entrega, devolución.
+  | SalesFormData
+  // The invoice and the note (plan 2B Task 20).
+  | InvoicingFormData
+  // The medio de pago, the caja and the recibo de caja (plan 2B Task 24b).
+  | PaymentsFormData
+  // The alistamiento and the empaque (plan 2B.2 Task 29.4).
+  | WarehouseFormData;
 
 /** What the caller may do on the record's tabs: each flag is the process (and, for files, the owner's update) they may run. */
 export interface RecordAbilities {
@@ -110,6 +126,8 @@ export interface LoadedRecord {
   /** The tabs of an accounting master besides Datos (Saldos, Seguridad, Cierre, Líneas…); null for any other record. */
   accounting: AccountingTabs | null;
   form: FormData;
+  /** A maestro or documento: the action bar's facts, Versiones and Acceso (Task 15); null for any other record. */
+  lifecycle: LoadedLifecycle | null;
 }
 
 /** The accounting masters and the form kind each opens (Task 28). */
@@ -207,7 +225,21 @@ export async function refLabelsOf(caller: Caller, entity: EntityDef, values: Rec
   return labels;
 }
 
-async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"], accounting: AccountingTabs | null): Promise<FormData> {
+/** The «Sin coincidencias en N días» flag of a rule (Task 50.6): from `posting_rule.consult`; a caller who may not consult sees no flag. */
+async function ruleStale(caller: Caller, id: string): Promise<{ stale: boolean; staleDays: number }> {
+  try {
+    const [rule, settings] = await Promise.all([
+      runProcess(processDeps(), caller, "accounting.posting_rule.consult", { id }) as Promise<{ stale?: boolean }>,
+      runProcess(processDeps(), caller, "accounting.settings.consult", {}) as Promise<{ ruleStaleDays?: number }>,
+    ]);
+    return { stale: rule.stale === true, staleDays: settings.ruleStaleDays ?? 30 };
+  } catch (error) {
+    if (error instanceof ProcessError && ["forbidden", "not_entitled", "not_found", "step_up_required"].includes(error.code)) return { stale: false, staleDays: 30 };
+    throw error;
+  }
+}
+
+async function formData(caller: Caller, entity: RecordEntity, record: LoadedRecord["record"], accounting: AccountingTabs | null, templateId: string | null = null): Promise<FormData> {
   const master = MASTER_KINDS[entity.id];
   if (master) {
     return {
@@ -215,12 +247,21 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
       master,
       options: await loadMasterOptions(caller, entity.id, record?.id ?? null),
       templateLines: accounting?.kind === "template" ? accounting.lines : null,
-      rule: master === "rule" && record ? { isDefault: record.is_default === true, isModified: record.is_modified === true } : null,
+      rule: master === "rule" && record ? { isDefault: record.is_default === true, isModified: record.is_modified === true, ...(await ruleStale(caller, record.id)) } : null,
     };
   }
+  if (STOCK_FORMS[entity.id]) return loadStockForm(caller, entity.id, record);
+  if (SALES_FORMS[entity.id]) return loadSalesForm(caller, entity.id, record);
+  if (INVOICING_FORMS[entity.id]) return loadInvoicingForm(caller, entity.id, record);
+  if (PAYMENTS_FORMS[entity.id]) return loadPaymentsForm(caller, entity.id, record);
+  if (WAREHOUSE_FORMS[entity.id]) return loadWarehouseForm(caller, entity.id, record);
   const locale = await getLocale();
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
-  if (entity.id === "accounting.entry") return { kind: "entry", ...(await loadEntryForm(caller, record)) };
+  if (entity.id === "accounting.entry") {
+    // Rule 20: a stored comprobante's lines read in the universal grid too (sort, per-column filter, advanced filter, pages, exports).
+    const [entry, linesGrid] = await Promise.all([loadEntryForm(caller, record, record ? null : templateId), record ? gridTab(caller, "accounting.entry_line", [{ field: "entry_id", op: "eq", value: record.id }]) : null]);
+    return { kind: "entry", ...entry, linesGrid };
+  }
   if (entity.id === "core.product_category") {
     const products = record
       ? await gridRows(caller, "core.product", { filters: [{ field: "category_id", op: "eq", value: record.id }], sort: [], page: 1, pageSize: 1, columns: ["seq"] })
@@ -233,7 +274,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   const product = gridEntity(deps.registry, "core.product")!;
   const supplierId = typeof record?.supplier_id === "string" ? record.supplier_id : null;
   const [categories, partyAccess, labels, linkable] = await Promise.all([
-    gridRows(caller, "core.product_category", { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "status"] }),
+    gridRows(caller, "core.product_category", { filters: [], sort: [{ field: "name", dir: "asc" }], page: 1, pageSize: 500, columns: ["name", "iva_rate", "inc_rate", "other_taxes", "default_uom", "is_active"] }),
     gridPageAccess(deps.sql, caller.claims, party),
     supplierId ? refLabelsOf(caller, product, { supplier_id: supplierId }) : ({} as Record<string, string>),
     linkableEntities(deps, caller.claims, [party.id]),
@@ -248,7 +289,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
       incRate: c.inc_rate === null || c.inc_rate === undefined ? null : String(c.inc_rate),
       otherTaxes: Array.isArray(c.other_taxes) ? c.other_taxes.map(String) : [],
       defaultUom: c.default_uom === null || c.default_uom === undefined ? null : String(c.default_uom),
-      active: c.status !== "inactive",
+      active: c.is_active !== false,
     })),
     supplier: {
       fields: buildColumns(party, partyAccess, presentationOf(party.id), (key) => t(key)),
@@ -261,11 +302,24 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
 }
 
 /**
+ * The input of the entity's consult for the record `id`: `{ id }`, or for a parametro keyed by another field (Task 28.5) that key, read
+ * from the entity's masked view as the caller (RLS and the masks apply; a row the caller cannot see answers not_found like the consult).
+ */
+async function consultInput(caller: Caller, entity: RecordEntity, id: string): Promise<Record<string, unknown>> {
+  const keyed = entity.keyedBy;
+  if (!keyed) return { id };
+  const rows = await withClaims(processDeps().sql, caller.claims, (tx) => tx<Record<string, unknown>[]>`select ${tx(keyed.column)} as key from ${tx(keyed.view)} where id = ${id}`);
+  const key = rows[0]?.key;
+  if (typeof key !== "string") throw new ProcessError("not_found", `${entity.id} ${id} not found`);
+  return { [keyed.input]: key };
+}
+
+/**
  * The record `/r/<entity>/<id>` shows, or null when the entity has no full page, the id is neither a UUID nor `new`,
  * the record does not exist for the caller (a hidden record looks like a missing one), or `new` is asked by a caller
  * who may not create. Throws `Unauthenticated` without a complete session; the page turns that into a redirect.
  */
-export async function loadRecord(entityId: string, id: string): Promise<LoadedRecord | null> {
+export async function loadRecord(entityId: string, id: string, options: { templateId?: string | null } = {}): Promise<LoadedRecord | null> {
   const entity = recordEntity(entityId);
   if (!entity || (id !== NEW_RECORD_ID && !UUID.test(id))) return null;
   const caller = await requireCaller();
@@ -276,7 +330,7 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
   let record: LoadedRecord["record"] = null;
   if (id !== NEW_RECORD_ID) {
     try {
-      record = (await runProcess(deps, caller, entity.consult, { id })) as LoadedRecord["record"];
+      record = (await runProcess(deps, caller, entity.consult, await consultInput(caller, entity, id))) as LoadedRecord["record"];
     } catch (error) {
       if (error instanceof ProcessError && ["not_found", "forbidden", "not_entitled"].includes(error.code)) return null;
       throw error;
@@ -303,18 +357,26 @@ export async function loadRecord(entityId: string, id: string): Promise<LoadedRe
     contactDelete: runnable.has("core.contact.delete"),
     verify: runnable.has("kernel.verify.request"),
     // The `extra` column masked for the caller's role: the tab shows what it may and does not write over it.
-    extra: mayUpdate && (access.modes.extra ?? "visible") === "visible",
+    // A parametro keyed by another field (Task 28.5) saves no extra data through its one process.
+    extra: mayUpdate && !entity.keyedBy && (access.modes.extra ?? "visible") === "visible",
     attach: may("kernel.attachment.add"),
     removeFile: may("kernel.attachment.remove"),
     reorder: may("kernel.attachment.reorder"),
     suggest: may("kernel.ai.image_suggest"),
-    duplicate: record !== null && runnable.has(entity.create),
+    duplicate: record !== null && !entity.keyedBy && runnable.has(entity.create),
   };
   const contributed = record ? await loadContributedTabs(caller, entity.id, record.id, gridRows) : [];
   const accounting = record && MASTER_KINDS[entity.id] ? await loadAccountingTabs(caller, entity.id, record) : null;
   const titleValue = record?.[entity.titleField];
-  const title = titleValue === null || titleValue === undefined || titleValue === "" ? null : labelText(titleValue, registered.fields.find((f) => f.name === entity.titleField));
-  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting) };
+  const titleDef = registered.fields.find((f) => f.name === entity.titleField);
+  // A record named by a reference (a seguimiento by its product, Task 28.5) reads as that record's name, as the caller may read it.
+  const titleRef = record && titleDef?.type === "ref" && typeof titleValue === "string" ? (await refLabelsOf(caller, registered, { [entity.titleField]: titleValue }))[entity.titleField] : undefined;
+  const title = titleValue === null || titleValue === undefined || titleValue === "" ? null : (titleRef ?? labelText(titleValue, titleDef));
+  const t = await getTranslations();
+  const translate = (key: string) => (typeof t.has !== "function" || t.has(key) ? t(key) : key);
+  const lifecycle = await loadLifecycle(caller, registered, record, access.modes, translate, canSave);
+  if (lifecycle) lifecycle.tools.new = entity.create !== "" && runnable.has(entity.create);
+  return { entity, caller, record, title, defs, contacts: partyContacts, modes: access.modes, canSave, can, requiredTags: required, attachments: files, verifications: verified, contributed, accounting, form: await formData(caller, entity, record, accounting, UUID.test(options.templateId ?? "") ? (options.templateId as string) : null), lifecycle };
 }
 
 /** The processes the record's tabs run besides the save: asked in one round trip. */

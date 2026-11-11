@@ -36,7 +36,7 @@ const probe = defineModule({
   id: "reportprobe",
   version: "1",
   dependsOn: [],
-  entities: [defineEntity({ id: "reportprobe.line", module: "reportprobe", schema: "reportprobe", table: "lines", label: "entity.reportprobe.line", displayField: "code", defaultSort: { field: "code", dir: "asc" }, fields: [{ name: "code", type: "text", label: "field.code" }] })],
+  entities: [defineEntity({ entityType: "maestro", id: "reportprobe.line", module: "reportprobe", schema: "reportprobe", table: "lines", label: "entity.reportprobe.line", displayField: "code", defaultSort: { field: "code", dir: "asc" }, fields: [{ name: "code", type: "text", label: "field.code" }] })],
   processes: [consult],
   features: [{ id: "reportprobe.reports", label: "feature.reportprobe", processes: [consult.id], entities: ["reportprobe.line"] }],
   events: { emits: [], consumes: {} },

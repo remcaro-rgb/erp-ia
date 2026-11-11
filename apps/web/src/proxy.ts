@@ -15,6 +15,9 @@ import { clientIpOf, createSupabase } from "@/lib/supabase/server";
 //  3b. Settles an automatic company move the access token hook made on a renewal (lib/auth/inactive.ts).
 //  4. Hands the user's locale to the render as the `x-erp-locale` request header (the i18n layer reads it);
 //     a header of that name sent by the client is always discarded, so only a verified claim can set it.
+//  5. Refuses a screen whose menu item the company's rules hide for the caller (kernel.menu_access, entity types spec §9.2): the
+//     forbidden screen is rendered at the same address (a rewrite to /forbidden, status 403). Pages only; the item's processes, which
+//     every API route runs, are refused by runProcess. The decoded path is matched; no request header skips the check.
 // API paths answer 401 JSON instead of a redirect. Every handler and page still checks the session itself
 // (`requireCaller`): the proxy is the first gate, not the only one.
 
@@ -94,7 +97,34 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (step === "enroll") return isApi ? deny("mfa_enrollment_required") : redirectTo(redirectPathFor("mfa_enrollment_required"));
   if (!state.claims) return isApi ? deny("unauthenticated") : redirectTo(redirectPathFor("no_company"));
 
+  // Every page request is checked, prefetches and RSC requests included: their headers come from the client and could be forged, so
+  // none of them skips the guard (review N1).
+  if (!isApi && pathname !== FORBIDDEN_PATH) {
+    // The rules name decoded addresses: `/r/accounting%2Eaccount/…` is matched as `/r/accounting.account/…`. An address that does not
+    // decode is answered with the forbidden screen, without a lookup. One lookup per request at most.
+    const decoded = decodePath(pathname);
+    const hidden = decoded === null || (await (await import("@/lib/shell/menu-guard")).menuHides(state.claims, decoded));
+    if (hidden) {
+      const headers = new Headers(request.headers);
+      headers.delete(LOCALE_HEADER);
+      headers.set(LOCALE_HEADER, localeOf(state));
+      return finish(NextResponse.rewrite(new URL(FORBIDDEN_PATH, request.url), { request: { headers }, status: 403 }));
+    }
+  }
+
   return finish(forward());
+}
+
+/** The forbidden screen, inside the shell: what a hidden menu item's screen answers. */
+const FORBIDDEN_PATH = "/forbidden";
+
+/** The pathname with its percent-escapes decoded, or null when it does not decode. */
+function decodePath(pathname: string): string | null {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
 }
 
 const localeOf = (state: SessionState) => state.claims?.locale ?? DEFAULT_LOCALE;

@@ -1,0 +1,32 @@
+{
+  "name": "@erp/module-invoicing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@erp/infra": "workspace:*",
+    "@erp/kernel": "workspace:*",
+    "@erp/module-sales": "workspace:*",
+    "qrcode": "1.5.4",
+    "workflow": "^5.2.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@erp/loc-co": "workspace:*",
+    "@erp/module-accounting": "workspace:*",
+    "@erp/module-core": "workspace:*",
+    "@erp/module-costing": "workspace:*",
+    "@erp/module-inventory": "workspace:*",
+    "@types/qrcode": "1.5.6",
+    "@workflow/vitest": "^5.0.6",
+    "tsx": "^4.23.15"
+  }
+}

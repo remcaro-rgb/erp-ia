@@ -54,3 +54,12 @@ describe("formatCellValue, structured values (T11)", () => {
     expect(formatCellValue({ type: "json" }, { a: 1 }, text)).toBe('{"a":1}');
   });
 });
+
+describe("formatCellValue · empty structured values", () => {
+  it("an empty list or object is no value (a dash), never '0 elementos'", () => {
+    const json = (count: number, kind: "items" | "fields") => `${count} ${kind}`;
+    expect(formatCellValue({ type: "json" }, [], { ...text, json })).toBe("");
+    expect(formatCellValue({ type: "json" }, {}, { ...text, json })).toBe("");
+    expect(formatCellValue({ type: "json" }, [{ a: 1 }], { ...text, json })).toBe("1 items");
+  });
+});

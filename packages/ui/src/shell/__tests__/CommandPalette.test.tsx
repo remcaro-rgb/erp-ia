@@ -94,4 +94,31 @@ describe("CommandPalette keyboard (T2 review)", () => {
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("finds a record by its ID (D16): a number or «ID 123» asks findRecords and lists what it answers", async () => {
+    const findRecords = vi.fn(async (id: number) => [{ id: `record:core.party:${id}`, label: `Tercero · ID ${id} · Éxito`, kind: "record" as const, href: "/r/core.party/x" }]);
+    const onSelect = vi.fn();
+    renderEs(<CommandPalette items={items} onAsk={() => {}} onSelect={onSelect} findRecords={findRecords} />);
+    openWithShortcut();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "ID 123" } });
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(findRecords).toHaveBeenCalledWith(123);
+    const row = await screen.findByText("Tercero · ID 123 · Éxito");
+    expect(screen.getByText("Abrir")).toBeTruthy();
+    fireEvent.click(row);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ href: "/r/core.party/x" }));
+  });
+
+  it("does not search records for text that is not an ID", async () => {
+    const findRecords = vi.fn(async () => []);
+    renderEs(<CommandPalette items={items} onAsk={() => {}} findRecords={findRecords} />);
+    openWithShortcut();
+    await act(async () => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "terceros" } });
+      await new Promise((r) => setTimeout(r, 300));
+    });
+    expect(findRecords).not.toHaveBeenCalled();
+  });
 });

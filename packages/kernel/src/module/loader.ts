@@ -1,17 +1,37 @@
 import { defineEntity } from "../registry/entities";
+import { entityModuleOf } from "../registry/fields";
 import { POSTING_CONSUMER, postingConsumer } from "../posting/engine";
 import { consumers } from "../events/consumers";
 import type { Registry } from "../registry";
-import type { ModuleDef } from "../registry/types";
+import type { ModuleDef, ProcessDef } from "../registry/types";
+import { genericProcesses, isTypedEntity } from "../typed/processes";
+import { stateMailConsumer } from "../typed/notify";
+import { statusChangedEvent } from "../typed/runner";
+import { withMenuSections } from "./menu";
 
 /**
  * Registers `modules` (their entities, processes and manifests) in dependency order: a module is
  * registered after everything in its `dependsOn`, which must be among `modules` or already in the
  * registry. Throws `module dependency cycle: a -> b -> a`, `missing dependency: <id>` or
- * `duplicate module <id>` or `entity <id>: unknown <create|attach> process <id>` before registering anything. Each entry of a module's `events.consumes` is
+ * `duplicate module <id>`, `entity <id>: unknown <create|attach> process <id>` or `entity <id>, field <f>: ref <target> is not an entity
+ * of module <m>` (a ref into a loaded module whose entity does not exist; one into a module that is not loaded is not checked) before
+ * registering anything. Each entry of a module's `events.consumes` is
  * registered as that module's consumer of the event (design §5.5).
+ *
+ * Every maestro and documento of a module also gets the kernel's generic lifecycle processes (`<entity>.save`, `.submit`,
+ * `.approve`, `.reject`, `.void`, `.delete`, entity types spec §5): added to the module's processes and to each feature that
+ * lists the entity, so they are entitled and permissioned like the module's own. An id the module declares itself is kept.
+ * `typedHooks` may only name the module's maestros and documentos, and a documento that numbers `on_save` needs a `number` hook.
+ *
+ * Every maestro and documento also gets the kernel's consumer of its `<entity>.status_changed` event: the state e-mails of spec §7
+ * (typed/notify.ts), registered as the kernel's.
+ *
+ * Every module with a menu has the four level-1 sections Maestros, Documentos, Reportes and Parámetros (entity types spec §2.4, §9.2):
+ * `module x: missing menu section <s>` otherwise; the list pages of its maestros, documentos and parametros are placed in their
+ * section (`withMenuSections`, module/menu.ts).
  */
-export function loadModules(registry: Registry, modules: ModuleDef[]): void {
+export function loadModules(registry: Registry, declared: ModuleDef[]): void {
+  const modules = declared.map(withLifecycleProcesses).map((module) => withMenuSections(module));
   const byId = new Map<string, ModuleDef>();
   for (const module of modules) {
     if (byId.has(module.id)) throw new Error(`duplicate module ${module.id}`);
@@ -39,6 +59,22 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
   };
   for (const module of modules) visit(module);
 
+  // `needs` is not part of the load order (so no cycle with a `dependsOn` the other way), but each id must be a loaded module.
+  const loadedIds = new Set([...registry.modules().map((m) => m.id), ...modules.map((m) => m.id)]);
+  for (const module of modules) {
+    for (const need of module.needs ?? []) {
+      if (!loadedIds.has(need)) throw new Error(`module ${module.id} needs ${need}, which is not loaded (missing need: ${need})`);
+    }
+  }
+
+  // A shortcut's target group must be a navigation item of a loaded module.
+  const groupIds = new Set([...registry.modules(), ...modules].flatMap((m) => m.navigation.map((n) => n.id)));
+  for (const module of modules) {
+    for (const { item, under } of module.shortcuts ?? []) {
+      if (!groupIds.has(under)) throw new Error(`module ${module.id}: shortcut ${item.id} under ${under}, which does not exist`);
+    }
+  }
+
   // An entity's declared processes (`processIds.create` / `.attach`) must exist once these modules are in.
   const processIds = new Set([...registry.processes().map((p) => p.id), ...modules.flatMap((m) => m.processes.map((p) => p.id))]);
   for (const module of modules) {
@@ -49,16 +85,54 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     }
   }
 
+  // The target of every `ref` field (plan 2B Task 53.2): when its module is loaded (in the registry or among these modules) it must be an
+  // entity of that module, so a typo or a removed entity fails at startup. A target in a module that is not loaded is an optional
+  // neighbour's and is not checked (the usability gate and the import skip it).
+  const entityIds = new Set([...registry.entities().map((e) => e.id), ...modules.flatMap((m) => m.entities.map((e) => e.id))]);
+  for (const module of modules) {
+    for (const entity of module.entities) {
+      for (const field of entity.fields) {
+        if (field.type !== "ref" || !field.ref) continue;
+        const target = entityModuleOf(field.ref.entity);
+        if (!loadedIds.has(target) || entityIds.has(field.ref.entity)) continue;
+        throw new Error(`entity ${entity.id}, field ${field.name}: ref ${field.ref.entity} is not an entity of module ${target}`);
+      }
+    }
+  }
+
+  // A card effect keyed by another module's event or process (`ModuleDef.effects`, plan 2B Task 25) must name one that module emits or
+  // declares, once that module is loaded: a typo would silently drop the line from every card. (Its own keys `defineModule` checks; a key of
+  // a module that is not loaded is an optional neighbour's and is not checked.)
+  const allModules = [...registry.modules(), ...modules];
+  const ownerOf = new Map(allModules.map((m) => [m.id, m]));
+  for (const module of modules) {
+    for (const key of Object.keys(module.effects ?? {})) {
+      const owner = ownerOf.get(key.slice(0, key.indexOf(".")));
+      if (!owner || owner.id === module.id) continue;
+      const names = new Set([...owner.events.emits, ...owner.processes.flatMap((p) => [p.id, ...(p.emits ?? [])])]);
+      if (!names.has(key)) throw new Error(`effects of module ${module.id}: "${key}" is no event or process of module ${owner.id}`);
+    }
+  }
+
   // A KPI provider's `consult` gate must be a consult process some module declares: a typo would silently hide the card.
-  const declared = [...registry.processes(), ...modules.flatMap((m) => m.processes)];
-  const kinds = new Map(declared.map((p) => [p.id, p.kind]));
-  const features = new Map(declared.map((p) => [p.id, p.feature]));
+  const known = [...registry.processes(), ...modules.flatMap((m) => m.processes)];
+  const kinds = new Map(known.map((p) => [p.id, p.kind]));
+  const features = new Map(known.map((p) => [p.id, p.feature]));
   for (const module of modules) {
     for (const provider of module.homeKpis ?? []) {
       if (provider.consult === undefined) continue;
       const kind = kinds.get(provider.consult);
       if (kind === undefined) throw new Error(`KPI provider ${provider.id}: unknown consult process ${provider.consult}`);
       if (kind !== "consult") throw new Error(`KPI provider ${provider.id}: ${provider.consult} is not a consult process`);
+    }
+  }
+
+  for (const module of modules) {
+    for (const provider of module.homeCharts ?? []) {
+      if (provider.consult === undefined) continue;
+      const kind = kinds.get(provider.consult);
+      if (kind === undefined) throw new Error(`chart provider ${provider.id}: unknown consult process ${provider.consult}`);
+      if (kind !== "consult") throw new Error(`chart provider ${provider.id}: ${provider.consult} is not a consult process`);
     }
   }
 
@@ -89,9 +163,69 @@ export function loadModules(registry: Registry, modules: ModuleDef[]): void {
     registry.registerModule(module);
     for (const report of module.reports ?? []) registry.registerReport(report);
     for (const provider of module.homeKpis ?? []) registry.registerKpiProvider(provider);
+    for (const provider of module.homeCharts ?? []) registry.registerChartProvider(provider);
     for (const [event, fn] of Object.entries(module.events.consumes)) {
-      const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider) : fn;
+      const wrapped = event === "*" && fn === POSTING_CONSUMER && module.postingProvider ? postingConsumer(module.postingProvider, module.id) : fn;
       consumers.register(module.id, event, wrapped);
     }
+    for (const entity of module.entities.filter(isTypedEntity)) consumers.register("kernel", statusChangedEvent(entity.id), stateMailConsumer(registry));
   }
+}
+
+/**
+ * Fail closed (Task 5 review): the generic Grabar (`<entity>.save`) writes the record's columns itself, so a typed entity whose module
+ * validates its own updates (an update process `<entity>.update`, or the `update` sibling of its declared create process, e.g.
+ * `core.category.update`) must register a `validate` hook that runs that validation, or the generic save would bypass it.
+ */
+function assertValidateHooks(module: ModuleDef, typed: ModuleDef["entities"]): void {
+  const own = new Set(module.processes.map((p) => p.id));
+  for (const entity of typed) {
+    const updates = [`${entity.id}.update`];
+    const create = entity.processIds?.create;
+    if (create?.endsWith(".create")) updates.push(`${create.slice(0, -".create".length)}.update`);
+    if (!updates.some((id) => own.has(id)) || module.typedHooks?.[entity.id]?.validate) continue;
+    throw new Error(`module ${module.id}: typed entity ${entity.id} needs a validate hook`);
+  }
+}
+
+/**
+ * The module with the generic lifecycle processes of its maestros and documentos added (see loadModules). Refuses hooks for an
+ * entity that is not one of the module's typed entities and an `on_save` documento without a number hook, and a typed entity
+ * with an update process of its own but no validate hook.
+ */
+function withLifecycleProcesses(module: ModuleDef): ModuleDef {
+  const typed = module.entities.filter(isTypedEntity);
+  const typedIds = new Set(typed.map((e) => e.id));
+  for (const entityId of Object.keys(module.typedHooks ?? {})) {
+    if (!typedIds.has(entityId)) throw new Error(`module ${module.id}: typedHooks names ${entityId}, which is not a maestro or documento of the module`);
+  }
+  for (const entity of typed) {
+    if (entity.typed?.numbering === "on_save" && !module.typedHooks?.[entity.id]?.number) {
+      throw new Error(`entity ${entity.id} numbers on_save: module ${module.id} must register a typedHooks number hook`);
+    }
+  }
+  assertValidateHooks(module, typed);
+  if (typed.length === 0) return module;
+
+  const own = new Set(module.processes.map((p) => p.id));
+  const added: ProcessDef[] = [];
+  const byEntity = new Map<string, string[]>();
+  for (const entity of typed) {
+    const feature = module.features.find((f) => f.entities.includes(entity.id))?.id;
+    const ids: string[] = [];
+    for (const process of genericProcesses({ ...entity, module: module.id })) {
+      if (own.has(process.id)) continue;
+      added.push(feature ? { ...process, feature } : process);
+      ids.push(process.id);
+    }
+    byEntity.set(entity.id, ids);
+  }
+  return {
+    ...module,
+    processes: [...module.processes, ...added],
+    features: module.features.map((f) => {
+      const ids = f.entities.flatMap((e) => byEntity.get(e) ?? []).filter((id) => !f.processes.includes(id));
+      return ids.length === 0 ? f : { ...f, processes: [...f.processes, ...ids] };
+    }),
+  };
 }

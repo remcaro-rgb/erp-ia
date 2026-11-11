@@ -37,6 +37,29 @@ describe("account permission", () => {
     expect((await h.sql`select access from accounting.accounts where id = ${await accountId("5105")}`)[0]).toMatchObject({ access: "restricted" });
   });
 
+  it("hidden_account_ids (the set the views test once per statement) is exactly the accounts can_view_account refuses, for every kind of caller", async () => {
+    await restrict([
+      { subjectKind: "role", subjectId: h.contador.roleId, canView: true, canPost: false },
+      { subjectKind: "user", subjectId: h.auxiliar.userId, canView: false, canPost: false },
+    ]);
+    // A restricted account below the restricted one is its own root: it hides from whoever its own grants do not name.
+    await restrict([{ subjectKind: "role", subjectId: h.auxiliar.roleId, canView: true, canPost: false }], "restricted", "510506");
+    for (const who of [h.admin, h.contador, h.auxiliar]) {
+      const [row] = await withClaims(h.sql, who.claims, (tx) => tx<{ refused: string[]; hidden: string[] }[]>`
+        select coalesce((select array_agg(id order by id) from accounting.accounts where company_id = ${h.companyId} and not accounting.can_view_account(id)), '{}') as refused,
+               coalesce((select array_agg(x order by x) from unnest(accounting.hidden_account_ids()) x), '{}') as hidden`);
+      expect(row!.hidden).toEqual(row!.refused);
+    }
+    // The tree answers the same: a hidden account is no node, whoever asks.
+    const nodes = (claims: typeof h.admin.claims) => withClaims(h.sql, claims, (tx) => tx<{ id: string }[]>`select id from accounting.master_tree('account')`).then((r) => r.length);
+    const [counted] = await h.sql<{ n: number }[]>`select count(*)::int as n from accounting.accounts where company_id = ${h.companyId}`;
+    const all = counted!.n;
+    expect(await nodes(h.admin.claims)).toBe(all);
+    expect(await nodes(h.auxiliar.claims)).toBeLessThan(all);
+    await restrict([], "open", "510506");
+    await restrict([], "open");
+  });
+
   it("a user grant on 5105 overrides the role grant; removing the restriction opens the subtree again", async () => {
     await restrict([
       { subjectKind: "role", subjectId: h.contador.roleId, canView: true, canPost: false },

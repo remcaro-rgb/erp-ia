@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { entitled, runProcess, syncRegistry, type Caller } from "@erp/kernel";
+import { entitled, kernelModule, loadModules, Registry, runProcess, syncRegistry, type Caller, type ModuleDef } from "@erp/kernel";
+import { core } from "@erp/module-core";
+import { support } from "../index";
 import { supportHarness, type SupportHarness } from "./helpers";
 
 // Modules on and off per company (design §5.12, rule 4) through kernel.admin.module.enable / disable, with the real
@@ -67,6 +69,33 @@ describe("admin: modules", () => {
       await expect(run("kernel.admin.module.enable", { moduleId: "core" })).rejects.toMatchObject({ code: "not_entitled" });
     } finally {
       await h.sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${h.seed.tenantId}, 'module:core', 'manual')`;
+      await h.sql`delete from kernel.company_modules where company_id = ${h.companyId}`;
+    }
+  });
+
+  // `ModuleDef.needs` (plan 2B Task 41, Ruling R41-1): a soft neighbour that is not a load-order edge. A bare module "buyer" stands in for
+  // inventory and support for costing: buyer needs support, support does not depend on buyer.
+  it("disabling a module is refused while an enabled module needs it; allowed once the needer is off", async () => {
+    const buyer: ModuleDef = {
+      id: "buyer", version: "1", dependsOn: ["core"], needs: ["support"], entities: [], processes: [], features: [], navigation: [],
+      events: { emits: [], consumes: {} },
+    };
+    const registry = new Registry();
+    loadModules(registry, [kernelModule, core, support, buyer]);
+    const deps = { ...h.deps, registry };
+    const asAdmin = async (processId: string, input: unknown) => runProcess(deps, await stepUp(admin), processId, input);
+    await h.sql`insert into kernel.tenant_entitlements(tenant_id, key, source) values (${h.seed.tenantId}, 'module:buyer', 'manual')`;
+    try {
+      await expect(asAdmin("kernel.admin.module.disable", { moduleId: "support" })).rejects.toMatchObject({
+        code: "invalid_input", details: ["El módulo buyer necesita este módulo; desactívalo primero"],
+      });
+      expect(await isOn("support")).toBe(true);
+      // Enabling the needer never forced the needed module on: switch the needer off and support can go.
+      await asAdmin("kernel.admin.module.disable", { moduleId: "buyer" });
+      await asAdmin("kernel.admin.module.disable", { moduleId: "support" });
+      expect(await isOn("support")).toBe(false);
+    } finally {
+      await h.sql`delete from kernel.tenant_entitlements where tenant_id = ${h.seed.tenantId} and key = 'module:buyer'`;
       await h.sql`delete from kernel.company_modules where company_id = ${h.companyId}`;
     }
   });

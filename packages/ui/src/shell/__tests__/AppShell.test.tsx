@@ -8,8 +8,7 @@ import { AppShell } from "../AppShell";
 import { GridCell } from "../../grid/GridCell";
 import type { NavItem } from "../types";
 import { tabsStorageKey } from "../tabs-store";
-import { RecordForm } from "../../forms/form-parts";
-import { assistantOpenStorageKey, dianHintsStorageKey, readCachedPref, writeCachedPref } from "../prefs-cache";
+import { assistantOpenStorageKey, readCachedPref, sideMenuStorageKey, writeCachedPref } from "../prefs-cache";
 import { memoryStorage, renderEs, stubLayoutApis } from "./intl";
 
 beforeAll(stubLayoutApis);
@@ -81,6 +80,42 @@ describe("AppShell", () => {
     expect(options.some((o) => o.includes("Productos"))).toBe(false);
   });
 
+  // Entity types spec 2026-11-02 §2.4, §9.2 (Task 10): every module's level-1 items are Maestros, Documentos, Reportes and Parámetros.
+  describe("menu sections", () => {
+    const section = (name: string, children: NavItem[]): NavItem => ({ id: `core.${name}`, label: `nav.section.${name}`, href: "#", icon: "list", section: name as NavItem["section"], children });
+    const sectioned: NavItem[] = [
+      section("maestros", [{ id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users" }]),
+      section("documentos", []),
+      section("reportes", []),
+      section("parametros", [{ id: "core.posting", label: "nav.accounting.posting", href: "/posting", icon: "list", badge: 2 }]),
+    ];
+
+    it("shows the four sections as the module's items, in order", () => {
+      shell("/parties", vi.fn(), { nav: sectioned });
+      const bar = screen.getByRole("navigation", { name: "Menú del módulo" });
+      expect(within(bar).getAllByRole("button", { expanded: false }).map((b) => b.textContent)).toEqual(["Maestros", "Documentos", "Reportes", "Parámetros 2"]);
+      expect(within(bar).getByRole("button", { name: /^Maestros/ }).getAttribute("aria-current")).toBe("page");
+    });
+
+    it("an empty section opens on its empty state instead of disappearing", () => {
+      shell("/parties", vi.fn(), { nav: sectioned });
+      fireEvent.click(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: /^Documentos/ }));
+      const menu = screen.getByRole("menu", { name: "Documentos" });
+      expect(within(menu).queryAllByRole("menuitem")).toEqual([]);
+      expect(within(menu).getByText("Aún no hay elementos en esta sección")).toBeTruthy();
+    });
+
+    it("a section entry carries its badge, and the section shows how many are waiting", () => {
+      const navigate = vi.fn();
+      shell("/parties", navigate, { nav: sectioned });
+      const trigger = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("button", { name: /^Parámetros/ });
+      expect(within(trigger).getByLabelText("2 pendientes")).toBeTruthy();
+      fireEvent.click(trigger);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Reglas contables 2 pendientes" }));
+      expect(navigate).toHaveBeenCalledWith("/posting");
+    });
+  });
+
   it("the page being shown opens its tab, and a module item navigates", () => {
     const navigate = vi.fn();
     shell("/parties", navigate);
@@ -88,6 +123,14 @@ describe("AppShell", () => {
     expect(within(tabs).getByRole("button", { name: "Terceros" }).getAttribute("aria-current")).toBe("page");
     fireEvent.click(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Productos" }));
     expect(navigate).toHaveBeenCalledWith("/products");
+  });
+
+  it("a report page opens a tab named by the report, with or without parameters, never the generic menu item", () => {
+    const { unmount } = shell("/accounting/reports/trial_balance");
+    expect(tabNames()).toContain("Balance de prueba");
+    unmount();
+    shell("/accounting/reports/balance_sheet?p=%7B%7D");
+    expect(tabNames()).toContain("Estado de situación financiera");
   });
 
   it("closing the active tab navigates to its neighbour", () => {
@@ -204,40 +247,111 @@ describe("AppShell", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
-  it("the Módulos menu lists modules only, never their items", () => {
-    shell("/parties");
-    const trigger = screen.getByRole("button", { name: /^Núcleo/ });
-    fireEvent.keyDown(trigger, { key: "Enter" });
-    const menu = screen.getByRole("menu");
-    const entries = within(menu).getAllByRole("menuitem").map((item) => item.textContent ?? "");
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toContain("Núcleo");
-    expect(entries[0]).toContain("3 opciones");
-    for (const item of ["Terceros", "Productos", "Categorías"]) expect(menu.textContent).not.toContain(item);
-  });
-
-  it("choosing another module in the Módulos menu shows its bar and brings its open tab to the front", async () => {
-    const navigate = vi.fn();
-    const twoModules = { id: "kernel", label: "nav.modules.kernel" };
+  // Shell v7 (owner 2026-11-02, design §22.24, rule 19): the left side menu lists module names only; the active module's sections sit in the bar.
+  describe("shell v7 side menu", () => {
+    const twoModules = [{ id: "core", label: "nav.modules.core" }, { id: "kernel", label: "nav.modules.kernel" }];
     const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
-    const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
-    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, twoModules], nav: adminNav, initialTabs });
-    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
-    // The bar switches to the chosen module even though the page shown belongs to Núcleo.
-    expect(screen.getByRole("button", { name: /^Sistema/ })).toBeTruthy();
-    expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Usuarios" })).toBeTruthy();
-    // Its open tab comes to the front (the shell then navigates to it) instead of nothing happening.
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/admin/users"));
-  });
+    const side = () => screen.getByRole("navigation", { name: "Módulos" });
 
-  it("choosing a module with no open tab opens its first option", () => {
-    const navigate = vi.fn();
-    const adminNav: NavItem[] = [...nav, { id: "kernel.admin_users", label: "nav.kernel.users", href: "/admin/users", icon: "users" }];
-    shell("/parties", navigate, { modules: [{ id: "core", label: "nav.modules.core" }, { id: "kernel", label: "nav.modules.kernel" }], nav: adminNav });
-    fireEvent.keyDown(screen.getByRole("button", { name: /^Núcleo/ }), { key: "Enter" });
-    fireEvent.click(screen.getByRole("menuitem", { name: /Sistema/ }));
-    expect(navigate).toHaveBeenCalledWith("/admin/users");
+    it("lists the module names only, never their items, the active one marked", () => {
+      shell("/parties", vi.fn(), { modules: twoModules, nav: adminNav });
+      expect(screen.getByRole("complementary", { name: "Menú de módulos" })).toBeTruthy();
+      const entries = within(side()).getAllByRole("button");
+      expect(entries.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Núcleo", "Sistema"]);
+      expect(within(side()).queryAllByRole("link")).toEqual([]);
+      for (const item of ["Terceros", "Productos", "Usuarios"]) expect(side().textContent).not.toContain(item);
+      expect(entries[0]!.getAttribute("aria-current")).toBe("true");
+      expect(screen.getByRole("button", { name: "Contraer menú" }).getAttribute("aria-controls")).toBe(side().id);
+    });
+
+    it("the server render states no expanded state before the viewport is known", () => {
+      const html = renderToString(
+        <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
+          {shellElement("/parties")}
+        </NextIntlClientProvider>,
+      );
+      const toggle = /<button[^>]*aria-controls="erp-side-nav"[^>]*>/.exec(html)?.[0] ?? "";
+      expect(toggle).not.toBe("");
+      expect(toggle).not.toContain("aria-expanded");
+      expect(toggle).toContain('aria-label="Contraer o expandir menú"');
+    });
+
+    it("a module the caller has no item in (menu access, permissions) is not listed", () => {
+      shell("/parties", vi.fn(), { modules: twoModules, nav });
+      expect(within(side()).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual(["Núcleo"]);
+    });
+
+    it("picking a module that has an open tab shows its sections in the bar and stays on the current tab", () => {
+      const navigate = vi.fn();
+      const initialTabs = { value: { tabs: [{ id: "/admin/users", title: "Usuarios", href: "/admin/users", kind: "grid" as const }], activeId: "/admin/users" }, savedAt: 1 };
+      shell("/parties", navigate, { modules: twoModules, nav: adminNav, initialTabs });
+      fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
+      expect(within(side()).getByRole("button", { name: "Sistema" }).getAttribute("aria-current")).toBe("true");
+      expect(within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Usuarios" })).toBeTruthy();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it("picking a module with no open tab opens that module's Inicio", () => {
+      const navigate = vi.fn();
+      shell("/parties", navigate, { modules: twoModules, nav: adminNav });
+      fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
+      expect(navigate).toHaveBeenCalledWith("/inicio/kernel");
+    });
+
+    it("a module whose Inicio is already open counts as open: nothing moves", () => {
+      const navigate = vi.fn();
+      const initialTabs = { value: { tabs: [{ id: "/inicio/kernel", title: "Inicio de Sistema", href: "/inicio/kernel", kind: "grid" as const }], activeId: "/inicio/kernel" }, savedAt: 1 };
+      shell("/parties", navigate, { modules: twoModules, nav: adminNav, initialTabs });
+      fireEvent.click(within(side()).getByRole("button", { name: "Sistema" }));
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it("the module's sections render in the bar with the empty state", () => {
+      const sectioned: NavItem[] = [
+        { id: "core.maestros", label: "nav.section.maestros", href: "#", icon: "list", section: "maestros", children: [nav[0]!] },
+        { id: "core.documentos", label: "nav.section.documentos", href: "#", icon: "list", section: "documentos", children: [] },
+      ];
+      shell("/parties", vi.fn(), { nav: sectioned });
+      const bar = screen.getByRole("navigation", { name: "Menú del módulo" });
+      expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["Maestros", "Documentos"]);
+      expect(side().textContent).not.toContain("Maestros");
+    });
+
+    it("collapses to the icon rail and back, remembered per viewer", () => {
+      const storage = memoryStorage();
+      shell("/parties", vi.fn(), { storage });
+      const rail = screen.getByRole("complementary", { name: "Menú de módulos" });
+      const toggle = screen.getByRole("button", { name: "Contraer menú" });
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      fireEvent.click(toggle);
+      expect(screen.getByRole("button", { name: "Expandir menú" }).getAttribute("aria-expanded")).toBe("false");
+      expect(rail.getAttribute("data-collapsed")).toBe("true");
+      expect(readCachedPref(storage, sideMenuStorageKey("u1"), "c1")?.value).toBe(true);
+      cleanup();
+      shell("/parties", vi.fn(), { storage });
+      expect(screen.getByRole("button", { name: "Expandir menú" }).getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(screen.getByRole("button", { name: "Expandir menú" }));
+      expect(screen.getByRole("button", { name: "Contraer menú" }).getAttribute("aria-expanded")).toBe("true");
+      expect(readCachedPref(storage, sideMenuStorageKey("u1"), "c1")?.value).toBe(false);
+    });
+
+    it("starts collapsed below 1440 px when nothing is saved; a saved choice wins", () => {
+      setWidth(1280);
+      const storage = memoryStorage();
+      shell("/parties", vi.fn(), { storage });
+      expect(screen.getByRole("button", { name: "Expandir menú" }).getAttribute("aria-expanded")).toBe("false");
+      cleanup();
+      writeCachedPref(storage, sideMenuStorageKey("u1"), "c1", { value: false, savedAt: 1 });
+      shell("/parties", vi.fn(), { storage });
+      expect(screen.getByRole("button", { name: "Contraer menú" }).getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("a refused storage never breaks the menu", () => {
+      const broken = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } } as unknown as Storage;
+      shell("/parties", vi.fn(), { storage: broken });
+      fireEvent.click(screen.getByRole("button", { name: "Contraer menú" }));
+      expect(screen.getByRole("button", { name: "Expandir menú" })).toBeTruthy();
+    });
   });
 
   // UI density audit quick win 13 (M13) and 16 (L1)
@@ -443,48 +557,6 @@ describe("AppShell, the drawer's unset state is CSS-first", () => {
   });
 });
 
-// "Ver códigos DIAN" (OD-12) is a saved preference the shell hands to every record form below it: the server's copy
-// renders on the first paint (no flash), a newer copy of this browser wins, and a change is cached and reported.
-describe("AppShell, the DIAN hints preference", () => {
-  const withForm = (extra: Partial<ShellProps> = {}) => (
-    <AppShell company={cafe} companies={[cafe]} user={{ id: "u1", name: "L", email: "l@x.co", roles: [] }} modules={[{ id: "core", label: "nav.modules.core" }]} nav={nav} currentHref="/r/core.party/1" navigate={vi.fn()} storage={memoryStorage()} {...extra}>
-      <RecordForm canSave onSave={() => {}} failure={null}>
-        <input aria-label="campo" />
-      </RecordForm>
-    </AppShell>
-  );
-  const dianSwitch = () => screen.getByRole("switch", { name: "Ver códigos DIAN" });
-
-  it("is off when nothing was saved, and on from the first server markup when the saved choice is on", () => {
-    const ssr = (extra: Partial<ShellProps> = {}) =>
-      renderToString(
-        <NextIntlClientProvider locale="es-419" messages={messages("es-419")} timeZone="America/Bogota">
-          {withForm({ storage: null, ...extra })}
-        </NextIntlClientProvider>,
-      );
-    expect(ssr()).toMatch(/role="switch"[^>]*aria-checked="false"|aria-checked="false"[^>]*role="switch"/);
-    expect(ssr({ dianHints: { value: true, savedAt: 1 } })).toMatch(/role="switch"[^>]*aria-checked="true"|aria-checked="true"[^>]*role="switch"/);
-  });
-
-  it("a change turns the forms' hints on, is cached for this browser and is reported with its time", () => {
-    const storage = memoryStorage();
-    const onDianHintsChange = vi.fn();
-    renderEs(withForm({ storage, onDianHintsChange }));
-    expect(dianSwitch().getAttribute("aria-checked")).toBe("false");
-    fireEvent.click(dianSwitch());
-    expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
-    expect(onDianHintsChange).toHaveBeenCalledWith(true, expect.any(Number));
-    expect(readCachedPref(storage, dianHintsStorageKey("u1"), "c1")?.value).toBe(true);
-  });
-
-  it("a newer copy in this browser's cache wins over the server's", () => {
-    const storage = memoryStorage();
-    writeCachedPref(storage, dianHintsStorageKey("u1"), "c1", { value: true, savedAt: 50 });
-    renderEs(withForm({ storage, dianHints: { value: false, savedAt: 10 } }));
-    expect(dianSwitch().getAttribute("aria-checked")).toBe("true");
-  });
-});
-
 describe("AppShell, module context and tab titles (T7)", () => {
   const accountingNav: NavItem[] = [
     { id: "core.parties", label: "nav.core.parties", href: "/parties", icon: "users" },
@@ -499,7 +571,20 @@ describe("AppShell, module context and tab titles (T7)", () => {
 
   it("a record page keeps the module of its entity: /r/accounting.entry/<id> shows Contabilidad", () => {
     shell("/r/accounting.entry/0198-x", vi.fn(), { nav: accountingNav, modules });
-    expect(moduleNames()).toEqual(["Comprobantes", "Informes"]);
+    expect(moduleNames()).toEqual(["Inicio", "Comprobantes", "Informes"]);
+  });
+
+  it("every module carries its own Inicio: the bar's Inicio leads to /inicio/<module>, and that page belongs to the module", () => {
+    shell("/inicio/accounting", vi.fn(), { nav: accountingNav, modules });
+    const home = within(screen.getByRole("navigation", { name: "Menú del módulo" })).getByRole("link", { name: "Inicio" });
+    expect(home.getAttribute("href")).toBe("/inicio/accounting");
+    expect(home.getAttribute("aria-current")).toBe("page");
+    expect(moduleNames()).toEqual(["Inicio", "Comprobantes", "Informes"]);
+  });
+
+  it("a module's Inicio page opens a tab named after the module", () => {
+    shell("/inicio/accounting", vi.fn(), { nav: accountingNav, modules });
+    expect(within(screen.getByRole("navigation", { name: "Pestañas abiertas" })).getByRole("button", { name: "Inicio de Contabilidad" })).toBeTruthy();
   });
 
   it("a record's tab is named after its entity, not Registro; a path with no menu item is not shown raw", () => {
@@ -541,5 +626,43 @@ describe("AppShell, ⌘K identities (T2)", () => {
     view.rerender(shellElement("/products"));
     view.rerender(shellElement("/categories"));
     expect(tabNames()).toEqual(["Inicio", "Terceros", "Productos", "Categorías"]);
+  });
+});
+
+describe("AppShell · saved tabs", () => {
+  it("a tab saved with the generic 'Informes' title takes the report's name; a drill-down title stays", () => {
+    const saved = {
+      value: {
+        tabs: [
+          { id: "home", href: "/", title: "home", kind: "home", pinned: true },
+          { id: "/accounting/reports/account_detail", href: "/accounting/reports/account_detail", title: "Informes", kind: "report" },
+          { id: "/accounting/reports/account_detail?p=1", href: "/accounting/reports/account_detail?p=1", title: "1110 · Bancos · noviembre de 2026", kind: "report" },
+        ],
+        activeId: "home",
+      },
+      savedAt: 1,
+    };
+    const items = [{ id: "accounting.reports", label: "nav.accounting.reports", href: "/accounting/reports", icon: "file-bar-chart" }];
+    shell("/", vi.fn(), { initialTabs: saved, nav: items });
+    expect(tabNames()).toEqual(expect.arrayContaining(["Auxiliar por cuenta", "1110 · Bancos · noviembre de 2026"]));
+    expect(tabNames()).not.toContain("Informes");
+  });
+});
+
+describe("AppShell · pages opened with parameters", () => {
+  it("does not open a second, bare tab for the page of the active tab that has a query", () => {
+    const href = "/accounting/reports/account_detail?p=%7B%7D";
+    const saved = {
+      value: {
+        tabs: [
+          { id: "home", href: "/", title: "home", kind: "home", pinned: true },
+          { id: href, href, title: "6135 · Comercio · 2026/01/01 – 2026/11/30", kind: "report" },
+        ],
+        activeId: href,
+      },
+      savedAt: 1,
+    };
+    shell("/accounting/reports/account_detail", vi.fn(), { initialTabs: saved });
+    expect(tabNames()).toEqual(["Inicio", "6135 · Comercio · 2026/01/01 – 2026/11/30"]);
   });
 });

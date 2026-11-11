@@ -134,17 +134,17 @@ describe("login of a member (no MFA required)", () => {
   });
 });
 
-describe("login of an admin (MFA required by role)", () => {
+describe("login of a user whose second step an administrator requires", () => {
   let fixture: AuthFixture;
   let secret = "";
   beforeAll(async () => {
-    fixture = await seedAuthUser({ role: "admin" });
+    fixture = await seedAuthUser({ role: "admin", mfaRequired: true });
   });
   afterAll(async () => {
     await fixture.cleanup();
   });
 
-  it("sends an admin without a TOTP factor to enrolment, blocks API access, then enrols and signs in", async () => {
+  it("sends a required user without a TOTP factor to enrolment, blocks API access, then enrols and signs in", async () => {
     const jar = new MemoryJar();
     state.jar = jar;
     expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/mfa/enroll" });
@@ -164,7 +164,7 @@ describe("login of an admin (MFA required by role)", () => {
     expect((await loginAudit(fixture)).at(-1)).toMatchObject({ origin: "ui", input: { remember: false, mfa: "totp" } });
   });
 
-  it("sends an admin with a TOTP factor to the verify step until the code is right", async () => {
+  it("sends a user with a TOTP factor to the verify step until the code is right", async () => {
     // The previous test left a verified factor; a new sign-in is at aal1 and must pass the second step.
     const jar = new MemoryJar();
     state.jar = jar;
@@ -236,6 +236,23 @@ describe("a session whose second-step factor was removed (design §22.19)", () =
     const cleared = response.cookies.getAll().filter((c) => /^sb-.*-auth-token/.test(c.name));
     expect(cleared.length).toBeGreaterThan(0);
     for (const cookie of cleared) expect(cookie.value).toBe("");
+  });
+});
+
+describe("login of an admin no administrator requires a second step of", () => {
+  let fixture: AuthFixture;
+  beforeAll(async () => {
+    fixture = await seedAuthUser({ role: "admin" });
+  });
+  afterAll(async () => {
+    await fixture.cleanup();
+  });
+
+  it("opens the app with the password alone: no role requires the second step, an admin's included", async () => {
+    const jar = new MemoryJar();
+    state.jar = jar;
+    expect(await loginWithPassword(jar, { email: fixture.email, password: fixture.password, remember: false })).toEqual({ ok: true, next: "/" });
+    expect((await getCallerClaims()).sub).toBe(fixture.userId);
   });
 });
 

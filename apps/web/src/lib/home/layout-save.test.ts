@@ -51,3 +51,17 @@ describe("createLayoutSaver", () => {
     expect(beacon).toHaveBeenCalledWith({ key: "home_layout", value: [{ id: "help", w: 1, h: 200 }], savedAt: 60 });
   });
 });
+
+describe("createLayoutSaver, a module's page", () => {
+  it("stores the layout under the module's own key", async () => {
+    const action = vi.fn(async () => ({ ok: true }));
+    const beacon = vi.fn();
+    const saver = createLayoutSaver({ action, beacon, key: "home_layout.support" });
+    await saver.save(layout, 20);
+    expect(action).toHaveBeenCalledWith({ key: "home_layout.support", value: layout, savedAt: 20 });
+    const slow = createLayoutSaver({ action: () => new Promise(() => {}), beacon, key: "home_layout.support" });
+    void slow.save(layout, 21);
+    slow.pageHide();
+    expect(beacon).toHaveBeenCalledWith({ key: "home_layout.support", value: layout, savedAt: 21 });
+  });
+});

@@ -30,7 +30,7 @@ async function insertClosingEntry(
 ): Promise<string> {
   const [entry] = await ctx.tx<{ id: string }[]>`
     insert into accounting.entries ${ctx.tx({
-      company_id: ctx.companyId, journal_id: journalId, date, description, origin: "auto", status: "draft", is_closing: true, chain_id: ctx.chainId,
+      company_id: ctx.companyId, journal_id: journalId, date, description, origin: "auto", status: "draft", requires_approval: false, posts: true, is_closing: true, chain_id: ctx.chainId,
     })}
     returning id`;
   await ctx.tx`insert into accounting.entry_lines ${ctx.tx(
@@ -40,7 +40,7 @@ async function insertClosingEntry(
       business_unit_id: line.group?.business_unit_id ?? null, debit: line.debit, credit: line.credit, debit_doc: line.debit, credit_doc: line.credit,
     })),
   )}`;
-  await postEntry(ctx, entry!.id, { origin: "human", skipFourEyes: true, engine: true });
+  await postEntry(ctx, entry!.id, { engine: true });
   return entry!.id;
 }
 
@@ -48,6 +48,7 @@ export const yearClose = defineProcess({
   id: "accounting.year.close",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.periods",
   sensitivity: "step-up",
   description: "Cierra el año fiscal: salda las cuentas de resultado contra ganancias y pérdidas y lleva el resultado a utilidad o pérdida del ejercicio",
@@ -80,7 +81,7 @@ export const yearClose = defineProcess({
       join accounting.entries e on e.id = l.entry_id
       join accounting.accounts a on a.id = l.account_id
       join accounting.periods p on p.id = e.period_id
-      where l.company_id = ${ctx.companyId} and p.fiscal_year_id = ${fiscalYearId} and e.status in ('posted', 'reversed')
+      where l.company_id = ${ctx.companyId} and p.fiscal_year_id = ${fiscalYearId} and e.status = 'posted'
         and not e.is_opening and not e.is_closing
         and a.statement_section is not null and a.statement_section <> all(${balanceSheet}::text[]) and a.id <> ${summary.accountId}
       group by l.account_id, l.party_id, l.cost_center_id, l.open_auxiliary_id, l.item_id, l.business_unit_id
@@ -120,6 +121,7 @@ export const yearReopen = defineProcess({
   id: "accounting.year.reopen",
   module: "accounting",
   kind: "update",
+  recordAccess: "none",
   feature: "accounting.periods",
   sensitivity: "step-up",
   description: "Reabre un año fiscal cerrado: revierte sus comprobantes de cierre y reabre el año y su último período",
@@ -142,7 +144,7 @@ export const yearReopen = defineProcess({
        where fiscal_year_id = ${fiscalYearId} and number = (select max(number) from accounting.periods where fiscal_year_id = ${fiscalYearId})`;
     const closing = await ctx.tx<{ id: string }[]>`
       select e.id from accounting.entries e join accounting.periods p on p.id = e.period_id
-      where e.company_id = ${ctx.companyId} and p.fiscal_year_id = ${fiscalYearId} and e.is_closing and e.status = 'posted' and e.reversal_of_id is null
+      where e.company_id = ${ctx.companyId} and p.fiscal_year_id = ${fiscalYearId} and e.is_closing and e.status = 'posted' and e.reversal_of_id is null and not coalesce((e.extra->>'reversed')::boolean, false)
       order by e.seq desc`;
     const reversed: string[] = [];
     for (const entry of closing) {

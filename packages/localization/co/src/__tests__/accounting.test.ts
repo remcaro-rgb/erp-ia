@@ -22,6 +22,48 @@ describe("Colombia accounting pack", () => {
     for (const a of c) expect(acc.validateAccountCode(a.code, parentOf(a.code))).toMatchObject({ ok: true });
   });
 
+  it("has the movement subcuentas a company that buys and sells goods needs: taxes, payroll, purchases and returns (demo seed, 2026-11-02)", () => {
+    const codes = new Set(acc.chartOfAccounts().map((a) => a.code));
+    const basic = [
+      "110505", "110510", "111005", "130505", "133005", "135515", "135517", "135518", "143505", "152405", "159205",
+      "220505", "233540", "233550", "236540", "236525", "236701", "236801", "240405", "240801", "240802", "240810", "241205",
+      "250505", "251010", "251505", "252005", "252505", "261005", "261010", "261015", "261020",
+      "310505", "330505", "360505", "370505", "413505", "413595", "417505", "421005",
+      "510506", "510530", "510536", "510539", "512010", "513530", "514520", "530505", "530520", "613505", "613595", "620505", "622505",
+    ];
+    for (const code of basic) expect(codes.has(code), code).toBe(true);
+    const c = acc.chartOfAccounts();
+    expect(c.find((a) => a.code === "622505")?.nature).toBe("credit");
+    expect(c.find((a) => a.code === "620505")).toMatchObject({ nature: "debit", statementSection: "cost_of_sales" });
+    // Salarios por pagar carries the provision of an employee's commission since plan 2B.2 Task 30.2 (RG-13, provisional, item 159): the payee
+    // on it must be invoice-ready (rule 10), as on every payable the pack flags.
+    expect(c.find((a) => a.code === "250505")).toMatchObject({ nature: "credit", requiresParty: true, requiresInvoiceReady: true });
+  });
+
+  // Commissions (plan 2B.2 Task 30.2, Part G PG §5.4, RG-13; provisional, owner items 159–161: the accountant confirms the codes). The sales
+  // module's roles map by payee kind (dimension payee_kind:employee | payee_kind:agent); the role alone maps to the agent's accounts. The expense
+  // subcuentas the PUC seed lacks come through extraAccounts; both payable subcuentas exist in the seed and are flagged invoice-ready there,
+  // without touching INVOICE_READY_GROUPS (which would flag every 23 and 25 account).
+  it("maps commission_expense and commissions_payable by payee kind, the payables flagged party and invoice-ready", () => {
+    const mappings = acc.defaultRoleMappings();
+    const of = (role: string) => Object.fromEntries(mappings.filter((m) => m.role === role).map((m) => [m.dimension ?? "", m.code]));
+    expect(of("commission_expense")).toEqual({ "": "523595", "payee_kind:employee": "520518", "payee_kind:agent": "523595" });
+    expect(of("commissions_payable")).toEqual({ "": "233520", "payee_kind:employee": "250505", "payee_kind:agent": "233520" });
+    const all = [...acc.chartOfAccounts(), ...acc.extraAccounts()];
+    const account = (code: string) => all.find((a) => a.code === code);
+    expect(account("520518")).toMatchObject({ name: "Comisiones", nature: "debit", requiresParty: false, requiresInvoiceReady: false, requiresCostCenter: true, statementSection: "operating_expenses" });
+    expect(account("523595")).toMatchObject({ name: "Otros servicios (comisiones)", nature: "debit", requiresParty: false, requiresCostCenter: true, statementSection: "operating_expenses" });
+    expect(account("250505")).toMatchObject({ nature: "credit", requiresParty: true, requiresInvoiceReady: true, requiresCostCenter: false });
+    expect(account("233520")).toMatchObject({ name: "Comisiones", nature: "credit", requiresParty: true, requiresInvoiceReady: true, requiresCostCenter: false });
+    // The parents exist in the seed; the two expense subcuentas do not (so they are extra accounts, never twice in the chart).
+    const chart = new Set(acc.chartOfAccounts().map((a) => a.code));
+    expect(["5205", "5235", "2505", "2335", "250505", "233520"].every((code) => chart.has(code))).toBe(true);
+    expect(chart.has("520518") || chart.has("523595")).toBe(false);
+    // Only these two payables gain the flag: the rest of groups 23 and 25 keep the default (party, not invoice-ready).
+    expect(account("233525")).toMatchObject({ requiresParty: true, requiresInvoiceReady: false });
+    expect(account("251010")).toMatchObject({ requiresParty: true, requiresInvoiceReady: false });
+  });
+
   it("every account role of the kernel catalogue has a default mapping and every mapped code exists in the chart or in extraAccounts", () => {
     const mappings = acc.defaultRoleMappings();
     const known = new Set([...acc.chartOfAccounts(), ...acc.extraAccounts()].map((a) => a.code));
@@ -29,10 +71,27 @@ describe("Colombia accounting pack", () => {
     for (const m of mappings) expect(known.has(m.code), `${m.role} → ${m.code}`).toBe(true);
     expect(mappings.find((m) => m.role === "vat_out" && m.dimension === "tax:IVA19")?.code).toBe("240801");
     expect(mappings.find((m) => m.role === "vat_out" && m.dimension === "tax:IVA5")?.code).toBe("240802");
+    // INC and the other national taxes an invoice carries post to 249505 (Impuesto nacional al consumo), never to the IVA account (fix round 1
+    // of Task 16; the account is to confirm with the owner's accountant).
+    for (const code of ["INC2", "INC4", "INC8", "INC16", "22", "32", "33", "34", "35", "23"]) {
+      expect(mappings.find((m) => m.role === "vat_out" && m.dimension === `tax:${code}`)?.code, code).toBe("249505");
+    }
+    // A receipt's cash line resolves by its medio de pago (payment_method:<code>, plan 2B Task 21): cash and cheques to the caja, transfers
+    // and cards to the bank (to confirm with the owner's accountant; migration 0110 backfills seeded charts).
+    expect(Object.fromEntries(mappings.filter((m) => m.role === "cash" && m.dimension).map((m) => [m.dimension, m.code]))).toEqual({
+      "payment_method:cash": "110505", "payment_method:transfer": "111005", "payment_method:card": "111005", "payment_method:check": "110505",
+    });
     expect(mappings.find((m) => m.role === "suspense")?.code).toBe("238095");
     expect(mappings.find((m) => m.role === "rounding")?.code).toBe("530595");
-    expect(acc.extraAccounts().map((a) => a.code).sort()).toEqual(["238095", "530595"]);
+    expect(acc.extraAccounts().map((a) => a.code).sort()).toEqual(["238095", "421020", "520518", "523595", "530525", "530595"]);
     const chart = new Set(acc.chartOfAccounts().map((a) => a.code));
+    // The realized and unrealized exchange difference (plan 2B.2 Task 34.5, FX §5; provisional, owner item 126 (a), the accountant confirms):
+    // fx_gain → 421020 and fx_loss → 530525 «Diferencia en cambio», added to the PUC seed; neither asks for a cost center (a receipt has none).
+    expect(mappings.find((m) => m.role === "fx_gain" && !m.dimension)?.code).toBe("421020");
+    expect(mappings.find((m) => m.role === "fx_loss" && !m.dimension)?.code).toBe("530525");
+    expect(acc.extraAccounts().find((a) => a.code === "421020")).toMatchObject({ name: "Diferencia en cambio", nature: "credit", requiresCostCenter: false, requiresParty: false, statementSection: "other_income" });
+    expect(acc.extraAccounts().find((a) => a.code === "530525")).toMatchObject({ name: "Diferencia en cambio", nature: "debit", requiresCostCenter: false, requiresParty: false, statementSection: "other_expenses" });
+    expect(chart.has("4210") && chart.has("421020") === false && chart.has("530525") === false).toBe(true);
     expect(chart.has("2380") && chart.has("5305")).toBe(true);
     expect(chart.has("238095") || chart.has("530595")).toBe(false);
   });

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { checkRules } from "../check-rules";
+import { checkRules, UNMASKED_PROCESSES, UNMASKED_VIEWS } from "../check-rules";
 
 let root: string;
 
@@ -184,6 +185,81 @@ describe("check-rules: reads through masked views in apps/web and packages/agent
   });
 });
 
+describe("check-rules: unmasked module views", () => {
+  const VIEWS = ["crm.v_quote_offers", "crm.v_quote_offer_lines", "sales.v_invoice_order_lines", "invoicing.v_receivable_invoices", "invoicing.v_open_invoices", "invoicing.v_order_invoiced", "payments.v_invoice_allocations"];
+
+  it("flags a page reading an unmasked view with no field-visibility helper, with file and line", () => {
+    put("apps/web/src/app/(app)/x/page.tsx", "export const q = (tx) => tx`\n  select id from invoicing.v_receivable_invoices where party_id = ${1}`;\n");
+    const violations = checkRules(root);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toMatchObject({ rule: "unmasked-view-read", file: "apps/web/src/app/(app)/x/page.tsx", line: 2 });
+  });
+
+  it("accepts the same file when it calls a field-visibility helper", () => {
+    for (const helper of ["gridPageAccess(", "creditVisibleTo(", "linkableEntities(", "kernel.field_visible("]) {
+      put("apps/web/src/lib/x.ts", `await ${helper}deps);\ntx\`select id from invoicing.v_receivable_invoices\`;\n`);
+      expect(checkRules(root), helper).toEqual([]);
+    }
+  });
+
+  it("does not accept a comment as a marker (no escape hatch)", () => {
+    put("apps/web/src/lib/x.ts", "// visibility-checked: gridPageAccess\n// gridPageAccess(\ntx`select id from invoicing.v_receivable_invoices`;\n");
+    expect(checkRules(root).map((v) => v.rule)).toEqual(["unmasked-view-read"]);
+  });
+
+  it("flags each of the seven views and the open_invoices process", () => {
+    for (const view of VIEWS) {
+      put("apps/web/src/lib/x.ts", `tx\`select 1 from ${view} v\`;\n`);
+      expect(checkRules(root).map((v) => v.rule), view).toEqual(["unmasked-view-read"]);
+      const [schema, name] = view.split(".") as [string, string];
+      put("apps/web/src/lib/x.ts", `tx\`select 1 from ${schema}.${name} v join ${schema}.${name} w on true\`;\n`);
+      expect(checkRules(root).length, view).toBe(2);
+    }
+    put("apps/web/src/lib/x.ts", 'await runProcess(deps, caller, "payments.payment.open_invoices", {});\n');
+    expect(checkRules(root).map((v) => v.rule)).toEqual(["unmasked-view-read"]);
+  });
+
+  it("flags the real sales/record.ts credit read once its creditVisibleTo( gate is gone (review F-5.1)", () => {
+    const real = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const text = readFileSync(join(real, "apps/web/src/lib/sales/record.ts"), "utf8");
+    expect(text).toMatch(/creditVisibleTo\(/);
+    expect(text).toMatch(/invoicing\.v_open_invoices/);
+    put("apps/web/src/lib/sales/record.ts", text);
+    expect(checkRules(root).filter((v) => v.rule === "unmasked-view-read")).toEqual([]);
+    put("apps/web/src/lib/sales/record.ts", text.replaceAll("creditVisibleTo(", "creditVisible("));
+    const flagged = checkRules(root).filter((v) => v.rule === "unmasked-view-read");
+    expect(flagged.length).toBeGreaterThan(0);
+    expect(flagged.every((v) => v.file === "apps/web/src/lib/sales/record.ts")).toBe(true);
+  });
+
+  it("does not scan test files or code under packages/modules", () => {
+    put("apps/web/src/lib/__tests__/x.integration.test.ts", "sql`select * from invoicing.v_receivable_invoices`;\n");
+    put("apps/web/src/lib/x.test.ts", "sql`select * from payments.v_invoice_allocations`;\n");
+    put("packages/modules/payments/src/processes/x.ts", "tx`select * from invoicing.v_receivable_invoices`; run(\"payments.payment.open_invoices\");\n");
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("documents the guard's known limits: it is file-level and best effort", () => {
+    // A marker inside a string literal satisfies it (only comments are stripped).
+    put("apps/web/src/lib/x.ts", 'const note = "gridPageAccess(";\ntx`select id from invoicing.v_receivable_invoices`;\n');
+    expect(checkRules(root)).toEqual([]);
+    // linkableEntities( proves the entity's visibility only, not that each field read is visible.
+    put("apps/web/src/lib/x.ts", "await linkableEntities(deps, claims, []);\ntx`select total from invoicing.v_receivable_invoices`;\n");
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("holds the declared views and processes", () => {
+    expect([...UNMASKED_VIEWS]).toEqual(VIEWS);
+    expect([...UNMASKED_PROCESSES]).toEqual(["payments.payment.open_invoices"]);
+  });
+
+  it("the real repo has no unmasked-view-read violation, and the inventory KPI checks field_visible", () => {
+    const real = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    expect(checkRules(real).filter((v) => v.rule === "unmasked-view-read")).toEqual([]);
+    expect(readFileSync(join(real, "packages/modules/inventory/src/home.ts"), "utf8")).toMatch(/kernel\.field_visible\(/);
+  });
+});
+
 describe("check-rules: CLAUDE.md and AGENTS.md (project instructions)", () => {
   it("passes when the two files are byte-identical", () => {
     put("CLAUDE.md", "# rules\n");
@@ -219,5 +295,120 @@ describe("check-rules: PUC codes outside the country pack (rule 5)", () => {
     put("packages/kernel/src/posting/__tests__/t.test.ts", 'const a = "110505";\n');
     put("packages/localization/co/src/puc/seed.ts", 'export const a = "110505";\n');
     expect(checkRules(root)).toEqual([]);
+  });
+});
+
+describe("check-rules: entity types (rule 7, design 22.23, D13-D14)", () => {
+  const ENTITIES = "packages/modules/core/src/entities.ts";
+  const TRAILER = `const trailer = (f) => [f("extra", "json"), f("extra_free", "json")];\n`;
+  const lit = (id: string, role: string, rest = "") =>
+    `export const e_${id.split(".")[1]} = { id: "${id}", module: "core", schema: "core", table: "${id.split(".")[1]}s", entityType: "${role}", ${rest} fields: [f("name", "text"), ...trailer(f)] };\n`;
+  const messages = () => checkRules(root).map((v) => v.message);
+
+  it("flags a table entity without entityType", () => {
+    put(ENTITIES, 'export const x = { id: "core.x", module: "core", schema: "core", table: "xs", fields: [] };\n');
+    expect(checkRules(root).map((v) => [v.rule, v.file, v.message])).toEqual([["entity-type", ENTITIES, "rule 7/§22.23: core.x has no entityType"]]);
+  });
+
+  it("reads the role of helper-built entities from the second argument or the extra object", () => {
+    put(ENTITIES, TRAILER + 'function entity(id, type, table, d, fields, extra = {}) { return { id, entityType: type, ...extra, fields: [...fields(), ...trailer(f)] }; }\nexport const a = entity("core.a", "parametro", "as", "name", () => []);\nexport const b = entity("core.b", "maestro", "bs", "name", () => [], { importKey: ["name"] });\nexport const c = entity("core.c", "maestro", "cs", "name", () => []);\n');
+    expect(messages()).toEqual(["rule 7/§22.23: core.c is maestro and has no importKey (import and export are required, spec 2.5)"]);
+  });
+
+  it("flags a typed entity without extra and extra_free fields", () => {
+    put(ENTITIES, 'export const x = { id: "core.x", module: "core", schema: "core", table: "xs", entityType: "maestro", importKey: ["name"], fields: [{ name: "name" }] };\n');
+    expect(messages()).toEqual(["rule 7/§22.23: core.x is maestro and has no extra / extra_free fields (Datos adicionales)"]);
+  });
+
+  it("requires an importKey of a maestro and typed.lines of a documento, but no importKey of a documento", () => {
+    put(ENTITIES, TRAILER + lit("core.m", "maestro") + lit("core.d", "documento"));
+    expect(messages()).toEqual([
+      "rule 7/§22.23: core.m is maestro and has no importKey (import and export are required, spec 2.5)",
+      "rule 7/§22.23: core.d is documento and has no typed.lines (header + lines import, D14)",
+    ]);
+  });
+
+  it("asks nothing of parametro and sistema, and a lines entity must be named by a parent's typed.lines", () => {
+    put(ENTITIES, TRAILER + 'export const p = { id: "core.p", entityType: "parametro", table: "ps", fields: [] };\nexport const s = { id: "core.s", entityType: "sistema", table: "ss", fields: [] };\nexport const l = { id: "core.l", entityType: "lines", table: "ls", fields: [] };\n');
+    expect(messages()).toEqual(["rule 7/§22.23: core.l is lines and no entity names it in typed.lines"]);
+  });
+
+  it("checks typed.lines points to a lines entity", () => {
+    put(
+      ENTITIES,
+      TRAILER + lit("core.m", "maestro", 'importKey: ["name"], typed: { lines: { entity: "core.l", parentField: "m_id" } },') +
+        'export const l = { id: "core.l", entityType: "lines", table: "ls", fields: [] };\n' +
+        lit("core.n", "maestro", 'importKey: ["name"], typed: { lines: { entity: "core.p", parentField: "n_id" } },') +
+        'export const p = { id: "core.p", entityType: "parametro", table: "ps", fields: [] };\n',
+    );
+    expect(messages()).toEqual(["rule 7/§22.23: core.n typed.lines names core.p, which is not a lines entity"]);
+  });
+
+  it("accepts a complete set, query entities and test files", () => {
+    put(
+      ENTITIES,
+      TRAILER + lit("core.d", "documento", 'typed: { lines: { entity: "core.l", parentField: "d_id" } },') +
+        'export const l = { id: "core.l", entityType: "lines", table: "ls", fields: [] };\nexport const q = { id: "core.q", module: "core", schema: "core", table: "qs", kind: "query", fields: [] };\n',
+    );
+    put("packages/modules/core/src/__tests__/e.test.ts", 'const t = { id: "core.t", module: "core", schema: "core", table: "ts", fields: [] };\n');
+    expect(checkRules(root)).toEqual([]);
+  });
+});
+
+describe("check-rules: menu sections (spec 2026-11-02 §9.2)", () => {
+  const INDEX = "packages/modules/sales/src/index.ts";
+  const MENU = 'const ORDERS = { id: "sales.orders", label: "nav.sales.orders", href: "/sales/orders", icon: "list" };\n';
+  const found = () => checkRules(root).map((v) => [v.rule, v.file, v.message]);
+
+  it("flags a module with menu items that does not declare the four sections", () => {
+    put(INDEX, `${MENU}export const sales = defineModule({ id: "sales", navigation: [ORDERS] });\n`);
+    expect(found()).toEqual([
+      ["menu-sections", INDEX, 'rule 7/§9.2: module sales has a menu but not the sections Maestros, Documentos, Reportes and Parámetros (menuSections("sales"))'],
+    ]);
+  });
+
+  it("flags sections built for another module id", () => {
+    put(INDEX, `${MENU}export const sales = defineModule({ id: "sales", navigation: [...menuSections("ventas"), ORDERS] });\n`);
+    expect(found().map((v) => v[0])).toEqual(["menu-sections"]);
+  });
+
+  it("accepts menuSections of the module, the four groups written out, a module without a menu, and tests", () => {
+    put(INDEX, `${MENU}export const sales = defineModule({ id: "sales", navigation: [...menuSections("sales"), ORDERS] });\n`);
+    put("packages/modules/billing/src/index.ts", 'const NAV = ["billing.maestros", "billing.documentos", "billing.reportes", "billing.parametros"].map((id) => ({ id, label: "l", href: "#", icon: "list", children: [] }));\nexport const billing = defineModule({ id: "billing", navigation: NAV });\n');
+    put("packages/modules/engine/src/index.ts", 'export const engine = defineModule({ id: "engine", navigation: [] });\n');
+    put("packages/modules/engine/src/__tests__/x.test.ts", MENU);
+    expect(checkRules(root)).toEqual([]);
+  });
+});
+
+describe("check-rules: report money columns name their currency (FX §7, plan 2B.2 Task 34.7)", () => {
+  const REPORT = "packages/modules/accounting/src/reports/aging.ts";
+  const found = () => checkRules(root).map((v) => [v.rule, v.file, v.line]);
+
+  it("flags a money column of a report definition without a currency source, with file and line", () => {
+    put(REPORT, 'const columns = [\n  { field: "party_name", label: "l", type: "text" },\n  { field: "total", label: "l", type: "money", total: "sum" },\n];\n');
+    expect(found()).toEqual([["report-currency", REPORT, 3]]);
+  });
+
+  it("flags a currency source that is neither the company's nor a row field", () => {
+    put(REPORT, 'const columns = [{ field: "total", label: "l", type: "money", currency: "USD" }];\n');
+    expect(found()).toEqual([["report-currency", REPORT, 1]]);
+  });
+
+  it("reads a type written `as const`", () => {
+    put(REPORT, 'const columns = MONEY.map((field) => ({ field, label: "l", type: "money" as const }));\n');
+    expect(found()).toEqual([["report-currency", REPORT, 1]]);
+  });
+
+  it("accepts the company's currency, a row field, non-money columns, tests and code outside the reports", () => {
+    put(REPORT, 'const columns = [\n  { field: "total", label: "l", type: "money", currency: "company" },\n  { field: "open", label: "l", type: "money", currency: { field: "currency" } },\n  { field: "days", label: "l", type: "number" },\n];\n');
+    put("packages/modules/accounting/src/reports/__tests__/x.test.ts", 'const c = { field: "total", label: "l", type: "money" };\n');
+    put("packages/modules/accounting/src/entities.ts", 'const f = { name: "total", label: "l", type: "money" };\n');
+    expect(checkRules(root)).toEqual([]);
+  });
+
+  it("the real repo declares a currency source on every report money column", () => {
+    const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    expect(checkRules(repo).filter((v) => v.rule === "report-currency")).toEqual([]);
   });
 });

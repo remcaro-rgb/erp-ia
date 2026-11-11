@@ -1,12 +1,15 @@
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { CORE_ENTITIES } from "./entities";
-import { FEATURES, NAVIGATION } from "./features";
-import { HOME_KPIS } from "./home";
-import { CATEGORY_PROCESSES } from "./processes/category";
+import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
+import { HOME_CHARTS, HOME_KPIS } from "./home";
+import { CATEGORY_PROCESSES, categoryHooks } from "./processes/category";
 import { CONSULT_PROCESSES } from "./processes/consult";
 import { CONTACT_PROCESSES } from "./processes/contact";
-import { PARTY_PROCESSES } from "./processes/party";
-import { PRODUCT_PROCESSES } from "./processes/product";
+import { EXCHANGE_RATE_PROCESSES } from "./processes/exchange-rate";
+import { PARTY_PROCESSES, partyHooks } from "./processes/party";
+import { PRICE_LIST_LIFECYCLE, priceListHooks } from "./processes/price-list";
+import { PRICE_LIST_WRITE_PROCESSES } from "./processes/price-list-write";
+import { PRODUCT_PROCESSES, productHooks } from "./processes/product";
 import { SEQUENCE_PROCESSES } from "./processes/sequence";
 
 /** The core module (design §8): parties and contacts, product categories and products, units, price lists and sequences. */
@@ -14,6 +17,7 @@ export const core: ModuleDef = defineModule({
   id: "core",
   version: "0.1.0",
   dependsOn: [],
+  icon: "database",
   entities: CORE_ENTITIES,
   processes: [
     ...PARTY_PROCESSES,
@@ -23,12 +27,26 @@ export const core: ModuleDef = defineModule({
     ...SEQUENCE_PROCESSES,
     ...CONSULT_PROCESSES.parties,
     ...CONSULT_PROCESSES.products,
+    ...PRICE_LIST_LIFECYCLE,
+    ...PRICE_LIST_WRITE_PROCESSES,
     ...CONSULT_PROCESSES.settings,
+    ...EXCHANGE_RATE_PROCESSES,
   ],
   features: FEATURES,
   events: { emits: ["core.party.created", "core.party.updated", "core.product.created", "core.product.updated"], consumes: {} },
   navigation: NAVIGATION,
+  menuShared: MENU_SHARED,
   homeKpis: HOME_KPIS,
+  homeCharts: HOME_CHARTS,
+  // The maestros' validation at Grabar and Aprobar (entity types spec §5, Task 8a): the generic lifecycle processes and the update
+  // processes run the same checks (country pack, DIAN status, party scope, custom fields, events).
+  typedHooks: {
+    "core.party": partyHooks,
+    "core.product": productHooks,
+    "core.product_category": categoryHooks,
+    "core.price_list": priceListHooks,
+  },
 });
 
 export { CORE_ENTITIES } from "./entities";
+export { officialRateCompanies, rateForDate, RATE_LOOKBACK_DAYS, TRM_IMPORT_FAILED } from "./processes/exchange-rate";

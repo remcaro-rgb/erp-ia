@@ -30,6 +30,7 @@ export const auditEntity = defineEntity({
   schema: "kernel",
   table: "audit_entries",
   label: "entity.kernel.audit",
+  entityType: "sistema",
   displayField: "process_id",
   defaultSort: { field: "occurred_at", dir: "desc" },
   fields: [

@@ -21,6 +21,7 @@ export const accountPermissionUpdate = defineProcess({
   id: "accounting.account_permission.update",
   module: "accounting",
   kind: "update",
+  recordAccess: { entity: "accounting.account", idField: "accountId", right: "modify" },
   feature: "accounting.ledger",
   sensitivity: "step-up",
   description: "Abre o restringe una cuenta (y sus descendientes) y reemplaza quién puede verla y contabilizar en ella; solo el administrador",

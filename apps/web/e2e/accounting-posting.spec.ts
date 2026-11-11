@@ -76,8 +76,11 @@ test.describe("accounting posting rules", () => {
     await page.goto("/accounting/posting?tab=pending");
     const tab = page.getByRole("navigation", { name: "Secciones de las reglas contables" });
     await expect(tab.getByRole("link", { name: /Pendientes de contabilizar/ })).toContainText("1");
-    // The bar item carries the same count.
-    await expect(page.getByRole("link", { name: "Reglas contables 1 pendientes", exact: true })).toBeVisible();
+    // The menu item carries the same count, and so does its section on the bar (entity types spec §2.4: Parámetros › Reglas contables).
+    const parametros = page.getByRole("navigation", { name: "Menú del módulo" }).getByRole("button", { name: "Parámetros 1 pendientes", exact: true });
+    await parametros.click();
+    await expect(page.getByRole("menuitem", { name: "Reglas contables 1 pendientes", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
     const row = page.getByRole("row", { name: /qa\.sale\.issued/ });
     await expect(row).toContainText("Comprobante descuadrado");
     await row.getByRole("button", { name: "Reintentar" }).click();
@@ -95,7 +98,7 @@ test.describe("accounting posting rules", () => {
     const revenue = page.getByRole("combobox", { name: "Cuenta de ingresos" });
     await revenue.fill("413595");
     await page.getByRole("option", { name: /413595/ }).first().click();
-    await page.getByRole("button", { name: "Guardar", exact: true }).click();
+    await page.getByRole("tabpanel", { name: "Contabilidad" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await confirmStepUp(page, secret);
     await expect
       .poll(async () => (await sql`select a.code from accounting.account_role_mappings m join accounting.accounts a on a.id = m.account_id where m.company_id = ${companyId} and m.role = 'revenue' and m.dimension = ${`category:${category!.id}`}`)[0]?.code)

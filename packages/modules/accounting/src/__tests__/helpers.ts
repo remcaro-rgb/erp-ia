@@ -1,5 +1,6 @@
+import voidedRule from "../rules/fixtures/invoice-voided-rule.json" with { type: "json" };
 import { randomUUID } from "node:crypto";
-import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, runProcess, type Caller, type RunProcessDeps } from "@erp/kernel";
+import { ATTACHMENT_PROCESSES, CUSTOM_FIELD_PROCESSES, kernelModule, loadModules, registerCountryPack, Registry, runProcess, type Caller, type ModuleDef, type RunProcessDeps } from "@erp/kernel";
 import { seedTenant, testDb, type JwtClaims, type SeededTenant } from "@erp/kernel/testing";
 import { co } from "@erp/loc-co";
 import { core } from "@erp/module-core";
@@ -7,17 +8,24 @@ import { accounting } from "../index";
 
 export type Db = ReturnType<typeof testDb>;
 
-/** Every process the accounting module declares, plus the kernel attachment and custom field processes the record forms use. */
-export const ACCOUNTING_PROCESS_IDS = [...accounting.processes, ...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES].map((p) => p.id);
+/** The accounting processes as the loader registers them: the module's own and the generic lifecycle ones of its maestros and documentos. */
+const LOADED = (() => {
+  const registry = new Registry();
+  loadModules(registry, [kernelModule, core, accounting]);
+  return registry.processes({ module: "accounting" });
+})();
 
-/** The consult processes and the entry processes (create, update, void, submit, post, from_template) a `contador` or `auxiliar` role may run. */
-export const MEMBER_PROCESS_IDS = accounting.processes
+/** Every process the accounting module registers, plus the kernel attachment and custom field processes the record forms use. */
+export const ACCOUNTING_PROCESS_IDS = [...LOADED, ...ATTACHMENT_PROCESSES, ...CUSTOM_FIELD_PROCESSES].map((p) => p.id);
+
+/** The consult processes and the entry processes (create, update, the lifecycle verbs, from_template) a `contador` or `auxiliar` role may run. */
+export const MEMBER_PROCESS_IDS = LOADED
   .filter((p) => p.kind === "consult" || /^accounting\.(entry|entry_template|entry_line)\./.test(p.id) || p.id === "accounting.opening.create")
   .map((p) => p.id);
 
 /** Every accounting table, children first: the harness empties them for its companies. */
 export const ACCOUNTING_TABLES = [
-  "skipped_events", "period_close_checks", "posting_failures", "entry_template_lines", "entry_templates", "entry_lines", "entries",
+  "skipped_events", "voided_sources", "period_close_checks", "posting_failures", "entry_template_lines", "entry_templates", "entry_lines", "entries",
   "posting_rules", "fiscal_concept_mappings", "account_permissions", "account_role_mappings", "settings", "periods", "fiscal_years",
   "journals", "cost_centers", "open_auxiliaries", "items", "business_units", "accounts",
 ];
@@ -52,10 +60,10 @@ export interface AccountingHarness {
  * fresh registry and the Colombian pack, grants the admin role of every company all accounting processes, and creates the
  * `contador` and `auxiliar` roles (with their users) with the consult and entry processes.
  */
-export async function accountingHarness(options: { companies?: number } = {}): Promise<AccountingHarness> {
+export async function accountingHarness(options: { companies?: number; extraModules?: ModuleDef[] } = {}): Promise<AccountingHarness> {
   const sql = testDb();
   const registry = new Registry();
-  loadModules(registry, [kernelModule, core, accounting]);
+  loadModules(registry, [kernelModule, core, accounting, ...(options.extraModules ?? [])]);
   registerCountryPack(co);
   const seed = await seedTenant(sql, {
     companies: options.companies ?? 1,
@@ -63,7 +71,7 @@ export async function accountingHarness(options: { companies?: number } = {}): P
       { name: "contador", companies: [0], role: "member" },
       { name: "auxiliar", companies: [0], role: "member" },
     ],
-    entitlements: ["module:core", "module:accounting"],
+    entitlements: ["module:core", "module:accounting", ...(options.extraModules ?? []).map((m) => `module:${m.id}`)],
   });
   const grantAll = async (companyId: string, roleId: string, ids: string[]) => {
     for (const id of ids) {
@@ -129,3 +137,30 @@ export async function accountingHarness(options: { companies?: number } = {}): P
 
 /** A fresh uuid for fixtures that need an id no row has. */
 export const newId = () => randomUUID();
+
+/**
+ * Makes a party `invoice_ready` the way a real one becomes so (rule 10, design §5.17): its DIAN data is complete and it
+ * holds the files its kind requires (RUT for every party, Cámara de Comercio for a juridical one, person type `1`). The
+ * party's own triggers compute the flag from these facts; a flagged account then accepts the party.
+ */
+export async function markInvoiceReady(h: AccountingHarness, partyId: string, personType: string): Promise<void> {
+  await h.sql`update core.parties set dian_status = 'complete' where id = ${partyId}`;
+  const tags = personType === "1" ? ["RUT", "Cámara de Comercio"] : ["RUT"];
+  for (const tag of tags) {
+    await h.sql`insert into kernel.attachments (company_id, entity, record_id, tag, file_name, mime_type, size_bytes, storage_path)
+      values (${h.companyId}, 'core.party', ${partyId}, ${tag}, ${`${tag}.pdf`}, 'application/pdf', 1024,
+        ${`${h.seed.tenantId}/${h.companyId}/core.party/${partyId}/${randomUUID()}-${tag}.pdf`})`;
+  }
+}
+
+/**
+ * Installs, for the harness company, the template of the retired `invoice-voided` default (Task 52.5) as a rule of the test's own (not a
+ * default, so the sync never retires it): the posting engine's `reverseOf` machinery still needs a rule to exercise.
+ */
+export async function installVoidedTestRule(h: Pick<AccountingHarness, "sql" | "companyId">): Promise<void> {
+  const rule = voidedRule;
+  const [journal] = await h.sql<{ id: string }[]>`select id from accounting.journals where company_id = ${h.companyId} and code = ${rule.journalCode}`;
+  await h.sql`
+    insert into accounting.posting_rules (company_id, event, name, module, journal_id, template, priority, is_default)
+    values (${h.companyId}, ${rule.event}, ${`${rule.name} (prueba)`}, 'accounting', ${journal!.id}, ${h.sql.json(rule.template as never)}, 100, false)`;
+}

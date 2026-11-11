@@ -5,7 +5,19 @@ export type ProcessErrorCode =
   | "invalid_input"
   | "not_found"
   | "handler_failed"
-  | "idempotent_replay";
+  | "idempotent_replay"
+  /** A lifecycle action the record's status does not allow (`details: { from, action }`, typed entities spec §5). */
+  | "invalid_state"
+  /** The record changed since the caller read it (`expectedUpdatedAt` older than the row): reload and retry. */
+  | "stale_record"
+  /** A documento references a maestro that is not usable (pending, inactive, deleted, or of another company): `details: { field, entity, recordId, lineId? }`. */
+  | "maestro_not_usable"
+  /**
+   * A record-level access rule (kernel.record_access, spec 2026-11-02 §9.1) withholds the right the step needs from a caller who may read
+   * the record: `details: { entity, recordId, right, field?, lineId? }`. A record the caller cannot read is refused as one that does not
+   * exist (`not_found`, or `maestro_not_usable` for a reference), never with this code, so its existence does not leak.
+   */
+  | "record_forbidden";
 
 /**
  * Where a refusal comes from: `gate` when the pipeline of `runProcess` refuses before or around the handler (unknown

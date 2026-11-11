@@ -50,7 +50,7 @@ export async function coreHarness(options: { companies?: number; users?: Paramet
     grantAll,
     async cleanup() {
       // Children first; audit rows are append-only and stay.
-      for (const table of ["price_list_items", "price_lists", "party_contacts", "products", "product_categories", "parties", "document_sequences", "entity_sequences"]) {
+      for (const table of ["price_list_items", "price_lists", "party_contacts", "products", "product_categories", "parties", "document_sequences", "document_resolution_keys", "entity_sequences"]) {
         await sql`delete from ${sql(`core.${table}`)} where company_id = any(${companyIds}::uuid[])`;
       }
       await sql`delete from kernel.field_permissions where company_id = any(${companyIds}::uuid[])`;

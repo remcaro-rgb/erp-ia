@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@erp/loc-co": "workspace:*",
-    "@erp/module-core": "workspace:*"
+    "@erp/module-core": "workspace:*",
+    "@erp/module-inventory": "workspace:*"
   }
 }

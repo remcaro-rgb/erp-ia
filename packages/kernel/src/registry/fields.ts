@@ -47,6 +47,11 @@ export interface FieldDef {
    * has a `parent_id`). Its total is the sum over the rows with no ancestor in the result, never a generic sum (design §22.21).
    */
   rollup?: boolean;
+  /**
+   * The column is a Postgres `text[]`: the value is a list of strings (of `enumValues`, for an enum). Only on text, enum and json
+   * fields, so grids, exports and forms read it as before; the typed runner checks every element and binds the list as `text[]`.
+   */
+  list?: boolean;
   /** How this field reads when it is the display field of a record: `month` → `YYYY-MM` (a period named by its start). */
   displayFormat?: "month";
 }
@@ -60,6 +65,12 @@ export const IDENTIFIER = /^[a-z][a-z0-9_]*$/;
 /** Entity id: `<module>.<name>`, lowercase. */
 export const ENTITY_ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 
+/**
+ * The module an entity id belongs to: its id up to the first dot (`crm.quote` → `crm`). A `ref` whose target's module is not loaded
+ * names an optional neighbour's record (plan 2B Task 53.2): the usability gate and the import's name lookup skip it.
+ */
+export const entityModuleOf = (entityId: string): string => entityId.slice(0, entityId.indexOf(".") === -1 ? entityId.length : entityId.indexOf("."));
+
 /** Validates one field of entity `entityId` and returns it with the defaults applied. */
 export function resolveField(entityId: string, field: FieldDef): ResolvedFieldDef {
   const where = `entity ${entityId}, field ${field.name}`;
@@ -69,6 +80,9 @@ export function resolveField(entityId: string, field: FieldDef): ResolvedFieldDe
   }
   if (field.type !== "enum" && field.enumValues) {
     throw new Error(`${where}: enumValues only applies to enum fields`);
+  }
+  if (field.list && field.type !== "text" && field.type !== "enum" && field.type !== "json") {
+    throw new Error(`${where}: list only applies to text, enum and json fields`);
   }
   if (field.type === "ref") {
     if (!field.ref) throw new Error(`${where}: ref fields need ref`);

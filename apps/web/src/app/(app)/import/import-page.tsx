@@ -51,9 +51,7 @@ export function ImportPage({ data }: { data: ImportPageData }) {
     <div className="erp-stack" data-testid="import-page">
       <div className="erp-row">
         <h1 className="text-xl font-semibold">{t("grid.import.page_title")}</h1>
-        <span className="erp-small erp-muted">
-          {t("grid.import.page_hint")} · <span className="erp-mono">kernel.import.run</span>
-        </span>
+        <span className="erp-small erp-muted">{t("grid.import.page_hint")}</span>
       </div>
 
       {data.screens.length === 0 ? (
@@ -69,9 +67,8 @@ export function ImportPage({ data }: { data: ImportPageData }) {
                 {t("grid.import.card_columns", { count: s.columns })} · {t("grid.import.card_hint")}
               </div>
               <div className="erp-row">
-                <span className="erp-small erp-muted erp-mono">{s.table}</span>
                 <span className="erp-grow" />
-                <button type="button" className="erp-btn erp-btn--primary" onClick={() => setOpen(s.entity)}>
+                <button type="button" className="erp-btn erp-btn--primary" aria-label={t("grid.import.dialog_title", { entity: s.title.toLowerCase() })} onClick={() => setOpen(s.entity)}>
                   <ImportIcon />
                   {t("grid.import.title")}
                 </button>
@@ -111,8 +108,9 @@ export function ImportPage({ data }: { data: ImportPageData }) {
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="erp-muted">
-                  {t("grid.import.history_empty")}
+                <td colSpan={8} className="erp-muted" data-testid="import-history-empty">
+                  <b>{t("grid.import.history_empty")}</b>
+                  <div className="erp-small">{t("grid.import.history_empty_hint")}</div>
                 </td>
               </tr>
             ) : (
@@ -151,6 +149,7 @@ export function ImportPage({ data }: { data: ImportPageData }) {
           onOpenChange={(next) => !next && setOpen(null)}
           entity={screen.entity}
           entityLabel={screen.title}
+          xlsxOnly={screen.xlsxOnly}
           requestStepUp={requestStepUp}
           onStarted={() => void refresh()}
         />

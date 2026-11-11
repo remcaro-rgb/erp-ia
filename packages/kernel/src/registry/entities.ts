@@ -15,6 +15,13 @@ export interface EntityDef {
    * clone and "Nuevo" skip it, and its grid consult is `<entity id>.list`.
    */
   kind?: "table" | "query";
+  /**
+   * The entity's role (`maestro`, `documento`, `lines`, `parametro` or `sistema`), required on every table entity and refused
+   * on a query entity (entity types spec §2.1, D13, owner 2026-11-02). The lifecycle, access rules, snapshots and templates build on it.
+   */
+  entityType?: EntityType;
+  /** Declarations that only a typed entity carries (entity types spec §5). */
+  typed?: TypedDef;
   fields: FieldDef[];
   displayField: string;
   defaultSort: { field: string; dir: "asc" | "desc" };
@@ -47,6 +54,35 @@ export interface EntityDef {
    * period or date the screen shows (`accounting.period_figure`). An entity without any refuses every param.
    */
   gridParams?: GridParamDef[];
+  /**
+   * Row-level masking (D20, entity types spec §10, owner 2026-11-03): the entity's masked view keeps a row the caller may not see
+   * (a comprobante's line of a restricted account) with `flag` true and every one of `fields` null. The grid shows it as a «••••»
+   * placeholder row (it counts in pagination); a filter or search on one of `fields` never matches it, a sort by one puts it last, and
+   * an aggregate over one of `fields` is unknown (null) whenever such a row is in the filter, except `totals`: the sum of the lines of
+   * one parent (the filter is exactly `parentField = id`) is the parent's own column, read from the parent's masked view `view`.
+   */
+  rowMask?: { flag: string; fields: string[]; totals?: { parentField: string; view: string; columns: Record<string, string> } };
+}
+
+/**
+ * The role of a table entity (D13). Only `maestro` and `documento` are typed: they carry the lifecycle, Datos adicionales,
+ * import and export. `lines` are the rows of a parent named by the parent's `typed.lines`; `parametro` is configuration
+ * (listed under Parámetros); `sistema` covers logs, users, imports, exports and audit.
+ */
+export type EntityType = "maestro" | "documento" | "lines" | "parametro" | "sistema";
+
+export interface TypedDef {
+  /** Fields whose change after approval sends the record back through approval (each must be a field of the entity). */
+  approvalFields?: string[];
+  /** The `lines` entity holding the rows of this maestro or documento, and the field of it that points at the parent. */
+  lines?: { entity: string; parentField: string };
+  /** When the document takes its number: at save, when it posts, or never (documento only). */
+  numbering?: "on_save" | "on_post" | "none";
+  /**
+   * Flags the entity sets itself instead of copying them from Parámetros (kernel.entity_type_settings): each names, as an i18n key,
+   * where the flag comes from. The Configuración de tipos screen shows that note in place of the switch (Task 16).
+   */
+  ownFlags?: { requiresApproval?: string; posts?: string };
 }
 
 export interface GridParamDef {
@@ -56,6 +92,7 @@ export interface GridParamDef {
   required?: boolean;
 }
 
+/** A resolved entity: `entityType` is present exactly when the entity is not a query entity. */
 export type ResolvedEntityDef = Omit<EntityDef, "fields"> & { fields: ResolvedFieldDef[] };
 
 /**
@@ -90,8 +127,51 @@ export function defineEntity(def: EntityDef): ResolvedEntityDef {
     if (params.has(param.name)) throw new Error(`entity ${def.id}: duplicate grid param ${param.name}`);
     params.add(param.name);
   }
+  validateTyped(def, names);
   if (!names.has(def.defaultSort.field)) {
     throw new Error(`entity ${def.id}: defaultSort.field ${def.defaultSort.field} is not a field`);
   }
-  return { ...def, defaultSort: { ...def.defaultSort }, ...(def.gridParams ? { gridParams: def.gridParams.map((p) => ({ ...p })) } : {}), ...(def.cloneReset ? { cloneReset: [...def.cloneReset] } : {}), fields };
+  if (def.rowMask) {
+    const { flag, fields: masked, totals } = def.rowMask;
+    if (!IDENTIFIER.test(flag)) throw new Error(`entity ${def.id}: invalid rowMask flag "${flag}"`);
+    for (const name of masked) if (!names.has(name)) throw new Error(`entity ${def.id}: rowMask field ${name} is not a field`);
+    if (totals) {
+      if (!names.has(totals.parentField)) throw new Error(`entity ${def.id}: rowMask parentField ${totals.parentField} is not a field`);
+      if (!/^[a-z][a-z0-9_]*\.v_[a-z0-9_]+$/.test(totals.view)) throw new Error(`entity ${def.id}: rowMask view ${totals.view} is not a masked view`);
+      for (const [name, column] of Object.entries(totals.columns)) {
+        if (!masked.includes(name) || !IDENTIFIER.test(column)) throw new Error(`entity ${def.id}: rowMask total ${name} → ${column} is invalid`);
+      }
+    }
+  }
+  return { ...def, ...(def.typed ? { typed: { ...def.typed, ...(def.typed.approvalFields ? { approvalFields: [...def.typed.approvalFields] } : {}), ...(def.typed.lines ? { lines: { ...def.typed.lines } } : {}), ...(def.typed.ownFlags ? { ownFlags: { ...def.typed.ownFlags } } : {}) } } : {}), defaultSort: { ...def.defaultSort }, ...(def.gridParams ? { gridParams: def.gridParams.map((p) => ({ ...p })) } : {}), ...(def.cloneReset ? { cloneReset: [...def.cloneReset] } : {}), fields };
+}
+
+const ENTITY_TYPES = ["maestro", "documento", "lines", "parametro", "sistema"];
+const NUMBERINGS = ["on_save", "on_post", "none"];
+
+function validateTyped(def: EntityDef, names: Set<string>): void {
+  if (def.kind === "query") {
+    if (def.entityType !== undefined) throw new Error(`entity ${def.id}: query entities carry no entityType`);
+    if (def.typed !== undefined) throw new Error(`entity ${def.id}: query entities carry no typed block`);
+    return;
+  }
+  if (def.entityType === undefined) throw new Error(`entity ${def.id}: entityType is required`);
+  if (!ENTITY_TYPES.includes(def.entityType)) throw new Error(`entity ${def.id}: entityType must be one of ${ENTITY_TYPES.join(", ")}`);
+  const typed = def.typed;
+  if (!typed) return;
+  if (def.entityType !== "maestro" && def.entityType !== "documento") throw new Error(`entity ${def.id}: ${def.entityType} entities carry no typed block`);
+  for (const name of typed.approvalFields ?? []) {
+    if (!names.has(name)) throw new Error(`entity ${def.id}: typed.approvalFields ${name} is not a field`);
+  }
+  if (typed.lines) {
+    if (!ENTITY_ID.test(typed.lines.entity)) throw new Error(`entity ${def.id}: typed.lines.entity must look like "module.name"`);
+    // The parent field lives on the lines entity, which the registry may not hold yet; a self-referencing declaration is checked here.
+    if (typed.lines.entity === def.id && !names.has(typed.lines.parentField)) {
+      throw new Error(`entity ${def.id}: typed.lines.parentField ${typed.lines.parentField} is not a field`);
+    }
+  }
+  if (typed.numbering !== undefined) {
+    if (def.entityType !== "documento") throw new Error(`entity ${def.id}: typed.numbering is for documento`);
+    if (!NUMBERINGS.includes(typed.numbering)) throw new Error(`entity ${def.id}: typed.numbering must be on_save, on_post or none`);
+  }
 }

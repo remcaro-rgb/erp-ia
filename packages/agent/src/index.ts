@@ -8,7 +8,7 @@ export { capResult, MAX_RESULT_BYTES, MAX_RESULT_ROWS, scrubTokens } from "./too
 export { buildTools, toolDescriptors, toolSet } from "./tools/build";
 export type { ToolDescriptor, ToolRefusal, ToolRunner } from "./tools/descriptor";
 export { executeTool } from "./tools/execute";
-export { EXCLUDED_PROCESSES, inputJsonSchema, permittedProcesses, processIdOfTool, toolName } from "./tools/from-registry";
+export { agentCandidates, EXCLUDED_PROCESSES, inputJsonSchema, isAgentTool, permittedProcesses, processIdOfTool, toolName } from "./tools/from-registry";
 export { CONFIRMATION_TTL_MINUTES, createConfirmation, decideConfirmation } from "./runtime/confirm";
 export type { CardRef, ConfirmationRequired, Decision, DecisionResult } from "./runtime/confirm";
 export { createConversation, ownsConversation, ownsRun } from "./runtime/conversation";
@@ -22,7 +22,7 @@ export type { ModelFactory } from "./runtime/policy-model";
 export { agentModelFactory, isMockAgentModelInstalled, MOCK_AGENT_MODEL, mockAgentModel } from "./runtime/mock-agent-model";
 export { HISTORY_VIEW_ROWS, loadConversationView, uiMessagesFromRows } from "./runtime/history";
 export type { CardView, ConversationView, StoredMessageRow } from "./runtime/history";
-export { buildPreview } from "./runtime/preview";
+export { buildPreview, cardEffects, moduleEffectKeys, type DryRunEvent } from "./runtime/preview";
 export type { ConfirmationPreview } from "./runtime/preview";
 export { agentStreamResponse, toUIMessageStream } from "./runtime/stream";
 export type { StreamOptions } from "./runtime/stream";

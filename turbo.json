@@ -15,7 +15,10 @@
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
         "ERP_TARGET",
         "WORKFLOW_TARGET_WORLD",
-        "WORKFLOW_POSTGRES_URL"
+        "WORKFLOW_POSTGRES_URL",
+        "TEST_SMTP_HOST",
+        "TEST_SMTP_PORT",
+        "TEST_MAILPIT_URL"
       ]
     },
     "lint": {},

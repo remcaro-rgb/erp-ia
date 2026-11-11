@@ -4,17 +4,28 @@ import { connection } from "next/server";
 import { getLocale, getTranslations } from "next-intl/server";
 import { redirectPathFor, Unauthenticated } from "@/lib/auth/claims";
 import { extraTabCounts, recordHref, recordTabIds, type RecordTab } from "@erp/ui";
-import { formatLabel, NoAccess, OriginTab } from "@erp/ui";
+import { formatLabel, NoAccess, OriginTab, Pill, VersionsTab } from "@erp/ui";
+import { MASKED } from "@/lib/records/lifecycle-load";
+import { AccessPanel } from "./access-panel";
 import { accountingContent } from "./accounting-content";
 import { loadRecord } from "@/lib/records/load";
+import { loadRelated } from "@/lib/records/related-load";
+import { loadPendingPostings } from "@/lib/accounting/pending";
+import { PendingPostingBadge } from "../../../_components/pending-posting-badge";
 import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
 import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
+import { InvoicingBarActions } from "./invoicing-bar";
+import { InvoicingDianTab, InvoicingLinesTab } from "./invoicing-tabs";
+import { ApplicationBarActions } from "./advance-view";
+import { ReceiptAllocationsTab, ReceiptBarActions } from "./payments-view";
 import { PhotosPanel } from "./photos-panel";
 import { RecordForm } from "./record-form";
+import { RelatedTab } from "./related-tab";
 import { AppRecordFrame } from "./record-frame";
 import { RecordStatus } from "./record-status";
+import { untitledRecordTitle } from "@/lib/records/record-title";
 import { TicketView } from "../../../support/ticket-view";
 
 // Full-page record (design §5.16): /r/<entity>/<id> renders the record frame with the entity's Datos form (party,
@@ -22,11 +33,22 @@ import { TicketView } from "../../../support/ticket-view";
 // or the copy "Duplicar" opened it with (rule 37).
 
 type Params = Promise<{ entity: string; id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-async function RecordView({ params }: { params: Params }) {
+/** The contabiliza documentos (Task 33, R33-8): their frame says «Pendiente de contabilizar» while the entry is not in the ledger. */
+const POSTING_DOCUMENTS: ReadonlySet<string> = new Set(["invoicing.invoice", "invoicing.note", "payments.receipt", "costing.landed_cost"]);
+
+/** "Abrir en una pestaña nueva": the record alone in its own browser tab (`?view=full`), using all the width. */
+const FULL_VIEW = "?view=full";
+
+async function RecordView({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
   // The session is verified with Supabase Auth, which reads the clock: keep it out of prerendering.
   await connection();
   const { entity: entityId, id } = await params;
+  const query = await searchParams;
+  const full = query.view === "full";
+  // "Nuevo desde plantilla" opens the new comprobante with the plantilla's data (?template=<id>).
+  const templateId = typeof query.template === "string" ? query.template : null;
   // A malformed escape in the URL is a missing record, not a server error.
   let entityName: string;
   try {
@@ -38,14 +60,14 @@ async function RecordView({ params }: { params: Params }) {
   if (entityName === "support.ticket") {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
     return (
-      <div className="mx-auto w-full max-w-6xl">
+      <div className={full ? "w-full" : "mx-auto w-full max-w-6xl"}>
         <TicketView id={id} />
       </div>
     );
   }
   let loaded;
   try {
-    loaded = await loadRecord(entityName, id);
+    loaded = await loadRecord(entityName, id, { templateId });
   } catch (error) {
     // The proxy already sends a visitor without a complete session away; this covers an expired one.
     if (error instanceof Unauthenticated) redirect(redirectPathFor(error.reason));
@@ -55,22 +77,66 @@ async function RecordView({ params }: { params: Params }) {
   if (!loaded) {
     // A restricted Cuenta the caller may not view is not there for them: its record answers "Sin acceso" on the tabs that would show figures
     // (accounting design §5.13), without a word about the account. The answer is the same for an id that does not exist.
-    if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} />;
+    if (entityName === "accounting.account" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return <RestrictedAccount id={id} full={full} />;
     notFound();
   }
-  const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form } = loaded;
+  const { entity, record, title, defs, contacts, modes, canSave, can, requiredTags, attachments, verifications, contributed, form, lifecycle: lc } = loaded;
+  // Documentos relacionados (Task 31): started now, in parallel with the page's other loads; it never rejects (a failing trail is a page without the tab).
+  const relatedLoad = record ? loadRelated(loaded.caller, entity.id, record.id) : Promise.resolve(null);
+  const pendingLoad = record && POSTING_DOCUMENTS.has(entity.id) ? loadPendingPostings(loaded.caller, [record.id]) : Promise.resolve(null);
   const t = await getTranslations();
   const locale = await getLocale();
 
   // A comprobante has wide lines: it takes the whole width of the page; the other records keep a readable column.
-  const wrapperClass = form.kind === "entry" ? "w-full" : "mx-auto w-full max-w-6xl";
+  const wrapperClass = form.kind === "entry" || full ? "w-full" : "mx-auto w-full max-w-6xl";
   const datos: Omit<RecordTab, "id"> = { content: <RecordForm entity={entity.id} record={record} modes={modes} readOnly={!canSave} form={form} /> };
   const newTitle = t("grid.record_title.new", { entity: t(entity.nounKey) });
+  // The action bar of a maestro or documento (Task 15): its buttons, tools and footer facts.
+  // An invoice or a note (plan 2B Task 20, fix round 1, prototype 2B): «Emitir», «Reintentar envío» and «Anular (nota crédito)» (and a
+  // note's Duplicar) are the bar's own buttons (extraActions, on every tab), so the bar's Guardar only saves a new invoice or a Borrador's
+  // edits (never issues it) and the bar has no generic Anular (an issued DIAN document is annulled by its credit note, with the reason and
+  // the code, in its own dialog).
+  const invoicing = form.kind === "invoicing";
+  // A recibo de caja (plan 2B Task 24b): «Registrar pago» is its create and posts at once, so the bar's Guardar only registers a new one
+  // (never edits a stored one) and «Anular recibo» (step-up, its own dialog) is the bar's own button; no generic Enviar, Anular or Eliminar.
+  const receipt = form.kind === "payments" && form.payments === "receipt";
+  // An application of an advance (plan 2B.2 Task 36) is written from the receipt and never edited: «Deshacer aplicación» (step-up) is its own button.
+  const application = form.kind === "payments" && form.payments === "advance_application";
+  const frameLifecycle = lc
+    ? {
+        entityType: lc.entityType,
+        status: lc.status,
+        // A new comprobante takes Requiere aprobación from the accounting settings (manual entries), as its create process writes it.
+        flags: form.kind === "entry" && !record ? { ...lc.flags, requiresApproval: form.settings.requireApprovalOnManual } : lc.flags,
+        rights: invoicing
+          ? { ...lc.rights, modify: canSave && (record === null || form.editable), submit: false, approve: false, reject: false, void: false }
+          : receipt
+            ? { ...lc.rights, modify: canSave && record === null, submit: false, approve: false, reject: false, void: false, delete: false }
+            : application
+              ? { ...lc.rights, modify: false, submit: false, approve: false, reject: false, void: false, delete: false }
+              : lc.rights,
+        ...(invoicing || receipt || application ? { saveOnly: true } : {}),
+        ...(form.kind === "invoicing" && record && form.view ? { extraActions: <InvoicingBarActions entity={entity.id} recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
+        ...(form.kind === "payments" && record && form.view ? { extraActions: <ReceiptBarActions recordId={record.id} view={form.view} updatedAt={lc.updatedAt} /> } : {}),
+        ...(form.kind === "payments" && record && form.application ? { extraActions: <ApplicationBarActions recordId={record.id} view={form.application} updatedAt={lc.updatedAt} /> } : {}),
+        tools: lc.tools,
+        ...(lc.voidOption ? { voidOption: lc.voidOption } : {}),
+        updatedAt: lc.updatedAt,
+        createdAt: lc.createdAt,
+        createdBy: lc.createdBy,
+        updatedBy: lc.updatedBy,
+        recipients: lc.recipients,
+        noun: t(entity.nounKey),
+        listHref: lc.listHref,
+        reverse: form.kind === "entry" && record?.status === "posted" && !record.reversed_by_id && form.can.reverse === true,
+        saveTemplate: form.kind === "entry" && record !== null && form.canTemplate,
+      }
+    : null;
   if (!record) {
     // A record that does not exist yet has only its data; files, contacts and extra data need its id.
     return (
       <div className={wrapperClass}>
-        <AppRecordFrame entity={entity.id} recordId={null} newTitle={newTitle} title={newTitle} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} />
+        <AppRecordFrame entity={entity.id} recordId={null} newTitle={newTitle} title={newTitle} tabs={[{ id: "datos", ...datos }]} labels={recordLabels(t)} lifecycle={frameLifecycle} />
       </div>
     );
   }
@@ -97,17 +163,44 @@ async function RecordView({ params }: { params: Params }) {
   if (form.kind === "entry" && form.origin) {
     const o = form.origin;
     content.origen = {
-      content: <OriginTab origin={o.origin} source={o.source} event={o.event} rule={o.rule} reversalOf={o.reversalOf} reversedBy={o.reversedBy} chainId={o.chainId} timeline={o.timeline} />,
+      content: <OriginTab origin={o.origin} source={o.source} event={o.event} rule={o.rule} reversalOf={o.reversalOf} reversedBy={o.reversedBy} template={o.template} chainId={o.chainId} timeline={o.timeline} />,
     };
   }
 
   // The Saldos, Movimientos, Seguridad, Resumen, Cierre, Líneas… of an accounting master (accounting design §8).
   if (loaded.accounting) Object.assign(content, await accountingContent(entity.id, record, loaded.accounting, canSave));
 
+  // Versiones of a documento (D18: masked for the viewer by the server) and Acceso for an admin (Task 15).
+  if (lc?.snapshots) content.versiones = { count: lc.snapshots.length, content: <VersionsTab snapshots={lc.snapshots} labels={lc.versionLabels} masked={MASKED} /> };
+  if (lc?.access) content.acceso = { content: <AccessPanel entity={entity.id} recordId={record.id} entityType={lc.entityType} grants={lc.access.grants} options={lc.access.options} /> };
+
+  // An invoice's or a note's Líneas e impuestos and DIAN (plan 2B Task 20).
+  if (form.kind === "invoicing" && form.view) {
+    content.lineas = { label: t("invoicing.view.tabs.lines"), content: <InvoicingLinesTab view={form.view} /> };
+    content.dian = { label: t("invoicing.view.tabs.dian"), content: <InvoicingDianTab view={form.view} /> };
+  }
+
+  // A recibo de caja's Asignaciones (plan 2B Task 24b): what it applied to each invoice and the withholdings.
+  if (form.kind === "payments" && form.view) content.asignaciones = { label: t("payments.view.tabs.allocations"), content: <ReceiptAllocationsTab view={form.view} /> };
+
   // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
   for (const tab of contributed) {
     content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
   }
+
+  // Documentos relacionados (Task 31, design §22.27): the trail of this document, only when it has a related document or a hidden one.
+  const related = await relatedLoad;
+  if (related) content.relacionados = { label: t("common.record.related.tab"), count: related.model.count, content: <RelatedTab related={related} /> };
+
+  // A posted comprobante that was reversed reads «Revertido», in red (owner 2026-11-03).
+  const statusChip = lc ? (
+    form.kind === "entry" && lc.status === "posted" && !!record.reversed_by_id ? (
+      <Pill tone="danger">{t("accounting.values.entry_status.reversed")}</Pill>
+    ) : (
+      <Pill tone={STATUS_TONE[lc.status] ?? "gray"}>{t(`common.record.status.${lc.status}`)}</Pill>
+    )
+  ) : null;
+  const pendingPosting = (await pendingLoad)?.get(record.id) ?? null;
 
   return (
     <div className={wrapperClass}>
@@ -116,10 +209,24 @@ async function RecordView({ params }: { params: Params }) {
         recordId={record.id}
         canDuplicate={can.duplicate}
         newTitle={newTitle}
-        title={title ? formatLabel(title, locale) : form.kind === "entry" ? t("accounting.entry.draft_title") : record.id}
+        title={entity.id === "accounting.account" && typeof record.code === "string" && typeof record.name === "string" ? t("accounting.record.account_title", { code: record.code, name: record.name }) : title ? formatLabel(title, locale) : untitledRecordTitle({ status: lc?.status, seq: record.seq, isEntry: form.kind === "entry", draftTitle: t("accounting.entry.draft_title"), idLabel: t("common.record.ids.id"), fallback: record.id })}
         seq={record.seq === null || record.seq === undefined ? null : Number(record.seq)}
         uuid={record.id}
-        deepLinkHref={recordHref(entity.id, record.id)}
+        number={typeof record.number === "string" && record.number ? record.number : null}
+        reference={typeof record.reference === "string" && record.reference ? record.reference : null}
+        {...(statusChip || pendingPosting
+          ? {
+              chip: (
+                <>
+                  {statusChip}
+                  {statusChip && pendingPosting ? " " : null}
+                  {pendingPosting ? <PendingPostingBadge pending={pendingPosting} /> : null}
+                </>
+              ),
+            }
+          : {})}
+        lifecycle={frameLifecycle}
+        deepLinkHref={`${recordHref(entity.id, record.id)}${FULL_VIEW}`}
         tabs={recordTabIds(entity.id, contributed.map((tab) => tab.id))
           .filter((tabId) => content[tabId] !== undefined)
           .map((tabId): RecordTab => ({ id: tabId, ...content[tabId]! }))}
@@ -130,11 +237,11 @@ async function RecordView({ params }: { params: Params }) {
   );
 }
 
-async function RestrictedAccount({ id }: { id: string }) {
+async function RestrictedAccount({ id, full }: { id: string; full: boolean }) {
   const t = await getTranslations();
   const denied = { content: <NoAccess text={t("accounting.record.no_access")} /> };
   return (
-    <div className="mx-auto w-full max-w-6xl">
+    <div className={full ? "w-full" : "mx-auto w-full max-w-6xl"}>
       <AppRecordFrame
         entity="accounting.account"
         recordId={id}
@@ -142,7 +249,7 @@ async function RestrictedAccount({ id }: { id: string }) {
         title={t("accounting.record.restricted_account")}
         seq="masked"
         uuid={id}
-        deepLinkHref={recordHref("accounting.account", id)}
+        deepLinkHref={`${recordHref("accounting.account", id)}${FULL_VIEW}`}
         status={
           <span data-testid="record-status" className="erp-record__status">
             <span className="erp-pill erp-pill--gray">{t("accounting.record.no_access")}</span>
@@ -179,8 +286,14 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
       lineas: t("common.record.tabs.lineas"),
       probar: t("common.record.tabs.probar"),
       historial: t("common.record.tabs.historial"),
+      versiones: t("common.record.tabs.versiones"),
+      acceso: t("common.record.tabs.acceso"),
+      relacionados: t("common.record.related.tab"),
     },
     number: t("common.record.number"),
+    docNumber: t("common.record.ids.number"),
+    reference: t("common.record.ids.reference"),
+    copy: t.raw("common.record.ids.copy") as string,
     uuid: t("common.record.uuid"),
     assignedOnCreate: t("common.record.assigned_on_create"),
     openInNewTab: t("common.record.open_in_new_tab"),
@@ -189,14 +302,19 @@ function recordLabels(t: Awaited<ReturnType<typeof getTranslations>>) {
     // The frame puts the source's name, as a link, where `{name}` is.
     copyOf: t.raw("common.record.copy_of") as string,
     copyNote: t("common.record.copy_note"),
+    discardChanges: t("common.record.discard_changes"),
+    saveChanges: t("common.record.save_changes"),
   };
 }
 
-export default function RecordPage({ params }: { params: Params }) {
-  // The session cookie and the route params are request data: read them inside Suspense (cache components).
+/** The state chip's tone by status (prototype `chip`). */
+const STATUS_TONE: Record<string, "ok" | "warn" | "danger" | "gray" | "info"> = { draft: "gray", saved: "info", pending: "warn", rejected: "danger", approved: "ok", posted: "ok", voided: "danger" };
+
+export default function RecordPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
+  // The session cookie, the route params and the query are request data: read them inside Suspense (cache components).
   return (
     <Suspense fallback={null}>
-      <RecordView params={params} />
+      <RecordView params={params} searchParams={searchParams} />
     </Suspense>
   );
 }

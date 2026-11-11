@@ -90,6 +90,9 @@ const MAX_CODES = 2000;
 
 const quote = (name: string) => `"${name}"`;
 
+/** The column a row-masked entity's rows carry when the row is a «••••» placeholder (D20, `EntityDef.rowMask`). */
+export const ROW_MASKED = "__row_masked";
+
 /** Escapes LIKE's wildcards and its escape character (backslash, Postgres' default). */
 const likeEscape = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
@@ -122,6 +125,12 @@ export function buildQuery(
   const state = parsed.data;
   const view = `${entity.schema}.v_${entity.table}`;
   const fields = new Map<string, FieldDef>(entity.fields.map((f) => [f.name, f]));
+  // D20: a placeholder row of a row-masked entity never matches, sorts or aggregates by a value it masks.
+  const rowMask = entity.rowMask;
+  if (rowMask && !IDENTIFIER.test(rowMask.flag)) throw new Error(`entity ${entity.id}: invalid rowMask flag "${rowMask.flag}"`);
+  const flag = rowMask ? `coalesce(${quote(rowMask.flag)}, false)` : "";
+  const rowMasked = (name: string) => rowMask?.fields.includes(name) === true;
+  const unmaskedOnly = (name: string, condition: string) => (rowMasked(name) ? `(not ${flag} and (${condition}))` : condition);
   for (const name of fields.keys()) if (!IDENTIFIER.test(name)) throw new Error(`entity ${entity.id}: invalid field name "${name}"`);
 
   const params: unknown[] = [];
@@ -166,7 +175,7 @@ export function buildQuery(
       name,
       kind,
       filterExpr,
-      sortExpr: column,
+      sortExpr: rowMasked(name) ? `case when ${flag} then null else ${column} end` : column,
       type: field.type,
       enumValues: field.enumValues,
       filterable: field.filterable ?? true,
@@ -208,6 +217,11 @@ export function buildQuery(
     const op: FilterOp = filter.op;
     const codeSet = found.kind === "text" && CODE_SET_OPS.has(op);
     if (!codeSet && !OPERATORS[found.kind].includes(op)) throw new QueryError("bad_operator", found.name, `${op} does not apply to ${found.kind}`);
+    return unmaskedOnly(found.name, condition(found, op, filter));
+  };
+
+  const condition = (found: Target, op: FilterOp, filter: GridFilter): string => {
+    const codeSet = found.kind === "text" && CODE_SET_OPS.has(op);
     const t: Bound = { ...found, expr: found.filterExpr() };
     if (NO_VALUE_OPS.has(op)) return nullTest(t, op === "is_null");
     const { value, value2 } = filter;
@@ -295,7 +309,7 @@ export function buildQuery(
     if (searched.length === 0) clauses.push("false");
     else {
       const p = param(`%${likeEscape(search)}%`);
-      clauses.push(`(${searched.map((f) => `${f.type === "text" ? quote(f.name) : `(${quote(f.name)})::text`} ilike ${p}`).join(" or ")})`);
+      clauses.push(`(${searched.map((f) => unmaskedOnly(f.name, `${f.type === "text" ? quote(f.name) : `(${quote(f.name)})::text`} ilike ${p}`)).join(" or ")})`);
     }
   }
   if (state.filters.length > 0) {
@@ -332,9 +346,26 @@ export function buildQuery(
   }
 
   const isRollupSum = (field: string, fn: AggregateFn) => fn === "sum" && entity.fields.some((f) => f.name === field && f.rollup);
+  // D20: the filter is exactly "the lines of one parent" (no search, no other condition): the parent's id, else null.
+  const parentOnly = (() => {
+    const totals = rowMask?.totals;
+    if (!totals || search || state.filters.length !== 1) return null;
+    const [only] = state.filters;
+    return only!.field === totals.parentField && only!.op === "eq" && typeof only!.value === "string" && UUID.test(only!.value) ? only!.value : null;
+  })();
   const aggregateOf = ({ field, fn }: { field: string; fn: AggregateFn }, rollupAware: boolean): string => {
     const t = target(field);
     if (!aggregateApplies(fn, t.kind)) throw new QueryError("bad_operator", t.name, `${fn} does not apply to ${t.kind}`);
+    if (rowMasked(t.name)) {
+      const parentColumn = rowMask!.totals?.columns[t.name];
+      if (rollupAware && fn === "sum" && parentColumn && parentOnly) {
+        if (!IDENTIFIER.test(parentColumn) || !/^[a-z][a-z0-9_]*\.v_[a-z0-9_]+$/.test(rowMask!.totals!.view)) throw new Error(`entity ${entity.id}: invalid rowMask totals`);
+        // The id is checked against UUID above; inlined, since a parameter only this statement used would break the others.
+        return `(select ${quote(parentColumn)} from ${rowMask!.totals!.view} where "id" = '${parentOnly}'::uuid) as "${fn}:${t.name}"`;
+      }
+      const expr = t.kind === "date" ? quote(t.name) : t.filterExpr();
+      return `case when bool_or(${flag}) then null else ${fn}(${expr}) end as "${fn}:${t.name}"`;
+    }
     if (rollupAware && isRollupSum(field, fn)) {
       // UX-OD-3: the total of a roll-up column is the sum of the rows with no ancestor in the result (a group and its leaves are
       // never both added). The ancestors are walked in the whole visible view, so a root outside the filter still covers its
@@ -369,7 +400,7 @@ export function buildQuery(
   const { offset, limit } = options.window ?? { offset: (state.page - 1) * state.pageSize, limit: state.pageSize };
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1) throw new QueryError("bad_value", "window", "offset and limit must be whole numbers");
   return {
-    sql: `select ${columns.map(quote).join(", ")} from ${view}${where} order by ${order.join(", ")} limit ${limit} offset ${offset}`,
+    sql: `select ${[...columns.map(quote), ...(rowMask ? [`${quote(rowMask.flag)} as ${quote(ROW_MASKED)}`] : [])].join(", ")} from ${view}${where} order by ${order.join(", ")} limit ${limit} offset ${offset}`,
     params,
     countSql: `select count(*)::int as total from ${view}${where}`,
     ...(aggregates.length > 0 ? { aggregateSql: `select ${aggregates.join(", ")} from ${view}${where}` } : {}),

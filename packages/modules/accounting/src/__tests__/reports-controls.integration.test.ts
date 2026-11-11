@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runReport } from "@erp/kernel";
-import { accountingHarness, type AccountingHarness } from "./helpers";
+import { accountingHarness, type AccountingHarness, markInvoiceReady } from "./helpers";
 
 let h: AccountingHarness;
 let year: number;
@@ -12,10 +12,13 @@ beforeAll(async () => {
   await h.runStepUp(h.admin, "accounting.chart.seed", {});
   year = (await h.sql<{ year: number }[]>`select year from accounting.fiscal_years where company_id = ${h.companyId}`)[0]!.year;
   adm = (await h.sql<{ id: string }[]>`insert into accounting.cost_centers (company_id, code, name, kind) values (${h.companyId}, 'ADM', 'Administración', 'leaf') returning id`)[0]!.id;
-  const party = async (document: string, name: string) =>
-    (await h.sql<{ id: string }[]>`
+  const party = async (document: string, name: string) => {
+    const [row] = await h.sql<{ id: string }[]>`
       insert into core.parties (company_id, kind, person_type, document_type, document_number, legal_name, dian_status)
-      values (${h.companyId}, '{customer,supplier}', '2', '13', ${document}, ${name}, 'errors') returning id`)[0]!.id;
+      values (${h.companyId}, '{customer,supplier}', '2', '13', ${document}, ${name}, 'errors') returning id`;
+    await markInvoiceReady(h, row!.id, "2");
+    return row!.id;
+  };
   partyA = await party("900111222", "Cliente A S.A.S.");
   partyB = await party("900333444", "Proveedor B S.A.S.");
 }, 180_000);
@@ -38,7 +41,7 @@ const post = async (date: string, lines: { code: string; debit?: number; credit?
       accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.party ? { partyId: l.party } : {}), ...(l.cc ? { costCenterId: adm } : {}), ...(l.dueDate ? { dueDate: l.dueDate } : {}),
     })),
   });
-  await h.run(h.contador, "accounting.entry.post", { id });
+  await h.run(h.contador, "accounting.entry.save", { id });
   return id;
 };
 const invoice = (date: string, amount: number, dueDate: string) =>
@@ -122,5 +125,26 @@ describe("control reports", () => {
     // The threshold is a parameter.
     const wide = await report("accounting.manual_entries_audit", { from: dateIn(8, 1), to: dateIn(9, 30), roundThreshold: 1_234_567 });
     expect(wide.rows.map((r) => r.round_amount)).toEqual([false, true]);
+  });
+
+  it("D11: the control reconciliation (shared with the period close checks) gives a restricted user the admin's figures; hidden parties are counted, never named", async () => {
+    const [invoiceEntry] = await h.sql<{ id: string }[]>`
+      select e.id from accounting.entries e join accounting.entry_lines l on l.entry_id = e.id join accounting.accounts a on a.id = l.account_id
+      where e.company_id = ${h.companyId} and a.code = '130505' and l.debit = 800 limit 1`;
+    for (const [entity, recordId] of [["accounting.entry", invoiceEntry!.id], ["core.party", partyB]] as const) {
+      await h.sql`insert into kernel.record_access (company_id, entity, record_id, grantee_role_id, can_read) values (${h.companyId}, ${entity}, ${recordId}, ${h.contador.roleId}, true)`;
+    }
+    try {
+      const asAdmin = (await runReport(h.deps, h.admin, "accounting.control_reconciliation", { asOf: asOf() }, state)) as Out;
+      const asAux = (await runReport(h.deps, h.auxiliar, "accounting.control_reconciliation", { asOf: asOf() }, state)) as Out;
+      expect(asAux.aggregates).toEqual(asAdmin.aggregates);
+      const totals = (out: Out, control: string) => out.rows.filter((r) => r.control === control).reduce((acc, r) => ({ ledger: acc.ledger + r.ledger, subledger: acc.subledger + r.subledger }), { ledger: 0, subledger: 0 });
+      for (const control of ["receivable", "payable", "suspense", "rounding"]) expect(totals(asAux, control), control).toEqual(totals(asAdmin, control));
+      expect(asAux.rows.filter((r) => r.control !== "suspense").length).toBe(asAdmin.rows.filter((r) => r.control !== "suspense").length);
+      expect(asAux.rows.some((r) => r.party_id === partyB || r.subject === "Proveedor B S.A.S.")).toBe(false);
+      expect(asAdmin.rows.some((r) => r.subject === "Proveedor B S.A.S.")).toBe(true);
+    } finally {
+      await h.sql`delete from kernel.record_access where company_id = ${h.companyId}`;
+    }
   });
 });

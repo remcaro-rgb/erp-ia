@@ -1,11 +1,12 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { buildConsumerContext, ProcessError, runProcess, withClaims, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
+import { assertRecordRight, buildConsumerContext, ProcessError, recordGuardOf, runProcess, withClaims, type Caller, type ProcessDef, type RunProcessDeps } from "@erp/kernel";
 import { refusal, type ToolRefusal } from "../tools/descriptor";
 import { appendMessage } from "./conversation";
-import { buildPreview, postingEffects, type ConfirmationPreview } from "./preview";
+import { buildPreview, cardEffects, catalogueOf, message, type ConfirmationPreview, type DryRunEvent } from "./preview";
 
 // Confirmation cards (design §6 "Agent", §7.1, rules 15 and 17, review focus 4): a write-kind tool never runs. It
-// validates the input with the process's schema, stores the proposal with a random token and returns the card; the
+// validates the input with the process's schema, tries it in a dry run (nothing written; a refusal comes back instead of a card),
+// stores the proposal with a random token and returns the card; the
 // process runs when the conversation's user confirms it, through `runProcess` as that user with origin `agent`, the
 // conversation id and the token as idempotency key.
 //
@@ -44,6 +45,88 @@ export interface DecisionResult {
   reason?: string;
 }
 
+// What a refusal tells the model (rules 14 and 17, plan 2B Task 25 fix round 1). A dry run's refusal reaches the model before any card
+// exists, and a handler fills its text from what it read, often a module's published view that the caller's field masks do not cover (an
+// invoice's number and open amount, a party's legal name): passing that text on would be a read path around the masks, and a party's name
+// would put text anyone can type into the model's context. So a refusal carries its code and a catalogue text for it; the handler's own
+// text never passes, unless it is one of an explicit allowlist, each checked against what it may say (default deny):
+// - `not_invoice_ready`: the readiness reasons (`faltan datos DIAN: Dirección`), each one matched against those `readinessReasons`
+//   generates, under a fixed subject (`El cliente`, `Línea 2: el producto`) without the customer's or the product's name;
+// - the input schema's field errors (`lines.0.qty: …`), which describe what the model itself sent;
+// - the structured ids and names the kernel's gate refusals carry (`{ entity, recordId, right }`, `{ from, action }`).
+// The text of a handler's subcode (`allocation_exceeds_open: …`) is `agent.refusal.reason.<subcode>`, else the process's module's
+// `<module>.errors.<subcode>`, else any module's; a refusal without a known one is the code's `errors.<code>`. Catalogue texts are fixed
+// strings with no record data. A consult's refusal (tools/execute.ts) goes through the same function.
+
+/** The readiness reasons `readinessReasons` writes (sales, invoicing and payments keep the same list). */
+const READINESS_REASONS = new Set([
+  "no fue aprobado", "está pendiente de aprobación", "está en borrador, sin grabar", "no está habilitado para documentos", "está inactivo",
+  "revisa sus datos DIAN, sus archivos, que esté activo y aprobado",
+]);
+/** A listed reason: the missing DIAN fields or required files, by their labels. */
+const READINESS_LIST = /^(faltan datos DIAN|faltan archivos): ([\p{L}\p{N} .()/-]{1,60}(?:, [\p{L}\p{N} .()/-]{1,60})*)$/u;
+const READINESS_MARK = /no está listo para (facturar|recibirle pagos): /gu;
+const SUBCODE = /^([a-z][a-z0-9_]{1,63}): /;
+const DETAIL_KEYS = ["entity", "recordId", "right", "field", "lineId", "from", "action", "reason"] as const;
+const DETAIL_VALUE = /^[\w.:-]{1,64}$/;
+
+const isReadinessReason = (reason: string) => READINESS_REASONS.has(reason) || READINESS_LIST.test(reason);
+
+/** One readiness line without its names: the subject, then the reasons after the last marker (the generated ones), each matched. */
+function readinessLine(detail: string): string | undefined {
+  const line = /^Línea (\d{1,4}): el producto /u.exec(detail);
+  if (!line && !detail.startsWith("El cliente ")) return undefined;
+  const last = [...detail.matchAll(READINESS_MARK)].at(-1);
+  if (!last) return undefined;
+  const reasons = detail.slice(last.index + last[0].length).split("; ").filter(isReadinessReason);
+  if (reasons.length === 0) return undefined;
+  return `${line ? `Línea ${line[1]}: el producto` : "El cliente"} no está listo para ${last[1]}: ${reasons.join("; ")}`;
+}
+
+/** The structured details of a gate refusal, ids and names only; undefined when none is left. */
+function structuredDetails(details: unknown): Record<string, string> | undefined {
+  if (typeof details !== "object" || details === null || Array.isArray(details)) return undefined;
+  const kept = Object.fromEntries(
+    DETAIL_KEYS.flatMap((key) => {
+      const value = (details as Record<string, unknown>)[key];
+      return typeof value === "string" && DETAIL_VALUE.test(value) ? [[key, value]] : [];
+    }),
+  );
+  return Object.keys(kept).length > 0 ? kept : undefined;
+}
+
+/**
+ * The refusal the model reads for `error` (see above): the code, a catalogue text in the caller's `locale` and only allowlisted details.
+ * `processId` names the refused process, whose module's catalogue texts its subcodes first.
+ */
+export function scrubRefusal(error: ProcessError, options: { locale: string; processId?: string }): ToolRefusal {
+  const catalogue = catalogueOf(options.locale);
+  const generic = message(catalogue, `errors.${error.code}`) ?? message(catalogue, "errors.unknown") ?? error.code;
+  if (error.code === "invalid_input" && error.stage === "gate") {
+    const fieldErrors = Array.isArray(error.details) ? error.details.filter((d): d is string => typeof d === "string") : [];
+    return refusal("invalid_input", { message: generic, ...(fieldErrors.length > 0 ? { details: fieldErrors } : {}) });
+  }
+  const subcode = SUBCODE.exec(error.message)?.[1];
+  if (!subcode) {
+    const details = structuredDetails(error.details);
+    return refusal(error.code, { message: generic, ...(details ? { details } : {}) });
+  }
+  const moduleId = options.processId?.split(".")[0];
+  const reason =
+    message(catalogue, `agent.refusal.reason.${subcode}`) ??
+    (moduleId ? message(catalogue, `${moduleId}.errors.${subcode}`) : undefined) ??
+    Object.keys(catalogue).map((ns) => message(catalogue, `${ns}.errors.${subcode}`)).find((text) => text !== undefined) ??
+    generic;
+  if (subcode === "not_invoice_ready") {
+    const lines = (Array.isArray(error.details) ? error.details : [error.message.slice(subcode.length + 2)])
+      .map((d) => (typeof d === "string" ? readinessLine(d) : undefined))
+      .filter((d): d is string => d !== undefined);
+    if (lines.length > 0) return refusal(error.code, { message: `${subcode}: ${lines[0]}`, details: lines });
+  }
+  const details = structuredDetails(error.details);
+  return refusal(error.code, { message: `${subcode}: ${reason}`, ...(details ? { details } : {}) });
+}
+
 /** Whether a run of the process needs a step-up code: the process says so or the company marked it sensitive. */
 async function needsStepUp(deps: RunProcessDeps, companyId: string, def: ProcessDef): Promise<boolean> {
   if (def.sensitivity === "step-up") return true;
@@ -63,7 +146,8 @@ async function companyPlace(deps: RunProcessDeps, companyId: string): Promise<{ 
 
 /**
  * Stores a pending card for a write-kind run of `def` proposed in the caller's conversation and returns it. Invalid
- * input stores nothing and comes back as an `invalid_input` refusal with the issues, for the model to correct.
+ * input stores nothing and comes back as an `invalid_input` refusal with the issues, for the model to correct; so does
+ * any refusal of the process's dry run as the caller (a step-up process excepted), scrubbed to its code and a catalogue text (scrubRefusal).
  * Service connection (the agent's bookkeeping); the conversation must be the caller's, in the active company.
  */
 export async function createConfirmation(deps: RunProcessDeps, caller: Caller, def: ProcessDef, input: unknown): Promise<ConfirmationRequired | ToolRefusal> {
@@ -71,11 +155,43 @@ export async function createConfirmation(deps: RunProcessDeps, caller: Caller, d
   if (!caller.conversationId) return refusal("invalid_input", { message: "a write needs a conversation to confirm in" });
   const parsed = def.input.safeParse(input);
   if (!parsed.success) return refusal("invalid_input", { details: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
+  // Record-level access (spec 2026-11-02 §9.1, Phase 2A.5 Task 17): a card never proposes a change to a maestro or documento the caller
+  // cannot change. The same guard and refusal `runProcess` applies on the accept (it checks again then): `record_forbidden` for one they
+  // read without the right, `not_found` without details for one they cannot read. As the caller.
+  const guard = recordGuardOf(deps.registry, def, parsed.data);
+  if (guard) {
+    try {
+      await withClaims(deps.sql, claims, (tx) => assertRecordRight({ tx }, guard.entity, guard.recordId, guard.right));
+    } catch (error) {
+      if (!(error instanceof ProcessError)) throw error;
+      return error.code === "not_found" ? refusal("not_found") : scrubRefusal(error, { locale: claims.locale, processId: def.id });
+    }
+  }
+
+  // A card only for what would run now (rules 10 and 17, plan 2B Task 25): the process runs as the caller in a dry run, whose transaction
+  // is always rolled back (nothing is written, no event, no audit row, a denial is counted), and its refusal goes back to the model instead of a card:
+  // a customer or product that is not invoice_ready, a closed period, an order that cannot be confirmed. A step-up process is not tried
+  // (it skips this preflight): its run needs the code, which the user types on the card, so its refusals come at the confirmation (which
+  // checks everything again) and its card lists the effects of the events it declares, without the posting rules that have a `when`.
+  // The preflight runs the handler once more than the accept does, counts a denial as telemetry without an audit row (rule 16, design §22.28), and holds its row locks until the rollback.
+  const stepUp = await needsStepUp(deps, claims.active_company_id, def);
+  let events: DryRunEvent[] | undefined;
+  if (!stepUp) {
+    try {
+      // What the run would emit, so the card lists the effects of those events only, each posting rule's `when` checked on its payload.
+      await runProcess(deps, caller, def.id, parsed.data, { dryRun: true, preflight: "assistant", onDryRunEvents: (e) => (events = e) });
+    } catch (error) {
+      if (!(error instanceof ProcessError)) throw error;
+      // Its code and a catalogue text only (scrubRefusal): the handler's text may hold what the caller's masks hide.
+      return scrubRefusal(error, { locale: claims.locale, processId: def.id });
+    }
+  }
 
   const preview = buildPreview(deps.registry, def, parsed.data, {
     locale: claims.locale,
-    stepUp: await needsStepUp(deps, claims.active_company_id, def),
-    postingEffects: await postingEffects(deps.registry, def, buildConsumerContext(deps.sql, { companyId: claims.active_company_id, chainId: randomUUID() }, deps.registry)),
+    stepUp,
+    // What the other modules and the ledger will do (design §5.1, plan 2B Task 25): "Inventario: …", "Contabilidad: asiento en Ventas".
+    postingEffects: await cardEffects(deps.registry, def, buildConsumerContext(deps.sql, { companyId: claims.active_company_id, chainId: randomUUID() }, deps.registry), { locale: claims.locale, events }),
     ...(await companyPlace(deps, claims.active_company_id)),
   });
   const token = randomBytes(32).toString("base64url");

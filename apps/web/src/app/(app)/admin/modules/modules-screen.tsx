@@ -27,9 +27,18 @@ export function ModulesScreen({ data }: { data: ModulesData }) {
                 <span className={`erp-pill erp-pill--${module.enabled ? "ok" : "gray"}`}>{module.enabled ? t("common.admin.modules.on") : t("common.admin.modules.off")}</span>
               )}
             </div>
+            {module.parked > 0 && (
+              <div className="erp-row erp-small" data-testid={`parked-${module.id}`}>
+                <span>{t("common.admin.modules.parked", { count: module.parked })}</span>
+                <span className="erp-grow" />
+                <button type="button" className="erp-btn erp-btn--sm" disabled={busy} onClick={() => void perform("kernel.admin.module.parked_events.dismiss", { moduleId: module.id })}>
+                  {t("common.admin.modules.dismiss")}
+                </button>
+              </div>
+            )}
             {t.has(`common.admin.modules.desc.${module.id}`) && <div className="erp-small erp-muted">{t(`common.admin.modules.desc.${module.id}`)}</div>}
             {module.menu.length > 0 && <div className="erp-small">{t("common.admin.modules.menu", { list: module.menu.map((label) => t(label)).join(" · ") })}</div>}
-            {module.dependsOn.length > 0 && <div className="erp-small erp-muted">{t("common.admin.modules.requires", { list: module.dependsOn.map(name).join(", ") })}</div>}
+            {[...module.dependsOn, ...module.needs].length > 0 && <div className="erp-small erp-muted">{t("common.admin.modules.requires", { list: [...module.dependsOn, ...module.needs].map(name).join(", ") })}</div>}
             {module.usedBy.length > 0 && <div className="erp-small erp-muted">{t("common.admin.modules.used_by", { list: module.usedBy.map(name).join(", ") })}</div>}
             <div className="erp-row">
               <span className="erp-small erp-muted erp-mono">module:{module.id}</span>

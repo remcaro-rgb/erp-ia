@@ -1,4 +1,4 @@
-import type { EntityDef, FieldDef, FieldType } from "@erp/kernel";
+import type { EntityDef, EntityType, FieldDef, FieldType } from "@erp/kernel";
 
 // Entities of the accounting module (accounting design §4). Labels are i18n keys (`entity.<id>`, `field.<id>.<column>`),
 // filled by the catalogues of Task 30. Field names are the column names; the masked views `accounting.v_<table>` in
@@ -12,13 +12,14 @@ function fieldsOf(entity: string) {
 }
 type F = ReturnType<typeof fieldsOf>;
 
-function entity(id: string, table: string, displayField: string, fields: (f: F) => FieldDef[], extra: Partial<EntityDef> = {}): EntityDef {
+function entity(id: string, entityType: EntityType | null, table: string, displayField: string, fields: (f: F) => FieldDef[], extra: Partial<EntityDef> = {}): EntityDef {
   return {
     id,
     module: "accounting",
     schema: "accounting",
     table,
     label: `entity.${id}`,
+    ...(entityType ? { entityType } : {}),
     displayField,
     defaultSort: { field: displayField, dir: "asc" },
     fields: fields(fieldsOf(id)),
@@ -34,6 +35,15 @@ const trailer = (f: F): FieldDef[] => [
   f("updated_at", "datetime"),
 ];
 
+/**
+ * The lifecycle columns a maestro publishes (Phase 2A.5 Task 8b, migration 0043), after every other column: `create or replace view`
+ * only appends. Activo is the entity's own `is_active`; `deleted_at` and `void_reason` are not fields (the views drop deleted rows).
+ */
+const maestroLifecycle = (f: F): FieldDef[] => [
+  f("status", "enum", { enumValues: MAESTRO_STATES, valuesKey: "grid.values.record_status" }),
+  f("requires_approval", "boolean"),
+];
+
 /** The figure the masters' Tabla shows for the period its grid param `period_id` names (gaps plan Task 7, migration 0036). */
 const periodFigure = (f: F, kind: string): FieldDef =>
   ({ ...f("period_figure", "money", { exportable: true }), rollup: true, viewExpr: `accounting.period_figure('${kind}', "id", nullif(current_setting('erp.param.period_id', true), '')::uuid)` });
@@ -44,7 +54,10 @@ const account = ref("accounting.account", "code");
 const party = ref("core.party", "legal_name");
 
 export const ACCOUNT_LEVELS = ["class", "group", "account", "subaccount", "auxiliary"];
-export const ENTRY_STATUSES = ["draft", "pending", "posted", "reversed", "voided"];
+/** A comprobante's state: the documento lifecycle (entity types spec §5.1, D2). `reversed` is a mark on a posted entry, not a state. */
+export const ENTRY_STATUSES = ["draft", "saved", "pending", "rejected", "approved", "posted", "voided"];
+/** A maestro's lifecycle state (spec §5.1): Borrador, Grabado, Pendiente de Aprobación, No Aprobado, Aprobado. */
+export const MAESTRO_STATES = ["draft", "saved", "pending", "rejected", "approved"];
 export const ENTRY_ORIGINS = ["manual", "auto", "import", "template"];
 export const JOURNAL_KINDS = ["general", "sales", "purchases", "receipts", "payments", "opening", "closing"];
 export const FAILURE_CODES = [
@@ -53,12 +66,12 @@ export const FAILURE_CODES = [
 ];
 export const CLOSE_CHECKS = [
   "drafts", "pending_failures", "pending_approvals", "undispatched_events", "control_receivable", "control_payable",
-  "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances",
+  "control_inventory", "suspense_zero", "rounding_within_tolerance", "contra_nature_balances", "fx_revaluation",
 ];
 
 // §4.1 Cuenta. `access` is open or restricted (§4.15); the code is digits only and unique per company.
 export const accountEntity: EntityDef = entity(
-  "accounting.account",
+  "accounting.account", "maestro",
   "accounts",
   "code",
   (f) => [
@@ -70,6 +83,7 @@ export const accountEntity: EntityDef = entity(
     f("nature", "enum", { required: true, enumValues: ["debit", "credit"], valuesKey: "accounting.values.nature" }),
     f("allows_movement", "boolean"),
     f("requires_party", "boolean"),
+    f("requires_invoice_ready", "boolean"),
     f("requires_cost_center", "boolean"),
     f("requires_open_auxiliary", "boolean"),
     f("requires_item", "boolean"),
@@ -80,12 +94,13 @@ export const accountEntity: EntityDef = entity(
     f("access", "enum", { required: true, enumValues: ["open", "restricted"], valuesKey: "accounting.values.account_access" }),
     ...trailer(f),
     periodFigure(f, "account"),
+    ...maestroLifecycle(f),
   ],
   { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq", "period_figure"], ...PERIOD_PARAM },
 );
 
 // §4.2 Mapeo de cuentas: one row per (role, dimension).
-export const accountRoleMappingEntity: EntityDef = entity("accounting.account_role_mapping", "account_role_mappings", "role", (f) => [
+export const accountRoleMappingEntity: EntityDef = entity("accounting.account_role_mapping", "parametro", "account_role_mappings", "role", (f) => [
   f("seq", "number", { required: true }),
   f("role", "text", { required: true, searchable: true, valuesKey: "grid.values.account_role" }),
   f("dimension", "text", { searchable: true }),
@@ -94,7 +109,7 @@ export const accountRoleMappingEntity: EntityDef = entity("accounting.account_ro
 ]);
 
 // §4.15 Seguridad por cuenta.
-export const accountPermissionEntity: EntityDef = entity("accounting.account_permission", "account_permissions", "seq", (f) => [
+export const accountPermissionEntity: EntityDef = entity("accounting.account_permission", "parametro", "account_permissions", "seq", (f) => [
   f("seq", "number", { required: true }),
   f("account_id", "ref", { required: true, ...account }),
   f("subject_kind", "enum", { required: true, enumValues: ["role", "user"], valuesKey: "accounting.values.subject_kind" }),
@@ -107,7 +122,7 @@ export const accountPermissionEntity: EntityDef = entity("accounting.account_per
 
 // §4.3 Fuente.
 export const journalEntity: EntityDef = entity(
-  "accounting.journal",
+  "accounting.journal", "maestro",
   "journals",
   "code",
   (f) => [
@@ -119,22 +134,25 @@ export const journalEntity: EntityDef = entity(
     f("manual_entries", "boolean"),
     f("is_active", "boolean"),
     ...trailer(f),
+    ...maestroLifecycle(f),
   ],
   { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq", "next_number"] },
 );
 
-// §4.4 Año fiscal, Período.
-export const fiscalYearEntity: EntityDef = entity("accounting.fiscal_year", "fiscal_years", "year", (f) => [
+// §4.4 Año fiscal, Período. Parámetros (D13, D14 "unless the entity is better classed parametro"; Task 8b): the calendar of the
+// ledger, opened and closed by its own processes (year.open, period.close / reopen, year.close); their `status` is open / closed,
+// not a lifecycle state, and no comprobante waits for their approval.
+export const fiscalYearEntity: EntityDef = entity("accounting.fiscal_year", "parametro", "fiscal_years", "year", (f) => [
   f("seq", "number", { required: true }),
   f("year", "number", { required: true }),
   f("starts_on", "date", { required: true }),
   f("ends_on", "date", { required: true }),
   f("status", "enum", { required: true, enumValues: ["open", "closed"], valuesKey: "accounting.values.period_status" }),
   ...trailer(f),
-]);
+], { importKey: ["year"] });
 
 export const periodEntity: EntityDef = entity(
-  "accounting.period",
+  "accounting.period", "parametro",
   "periods",
   "starts_on",
   (f) => [
@@ -150,13 +168,14 @@ export const periodEntity: EntityDef = entity(
     f("reopened_for", "date"),
     ...trailer(f),
   ],
-  { recordPage: true },
+  { importKey: ["fiscal_year_id", "number"], recordPage: true },
 );
 
 // §4.5 Four analytic dimensions with one shape.
 function dimension(id: string, table: string): EntityDef {
   return entity(
     id,
+    "maestro",
     table,
     "code",
     (f) => [
@@ -168,6 +187,7 @@ function dimension(id: string, table: string): EntityDef {
       f("is_active", "boolean"),
       ...trailer(f),
       periodFigure(f, id.slice("accounting.".length)),
+      ...maestroLifecycle(f),
     ],
     { importKey: ["code"], recordPage: true, cloneReset: ["code", "seq", "period_figure"], ...PERIOD_PARAM },
   );
@@ -178,7 +198,7 @@ export const itemEntity = dimension("accounting.item", "items");
 export const businessUnitEntity = dimension("accounting.business_unit", "business_units");
 
 // §4.11 Configuración contable (one row per company).
-export const settingsEntity: EntityDef = entity("accounting.settings", "settings", "seq", (f) => [
+export const settingsEntity: EntityDef = entity("accounting.settings", "parametro", "settings", "seq", (f) => [
   f("seq", "number", { required: true }),
   f("ledger_starts_on", "date"),
   f("rounding_tolerance", "money"),
@@ -193,7 +213,7 @@ export const settingsEntity: EntityDef = entity("accounting.settings", "settings
 ]);
 
 // §4.13 Conceptos de exógena.
-export const fiscalConceptMappingEntity: EntityDef = entity("accounting.fiscal_concept_mapping", "fiscal_concept_mappings", "concept", (f) => [
+export const fiscalConceptMappingEntity: EntityDef = entity("accounting.fiscal_concept_mapping", "parametro", "fiscal_concept_mappings", "concept", (f) => [
   f("seq", "number", { required: true }),
   f("format", "text", { required: true, searchable: true }),
   f("concept", "text", { required: true, searchable: true }),
@@ -204,7 +224,7 @@ export const fiscalConceptMappingEntity: EntityDef = entity("accounting.fiscal_c
 
 // §4.6 Comprobante.
 export const entryEntity: EntityDef = entity(
-  "accounting.entry",
+  "accounting.entry", "documento",
   "entries",
   "number",
   (f) => [
@@ -237,12 +257,23 @@ export const entryEntity: EntityDef = entity(
     f("posted_at", "datetime"),
     f("posted_by", "ref", ref("kernel.user", "full_name")),
     ...trailer(f),
+    f("requires_approval", "boolean"),
+    f("posts", "boolean"),
+    f("void_reason", "text"),
+    f("template_id", "ref", ref("accounting.entry_template", "name")),
   ],
-  { defaultSort: { field: "date", dir: "desc" }, recordPage: true },
+  {
+    typed: {
+      numbering: "on_post",
+      lines: { entity: "accounting.entry_line", parentField: "entry_id" },
+      // Spec §10.2: approval by journal kind (require_approval_on_manual); a comprobante is its own posting.
+      ownFlags: { requiresApproval: "accounting.entry.own_flags.requires_approval", posts: "accounting.entry.own_flags.posts" },
+    },
+    defaultSort: { field: "date", dir: "desc" }, recordPage: true },
 );
 
 // §4.7 Movimiento (a comprobante's line).
-export const entryLineEntity: EntityDef = entity("accounting.entry_line", "entry_lines", "line_no", (f) => [
+export const entryLineEntity: EntityDef = entity("accounting.entry_line", "lines", "entry_lines", "line_no", (f) => [
   f("seq", "number", { required: true }),
   f("entry_id", "ref", { required: true, ...ref("accounting.entry", "number") }),
   f("line_no", "number", { required: true }),
@@ -263,10 +294,18 @@ export const entryLineEntity: EntityDef = entity("accounting.entry_line", "entry
   f("reference", "text"),
   f("due_date", "date"),
   ...trailer(f),
-]);
+], {
+  // D20 (entity types spec §10, owner 2026-11-03): a line of an account the caller may not view stays in v_entry_lines (0033) with
+  // is_restricted true and these values null; the grid shows it as a «••••» row and the comprobante's lines total its true totals.
+  rowMask: {
+    flag: "is_restricted",
+    fields: ["account_id", "party_id", "cost_center_id", "open_auxiliary_id", "item_id", "business_unit_id", "description", "debit", "credit", "debit_doc", "credit_doc", "tax_code", "tax_rate", "tax_base", "reference", "due_date"],
+    totals: { parentField: "entry_id", view: "accounting.v_entries", columns: { debit: "total_debit", credit: "total_credit" } },
+  },
+});
 
 // §4.8 Regla contable.
-export const postingRuleEntity: EntityDef = entity("accounting.posting_rule", "posting_rules", "name", (f) => [
+export const postingRuleEntity: EntityDef = entity("accounting.posting_rule", "parametro", "posting_rules", "name", (f) => [
   f("seq", "number", { required: true }),
   f("event", "text", { required: true, searchable: true }),
   f("name", "text", { required: true, searchable: true }),
@@ -282,7 +321,7 @@ export const postingRuleEntity: EntityDef = entity("accounting.posting_rule", "p
 ], { recordPage: true });
 
 // §4.9 Pendiente de contabilizar.
-export const postingFailureEntity: EntityDef = entity("accounting.posting_failure", "posting_failures", "event", (f) => [
+export const postingFailureEntity: EntityDef = entity("accounting.posting_failure", "sistema", "posting_failures", "event", (f) => [
   f("seq", "number", { required: true }),
   f("event_id", "uuid", { required: true }),
   f("event", "text", { required: true, searchable: true }),
@@ -299,16 +338,20 @@ export const postingFailureEntity: EntityDef = entity("accounting.posting_failur
 ]);
 
 // §4.10 Plantilla de comprobante.
-export const entryTemplateEntity: EntityDef = entity("accounting.entry_template", "entry_templates", "name", (f) => [
+export const entryTemplateEntity: EntityDef = entity("accounting.entry_template", "maestro", "entry_templates", "name", (f) => [
   f("seq", "number", { required: true }),
   f("name", "text", { required: true, searchable: true }),
   f("journal_id", "ref", { required: true, ...ref("accounting.journal", "code") }),
   f("description", "text"),
   f("business_unit_id", "ref", ref("accounting.business_unit", "name")),
+  f("values_editable", "boolean"),
+  f("note", "text"),
   ...trailer(f),
-], { recordPage: true });
+  f("is_active", "boolean"),
+  ...maestroLifecycle(f),
+], { importKey: ["name"], typed: { lines: { entity: "accounting.entry_template_line", parentField: "template_id" } }, recordPage: true });
 
-export const entryTemplateLineEntity: EntityDef = entity("accounting.entry_template_line", "entry_template_lines", "line_no", (f) => [
+export const entryTemplateLineEntity: EntityDef = entity("accounting.entry_template_line", "lines", "entry_template_lines", "line_no", (f) => [
   f("seq", "number", { required: true }),
   f("template_id", "ref", { required: true, ...ref("accounting.entry_template", "name") }),
   f("line_no", "number", { required: true }),
@@ -325,7 +368,7 @@ export const entryTemplateLineEntity: EntityDef = entity("accounting.entry_templ
 ]);
 
 // §4.14 Verificación de cierre. The column is named `check` as the design says: a reserved word, quoted wherever SQL names it.
-export const periodCloseCheckEntity: EntityDef = entity("accounting.period_close_check", "period_close_checks", "check", (f) => [
+export const periodCloseCheckEntity: EntityDef = entity("accounting.period_close_check", "parametro", "period_close_checks", "check", (f) => [
   f("seq", "number", { required: true }),
   f("period_id", "ref", { required: true, ...ref("accounting.period", "starts_on") }),
   f("check", "enum", { required: true, enumValues: CLOSE_CHECKS, valuesKey: "accounting.values.close_check" }),
@@ -337,7 +380,7 @@ export const periodCloseCheckEntity: EntityDef = entity("accounting.period_close
 
 // §4.16 Movimiento (consulta): a read-only entity over the view v_ledger_lines (created by Task 17), no table of its own.
 export const ledgerLineEntity: EntityDef = entity(
-  "accounting.ledger_line",
+  "accounting.ledger_line", null,
   "ledger_lines",
   "number",
   (f) => {
@@ -397,6 +440,64 @@ export const ledgerLineEntity: EntityDef = entity(
   { kind: "query", defaultSort: { field: "date", dir: "asc" } },
 );
 
+// Ajuste por diferencia en cambio (plan 2B.2 Task 34.7, FX §5 unrealized, migration 0153): one run of accounting.fx_revaluation.run over a
+// period, the documento of the entry at the period's end and of its reversal on the first day of the next period, both posted by the run
+// (it has no Borrador: written posted, numbered never, voided by accounting.fx_revaluation.void or by a rerun of the period). Its lines say
+// which invoice each receivable line of the entry adjusts, so the open items attach the adjustment (and its reversal) to that invoice.
+export const FX_REVALUATION_STATES = ["posted", "voided"];
+export const fxRevaluationEntity: EntityDef = entity("accounting.fx_revaluation", "documento", "fx_revaluations", "seq", (f) => [
+  f("seq", "number", { required: true }),
+  f("period_id", "ref", { required: true, ...ref("accounting.period", "starts_on") }),
+  f("date", "date", { required: true }),
+  /** The rate table's rate of each revalued currency on the period's last day, `{ "USD": 4300 }`. */
+  f("closing_rates", "json", { sortable: false }),
+  f("lines_count", "number"),
+  f("entry_id", "ref", ref("accounting.entry", "number")),
+  f("reversal_entry_id", "ref", ref("accounting.entry", "number")),
+  f("void_entry_id", "ref", ref("accounting.entry", "number")),
+  f("void_reversal_entry_id", "ref", ref("accounting.entry", "number")),
+  f("voided_at", "datetime"),
+  ...trailer(f),
+  f("status", "enum", { required: true, enumValues: ENTRY_STATUSES, valuesKey: "grid.values.record_status" }),
+  f("requires_approval", "boolean"),
+  f("posts", "boolean"),
+  f("void_reason", "text"),
+], {
+  typed: {
+    numbering: "none",
+    lines: { entity: "accounting.fx_revaluation_line", parentField: "revaluation_id" },
+    ownFlags: { requiresApproval: "accounting.fx_revaluation.own_flags.requires_approval", posts: "accounting.fx_revaluation.own_flags.posts" },
+  },
+  processIds: { create: "accounting.fx_revaluation.run" },
+  cloneReset: ["seq", "date", "closing_rates", "lines_count", "entry_id", "reversal_entry_id", "void_entry_id", "void_reversal_entry_id", "voided_at", "void_reason"],
+  defaultSort: { field: "seq", dir: "desc" },
+  recordPage: true,
+});
+
+export const fxRevaluationLineEntity: EntityDef = entity("accounting.fx_revaluation_line", "lines", "fx_revaluation_lines", "line_no", (f) => [
+  f("seq", "number", { required: true }),
+  f("revaluation_id", "ref", { required: true, ...ref("accounting.fx_revaluation", "seq") }),
+  f("line_no", "number", { required: true }),
+  /** The receivable line of the run's entry that adjusts the invoice (its reversal and a void's mirrors carry the same line_no). */
+  f("entry_line_id", "uuid", { required: true }),
+  f("invoice_id", "uuid", { required: true }),
+  f("invoice_number", "text", { searchable: true }),
+  f("party_id", "ref", party),
+  f("currency", "text", { required: true }),
+  /** What the invoice still owed in its currency at the period's end. */
+  f("open_doc", "number", { required: true }),
+  /** Its carrying amount in pesos (the invoice's rate) and the same dollars at the closing rate. */
+  f("carrying", "money", { required: true }),
+  f("closing_rate", "number", { required: true }),
+  f("revalued", "money", { required: true }),
+  /** revalued − carrying: a debit of the receivable when positive (fx_gain), a credit when negative (fx_loss). */
+  f("adjustment", "money", { required: true }),
+  ...trailer(f),
+]);
+
+/** The entities of migration 0153 (the exchange-difference run). */
+export const FX_ENTITIES: EntityDef[] = [fxRevaluationEntity, fxRevaluationLineEntity];
+
 /** The entities whose tables and masked views migration 0031 creates (masters, security, periods, settings). */
 export const MASTER_ENTITIES: EntityDef[] = [
   accountEntity, accountRoleMappingEntity, accountPermissionEntity, journalEntity, fiscalYearEntity, periodEntity,
@@ -409,4 +510,11 @@ export const LEDGER_ENTITIES: EntityDef[] = [
 ];
 
 /** The 20 entities of design §4; `ledger_line` is a query entity over `v_ledger_lines` (Task 17). */
-export const ACCOUNTING_ENTITIES: EntityDef[] = [...MASTER_ENTITIES, ...LEDGER_ENTITIES, ledgerLineEntity];
+export const ACCOUNTING_ENTITIES: EntityDef[] = [...MASTER_ENTITIES, ...LEDGER_ENTITIES, ledgerLineEntity, ...FX_ENTITIES];
+
+/** The accounting entity `id` (throws for an unknown one): what the lifecycle processes are generated from. */
+export function entityDef(id: string): EntityDef {
+  const found = ACCOUNTING_ENTITIES.find((e) => e.id === id);
+  if (!found) throw new Error(`unknown accounting entity ${id}`);
+  return found;
+}

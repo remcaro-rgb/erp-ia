@@ -4,7 +4,7 @@ import type { Registry } from "../registry";
 import type { EntityDef } from "../registry/entities";
 import { IDENTIFIER } from "../registry/fields";
 import { gridEntity, requireGridAccess } from "./access";
-import { labelText, refLabelKey } from "./ref-label";
+import { labelText, refFoundKey, refLabelKey } from "./ref-label";
 
 // The names of the records a page of rows refers to (design §22.15, rule 21): for each `ref` field of the entity, the
 // display field of the referenced records, read in the caller's transaction through the target entity's masked view, so
@@ -27,7 +27,8 @@ async function mayRead(tx: Tx, registry: Registry, entity: NonNullable<ReturnTyp
 }
 
 /**
- * Adds `<field>_label` (`refLabelKey`) to every row whose `ref` field names a record the caller may read, in place.
+ * Adds `<field>_label` (`refLabelKey`) to every row whose `ref` field names a record the caller may read, in place; a readable record
+ * without a name to show gets `<field>_found` (`refFoundKey`) instead.
  * Rows without the field (a page of other columns) and empty references are left as they are.
  */
 export async function addRefLabels(tx: Tx, registry: Registry, entity: EntityDef, rows: Record<string, unknown>[]): Promise<void> {
@@ -57,6 +58,8 @@ export async function addRefLabels(tx: Tx, registry: Registry, entity: EntityDef
         const value = row[field];
         const label = typeof value === "string" ? byId.get(value)?.[display] : undefined;
         if (label !== null && label !== undefined && label !== "") row[refLabelKey(field)] = labelText(label, target.fields.find((f) => f.name === display));
+        // Readable but nameless (its display field masked or empty): marked, so a cell tells it from a record the caller cannot read.
+        else if (typeof value === "string" && byId.has(value)) row[refFoundKey(field)] = true;
       }
     }
   }

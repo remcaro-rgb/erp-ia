@@ -21,6 +21,10 @@ export interface FieldSpec {
   /** Fixed codes of a select, named by `grid.values.<valuesKey>.<code>`. */
   codes?: readonly string[];
   valuesKey?: string;
+  /** The select's codes are named by `report.statement.<code>` (the financial statements' sections). */
+  statement?: boolean;
+  /** A fixed field that is a yes/no fact: shown as an on/off chip. */
+  boolean?: boolean;
   /** A select whose options the server supplies. */
   optionsFrom?: "parents" | "journals";
   /** What a new record starts with. */
@@ -29,6 +33,9 @@ export interface FieldSpec {
   hint?: string;
 }
 
+/** The sections of the balance sheet and of the income statement a Cuenta may belong to (the country packs' statement layouts). */
+export const STATEMENT_SECTIONS = ["assets_current", "assets_noncurrent", "liabilities_current", "liabilities_noncurrent", "equity", "revenue", "cost_of_sales", "operating_expenses", "other_income", "other_expenses", "income_tax"] as const;
+
 const flag = (key: string, column: string): FieldSpec => ({ key, column, control: "check", initial: false });
 
 export const MASTER_SPECS: Record<MasterKind, readonly FieldSpec[]> = {
@@ -36,15 +43,16 @@ export const MASTER_SPECS: Record<MasterKind, readonly FieldSpec[]> = {
     { key: "code", column: "code", control: "text", required: true, mono: true, numeric: true, createOnly: true },
     { key: "name", column: "name", control: "text", required: true },
     { key: "nature", column: "nature", control: "select", codes: ["debit", "credit"], valuesKey: "nature", initial: "debit" },
-    { key: "statementSection", column: "statement_section", control: "text", mono: true, hint: "statement_section_hint" },
+    { key: "statementSection", column: "statement_section", control: "select", codes: STATEMENT_SECTIONS, statement: true, initial: "" },
     flag("requiresParty", "requires_party"),
+    { key: "requiresInvoiceReady", column: "requires_invoice_ready", control: "check", initial: false, hint: "requires_invoice_ready_hint" },
     flag("requiresCostCenter", "requires_cost_center"),
     flag("requiresOpenAuxiliary", "requires_open_auxiliary"),
     flag("requiresItem", "requires_item"),
     flag("requiresBusinessUnit", "requires_business_unit"),
     { key: "isActive", column: "is_active", control: "check", initial: true, updateOnly: true },
     { key: "level", column: "level", control: "fixed", valuesKey: "account_level", updateOnly: true },
-    { key: "allowsMovement", column: "allows_movement", control: "fixed", updateOnly: true },
+    { key: "allowsMovement", column: "allows_movement", control: "fixed", boolean: true, updateOnly: true },
   ],
   dimension: [
     { key: "code", column: "code", control: "text", required: true, mono: true, createOnly: true },
@@ -65,6 +73,8 @@ export const MASTER_SPECS: Record<MasterKind, readonly FieldSpec[]> = {
     { key: "name", column: "name", control: "text", required: true },
     { key: "journalId", column: "journal_id", control: "select", optionsFrom: "journals", required: true, initial: "" },
     { key: "description", column: "description", control: "text", initial: "" },
+    { key: "note", column: "note", control: "text", initial: "" },
+    { key: "valuesEditable", column: "values_editable", control: "check", initial: true },
   ],
   rule: [
     { key: "event", column: "event", control: "text", required: true, mono: true },
@@ -115,7 +125,7 @@ export function masterInput(kind: MasterKind, draft: MasterDraft, id: string | n
     if (spec.control === "check") input[spec.key] = value === true;
     else if (spec.key === "parentId") input[spec.key] = value === "" ? null : value;
     else if (spec.key === "priority") input[spec.key] = Number(String(value).trim() || "100");
-    else if (spec.key === "description") input[spec.key] = String(value).trim() === "" ? null : String(value).trim();
+    else if (spec.key === "description" || spec.key === "note") input[spec.key] = String(value).trim() === "" ? null : String(value).trim();
     else if (spec.key === "statementSection") {
       // The process takes a section or none at all; the empty text is none (it inherits the parent's).
       if (String(value).trim() !== "") input[spec.key] = String(value).trim();

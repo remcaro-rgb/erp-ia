@@ -7,7 +7,7 @@ import { recordEntity } from "@/lib/records/entities";
 import { gridTables } from "@/lib/records/tables";
 import { processDeps } from "@/lib/server/runtime";
 import { gridDenial, gridEntity, type GridDenial } from "./access";
-import { categoryOptions } from "./options";
+import { categoryOptions, memberOptions } from "./options";
 import { defaultMovementsState, type MovementsPeriod } from "./movements";
 import { buildColumns, type CodeTables } from "./columns";
 import { linkableEntities, refTargets } from "./links";
@@ -27,6 +27,10 @@ export interface GridPageData {
   canCreate: boolean;
   /** The caller may import into the entity (kernel.import.run and its create process). */
   canImport: boolean;
+  /** Imprimir: a maestro or documento whose list the caller may print (kernel.doc_template.print, Task 16). */
+  canPrint: boolean;
+  /** A documento imports from Excel only (two sheets: header and lines); its import dialog offers no CSV template. */
+  xlsxOnly: boolean;
   /** "Crear <entity>": the title of the new record's tab. */
   newTitle: string;
   /** Column that names a record in its tab. */
@@ -54,6 +58,8 @@ async function openPeriod(deps: ReturnType<typeof processDeps>, caller: Caller):
  * view and a link's query win over it.
  */
 const ENTITY_DEFAULT_STATES: Record<string, DefaultStates> = {
+  // Costos pendientes (plan 2B Task 10): the products still moved without a cost; the resolved ones stay one filter away.
+  "costing.cost_missing": async () => ({ filters: [{ field: "status", op: "eq", value: "open" }], sort: [{ field: "last_date", dir: "desc" }] }),
   "accounting.ledger_line": async (caller, deps) => {
     const [period, settings] = await Promise.all([
       openPeriod(deps, caller),
@@ -70,6 +76,7 @@ const ENTITY_DEFAULT_STATES: Record<string, DefaultStates> = {
 
 /** The process a mass import runs (Task 13b). */
 const IMPORT_PROCESS = "kernel.import.run";
+const PRINT_PROCESS = "kernel.doc_template.print";
 
 export type GridPageResult = { ok: true; data: GridPageData } | { ok: false; denial: GridDenial };
 
@@ -99,17 +106,18 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
   if (denial) return { ok: false, denial };
 
   const record = recordEntity(entity.id);
-  const [access, views, runnable, t, locale, categories, linkable, initialState] = await Promise.all([
+  const [access, views, runnable, t, locale, categories, members, linkable, initialState] = await Promise.all([
     gridPageAccess(deps.sql, caller.claims, entity),
     savedViews(caller, entity.id),
-    runnableProcesses(deps.sql, deps.registry, caller.claims, record ? [record.create, IMPORT_PROCESS] : []),
+    runnableProcesses(deps.sql, deps.registry, caller.claims, [...(record ? [record.create, IMPORT_PROCESS] : []), PRINT_PROCESS]),
     getTranslations(),
     getLocale(),
     entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([]),
+    (entity.id === "sales.order" || entity.id === "sales.delivery") ? memberOptions(caller) : Promise.resolve([]),
     linkableEntities(deps, caller.claims, refTargets(entity)),
     ENTITY_DEFAULT_STATES[entity.id]?.(caller, deps),
   ]);
-  const tables: CodeTables = { ...gridTables(locale), categories };
+  const tables: CodeTables = { ...gridTables(locale), categories, members };
   return {
     ok: true,
     data: {
@@ -119,7 +127,9 @@ export async function loadGridPage(entityId: string, href: string): Promise<Grid
       partyScope: entity.id === "core.party" ? access.partyScope : null,
       views,
       canCreate: record ? runnable.has(record.create) : false,
-      canImport: record ? runnable.has(record.create) && runnable.has(IMPORT_PROCESS) : false,
+      canImport: record ? record.importable !== false && runnable.has(record.create) && runnable.has(IMPORT_PROCESS) : false,
+      canPrint: (entity.entityType === "maestro" || entity.entityType === "documento") && runnable.has(PRINT_PROCESS),
+      xlsxOnly: entity.entityType === "documento",
       newTitle: record ? t("grid.record_title.new", { entity: t(record.nounKey) }) : "",
       titleField: record?.titleField ?? entity.displayField,
       ...(initialState ? { initialState } : {}),

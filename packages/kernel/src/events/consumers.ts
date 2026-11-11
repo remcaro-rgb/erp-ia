@@ -1,13 +1,16 @@
 import type { Sql } from "postgres";
-import type { JwtClaims } from "../db/client";
+import { SYSTEM_USER_ID, type JwtClaims } from "../db/client";
 import { runProcess } from "../process/run";
 import { registry as defaultRegistry, type Registry } from "../registry";
 import type { ConsumerContext, EventConsumer } from "../registry/types";
 
 export type { ConsumerContext, EventConsumer };
 
-/** Actor of every process an event consumer runs; audit rows of `event` origin carry it. */
-export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+/**
+ * Actor of every process an event consumer runs; audit rows of `event` origin carry it. Defined in db/client (withClaims refuses it
+ * unless allowed, plan 2B Task 52.3), re-exported here where its callers import it.
+ */
+export { SYSTEM_USER_ID };
 
 /** Event consumers per event, in registration order (design §5.5). */
 export class ConsumerRegistry {
@@ -31,6 +34,11 @@ export class ConsumerRegistry {
     if (event === "*") return [...own];
     const taken = new Set(own.map((c) => c.moduleId));
     return [...own, ...(this.byEvent.get("*") ?? []).filter((c) => !taken.has(c.moduleId))];
+  }
+
+  /** True when `moduleId` consumes `event` only through its `"*"` consumer (it has none of its own for the event). */
+  isWildcard(event: string, moduleId: string): boolean {
+    return event !== "*" && !(this.byEvent.get(event) ?? []).some((c) => c.moduleId === moduleId);
   }
 
   /** Every (event, module) pair registered; the outbox drain uses it to know which modules gate a row. */

@@ -1,9 +1,15 @@
-import { defineModule, POSTING_CONSUMER, type ModuleDef, type RecordTabContribution } from "@erp/kernel";
+import { defineModule, POSTING_CONSUMER, ProcessError, type ModuleDef, type RecordTabContribution } from "@erp/kernel";
+import { DIMENSION_DEFS } from "./dimensions";
 import { ACCOUNTING_ENTITIES } from "./entities";
-import { FEATURES, NAVIGATION } from "./features";
-import { HOME_KPIS } from "./home";
+import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
+import { HOME_CHARTS, HOME_KPIS } from "./home";
 import { accountingProvider } from "./posting/provider";
 import { ACCOUNTING_PROCESSES } from "./processes";
+import { accountHooks } from "./processes/account";
+import { dimensionHooks } from "./processes/dimension";
+import { entryHooks } from "./processes/entry-lifecycle";
+import { journalHooks } from "./processes/journal";
+import { templateHooks } from "./processes/template";
 import { ACCOUNTING_REPORTS } from "./reports";
 import { ACCOUNTING_DEFAULT_RULES } from "./rules/defaults";
 
@@ -38,25 +44,57 @@ export const ACCOUNTING_RECORD_TABS: RecordTabContribution[] = [
   { id: "accounting.subject_accounts", label: "common.record.tabs.cuentas", forEntities: ["kernel.role", "kernel.user"], kind: "grid", feature: "accounting.ledger", source: "accounting.account_permission" },
 ];
 
+/**
+ * The exchange-difference roles (plan 2B.2 Task 34.5, FX §5): `fx_gain` (diferencia en cambio, ingreso) and `fx_loss` (gasto). The country
+ * pack maps them; the rules narrow them by the dimension `fx_kind:<kind>`, realized (a collection) or unrealized (a period-end revaluation).
+ */
+export const FX_ROLES = ["fx_gain", "fx_loss"] as const;
+export const FX_KINDS = ["realized", "unrealized"] as const;
+export type FxKind = (typeof FX_KINDS)[number];
+
 export const accounting: ModuleDef = defineModule({
   id: "accounting",
   version: "0.1.0",
   dependsOn: ["core"],
+  accountRoles: [...FX_ROLES],
+  icon: "calculator",
+  adopts: ["core.parties"],
   entities: ACCOUNTING_ENTITIES,
   processes: ACCOUNTING_PROCESSES,
   features: FEATURES,
   events: {
     emits: [
       "accounting.entry.submitted", "accounting.entry.posted", "accounting.entry.reversed", "accounting.period.closed",
-      "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed",
+      "accounting.period.reopened", "accounting.year.closed", "accounting.posting.failed", "accounting.fx_revaluation.posted",
     ],
-    consumes: { "*": POSTING_CONSUMER },
+    consumes: {
+      "*": POSTING_CONSUMER,
+      // A module switched on brings its posting rules (plan 2B Task 1); a company where accounting is off has nothing to install.
+      "kernel.module.enabled": async (ctx) => {
+        try {
+          await ctx.runProcess("accounting.posting_rule.sync", {});
+        } catch (error) {
+          if (!(error instanceof ProcessError) || error.code !== "not_entitled") throw error;
+        }
+      },
+    },
   },
   navigation: NAVIGATION,
+  menuShared: MENU_SHARED,
   reports: ACCOUNTING_REPORTS,
   homeKpis: HOME_KPIS,
+  homeCharts: HOME_CHARTS,
   recordTabs: ACCOUNTING_RECORD_TABS,
   postingProvider: accountingProvider,
+  // The lifecycle of the maestros and the comprobante (entity types spec §5, Phase 2A.5 Task 8b): each Grabar runs the checks of the
+  // record's update process; the comprobante adds its four-eyes approval, its consecutivo and its posting step.
+  typedHooks: {
+    "accounting.account": accountHooks,
+    "accounting.journal": journalHooks,
+    ...Object.fromEntries(Object.values(DIMENSION_DEFS).map((def) => [def.entity, dimensionHooks(def)])),
+    "accounting.entry": entryHooks,
+    "accounting.entry_template": templateHooks,
+  },
   postingRules: ACCOUNTING_DEFAULT_RULES,
 });
 
@@ -67,4 +105,7 @@ export { figureOf, MASTER_ENTITIES, masterTree } from "./masters/tree";
 export type { MasterEntity, MasterFigure, MasterTree, MasterTreeItem } from "./masters/tree";
 export { accountBalances, listPeriods, listYears, nodeFigures, yearPreview } from "./masters/figures";
 export type { AccountBalanceRow, AccountBalances, NodeAccountRow, NodeFigures, PeriodRef, PeriodSummary, YearPreview, YearSummary } from "./masters/figures";
-export { HOME_KPIS } from "./home";
+export { HOME_CHARTS, HOME_KPIS } from "./home";
+export { ASYNC_BY_DESIGN, POSTING_MODES } from "./posting/mode";
+export { POSTING_AGE_REASON, postingAgePlan } from "./processes/posting-age";
+export type { PostingAgePlan } from "./processes/posting-age";

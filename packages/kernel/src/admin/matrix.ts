@@ -50,7 +50,7 @@ export function matrixProcesses(registry: Registry, modules?: ReadonlySet<string
   const order = registry.modules().map((m) => m.id);
   return registry
     .processes()
-    .filter((p) => !p.origins && (!modules || modules.has(p.module)))
+    .filter((p) => !p.origins && !p.nestedOnlyFrom && (!modules || modules.has(p.module)))
     .map((p) => matrixProcess(registry, p))
     .sort((a, b) => order.indexOf(a.module) - order.indexOf(b.module) || a.entity.localeCompare(b.entity) || a.id.localeCompare(b.id));
 }

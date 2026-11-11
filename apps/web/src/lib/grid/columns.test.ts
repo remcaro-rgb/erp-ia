@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CORE_ENTITIES } from "@erp/module-core";
+import { ACCOUNTING_ENTITIES } from "@erp/module-accounting";
+import { SALES_ENTITIES } from "@erp/module-sales";
 import { buildColumns } from "./columns";
 import { presentationOf } from "./presentation";
 
@@ -62,5 +64,37 @@ describe("grid columns", () => {
     );
     expect(columns.find((c) => c.field === "extra.canal")).toMatchObject({ type: "custom:list", kind: "enum", mode: "visible", hiddenByDefault: true, options: [{ value: "Retail", label: "Retail" }, { value: "HORECA", label: "HORECA" }] });
     expect(columns.find((c) => c.field === "extra.secreto")).toMatchObject({ mode: "hidden" });
+  });
+
+  it("a comprobante's state column is marked «Revertido» (red) when the comprobante has a reversal", () => {
+    const entry = ACCOUNTING_ENTITIES.find((e) => e.id === "accounting.entry")!;
+    const columns = buildColumns(entry, { modes: {}, extras: [], timeZone: "America/Bogota" }, presentationOf("accounting.entry"), t, {});
+    expect(columns.find((c) => c.field === "status")).toMatchObject({ marked: { field: "reversed_by_id", whenValue: "posted", label: "«accounting.values.entry_status.reversed»", tone: "danger" } });
+    // The filter keeps the stored states: nothing is stored as "reversed".
+    expect(columns.find((c) => c.field === "status")!.options!.map((o) => o.value)).not.toContain("reversed");
+  });
+});
+
+// Order owner isolation (plan 2B Task 39): a pedido the caller cannot read is never named, shown as an id or linked from the grids.
+describe("grids that name a pedido (Task 39)", () => {
+  const access = { modes: {}, extras: [], timeZone: "America/Bogota" };
+  const entityOf = (id: string) => SALES_ENTITIES.find((e) => e.id === id)!;
+  const tt = (key: string) => `«${key}»`;
+
+  it("gives the deliveries' and returns' pedido column the text an unreadable pedido reads as", () => {
+    for (const id of ["sales.delivery", "sales.return"]) {
+      const columns = buildColumns(entityOf(id), access, presentationOf(id), tt, {}, new Set(["sales.order"]));
+      expect(columns.find((c) => c.field === "order_id"), id).toMatchObject({ unavailable: "«sales.view.order_unavailable»" });
+    }
+    const orders = buildColumns(entityOf("sales.order"), access, presentationOf("sales.order"), tt);
+    expect(orders.find((c) => c.field === "party_id")!.unavailable).toBeUndefined();
+  });
+
+  it("names the salesperson columns by the members table (the pedidos' and the deliveries' pedido owner)", () => {
+    const members = [{ value: "u1", label: "Ana" }];
+    const orders = buildColumns(entityOf("sales.order"), access, presentationOf("sales.order"), tt, { members });
+    expect(orders.find((c) => c.field === "owner_id")!.options).toEqual(members);
+    const deliveries = buildColumns(entityOf("sales.delivery"), access, presentationOf("sales.delivery"), tt, { members });
+    expect(deliveries.find((c) => c.field === "order_owner_id")!.options).toEqual(members);
   });
 });

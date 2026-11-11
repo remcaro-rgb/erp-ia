@@ -7,6 +7,11 @@ processes:
   - core.product.update
   - core.product.deactivate
   - core.product.consult
+  - core.product.save
+  - core.product.submit
+  - core.product.approve
+  - core.product.reject
+  - core.product.delete
   - kernel.attachment.reorder
   - kernel.ai.image_suggest
 ---
@@ -15,11 +20,11 @@ processes:
 
 **Productos** es el catálogo de lo que vendes y compras, bienes y servicios. Cada producto lleva los datos que la factura electrónica de la DIAN pide por línea (código estándar, unidad de medida, impuestos), además de precio, costo e inventario.
 
-Entra desde **Núcleo › Productos**, o con **⌘K** escribiendo «producto».
+Entra desde **Núcleo › Maestros › Productos**, o con **⌘K** escribiendo «producto».
 
 ## El listado
 
-Al comienzo muestra N.º, SKU, Descripción, Tipo de producto, Categoría, Código estándar, Unidad, Tarifa de IVA, Precio de lista, Costo estándar, Estado DIAN, Listo para facturar y Activo. Ordenar, filtrar, elegir columnas, guardar vistas y exportar funcionan como en todos los listados (guía **Listados**). **Importar** carga muchos productos desde Excel o CSV (guía **Importar datos**). Haz clic en una fila para abrir el producto en su propia pestaña.
+Al comienzo muestra ID, SKU, Descripción, Tipo de producto, Categoría, Código estándar, Unidad, Tarifa de IVA, Precio de lista, Costo estándar, Estado DIAN, Listo para facturar y Activo. Ordenar, filtrar, elegir columnas, guardar vistas y exportar funcionan como en todos los listados (guía **Listados**). **Importar** carga muchos productos desde Excel o CSV (guía **Importar datos**). Haz clic en una fila para abrir el producto en su propia pestaña.
 
 ## Crear un producto
 
@@ -37,9 +42,19 @@ Al comienzo muestra N.º, SKU, Descripción, Tipo de producto, Categoría, Códi
 5. En **Inventario**: marca **Controla existencias** (**Sí, por bodega**) y, si quieres una alerta, el **Mínimo**. Un servicio no controla existencias.
 6. Revisa el panel de estado DIAN y pulsa **Crear**. También puedes guardar con el teclado desde cualquier campo: **Ctrl+S** o **Ctrl+Enter** (en Mac, **⌘S** o **⌘Enter**); **Enter** no guarda: pasa al campo siguiente (**Mayús+Enter** vuelve al anterior). Si el sistema rechaza el guardado, el cursor salta al primer campo con error, o al cuadro que explica el motivo.
 
-**Categoría** y **Unidad de medida** son cajas de búsqueda: escribe parte del nombre («kil» encuentra «Kilogramo»), elige con **↑ ↓** y **Enter**. El interruptor **Ver códigos DIAN** (arriba a la derecha) muestra el código de la unidad («KGM · Kilogramo») y los nombres técnicos de la DIAN; empieza apagado. El **Margen** y el **Código estándar** que coincide con tu código interno se calculan solos: se pueden seleccionar y copiar con el botón de copiar. Ver la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
+**Categoría** y **Unidad de medida** son cajas de búsqueda: escribe parte del nombre («kil» encuentra «Kilogramo»), elige con **↑ ↓** y **Enter**. La unidad muestra su código delante del nombre («KGM · Kilogramo»), igual que las demás listas de la DIAN. El **Margen** y el **Código estándar** que coincide con tu código interno se calculan solos: se pueden seleccionar y copiar con el botón de copiar. Ver la guía **Moverse por el sistema**, «Llenar un formulario con el teclado».
 
 Los importes se muestran como `$ 1.234.567,00`; mientras escribes ves los dígitos sin formato.
+
+## Existencias, costo y facturación
+
+Con los módulos de la cadena de venta, estos datos del producto se usan así:
+
+- **Controla existencias**: solo un **Bien** que controla existencias reserva al confirmar un pedido, sale de la bodega al despachar una entrega y tiene capa de costo. Un **Servicio**, o un bien sin **Controla existencias**, se vende y se factura sin mover inventario (guía **Inventario**).
+- **Mínimo** (stock mínimo): el indicador **Stock bajo mínimo** del **Inicio** de Inventario cuenta los productos cuya existencia en todas las bodegas está por debajo de él.
+- **Costo estándar**: el costo real lo lleva **Costos** con el promedio ponderado de cada bodega. El costo estándar solo se usa cuando no hay otro: una entrada sin costo unitario, una salida o un ajuste en una bodega que todavía no tiene costo promedio para el producto (guía **Costos**).
+- **Precio de lista**: el último recurso del precio de una línea, si ni la lista del cliente ni la lista predeterminada dan precio (guía **Ventas**).
+- **Datos DIAN**: la factura electrónica lleva por línea el **Código estándar** y su esquema, la **Unidad de medida**, el IVA, el impuesto al consumo y los otros tributos del producto. Por eso un producto que no está **Listo para facturar** no entra en una cotización, un pedido, una entrega ni una factura.
 
 ## Impuestos heredados de la categoría
 
@@ -66,13 +81,23 @@ Pulsa **✨ Sugerir foto con IA** (permiso **Sugerir foto con IA**, `kernel.ai.i
 
 Una foto sugerida **no cuenta como aprobada** hasta que la hagas principal: al pulsar **Hacer principal** en ella, la insignia pasa a «principal · subida» y deja de ser una sugerencia. Si no te sirve, quítala con **Quitar**. Cada sugerencia queda en la auditoría con el proceso `kernel.ai.image_suggest` y el usuario que la pidió.
 
+## Estados, aprobación, impresión y acceso
+
+Los productos son un **maestro** (guía [Maestros y documentos](maestros-y-documentos.md)):
+
+- Cada un producto tiene un **ID** consecutivo que nunca se repite; búscalo en la columna **ID** del listado o escribiéndolo en **⌘K**.
+- La barra de acciones del registro tiene **Nuevo**, **Duplicar**, **Imprimir** (el PDF del registro, guía [Plantillas PDF e Imprimir](plantillas-pdf.md)) y **Guardar**. Si el administrador activó **Requiere aprobación** en **Parámetros › Configuración de tipos**, aparece también **Guardar y enviar a aprobación**, y quien tiene el permiso ve **Aprobar** y **No aprobar**.
+- Un maestro se puede usar en documentos cuando está **Activo** y aprobado (o grabado, si no requiere aprobación). Para dejar de usarlo, cambia **Activo** a «No»; **Eliminar** solo funciona si nada lo usa.
+- El pie dice **Creado en … por …** y **Modificado en … por …**. Los maestros no tienen **Notificar** ni **Versiones**: sus cambios quedan en la auditoría.
+- Un administrador puede restringir un producto concreto a ciertos roles o usuarios en la pestaña **Acceso** (guía [Acceso por registro](acceso-por-registro.md)).
+
 ## Estado DIAN y «Listo para facturar»
 
 Igual que los terceros: los **errores** de formato impiden guardar; los **datos pendientes** permiten guardar con estado «Faltan N». Un producto está **Listo para facturar** cuando su estado DIAN es **Completo**, está **Activo** y tiene los archivos obligatorios que defina tu empresa (por defecto, la **Ficha técnica** en PDF es opcional). El pie del registro lo muestra («✓ Se puede usar en facturas» o «✕ No se puede usar en facturas») y se actualiza al subir o quitar archivos. Un producto que no está listo no se puede usar en una línea de factura; el panel **No se puede usar en facturas** dice por qué.
 
 ## Cambiar y desactivar
 
-Abre el producto, modifica y pulsa **Guardar** (o **Descartar cambios**). Cambiar la categoría de un producto existente aplica los impuestos de la nueva y recalcula el estado DIAN. Un producto se **desactiva** con su proceso (permiso «Desactivar producto»; en esta versión el formulario no tiene un botón para hacerlo): deja de estar disponible para documentos nuevos, pero conserva su historial.
+Abre el producto, modifica y pulsa **Guardar** o **Guardar cambios** (o **Descartar cambios**, junto al título). Cambiar la categoría de un producto existente aplica los impuestos de la nueva y recalcula el estado DIAN. Un producto se **desactiva** con su proceso (permiso «Desactivar producto»; en esta versión el formulario no tiene un botón para hacerlo): deja de estar disponible para documentos nuevos, pero conserva su historial.
 
 ## Quién puede ver y cambiar qué
 

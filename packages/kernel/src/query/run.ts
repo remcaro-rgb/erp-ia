@@ -2,7 +2,7 @@ import type { Sql } from "postgres";
 import type { CustomFieldType } from "../custom-fields/types";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import type { EntityDef } from "../registry/entities";
-import { buildQuery } from "./build-query";
+import { buildQuery, ROW_MASKED } from "./build-query";
 import { QueryError } from "./errors";
 import { EXTRA_PREFIX, type GridState } from "./grid-state";
 import { addRefLabels } from "./ref-labels";
@@ -72,7 +72,7 @@ export function groupRowsOf(raw: readonly Record<string, unknown>[], fields: rea
 export async function gridAccess(tx: Tx, entity: EntityDef): Promise<GridAccess> {
   const names = entity.fields.map((f) => f.name);
   const modes = await tx<{ field: string; mode: FieldMode }[]>`
-    select f as field, kernel.field_mode(${entity.id}, f) as mode from unnest(${names}::text[]) as f`;
+    select field, mode from kernel.field_modes(${entity.id}, ${names}::text[])`;
   const extras = await tx<{ key: string; label: string; type: CustomFieldType; options: string[] | null; viewable: boolean }[]>`
     select key, label, type, options, roles_view && kernel.current_role_ids() as viewable
     from kernel.custom_fields
@@ -156,7 +156,7 @@ export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState,
   const q = buildQuery(entity, state, visibleIn(access), { extras, timeZone: access.timeZone });
   const rows = await tx.unsafe<Record<string, unknown>[]>(q.sql, q.params as never[]);
   const [count] = await tx.unsafe<{ total: number }[]>(q.countSql, q.params as never[]);
-  const result: GridResult & { access: GridAccess } = { rows: rows.map((row) => ({ ...row })), total: count?.total ?? 0, access };
+  const result: GridResult & { access: GridAccess } = { rows: rows.map(placeholderMarked), total: count?.total ?? 0, access };
   if (options.registry) await addRefLabels(tx, options.registry, entity, result.rows);
   if (q.aggregateSql) {
     const [aggregates] = await tx.unsafe<Record<string, unknown>[]>(q.aggregateSql, q.params as never[]);
@@ -167,6 +167,12 @@ export async function gridQueryInTx(tx: Tx, entity: EntityDef, state: GridState,
     result.groups = groupRowsOf(raw, q.groupFields);
   }
   return result;
+}
+
+/** A grid row as the page gets it: a «••••» placeholder row (D20) keeps `__row_masked: true`; any other row carries no marker. */
+function placeholderMarked(row: Record<string, unknown>): Record<string, unknown> {
+  const { [ROW_MASKED]: masked, ...rest } = row;
+  return masked === true ? { ...rest, [ROW_MASKED]: true } : rest;
 }
 
 /** A role's party scope (design §5.18): which parties the caller sees (`kernel.party_scope()`). */

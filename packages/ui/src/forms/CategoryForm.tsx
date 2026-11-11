@@ -9,7 +9,7 @@ import type { RequestStepUp, SaveRecord } from "./save-model";
 import { useSaveFlow } from "./use-save";
 
 /** Input fields the form shows a process message under (the rest go to the status panel). */
-const CATEGORY_FIELDS = ["name", "status", "ivaRate", "incRate", "defaultUom", "incomeAccount"];
+const CATEGORY_FIELDS = ["name", "isActive", "ivaRate", "incRate", "defaultUom", "incomeAccount"];
 
 export interface CategoryFormProps {
   /** The stored category as `core.category.consult` returns it, or null for a new one. */
@@ -26,7 +26,7 @@ export interface CategoryFormProps {
 }
 
 /**
- * The Datos tab of a product category (design §5.18, prototype `renderCategoryForm`): name and status, the default
+ * The Datos tab of a product category (design §5.18, prototype `renderCategoryForm`): name and Activo, the default
  * taxes and unit new products inherit, the income account; editing it never rewrites the products that use it.
  */
 export function CategoryForm({ record, initial: copy, tables, productCount = 0, readOnly = false, save, requestStepUp, onSaved }: CategoryFormProps) {
@@ -61,22 +61,22 @@ export function CategoryForm({ record, initial: copy, tables, productCount = 0, 
   const submit = () => void send();
 
   return (
-    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure}>
+    <RecordForm canSave={!readOnly && !accountBad && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(isNew ? {} : { onDiscard: () => setDraft(initial) })}>
       {readOnly && <div className="erp-dian erp-dian--info">{tf("read_only")}</div>}
       <Section title={t("category")}>
         <div className="erp-form2">
           <TextField label={t("name")} value={draft.name} maxLength={100} disabled={dis} error={fe("name")} onChange={set("name")} />
           <SelectField
-            label={t("status")}
-            error={fe("status")}
-            value={draft.status}
+            label={t("is_active")}
+            error={fe("isActive")}
+            value={draft.isActive ? "active" : "inactive"}
             showCode={false}
             disabled={dis}
             options={[
               { code: "active", name: t("active") },
               { code: "inactive", name: t("inactive") },
             ]}
-            onChange={(v) => set("status")(v as CategoryDraft["status"])}
+            onChange={(v) => setDraft((d) => ({ ...d, isActive: v === "active" }))}
           />
         </div>
       </Section>

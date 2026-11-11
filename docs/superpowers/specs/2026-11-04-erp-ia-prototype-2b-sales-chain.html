@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="es-419">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERP-IA · Prototipo 2B (cadena de ventas)</title>
+<!--
+  Prototype of phase 2B (2026-11-04), visual and behavioural contract for the sales chain screens of
+  docs/superpowers/plans/2026-11-03-phase-2b-sales-stock-chain.md. Built on shell v7 (tokens and frame copied from
+  2026-10-31-erp-ia-prototype-v7-shell.html) and the entity-types action bar (Grabar · Nuevo · Imprimir · Anular · Notificar).
+  Scope: quote -> order -> delivery -> DIAN invoice -> receipt for Café del Norte, driven by the "Recorrido" card (bottom left).
+  Shows: the invoice creation mode (OD-2, Facturación › Parámetros), stock reservation and cost, the DIAN status trail,
+  the annulment by credit note (OD-7, with the export-invoice variant), the ledger entries each step creates and the causal
+  chain. Out of scope (2B.2, OD-8): lots/serials, picking/packing, commissions. All data is invented; nothing persists.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bar: #F0F2F5; --bar-ctl: #E6E9EF; --bar-line: #D0D4DB; --bar-text: #1A1A1A; --bar-dim: #5B6270;
+  --primary: #4F46E5; --primary-h: #4338CA; --accent: #E0E7FF; --accent-line: #C7D2FE; --focus: #A5B4FC;
+  --focus-ring: #4F46E5; --line-input: #8A94A3; --link: #4F46E5;
+  --bg: #EAEAEA; --surface: #F0F2F5; --head: #E8EBF0; --hover: #E4E8EF;
+  --tabrow: #F0F2F5; --tabrow-line: #D0D4DB; --tabrow-text: #444A54; --tabrow-hover: #E4E8EF;
+  --text: #1A1A1A; --text-muted: #444A54; --line: #D0D4DB; --line-2: #DCDFE5;
+  --ok-bg: #DDF1EB; --ok: #0A5446; --warn-bg: #FBEBD2; --warn: #7A3E05; --danger-bg: #FBE3E0; --danger: #8C1D17; --info-bg: #E3ECF8; --info: #1D4F91; --alert: #E9A23B;
+  --shadow: rgba(0,0,0,.15); --overlay: rgba(15,23,42,.45);
+  /* v7 additions (plan Task 3) */
+  --rail: var(--surface); --rail-text: var(--text-muted); --rail-active: var(--accent); --rail-active-text: var(--link);
+  --rail-w: 232px; --rail-w-collapsed: 60px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bar: #0F1629; --bar-ctl: #161F38; --bar-line: #223055; --bar-text: #E2E8F0; --bar-dim: #94A3B8;
+  --primary: #6366F1; --primary-h: #4F46E5; --accent: #1E1F5C; --accent-line: #3B3FA8; --focus: #818CF8;
+  --focus-ring: #818CF8; --line-input: #6B7686; --link: #818CF8;
+  --bg: #080C1C; --surface: #0F1629; --head: #131C35; --hover: #172042;
+  --tabrow: #0F1629; --tabrow-line: #1E2A4A; --tabrow-text: #94A3B8; --tabrow-hover: #172042;
+  --text: #F1F5F9; --text-muted: #94A3B8; --line: #1E2A4A; --line-2: #18223F;
+  --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+  --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6); --rail-active-text: #A5B4FC;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bar: #0F1629; --bar-ctl: #161F38; --bar-line: #223055; --bar-text: #E2E8F0; --bar-dim: #94A3B8;
+  --primary: #6366F1; --primary-h: #4F46E5; --accent: #1E1F5C; --accent-line: #3B3FA8; --focus: #818CF8;
+  --focus-ring: #818CF8; --line-input: #6B7686; --link: #818CF8;
+  --bg: #080C1C; --surface: #0F1629; --head: #131C35; --hover: #172042;
+  --tabrow: #0F1629; --tabrow-line: #1E2A4A; --tabrow-text: #94A3B8; --tabrow-hover: #172042;
+  --text: #F1F5F9; --text-muted: #94A3B8; --line: #1E2A4A; --line-2: #18223F;
+  --ok-bg: #0F3A30; --ok: #8EE0C7; --warn-bg: #4A2E0A; --warn: #F5C98A; --danger-bg: #4A1715; --danger: #F5A39E; --info-bg: #1B2E55; --info: #A9C4F5; --alert: #F0B45A;
+  --shadow: rgba(0,0,0,.5); --overlay: rgba(0,0,0,.6); --rail-active-text: #A5B4FC;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: "Source Sans 3", system-ui, sans-serif; font-size: 14px; color: var(--text); background: var(--bg); overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg.i.sm { width: 15px; height: 15px; }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.bar :focus-visible { outline-color: var(--focus); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Frame ---------- */
+.app { display: flex; flex-direction: column; height: 100dvh; }
+.body { display: flex; flex: 1; min-height: 0; }
+.col { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+
+/* ---------- Top bar (48 px, navy) ---------- */
+.bar { border-bottom: 1px solid var(--line); height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--bar); color: var(--bar-text); position: relative; z-index: 20; }
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: #fff; white-space: nowrap; margin-right: 6px; }
+.brand i { width: 22px; height: 22px; border-radius: 6px; background: var(--primary); display: inline-block; }
+.bar-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--bar-line); background: transparent; color: var(--bar-text); border-radius: 6px; padding: 6px 10px; font-size: 13px; white-space: nowrap; }
+.bar-btn:hover { background: var(--bar-ctl); color: var(--primary); }
+.bar-btn.solid { background: var(--accent); border-color: var(--accent-line); color: var(--primary); font-weight: 600; }
+.bar-btn.white { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.bar-btn.white[aria-expanded="true"] { box-shadow: inset 0 -3px 0 var(--focus); }
+.icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--bar-line); background: transparent; color: var(--bar-text); border-radius: 6px; position: relative; flex: none; }
+.icon-btn:hover { background: var(--bar-ctl); color: var(--primary); }
+.dot { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
+.cmd { flex: 0 1 300px; min-width: 120px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--bar-line); background: var(--bar-ctl); color: var(--bar-text); border-radius: 6px; padding: 6px 10px; font-size: 13px; text-align: left; }
+.cmd span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd kbd { font-family: "JetBrains Mono", monospace; font-size: 11px; border: 1px solid var(--bar-line); border-radius: 4px; padding: 0 5px; color: var(--bar-dim); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; border: 0; flex: none; }
+.grow { flex: 1; }
+.phone-menu { display: none; }
+
+/* Dropdown menus (company, theme, user, bell) */
+.menu { position: fixed; z-index: 60; min-width: 240px; padding: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); display: flex; flex-direction: column; }
+.menu[hidden] { display: none; }
+.menu .mh { padding: 6px 10px 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.menu button, .menu .mi { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-size: 13px; white-space: nowrap; }
+.menu button:hover, .menu button:focus-visible { background: var(--head); }
+.menu button[aria-current="page"], .menu button[aria-checked="true"] { background: var(--accent); font-weight: 600; }
+.menu .sub { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.menu hr { border: 0; border-top: 1px solid var(--line-2); margin: 4px 0; }
+.menu .mi { color: var(--text-muted); }
+
+/* ---------- Left module rail ---------- */
+.rail { width: var(--rail-w); flex: none; display: flex; flex-direction: column; background: var(--rail); border-right: 1px solid var(--line); transition: width .15s ease; overflow: hidden; }
+.rail[data-collapsed="true"] { width: var(--rail-w-collapsed); }
+@media (max-width: 1439px) { .rail[data-rail="auto"] { width: var(--rail-w-collapsed); } .rail[data-rail="auto"] .rail-label, .rail[data-rail="auto"] .rail-title { display: none; } }
+.rail-head { height: 44px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 10px 0 16px; border-bottom: 1px solid var(--line-2); }
+.rail[data-collapsed="true"] .rail-head { justify-content: center; padding: 0; }
+.rail-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; }
+.rail-toggle { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); }
+.rail-toggle:hover { background: var(--head); color: var(--text); }
+.rail nav { display: flex; flex-direction: column; gap: 2px; padding: 10px 8px; overflow-y: auto; }
+.rail-sep { height: 1px; background: var(--line-2); margin: 6px 8px; }
+.rail-item { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--rail-text); font-size: 14px; font-weight: 600; text-align: left; white-space: nowrap; }
+.rail-item:hover { background: var(--hover); color: var(--text); }
+.rail-item[aria-current="page"] { background: var(--rail-active); color: var(--rail-active-text); }
+.rail-item[aria-current="page"] svg { color: var(--rail-active-text); }
+.rail-item .count { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.rail[data-collapsed="true"] .rail-item { justify-content: center; padding: 0; }
+.rail[data-collapsed="true"] .rail-label, .rail[data-collapsed="true"] .rail-title, .rail[data-collapsed="true"] .count { display: none; }
+@media (max-width: 1439px) { .rail[data-rail="auto"] .rail-item { justify-content: center; padding: 0; } .rail[data-rail="auto"] .rail-head { justify-content: center; padding: 0; } .rail[data-rail="auto"] .count { display: none; } }
+@media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+
+/* Tooltip for the collapsed rail */
+.tip { position: fixed; z-index: 70; padding: 4px 8px; border-radius: 4px; background: var(--text); color: var(--surface); font-size: 12px; font-weight: 600; pointer-events: none; white-space: nowrap; }
+
+/* ---------- Items bar (44 px) ---------- */
+.itemsbar { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.itemsbar::-webkit-scrollbar { display: none; }
+.itemsbar .heading { font-size: 14px; font-weight: 700; color: var(--text); padding: 0 4px; }
+.itemsbar .modname { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); padding-right: 10px; margin-right: 4px; border-right: 1px solid var(--line-2); white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 11px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+.pill:hover { background: var(--hover); color: var(--text); }
+.pill[aria-current="page"] { background: var(--head); border-color: var(--line); color: var(--link); font-weight: 600; }
+.badge { min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+
+/* ---------- Tabs row ---------- */
+.tabs { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--tabrow); border-bottom: 1px solid var(--tabrow-line); overflow-x: auto; scrollbar-width: none; }
+.tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--tabrow-text); font-size: 13px; white-space: nowrap; }
+.tab:hover { background: var(--tabrow-hover); }
+.tab[aria-current="page"] { background: var(--accent); border-color: transparent; color: var(--primary); font-weight: 600; }
+.tab .x { width: 20px; height: 20px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: inherit; padding: 0; }
+.tab .x:hover { background: var(--tabrow-hover); }
+.tab.pinned { padding-right: 12px; }
+.tab-new { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--tabrow-text); position: sticky; right: 0; }
+
+/* ---------- Page ---------- */
+main { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+main.home { padding: 20px 24px; gap: 16px; }
+.greet h1 { margin: 0; font-size: 22px; font-weight: 700; }
+.greet p { margin: 2px 0 0; color: var(--text-muted); }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.kpi { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.kpi .k { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.kpi .k span.ic { width: 30px; height: 30px; border-radius: 6px; display: grid; place-items: center; }
+.kpi .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .d { font-size: 12px; color: var(--text-muted); }
+.kpi .d b { color: var(--ok); }
+.row2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; }
+.card-h { display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 16px 0; }
+.card-h h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.card-h p { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+.chart { padding: 8px 16px 12px; }
+.chart svg { width: 100%; height: 240px; display: block; }
+.legend { display: flex; gap: 16px; justify-content: center; font-size: 12px; color: var(--text-muted); }
+.legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.feed { list-style: none; margin: 0; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.feed li { display: flex; gap: 10px; font-size: 13px; }
+.feed .ic { width: 30px; height: 30px; flex: none; border-radius: 6px; display: grid; place-items: center; }
+.feed a { color: var(--link); text-decoration: none; font-weight: 600; }
+.feed small { display: block; color: var(--text-muted); font-size: 12px; }
+select.sel { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); }
+
+/* Grid stand-in */
+.grid-card { display: flex; flex-direction: column; min-height: 0; }
+.grid-h { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.grid-h h2 { margin: 0 8px 0 0; font-size: 15px; font-weight: 700; }
+.grid-h .q { flex: 0 1 240px; padding: 6px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.btn.ex { padding: 0 8px; font-weight: 700; font-size: 11px; }
+.ex.pdf { color: #C2261C; } .ex.xls { color: #107C41; } .ex.csv { color: var(--text-muted); }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line-2); text-align: left; white-space: nowrap; }
+th { background: var(--head); font-weight: 600; color: var(--text-muted); position: sticky; top: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:hover td { background: var(--hover); }
+td a { color: var(--link); text-decoration: none; }
+.st { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.st.ok { background: var(--ok-bg); color: var(--ok); } .st.warn { background: var(--warn-bg); color: var(--warn); } .st.info { background: var(--info-bg); color: var(--info); }
+.grid-f { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--line); background: var(--head); border-radius: 0 0 8px 8px; }
+.empty { padding: 48px 24px; text-align: center; color: var(--text-muted); }
+.empty h2 { color: var(--text); margin: 0 0 6px; font-size: 18px; }
+
+/* Items-bar group menu: fixed, positioned from the trigger (plan Task 4) */
+.gmenu { position: fixed; z-index: 60; min-width: 220px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); display: flex; flex-direction: column; }
+.gmenu[hidden], .tip[hidden] { display: none; }
+.gmenu button { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; text-align: left; white-space: nowrap; }
+.gmenu button:hover, .gmenu button:focus-visible { background: var(--head); }
+.gmenu button[aria-current="page"] { background: var(--accent); font-weight: 600; }
+
+/* ---------- Assistant drawer (400 px, docked) ---------- */
+.drawer { width: 400px; flex: none; display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line); }
+.drawer[hidden] { display: none; }
+@media (max-width: 1279px) { .drawer[data-assistant="auto"] { display: none; } }
+.dr-h { height: 52px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--line); background: var(--accent); }
+.dr-h .ic { width: 30px; height: 30px; border-radius: 6px; background: var(--primary); color: #fff; display: grid; place-items: center; }
+.dr-h b { display: block; font-size: 14px; }
+.dr-h small { display: block; font-size: 12px; color: var(--text-muted); }
+.dr-h .close { margin-left: auto; width: 30px; height: 30px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 6px; color: var(--text-muted); }
+.dr-h .close:hover { background: var(--surface); }
+.sugg { padding: 10px 12px; border-bottom: 1px solid var(--line-2); background: var(--head); }
+.sugg .mh { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 12px; }
+.chip:hover { border-color: var(--accent-line); background: var(--hover); }
+.log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; line-height: 1.45; }
+.msg { max-width: 88%; padding: 10px 12px; }
+.msg.a { background: var(--head); border-radius: 10px 10px 10px 2px; align-self: flex-start; }
+.msg.u { background: var(--primary); color: #fff; border-radius: 10px 10px 2px 10px; align-self: flex-end; }
+.confirm { border: 1px solid var(--accent-line); border-radius: 8px; overflow: hidden; align-self: stretch; }
+.confirm .ch { background: var(--accent); padding: 8px 12px; font-weight: 700; font-size: 13px; }
+.confirm ul { margin: 0; padding: 8px 12px 8px 28px; font-size: 12px; color: var(--text-muted); }
+.confirm .ca { display: flex; gap: 8px; padding: 0 12px 10px; }
+.composer { flex: none; display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.composer input { flex: 1; padding: 8px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.composer button { width: 36px; display: grid; place-items: center; border: 0; border-radius: 6px; background: var(--primary); color: #fff; }
+
+/* ---------- Phones (< 768 px): rail becomes a sheet (OD-5) ---------- */
+.backdrop { position: fixed; inset: 0; background: var(--overlay); z-index: 40; }
+.backdrop[hidden] { display: none; }
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .row2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 767px) {
+  .phone-menu { display: grid; }
+  .brand span, .company-name, .cmd span, .cmd kbd, .theme-btn, .bell-btn { display: none; }
+  .cmd { flex: 0 0 34px; min-width: 34px; justify-content: center; padding: 0; height: 34px; }
+  .rail { position: fixed; top: 0; bottom: 0; left: 0; z-index: 50; width: 280px !important; transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 10px 30px var(--shadow); }
+  .rail.sheet-open { transform: none; }
+  .rail .rail-label, .rail .rail-title, .rail .count { display: inline !important; }
+  .rail .rail-item { justify-content: flex-start !important; padding: 0 12px !important; height: 44px; }
+  .rail .rail-head { justify-content: space-between !important; padding: 0 10px 0 16px !important; }
+  .rail-toggle.collapse { display: none; } .rail-toggle.sheet-close { display: grid !important; }
+  .drawer { position: fixed; inset: 48px 0 0 0; width: auto; z-index: 45; }
+  .kpis { grid-template-columns: minmax(0, 1fr); }
+  main.home { padding: 16px; }
+  .pill { height: 36px; }
+}
+.rail-toggle.sheet-close { display: none; }
+
+/* ---------- 2B additions ---------- */
+.st.err { background: var(--danger-bg); color: var(--danger); } .st.mute { background: var(--head); color: var(--text-muted); border: 1px solid var(--line); }
+.pagehead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pagehead h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.pagehead .sub { color: var(--text-muted); font-size: 13px; }
+.frame { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; min-height: 0; }
+.fh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.fh h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.fh .ids { color: var(--text-muted); font-size: 12px; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line-2); background: var(--head); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.danger { color: var(--danger); border-color: var(--danger); }
+.ftabs { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.ftab { height: 38px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-size: 13px; }
+.ftab[aria-selected="true"] { color: var(--link); border-bottom-color: var(--primary); font-weight: 600; }
+.fbody { padding: 16px; display: flex; flex-direction: column; gap: 14px; overflow: auto; }
+.ff { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 16px; border-top: 1px solid var(--line); background: var(--head); border-radius: 0 0 14px 14px; font-size: 12px; color: var(--text-muted); }
+.fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.fld label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 3px; }
+.fld .val { min-height: 32px; padding: 6px 10px; border: 1px solid var(--line-input); border-radius: 6px; background: var(--surface); font-size: 13px; }
+.fld .val.ro { background: var(--head); border-color: var(--line); }
+.tot { align-self: flex-end; width: 340px; max-width: 100%; display: flex; flex-direction: column; gap: 4px; font-variant-numeric: tabular-nums; }
+.tot div { display: flex; justify-content: space-between; font-size: 13px; }
+.tot .grand { font-size: 16px; font-weight: 700; border-top: 1px solid var(--line); padding-top: 6px; }
+.note { padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); background: var(--head); }
+.note.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; } .note.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.note.info { background: var(--info-bg); color: var(--info); border-color: transparent; } .note.err { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+.note b { font-weight: 700; }
+.timeline { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+.tl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.tl .d { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-input); display: grid; place-items: center; font-size: 11px; }
+.tl.done { color: var(--ok); } .tl.done .d { background: var(--ok); border-color: var(--ok); color: #fff; }
+.tl.now { color: var(--info); } .tl.now .d { border-color: var(--info); }
+.tl-sep { width: 28px; height: 2px; background: var(--line); margin: 0 6px; }
+.tl-sep.done { background: var(--ok); }
+.stepper { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.stp { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 12px; }
+.stp b { display: block; font-size: 13px; margin-bottom: 2px; }
+.stp.done { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); } .stp.cur { border-color: var(--primary); box-shadow: 0 0 0 2px var(--accent-line); }
+.ledger td.num { font-family: "JetBrains Mono", monospace; font-size: 12px; }
+.chain { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.chain li { display: grid; grid-template-columns: 78px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-2); font-size: 13px; }
+.chain .t { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--text-muted); }
+.chain small { display: block; color: var(--text-muted); font-size: 12px; }
+.org { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 4px; background: var(--info-bg); color: var(--info); margin-left: 6px; font-weight: 600; }
+.radio { display: flex; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; align-items: flex-start; }
+.radio:has(input:checked) { border-color: var(--primary); background: var(--accent); }
+.radio input { margin-top: 3px; }
+.radio b { display: block; font-size: 13px; } .radio small { color: var(--text-muted); font-size: 12px; }
+.modal { position: fixed; inset: 0; z-index: 80; background: var(--overlay); display: grid; place-items: center; padding: 16px; }
+.modal[hidden] { display: none; }
+.dlg { width: min(560px, 100%); max-height: 90vh; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 50px var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.dlg h3 { margin: 0; font-size: 16px; }
+.dlg .ca { display: flex; justify-content: flex-end; gap: 8px; }
+.walk { position: fixed; z-index: 30; left: 256px; bottom: 14px; width: 330px; background: var(--surface); border: 1px solid var(--accent-line); border-radius: 12px; box-shadow: 0 10px 30px var(--shadow); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.walk h4 { margin: 0; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); display: flex; justify-content: space-between; }
+.walk .row { display: flex; gap: 6px; }
+.toast { position: fixed; z-index: 90; right: 18px; top: 66px; background: var(--text); color: var(--surface); padding: 10px 14px; border-radius: 8px; font-size: 13px; max-width: 360px; box-shadow: 0 10px 30px var(--shadow); }
+.toast[hidden] { display: none; }
+.qr { width: 74px; height: 74px; border: 1px solid var(--line-input); border-radius: 4px; background: var(--surface); padding: 4px; }
+.cufe { font-family: "JetBrains Mono", monospace; font-size: 11px; word-break: break-all; color: var(--text-muted); }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.sect-h { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin: 4px 0 -4px; }
+.grid-card .scroll { overflow: auto; }
+.bar-note { font-size: 12px; color: var(--text-muted); padding: 0 16px 8px; }
+@media (max-width: 1100px) { .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .two { grid-template-columns: 1fr; } .stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 767px) { .walk { left: 12px; right: 12px; width: auto; bottom: 8px; } .fields { grid-template-columns: 1fr; } }
+main { padding-bottom: 150px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <button class="icon-btn phone-menu" id="phoneMenu" aria-label="Abrir menú" aria-controls="erp-rail" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg></button>
+    <div class="brand"><i aria-hidden="true"></i><span>ERP-IA</span></div>
+    <button class="bar-btn solid" id="companyBtn"><span class="company-name">Café del Norte S.A.S.</span> ▾</button>
+    <div class="grow"></div>
+    <button class="cmd" aria-label="Buscar o ir a… (⌘K)"><svg class="i sm"><use href="#i-search"/></svg><span>Buscar o ir a…</span><kbd>⌘K</kbd></button>
+    <button class="icon-btn theme-btn" id="themeBtn" aria-label="Cambiar tema"><svg class="i"><use href="#i-monitor"/></svg></button>
+    <button class="bar-btn white" id="asstBtn" aria-controls="erp-assistant" aria-expanded="true"><svg class="i sm"><use href="#i-sparkles"/></svg>Asistente</button>
+    <button class="avatar" aria-label="Menú de usuario">LM</button>
+  </header>
+  <div class="body">
+    <aside class="rail" id="erp-rail" data-rail="auto" aria-label="Menú de módulos">
+      <div class="rail-head">
+        <span class="rail-title">Módulos</span>
+        <button class="rail-toggle collapse" id="railToggle" aria-label="Contraer menú"><svg class="i"><use href="#i-panel-close"/></svg></button>
+        <button class="rail-toggle sheet-close" id="sheetClose" aria-label="Cerrar menú"><svg class="i"><use href="#i-x"/></svg></button>
+      </div>
+      <nav aria-label="Módulos" id="railNav"></nav>
+    </aside>
+    <div class="col">
+      <nav class="itemsbar" id="itemsbar" aria-label="Secciones del módulo"></nav>
+      <nav class="tabs" id="tabs" aria-label="Pestañas abiertas"></nav>
+      <main id="erp-main" tabindex="-1"></main>
+    </div>
+    <aside class="drawer" id="erp-assistant" aria-label="Asistente" data-assistant="auto">
+      <div class="dr-h">
+        <span class="ic"><svg class="i sm"><use href="#i-sparkles"/></svg></span>
+        <div><b>Asistente</b><small id="asstCtx">Viendo: Ventas</small></div>
+        <button class="close" id="asstClose" aria-label="Cerrar asistente"><svg class="i sm"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="sugg"><div class="mh">Sugerencias</div><div class="chips" id="chips"></div></div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <form class="composer" id="composer">
+        <label for="askInput" class="sr-only">Pregúntale al asistente</label>
+        <input id="askInput" placeholder="Pregunta o pide algo…" autocomplete="off">
+        <button type="submit" aria-label="Enviar"><svg class="i sm"><use href="#i-send"/></svg></button>
+      </form>
+    </aside>
+  </div>
+</div>
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="gmenu" id="gmenu" role="menu" hidden></div>
+<div class="tip" id="tip" hidden></div>
+<div class="modal" id="modal" hidden><div class="dlg" id="dlg" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" hidden></div>
+<aside class="walk" id="walk" aria-label="Recorrido de la venta"></aside>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></symbol>
+  <symbol id="i-calculator" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M8 6h8M16 14v4M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/></symbol>
+  <symbol id="i-lifebuoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24M14.83 9.17l4.24-4.24M14.83 14.83l4.24 4.24M9.17 14.83l-4.24 4.24"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-panel-close" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M16 15l-3-3 3-3"/></symbol>
+  <symbol id="i-panel-open" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18M14 9l3 3-3 3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+</svg>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const icon = (n, c = "i") => `<svg class="${c}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+  const money = (n) => "$ " + n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const usd = (n) => "US$ " + n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  // ---------- Demo data (Café del Norte) ----------
+  const CUSTOMER = { name: "Distribuidora La Sabana S.A.S.", nit: "900.456.789-1", ready: true };
+  const LINES = [
+    { sku: "CAF-HUI-500", d: "Café Origen Huila 500 g", q: 40, p: 28000, iva: 5, cost: 17400, stock: 120, cat: "Café tostado" },
+    { sku: "CAF-SNV-1000", d: "Café Sierra Nevada 1 kg", q: 10, p: 52000, iva: 5, cost: 33100, stock: 60, cat: "Café tostado" },
+    { sku: "ACC-V60", d: "Filtro cerámico V60", q: 6, p: 38000, iva: 19, cost: 21000, stock: 25, cat: "Accesorios" },
+  ];
+  const base = LINES.reduce((s, l) => s + l.q * l.p, 0);
+  const ivaOf = (r) => LINES.filter((l) => l.iva === r).reduce((s, l) => s + l.q * l.p * r / 100, 0);
+  const iva5 = ivaOf(5), iva19 = ivaOf(19), total = base + iva5 + iva19;
+  const rete = Math.round(base * 0.025 * 100) / 100;
+  const cogs = LINES.reduce((s, l) => s + l.q * l.cost, 0);
+  const CUFE = "a3c9f07be41d58f2c6a07de19b3340c8…7e12";
+
+  // ---------- Chain state (the walkthrough drives it) ----------
+  const fresh = () => ({ mode: "manual", quote: "saved", order: null, delivery: null, invoice: null, dian: null, receipt: null, voidNote: null, log: [], clock: 9 * 60 + 14 });
+  let S = fresh();
+  const clock = () => { S.clock += 1 + Math.floor(Math.random() * 2); const h = String(Math.floor(S.clock / 60)).padStart(2, "0"), m = String(S.clock % 60).padStart(2, "0"); return `${h}:${m}:0${Math.floor(Math.random() * 9)}`; };
+  const log = (proc, text, o = "ui", extra = "") => S.log.push({ t: clock(), proc, text, o, extra });
+  const flash = (msg) => { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(flash.h); flash.h = setTimeout(() => (t.hidden = true), 3200); };
+
+  function issueInvoice(origin) {
+    S.invoice = "issued"; S.dian = "submitted";
+    log("invoicing.invoice.issue", `Factura FE-1234 emitida · resolución 18760000001 · CUFE ${CUFE.slice(0, 12)}…`, origin);
+    log("invoicing.invoice.dian_result", "Enviada a la DIAN (habilitación) · esperando respuesta", "event");
+    log("accounting.entry.post_from_event", `Comprobante VT-0045 en Ventas · ${money(total)} · regla invoice-issued`, "event", "posting");
+    setTimeout(() => {
+      if (S.dian === "submitted") { S.dian = "accepted"; log("invoicing.invoice.dian_result", "DIAN aceptó la factura (ApplicationResponse guardada)", "event"); render(); }
+    }, 1300);
+  }
+  const ACTIONS = {
+    accept() {
+      S.quote = "accepted"; S.order = "saved";
+      log("crm.quote.accept", "Cotización COT-0031 aceptada · congela precios y líneas");
+      log("sales.order.from_quote", "Pedido PED-0027 creado desde la cotización (Grabado)");
+    },
+    confirm() {
+      S.order = "confirmed";
+      log("sales.order.confirm", "Pedido PED-0027 confirmado → evento sales.order.confirmed");
+      log("inventory.reservation.create", "Reservó 40 + 10 + 6 unidades en Bodega Principal", "event");
+      log("crm.opportunity.stage_move", "Oportunidad “La Sabana · pedido mensual” → Ganada", "event");
+      if (S.mode === "on_order_confirmation") issueInvoice("event");
+    },
+    deliver() {
+      S.delivery = "shipped";
+      log("sales.delivery.ship", "Entrega ENT-0019 despachada → evento sales.delivery.shipped");
+      log("inventory.movement.post", "Salida de inventario MOV-0211 · 56 unidades", "event");
+      log("costing.cogs", `Costo de ventas a promedio ponderado · ${money(cogs)}`, "event");
+      log("accounting.entry.post_from_event", `Comprobante NC-0112 en Notas · Dr 6135 / Cr 1435 · ${money(cogs)}`, "event", "posting");
+      if (S.mode === "on_delivery") issueInvoice("event");
+    },
+    invoice() { issueInvoice("ui"); },
+    pay() {
+      S.receipt = "posted"; S.invoice = "paid";
+      log("payments.payment.receive", `Recibo de caja RC-0088 · ${money(total - rete)} + retefuente ${money(rete)}`);
+      log("accounting.entry.post_from_event", `Comprobante RC-0088 en Recibos de caja · Dr 1110, 135515 / Cr 130505 · ${money(total)}`, "event", "posting");
+      log("invoicing.invoice.paid", "Factura FE-1234 saldada", "event");
+    },
+  };
+  function nextAction() {
+    if (S.quote !== "accepted") return { id: "accept", label: "Aceptar la cotización", route: "/sales/quotes/31" };
+    if (S.order === "saved") return { id: "confirm", label: "Confirmar el pedido", route: "/sales/orders/27" };
+    if (!S.delivery) return { id: "deliver", label: "Despachar la entrega", route: "/sales/deliveries/19" };
+    if (!S.invoice) return { id: "invoice", label: "Facturar lo entregado", route: "/invoicing/invoices/1234" };
+    if (!S.receipt && S.dian === "accepted") return { id: "pay", label: "Registrar el pago", route: "/payments/receipts/88" };
+    if (!S.receipt) return { id: null, label: "Esperando respuesta de la DIAN…", route: null };
+    return null;
+  }
+  function act(id) {
+    if (!ACTIONS[id]) return;
+    ACTIONS[id](); const n = nextAction(); render();
+    if (n?.route) go(n.route);
+  }
+  const accepted = () => S.dian === "accepted";
+
+  // ---------- Modules and sections (the four sections of entity-types §9.2) ----------
+  const MODULES = [
+    { id: "sales", label: "Ventas", icon: "cart", sections: {
+      Maestros: [["Clientes", "/stub"], ["Listas de precios", "/stub"], ["Oportunidades", "/stub"]],
+      Documentos: [["Cotizaciones", "/sales/quotes"], ["Pedidos", "/sales/orders"], ["Entregas", "/sales/deliveries"], ["Devoluciones", "/stub"]],
+      Reportes: [["Trazabilidad de la venta", "/sales/trace"], ["Ventas por producto", "/stub"]],
+      "Parámetros": [["Aprobaciones", "/stub"], ["Plantillas PDF", "/stub"]] } },
+    { id: "inventory", label: "Inventario", icon: "box", sections: {
+      Maestros: [["Bodegas y ubicaciones", "/stub"]],
+      Documentos: [["Movimientos", "/stub"], ["Transferencias", "/stub"], ["Conteos", "/stub"]],
+      Reportes: [["Existencias", "/inventory/stock"], ["Kardex", "/stub"]],
+      "Parámetros": [["Costeo", "/stub"]] } },
+    { id: "invoicing", label: "Facturación", icon: "file", sections: {
+      Maestros: [],
+      Documentos: [["Facturas", "/invoicing/invoices"], ["Notas crédito y débito", "/stub"]],
+      Reportes: [["Por facturar", "/stub"], ["Estado DIAN", "/stub"]],
+      "Parámetros": [["Facturación electrónica", "/invoicing/settings"]] } },
+    { id: "payments", label: "Pagos", icon: "wallet", sections: {
+      Maestros: [["Medios de pago", "/stub"], ["Cajas", "/stub"]],
+      Documentos: [["Recibos de caja", "/payments/receipts"]],
+      Reportes: [["Cartera por edades", "/stub"]],
+      "Parámetros": [] } },
+    { id: "accounting", label: "Contabilidad", icon: "calculator", sections: {
+      Maestros: [["Plan de cuentas", "/stub"]],
+      Documentos: [["Comprobantes", "/accounting/entries"]],
+      Reportes: [["Balance de prueba", "/stub"]],
+      "Parámetros": [["Reglas contables", "/stub"]] } },
+  ];
+  const moduleOfRoute = (r) => r.startsWith("/sales") ? "sales" : r.startsWith("/inventory") ? "inventory" : r.startsWith("/invoicing") ? "invoicing" : r.startsWith("/payments") ? "payments" : r.startsWith("/accounting") ? "accounting" : null;
+  const TITLES = { "/sales/quotes": "Cotizaciones", "/sales/quotes/31": "COT-0031", "/sales/orders": "Pedidos", "/sales/orders/27": "PED-0027", "/sales/deliveries": "Entregas", "/sales/deliveries/19": "ENT-0019", "/sales/trace": "Trazabilidad", "/inventory/stock": "Existencias", "/invoicing/invoices": "Facturas", "/invoicing/invoices/1234": "FE-1234", "/invoicing/settings": "Facturación electrónica", "/payments/receipts": "Recibos de caja", "/payments/receipts/88": "RC-0088", "/accounting/entries": "Comprobantes", "/stub": "Fuera del prototipo" };
+  const st = { route: "/sales/quotes/31", mod: "sales", tabs: ["/sales/quotes/31"], ftab: "Datos", asst: true };
+
+  // ---------- Shell ----------
+  function renderRail() {
+    $("railNav").innerHTML = MODULES.map((m) => `<button class="rail-item" data-id="${m.id}" ${m.id === st.mod ? 'aria-current="page"' : ""} data-tip="${m.label}">${icon(m.icon)}<span class="rail-label">${m.label}</span></button>`).join("");
+  }
+  function renderItems() {
+    const m = MODULES.find((x) => x.id === st.mod);
+    $("itemsbar").innerHTML = `<span class="modname">${m.label}</span>` + Object.entries(m.sections).map(([s, items]) =>
+      `<button class="pill" data-sec="${s}" aria-haspopup="menu" ${items.some((i) => i[1] === st.route.replace(/\/\d+$/, "")) ? 'aria-current="page"' : ""}>${s} ${icon("chevron", "i sm")}</button>`).join("");
+  }
+  function renderTabs() {
+    $("tabs").innerHTML = st.tabs.map((r) => `<span class="tab" ${r === st.route ? 'aria-current="page"' : ""}><span data-go="${r}" style="cursor:pointer">${TITLES[r] ?? r}</span><button class="x" data-close="${r}" aria-label="Cerrar">${icon("x", "i sm")}</button></span>`).join("");
+  }
+  function go(route) {
+    st.route = route; st.mod = moduleOfRoute(route) ?? st.mod; st.ftab = "Datos";
+    if (!st.tabs.includes(route) && route !== "/stub") st.tabs.push(route);
+    renderRail(); renderItems(); renderTabs(); renderPage();
+    $("asstCtx").textContent = "Viendo: " + (TITLES[route] ?? "Ventas");
+    $("erp-main").scrollTop = 0;
+  }
+  $("railNav").addEventListener("click", (e) => { const b = e.target.closest(".rail-item"); if (!b) return; st.mod = b.dataset.id; const m = MODULES.find((x) => x.id === st.mod); const first = Object.values(m.sections).flat().find((i) => i[1] !== "/stub") ?? Object.values(m.sections).flat()[0]; go(first ? first[1] : "/stub"); if (matchMedia("(max-width:767px)").matches) closeSheet(); });
+  $("itemsbar").addEventListener("click", (e) => {
+    const b = e.target.closest(".pill"); if (!b) return;
+    const m = MODULES.find((x) => x.id === st.mod); const items = m.sections[b.dataset.sec]; const g = $("gmenu");
+    if (!g.hidden && g.dataset.sec === b.dataset.sec) { g.hidden = true; return; }
+    g.dataset.sec = b.dataset.sec;
+    g.innerHTML = items.length ? items.map((i) => `<button role="menuitem" data-go="${i[1]}">${i[0]}</button>`).join("") : `<div style="padding:8px 10px;color:var(--text-muted);font-size:13px">Sección vacía. Aún no hay elementos en ${b.dataset.sec}.</div>`;
+    const r = b.getBoundingClientRect(); g.style.left = Math.min(r.left, innerWidth - 240) + "px"; g.style.top = r.bottom + 4 + "px"; g.hidden = false;
+  });
+  document.addEventListener("click", (e) => {
+    const g = e.target.closest("[data-go]"); if (g) { $("gmenu").hidden = true; go(g.dataset.go); return; }
+    const c = e.target.closest("[data-close]");
+    if (c) { const r = c.dataset.close; st.tabs = st.tabs.filter((t) => t !== r); if (r === st.route) go(st.tabs[st.tabs.length - 1] ?? "/sales/quotes"); else renderTabs(); return; }
+    if (!e.target.closest(".pill") && !e.target.closest("#gmenu")) $("gmenu").hidden = true;
+    const a = e.target.closest("[data-act]"); if (a) { if (a.disabled) return; const id = a.dataset.act; if (id === "void") return openVoid(); if (id === "print") return flash("Imprimir: PDF con la plantilla predeterminada (QR y CUFE en facturas)."); if (id === "save") return flash("Grabado · se guardó una versión."); act(id); return; }
+    const t = e.target.closest("[data-ftab]"); if (t) { st.ftab = t.dataset.ftab; renderPage(); return; }
+    const w = e.target.closest("[data-walk]"); if (w) { if (w.dataset.walk === "next") { const n = nextAction(); if (n?.id) act(n.id); } else if (w.dataset.walk === "reset") { S = fresh(); render(); go("/sales/quotes/31"); } else if (w.dataset.walk === "min") { st.walkMin = !st.walkMin; renderWalk(); } return; }
+  });
+  document.addEventListener("change", (e) => { if (e.target.name === "mode") { S.mode = e.target.value; render(); flash("Modo de facturación: " + MODE_LABEL[S.mode]); } });
+  const MODE_LABEL = { manual: "Manual", on_delivery: "Al despachar", on_order_confirmation: "Al confirmar el pedido" };
+
+  // ---------- Pieces ----------
+  const chip = (txt, cls) => `<span class="st ${cls}">${txt}</span>`;
+  const STATE = {
+    quote: () => S.quote === "accepted" ? chip("Aceptada", "ok") : chip("Grabado", "info"),
+    order: () => !S.order ? chip("—", "mute") : S.order === "saved" ? chip("Grabado", "info") : !S.delivery ? chip("Aprobado · confirmado", "ok") : chip("Entregado", "ok"),
+    delivery: () => !S.delivery ? chip("Borrador", "mute") : chip("Despachada", "ok"),
+    invoice: () => S.invoice === "paid" ? chip("Pagada", "ok") : S.voidNote === "accepted" ? chip("Anulada", "err") : S.invoice ? chip("Contabilizado", "ok") : chip("Borrador", "mute"),
+  };
+  const field = (l, v, ro) => `<div class="fld"><label>${l}</label><div class="val ${ro ? "ro" : ""}">${v}</div></div>`;
+  const linesTable = (opts = {}) => `<div class="grid-card card scroll"><table><thead><tr><th>SKU</th><th>Producto</th><th class="num">Cantidad</th>${opts.noPrice ? "" : '<th class="num">Precio</th><th class="num">IVA</th><th class="num">Subtotal</th>'}${opts.stock ? '<th class="num">Disponible</th>' : ""}${opts.cost ? '<th class="num">Costo prom.</th><th class="num">Costo total</th>' : ""}</tr></thead><tbody>` +
+    LINES.map((l) => `<tr><td class="mono">${l.sku}</td><td>${l.d}</td><td class="num">${l.q}</td>${opts.noPrice ? "" : `<td class="num">${money(l.p)}</td><td class="num">${l.iva}%</td><td class="num">${money(l.q * l.p)}</td>`}${opts.stock ? `<td class="num">${stockOf(l).avail}</td>` : ""}${opts.cost ? `<td class="num">${money(l.cost)}</td><td class="num">${money(l.q * l.cost)}</td>` : ""}</tr>`).join("") + `</tbody></table></div>`;
+  const totals = () => `<div class="tot"><div><span>Subtotal</span><span>${money(base)}</span></div><div><span>IVA 5 %</span><span>${money(iva5)}</span></div><div><span>IVA 19 %</span><span>${money(iva19)}</span></div><div class="grand"><span>Total</span><span>${money(total)}</span></div></div>`;
+  const stockOf = (l) => { const out = S.delivery ? l.q : 0; const res = S.order === "confirmed" && !S.delivery ? l.q : 0; return { onHand: l.stock - out, res, avail: l.stock - out - res }; };
+  const ready = `<span class="st ok">Listo para facturar</span>`;
+
+  function entriesFor(kind) {
+    const E = [];
+    if (S.delivery) E.push({ n: "NC-0112", j: "Notas", d: "Costo de ventas · ENT-0019", src: "delivery", lines: [["6135 Costo de ventas", cogs, 0], ["1435 Inventario de mercancías", 0, cogs]] });
+    if (S.invoice) E.push({ n: "VT-0045", j: "Ventas", d: "Factura FE-1234 · " + CUSTOMER.name, src: "invoice", lines: [["130505 Clientes nacionales", total, 0], ["413595 Venta de café y accesorios", 0, base], ["240802 IVA generado 5 %", 0, iva5], ["240801 IVA generado 19 %", 0, iva19]] });
+    if (S.receipt) E.push({ n: "RC-0088", j: "Recibos de caja", d: "Pago FE-1234 · transferencia", src: "receipt", lines: [["111005 Bancos", total - rete, 0], ["135515 Retención en la fuente", rete, 0], ["130505 Clientes nacionales", 0, total]] });
+    return kind ? E.filter((e) => e.src === kind) : E;
+  }
+  const entryTable = (E) => E.length ? E.map((e) => `<div class="grid-card card"><div class="grid-h"><h2 class="mono" style="font-size:14px">${e.n}</h2><span class="st info">${e.j}</span><span style="color:var(--text-muted)">${e.d}</span></div><table class="ledger"><thead><tr><th>Cuenta</th><th class="num">Débito</th><th class="num">Crédito</th></tr></thead><tbody>${e.lines.map((l) => `<tr><td>${l[0]}</td><td class="num">${l[1] ? money(l[1]) : ""}</td><td class="num">${l[2] ? money(l[2]) : ""}</td></tr>`).join("")}</tbody><tfoot><tr><td><b>Sumas iguales</b></td><td class="num"><b>${money(e.lines.reduce((s, l) => s + l[1], 0))}</b></td><td class="num"><b>${money(e.lines.reduce((s, l) => s + l[2], 0))}</b></td></tr></tfoot></table></div>`).join("") : `<div class="empty"><h2>Sin comprobantes todavía</h2>Se generan solos cuando el documento contabiliza.</div>`;
+
+  function frame({ title, ids, status, actions, extraTabs = [], datos, kind, versions, foot }) {
+    const tabs = ["Datos", "Contabilidad", "Versiones", "Acceso", "Archivos", ...extraTabs];
+    const body = st.ftab === "Datos" ? datos : st.ftab === "Contabilidad" ? entryTable(entriesFor(kind)) :
+      st.ftab === "Versiones" ? `<div class="grid-card card"><table><thead><tr><th>Versión</th><th>Estado</th><th>Cuándo</th><th>Quién</th></tr></thead><tbody>${versions.map((v, i) => `<tr><td>${versions.length - i}</td><td>${v[0]}</td><td>${v[1]}</td><td>Laura Martínez</td></tr>`).join("")}</tbody></table></div><div class="bar-note">Cada cambio después de Grabado guarda una copia completa e inmodificable. Puedes comparar dos versiones.</div>` :
+      `<div class="empty"><h2>${st.ftab}</h2>Igual que en los demás registros (fase 2A.5).</div>`;
+    return `<div class="frame"><div class="fh"><h2>${title}</h2>${status}<span class="ids">${ids}</span></div><div class="actions">${actions}</div><div class="ftabs" role="tablist">${tabs.map((t) => `<button class="ftab" role="tab" data-ftab="${t}" aria-selected="${t === st.ftab}">${t}</button>`).join("")}</div><div class="fbody">${body}</div><div class="ff"><span>${foot}</span><span>Creó Laura Martínez · hoy</span></div></div>`;
+  }
+  const abtn = (label, act, o = {}) => `<button class="btn ${o.primary ? "primary" : ""} ${o.danger ? "danger" : ""}" data-act="${act}" ${o.off ? "disabled" : ""}>${label}</button>`;
+  const std = (extra) => abtn("Grabar", "save", { off: false }) + abtn("Nuevo", "x", { off: true }) + abtn("Imprimir", "print") + extra;
+
+  // ---------- Pages ----------
+  const PAGES = {
+    "/sales/quotes/31"() {
+      const n = nextAction();
+      return frame({ title: "Cotización COT-0031", ids: "ID 31 · 0194f…c3a1", status: STATE.quote(), kind: null, versions: [["Grabado", "09:14"], ["Borrador", "09:09"]],
+        actions: std(abtn("Aceptar cotización", "accept", { primary: true, off: S.quote === "accepted" }) + abtn("Notificar", "x", { off: true })),
+        foot: "Estado: " + (S.quote === "accepted" ? "Aceptada" : "Grabado"),
+        datos: `<div class="fields">${field("Cliente", `${CUSTOMER.name} ${ready}`)}${field("NIT", CUSTOMER.nit, true)}${field("Lista de precios", "Mayoristas 2026")}${field("Vence", "2026-11-18")}${field("Condición de pago", "Crédito 30 días")}${field("Moneda", "COP")}${field("Bodega", "Principal")}${field("Descuento", "0 % (aprobación sobre 10 %)")}</div><div class="note info">Precios resueltos desde la <b>lista de precios del cliente</b>; si no hay, el precio de lista del producto. Cada producto y el cliente deben estar <b>listos para facturar</b>: <span class="mono">Tienda El Maizal</span> aparecería deshabilitado con “falta dirección de facturación”.</div>${linesTable()}${totals()}` });
+    },
+    "/sales/orders/27"() {
+      if (!S.order) return gate("Acepta la cotización para crear el pedido.");
+      const mode = S.mode !== "manual" ? `<div class="note info">Modo de facturación <b>${MODE_LABEL[S.mode]}</b>: ${S.mode === "on_order_confirmation" ? "al confirmar, se emite la factura de todo el pedido." : "al despachar, se emite la factura de lo despachado."}</div>` : "";
+      return frame({ title: "Pedido PED-0027", ids: "ID 27 · desde COT-0031", status: STATE.order(), kind: null, versions: [["Grabado", "09:16"]],
+        actions: std(abtn("Confirmar pedido", "confirm", { primary: true, off: S.order !== "saved" }) + abtn("Anular", "x", { off: S.order !== "confirmed" || !!S.delivery, danger: true })),
+        foot: "Estado: " + (S.order === "saved" ? "Grabado" : "Aprobado · confirmado"),
+        datos: `<div class="fields">${field("Cliente", CUSTOMER.name)}${field("Cotización", `<a href="#" data-go="/sales/quotes/31">COT-0031</a>`)}${field("Entrega prometida", "2026-11-06")}${field("Límite de crédito", "Disponible $ 18.400.000,00")}</div>${mode}${linesTable({ stock: true })}${totals()}${S.order === "confirmed" && !S.delivery ? `<div class="note ok">Stock <b>reservado</b> en Bodega Principal. Otros pedidos ya no ven esas unidades como disponibles.</div>` : ""}` });
+    },
+    "/sales/deliveries/19"() {
+      if (S.order !== "confirmed") return gate("Confirma el pedido para poder despachar.");
+      return frame({ title: "Entrega ENT-0019", ids: "ID 19 · pedido PED-0027", status: STATE.delivery(), kind: "delivery", versions: [["Borrador", "09:20"]],
+        actions: std(abtn("Despachar", "deliver", { primary: true, off: !!S.delivery }) + abtn("Anular", "x", { off: true, danger: true })),
+        foot: "Estado: " + (S.delivery ? "Despachada" : "Borrador"),
+        datos: `<div class="fields">${field("Cliente", CUSTOMER.name)}${field("Pedido", `<a href="#" data-go="/sales/orders/27">PED-0027</a>`)}${field("Bodega", "Principal")}${field("Transportadora", "Servientrega · guía 8830021")}</div>${linesTable({ noPrice: true, cost: !!S.delivery })}${S.delivery ? `<div class="note ok">Salida registrada y <b>costo de ventas ${money(cogs)}</b> a promedio ponderado. Comprobante <b>NC-0112</b> en la pestaña Contabilidad.</div>` : `<div class="note warn">Al despachar: baja el inventario, se calcula el costo y se contabiliza en la misma operación.</div>`}` });
+    },
+    "/invoicing/invoices/1234"() {
+      if (!S.invoice) return gate(S.delivery ? (S.mode === "manual" ? "La entrega está lista para facturar. Usa “Facturar lo entregado” en el recorrido." : "") : "Aún no hay nada entregado para facturar.");
+      const steps = [["Emitida", true], ["Enviada a la DIAN", true], ["Aceptada", accepted()]];
+      const tl = steps.map((s, i) => `<span class="tl ${s[1] ? "done" : i === 2 ? "now" : ""}"><span class="d">${s[1] ? "✓" : "…"}</span>${s[0]}</span>${i < 2 ? `<span class="tl-sep ${steps[i + 1][1] ? "done" : ""}"></span>` : ""}`).join("");
+      const dian = S.voidNote ? `<div class="note ${S.voidNote === "accepted" ? "err" : "warn"}">Nota crédito <b>NC-0007</b> de anulación ${S.voidNote === "accepted" ? "aceptada por la DIAN. La factura quedó <b>Anulada</b>; el número FE-1234 no se reutiliza." : "enviada a la DIAN. La factura sigue <b>emitida</b> hasta que la DIAN acepte la nota."}</div>` : "";
+      return frame({ title: "Factura FE-1234", ids: "Resolución 18760000001 · FE 1–5000", status: STATE.invoice(), kind: "invoice", versions: [["Contabilizado", "09:41"], ["Grabado", "09:40"]],
+        actions: std(abtn("Anular (nota crédito)", "void", { danger: true, off: !accepted() || S.invoice === "paid" || !!S.voidNote }) + abtn("Reintentar envío", "x", { off: true }) + abtn("Notificar", "x", { off: !accepted() })),
+        foot: "DIAN: " + (S.dian === "accepted" ? "Aceptada" : "En proceso"),
+        datos: `<div class="timeline">${tl}</div>${dian}<div class="fields">${field("Cliente", `${CUSTOMER.name} ${ready}`)}${field("Pedido / entrega", `<a href="#" data-go="/sales/orders/27">PED-0027</a> · <a href="#" data-go="/sales/deliveries/19">ENT-0019</a>`)}${field("Vence", "2026-12-04 · crédito 30 días")}${field("Medio de pago", "Transferencia (código 42)")}</div><div class="two"><div class="note"><b>CUFE</b><div class="cufe">${CUFE}</div></div><div class="note" style="display:flex;gap:12px;align-items:center"><svg class="qr" viewBox="0 0 21 21" aria-label="Código QR">${qr()}</svg><div>QR de la DIAN y la leyenda de la resolución se imprimen en el PDF.</div></div></div>${linesTable()}${totals()}<div class="note info">Retenciones que el cliente practicará (informativo, se reconocen al pago): ReteFuente 2,5 % sobre ${money(base)} = <b>${money(rete)}</b>.</div>` });
+    },
+    "/payments/receipts/88"() {
+      if (!S.receipt) return gate(accepted() ? "Registra el pago desde el recorrido." : "La factura debe estar aceptada por la DIAN antes de registrar el pago.");
+      return frame({ title: "Recibo de caja RC-0088", ids: "ID 88", status: chip("Contabilizado", "ok"), kind: "receipt", versions: [["Contabilizado", "10:02"]],
+        actions: std(abtn("Anular", "x", { danger: true, off: true })),
+        foot: "Estado: Contabilizado",
+        datos: `<div class="fields">${field("Cliente", CUSTOMER.name)}${field("Medio de pago", "Transferencia · Bancolombia ****4521")}${field("Fecha", "2026-11-04")}${field("Referencia", "TRF-77120")}</div><div class="grid-card card"><table><thead><tr><th>Factura</th><th class="num">Saldo</th><th class="num">Aplicado</th><th class="num">Retefuente</th><th class="num">Efectivo</th></tr></thead><tbody><tr><td><a href="#" data-go="/invoicing/invoices/1234">FE-1234</a></td><td class="num">${money(total)}</td><td class="num">${money(total)}</td><td class="num">${money(rete)}</td><td class="num">${money(total - rete)}</td></tr></tbody></table></div><div class="note ok">La retención se contabiliza como <b>impuesto a favor</b> (135515) y la factura queda saldada. Sin remanente, no hay anticipo.</div>` });
+    },
+  };
+  function gate(msg) { return `<div class="frame"><div class="empty"><h2>Todavía no existe</h2>${msg || "Sigue el recorrido."}</div></div>`; }
+  function qr() { let s = ""; const seed = [1,0,1,1,0,0,1,0,1,1,0,1,0,0,1,1,0,1,0,1,1]; for (let y = 0; y < 21; y++) for (let x = 0; x < 21; x++) { const fin = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13); const on = fin ? (x % 6 === 0 || y % 6 === 0 || x === 14 || x === 20 || y === 14 || y === 20 || ((x % 6) > 1 && (x % 6) < 5 && (y % 6) > 1 && (y % 6) < 5 && x < 7 && y < 7)) : (seed[(x * 3 + y * 7) % 21] ^ ((x + y) % 3 === 0 ? 1 : 0)); if (on) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="currentColor"/>`; } return s; }
+
+  function gridPage(title, cols, rows, newLabel) {
+    return `<div class="card grid-card"><div class="grid-h"><h2>${title}</h2><input class="q" placeholder="Buscar…" aria-label="Buscar"><button class="btn">Filtro avanzado</button><span style="flex:1"></span><button class="btn ex pdf">PDF</button><button class="btn ex xls">XLS</button><button class="btn ex csv">CSV</button><button class="btn primary">${icon("plus", "i sm")} ${newLabel}</button></div><div class="scroll"><table><thead><tr>${cols.map((c, i) => `<th class="${c.startsWith("#") ? "num" : ""}">${c.replace(/^#/, "")}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div><div class="grid-f"><span>${rows.length} registros</span><span>Página 1 de 1 · 25 por página</span></div></div>`;
+  }
+  const row = (cells) => `<tr>${cells.map((c, i) => `<td class="${typeof c === "string" && c.startsWith("$") ? "num" : ""}">${c}</td>`).join("")}</tr>`;
+  PAGES["/sales/quotes"] = () => gridPage("Cotizaciones", ["ID", "Número", "Cliente", "Fecha", "#Total", "Estado"], [
+    row(["31", `<a href="#" data-go="/sales/quotes/31">COT-0031</a>`, CUSTOMER.name, "2026-11-04", money(total), STATE.quote()]),
+    row(["30", "COT-0030", "Hotel Casa Andina", "2026-11-02", "$ 4.280.000,00", chip("Aceptada", "ok")]),
+    row(["29", "COT-0029", "Tienda El Maizal", "2026-10-30", "$ 640.000,00", chip("Pendiente de aprobación", "warn")])], "Nueva cotización");
+  PAGES["/sales/orders"] = () => gridPage("Pedidos", ["ID", "Número", "Cliente", "Entrega", "#Total", "Estado"], [
+    ...(S.order ? [row(["27", `<a href="#" data-go="/sales/orders/27">PED-0027</a>`, CUSTOMER.name, "2026-11-06", money(total), STATE.order()])] : []),
+    row(["26", "PED-0026", "Hotel Casa Andina", "2026-11-03", "$ 4.280.000,00", chip("Entregado", "ok")])], "Nuevo pedido");
+  PAGES["/sales/deliveries"] = () => gridPage("Entregas", ["ID", "Número", "Pedido", "Bodega", "Estado"], [
+    ...(S.order === "confirmed" ? [row(["19", `<a href="#" data-go="/sales/deliveries/19">ENT-0019</a>`, "PED-0027", "Principal", STATE.delivery()])] : []),
+    row(["18", "ENT-0018", "PED-0026", "Principal", chip("Despachada", "ok")])], "Nueva entrega");
+  PAGES["/invoicing/invoices"] = () => gridPage("Facturas", ["ID", "Número", "Cliente", "Fecha", "#Total", "Estado", "DIAN"], [
+    ...(S.invoice ? [row(["1234", `<a href="#" data-go="/invoicing/invoices/1234">FE-1234</a>`, CUSTOMER.name, "2026-11-04", money(total), STATE.invoice(), accepted() ? chip("Aceptada", "ok") : chip("En proceso", "warn")])] : []),
+    row(["1233", "FE-1233", "Hotel Casa Andina", "2026-11-03", "$ 4.280.000,00", chip("Pagada", "ok"), chip("Aceptada", "ok")]),
+    row(["1231", "FE-1231", "Roast Partners LLC (exportación)", "2026-10-29", "US$ 3.150,00", chip("Contabilizado", "ok"), chip("Aceptada", "ok")])], "Nueva factura");
+  PAGES["/payments/receipts"] = () => gridPage("Recibos de caja", ["ID", "Número", "Cliente", "Fecha", "#Total", "Estado"], [
+    ...(S.receipt ? [row(["88", `<a href="#" data-go="/payments/receipts/88">RC-0088</a>`, CUSTOMER.name, "2026-11-04", money(total - rete), chip("Contabilizado", "ok")])] : []),
+    row(["87", "RC-0087", "Hotel Casa Andina", "2026-11-03", "$ 4.280.000,00", chip("Contabilizado", "ok")])], "Nuevo recibo");
+  PAGES["/accounting/entries"] = () => `<div class="pagehead"><h1>Comprobantes generados por la venta</h1><span class="sub">Los crea el motor contable desde los eventos; no se digitan.</span></div>${entryTable(entriesFor())}`;
+  PAGES["/inventory/stock"] = () => gridPage("Existencias · Bodega Principal", ["SKU", "Producto", "#En mano", "#Reservado", "#Disponible", "#Costo promedio"],
+    LINES.map((l) => { const s = stockOf(l); return row([`<span class="mono">${l.sku}</span>`, l.d, String(s.onHand), s.res ? `<b>${s.res}</b>` : "0", String(s.avail), money(l.cost)]); }), "Nuevo movimiento");
+  PAGES["/sales/trace"] = () => {
+    const stp = [["Cotización", !!S.quote], ["Pedido", !!S.order], ["Entrega", !!S.delivery], ["Factura", !!S.invoice], ["Pago", !!S.receipt]];
+    const cur = stp.findIndex((s) => !s[1]);
+    return `<div class="pagehead"><h1>Trazabilidad de la venta</h1><span class="sub">Una cadena causal por venta: “¿qué pasó cuando se confirmó el pedido 27?”</span></div><div class="stepper">${stp.map((s, i) => `<div class="stp ${s[1] ? "done" : i === cur ? "cur" : ""}"><b>${i + 1}. ${s[0]}</b>${s[1] ? "Hecho" : i === cur ? "Siguiente" : "Pendiente"}</div>`).join("")}</div><div class="card" style="padding:4px 16px"><ul class="chain">${S.log.length ? S.log.map((e) => `<li><span class="t">${e.t}</span><span><b class="mono" style="font-size:12px">${e.proc}</b><span class="org">${e.o}</span>${e.extra === "posting" ? '<span class="org" style="background:var(--ok-bg);color:var(--ok)">contabilidad</span>' : ""}<small>${e.text}</small></span></li>`).join("") : `<li><span></span><span>Sin actividad todavía. Avanza el recorrido.</span></li>`}</ul></div><div class="note">Todos los pasos comparten el <b>mismo id de cadena</b> <span class="mono">chain 7f2e…b91a</span>; cada comprobante lleva la fecha de su propio documento.</div>`;
+  };
+  PAGES["/invoicing/settings"] = () => `<div class="pagehead"><h1>Facturación electrónica</h1><span class="sub">Parámetros · requiere código de verificación para guardar</span></div>
+    <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:10px"><div class="sect-h">Creación de facturas</div>
+    ${["manual", "on_delivery", "on_order_confirmation"].map((m) => `<label class="radio"><input type="radio" name="mode" value="${m}" ${S.mode === m ? "checked" : ""}><span><b>${MODE_LABEL[m]}${m === "manual" ? " (predeterminado)" : ""}</b><small>${{ manual: "Las entregas quedan “por facturar”; alguien factura cuando quiere (puede agrupar varias).", on_delivery: "Al despachar se emite sola la factura de lo despachado. Si el cliente no está listo para facturar, queda un borrador y una recomendación; la entrega sale igual.", on_order_confirmation: "Al confirmar se emite la factura de todo el pedido. Útil para servicios y prepago." }[m]}</small></span></label>`).join("")}</div>
+    <div class="two"><div class="card" style="padding:16px;display:flex;flex-direction:column;gap:8px"><div class="sect-h">Resolución de numeración</div>${field("Resolución", "18760000001 · 2026-01-01 a 2027-12-31", true)}${field("Prefijo y rango", "FE · 1 a 5000 · siguiente 1235", true)}${field("Clave técnica", "•••••••• (Vault)", true)}</div>
+    <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:8px"><div class="sect-h">Conexión DIAN</div>${field("Ambiente", "Habilitación")}${field("Certificado de firma", "Cargado · vence 2027-03-14", true)}${field("Notas crédito", "Resolución propia FE-NC · siguiente 0008", true)}<button class="btn primary" data-act="save">Guardar (pide código)</button></div></div>`;
+  PAGES["/stub"] = () => `<div class="empty"><h2>Fuera del alcance de este prototipo</h2>Esta pantalla se diseña en su tarea del plan. El prototipo cubre la cadena cotización → pago.</div>`;
+
+  function renderPage() {
+    const f = PAGES[st.route] ?? PAGES["/stub"];
+    $("erp-main").innerHTML = f();
+  }
+
+  // ---------- Void dialog (OD-7) ----------
+  function openVoid() {
+    let exp = false;
+    const draw = () => {
+      $("dlg").innerHTML = `<h3>Anular la factura FE-1234</h3><div class="note warn">La DIAN no permite editar ni borrar una factura emitida: se anula con una <b>nota crédito</b> que la referencia. El número FE-1234 no se vuelve a usar.</div>
+      <div class="two"><div class="note"><b>Nota que se emitirá</b><br>Tipo: crédito · concepto <b>2 · Anulación de factura electrónica</b><br>CustomizationID <span class="mono">20</span> · referencia al CUFE de la factura<br>Valor: <b>${exp ? usd(3150) : money(total)}</b> (total)<br>Numeración propia: FE-NC-0008</div>
+      <div class="note ${exp ? "info" : ""}"><b>${exp ? "Factura de exportación (ejemplo FE-1231)" : "Factura emitida en Colombia"}</b><br>${exp ? `Moneda USD · TRM <b>$ 4.012,35</b> de la factura original<br>CreditNoteTypeCode <span class="mono">02</span> (exportación)<br>Comprador extranjero: sin dirección colombiana` : `Moneda COP<br>Mismo flujo que cualquier nota crédito de venta`}</div></div>
+      ${exp ? `<div class="note warn"><b>Por confirmar:</b> los códigos exactos de las tablas 13.2.4 y 13.1.5.2 viven en la caja de herramientas de la DIAN; se fijan y prueban en la Tarea 18 antes de producción.</div>` : ""}
+      <label style="font-size:13px"><input type="checkbox" id="exp"> Ver cómo sería para una factura de exportación</label>
+      <div class="note info">Pedirá el código de verificación (proceso sensible). La factura seguirá <b>emitida</b> hasta que la DIAN acepte la nota.</div>
+      <div class="ca"><button class="btn" id="vc">Cancelar</button><button class="btn danger" id="vok">Emitir nota crédito</button></div>`;
+      $("exp").checked = exp; $("exp").onchange = (e) => { exp = e.target.checked; draw(); };
+      $("vc").onclick = () => ($("modal").hidden = true);
+      $("vok").onclick = () => { $("modal").hidden = true; S.voidNote = "submitted"; log("invoicing.invoice.void", "Nota crédito FE-NC-0008 (anulación, concepto 2) emitida para FE-1234 · pidió código de verificación"); log("invoicing.invoice.dian_result", "Nota enviada a la DIAN", "event"); render(); setTimeout(() => { S.voidNote = "accepted"; log("invoicing.invoice.dian_result", "DIAN aceptó la nota · FE-1234 → Anulada", "event"); log("accounting.entry.post_from_event", "Comprobante VT-0046 reversa VT-0045 (reverseOf)", "event", "posting"); render(); }, 1500); };
+    };
+    draw(); $("modal").hidden = false;
+  }
+
+  // ---------- Walkthrough, drawer, boot ----------
+  function renderWalk() {
+    const n = nextAction(); const done = [S.quote === "accepted", !!S.order && S.order === "confirmed", !!S.delivery, !!S.invoice, !!S.receipt].filter(Boolean).length;
+    $("walk").innerHTML = `<h4><span>Recorrido · ${done} de 5</span><button class="btn" style="height:24px" data-walk="min">${st.walkMin ? "Abrir" : "—"}</button></h4>` + (st.walkMin ? "" :
+      `<div>${n ? (n.id ? `Siguiente: <b>${n.label}</b>` : `<b>${n.label}</b>`) : "<b>La venta quedó completa.</b> Prueba cambiar el modo en Facturación › Parámetros y reiniciar."}</div><div class="row">${n?.id ? '<button class="btn primary" data-walk="next">Ejecutar paso</button>' : ""}<button class="btn" data-walk="reset">Reiniciar</button></div><div style="font-size:12px;color:var(--text-muted)">Modo de facturación: ${MODE_LABEL[S.mode]}</div>`);
+  }
+  function renderDrawer() {
+    const can = nextAction();
+    const chips = ["Factura lo entregado del pedido PED-0027", "¿Qué pasó cuando se confirmó el pedido?", "¿Qué clientes no están listos para facturar?"];
+    $("chips").innerHTML = chips.map((c) => `<button class="chip" data-chip>${c}</button>`).join("");
+    $("log").innerHTML = `<div class="msg a">Hola, Laura. Puedo cotizar, confirmar, facturar y registrar pagos con tu confirmación.</div><div class="msg u">Factura lo entregado del pedido PED-0027.</div>` + (S.delivery && !S.invoice ? `<div class="confirm"><div class="ch">Confirmar · Emitir factura</div><ul><li>Cliente: ${CUSTOMER.name} · listo para facturar</li><li>Facturación DIAN: factura FE-1234 por ${money(total)}</li><li>Contabilidad: comprobante en Ventas</li><li>No requiere código de verificación</li></ul><div class="ca"><button class="btn primary" data-act="invoice">Confirmar</button><button class="btn">Cancelar</button></div></div>` : S.invoice ? `<div class="msg a">Listo: emití la factura FE-1234 y quedó ${accepted() ? "aceptada por la DIAN" : "en proceso en la DIAN"}.</div>` : `<div class="msg a">Aún no hay entregas por facturar en ese pedido.</div>`);
+  }
+  document.addEventListener("click", (e) => { const c = e.target.closest("[data-chip]"); if (c) { $("askInput").value = c.textContent; } });
+  $("composer").addEventListener("submit", (e) => { e.preventDefault(); flash("En el prototipo el asistente solo muestra la tarjeta de confirmación."); });
+  $("asstBtn").addEventListener("click", () => { st.asst = !st.asst; $("erp-assistant").hidden = !st.asst; $("erp-assistant").dataset.assistant = ""; $("asstBtn").setAttribute("aria-expanded", String(st.asst)); });
+  $("asstClose").addEventListener("click", () => $("asstBtn").click());
+  $("railToggle").addEventListener("click", () => { const r = $("erp-rail"); r.removeAttribute("data-rail"); r.dataset.collapsed = String(r.dataset.collapsed !== "true"); });
+  const openSheet = () => { $("erp-rail").classList.add("sheet-open"); $("backdrop").hidden = false; };
+  function closeSheet() { $("erp-rail").classList.remove("sheet-open"); $("backdrop").hidden = true; }
+  $("phoneMenu").addEventListener("click", openSheet); $("sheetClose").addEventListener("click", closeSheet); $("backdrop").addEventListener("click", closeSheet);
+  let theme = "auto"; $("themeBtn").addEventListener("click", () => { theme = theme === "auto" ? "dark" : theme === "dark" ? "light" : "auto"; if (theme === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = theme; flash("Tema: " + theme); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("modal").hidden = true; $("gmenu").hidden = true; } });
+  document.addEventListener("click", (e) => { if (e.target === $("modal")) $("modal").hidden = true; });
+  function render() { renderPage(); renderDrawer(); renderWalk(); renderTabs(); }
+  renderRail(); renderItems(); go(st.route); render();
+})();
+</script>
+</body>
+</html>

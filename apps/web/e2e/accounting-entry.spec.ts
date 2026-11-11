@@ -3,18 +3,21 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../test-support/streamed";
 import { seedAuthUser, type AuthFixture } from "../test-support/auth-fixtures";
 
-// The comprobante record (accounting design §4.6, §4.7, §5.5, §8, Task 27): a Nota de contabilidad written with the keyboard, saved
-// as a draft, supported with a file and posted; and the four-eyes flow, where the creator sends it to approval, cannot approve
-// it, and another person posts it.
+// The comprobante record (accounting design §4.6, §4.7, §5.5, §8, Task 27; entity types spec §5, §8; Task 15 action bar, D15): a Nota
+// de contabilidad written with the keyboard and posted by «Guardar» in the same action, then supported with a file; with approval the
+// creator sends it with «Guardar y enviar a aprobación» and another person approves and posts it (the creator may too: owner rule);
+// No aprobar with its reason; Eliminar a Borrador.
 
 const PROCESSES = [
   "accounting.entry.consult",
   "accounting.entry.create",
   "accounting.entry.update",
-  "accounting.entry.void",
+  "accounting.entry.save",
   "accounting.entry.submit",
-  "accounting.entry.return_to_draft",
-  "accounting.entry.post",
+  "accounting.entry.approve",
+  "accounting.entry.reject",
+  "accounting.entry.void",
+  "accounting.entry.delete",
   "accounting.entry.reverse",
   "accounting.settings.consult",
   "kernel.saved_view.list",
@@ -41,7 +44,7 @@ const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 const cell = (page: Page, name: string) => page.getByRole(/^(Cuenta|Tercero|Centro)/.test(name) ? "combobox" : "textbox", { name, exact: true });
 
-/** A draft in NC written with the keyboard: 50.000 from Caja (débito) to Ventas (crédito). */
+/** A new comprobante in NC written with the keyboard, not saved yet: 50.000 from Caja (débito) to Ventas (crédito). */
 async function writeEntry(page: Page, description: string) {
   await page.goto("/r/accounting.entry/new");
   await page.getByRole("textbox", { name: "Descripción", exact: true }).fill(description);
@@ -74,7 +77,12 @@ async function writeEntry(page: Page, description: string) {
   const totals = page.getByRole("group", { name: "Totales del comprobante" });
   await expect(totals.locator("[data-total=difference]")).toHaveText("$ 0,00");
   await expect(totals).toContainText("Cuadrado");
-  await page.getByRole("button", { name: "Crear", exact: true }).click();
+}
+
+const bar = (page: Page) => page.getByRole("group", { name: "Acciones del registro" });
+/** Runs a button of the action bar and waits for the stored comprobante's page. */
+async function press(page: Page, name: string) {
+  await bar(page).getByRole("button", { name, exact: true }).click();
   await expect(page).toHaveURL(/\/r\/accounting\.entry\/[0-9a-f-]{36}$/);
 }
 
@@ -142,7 +150,7 @@ test.describe("accounting entry", () => {
     await andres.cleanup();
   });
 
-  test("Nota de contabilidad: create, add two lines with the keyboard, attach, Contabilizar → NC-<n>", async ({ page }) => {
+  test("Nota de contabilidad: add two lines with the keyboard, Guardar posts it → NC-<n>, then attach the support", async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await signIn(page, andres);
 
@@ -150,7 +158,8 @@ test.describe("accounting entry", () => {
     await page.goto("/accounting/entries");
     await expect(page.getByRole("button", { name: "Borradores" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Por aprobar" })).toBeVisible();
-    await page.getByRole("button", { name: "Nuevo", exact: true }).click();
+    // An empty ledger also offers «Nuevo» in the grid's empty state: take the toolbar's.
+    await page.getByRole("button", { name: "Nuevo", exact: true }).first().click();
     await expect(page).toHaveURL(/\/r\/accounting\.entry\/new$/);
 
     // Only the Fuentes that accept manual entries are offered.
@@ -158,7 +167,16 @@ test.describe("accounting entry", () => {
     await expect(page.getByLabel("Fuente", { exact: true })).not.toContainText("Ventas");
 
     await writeEntry(page, "Nota de prueba del teclado");
-    await expect(page.getByText("Borrador", { exact: true }).first()).toBeVisible();
+    // No «Contabilizar» button: Guardar posts it in the same action (D8); the number comes from the Fuente's consecutivo.
+    await expect(bar(page).getByRole("button", { name: /Contabilizar/ })).toHaveCount(0);
+    await press(page, "Guardar");
+    await expect(page.locator(".erp-record__header").filter({ visible: true }).getByText("Contabilizado", { exact: true })).toBeVisible();
+    const [posted] = await andres.sql`select number, status, total_debit from accounting.entries where company_id = ${companyId}`;
+    expect(posted).toMatchObject({ number: "NC-1", status: "posted" });
+    expect(Number(posted!.total_debit)).toBe(50000);
+    // A posted comprobante is read-only and can be reversed (Revertir, next to Duplicar).
+    await expect(bar(page).getByRole("button", { name: "Revertir", exact: true })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Descripción", exact: true })).toBeDisabled();
 
     // The support goes to the Archivos tab.
     await page.getByRole("tab", { name: /Archivos/ }).click();
@@ -170,83 +188,90 @@ test.describe("accounting entry", () => {
     await page.getByRole("button", { name: /Subir 1 archivo/ }).click();
     await expect(page.locator(".erp-attachments__list")).toContainText("soporte.pdf");
 
-    // Contabilizar: the number comes from the Fuente's consecutivo.
-    await page.getByRole("tab", { name: "Datos", exact: true }).click();
-    await page.getByRole("button", { name: "Contabilizar", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Contabilizado como NC-1" })).toBeVisible();
-    await expect(page.getByText("Contabilizado", { exact: true }).first()).toBeVisible();
-    const [posted] = await andres.sql`select number, status, total_debit from accounting.entries where company_id = ${companyId}`;
-    expect(posted).toMatchObject({ number: "NC-1", status: "posted" });
-    expect(Number(posted!.total_debit)).toBe(50000);
-    // A posted comprobante is read-only and can be reversed.
-    await expect(page.getByRole("button", { name: "Reversar", exact: true })).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Descripción", exact: true })).toBeDisabled();
-
     // Origen: a manual comprobante says so.
     await page.getByRole("tab", { name: "Origen" }).click();
     await expect(page.getByText("Comprobante manual: lo creó una persona.")).toBeVisible();
   });
 
-  test("with four-eyes on: andres sends it to approval and cannot approve it, laura approves and posts", async ({ page, browser }) => {
+  test("with approval: andres sends it with Guardar y enviar a aprobación and may approve it himself; laura approves and posts", async ({ page, browser }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await andres.sql`update accounting.settings set require_approval_on_manual = true where company_id = ${companyId}`;
     await signIn(page, andres);
     await writeEntry(page, "Nota con aprobación");
 
-    // A draft goes to approval, not straight to the books.
-    await expect(page.getByRole("button", { name: "Contabilizar", exact: true })).toHaveCount(0);
-    await page.getByRole("button", { name: "Enviar a aprobación" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Enviado a aprobación" })).toBeVisible();
-    await expect(page.getByText("Por aprobar", { exact: true }).first()).toBeVisible();
-
-    // The creator sees the approve button disabled, with the reason in plain sight; Devolver a borrador is theirs.
-    await expect(page.getByRole("button", { name: "Aprobar y contabilizar" })).toBeDisabled();
-    await expect(page.getByText("Otra persona debe aprobar")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Devolver a borrador" })).toBeVisible();
+    // With approval the new comprobante goes to approval in one action, not straight to the books.
+    await press(page, "Guardar y enviar a aprobación");
+    await expect(page.locator(".erp-record__header").filter({ visible: true }).getByText("Pendiente de Aprobación", { exact: true })).toBeVisible();
     const entryId = page.url().split("/").pop()!;
+    await expect.poll(async () => (await andres.sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("pending");
+
+    // The creator may approve too (owner rule: no four-eyes); the comprobante is read-only while it waits.
+    await expect(bar(page).getByRole("button", { name: "Aprobar", exact: true })).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: "Descripción", exact: true })).toBeDisabled();
 
     const other = await browser.newContext();
     const lauraPage = await other.newPage();
     await signIn(lauraPage, laura);
     await lauraPage.goto(`/r/accounting.entry/${entryId}`);
-    const approve = lauraPage.getByRole("button", { name: "Aprobar y contabilizar" });
+    const approve = bar(lauraPage).getByRole("button", { name: "Aprobar", exact: true });
     await expect(approve).toBeEnabled();
     await approve.click();
-    await expect(lauraPage.getByRole("status").filter({ hasText: /Contabilizado como NC-\d+/ })).toBeVisible();
+    await expect.poll(async () => (await andres.sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("posted");
     const [row] = await andres.sql`select number, status, submitted_by, posted_by from accounting.entries where id = ${entryId}`;
     expect(row).toMatchObject({ status: "posted", submitted_by: andres.userId, posted_by: laura.userId });
     expect(row!.number).toMatch(/^NC-\d+$/);
     await other.close();
   });
-  test("Devolver a borrador: laura returns it with a reason, andres edits and sends it again", async ({ page, browser }) => {
+  test("No aprobar: laura rejects it with a reason, andres edits the No Aprobado comprobante and sends it again", async ({ page, browser }) => {
     await page.setViewportSize({ width: 1400, height: 900 });
     await andres.sql`update accounting.settings set require_approval_on_manual = true where company_id = ${companyId}`;
     await signIn(page, andres);
-    await writeEntry(page, "Nota para devolver");
-    await page.getByRole("button", { name: "Enviar a aprobación" }).click();
-    await expect(page.getByText("Por aprobar", { exact: true }).first()).toBeVisible();
+    await writeEntry(page, "Nota para no aprobar");
+    await press(page, "Guardar y enviar a aprobación");
     const entryId = page.url().split("/").pop()!;
+    await expect.poll(async () => (await andres.sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("pending");
 
     const other = await browser.newContext();
     const lauraPage = await other.newPage();
     await signIn(lauraPage, laura);
     await lauraPage.goto(`/r/accounting.entry/${entryId}`);
-    await lauraPage.getByRole("button", { name: "Devolver a borrador" }).click();
-    await lauraPage.getByLabel("Motivo (opcional)").fill("Falta el soporte");
-    await lauraPage.getByRole("button", { name: "Confirmar", exact: true }).click();
-    await expect(lauraPage.getByRole("status").filter({ hasText: "Devuelto a borrador" })).toBeVisible();
-    const [row] = await andres.sql`select status, submitted_by, extra from accounting.entries where id = ${entryId}`;
-    expect(row).toMatchObject({ status: "draft", submitted_by: null, extra: { return_reason: "Falta el soporte" } });
+    await bar(lauraPage).getByRole("button", { name: "No aprobar", exact: true }).click();
+    // The reason is required: Confirmar waits for it.
+    await expect(bar(lauraPage).getByRole("button", { name: "Confirmar", exact: true })).toBeDisabled();
+    await bar(lauraPage).getByRole("textbox", { name: "Motivo" }).fill("Falta el soporte");
+    await bar(lauraPage).getByRole("button", { name: "Confirmar", exact: true }).click();
+    await expect.poll(async () => (await andres.sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("rejected");
+    const [row] = await andres.sql`select status, submitted_by from accounting.entries where id = ${entryId}`;
+    expect(row).toMatchObject({ status: "rejected", submitted_by: andres.userId });
+    const [snapshot] = await andres.sql`select reason from kernel.record_snapshots where entity = 'accounting.entry' and record_id = ${entryId} and status = 'rejected'`;
+    expect(snapshot).toMatchObject({ reason: "Falta el soporte" });
     await other.close();
 
-    // The creator edits and sends it again.
+    // The creator edits the No Aprobado comprobante and sends it again.
     await page.reload();
-    await expect(page.getByText("Borrador", { exact: true }).first()).toBeVisible();
+    await expect(page.locator(".erp-record__header").getByText("No Aprobado", { exact: true })).toBeVisible();
     await page.getByRole("textbox", { name: "Descripción", exact: true }).fill("Nota corregida");
-    await page.getByRole("button", { name: "Guardar", exact: true }).click();
-    await page.getByRole("button", { name: "Enviar a aprobación" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Enviado a aprobación" })).toBeVisible();
+    // Guardar y enviar a aprobación saves the edits and sends it again in one action.
+    await bar(page).getByRole("button", { name: "Guardar y enviar a aprobación", exact: true }).click();
+    await expect.poll(async () => (await andres.sql`select status from accounting.entries where id = ${entryId}`)[0]!.status).toBe("pending");
     const [again] = await andres.sql`select status, description from accounting.entries where id = ${entryId}`;
     expect(again).toMatchObject({ status: "pending", description: "Nota corregida" });
+  });
+
+  test("Eliminar: a Borrador is deleted after the confirmation and the tab closes", async ({ page }) => {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await andres.sql`update accounting.settings set require_approval_on_manual = false where company_id = ${companyId}`;
+    await signIn(page, andres);
+    // A Borrador is a comprobante not saved with Guardar yet (one made by Nuevo desde plantilla, an import or a refused posting).
+    const [journal] = await andres.sql<{ id: string }[]>`select id from accounting.journals where company_id = ${companyId} and code = 'NC'`;
+    const [draft] = await andres.sql<{ id: string }[]>`
+      insert into accounting.entries (company_id, journal_id, date, status, origin, description) values (${companyId}, ${journal!.id}, ${iso(new Date())}, 'draft', 'manual', 'Nota para eliminar') returning id`;
+    const entryId = draft!.id;
+    await page.goto(`/r/accounting.entry/${entryId}`);
+    await bar(page).getByRole("button", { name: "Eliminar", exact: true }).click();
+    await expect(bar(page).getByText("¿Eliminar este registro? Queda la entrada de auditoría.")).toBeVisible();
+    await bar(page).getByRole("button", { name: "Sí, eliminar", exact: true }).click();
+    await expect(page).toHaveURL(/\/accounting\/entries$/);
+    expect(await andres.sql`select id from accounting.entries where id = ${entryId}`).toHaveLength(0);
   });
 });

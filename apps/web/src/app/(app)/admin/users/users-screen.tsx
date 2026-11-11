@@ -65,13 +65,13 @@ export function UsersScreen({ data }: { data: UsersData }) {
                   ))}
                 </td>
                 <td>
-                  {/* Exempt and without a factor (design §22.19): nothing is pending for them. */}
+                  {/* On; or required and still to be set up (design §22.19, owner decision 2026-11-04); or just off. */}
                   {member.mfaEnrolled ? (
                     <span className="erp-pill erp-pill--ok">{t("common.admin.users.mfa_on")}</span>
-                  ) : member.mfaExempt ? (
-                    <span className="erp-pill erp-pill--info">{t("common.admin.users.mfa_exempt")}</span>
+                  ) : member.mfaRequired ? (
+                    <span className="erp-pill erp-pill--warn">{t("common.admin.users.mfa_required")}</span>
                   ) : (
-                    <span className="erp-pill erp-pill--warn">{t("common.admin.users.mfa_off")}</span>
+                    <span className="erp-pill erp-pill--info">{t("common.admin.users.mfa_off")}</span>
                   )}
                 </td>
                 <td>

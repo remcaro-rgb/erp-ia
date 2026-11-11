@@ -1,7 +1,8 @@
 import type { Sql } from "postgres";
 import { withClaims, type JwtClaims, type Tx } from "../db/client";
 import { ProcessError } from "../process/errors";
-import { buildQuery } from "../query/build-query";
+import { buildQuery, ROW_MASKED } from "../query/build-query";
+import { PLACEHOLDER_CELL } from "./format";
 import { EXTRA_PREFIX, type GridStateInput } from "../query/grid-state";
 import { gridEntity, requireGridAccess } from "../query/access";
 import { refLabelKey } from "../query/ref-label";
@@ -9,6 +10,7 @@ import { addRefLabels } from "../query/ref-labels";
 import { applyGridParams, gridAccess, visibleIn, type GridAccess } from "../query/run";
 import type { Registry } from "../registry";
 import type { ResolvedEntityDef } from "../registry/entities";
+import { translatorFor } from "../registry/labels";
 import { exportColumns, selectColumns, type ExportPresentation } from "./columns";
 import { ROW_KEYS, type GroupedSpec } from "./grouped";
 import { isoDay } from "./format";
@@ -48,18 +50,20 @@ export interface ExportPlan {
 }
 
 /**
- * Resolves what the caller may export of `spec.entity` and counts the rows, in the caller's transaction. Throws
+ * Resolves what the caller may export of `spec.entity` and counts the rows, in the caller's transaction (`locale`: the caller's, for the
+ * value labels the presentation lacks). Throws
  * `ProcessError`: `invalid_input` for an unknown entity or no exportable column, `not_entitled` and `forbidden` as the
  * grid would; and `QueryError` for a state the grid would refuse (a hidden field filtered, an unknown column).
  */
-export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): Promise<ExportPlan> {
+export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec, locale = "es-419"): Promise<ExportPlan> {
   const entity = gridEntity(registry, spec.entity);
   if (!entity) throw new ProcessError("invalid_input", `unknown entity ${spec.entity}`, { details: [`La entidad ${spec.entity} no existe`] });
   await requireGridAccess(tx, registry, entity);
   const params = spec.state.params;
   await applyGridParams(tx, entity, params);
   const access = await gridAccess(tx, entity);
-  const columns = exportColumns(entity, access, spec.state, spec);
+  // Value labels the screen did not send come from the application's catalogue in the caller's language (the lifecycle state).
+  const columns = exportColumns(entity, access, spec.state, spec, translatorFor(locale));
   if (columns.length === 0) throw new ProcessError("invalid_input", `${spec.entity}: no exportable columns`, { details: ["No hay columnas visibles para exportar"] });
 
   // A masked column prints ••••••: its values are not even read.
@@ -108,11 +112,18 @@ export async function planExport(tx: Tx, registry: Registry, spec: ExportSpec): 
   };
 }
 
-/** A database row keyed by export column: admin-defined values come out of the row's `extra` document. */
-function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[], groupFields: readonly string[] = [], refs: ReadonlySet<string> = new Set()): ExportRow {
+
+export { PLACEHOLDER_CELL } from "./format";
+
+/**
+ * A database row keyed by export column. A «••••» placeholder row (D20, `__row_masked`) prints PLACEHOLDER_CELL in every empty cell of
+ * `rowMasked` (the entity's `rowMask.fields`), never an empty cell.
+ */
+export function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[], groupFields: readonly string[] = [], refs: ReadonlySet<string> = new Set(), rowMasked: ReadonlySet<string> = new Set()): ExportRow {
   const extra = typeof row.extra === "object" && row.extra !== null ? (row.extra as Record<string, unknown>) : {};
   const out: ExportRow = {};
   for (const column of columns) out[column.field] = column.field.startsWith(EXTRA_PREFIX) ? extra[column.field.slice(EXTRA_PREFIX.length)] : refs.has(column.field) ? (row[refLabelKey(column.field)] ?? row[column.field]) : row[column.field];
+  if (row[ROW_MASKED] === true) for (const column of columns) if (rowMasked.has(column.field) && (out[column.field] === null || out[column.field] === undefined || out[column.field] === "")) out[column.field] = PLACEHOLDER_CELL;
   if (groupFields.length > 0) out[ROW_KEYS] = Object.fromEntries(groupFields.map((f) => [f, row[f]]));
   return out;
 }
@@ -123,6 +134,7 @@ function flatten(row: Record<string, unknown>, columns: readonly ExportColumn[],
  */
 export async function* exportRows(sql: Sql, claims: JwtClaims, plan: ExportPlan): AsyncGenerator<ExportRow> {
   const refs = new Set(plan.entity.fields.filter((f) => f.type === "ref").map((f) => f.name));
+  const rowMasked = new Set(plan.entity.rowMask?.fields ?? []);
   for (let offset = 0; ; offset += EXPORT_PAGE_SIZE) {
     const { sql: text, params } = plan.page(offset, EXPORT_PAGE_SIZE);
     const page = await withClaims(sql, claims, async (tx) => {
@@ -131,7 +143,25 @@ export async function* exportRows(sql: Sql, claims: JwtClaims, plan: ExportPlan)
       await addRefLabels(tx, plan.registry, plan.entity, rows);
       return rows;
     });
-    for (const row of page) yield flatten(row, plan.columns, plan.groupFields, refs);
+    for (const row of page) yield flatten(row, plan.columns, plan.groupFields, refs, rowMasked);
     if (page.length < EXPORT_PAGE_SIZE) return;
   }
+}
+
+/**
+ * The rows of the plan read in `tx`, the transaction the plan was made in (a process's, as the caller: row-level security and masking
+ * apply), `EXPORT_PAGE_SIZE` at a time, at most `limit`. The PDF templates' list print reads its rows this way, in its own run.
+ */
+export async function exportRowsInTx(tx: Tx, plan: ExportPlan, limit = Number.POSITIVE_INFINITY): Promise<ExportRow[]> {
+  const refs = new Set(plan.entity.fields.filter((f) => f.type === "ref").map((f) => f.name));
+  const rowMasked = new Set(plan.entity.rowMask?.fields ?? []);
+  const out: ExportRow[] = [];
+  for (let offset = 0; out.length < limit; offset += EXPORT_PAGE_SIZE) {
+    const { sql: text, params } = plan.page(offset, EXPORT_PAGE_SIZE);
+    const rows = await tx.unsafe<Record<string, unknown>[]>(text, params as never[]);
+    await addRefLabels(tx, plan.registry, plan.entity, rows);
+    for (const row of rows) if (out.length < limit) out.push(flatten(row, plan.columns, plan.groupFields, refs, rowMasked));
+    if (rows.length < EXPORT_PAGE_SIZE) break;
+  }
+  return out;
 }

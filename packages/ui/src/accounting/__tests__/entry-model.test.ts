@@ -11,34 +11,43 @@ describe("allowedActions", () => {
   const manual = { status: "draft", origin: "manual", createdBy: "andres" } as const;
   const names = (entry: Parameters<typeof allowedActions>[0], s: EntrySettings, userId: string) => allowedActions(entry, s, userId).map((a) => a.action);
 
-  it("draft+fourEyes → submit, void; pending → approve (not for creator), return; posted → reverse; auto entries never submit", () => {
+  it("draft+fourEyes → submit, delete; Grabado / No Aprobado → submit, void; pending → approve (not for creator), return; posted → reverse; auto entries never submit", () => {
     const fourEyes = settings({ requireApprovalOnManual: true });
-    expect(names(manual, fourEyes, "andres")).toEqual(["submit", "void"]);
-    // Without the approval flow a draft is posted directly.
-    expect(names(manual, settings(), "andres")).toEqual(["post", "void"]);
+    expect(names(manual, fourEyes, "andres")).toEqual(["submit", "delete"]);
+    // Without approval a draft is posted by Grabar directly.
+    expect(names(manual, settings(), "andres")).toEqual(["post", "delete"]);
+    // The row's own flag wins over the company setting (approval asked in Parámetros, or set when it was created).
+    expect(names({ ...manual, requiresApproval: true }, settings(), "andres")).toEqual(["submit", "delete"]);
+    expect(names({ ...manual, requiresApproval: false }, fourEyes, "andres")).toEqual(["post", "delete"]);
+    // Grabado and No Aprobado are sent (again) or voided; a Borrador is deleted, not voided.
+    expect(names({ ...manual, status: "saved" }, fourEyes, "andres")).toEqual(["submit", "void"]);
+    expect(names({ ...manual, status: "rejected" }, fourEyes, "andres")).toEqual(["submit", "void"]);
 
     const pending = { ...manual, status: "pending" } as const;
     expect(names(pending, fourEyes, "laura")).toEqual(["approve", "return", "void"]);
     const own = allowedActions(pending, fourEyes, "andres");
     expect(own.find((a) => a.action === "approve")).toMatchObject({ disabled: true, hint: "accounting.entry.same_user" });
     expect(allowedActions(pending, fourEyes, "laura").find((a) => a.action === "approve")?.disabled).toBeFalsy();
+    // Four-eyes is the accounting control only: approval asked in Parámetros lets the creator approve.
+    expect(allowedActions({ ...pending, requiresApproval: true }, settings(), "andres").find((a) => a.action === "approve")?.disabled).toBeFalsy();
 
     expect(names({ ...manual, status: "posted" }, fourEyes, "andres")).toEqual(["reverse"]);
-    // A reversal, a closing entry, a reversed or a voided entry have nothing to reverse.
+    // A reversal, a closing entry, a reversed (posted with the mark, D2) or a voided entry have nothing to reverse.
     expect(names({ ...manual, status: "posted", reversalOfId: "x" }, fourEyes, "andres")).toEqual([]);
     expect(names({ ...manual, status: "posted", isClosing: true }, fourEyes, "andres")).toEqual([]);
-    expect(names({ ...manual, status: "reversed" }, fourEyes, "andres")).toEqual([]);
+    expect(names({ ...manual, status: "posted", reversed: true }, fourEyes, "andres")).toEqual([]);
     expect(names({ ...manual, status: "voided" }, fourEyes, "andres")).toEqual([]);
+    expect(names({ ...manual, status: "approved" }, fourEyes, "andres")).toEqual([]);
 
     // The engine's entries are controlled by their rule: never sent to approval, even with the flow on.
-    expect(names({ ...manual, origin: "auto" }, fourEyes, "andres")).toEqual(["post", "void"]);
+    expect(names({ ...manual, origin: "auto" }, fourEyes, "andres")).toEqual(["post", "delete"]);
   });
 });
 
 describe("allowedActions · return needs canReturn", () => {
   const pending = { status: "pending", origin: "manual", createdBy: "andres" } as const;
   const fourEyes = settings({ requireApprovalOnManual: true });
-  it("offers Devolver only when the caller may run it", () => {
+  it("offers No Aprobar only when the caller may run it", () => {
     expect(allowedActions(pending, fourEyes, "laura", { canReturn: false }).map((a) => a.action)).toEqual(["approve", "void"]);
     expect(allowedActions(pending, fourEyes, "laura", { canReturn: true }).map((a) => a.action)).toEqual(["approve", "return", "void"]);
   });

@@ -3,6 +3,10 @@ import { defineProcess } from "../process/define";
 import { ProcessError } from "../process/errors";
 import type { ProcessContext } from "../process/context";
 import { registeredVerifiers } from "../verify/adapters";
+import { DEFAULT_PHONE_CC, validatePhone } from "../validation";
+import { DOC_TEMPLATE_ENTITY } from "../templates/schema";
+import { imageBytesMatch } from "../templates/variables";
+import { fileStore } from "../files/store";
 import { ADMIN_FEATURE, invalid, requireAdmin } from "./common";
 
 // The company's own settings the admin keeps (design §5.13, §5.16, §6): its names and time zone, the files each entity
@@ -17,28 +21,65 @@ const timezoneValid = (tz: string) => {
   }
 };
 
+const IMAGE_MIME = ["image/png", "image/jpeg"];
+
 export const companyUpdate = defineProcess({
   id: "kernel.admin.company.update",
   module: "kernel",
   kind: "update",
   feature: ADMIN_FEATURE,
   sensitivity: "step-up",
-  description: "Cambia la razón social, el nombre comercial o la zona horaria de la empresa activa",
+  description:
+    "Cambia la razón social, el nombre comercial, la zona horaria, la dirección, la ciudad, el teléfono o el logo de la empresa activa (lo que imprimen sus plantillas PDF)",
   input: z
     .object({
       legalName: z.string().trim().min(1, "La razón social es obligatoria").max(450, "Máximo 450 caracteres").optional(),
       tradeName: z.string().trim().max(450, "Máximo 450 caracteres").nullable().optional(),
       timezone: z.string().refine(timezoneValid, "Zona horaria desconocida (por ejemplo America/Bogota)").optional(),
+      addressLine: z.string().trim().max(200, "Máximo 200 caracteres").nullable().optional(),
+      city: z.string().trim().max(100, "Máximo 100 caracteres").nullable().optional(),
+      /** Calling code without "+" (rule 11); sent with `phone`. */
+      phoneCc: z.string().trim().optional(),
+      phone: z.string().trim().nullable().optional(),
+      /** A PNG or JPEG attachment of one of the company's PDF templates (entity kernel.doc_template), or null for none. */
+      logoAttachmentId: z.uuid().nullable().optional(),
     })
     .refine((v) => Object.values(v).some((x) => x !== undefined), "Indica al menos un dato"),
   output: z.object({ id: z.string() }),
   handler: async (ctx, input) => {
     await requireAdmin(ctx);
+    // Rule 11: country code + number, validated; stored without spaces or signs.
+    let phone: { cc: string; number: string | null } | undefined;
+    if (input.phone !== undefined) {
+      const cc = (input.phoneCc ?? DEFAULT_PHONE_CC).replace(/^\+/, "");
+      const number = input.phone ? input.phone.replace(/[\s().-]/g, "") : null;
+      if (number !== null) {
+        const problem = validatePhone(cc, number);
+        if (problem) throw invalid(`invalid phone ${cc} ${number}`, problem);
+      }
+      phone = { cc, number };
+    }
+    if (input.logoAttachmentId) {
+      const [logo] = await ctx.tx<{ mime_type: string; storage_path: string }[]>`
+        select mime_type, storage_path from kernel.attachments
+        where id = ${input.logoAttachmentId} and company_id = ${ctx.companyId} and entity = ${DOC_TEMPLATE_ENTITY} and removed_at is null`;
+      const notALogo = () => invalid(`attachment ${input.logoAttachmentId} is not a logo`, "El logo debe ser una imagen PNG o JPEG adjunta a una plantilla");
+      if (!logo || !IMAGE_MIME.includes(logo.mime_type)) throw notALogo();
+      // The bytes, not only the type the upload claimed: a file that is not the image it says would break every print.
+      const bytes = await (await fileStore()).get(logo.storage_path).catch(() => null);
+      if (!bytes || !imageBytesMatch(bytes, logo.mime_type)) throw notALogo();
+    }
+    const keep = (value: unknown) => value === undefined;
     const rows = await ctx.tx<{ id: string }[]>`
       update kernel.companies set
         legal_name = coalesce(${input.legalName ?? null}, legal_name),
         trade_name = case when ${input.tradeName === undefined} then trade_name else nullif(${input.tradeName ?? ""}, '') end,
-        timezone = coalesce(${input.timezone ?? null}, timezone)
+        timezone = coalesce(${input.timezone ?? null}, timezone),
+        address_line = case when ${keep(input.addressLine)} then address_line else nullif(${input.addressLine ?? ""}, '') end,
+        city = case when ${keep(input.city)} then city else nullif(${input.city ?? ""}, '') end,
+        phone_cc = case when ${phone === undefined} then phone_cc else ${phone?.cc ?? null} end,
+        phone = case when ${phone === undefined} then phone else ${phone?.number ?? null} end,
+        logo_attachment_id = case when ${keep(input.logoAttachmentId)} then logo_attachment_id else ${input.logoAttachmentId ?? null}::uuid end
       where id = ${ctx.companyId}
       returning id`;
     if (rows.length === 0) throw new ProcessError("not_found", `company ${ctx.companyId} not found`);

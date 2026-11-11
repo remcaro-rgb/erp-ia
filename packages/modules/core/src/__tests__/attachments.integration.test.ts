@@ -397,7 +397,7 @@ describe("kernel attachments", () => {
     await sql`grant select on fake.things, fake.v_things to authenticated`;
     try {
       deps.registry.registerEntity(
-        defineEntity({ id: "fake.thing", module: "fake", schema: "fake", table: "things", label: "entity.fake.thing", displayField: "company_id", defaultSort: { field: "company_id", dir: "asc" }, fields: [{ name: "company_id", type: "uuid", label: "field.company" }] }),
+        defineEntity({ entityType: "maestro", id: "fake.thing", module: "fake", schema: "fake", table: "things", label: "entity.fake.thing", displayField: "company_id", defaultSort: { field: "company_id", dir: "asc" }, fields: [{ name: "company_id", type: "uuid", label: "field.company" }] }),
       );
       await h.grantAll(h.companyId, h.seed.companies[0]!.adminRoleId, ["fake.thing.update"]);
       const [thing] = await sql<{ id: string }[]>`insert into fake.things(company_id) values (${h.companyId}) returning id`;

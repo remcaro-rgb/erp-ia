@@ -55,3 +55,49 @@ describe("RecommendationCard", () => {
     expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Descartar"]);
   });
 });
+
+// A row a process raised (plan 2B Task 38): no stored text, the card composes it from the catalogue keys and the masked params.
+const raised: RecommendationItem = {
+  id: "p1",
+  title: "invoicing.recommendation.auto_skipped.title",
+  body: "invoicing.recommendation.auto_skipped.body",
+  agentProfile: "process",
+  suggestedActions: [],
+  source: "process",
+  module: "invoicing",
+  titleKey: "invoicing.recommendation.auto_skipped.title",
+  bodyKey: "invoicing.recommendation.auto_skipped.body",
+  reasonKey: "invoicing.recommendation.reason.over_invoicing",
+  params: { document: "ENT-12" },
+  href: "/r/sales.delivery/d1",
+};
+
+describe("RecommendationCard of a process row", () => {
+  it("composes its Spanish text from the keys, names the module and links the record", () => {
+    const onOpen = vi.fn();
+    renderEs(<RecommendationCard recommendation={raised} onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} onOpen={onOpen} />);
+    expect(screen.getByText("No se creó la factura automática")).toBeTruthy();
+    expect(screen.getByText("ENT-12 no se facturó solo: lo despachado ya está facturado.")).toBeTruthy();
+    expect(screen.getByText("Aviso de Facturación")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir registro" }));
+    expect(onOpen).toHaveBeenCalledWith("/r/sales.delivery/d1");
+    expect(screen.getByRole("button", { name: "Descartar" })).toBeTruthy();
+  });
+
+  it("a masked value reads «—»", () => {
+    renderEs(<RecommendationCard recommendation={{ ...raised, params: { document: null } }} onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("— no se facturó solo: lo despachado ya está facturado.")).toBeTruthy();
+  });
+
+  it("without access to the record it says so and offers no link", () => {
+    renderEs(<RecommendationCard recommendation={{ ...raised, href: null }} onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("Sin acceso al registro")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Abrir registro" })).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Descartar"]);
+  });
+
+  it("an unknown reason reads as its code", () => {
+    renderEs(<RecommendationCard recommendation={{ ...raised, reasonKey: "invoicing.recommendation.reason.nope", reason: "nope" }} onAction={vi.fn()} onLink={vi.fn()} onDismiss={vi.fn()} onOpen={vi.fn()} />);
+    expect(screen.getByText("ENT-12 no se facturó solo: nope.")).toBeTruthy();
+  });
+});

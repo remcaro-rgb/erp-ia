@@ -1,4 +1,4 @@
-import { customData, DEFAULT_PHONE_CC, defineProcess, ProcessError, validateEmail, validatePhone, visibleExtra, type CustomData, type ProcessContext } from "@erp/kernel";
+import { assertRecordRight, customData, DEFAULT_PHONE_CC, defineProcess, ProcessError, validateEmail, validatePhone, visibleExtra, type CustomData, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { blank, defined, freeJsonb, idInput, idOutput, jsonb, rejectErrors, writableParty } from "./common";
 import { clearable, extra, extraFree, id, phoneCc } from "./schemas";
@@ -6,7 +6,8 @@ import { clearable, extra, extraFree, id, phoneCc } from "./schemas";
 // Contacts of a party (design §5.18): people at a customer or supplier, shown in the record's
 // Contactos tab. A contact is written only through a party the caller may write (visible, and every
 // non-employee kind inside the party scope). E-mail and phones follow rule 11 (validateEmail,
-// validatePhone). Delete is a hard delete: contacts are not documents (rule 9); the audit keeps the row.
+// validatePhone). A contact is part of its party: writing one needs the modify right on the party (kernel.record_access, Task 9
+// review I4). Delete is a hard delete: contacts are not documents (rule 9); the audit keeps the row.
 
 const fields = {
   name: z.string().trim().min(1).max(200),
@@ -55,12 +56,18 @@ function columns(ctx: ProcessContext, input: ContactFields, custom: CustomData) 
   };
 }
 
+/** The party is writable by the caller (scope) and they hold its modify right (record_forbidden otherwise). */
+async function writableContactParty(ctx: ProcessContext, partyId: string): Promise<void> {
+  await writableParty(ctx, partyId);
+  await assertRecordRight(ctx, "core.party", partyId, "modify");
+}
+
 /** The contact as stored, after checking its party may be written by the caller; `not_found` otherwise. */
 async function writableContact(ctx: ProcessContext, contactId: string): Promise<Contact & { extra: Record<string, unknown> }> {
   const [contact] = await ctx.tx<(Required<Contact> & { party_id: string; extra: Record<string, unknown> })[]>`
     select party_id, email, phone_cc, phone, mobile_cc, mobile, extra from core.party_contacts where id = ${contactId}`;
   if (!contact) throw new ProcessError("not_found", `contact ${contactId} not found`);
-  await writableParty(ctx, contact.party_id);
+  await writableContactParty(ctx, contact.party_id);
   return contact;
 }
 
@@ -68,12 +75,13 @@ export const contactCreate = defineProcess({
   id: "core.contact.create",
   module: "core",
   kind: "create",
+  recordAccess: "handler",
   feature: "core.parties",
   description: "Agrega un contacto (persona) a un tercero",
   input: z.object({ partyId: id, ...fields }),
   output: idOutput,
   handler: async (ctx, { partyId, ...input }) => {
-    await writableParty(ctx, partyId);
+    await writableContactParty(ctx, partyId);
     const custom = await customData(ctx, "core.party_contact", null, input.extra);
     const row = {
       ...columns(ctx, input, custom),
@@ -92,6 +100,7 @@ export const contactUpdate = defineProcess({
   id: "core.contact.update",
   module: "core",
   kind: "update",
+  recordAccess: "handler",
   feature: "core.parties",
   description: "Actualiza los datos de un contacto de un tercero",
   input: z.object(fields).partial().extend({ id }),
@@ -111,6 +120,7 @@ export const contactDelete = defineProcess({
   id: "core.contact.delete",
   module: "core",
   kind: "delete",
+  recordAccess: "handler",
   feature: "core.parties",
   description: "Elimina un contacto de un tercero",
   input: idInput,

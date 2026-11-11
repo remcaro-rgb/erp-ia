@@ -1,10 +1,13 @@
 import { countryPack, type Tx } from "@erp/kernel";
 import { DIMENSION_DEFS, DIMENSIONS, type Dimension } from "../dimensions";
+import { RESTRICTED_CODE, RESTRICTED_NAME } from "../reports/common";
 import { INCOME_SECTIONS } from "../reports/income-statement";
 
 // The figures the record pages show (accounting design §8, Task 28): the Saldos of a Cuenta per period, and for a node of an
-// analytic dimension the Saldos por cuenta and the Resultados per period, descendants included. Like the tree pane they read only the
-// published views, so a restricted account the caller may not view is neither a row nor part of a figure (§5.13).
+// analytic dimension the Saldos por cuenta and the Resultados per period, descendants included. Like the tree pane, a restricted account
+// the caller may not view is neither a row nor part of a figure (§5.13); a record or an account a record rule hides from the caller
+// still counts (D11, Task 9 review I1): the amounts come from `v_account_balances` and the descendants from `accounting.master_tree`
+// (0046), and an account the caller cannot read is one unnamed line.
 
 export interface PeriodRef {
   id: string;
@@ -49,9 +52,15 @@ export async function accountBalances(tx: Tx, input: { companyId: string; accoun
   const [periods, sums] = await Promise.all([
     listPeriods(tx, input.companyId),
     tx<{ period_id: string; debit: string; credit: string }[]>`
+      with recursive tree as (select id, parent_id from accounting.master_tree('account')),
+      below as (
+        select id from tree where id = ${input.accountId}
+        union
+        select t.id from tree t join below b on t.parent_id = b.id
+      )
       select b.period_id, sum(b.debit) as debit, sum(b.credit) as credit
-      from accounting.v_account_balances b join accounting.v_accounts a on a.id = b.account_id
-      where b.company_id = ${input.companyId} and a.code like ${`${account.code}%`}
+      from accounting.v_account_balances b
+      where b.company_id = ${input.companyId} and b.account_id in (select id from below)
       group by b.period_id`,
   ]);
   const byPeriod = new Map(sums.map((s) => [s.period_id, s]));
@@ -93,19 +102,24 @@ export async function nodeFigures(tx: Tx, input: { dimension: Dimension; company
   const sections = company ? countryPack(company.country_code).accounting.statementLayouts().incomeStatement.map((s) => s.code) : [];
   const [periods, rows] = await Promise.all([
     listPeriods(tx, input.companyId),
-    tx<{ period_id: string; account_id: string; code: string; name: string; section: string | null; debit: string; credit: string }[]>`
-      with recursive below as (
-        select id from ${tx(view)} where id = ${input.nodeId}
-        union all
-        select t.id from ${tx(view)} t join below b on t.parent_id = b.id
+    tx<{ period_id: string; account_id: string | null; code: string | null; name: string | null; section: string | null; debit: string; credit: string }[]>`
+      with recursive tree as (select id, parent_id from accounting.master_tree(${input.dimension})),
+      below as (
+        select id from tree where id = ${input.nodeId}
+        union
+        select t.id from tree t join below b on t.parent_id = b.id
       )
-      select b.period_id, a.id as account_id, a.code, a.name, a.statement_section as section, sum(b.debit) as debit, sum(b.credit) as credit
-      from accounting.v_account_balances b join accounting.v_accounts a on a.id = b.account_id
+      select b.period_id, a.id as account_id, a.code, a.name, b.statement_section as section, sum(b.debit) as debit, sum(b.credit) as credit
+      from accounting.v_account_balances b left join accounting.v_accounts a on a.id = b.account_id
       where b.company_id = ${input.companyId} and not b.is_opening and not b.is_closing and b.${tx(def.column)} in (select id from below)
-      group by b.period_id, a.id, a.code, a.name, a.statement_section
-      order by a.code`,
+      group by b.period_id, a.id, a.code, a.name, b.statement_section
+      order by a.code nulls last`,
   ]);
-  const accounts = rows.map((r) => ({ periodId: r.period_id, accountId: r.account_id, code: r.code, name: r.name, debit: cents(Number(r.debit)), credit: cents(Number(r.credit)) }));
+  // An account the caller cannot read: one line per period and section, under the lock, that names none of them.
+  const accounts = rows.map((r) => ({
+    periodId: r.period_id, accountId: r.account_id ?? "", code: r.account_id === null ? RESTRICTED_CODE : (r.code ?? ""), name: r.account_id === null ? RESTRICTED_NAME : (r.name ?? ""),
+    debit: cents(Number(r.debit)), credit: cents(Number(r.credit)),
+  }));
   const results = new Map<string, { income: number; expense: number }>();
   for (const r of rows) {
     if (!r.section || !sections.includes(r.section)) continue;
@@ -148,10 +162,10 @@ export async function listYears(tx: Tx, companyId: string): Promise<YearSummary[
       select id, year, status, starts_on::text, ends_on::text from accounting.v_fiscal_years where company_id = ${companyId} order by year desc`,
     tx<{ id: string; fiscal_year_id: string; number: number; year: number; starts_on: string; ends_on: string; status: string; reopened_for: string | null; reopened_count: number; closed_at: string | null; entries: number; debit: string; credit: string; open: number }[]>`
       select p.id, p.fiscal_year_id, p.number, y.year, p.starts_on::text, p.ends_on::text, p.status, p.reopened_for::text, p.reopened_count, p.closed_at::text,
-             count(e.id) filter (where e.status in ('posted', 'reversed'))::int as entries,
-             coalesce(sum(e.total_debit) filter (where e.status in ('posted', 'reversed')), 0) as debit,
-             coalesce(sum(e.total_credit) filter (where e.status in ('posted', 'reversed')), 0) as credit,
-             count(e.id) filter (where e.status in ('draft', 'pending'))::int as open
+             count(e.id) filter (where e.status = 'posted')::int as entries,
+             coalesce(sum(e.total_debit) filter (where e.status = 'posted'), 0) as debit,
+             coalesce(sum(e.total_credit) filter (where e.status = 'posted'), 0) as credit,
+             count(e.id) filter (where e.status in ('draft', 'saved', 'pending', 'rejected', 'approved'))::int as open
       from accounting.v_periods p
       join accounting.v_fiscal_years y on y.id = p.fiscal_year_id
       left join accounting.v_entries e on e.period_id = p.id
@@ -200,16 +214,15 @@ export async function yearPreview(tx: Tx, input: { companyId: string; fiscalYear
   const [open, rows, mapped, closing] = await Promise.all([
     tx<{ n: number }[]>`select count(*)::int as n from accounting.v_periods where fiscal_year_id = ${input.fiscalYearId} and status <> 'closed'`,
     tx<{ section: string; debit: string; credit: string }[]>`
-      select a.statement_section as section, sum(b.debit) as debit, sum(b.credit) as credit
+      select b.statement_section as section, sum(b.debit) as debit, sum(b.credit) as credit
       from accounting.v_account_balances b
-      join accounting.v_accounts a on a.id = b.account_id
       join accounting.v_periods p on p.id = b.period_id
-      where b.company_id = ${input.companyId} and p.fiscal_year_id = ${input.fiscalYearId} and not b.is_opening and not b.is_closing and a.statement_section = any(${sections}::text[])
-      group by a.statement_section`,
+      where b.company_id = ${input.companyId} and p.fiscal_year_id = ${input.fiscalYearId} and not b.is_opening and not b.is_closing and b.statement_section = any(${sections}::text[])
+      group by b.statement_section`,
     tx<{ role: string }[]>`select role from accounting.v_account_role_mappings where company_id = ${input.companyId} and dimension is null and role = any(${[...CLOSING_ROLES]}::text[])`,
     tx<{ id: string; number: string | null; description: string | null; total_debit: string }[]>`
       select e.id, e.number, e.description, e.total_debit from accounting.v_entries e join accounting.v_periods p on p.id = e.period_id
-      where e.company_id = ${input.companyId} and p.fiscal_year_id = ${input.fiscalYearId} and e.is_closing and e.status = 'posted' and e.reversal_of_id is null
+      where e.company_id = ${input.companyId} and p.fiscal_year_id = ${input.fiscalYearId} and e.is_closing and e.status = 'posted' and e.reversal_of_id is null and not coalesce((e.extra->>'reversed')::boolean, false)
       order by e.seq`,
   ]);
   let income = 0;

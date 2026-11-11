@@ -26,7 +26,7 @@ import { describeAuditEntry, readAuditEntry, type AuditEntryDetail } from "../de
 
 /** Test-only entity over `kernel.audit_probe` (created below, audited by the row trigger). */
 const PROBE = defineEntity({
-  id: "kernel.audit_probe",
+  entityType: "maestro", id: "kernel.audit_probe",
   module: "kernel",
   schema: "kernel",
   table: "audit_probe",

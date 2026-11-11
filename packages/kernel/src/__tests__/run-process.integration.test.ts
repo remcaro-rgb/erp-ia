@@ -25,6 +25,18 @@ const probe = defineProcess({
   },
 });
 
+const recordRefused = defineProcess({
+  id: "test.probe.record_refused",
+  module: "test",
+  kind: "update",
+  description: "refusa por derecho de registro",
+  input: z.object({}),
+  output: z.object({}),
+  handler: async () => {
+    throw new ProcessError("record_forbidden", "no right", { details: { entity: "test.probe", recordId: randomUUID(), right: "modify" } });
+  },
+});
+
 const eventOnly = defineProcess({
   id: "test.probe.event_only",
   module: "test",
@@ -269,6 +281,56 @@ describe("run-process", () => {
         input: { code, process_id: "test.probe.create" },
       });
     }
+  });
+
+  it("a dry-run denial writes no audit row and counts once; a real denial still audits (rule 16, design §22.28)", async () => {
+    const refuse = async () => false;
+    const cases = [
+      { code: "not_entitled", run: (chainId: string) => runProcess({ ...deps, entitled: refuse }, { claims: adminClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" }, { dryRun: true, preflight: "assistant" }) },
+      { code: "forbidden", run: (chainId: string) => runProcess(deps, { claims: cashierClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" }, { dryRun: true, preflight: "assistant" }) },
+      { code: "step_up_required", run: (chainId: string) => runProcess(deps, { claims: adminClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" }, { dryRun: true, preflight: "assistant" }) },
+    ];
+    const count = async (code: string) =>
+      Number((await sql`select coalesce(sum(count), 0) as n from kernel.dry_run_denial_counters where company_id = ${companyId} and process_id = 'test.probe.create' and code = ${code}`)[0]!.n);
+    for (const { code, run } of cases) {
+      const before = await count(code);
+      const chainId = randomUUID();
+      await expect(run(chainId)).rejects.toMatchObject({ code });
+      expect(await sql`select 1 from kernel.audit_log where chain_id = ${chainId}`, code).toHaveLength(0);
+      expect(await count(code), code).toBe(before + 1);
+    }
+    // record_forbidden (thrown by the handler's guard) counts too.
+    registry.registerProcess(recordRefused);
+    await grant(adminRole, recordRefused.id);
+    const rfChain = randomUUID();
+    const rfCount = async () => Number((await sql`select coalesce(sum(count), 0) as n from kernel.dry_run_denial_counters where company_id = ${companyId} and process_id = ${recordRefused.id} and code = 'record_forbidden'`)[0]!.n);
+    const rfBefore = await rfCount();
+    await expect(runProcess(deps, { claims: adminClaims, origin: "agent", chainId: rfChain }, recordRefused.id, {}, { dryRun: true, preflight: "assistant" })).rejects.toMatchObject({ code: "record_forbidden" });
+    expect(await sql`select 1 from kernel.audit_log where chain_id = ${rfChain}`).toHaveLength(0);
+    expect(await rfCount()).toBe(rfBefore + 1);
+    // Any other dry run (the import preview) still audits its denial and does not count.
+    const impChain = randomUUID();
+    const fBefore = await count("forbidden");
+    await expect(runProcess(deps, { claims: cashierClaims, origin: "api", chainId: impChain }, "test.probe.create", { name: "n" }, { dryRun: true })).rejects.toMatchObject({ code: "forbidden" });
+    expect(await sql`select 1 from kernel.audit_log where chain_id = ${impChain} and action = 'denied'`).toHaveLength(1);
+    expect(await count("forbidden")).toBe(fBefore);
+    // A real run denied still audits and does not count.
+    const before = await count("forbidden");
+    const chainId = randomUUID();
+    await expect(runProcess(deps, { claims: cashierClaims, origin: "agent", chainId }, "test.probe.create", { name: "n" })).rejects.toMatchObject({ code: "forbidden" });
+    expect(await sql`select 1 from kernel.audit_log where chain_id = ${chainId} and action = 'denied'`).toHaveLength(1);
+    expect(await count("forbidden")).toBe(before);
+  });
+
+  it("dry-run denial counters are per company and closed to user sessions (RLS, no grants)", async () => {
+    const other = await seedTenant(sql, { companies: 1, users: [] });
+    const otherCompany = other.companies[0]!.id;
+    await sql`select kernel.count_dry_run_denial(${otherCompany}, 'test.probe.create', 'forbidden')`;
+    const rows = await sql`select company_id from kernel.dry_run_denial_counters where process_id = 'test.probe.create' and code = 'forbidden' and company_id in (${companyId}, ${otherCompany})`;
+    expect(new Set(rows.map((r) => r.company_id))).toEqual(new Set([companyId, otherCompany]));
+    await expect(withClaims(sql, adminClaims, (tx) => tx`select count(*) from kernel.dry_run_denial_counters`)).rejects.toThrow(/permission denied/);
+    await expect(withClaims(sql, adminClaims, (tx) => tx`select kernel.count_dry_run_denial(${otherCompany}, 'x', 'forbidden')`)).rejects.toThrow(/active company/);
+    await expect(sql`select kernel.count_dry_run_denial(${companyId}, 'x', 'bogus')`).rejects.toThrow();
   });
 
   it("ctx.audit cannot override the caller's identity fields", async () => {

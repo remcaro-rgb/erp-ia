@@ -7,10 +7,13 @@ import { defineModule, type ModuleDef } from "../module/define";
 import { loadModules } from "../module/loader";
 import { ConsumerRegistry } from "../events/consumers";
 import { matrixProcesses } from "../admin/matrix";
+import { GENERIC_VERBS } from "../typed/processes";
+import { KERNEL_PARAMETER_PAGES, MENU_SECTIONS, menuItemsOf, menuSections, uncoveredMenuProcesses, withMenuSections, type ParameterPage } from "../module/menu";
+import type { NavItem } from "../registry/types";
 
 const entity = (module: string, name: string) =>
   defineEntity({
-    id: `${module}.${name}`,
+    entityType: "maestro", id: `${module}.${name}`,
     module,
     schema: module,
     table: `${name}s`,
@@ -40,7 +43,7 @@ const manifest = (id: string, dependsOn: string[] = [], overrides: Partial<Modul
   processes: [proc(id, "thing", "list")],
   features: [{ id: `${id}.things`, label: "feature.things", processes: [`${id}.thing.list`], entities: [`${id}.thing`] }],
   events: { emits: [], consumes: {} },
-  navigation: [{ id: `${id}.home`, label: "nav.home", href: `/${id}`, icon: "box" }],
+  navigation: [...menuSections(id), { id: `${id}.home`, label: "nav.home", href: `/${id}`, icon: "box" }],
   ...overrides,
 });
 
@@ -48,6 +51,15 @@ describe("defineModule", () => {
   it("returns a valid manifest unchanged", () => {
     const def = manifest("core");
     expect(defineModule(def)).toBe(def);
+  });
+
+  it("card effects (plan 2B Task 25): keyed by an event or one of the module's processes, each a key of the module's own namespace", () => {
+    const ok = manifest("stock", [], { effects: { "sales.order.confirmed": ["stock.effects.reserve"], "stock.thing.list": ["stock.effects.list"] } });
+    expect(defineModule(ok)).toBe(ok);
+    expect(() => defineModule(manifest("stock", [], { effects: { "sales.order.confirmed": ["sales.effects.reserve"] } }))).toThrow(/stock\.effects\.<name>/);
+    expect(() => defineModule(manifest("stock", [], { effects: { "stock.thing.unknown": ["stock.effects.x"] } }))).toThrow(/none of its processes or events/);
+    expect(() => defineModule(manifest("stock", [], { effects: { confirmed: ["stock.effects.x"] } }))).toThrow(/neither an event nor a process/);
+    expect(() => defineModule(manifest("stock", [], { effects: { "sales.order.confirmed": [] } }))).toThrow(/lists no effect/);
   });
 
   it("rejects a process declared for another module", () => {
@@ -108,11 +120,116 @@ describe("loadModules", () => {
     expect(() => loadModules(new Registry(), [{ ...a, dependsOn: ["b"] }, b])).toThrow(/cycle/);
   });
 
+  it("`needs` is no load-order edge: a mutual dependsOn + needs loads, an unknown needs fails (plan 2B Task 41, Ruling R41-1)", () => {
+    const costing = defineModule(manifest("costing", ["inventory"]));
+    const inventory = defineModule(manifest("inventory", [], { needs: ["costing"] }));
+    const registry = new Registry();
+    expect(() => loadModules(registry, [inventory, costing])).not.toThrow();
+    expect(registry.modules().map((m) => m.id)).toEqual(["inventory", "costing"]);
+    expect(() => loadModules(new Registry(), [defineModule(manifest("inventory", [], { needs: ["ghost"] }))])).toThrow(/needs ghost.*not loaded|missing need: ghost/);
+    // A need already in the registry counts as loaded.
+    const first = new Registry();
+    loadModules(first, [costing, defineModule(manifest("inventory"))]);
+    expect(() => loadModules(first, [defineModule(manifest("sales", [], { needs: ["costing"] }))])).not.toThrow();
+  });
+
+  it("defineModule rejects a module that needs itself or a non-string id", () => {
+    expect(() => defineModule(manifest("core", [], { needs: ["core"] }))).toThrow(/needs itself/);
+    expect(() => defineModule(manifest("core", [], { needs: [1 as unknown as string] }))).toThrow(/needs/);
+  });
+
+  it("shortcuts: `under` is <module>.<section> of a module in dependsOn, and the target group must exist (plan 2B Task 42, Ruling R42-1)", () => {
+    const item = { id: "b.quotes_shortcut", label: "nav.b.quotes_shortcut", href: "/b/quotes", icon: "file-text" };
+    const withShortcut = (under: string, deps = ["a"]) => manifest("b", deps, { shortcuts: [{ item, under }] });
+    expect(() => defineModule(withShortcut("a.documentos"))).not.toThrow();
+    expect(() => defineModule(withShortcut("a.documentos", []))).toThrow(/shortcut.*a\.documentos.*dependsOn/);
+    expect(() => defineModule(withShortcut("documentos"))).toThrow(/shortcut.*<module>\.<section>/);
+    expect(() => defineModule(withShortcut("b.documentos"))).toThrow(/shortcut.*dependsOn/);
+    const a = defineModule(manifest("a"));
+    expect(() => loadModules(new Registry(), [a, defineModule(withShortcut("a.documentos"))])).not.toThrow();
+    expect(() => loadModules(new Registry(), [a, defineModule(withShortcut("a.nowhere"))])).toThrow(/shortcut.*a\.nowhere.*does not exist/);
+  });
+
+  it("a card effect keyed by a loaded module's event or process must name one it emits or declares (plan 2B Task 25)", () => {
+    const sales = manifest("sales", [], { events: { emits: ["sales.order.confirmed"], consumes: {} } });
+    const stock = (key: string) => defineModule(manifest("stock", [], { effects: { [key]: ["stock.effects.reserve"] } }));
+    expect(() => loadModules(new Registry(), [sales, stock("sales.order.confirmed")])).not.toThrow();
+    expect(() => loadModules(new Registry(), [sales, stock("sales.thing.list")])).not.toThrow();
+    expect(() => loadModules(new Registry(), [sales, stock("sales.order.confirmd")])).toThrow(/"sales\.order\.confirmd" is no event or process of module sales/);
+    // A neighbour that is not loaded is optional: its keys are not checked.
+    expect(() => loadModules(new Registry(), [stock("crm.deal.won")])).not.toThrow();
+  });
+
   it("registers each module's entities and processes", () => {
     const registry = new Registry();
     loadModules(registry, [manifest("b", ["a"]), manifest("a")]);
     expect(registry.entities().map((e) => e.id)).toEqual(["a.thing", "b.thing"]);
-    expect(registry.processes({ module: "b" }).map((p) => p.id)).toEqual(["b.thing.list"]);
+    // b.thing is a maestro: the loader adds the generic lifecycle processes after the module's own.
+    expect(registry.processes({ module: "b" }).map((p) => p.id)).toEqual(["b.thing.list", ...GENERIC_VERBS.map((v) => `b.thing.${v}`)]);
+  });
+
+  describe("generic lifecycle processes (entity types spec §5)", () => {
+    const typedEntity = (name: string, entityType: "maestro" | "documento" | "lines" | "parametro", typed?: object) =>
+      defineEntity({ ...entity("a", name), id: `a.${name}`, table: `${name}s`, entityType, ...(typed ? { typed } : {}) });
+
+    it("registers save/submit/approve/reject/void/delete for each maestro and documento, in the feature listing the entity", () => {
+      const registry = new Registry();
+      const doc = typedEntity("doc", "documento");
+      const line = typedEntity("line", "lines");
+      const par = typedEntity("par", "parametro");
+      loadModules(registry, [manifest("a", [], { entities: [entity("a", "thing"), doc, line, par], features: [{ id: "a.things", label: "f", processes: ["a.thing.list"], entities: ["a.thing", "a.doc"] }] })]);
+      const ids = registry.processes({ module: "a" }).map((p) => p.id);
+      for (const e of ["a.thing", "a.doc"]) for (const v of GENERIC_VERBS) expect(ids).toContain(`${e}.${v}`);
+      expect(ids.filter((id) => id.startsWith("a.line.") || id.startsWith("a.par."))).toEqual([]);
+      const feature = registry.module("a").features[0]!;
+      expect(feature.processes).toEqual(["a.thing.list", ...GENERIC_VERBS.map((v) => `a.thing.${v}`), ...GENERIC_VERBS.map((v) => `a.doc.${v}`)]);
+      expect(registry.process("a.doc.approve")).toMatchObject({ module: "a", kind: "update", feature: "a.things" });
+      expect(registry.process("a.doc.delete").kind).toBe("delete");
+      expect(() => defineModule(registry.module("a"))).not.toThrow();
+    });
+
+    it("keeps a process the module declares itself under a generic id", () => {
+      const own = defineProcess({ id: "a.thing.void", module: "a", kind: "update", description: "propio", input: z.object({}), output: z.object({}), handler: async () => ({}) });
+      const registry = new Registry();
+      loadModules(registry, [manifest("a", [], { processes: [proc("a", "thing", "list"), own] })]);
+      expect(registry.process("a.thing.void").description).toBe("propio");
+      expect(registry.processes({ module: "a" }).filter((p) => p.id === "a.thing.void")).toHaveLength(1);
+    });
+
+    it("refuses typedHooks for an entity that is not a typed entity of the module, and on_save numbering without a number hook", () => {
+      expect(() => loadModules(new Registry(), [manifest("a", [], { typedHooks: { "a.nope": {} } })])).toThrow(/typedHooks names a\.nope/);
+      const numbered = typedEntity("doc", "documento", { numbering: "on_save" });
+      expect(() => loadModules(new Registry(), [manifest("a", [], { entities: [numbered] })])).toThrow(/a\.doc numbers on_save/);
+      expect(() => loadModules(new Registry(), [manifest("a", [], { entities: [numbered], typedHooks: { "a.doc": { number: async () => "1" } } })])).not.toThrow();
+    });
+
+    // Task 5 review (fail closed): the generic Grabar writes the columns itself, so a module that validates its own updates must
+    // plug that validation into the lifecycle, or the generic save would bypass it.
+    it("refuses a typed entity whose module declares its own update process but registers no validate hook", () => {
+      const update = (id: string) =>
+        defineProcess({ id, module: "a", kind: "update", description: "propio", input: z.object({}), output: z.object({}), handler: async () => ({}) });
+      const list = proc("a", "thing", "list");
+      expect(() => loadModules(new Registry(), [manifest("a", [], { processes: [list, update("a.thing.update")] })])).toThrow(
+        "module a: typed entity a.thing needs a validate hook",
+      );
+      // A hook without validate is no better.
+      expect(() => loadModules(new Registry(), [manifest("a", [], { processes: [list, update("a.thing.update")], typedHooks: { "a.thing": {} } })])).toThrow(
+        /a\.thing needs a validate hook/,
+      );
+      expect(() =>
+        loadModules(new Registry(), [manifest("a", [], { processes: [list, update("a.thing.update")], typedHooks: { "a.thing": { validate: async () => {} } } })]),
+      ).not.toThrow();
+      // The update named after the entity's declared create process (`processIds.create`, e.g. core.category.*) counts too.
+      const widget = defineEntity({ ...entity("a", "widget"), processIds: { create: "a.gadget.create" } });
+      expect(() => loadModules(new Registry(), [manifest("a", [], { entities: [entity("a", "thing"), widget], processes: [list, update("a.gadget.update")] })])).toThrow(
+        "module a: typed entity a.widget needs a validate hook",
+      );
+      // Without an update process of its own the generic save is the only write path: nothing to plug in.
+      expect(() => loadModules(new Registry(), [manifest("a", [], { processes: [list] })])).not.toThrow();
+      // Lines and parametro entities carry no lifecycle, so their update processes need no hook.
+      const par = defineEntity({ ...entity("a", "par"), entityType: "parametro" });
+      expect(() => loadModules(new Registry(), [manifest("a", [], { entities: [entity("a", "thing"), par], processes: [list, update("a.par.update")] })])).not.toThrow();
+    });
   });
 
   it("throws on a missing dependency, naming it", () => {
@@ -196,7 +313,7 @@ describe("loadModules", () => {
       });
       const registry = new Registry();
       loadModules(registry, [manifest("a", [], { processes: [proc("a", "thing", "list"), eventOnly] })]);
-      expect(matrixProcesses(registry).map((p) => p.id)).toEqual(["a.thing.list"]);
+      expect(matrixProcesses(registry).map((p) => p.id).sort()).toEqual(["a.thing.list", ...GENERIC_VERBS.map((v) => `a.thing.${v}`)].sort());
     });
 
     it("consumers.for returns the event's consumers first, then the wildcard ones, one per module", () => {
@@ -254,5 +371,159 @@ describe("loadModules", () => {
       expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...grid, feature: "a.nope" }] }))).toThrow(/record tab a\.entries.*feature a\.nope/);
       expect(() => defineModule(manifest("a", [], { recordTabs: [grid, grid] }))).toThrow(/duplicate record tab a\.entries/);
     });
+
+    // Plan 2B.2 Task 29.4 (RG-9): a grid keyed by a column of the source (the pedido's alistamientos by order_id) with a button that runs
+    // one of the module's own processes on the record («Crear alistamiento»).
+    it("takes a grid's record field and an action of the module's own processes, and refuses an action on a mapping or another module's process", () => {
+      const withAction = { ...grid, id: "a.picks", forEntities: ["b.order"], recordField: "order_id", action: { label: "tab.create", process: "a.thing.create", inputField: "orderId" } };
+      const processes = [proc("a", "thing", "list"), proc("a", "thing", "create")];
+      const registry = new Registry();
+      loadModules(registry, [manifest("a", [], { processes, recordTabs: [withAction] })]);
+      expect(registry.recordTabsFor("b.order")[0]).toMatchObject({ recordField: "order_id", action: { process: "a.thing.create", inputField: "orderId" } });
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...withAction, action: { ...withAction.action, process: "b.order.confirm" } }] }))).toThrow(/record tab a\.picks.*action b\.order\.confirm/);
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...withAction, action: { ...withAction.action, process: "a.nope.create" } }] }))).toThrow(/record tab a\.picks.*action a\.nope\.create/);
+      expect(() => defineModule(manifest("a", [], { processes, recordTabs: [{ ...mapping, action: withAction.action }] }))).toThrow(/record tab a\.revenue.*action/);
+      expect(() => defineModule(manifest("a", [], { processes, recordTabs: [{ ...withAction, action: { ...withAction.action, inputField: "" } }] }))).toThrow(/record tab a\.picks.*input field/);
+    });
   });
 });
+
+// Module menu sections (entity types spec 2026-11-02 §2.4, §9.2; Phase 2A.5 Task 10): every module with a menu has the level-1 groups
+// Maestros, Documentos, Reportes and Parámetros (`<module>.maestros|documentos|reportes|parametros`); the list page of a maestro,
+// documento or parametro places itself in its section; an empty section stays (the shell shows its empty state).
+describe("menu sections", () => {
+  const leaf = (id: string, extra: Partial<NavItem> = {}): NavItem => ({ id, label: `nav.${id}`, href: `/${id.replace(".", "/")}`, icon: "list", ...extra });
+  const typed = (name: string, entityType: "maestro" | "documento" | "parametro" | "lines" | "sistema") =>
+    defineEntity({ ...entity("a", name), id: `a.${name}`, table: `${name}s`, entityType });
+  const sectionIds = (def: ModuleDef) => def.navigation.filter((i) => i.section).map((i) => i.id);
+  const childrenOf = (def: ModuleDef, section: string) => def.navigation.find((i) => i.id === `${def.id}.${section}`)?.children?.map((c) => c.id);
+
+  it("menuSections builds the four groups with their kernel labels, in order", () => {
+    expect(MENU_SECTIONS).toEqual(["maestros", "documentos", "reportes", "parametros"]);
+    const groups = menuSections("a", { reportes: [leaf("a.balance")] });
+    expect(groups.map((g) => [g.id, g.label, g.href, g.section])).toEqual([
+      ["a.maestros", "nav.section.maestros", "#", "maestros"],
+      ["a.documentos", "nav.section.documentos", "#", "documentos"],
+      ["a.reportes", "nav.section.reportes", "#", "reportes"],
+      ["a.parametros", "nav.section.parametros", "#", "parametros"],
+    ]);
+    expect(groups.map((g) => g.children?.map((c) => c.id))).toEqual([[], [], ["a.balance"], []]);
+  });
+
+  it("the loader throws for a module with a menu that misses a section, naming it", () => {
+    const without = (missing: string) => manifest("x", [], { navigation: [...menuSections("x").filter((g) => g.section !== missing), leaf("x.home")] });
+    for (const s of MENU_SECTIONS) expect(() => loadModules(new Registry(), [without(s)])).toThrow(`module x: missing menu section ${s}`);
+    expect(() => loadModules(new Registry(), [manifest("x", [], { navigation: [leaf("x.home")] })])).toThrow("module x: missing menu section maestros");
+    expect(() => loadModules(new Registry(), [manifest("x")])).not.toThrow();
+  });
+
+  it("refuses a section group that is not named <module>.<section> or is not a group", () => {
+    const groups = menuSections("x");
+    const renamed = groups.map((g) => (g.section === "reportes" ? { ...g, id: "x.informes" } : g));
+    expect(() => loadModules(new Registry(), [manifest("x", [], { navigation: renamed })])).toThrow("module x: menu section reportes must be the group x.reportes");
+    const leafSection = groups.map((g) => (g.section === "reportes" ? { ...g, children: undefined } : g));
+    expect(() => loadModules(new Registry(), [manifest("x", [], { navigation: leafSection })])).toThrow("module x: menu section reportes must be the group x.reportes");
+  });
+
+  it("a module without any menu item and the platform itself carry no sections", () => {
+    expect(() => loadModules(new Registry(), [manifest("x", [], { navigation: [] })])).not.toThrow();
+    const kernelLike = manifest("kernel", [], { navigation: [leaf("kernel.admin")] });
+    expect(() => loadModules(new Registry(), [kernelLike])).not.toThrow();
+  });
+
+  it("places the list page of a maestro, documento or parametro in its section; lines, sistema and other items stay where they are", () => {
+    const entities = [typed("thing", "maestro"), typed("doc", "documento"), typed("par", "parametro"), typed("log", "sistema"), typed("line", "lines")];
+    const navigation = [
+      ...menuSections("a", { maestros: [leaf("a.declared")] }),
+      leaf("a.things", { entity: "a.thing" }),
+      leaf("a.docs", { entity: "a.doc" }),
+      leaf("a.pars", { entity: "a.par" }),
+      leaf("a.logs", { entity: "a.log" }),
+      leaf("a.tool"),
+      leaf("a.summary", { section: "reportes" }),
+    ];
+    const registry = new Registry();
+    loadModules(registry, [manifest("a", [], { entities, navigation, features: [] })]);
+    const def = registry.module("a");
+    expect(def.navigation.map((i) => i.id)).toEqual(["a.maestros", "a.documentos", "a.reportes", "a.parametros", "a.logs", "a.tool"]);
+    expect(childrenOf(def, "maestros")).toEqual(["a.declared", "a.things"]);
+    expect(childrenOf(def, "documentos")).toEqual(["a.docs"]);
+    expect(childrenOf(def, "reportes")).toEqual(["a.summary"]);
+    // The module's own parametro list, then the kernel's Parámetros screens (KERNEL_PARAMETER_PAGES, Task 16).
+    expect(childrenOf(def, "parametros")).toEqual(["a.pars", "a.entity_types", "a.state_recipients", "a.doc_templates"]);
+    expect(sectionIds(def)).toEqual(["a.maestros", "a.documentos", "a.reportes", "a.parametros"]);
+  });
+
+  it("refuses a menu item placed under the wrong section for its entity, or naming an entity of another module", () => {
+    const entities = [typed("thing", "maestro"), typed("doc", "documento")];
+    const wrong = manifest("a", [], { entities, features: [], navigation: menuSections("a", { documentos: [leaf("a.things", { entity: "a.thing" })] }) });
+    expect(() => loadModules(new Registry(), [wrong])).toThrow("module a: menu item a.things lists a.thing (maestro) under documentos, not maestros");
+    const foreign = manifest("a", [], { entities, features: [], navigation: [...menuSections("a"), leaf("a.others", { entity: "b.thing" })] });
+    expect(() => loadModules(new Registry(), [foreign])).toThrow("module a: menu item a.others names entity b.thing, which the module does not declare");
+  });
+
+  it("adds the kernel's Parámetros pages to every module with a maestro or documento (extension point, Task 16)", () => {
+    const page: ParameterPage = { name: "entity_types", label: "nav.section.page.entity_types", icon: "settings", process: "kernel.entity_type_settings.update", path: "tipos" };
+    const typedModule = manifest("a", [], { entities: [typed("thing", "maestro")] });
+    const placed = withMenuSections(typedModule, [page]);
+    expect(placed.navigation.find((i) => i.id === "a.parametros")?.children).toEqual([
+      { id: "a.entity_types", label: "nav.section.page.entity_types", href: "/a/parametros/tipos", icon: "settings", process: "kernel.entity_type_settings.update" },
+    ]);
+    const untyped = manifest("b", [], { entities: [typed("par", "parametro")] });
+    expect(withMenuSections(untyped, [page]).navigation.find((i) => i.id === "b.parametros")?.children).toEqual([]);
+    // The kernel's own screens: types, recipients and templates, each shown to whoever may run its admin process.
+    expect(KERNEL_PARAMETER_PAGES.map((p) => [p.path, p.process])).toEqual([
+      ["tipos", "kernel.entity_type_settings.update"],
+      ["destinatarios", "kernel.state_recipients.update"],
+      ["plantillas", "kernel.doc_template.save"],
+    ]);
+  });
+
+  it("menuItemsOf lists every item with the processes it guards: its entity's (and its lines'), its process and its runs", () => {
+    const thing = defineEntity({ ...entity("a", "thing"), typed: { lines: { entity: "a.thing_line", parentField: "thing_id" } } });
+    const line = defineEntity({ ...entity("a", "thing_line"), id: "a.thing_line", table: "thing_lines", entityType: "lines" });
+    const processes = [proc("a", "thing", "list"), proc("a", "thing_line", "list"), proc("a", "report", "balance"), proc("a", "report", "aging"), proc("a", "other", "list")];
+    const navigation = [
+      ...menuSections("a", { reportes: [leaf("a.reports", { runs: ["a.report."] })] }),
+      leaf("a.things", { entity: "a.thing" }),
+      leaf("a.import", { process: "kernel.import.run" }),
+    ];
+    const registry = new Registry();
+    loadModules(registry, [manifest("a", [], { entities: [thing, line], processes, navigation, features: [{ id: "a.things", label: "f", processes: processes.map((p) => p.id), entities: ["a.thing", "a.thing_line"] }] })]);
+    const rows = menuItemsOf(registry.module("a"));
+    const byKey = new Map(rows.map((r) => [r.navKey, r]));
+    expect(rows.map((r) => r.navKey)).toEqual(["a.maestros", "a.things", "a.documentos", "a.reportes", "a.reports", "a.parametros", "a.entity_types", "a.state_recipients", "a.doc_templates", "a.import"]);
+    expect(byKey.get("a.maestros")).toEqual({ navKey: "a.maestros", moduleId: "a", parentKey: null, href: null, entity: null, processIds: [] });
+    expect(byKey.get("a.things")).toMatchObject({ parentKey: "a.maestros", href: "/a/things", entity: "a.thing" });
+    expect(byKey.get("a.things")!.processIds).toEqual(["a.thing.list", "a.thing_line.list", ...GENERIC_VERBS.map((v) => `a.thing.${v}`)].sort());
+    expect(byKey.get("a.reports")).toMatchObject({ parentKey: "a.reportes", processIds: ["a.report.aging", "a.report.balance"] });
+    // A process of another module (the kernel's import) is shared: hiding the item hides its page only (controller ruling, m3).
+    expect(byKey.get("a.import")).toMatchObject({ parentKey: null, processIds: [] });
+  });
+
+  it("menuItemsOf also lists the module's processes bound to the item's entity (or its lines') by recordAccess", () => {
+    const thing = defineEntity({ ...entity("a", "thing"), typed: { lines: { entity: "a.thing_line", parentField: "thing_id" } } });
+    const line = defineEntity({ ...entity("a", "thing_line"), id: "a.thing_line", table: "thing_lines", entityType: "lines" });
+    const bound = (id: string, target: string) => ({ ...proc("a", id.split(".")[0]!, id.split(".")[1]!), kind: "update" as const, recordAccess: { entity: target, idField: "id", right: "modify" as const } });
+    const processes = [proc("a", "thing", "list"), bound("thing_permission.update", "a.thing"), bound("line_note.update", "a.thing_line"), bound("other_note.update", "a.other")];
+    const navigation = [...menuSections("a"), leaf("a.things", { entity: "a.thing" })];
+    const registry = new Registry();
+    loadModules(registry, [manifest("a", [], { entities: [thing, line], processes, navigation, features: [{ id: "a.things", label: "f", processes: processes.map((p) => p.id), entities: ["a.thing", "a.thing_line"] }] })]);
+    const things = menuItemsOf(registry.module("a")).find((r) => r.navKey === "a.things")!;
+    expect(things.processIds).toContain("a.thing_permission.update");
+    expect(things.processIds).toContain("a.line_note.update");
+    expect(things.processIds).not.toContain("a.other_note.update");
+  });
+
+  it("uncoveredMenuProcesses lists the processes under no menu item and not declared shared (ids or prefixes ending in '.')", () => {
+    const processes = [proc("a", "thing", "list"), proc("a", "report", "balance"), proc("a", "uom", "consult"), proc("a", "sequence", "next"), proc("a", "stray", "list")];
+    const navigation = [...menuSections("a", { reportes: [leaf("a.reports", { runs: ["a.report."] })] }), leaf("a.things", { entity: "a.thing" })];
+    const def = manifest("a", [], { entities: [entity("a", "thing")], processes, navigation, features: [{ id: "a.f", label: "f", processes: processes.map((p) => p.id), entities: ["a.thing"] }], menuShared: ["a.uom.consult", "a.sequence."] });
+    const registry = new Registry();
+    loadModules(registry, [def]);
+    expect(uncoveredMenuProcesses(registry.module("a"))).toEqual(["a.stray.list"]);
+    // A module without a menu has nothing to cover.
+    expect(uncoveredMenuProcesses(manifest("b", [], { processes: [proc("b", "x", "list")], navigation: [] }))).toEqual([]);
+  });
+});
+

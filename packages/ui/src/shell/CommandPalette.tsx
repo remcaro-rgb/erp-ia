@@ -16,6 +16,16 @@ export interface CommandPaletteProps {
   /** Controlled open state (the shell opens it from the ⌘K box and the "+" tab too). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** The records whose ID (the gap-free `seq`, D16) is `id`, as the caller may see them; asked when the query reads as an ID. */
+  findRecords?: (id: number) => Promise<CommandItem[]>;
+}
+
+/** The ID a query asks for: «123», «ID 123» or «#123» (D16); null for anything else. */
+export function idQuery(query: string): number | null {
+  const m = /^(?:id\s*|#)?(\d{1,15})$/i.exec(query.trim());
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
 const ASK_ID = "__ask__";
@@ -35,7 +45,7 @@ export function paletteMatches(items: CommandItem[], query: string): { ask: bool
 }
 
 /** The ⌘K / Ctrl+K command palette (design §19a, prototype `openPalette`): go to, create, or ask. */
-export function CommandPalette({ items, onAsk, onSelect, open: openProp, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ items, onAsk, onSelect, open: openProp, onOpenChange, findRecords }: CommandPaletteProps) {
   const t = useTranslations("nav.shell.palette");
   const [ownOpen, setOwnOpen] = useState(false);
   const open = openProp ?? ownOpen;
@@ -65,7 +75,27 @@ export function CommandPalette({ items, onAsk, onSelect, open: openProp, onOpenC
     return () => document.removeEventListener("keydown", onKey);
   }, [openProp, onOpenChange]);
 
-  const matches = useMemo(() => paletteMatches(items, query), [items, query]);
+  const [found, setFound] = useState<{ query: string; items: CommandItem[] }>({ query: "", items: [] });
+  useEffect(() => {
+    const id = idQuery(query);
+    if (!findRecords || id === null) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      findRecords(id).then(
+        (records) => live && setFound({ query, items: records }),
+        () => live && setFound({ query, items: [] }),
+      );
+    }, 200);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [query, findRecords]);
+  const matches = useMemo(() => {
+    const base = paletteMatches(items, query);
+    const records = found.query === query && idQuery(query) !== null ? found.items : [];
+    return records.length > 0 ? { ask: false, items: [...records, ...base.items] } : base;
+  }, [items, query, found]);
   const first = matches.ask ? ASK_ID : matches.items[0]?.id ?? "";
   // A new query selects its first entry, as the prototype does.
   const selected = [ASK_ID, ...matches.items.map((i) => i.id)].includes(value) && value !== "" ? value : first;
@@ -79,7 +109,7 @@ export function CommandPalette({ items, onAsk, onSelect, open: openProp, onOpenC
     }
   };
 
-  const kindLabel = (kind: CommandItem["kind"] | "ask") => t(kind === "go" ? "kind_go" : kind === "create" ? "kind_create" : "kind_ask");
+  const kindLabel = (kind: CommandItem["kind"] | "ask") => t(kind === "go" ? "kind_go" : kind === "create" ? "kind_create" : kind === "record" ? "kind_record" : "kind_ask");
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>

@@ -57,7 +57,7 @@ const refused = (error: unknown): boolean => error instanceof ProcessError && (e
 const dimensionOf = (entityId: string): Dimension | null => DIMENSIONS.find((d) => DIMENSION_DEFS[d].entity === entityId) ?? null;
 
 /** The grid of `entityId` for a tab, or null when the caller may not read it. */
-async function gridTab(caller: Caller, entityId: string, filters: GridTab["filters"]): Promise<GridTab | null> {
+export async function gridTab(caller: Caller, entityId: string, filters: GridTab["filters"]): Promise<GridTab | null> {
   const deps = processDeps();
   const entity = gridEntity(deps.registry, entityId);
   if (!entity || (await gridDenial(deps, caller.claims, entity))) return null;
@@ -154,7 +154,7 @@ async function periodTabs(caller: Caller, record: Row): Promise<AccountingTabs> 
       tx<{ id: string; code: string; name: string; entries: number; debit: string | null; credit: string | null }[]>`
         select j.id, j.code, j.name, count(e.id)::int as entries, sum(e.total_debit) as debit, sum(e.total_credit) as credit
         from accounting.v_entries e join accounting.v_journals j on j.id = e.journal_id
-        where e.period_id = ${record.id} and e.status in ('posted', 'reversed')
+        where e.period_id = ${record.id} and e.status = 'posted'
         group by j.id, j.code, j.name order by j.code`,
     ),
     withClaims(deps.sql, caller.claims, (tx) =>

@@ -26,7 +26,7 @@ beforeAll(async () => {
       date: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`, description: `Movimiento ${month}/${day}`,
       lines: lines.map((l) => ({ accountCode: l.code, debit: l.debit ?? 0, credit: l.credit ?? 0, ...(l.cc ? { costCenterId: l.cc } : {}) })),
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
   };
   await entry(1, 10, [{ code: "111005", debit: 10_000 }, { code: "310505", credit: 10_000 }]);
   await entry(2, 5, [{ code: "111005", debit: 1_000 }, { code: "413595", credit: 1_000, cc: adm }]);
@@ -113,7 +113,7 @@ describe("the period figure of Tabla", () => {
         { accountCode: "413595", debit: 0, credit: 500, costCenterId: adm, openAuxiliaryId: ids.aux, itemId: ids.item, businessUnitId: ids.unit },
       ],
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
 
     const periods = await withClaims(h.sql, h.admin.claims, (tx) => listPeriods(tx, h.companyId));
     let compared = 0;
@@ -203,7 +203,7 @@ describe("roll-up total of the period figure (UX-OD-3, T4)", () => {
       date: `${year}-02-20`, description: "Ventas del centro",
       lines: [{ accountCode: "111005", debit: 300, credit: 0 }, { accountCode: "413595", debit: 0, credit: 300, costCenterId: vta }],
     });
-    await h.run(h.contador, "accounting.entry.post", { id });
+    await h.run(h.contador, "accounting.entry.save", { id });
   });
   const figureOf = (rows: Record<string, unknown>[], code: string) => Number(rows.find((r) => r.code === code)!.period_figure);
 

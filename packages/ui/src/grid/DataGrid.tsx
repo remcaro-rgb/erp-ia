@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
-import { Search } from "lucide-react";
+import { Printer, Search } from "lucide-react";
 import { cn } from "@erp/ui/lib/utils";
 import { formatMoney } from "../money/format";
 import { AdvancedFilter } from "./AdvancedFilter";
@@ -76,6 +76,11 @@ export interface DataGridProps {
   renderCell?: CellRenderer;
   /** Buttons before the grid's own (Nuevo, Importar). */
   toolbar?: ReactNode;
+  /**
+   * A screen's action on the selected rows of the page (Por facturar's «Crear facturas», plan 2B Task 20 fix round 1): drawn in the toolbar
+   * with the rows the selection column checked (the page's, in its order); the screen decides what an empty selection shows.
+   */
+  selectionActions?: (selected: GridRow[]) => ReactNode;
   /** Next to the title (the party switches). */
   headerExtra?: ReactNode;
   /** Filters every request carries. */
@@ -91,6 +96,11 @@ export interface DataGridProps {
    * every page of what the caller is allowed to see.
    */
   onExport?: (format: ExportFormat, state: GridStateInput) => void;
+  /**
+   * Imprimir (maestros and documentos, Task 16): prints what the grid shows (the export's state: filters, sort, visible columns, every
+   * page) with the entity's list template. The button shows only when given; it answers the refusal's text, or null when it printed.
+   */
+  onPrint?: (state: GridStateInput) => Promise<string | null>;
   /** The user's saved views of the entity; "Guardar vista" shows when given. */
   savedViews?: {
     views: readonly SavedViewItem[];
@@ -112,7 +122,7 @@ export interface DataGridProps {
  * sort (shift adds a key), the column chooser, the advanced filter with its chips, row selection with money totals,
  * the pager, saved views and the export buttons.
  */
-export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, headerExtra, baseFilters, emptyAction, params, onExport, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
+export function DataGrid({ entity, title, columns, fetcher, initialState, onRowOpen, renderCell, toolbar, selectionActions, headerExtra, baseFilters, emptyAction, params, onExport, onPrint, exportEndpoint, exportSource, onViewApplied, savedViews, debounceMs }: DataGridProps) {
   const t = useTranslations();
   const fetchPage = useMemo(() => fetcher ?? gridFetcher(entity), [fetcher, entity]);
   const grid = useGrid({ columns, fetcher: fetchPage, initialView: initialState, baseFilters, params, debounceMs });
@@ -128,6 +138,8 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   const groupFields = view.groupBy;
   const groupColumns = useMemo(() => groupableColumns(columns), [columns]);
   const [groupsOpen, setGroupsOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const heads = useMemo(() => (groupFields.length > 0 ? groupHeads(rows, groupFields, data.page?.groups) : new Map<number, GroupRow[]>()), [rows, groupFields, data.page?.groups]);
   const ancestorIds = (row: GridRow) => groupFields.map((_, i) => groupId({ level: i + 1, keys: Object.fromEntries(groupFields.slice(0, i + 1).map((f) => [f, row[f]])) }));
@@ -184,7 +196,15 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
       return next;
     });
 
-  const firstFilter = () => sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)");
+  const firstFilter = () => {
+    // Folded filters open first, so the caret has somewhere to land (it moves on the next frame, once drawn).
+    if (!filtersOpen) {
+      setFiltersOpen(true);
+      requestAnimationFrame(() => sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)")?.focus());
+      return null;
+    }
+    return sectionRef.current?.querySelector<HTMLElement>(".erp-grid__filters :is(input, select):not(:disabled)");
+  };
   const focusRow = (index: number) => {
     const next = Math.max(0, Math.min(rows.length - hiddenRows - 1, index));
     setActiveRow(next);
@@ -302,6 +322,25 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
   });
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // The per-column filter row can be folded away; the typed filters keep working and are counted on the toggle.
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const activeFilters = Object.keys(view.columnFilters).length;
+  const bodyScroll = useRef<HTMLDivElement>(null);
+  // Content hidden to the right of / below the visible area is flagged (an edge shadow + a hint), not left to be guessed.
+  const markOverflow = (el: HTMLElement) => {
+    el.toggleAttribute("data-scrolled-x", el.scrollLeft > 0);
+    el.toggleAttribute("data-more-x", el.scrollWidth - el.clientWidth - el.scrollLeft > 1);
+  };
+  useEffect(() => {
+    const el = bodyScroll.current;
+    if (!el) return;
+    markOverflow(el);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => markOverflow(el));
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => observer.disconnect();
+  }, [shown.length, rows.length]);
   const filterFields = columns.filter((c) => c.mode !== "hidden");
   const hiddenCount = columns.filter((c) => c.mode === "hidden" && !c.filterOnly).length;
   const maskedCount = shown.filter((c) => c.mode === "masked").length;
@@ -358,6 +397,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         {headerExtra}
         <div className="erp-grow" />
         {toolbar}
+        {selectionActions?.(rows.filter((r) => selected.has(r.id)))}
         <ColumnChooser columns={columns} order={view.order} shown={view.columns} onToggle={grid.showColumn} onMove={grid.stepColumn} onReset={grid.resetColumns} />
         {savedViews && (
           <SavedViewsMenu
@@ -369,20 +409,43 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           />
         )}
         {groupColumns.length > 0 && (
-          <button type="button" className={groupFields.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} aria-expanded={groupsOpen || groupFields.length > 0} onClick={() => setGroupsOpen((o) => !o)}>
+          <button type="button" className="erp-chip-toggle" aria-pressed={groupsOpen || groupFields.length > 0} onClick={() => setGroupsOpen((o) => !o)}>
             {t("grid.group.group_by")}
             {groupFields.length > 0 ? ` (${groupFields.length})` : ""}
           </button>
         )}
-        {groupColumns.length > 0 && moneyColumns(shown).length > 0 && (
-          <button type="button" className="erp-btn" onClick={() => setGroupsOpen((o) => !o)}>
-            {t("grid.group.aggregates")}
-          </button>
-        )}
+        <button type="button" className="erp-chip-toggle" aria-pressed={filtersOpen} onClick={() => setFiltersOpen((o) => !o)}>
+          {filtersOpen ? t("grid.filters_hide") : t("grid.filters_show")}
+          {!filtersOpen && activeFilters > 0 ? ` (${activeFilters})` : ""}
+        </button>
         <button type="button" className={view.conditions.length > 0 ? "erp-btn erp-btn--primary" : "erp-btn"} onClick={() => setAdvancedOpen(true)}>
           <Search aria-hidden="true" className="erp-icon" />
           {view.conditions.length > 0 ? t("grid.advanced_count", { count: view.conditions.length }) : t("grid.advanced_filter")}
         </button>
+        {onPrint && (
+          <button
+            type="button"
+            className="erp-btn"
+            disabled={printing}
+            onClick={async () => {
+              setPrinting(true);
+              setPrintError(null);
+              try {
+                setPrintError(await onPrint(exportState()));
+              } finally {
+                setPrinting(false);
+              }
+            }}
+          >
+            <Printer aria-hidden="true" className="erp-icon" />
+            {t("grid.print")}
+          </button>
+        )}
+        {printError && (
+          <span role="alert" className="erp-small erp-grid__print-error">
+            {printError}
+          </span>
+        )}
         <ExportButtons onExport={(format) => (onExport ? onExport(format, exportState()) : void exporter.run(format, exportState()))} busy={exporter.busy} />
         <GridStatusText status={exporter.status} refreshing={data.loading && data.page !== null} notice={notice} />
         {/* Always laid out; hidden (not removed) while there is nothing to clear, so nothing to its left moves. */}
@@ -426,10 +489,13 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
         </div>
       )}
       <div
+        ref={bodyScroll}
         className="erp-grid__body"
+        // Keyboard users reach sideways content by focusing the scroll area and using the arrows.
+        tabIndex={-1}
         onScroll={(e) => {
           // The pinned columns cast a shadow once the others slide under them (not managed by React: no re-render).
-          e.currentTarget.toggleAttribute("data-scrolled-x", e.currentTarget.scrollLeft > 0);
+          markOverflow(e.currentTarget);
         }}
       >
         <table>
@@ -496,7 +562,7 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
                 );
               })}
             </tr>
-            <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable pinned={pinned} />
+            {filtersOpen && <FilterRow columns={shown} values={view.columnFilters} onChange={grid.setColumnFilter} selectable pinned={pinned} />}
           </thead>
           <tbody ref={bodyRef}>
             {(() => {
@@ -590,6 +656,9 @@ export function DataGrid({ entity, title, columns, fetcher, initialState, onRowO
           )}
         </table>
       </div>
+      <p className="erp-grid__more erp-small erp-muted" data-testid="grid-more-x">
+        {t("grid.more_columns")}
+      </p>
       <GridFooter
         page={view.page}
         pageSize={view.pageSize}

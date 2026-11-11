@@ -12,7 +12,7 @@ vi.mock("@/lib/admin/actions", () => ({ adminAction: vi.fn() }));
 // Usuarios' 2FA column (design §22.19): "activo" with a factor, "pendiente" without one, and "exenta" for a user the admin
 // exempted from the admin role's requirement who has no factor (nothing is pending for them).
 
-const member = (name: string, mfaEnrolled: boolean, mfaExempt: boolean): AdminMember => ({
+const member = (name: string, mfaEnrolled: boolean, mfaRequired: boolean): AdminMember => ({
   userId: `019a2c4e-0000-7000-8000-0000000000${name.length.toString(16).padStart(2, "0")}`,
   name,
   email: `${name.toLowerCase()}@demo.local`,
@@ -21,7 +21,7 @@ const member = (name: string, mfaEnrolled: boolean, mfaExempt: boolean): AdminMe
   photo: null,
   roleIds: ["r-admin"],
   mfaEnrolled,
-  mfaExempt,
+  mfaRequired,
   locale: "es-419",
   isActive: true,
 });
@@ -34,13 +34,13 @@ const render = () =>
   renderToStaticMarkup(createElement(NextIntlClientProvider, { locale: "es-419", messages: messages("es-419"), timeZone: "America/Bogota" } as ComponentProps<typeof NextIntlClientProvider>, createElement(UsersScreen, { data })));
 
 describe("UsersScreen 2FA column", () => {
-  it("reads activo, pendiente or exenta", () => {
+  it("reads activo, exigida (required and not set up yet) or no activa", () => {
     const rows = render().split("<tr>").slice(2);
     const pill = (row: string) => row.match(/<td><span class="erp-pill erp-pill--(\w+)">([^<]+)<\/span><\/td><td><span class="erp-pill erp-pill--(?:ok|gray)">Activo/)?.slice(1, 3);
     expect(rows.map(pill)).toEqual([
       ["ok", "activo"],
-      ["warn", "pendiente"],
-      ["info", "exenta"],
+      ["info", "no activa"],
+      ["warn", "exigida"],
       ["ok", "activo"],
     ]);
   });

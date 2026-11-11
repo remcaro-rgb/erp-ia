@@ -184,7 +184,7 @@ test.describe("accounting records", () => {
     await page.getByRole("button", { name: "Agregar", exact: true }).click();
     await page.getByRole("checkbox", { name: "Contabilizar · contador" }).check();
     await expect(page.getByRole("checkbox", { name: "Ver · contador" })).toBeChecked();
-    await page.getByRole("button", { name: "Guardar", exact: true }).click();
+    await page.getByRole("tabpanel", { name: "Seguridad" }).getByRole("button", { name: "Guardar", exact: true }).click();
     await confirmStepUp(page, secret);
     await expect.poll(async () => (await fixture.sql`select access from accounting.accounts where id = ${ids["5105"]!}`)[0]?.access).toBe("restricted");
     const [grant] = await fixture.sql`select can_view, can_post, is_active from accounting.account_permissions where account_id = ${ids["5105"]!} and subject_id = ${ids.contador!}`;
@@ -214,7 +214,7 @@ test.describe("accounting records", () => {
     await context.close();
   });
 
-  test("missing and restricted Cuenta frames are identical: title Cuenta restringida, N.º ••••, the id's UUID, Abrir en una pestaña nueva opens the same URL, footer Sin acceso", async ({ browser }) => {
+  test("missing and restricted Cuenta frames are identical: title Cuenta restringida, ID ••••, the id's UUID, Abrir en una pestaña nueva opens the same URL, footer Sin acceso", async ({ browser }) => {
     test.setTimeout(120_000);
     // 510506 is restricted to contador (and its parent 5105 is, by inheritance); Marcela holds another role.
     await fixture.sql`update accounting.accounts set access = 'restricted' where id = ${ids["510506"]!}`;
@@ -229,9 +229,9 @@ test.describe("accounting records", () => {
       const frame = page.locator("section.erp-record");
       await expect(frame.getByRole("heading", { name: "Cuenta restringida" })).toBeVisible();
       const short = id.slice(0, 8);
-      await expect(frame.locator(".erp-record__ids")).toHaveText(`N.º •••• · uuid ${short}…`);
+      await expect(frame.locator(".erp-record__ids")).toHaveText(new RegExp(`^ID ••••\\s*UUID ${short}…$`));
       const link = frame.getByRole("link", { name: /Abrir en una pestaña nueva/ });
-      await expect(link).toHaveAttribute("href", `/r/accounting.account/${id}`);
+      await expect(link).toHaveAttribute("href", `/r/accounting.account/${id}?view=full`);
       await expect(link).toHaveAttribute("target", "_blank");
       await expect(frame.getByTestId("record-status")).toHaveText("Sin acceso");
       const tabs = await frame.getByRole("tab").allTextContents();

@@ -278,7 +278,7 @@ describe("datos adicionales", () => {
     expect(before.defs.map((d: { key: string }) => d.key)).toEqual(expect.arrayContaining(["canal", "cupo_extra"]));
 
     const ok = await saveRecordAction("core.party", { id: partyId, extra: { canal: "Mayoristas", cupo_extra: 2500000 }, extraFree: [{ name: "Ruta", value: "Norte 3" }] });
-    expect(ok).toEqual({ ok: true, id: partyId });
+    expect(ok).toEqual({ ok: true, id: partyId, updatedAt: expect.any(String) });
     const after = (await loadRecord("core.party", partyId))!;
     expect(after.record).toMatchObject({ extra: { canal: "Mayoristas", cupo_extra: 2500000 }, extra_free: [{ name: "Ruta", value: "Norte 3" }], legal_name: "Café del Norte S.A.S.", dian_status: before.record!.dian_status });
 
@@ -296,9 +296,9 @@ describe("datos adicionales: only what changed", () => {
     await saveRecordAction("core.party", { id: partyId, extra: { canal: "Mayoristas", cupo_extra: 1 } });
     // A form loaded now would hold cupo_extra = 1; somebody saves 2 meanwhile; the form then saves its own change.
     await saveRecordAction("core.party", { id: partyId, extraPatch: { cupo_extra: 2 } });
-    expect(await saveRecordAction("core.party", { id: partyId, extraPatch: { canal: "Minoristas" } })).toEqual({ ok: true, id: partyId });
+    expect(await saveRecordAction("core.party", { id: partyId, extraPatch: { canal: "Minoristas" } })).toEqual({ ok: true, id: partyId, updatedAt: expect.any(String) });
     expect((await loadRecord("core.party", partyId))!.record).toMatchObject({ extra: { canal: "Minoristas", cupo_extra: 2 } });
-    expect(await saveRecordAction("core.party", { id: partyId, extraPatch: { canal: null } })).toEqual({ ok: true, id: partyId });
+    expect(await saveRecordAction("core.party", { id: partyId, extraPatch: { canal: null } })).toEqual({ ok: true, id: partyId, updatedAt: expect.any(String) });
     expect((await loadRecord("core.party", partyId))!.record).toMatchObject({ extra: { cupo_extra: 2 } });
   });
 

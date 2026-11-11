@@ -3,7 +3,7 @@ import { gridPageAccess, type Caller, type ResolvedEntityDef, type RunProcessDep
 import type { ExportPresentation } from "@erp/kernel/exports";
 import { isLocale, messages, type Messages } from "@erp/i18n";
 import { buildColumns } from "@/lib/grid/columns";
-import { categoryOptions } from "@/lib/grid/options";
+import { categoryOptions, memberOptions } from "@/lib/grid/options";
 import { presentationOf } from "@/lib/grid/presentation";
 import { gridTables } from "@/lib/records/tables";
 
@@ -25,11 +25,11 @@ export function translator(locale: string): (key: string) => string {
 /** Labels and value labels of the entity's columns that the grid state exports (all of them when it names none). */
 export async function exportPresentation(deps: RunProcessDeps, caller: Caller, entity: ResolvedEntityDef, columns: readonly string[] | undefined): Promise<Required<ExportPresentation>> {
   const locale = caller.claims.locale;
-  const [access, categories] = await Promise.all([gridPageAccess(deps.sql, caller.claims, entity), entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([])]);
+  const [access, categories, members] = await Promise.all([gridPageAccess(deps.sql, caller.claims, entity), entity.id === "core.product" ? categoryOptions(caller) : Promise.resolve([]), (entity.id === "sales.order" || entity.id === "sales.delivery") ? memberOptions(caller) : Promise.resolve([])]);
   const wanted = columns ? new Set(columns) : null;
   const labels: Record<string, string> = {};
   const values: Record<string, Record<string, string>> = {};
-  for (const column of buildColumns(entity, access, presentationOf(entity.id), translator(locale), { ...gridTables(locale), categories })) {
+  for (const column of buildColumns(entity, access, presentationOf(entity.id), translator(locale), { ...gridTables(locale), categories, members })) {
     if (wanted && !wanted.has(column.field)) continue;
     labels[column.field] = column.label;
     if (column.options) values[column.field] = Object.fromEntries(column.options.map((o) => [o.value, o.label]));

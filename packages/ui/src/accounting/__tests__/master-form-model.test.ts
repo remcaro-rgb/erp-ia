@@ -20,8 +20,13 @@ describe("master form model", () => {
     // The code is shown on a stored cuenta but never sent: it does not change.
     expect(activeSpecs("account", false).find((s) => s.key === "code")?.createOnly).toBe(true);
     expect(masterInput("account", { ...draft, name: "Sueldos y salarios" }, "a-1")).toEqual({
-      id: "a-1", name: "Sueldos y salarios", nature: "debit", requiresParty: false, requiresCostCenter: true, requiresOpenAuxiliary: false, requiresItem: false, requiresBusinessUnit: false, isActive: true,
+      id: "a-1", name: "Sueldos y salarios", nature: "debit", requiresParty: false, requiresInvoiceReady: false, requiresCostCenter: true, requiresOpenAuxiliary: false, requiresItem: false, requiresBusinessUnit: false, isActive: true,
     });
+    // The invoice-ready flag (rule 10) is a flag like the others: shown, stored, and sent on every update.
+    const ready = masterDraft("account", { ...row, requires_invoice_ready: true });
+    expect(ready.requiresInvoiceReady).toBe(true);
+    expect(masterInput("account", ready, "a-1")).toMatchObject({ requiresInvoiceReady: true });
+    expect(activeSpecs("account", true).find((s) => s.key === "requiresInvoiceReady")?.column).toBe("requires_invoice_ready");
     expect(activeSpecs("account", true).map((s) => s.key)).not.toContain("isActive");
   });
 
@@ -30,7 +35,13 @@ describe("master form model", () => {
     expect(masterInput("dimension", node, "n-1")).toEqual({ id: "n-1", name: "Administración", parentId: null, kind: "leaf", isActive: true });
     expect(masterInput("dimension", { ...node, parentId: "g-1" }, "n-1")).toMatchObject({ parentId: "g-1" });
     const template = masterDraft("template", { name: "Arriendo", journal_id: "j-1", description: null });
-    expect(masterInput("template", template, "t-1")).toEqual({ id: "t-1", name: "Arriendo", journalId: "j-1", description: null });
+    expect(masterInput("template", template, "t-1")).toEqual({ id: "t-1", name: "Arriendo", journalId: "j-1", description: null, note: null, valuesEditable: true });
+  });
+
+  it("a plantilla keeps its note and whether its values can be changed", () => {
+    const stored = masterDraft("template", { name: "Arriendo", journal_id: "j-1", description: "x", note: " Solo contador ", values_editable: false });
+    expect(masterInput("template", stored, "t-1")).toMatchObject({ note: "Solo contador", valuesEditable: false });
+    expect(masterDraft("template", null).valuesEditable).toBe(true);
   });
 
   it("a period is shown, not edited", () => {

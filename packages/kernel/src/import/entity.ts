@@ -11,6 +11,7 @@ export const importEntity = defineEntity({
   schema: "kernel",
   table: "imports",
   label: "entity.kernel.import",
+  entityType: "sistema",
   displayField: "entity",
   defaultSort: { field: "created_at", dir: "desc" },
   processIds: { attach: "kernel.import.run" },

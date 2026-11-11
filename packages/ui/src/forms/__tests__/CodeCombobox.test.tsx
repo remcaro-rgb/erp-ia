@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderEs } from "../../shell/__tests__/intl";
 import { CodeCombobox } from "../fields/CodeCombobox";
-import { FormPrefsProvider } from "../form-context";
 import { CodeComboboxField, RecordForm } from "../form-parts";
 
 afterEach(cleanup);
@@ -104,16 +103,14 @@ describe("CodeCombobox", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
-  it("names the list by the field's label text, never by its DIAN hint", () => {
+  it("names the list by the field's label text, never by its hint", () => {
     renderEs(
-      <FormPrefsProvider value={{ dianHints: true, setDianHints: () => {} }}>
-        <RecordForm canSave onSave={() => {}} failure={null}>
-          <CodeComboboxField label="Municipio" hint="DANE · CityCode" hintKind="dian" value="" options={options} onChange={() => {}} />
-        </RecordForm>
-      </FormPrefsProvider>,
+      <RecordForm canSave onSave={() => {}} failure={null}>
+        <CodeComboboxField label="Municipio" hint="donde está la sede" value="" options={options} onChange={() => {}} />
+      </RecordForm>,
     );
-    // The hint shows (DIAN hints on) and still describes the box, but is no part of the list's name.
-    expect(screen.getByText("DANE · CityCode")).toBeTruthy();
+    // The hint shows and still describes the box, but is no part of the list's name.
+    expect(screen.getByText("donde está la sede")).toBeTruthy();
     const input = screen.getByRole("combobox", { name: /^Municipio/ });
     fireEvent.change(input, { target: { value: "a" } });
     const list = screen.getByRole("listbox");
@@ -256,22 +253,11 @@ describe("CodeCombobox", () => {
     expect(box().disabled).toBe(true);
   });
 
-  it("shows the code beside the name only while the DIAN hints are on", () => {
-    const setDianHints = vi.fn();
-    const { rerender } = renderEs(
-      <FormPrefsProvider value={{ dianHints: false, setDianHints }}>
-        <RecordForm canSave onSave={() => {}} failure={null}>
-          <CodeComboboxField label="Municipio" value="05088" options={options} onChange={() => {}} />
-        </RecordForm>
-      </FormPrefsProvider>,
-    );
-    expect(screen.getByRole("combobox", { name: "Municipio" }).getAttribute("value")).toBe("Bello");
-    rerender(
-      <FormPrefsProvider value={{ dianHints: true, setDianHints }}>
-        <RecordForm canSave onSave={() => {}} failure={null}>
-          <CodeComboboxField label="Municipio" value="05088" options={options} onChange={() => {}} />
-        </RecordForm>
-      </FormPrefsProvider>,
+  it("inside a record form always shows the code beside the name (owner 2026-11-05)", () => {
+    renderEs(
+      <RecordForm canSave onSave={() => {}} failure={null}>
+        <CodeComboboxField label="Municipio" value="05088" options={options} onChange={() => {}} />
+      </RecordForm>,
     );
     expect((screen.getByRole("combobox", { name: "Municipio" }) as HTMLInputElement).value).toBe("05088 · Bello");
     fireEvent.change(screen.getByRole("combobox", { name: "Municipio" }), { target: { value: "bel" } });

@@ -36,7 +36,7 @@ describe("account role mapping", () => {
 
   it("changes a mapping in place, removes one with null, and lists the unmapped roles", async () => {
     await h.runStepUp(h.admin, "accounting.account_role_mapping.update", { mappings: [{ role: "cash", accountId: await accountId("110510") }] });
-    expect((await mappingsOf("cash")).map((m) => m.code)).toEqual(["110510"]);
+    expect((await mappingsOf("cash")).filter((m) => m.dimension === null).map((m) => m.code)).toEqual(["110510"]);
     const removed = await h.runStepUp<{ upserted: number; removed: number }>(h.admin, "accounting.account_role_mapping.update", { mappings: [{ role: "cash", accountId: null }, { role: "bank", accountId: null }] });
     expect(removed).toEqual({ upserted: 0, removed: 2 });
     const view = await h.run<{ mappings: { role: string; dimension: string | null; accountCode: string }[]; unmapped: string[] }>(h.contador, "accounting.account_role_mapping.consult", {});
@@ -56,7 +56,7 @@ describe("account role mapping", () => {
     await expect(update([{ role: "cash", dimension: "no colon", accountId: await accountId("110505") }])).rejects.toMatchObject({ code: "invalid_input" });
     await expect(h.run(h.admin, "accounting.account_role_mapping.update", { mappings: [{ role: "cash", accountId: await accountId("110505") }] })).rejects.toMatchObject({ code: "step_up_required" });
     await h.sql`update accounting.accounts set is_active = true where company_id = ${h.companyId} and code = '110515'`;
-    expect((await mappingsOf("cash")).map((m) => m.code)).toEqual(["110505"]);
+    expect((await mappingsOf("cash")).filter((m) => m.dimension === null).map((m) => m.code)).toEqual(["110505"]);
   });
 });
 

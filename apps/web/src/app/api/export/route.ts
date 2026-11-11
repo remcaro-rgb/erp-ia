@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { start } from "workflow/api";
 import { reportOf, runProcess } from "@erp/kernel";
-import { exportJobWorkflow, exportRequest, markExportFailed, openExport, openReportExport, type ExportOutput, type ExportSpec } from "@erp/kernel/exports";
+import { exportRequest, markExportFailed, openExport, openReportExport, type ExportOutput, type ExportSpec } from "@erp/kernel/exports";
+import { exportJobWorkflow } from "@erp/kernel/workflows";
 import { callerOrResponse } from "@/lib/auth/http";
 import { exportPresentation, translator } from "@/lib/exports/presentation";
 import { gridEntity } from "@/lib/grid/access";

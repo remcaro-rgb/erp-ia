@@ -21,7 +21,7 @@ import { EXPORT_FAILED_MESSAGE, exportJobStatus } from "../jobs";
 
 const MODULE = `wfexp${randomUUID().slice(0, 6)}`;
 const probe = defineEntity({
-  id: `${MODULE}.probe`,
+  entityType: "maestro", id: `${MODULE}.probe`,
   module: MODULE,
   schema: "kernel",
   table: "role_probe",

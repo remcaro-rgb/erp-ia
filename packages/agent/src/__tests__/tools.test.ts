@@ -73,12 +73,22 @@ describe("input schemas", () => {
 describe("excluded processes", () => {
   it("leaves out what needs a file, a job or a sign-out the chat cannot handle, each with its reason", () => {
     expect([...EXCLUDED_PROCESSES.keys()].sort()).toEqual([
+      "accounting.posting_mode.set",
+      "invoicing.dian_checklist.tick",
+      "invoicing.dian_defaults.confirm",
+      "kernel.admin.nested_run.depth.set",
+      "kernel.admin.nested_run.pair.set",
       "kernel.admin.user.mfa.set",
+      "kernel.admin.user.password.reset",
       "kernel.attachment.add",
       "kernel.export.run",
       "kernel.import.preview",
       "kernel.import.run",
+      "kernel.nested_failure.dismiss",
+      "kernel.nested_failure.retry",
       "kernel.user.mfa.disable",
+      "kernel.user.password.change",
+      "payments.payment.open_invoices",
     ]);
     for (const reason of EXCLUDED_PROCESSES.values()) expect(reason.length).toBeGreaterThan(10);
   });
@@ -158,7 +168,7 @@ describe("confirmation preview", () => {
     const local = new Registry();
     local.registerEntity(
       defineEntity({
-        id: "test.visit",
+        entityType: "maestro", id: "test.visit",
         module: "test",
         schema: "test",
         table: "visits",
@@ -178,6 +188,32 @@ describe("confirmation preview", () => {
       { label: "at", value: "2026/10/29 10:30" },
       { label: "fee", value: "$ 1.234.567,00" },
     ]);
+  });
+
+  it("prints money in the input's currency: USD 12.500,00, not $ (task 34.2, item 129)", () => {
+    const local = new Registry();
+    local.registerEntity(
+      defineEntity({
+        entityType: "maestro", id: "test.charge",
+        module: "test",
+        schema: "test",
+        table: "charges",
+        label: "entity.test.charge",
+        displayField: "fee",
+        defaultSort: { field: "fee", dir: "asc" },
+        fields: [
+          { name: "fee", type: "money", label: "field.test.charge.fee" },
+          { name: "currency", type: "text", label: "field.test.charge.currency" },
+        ],
+      }),
+    );
+    const def = defineProcess({ id: "test.charge.create", module: "test", kind: "create", description: "Cobra", input: z.object({ fee: z.number(), currency: z.string() }), output: z.object({}), handler: async () => ({}) });
+    local.registerProcess(def);
+    const usd = buildPreview(local, def, { fee: 12500, currency: "USD" }, { locale: "es-419", stepUp: false });
+    expect(usd.effects).toContainEqual({ label: "fee", value: "USD 12.500,00" });
+    expect(usd.effects.map((e) => e.value).join(" ")).not.toContain("$");
+    const cop = buildPreview(local, def, { fee: 12500, currency: "COP" }, { locale: "es-419", stepUp: false });
+    expect(cop.effects).toContainEqual({ label: "fee", value: "$ 12.500,00" });
   });
 
   it("falls back to the input key when no field label exists, and renders booleans in Spanish", () => {

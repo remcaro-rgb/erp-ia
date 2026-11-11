@@ -24,7 +24,7 @@ Los dos son opcionales: **Auxiliares abiertos** e **Ítems** aparecen en **Conta
 
 ## Encenderlos
 
-1. Entra a **Contabilidad › Reglas contables › Configuración**.
+1. Entra a **Contabilidad › Parámetros › Reglas contables › Configuración**.
 2. En **Dimensiones analíticas en uso** marca **Usar auxiliares abiertos** y/o **Usar ítems**.
 3. Pulsa **Guardar**; pedirá tu código de verificación. Los maestros aparecen en el menú **Maestros** y como columnas en las líneas de los comprobantes.
 

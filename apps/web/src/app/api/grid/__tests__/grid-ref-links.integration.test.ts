@@ -88,6 +88,19 @@ describe("Productos grid: the supplier is a link to the party", () => {
     const [row] = await rows();
     expect(row).toMatchObject({ supplier_id: supplierId, supplier_id_label: "Café del Norte S.A.S." });
     expect(recordHref(column.ref!.entity, String(row!.supplier_id))).toBe(`/r/core.party/${supplierId}`);
+    expect(row).not.toHaveProperty("supplier_id_found");
+  });
+
+  it("a readable party whose name the role does not see has no label but is marked found (Task 39, final review m2)", async () => {
+    await fixture.sql`insert into kernel.field_permissions(company_id, role_id, entity, field, mode) values (${companyId}, ${roleId}, 'core.party', 'legal_name', 'hidden')`;
+    try {
+      const [row] = await rows();
+      expect(row!.supplier_id).toBe(supplierId);
+      expect(row).not.toHaveProperty("supplier_id_label");
+      expect(row!.supplier_id_found).toBe(true);
+    } finally {
+      await fixture.sql`delete from kernel.field_permissions where company_id = ${companyId} and role_id = ${roleId} and entity = 'core.party'`;
+    }
   });
 
   it("without core.party.consult the supplier is neither named nor linked", async () => {
@@ -97,6 +110,7 @@ describe("Productos grid: the supplier is a link to the party", () => {
       const [row] = await rows();
       expect(row!.supplier_id).toBe(supplierId);
       expect(row).not.toHaveProperty("supplier_id_label");
+      expect(row).not.toHaveProperty("supplier_id_found");
     } finally {
       await fixture.sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${roleId}, 'core.party.consult')`;
     }

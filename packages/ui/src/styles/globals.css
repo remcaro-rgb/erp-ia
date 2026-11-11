@@ -101,8 +101,14 @@
   /* Regions the caret is sent to (the skip link's target, a form's error summary) need no ring; other tabIndex -1
      elements keep theirs. */
   #erp-main:focus, [data-error-summary]:focus { outline: none; }
-  /* A record's sticky title and tabs never hide the field the caret scrolls to. */
-  #erp-main:has(.erp-record__top) { scroll-padding-top: 104px; }
+  /* A record's sticky title and tabs never hide the field the caret scrolls to: up to 150 px since the record's buttons share the tabs
+     bar and go on a line of their own above the tabs when they do not fit beside them (owner 2026-11-05). */
+  @media (min-height: 641px) { #erp-main:has(.erp-record__top) { scroll-padding-top: 150px; } }
+  /* ...nor the sticky save bar, which only exists on a tall viewport (status line + buttons, or the step-up prompt above them). */
+  @media (min-height: 1000px) {
+    #erp-main:has(.erp-form__actions) { scroll-padding-bottom: 96px; }
+    #erp-main:has(.erp-stepup) { scroll-padding-bottom: 200px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
   }

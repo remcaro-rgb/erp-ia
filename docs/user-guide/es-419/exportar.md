@@ -34,10 +34,17 @@ Necesitas el permiso **Exportar grids y reportes** (`kernel.export.run`) y poder
 - Una columna **oculta** para tu rol no está en el archivo.
 - Una columna **enmascarada** sale como `••••••` en todas las filas, igual que en la pantalla.
 - Las columnas de **Datos adicionales** salen solo si tu rol puede verlas.
+- Un registro con **acceso restringido** que tú no puedes ver no sale en el archivo, igual que no sale en el listado.
+
+La columna **Estado** de un maestro o documento sale con su nombre (Borrador, Grabado, Pendiente de Aprobación, No Aprobado, Aprobado, Contabilizado, Anulado), no con su código. La columna **ID** sale con el número consecutivo de cada registro (guía [Maestros y documentos](maestros-y-documentos.md)).
+
+## Exportar o Imprimir
+
+Los listados de maestros y documentos tienen además **Imprimir**, que genera un PDF con la **plantilla de listado** de la empresa (membrete, logo, totales), hasta 2.000 filas. **Exportar › PDF** es el PDF de datos, sin plantilla, hasta 10.000 filas. Para imprimir un solo registro, ábrelo y pulsa **Imprimir** en su barra de acciones (guía [Plantillas PDF e Imprimir](plantillas-pdf.md)).
 
 ## Listados grandes
 
-Hasta 9.999 filas el archivo se descarga al instante. Desde **10.000 filas** se genera en segundo plano: verás «Son muchas filas: se genera en segundo plano…» y la descarga empieza sola cuando termina (el enlace dura 10 minutos). Un **PDF** se arma en memoria, así que pasa a segundo plano desde **2.001 filas** y admite hasta **10.000**: para listados más grandes usa Excel o CSV (la pantalla lo avisa). Si pasan 10 minutos sin que termine, la pantalla deja de esperar y te lo dice; el archivo sigue generándose. Puedes seguir trabajando, también en otras pestañas de ERP-IA: la exportación sigue, el archivo se descarga solo y, si no estás en ese listado, un aviso abajo dice «Terceros · Descarga lista: …» (o por qué falló). Al volver al listado mientras se genera, ves que sigue en curso. Si cierras o recargas la pestaña del navegador antes de que termine, el archivo se genera igual pero tendrás que exportar de nuevo para descargarlo. Si algo falla, la pantalla lo dice y puedes intentarlo otra vez. Cuando la descarga empieza, el aviso «Descarga lista: …» se borra solo a los 8 segundos.
+Hasta 9.999 filas el archivo se descarga al instante. Desde **10.000 filas** se genera en segundo plano: verás «Son muchas filas: se genera en segundo plano…» y la descarga empieza sola cuando termina (el enlace dura 10 minutos). Un **PDF** se arma en memoria, así que pasa a segundo plano desde **2.001 filas** y admite hasta **10.000**: para listados más grandes usa Excel o CSV (la pantalla lo avisa). Si pasan 10 minutos sin que termine, la pantalla deja de esperar y te lo dice; el archivo sigue generándose. Puedes seguir trabajando, también en otras pestañas de Goliatt: la exportación sigue, el archivo se descarga solo y, si no estás en ese listado, un aviso abajo dice «Terceros · Descarga lista: …» (o por qué falló). Al volver al listado mientras se genera, ves que sigue en curso. Si cierras o recargas la pestaña del navegador antes de que termine, el archivo se genera igual pero tendrás que exportar de nuevo para descargarlo. Si algo falla, la pantalla lo dice y puedes intentarlo otra vez. Cuando la descarga empieza, el aviso «Descarga lista: …» se borra solo a los 8 segundos.
 
 ## Auditoría
 

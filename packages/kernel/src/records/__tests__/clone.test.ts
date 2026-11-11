@@ -8,6 +8,7 @@ import { cloneDraft, draftValues } from "../clone";
 // server-managed columns, the secret ones and the entity's own `cloneReset` fields.
 
 const party: EntityDef = {
+  entityType: "maestro",
   id: "test.party",
   module: "test",
   schema: "test",
@@ -122,6 +123,21 @@ describe("cloneDraft", () => {
     const draft = cloneDraft(registryWith(party), "test.party", source);
     (draft.kind as string[]).push("supplier");
     expect(source).toEqual(SOURCE);
+  });
+
+  it("copies a calendar date the driver hands as a Date (yyyy-mm-dd, as the create input takes it) and a datetime as ISO (Task 28.5)", () => {
+    const lot: EntityDef = {
+      ...party,
+      id: "test.lot",
+      table: "lots",
+      fields: [...party.fields, { name: "expires_on", type: "date", label: "f.expires_on" }, { name: "seen_at", type: "datetime", label: "f.seen_at" }],
+    };
+    const registry = new Registry();
+    registry.registerEntity(defineEntity(lot));
+    const input = createInput.extend({ expiresOn: z.iso.date().optional(), seenAt: z.iso.datetime().optional() });
+    registry.registerProcess(defineProcess({ id: "test.lot.create", module: "test", kind: "create", description: "prueba", input, output: z.object({ id: z.string() }), handler: async () => ({ id: "x" }) }));
+    const draft = cloneDraft(registry, "test.lot", { ...SOURCE, expires_on: new Date("2027-05-29T00:00:00Z"), seen_at: new Date("2026-11-10T15:30:00Z") });
+    expect(draft).toMatchObject({ expiresOn: "2027-05-29", seenAt: "2026-11-10T15:30:00.000Z" });
   });
 
   it("refuses an entity without a create process", () => {

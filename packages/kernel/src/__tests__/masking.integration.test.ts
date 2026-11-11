@@ -51,6 +51,20 @@ describe("field-level masking", () => {
     await sql.end();
   });
 
+  it("kernel.field_modes answers, field by field, what kernel.field_mode answers, and party_scope keeps its answer", async () => {
+    await setMode(0, company(0).memberRoleId, "masked");
+    const fields = ["secret", "id", "nope"];
+    for (const claims of [cashierClaims(), adminClaims(), cashierClaims(1)]) {
+      const [oneByOne, together] = await withClaims(sql, claims, async (tx) => [
+        await tx<{ field: string; mode: string }[]>`select f as field, kernel.field_mode('kernel.role_probe', f) as mode from unnest(${fields}::text[]) as f order by f`,
+        await tx<{ field: string; mode: string }[]>`select field, mode from kernel.field_modes('kernel.role_probe', ${fields}::text[]) order by field`,
+      ]);
+      expect(together).toEqual(oneByOne);
+    }
+    const [scope] = await withClaims(sql, adminClaims(), (tx) => tx<{ scope: string }[]>`select kernel.party_scope() as scope`);
+    expect(scope!.scope).toBe("ambos");
+  });
+
   it("a role with mode hidden reads null for that field through the view", async () => {
     await setMode(0, company(0).memberRoleId, "hidden");
     expect(await secretAs(cashierClaims())).toBeNull();

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { GENERIC_VERBS } from "../typed/processes";
 import { z } from "zod";
 import { withClaims, type JwtClaims } from "../db/client";
 import { seedTenant, testDb } from "../db/test-db";
-import { enableModule, entitled, entitlementLimit, syncModuleManifest } from "../entitlements/resolver";
+import { disableModule, enableModule, entitled, entitlementLimit, syncModuleManifest, syncModuleManifestIfChanged } from "../entitlements/resolver";
 import { defineModule, type ModuleDef } from "../module/define";
 import { loadModules } from "../module/loader";
 import { defineProcess } from "../process/define";
@@ -23,7 +24,7 @@ const proc = (id: string) => {
 };
 
 const party = defineEntity({
-  id: "core.party",
+  entityType: "maestro", id: "core.party",
   module: "core",
   schema: "core",
   table: "parties",
@@ -268,6 +269,21 @@ describe("entitlements", () => {
     expect(await sql`select 1 from kernel.company_modules where company_id = ${companyB}`).toHaveLength(0);
   });
 
+  it("disableModule (the service connection) switches a module off keeping its row, refuses while an enabled module depends on it, and creates the off row of a never-enabled one", async () => {
+    await enableModule(sql, companyId, "core", registry);
+    await enableModule(sql, companyId, "support", registry);
+    await expect(disableModule(sql, companyId, "core", registry)).rejects.toThrow(/support depends on core/);
+    await disableModule(sql, companyId, "support", registry);
+    await disableModule(sql, companyId, "support", registry);
+    const [off] = await sql`select enabled from kernel.company_modules where company_id = ${companyId} and module_id = 'support'`;
+    expect(off!.enabled).toBe(false);
+    await disableModule(sql, companyId, "core", registry);
+    await enableModule(sql, companyId, "core", registry);
+    const [back] = await sql`select enabled from kernel.company_modules where company_id = ${companyId} and module_id = 'core'`;
+    expect(back!.enabled).toBe(true);
+    await expect(disableModule(sql, companyId, "nope", registry)).rejects.toThrow(/unknown module: nope/);
+  });
+
   it("enableModule rejects a module the registry does not know and a company that does not exist", async () => {
     await expect(enableModule(sql, companyId, "nope", registry)).rejects.toThrow(/unknown module: nope/);
     await expect(enableModule(sql, "00000000-0000-0000-0000-000000000000", "core", registry)).rejects.toThrow();
@@ -278,13 +294,40 @@ describe("entitlements", () => {
       sql<{ feature_id: string; process_ids: string[]; entity_ids: string[] }[]>`
         select feature_id, process_ids, entity_ids from kernel.module_features where module_id = 'core' order by feature_id`;
     expect(await stored()).toEqual([
-      { feature_id: "core.parties", process_ids: ["core.party.create"], entity_ids: ["core.party"] },
+      // core.party is a maestro: the loader put the generic lifecycle processes in the feature that lists it.
+      { feature_id: "core.parties", process_ids: ["core.party.create", ...GENERIC_VERBS.map((v) => `core.party.${v}`)], entity_ids: ["core.party"] },
       { feature_id: "core.reports", process_ids: ["core.report.run"], entity_ids: [] },
     ]);
     await syncModuleManifest(sql, { ...core, features: core.features.slice(0, 1) });
     expect((await stored()).map((r) => r.feature_id)).toEqual(["core.parties"]);
     await syncModuleManifest(sql, core);
     expect((await stored()).map((r) => r.feature_id)).toEqual(["core.parties", "core.reports"]);
+  });
+
+  it("syncModuleManifestIfChanged writes nothing when the manifest is the one already stored, and syncs again when it changes", async () => {
+    const stamp = async () => (await sql<{ t: string }[]>`select max(updated_at)::text as t from kernel.module_features where module_id = 'core'`)[0]!.t;
+    await syncModuleManifest(sql, core);
+    await sql`delete from kernel.manifest_hashes where module_id = 'core'`;
+    expect(await syncModuleManifestIfChanged(sql, core)).toBe(true);
+    const before = await stamp();
+    // A server that boots again with the same manifests costs one read, not a rewrite.
+    expect(await syncModuleManifestIfChanged(sql, core)).toBe(false);
+    expect(await stamp()).toBe(before);
+    // A changed manifest is synced and remembered.
+    const fewer = { ...core, features: core.features.slice(0, 1) };
+    expect(await syncModuleManifestIfChanged(sql, fewer)).toBe(true);
+    expect((await sql`select feature_id from kernel.module_features where module_id = 'core'`).map((r) => r.feature_id)).toEqual(["core.parties"]);
+    expect(await syncModuleManifestIfChanged(sql, fewer)).toBe(false);
+    expect(await syncModuleManifestIfChanged(sql, core)).toBe(true);
+  });
+
+  it("entitled calls made in the same tick are answered together, each for its own key and company", async () => {
+    const keys = ["module:core", "module:support", "module:nope", "process:core.report.run"];
+    const together = await Promise.all([...keys.map((k) => entitled(sql, companyId, k)), entitled(sql, companyB, "module:core")]);
+    const alone = [];
+    for (const k of keys) alone.push((await sql<{ e: boolean }[]>`select kernel.entitled(${companyId}, ${k}) as e`)[0]!.e);
+    alone.push((await sql<{ e: boolean }[]>`select kernel.entitled(${companyB}, ${"module:core"}) as e`)[0]!.e);
+    expect(together).toEqual(alone);
   });
 
   it("runProcess returns not_entitled before forbidden and records the denial", async () => {

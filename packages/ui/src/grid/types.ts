@@ -28,6 +28,8 @@ export interface GridColumn {
   options?: { value: string; label: string }[];
   /** Pill colour per raw value (`true`, `complete`…). */
   pills?: Record<string, PillTone>;
+  /** A row whose `field` holds a value while this column is `whenValue` shows `label` in `tone` instead (a posted comprobante that was reversed). Display only: filters keep the stored values. */
+  marked?: { field: string; whenValue: string; label: string; tone: PillTone };
   /** `mono`: codes and ids; `dian`: a DIAN status pill (`complete`, `missing: n`, `errors`). */
   display?: "mono" | "dian";
   /** Offered by the column chooser and the advanced filter, but not shown until chosen. */
@@ -48,6 +50,11 @@ export interface GridColumn {
    * own record. Absent: the name is plain text.
    */
   linkable?: boolean;
+  /**
+   * A reference column whose target the viewer may not be able to read (a pedido of another salesperson): when the row carries no name for it,
+   * the cell reads this text, plain and muted, never the id and never a link.
+   */
+  unavailable?: string;
 }
 
 export type GridRow = Record<string, unknown> & { id: string };
