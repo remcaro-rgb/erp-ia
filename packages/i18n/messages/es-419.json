@@ -4964,7 +4964,8 @@
       "serial_id": "Serial",
       "warehouse_id": "Bodega",
       "bucket": "Rango de días",
-      "currency_code": "Moneda del documento"
+      "currency_code": "Moneda del documento",
+      "not_due": "Por vencer"
     },
     "enum": {
       "accounting": {
@@ -4976,6 +4977,11 @@
           "currency": {
             "company": "Equivalente en COP",
             "document": "Moneda del documento"
+          },
+          "notDue": {
+            "exclude": "Fuera del total",
+            "include": "Incluir en el total",
+            "only": "Solo por vencer"
           }
         },
         "dimension_detail": {
@@ -5003,6 +5009,11 @@
             "b3": "61–90 días",
             "over": "Más de 90 días",
             "credits": "Anticipos y saldos a favor"
+          },
+          "notDue": {
+            "exclude": "Fuera del total",
+            "include": "Incluir en el total",
+            "only": "Solo por vencer"
           }
         }
       },

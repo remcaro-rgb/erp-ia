@@ -17,6 +17,7 @@ Este informe responde «¿quién me debe, desde cuándo?» (cartera) y «¿a qui
 2. En **Tipo** elige **Cartera (clientes)** o **Por pagar (proveedores)**.
 3. En **A la fecha** pon el día de corte. Por defecto los rangos son los del sistema; en **Rangos de días** puedes cambiarlos.
 4. En **Moneda** elige **Equivalente en COP** (por defecto) o **Moneda del documento**.
+5. En **Por vencer** elige **Fuera del total** (por defecto), **Incluir en el total** o **Solo por vencer**.
 
 ![Cartera por edades con cinco rangos](img/cartera-por-edades.png)
 
@@ -26,8 +27,9 @@ Una fila por tercero y las columnas **Por vencer**, **1–30 días**, **31–60 
 
 - Una partida abierta es una línea con fecha de vencimiento en una cuenta de cartera (clientes) o de proveedores.
 - **Anticipos y saldos a favor** va en negativo y el **Total** ya lo descuenta.
+- El **Total** suma solo lo **vencido** (de 1 día en adelante) menos los anticipos: lo **Por vencer** se ve en su columna pero no entra en el total. Con **Por vencer › Incluir en el total**, el total suma también lo por vencer y es el saldo de la cuenta del tercero. Con **Solo por vencer**, el informe muestra solo los terceros con partidas que aún no vencen, y el total es ese valor.
 - Haz clic en un tercero para ver sus **partidas abiertas** documento por documento, y en un documento para abrir su comprobante.
-- Haz clic en **cualquier valor** (un rango de días, los anticipos o el total de un tercero) para ver los documentos que lo forman: se abre el **Detalle de cartera** en una pestaña nueva, con el nombre del tercero y del rango («Almacenes Éxito S.A. · 31–60 días»). Lista cada partida abierta con su comprobante (enlace), su descripción (la factura que la originó), la fecha, el vencimiento, los días vencidos, el rango, la cuenta y el **saldo abierto**; la suma del pie es el valor en el que hiciste clic. El **Total** de un tercero muestra todos sus rangos; el valor de un **Subtotal** en **Moneda del documento** muestra los documentos de esa moneda de todos los terceros. El detalle tiene los mismos parámetros que la cartera (tipo, fecha de corte, moneda), más el tercero y el rango, y se exporta a PDF, Excel o CSV como cualquier informe.
+- Haz clic en **cualquier valor** (un rango de días, los anticipos o el total de un tercero) para ver los documentos que lo forman: se abre el **Detalle de cartera** en una pestaña nueva, con el nombre del tercero y del rango («Almacenes Éxito S.A. · 31–60 días»). Lista cada partida abierta con su comprobante (enlace), su descripción (la factura que la originó), la fecha, el vencimiento, los días vencidos, el rango, la cuenta y el **saldo abierto**; la suma del pie es el valor en el que hiciste clic. El **Total** de un tercero muestra los documentos que suma el total (sin los por vencer, salvo que el parámetro los incluya); en el detalle, **Rango de días › Todos** sigue la misma regla y **Por vencer** muestra solo los que aún no vencen; el valor de un **Subtotal** en **Moneda del documento** muestra los documentos de esa moneda de todos los terceros. El detalle tiene los mismos parámetros que la cartera (tipo, fecha de corte, moneda), más el tercero y el rango, y se exporta a PDF, Excel o CSV como cualquier informe.
 
 ## Cómo se calcula lo pendiente
 

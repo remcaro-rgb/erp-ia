@@ -61,7 +61,8 @@ export function paramSpecs(def: ReportDef, t: Translate, has: (key: string) => b
   const defaults: ReportParams = {};
   const specs = Object.entries(json.properties ?? {}).map(([name, p]): ParamSpec => {
     if (isScalar(p.default)) defaults[name] = p.default;
-    const base = { name, label: label(name), ...(required.has(name) ? { required: true } : {}) };
+    // An enum with a default always has a value: no blank «Todos» before its options (it would repeat an «all» option).
+    const base = { name, label: label(name), ...(required.has(name) || (p.enum && isScalar(p.default)) ? { required: true } : {}) };
     const listed = options[name];
     if (listed) return { ...base, type: p.enum ? "enum" : "ref", options: listed };
     if (p.enum) return { ...base, type: "enum", options: p.enum.filter(isScalar).map((value) => ({ value: String(value), label: has(`report.enum.${def.id}.${name}.${value}`) ? t(`report.enum.${def.id}.${name}.${value}`) : String(value) })) };

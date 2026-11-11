@@ -40,8 +40,8 @@ describe("(9) «Moneda del documento»", () => {
     const usd = out.rows.filter((r) => r.currency === "USD");
     const cop = out.rows.filter((r) => r.currency === "COP");
     expect(usd.map((r) => [r.row_kind, r.party_id ?? null])).toEqual([["detail", usdParty], ["subtotal", null]]);
-    expect(figures(usd[0]!)).toEqual({ not_due: 1250, b1: 0, b2: 0, b3: 0, over: 0, credits: 0, total: 1250 });
-    expect(usd[1]).toMatchObject({ party_name: "Subtotal USD", total: 1250, not_due: 1250 });
+    expect(figures(usd[0]!)).toEqual({ not_due: 1250, b1: 0, b2: 0, b3: 0, over: 0, credits: 0, total: 0 });
+    expect(usd[1]).toMatchObject({ party_name: "Subtotal USD", total: 0, not_due: 1250 });
     const copDetail = cop.filter((r) => r.row_kind === "detail");
     expect(copDetail.map((r) => r.party_id)).toEqual(expect.arrayContaining([copParty]));
     const copSubtotal = cop.find((r) => r.row_kind === "subtotal")!;
@@ -61,9 +61,29 @@ describe("(9) «Equivalente en COP»", () => {
     expect(company).toEqual(byDefault);
     expect(company.rows.every((r) => r.currency === "COP" && r.row_kind === "detail")).toBe(true);
     const usd = company.rows.find((r) => r.party_id === usdParty)!;
-    expect(figures(usd)).toEqual({ not_due: 5150000, b1: 0, b2: 0, b3: 0, over: 0, credits: 0, total: 5150000 });
+    expect(figures(usd)).toEqual({ not_due: 5150000, b1: 0, b2: 0, b3: 0, over: 0, credits: 0, total: 0 });
     expect(company.aggregates.total).toBe(company.rows.reduce((s, r) => s + r.total, 0));
     expect(company.aggregates).toMatchObject({ currency: "company", valuesIn: "COP" });
+  });
+});
+
+// «Por vencer» (owner 2026-11-11): the total leaves out what is not yet due unless the parameter puts it in.
+describe("«Por vencer» and the total", () => {
+  it("leaves the not-due figure out of «Total» by default and puts it in with «Incluir en el total»", async () => {
+    const byDefault = await aging();
+    expect(await aging({ notDue: "exclude" })).toEqual(byDefault);
+    const usd = byDefault.rows.find((r) => r.party_id === usdParty)!;
+    expect(usd).toMatchObject({ not_due: 5150000, total: 0 });
+    expect(byDefault.aggregates.total).toBe(byDefault.rows.reduce((s, r) => s + r.total, 0));
+    const included = await aging({ notDue: "include" });
+    expect(included.rows.find((r) => r.party_id === usdParty)).toMatchObject({ not_due: 5150000, total: 5150000 });
+    expect(included.aggregates).toMatchObject({ notDue: "include" });
+  });
+
+  it("«Solo por vencer» keeps the parties with something not yet due, the total being that figure", async () => {
+    const only = await aging({ notDue: "only" });
+    expect(only.rows.length).toBeGreaterThan(0);
+    expect(only.rows.every((r) => r.not_due !== 0 && r.total === r.not_due && r.b1 === 0 && r.b2 === 0 && r.b3 === 0 && r.over === 0 && r.credits === 0)).toBe(true);
   });
 });
 
@@ -78,13 +98,15 @@ describe("Detalle de cartera", () => {
     expect(out.rows.every((r) => r.party_id === usdParty && r.bucket === "report.aging.not_due" && typeof r.entry_id === "string" && r.number !== "")).toBe(true);
     expect(out.rows.reduce((s, r) => s + r.open, 0)).toBe(row.not_due);
     expect(out.aggregates.open).toBe(row.not_due);
-    // «Total» is every bucket; another bucket of the same party has nothing.
-    expect((await detail({ partyId: usdParty, bucket: "all" })).rows).toHaveLength(2);
+    // «Total» is every bucket the total adds: by default not what is not yet due; with «Incluir en el total», every bucket.
+    expect((await detail({ partyId: usdParty, bucket: "all" })).rows).toHaveLength(0);
+    expect((await detail({ partyId: usdParty, bucket: "all", notDue: "include" })).rows).toHaveLength(2);
+    expect((await detail({ partyId: usdParty, notDue: "only" })).rows).toHaveLength(2);
     expect((await detail({ partyId: usdParty, bucket: "over" })).rows).toHaveLength(0);
   });
 
   it("in «Moneda del documento» lists each item in its own currency, only the clicked currency's", async () => {
-    const out = await detail({ currency: "document", currencyCode: "USD" });
+    const out = await detail({ currency: "document", currencyCode: "USD", bucket: "not_due" });
     expect(out.rows.map((r) => [r.currency, r.open]).sort()).toEqual([["USD", 1000], ["USD", 250]].sort());
   });
 });

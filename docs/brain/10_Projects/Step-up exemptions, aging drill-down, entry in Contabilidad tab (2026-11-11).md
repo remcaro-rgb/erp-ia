@@ -19,3 +19,8 @@ Owner request of 2026-11-11, recorded as design §22.32 and in rule 15 of [[Proj
 
 ## Comprobante in the Contabilidad tab
 - `EntriesTab` (server) replaces the grid of comprobantes with each comprobante's own Datos form, read-only (header + lines), up to four; more keeps the grid. `WithoutRecordBridge` keeps the embedded form away from the document's Guardar / ⌘S / unsaved guard.
+
+## Aging total without «Por vencer» (same day, design §22.33)
+- `agingParams.notDue` (`exclude` default · `include` · `only`) and `agingCounts(bucket, notDue)` decide which items show and which the «Total» adds; [[Module accounting]]'s detail report shares it, so «Todos» in the drill-down lists what the total adds.
+- Tests that read the total as the account balance now pass `notDue: "include"`.
+- `paramSpecs` (apps/web `lib/reports/load.ts`): an enum parameter with a default is treated as required, so the select no longer shows a blank «Todos» before an `all` option («Todos» twice in «Rango de días»).

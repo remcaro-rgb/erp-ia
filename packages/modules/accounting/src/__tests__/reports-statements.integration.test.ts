@@ -51,11 +51,11 @@ const byCode = (rows: Row[], code: string) => rows.find((r) => r.account_code ==
 const accountId = async (code: string) => (await h.sql<{ id: string }[]>`select id from accounting.accounts where company_id = ${h.companyId} and code = ${code}`)[0]!.id;
 
 describe("statement reports", () => {
-  it("the module registers its thirteen reports against consult processes", () => {
+  it("the module registers its fourteen reports against consult processes", () => {
     expect(h.deps.registry.reports("accounting").map((r) => r.id).sort()).toEqual([
       "accounting.account_detail", "accounting.balance_sheet", "accounting.cost_center_statement", "accounting.dimension_detail", "accounting.income_statement",
       "accounting.journal_book", "accounting.ledger", "accounting.party_detail", "accounting.trial_balance",
-      "accounting.aging", "accounting.control_reconciliation", "accounting.exogena", "accounting.manual_entries_audit",
+      "accounting.aging", "accounting.aging_detail", "accounting.control_reconciliation", "accounting.exogena", "accounting.manual_entries_audit",
     ].sort());
   });
 

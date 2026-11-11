@@ -58,7 +58,8 @@ describe("control reports", () => {
     await post(dateIn(6, 10), [{ code: "111005", debit: 150 }, { code: "130505", credit: 150, party: partyA }]); // applied FIFO to the oldest
     await post(dateIn(5, 25), [{ code: "513505", debit: 300, cc: true }, { code: "220505", credit: 300, party: partyB, dueDate: dateIn(6, 1) }]); // 29 days
 
-    const receivable = await report("accounting.aging", { kind: "receivable", asOf: asOf() });
+    // «Incluir en el total»: the total adds what is not yet due, so it is the account's balance (owner 2026-11-11).
+    const receivable = await report("accounting.aging", { kind: "receivable", asOf: asOf(), notDue: "include" });
     expect(receivable.rows).toHaveLength(1);
     expect(receivable.rows[0]).toMatchObject({ party_name: "Cliente A S.A.S.", not_due: 400, b1: 100, b2: 200, b3: 0, over: 650, total: 1_350 });
     expect(receivable.aggregates).toMatchObject({ not_due: 400, b1: 100, b2: 200, over: 650, total: 1_350 });
@@ -67,6 +68,8 @@ describe("control reports", () => {
       select sum(l.debit - l.credit) as net from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
       where l.company_id = ${h.companyId} and a.code = '130505' and l.party_id = ${partyA} and e.status = 'posted' and e.date <= ${asOf()}::date`;
     expect(Number(balance!.net)).toBe(1_350);
+    // By default «Total» leaves out what is not yet due.
+    expect((await report("accounting.aging", { kind: "receivable", asOf: asOf() })).rows[0]).toMatchObject({ not_due: 400, total: 950 });
 
     const payable = await report("accounting.aging", { kind: "payable", asOf: asOf() });
     expect(payable.rows.map((r) => [r.party_name, r.b1, r.total])).toEqual([["Proveedor B S.A.S.", 300, 300]]);
@@ -75,7 +78,7 @@ describe("control reports", () => {
     const custom = await report("accounting.aging", { kind: "receivable", asOf: asOf(), buckets: [10, 20, 30] });
     expect(custom.rows[0]).toMatchObject({ b1: 100, b2: 0, b3: 0, over: 850, not_due: 400 });
     const earlier = await report("accounting.aging", { kind: "receivable", asOf: dateIn(2, 1) });
-    expect(earlier.rows[0]).toMatchObject({ total: 800, not_due: 800 });
+    expect(earlier.rows[0]).toMatchObject({ total: 0, not_due: 800 });
     await expect(report("accounting.aging", { kind: "receivable", asOf: asOf(), buckets: [30, 20, 90] })).rejects.toMatchObject({ code: "invalid_input" });
   });
 

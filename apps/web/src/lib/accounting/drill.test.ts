@@ -60,6 +60,11 @@ describe("agingDrillHref", () => {
       kind: "receivable", asOf: "2026-11-11", currency: "document", currencyCode: "USD", bucket: "all",
     });
   });
+  it("carries «Por vencer», so the detail of «Total» lists what the total adds", () => {
+    expect(decode(agingDrillHref("accounting.aging", { party_id: "p-1" }, "total", { kind: "receivable", asOf: "2026-11-11", notDue: "include" })!)).toEqual({
+      kind: "receivable", asOf: "2026-11-11", notDue: "include", partyId: "p-1", bucket: "all",
+    });
+  });
   it("is null for another report or a column that is no figure", () => {
     expect(agingDrillHref("accounting.trial_balance", { party_id: "p" }, "b1", {})).toBeNull();
     expect(agingDrillHref("accounting.aging", { party_id: "p" }, "party_name", {})).toBeNull();

@@ -1,6 +1,6 @@
 import { defineProcess, defineReport, type ReportColumn } from "@erp/kernel";
 import { z } from "zod";
-import { AGING_BUCKETS, agingBucket, agingItems, agingParams } from "./aging";
+import { AGING_BUCKETS, agingBucket, agingCounts, agingItems, agingParams } from "./aging";
 import { cents, reportInput, reportOutput, windowOf } from "./common";
 
 // Detalle de cartera (owner 2026-11-11): the drill-down of a figure of the Cartera por edades. A click on an amount opens, in a tab of its
@@ -50,7 +50,9 @@ export const agingDetailConsult = defineProcess({
       const amount = Number(byDocument ? item.open_doc : item.open);
       if (amount === 0) continue;
       const bucket = agingBucket(amount, item.days, p.buckets);
-      if (p.bucket !== "all" && bucket !== p.bucket) continue;
+      // «Todos» is what the aging's «Total» adds under its «Por vencer»; a bucket picked by name is that bucket.
+      const counts = agingCounts(bucket, p.notDue);
+      if (p.bucket === "all" ? !counts.inTotal : bucket !== p.bucket || !counts.shown) continue;
       rows.push({
         row_kind: "detail",
         party_id: item.party_id,
@@ -67,7 +69,7 @@ export const agingDetailConsult = defineProcess({
         open: cents(amount),
       });
     }
-    const extra = { kind: p.kind, asOf: p.asOf, buckets: p.buckets, currency: p.currency, ...(byDocument ? {} : { valuesIn: companyCurrency }) };
+    const extra = { kind: p.kind, asOf: p.asOf, buckets: p.buckets, currency: p.currency, notDue: p.notDue, ...(byDocument ? {} : { valuesIn: companyCurrency }) };
     // The footer adds one currency only: in «Moneda del documento» the drill-down is of one currency (the clicked row's).
     const single = !byDocument || new Set(rows.map((r) => r.currency)).size <= 1;
     return windowOf(rows, state, { ...(single ? { totals: ["open"] } : {}), extra });

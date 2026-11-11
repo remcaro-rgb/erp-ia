@@ -8,6 +8,9 @@ import { cents, reportInput, reportOutput, windowOf } from "./common";
 // receivables of a company with the payments module, by what each recibo de caja applied to each invoice and each credit note to its
 // invoice (migration 0112). Its credit items (a saldo a favor beyond every document) and advance items (customer_advances) are
 // negative and go to «Anticipos y saldos a favor»; the total is net of them.
+// «Por vencer» (owner 2026-11-11, design §22.33): «Fuera del total» (`exclude`, the default: the column shows what is not yet due and «Total»
+// adds only what is due and the credits), «Incluir en el total» (`include`: «Total» adds every column) or «Solo por vencer» (`only`: the
+// parties with something not yet due, only that figure, «Total» being it).
 // «Moneda» (plan 2B.2 Task 34.7, FX §7): «Equivalente en COP» (`company`, the default: every figure in the company's currency, the footer
 // totals every party) or «Moneda del documento» (`document`: each item in its own currency, open_doc, the rows grouped by currency with a
 // subtotal row per currency and no grand total, since no report adds two currencies into one figure). Every money column names its
@@ -18,6 +21,7 @@ export const agingParams = z.object({
   asOf: z.iso.date(),
   buckets: z.tuple([z.number().int().min(1), z.number().int().min(2), z.number().int().min(3)]).default([30, 60, 90]),
   currency: z.enum(["company", "document"]).default("company"),
+  notDue: z.enum(["exclude", "include", "only"]).default("exclude"),
 });
 const ordered = (p: { buckets: readonly number[] }) => p.buckets[0]! < p.buckets[1]! && p.buckets[1]! < p.buckets[2]!;
 const params = agingParams.refine(ordered, { message: "Los rangos deben ir en orden ascendente" });
@@ -65,6 +69,12 @@ export async function agingItems(ctx: ProcessContext, p: { kind: "receivable" | 
       order by coalesce(o.due_date, o.date), e.number`;
 }
 
+/** Whether an item of `bucket` is in the report under «Por vencer» `notDue`, and whether «Total» adds it. */
+export function agingCounts(bucket: AgingBucket, notDue: "exclude" | "include" | "only"): { shown: boolean; inTotal: boolean } {
+  if (notDue === "only") return bucket === "not_due" ? { shown: true, inTotal: true } : { shown: false, inTotal: false };
+  return { shown: true, inTotal: bucket !== "not_due" || notDue === "include" };
+}
+
 /** The bucket an open amount falls in at `days` past due. */
 export function agingBucket(amount: number, days: number, [b1, b2, b3]: readonly number[]): AgingBucket {
   return amount < 0 ? "credits" : days <= 0 ? "not_due" : days <= b1! ? "b1" : days <= b2! ? "b2" : days <= b3! ? "b3" : "over";
@@ -106,14 +116,16 @@ export const agingConsult = defineProcess({
       const key = `${currency}|${item.party_id}`;
       const row = byParty.get(key) ?? { party_id: item.party_id, party_name: item.party_name ?? "", party_document: item.party_document ?? "", currency, row_kind: "detail", not_due: 0, b1: 0, b2: 0, b3: 0, over: 0, credits: 0, total: 0 };
       const bucket = agingBucket(amount, item.days, p.buckets);
+      const counts = agingCounts(bucket, p.notDue);
+      if (!counts.shown) continue;
       row[bucket] = Number(row[bucket]) + amount;
-      row.total = Number(row.total) + amount;
+      if (counts.inTotal) row.total = Number(row.total) + amount;
       byParty.set(key, row);
     }
     const rounded = (row: Record<string, unknown>) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, typeof v === "number" ? cents(v) : v]));
     const details = [...byParty.values()].map(rounded)
       .sort((a, c) => String(a.currency).localeCompare(String(c.currency)) || String(a.party_name).localeCompare(String(c.party_name)));
-    const extra = { kind: p.kind, asOf: p.asOf, buckets: p.buckets, currency: p.currency, ...(byDocument ? {} : { valuesIn: companyCurrency }) };
+    const extra = { kind: p.kind, asOf: p.asOf, buckets: p.buckets, currency: p.currency, notDue: p.notDue, ...(byDocument ? {} : { valuesIn: companyCurrency }) };
     if (!byDocument) return windowOf(details, state, { totals: [...BUCKETS, "total"], extra });
     // One subtotal row closing each currency's group, and no grand total: the footer would add pesos and dollars.
     const rows: Record<string, unknown>[] = [];

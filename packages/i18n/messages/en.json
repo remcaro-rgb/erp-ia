@@ -4964,7 +4964,8 @@
       "serial_id": "Serial",
       "warehouse_id": "Warehouse",
       "bucket": "Day bucket",
-      "currency_code": "Document currency"
+      "currency_code": "Document currency",
+      "not_due": "Not yet due"
     },
     "enum": {
       "accounting": {
@@ -4976,6 +4977,11 @@
           "currency": {
             "company": "COP equivalent",
             "document": "Document currency"
+          },
+          "notDue": {
+            "exclude": "Left out of the total",
+            "include": "Included in the total",
+            "only": "Only not yet due"
           }
         },
         "dimension_detail": {
@@ -5003,6 +5009,11 @@
             "b3": "61–90 days",
             "over": "Over 90 days",
             "credits": "Advances and credit balances"
+          },
+          "notDue": {
+            "exclude": "Left out of the total",
+            "include": "Included in the total",
+            "only": "Only not yet due"
           }
         }
       },

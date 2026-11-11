@@ -73,7 +73,7 @@ export function rangeLabel(range: { from: string; to: string }, month: (yearMont
 
 /**
  * The Detalle de cartera of a figure of the Cartera por edades (owner 2026-11-11): the aging's parameters, the row's party (none on a
- * currency subtotal) and the clicked bucket («Total» is every bucket); in «Moneda del documento», the row's currency. Null for any other
+ * currency subtotal) and the clicked bucket («Total» is every bucket the total adds under «Por vencer»); in «Moneda del documento», the row's currency. Null for any other
  * report or column.
  */
 export function agingDrillHref(reportId: string, row: Record<string, unknown>, field: string, params: ReportParams): string | null {
@@ -84,6 +84,7 @@ export function agingDrillHref(reportId: string, row: Record<string, unknown>, f
     kind: params.kind ?? "receivable",
     ...(params.asOf ? { asOf: params.asOf } : {}),
     ...(params.currency ? { currency: params.currency } : {}),
+    ...(params.notDue ? { notDue: params.notDue } : {}),
     ...(partyId ? { partyId } : {}),
     ...(currencyCode ? { currencyCode } : {}),
     bucket: field === "total" ? "all" : field,

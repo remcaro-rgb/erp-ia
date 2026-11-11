@@ -132,10 +132,11 @@ describe("a company with payments: open items follow the allocations", () => {
     expect(documents).toBe(345000);
     expect(await balanceOf(party, "130505")).toBe(345000);
 
-    // The aging report: every open document is not due today; the advance in «Anticipos y saldos a favor»; the total net of it.
+    // The aging report: every open document is not due today; the advance in «Anticipos y saldos a favor»; the total net of it and,
+    // by default, without what is not yet due (owner 2026-11-11).
     const due = await dueOf(inv.a!.id);
     expect(await dueOf(inv.b!.id)).toBe(due);
-    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 345000, b1: 0, b2: 0, b3: 0, over: 0, credits: -60000, total: 285000 });
+    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 345000, b1: 0, b2: 0, b3: 0, over: 0, credits: -60000, total: -60000 });
     // 45 days past the due date: every open document in 31–60; the advance stays in its own column.
     expect((await aging(addDays(due, 45))).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 0, b1: 0, b2: 345000, b3: 0, over: 0, credits: -60000, total: 285000 });
     // The day before everything: nothing.
@@ -168,7 +169,7 @@ describe("a company with payments: open items follow the allocations", () => {
     expect(openOf(items, await entryOf(paid.id))).toBe(0);
     expect(items.filter((i) => i.kind === "credit").map((i) => [i.account, i.open])).toEqual([["130505", -100000]]);
     expect(items.reduce((sum, i) => sum + i.open, 0)).toBe(await balanceOf(party, "130505"));
-    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 119000, credits: -100000, total: 19000 });
+    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 119000, credits: -100000, total: -100000 });
   });
 
   it("one receipt over several invoices with withholdings, then voided: every invoice is open again, nothing else is left", async () => {
@@ -211,7 +212,7 @@ describe("a company with payments: open items follow the allocations", () => {
     expect(await balanceOf(party, "130505")).toBe(357000 - 219000);
     expect(await balanceOf(party, "280505")).toBe(-81000);
     // The aging report sees it.
-    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 138000, credits: -81000, total: 57000 });
+    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 138000, credits: -81000, total: -81000 });
 
     await h.runStepUp("payments.advance.undo", { id: application.id, reason: "Se aplicó a facturas equivocadas" });
     items = await openItems(party);
@@ -230,7 +231,7 @@ describe("a company with payments: open items follow the allocations", () => {
     const items = await openItems(party);
     expect(openOf(items, await entryOf(invoice.id))).toBe(238000);
     expect(items.filter((i) => i.kind !== "document")).toEqual([]);
-    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 238000, total: 238000 });
+    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 238000, total: 0 });
   });
 
   it("a receivable credit no allocation explains (a manual entry) still applies FIFO; what is left beyond the documents is a credit item; the control reconciliation ties", async () => {
@@ -408,7 +409,7 @@ describe("access", () => {
     }
     const items = await openItems(party);
     expect([openOf(items, await entryOf(older.id)), openOf(items, await entryOf(newer.id))]).toEqual([119000, 0]);
-    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 119000, total: 119000 });
+    expect((await aging(h.today)).rows.find((r) => r.party_id === party)).toMatchObject({ not_due: 119000, total: 0 });
   });
 
   it("another company of the tenant sees none of these items (tenant isolation); a caller with no claims gets FIFO", async () => {

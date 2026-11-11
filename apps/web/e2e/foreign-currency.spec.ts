@@ -50,7 +50,7 @@ async function deliver(event: string, paymentId: string) {
 type AgingRow = { party_document: string; currency: string; total: number; row_kind: string };
 async function aging(request: APIRequestContext, asOf: string, currency: "company" | "document"): Promise<AgingRow[]> {
   const answer = await request.post("/api/report/accounting.aging", {
-    data: { params: { kind: "receivable", asOf, currency }, state: { filters: [], sort: [], page: 1, pageSize: 500 } },
+    data: { params: { kind: "receivable", asOf, currency, notDue: "include" }, state: { filters: [], sort: [], page: 1, pageSize: 500 } },
   });
   expect(answer.status(), await answer.text()).toBe(200);
   return ((await answer.json()) as { rows: AgingRow[] }).rows.filter((r) => r.party_document === NORTHWIND.documentNumber);

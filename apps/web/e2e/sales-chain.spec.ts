@@ -239,9 +239,9 @@ test.describe("the sale chain on the demo company", () => {
     // Inicio after the payment: Por cobrar is back where it was; Recaudo del mes grew by the money received.
     await expectCard(page, "invoicing", "invoicing.receivable", peso(before.receivable));
     await expectCard(page, "payments", "payments.collected_month", peso(before.collected + TOTAL - RETEFUENTE));
-    // And the aging report no longer has the sale: the customer owes what it owed before.
+    // And the aging report no longer has the sale: the customer owes what it owed before (the sale was not yet due).
     const settled = await aging();
-    expect(Number(settled?.total ?? 0)).toBeCloseTo(Number(owed!.total) - TOTAL, 2);
+    expect(Number(settled?.not_due ?? 0)).toBeCloseTo(Number(owed!.not_due) - TOTAL, 2);
 
     // Información exógena 1007 (ingresos recibidos) of the year: the customer's ingresos grew by the sale's subtotal; Exportar XML downloads.
     expect(await income(page.request, year)).toBeCloseTo(before.income + SUBTOTAL, 2);
