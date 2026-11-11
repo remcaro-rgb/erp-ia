@@ -56,6 +56,10 @@ const STAGE_TONE: Record<string, "ok" | "warn" | "danger" | "info" | "gray"> = {
   contacted: "warn",
   qualified: "ok",
   converted: "ok",
+  // A commission (Task 30.4): posted, reversed by an annulment or a credit note, paid.
+  posted: "ok",
+  reversed: "danger",
+  paid: "gray",
   discarded: "gray",
   won: "ok",
   lost: "danger",
@@ -69,6 +73,7 @@ const STAGE_ID: Record<string, string> = {
   "sales.return": "return-stage",
   "crm.lead": "lead-stage",
   "crm.opportunity": "opportunity-outcome",
+  "sales.commission": "commission-stage",
 };
 
 export interface SalesRecordViewProps {

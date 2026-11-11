@@ -19,6 +19,8 @@ export interface SettingsBox {
   kind: "percent" | "days" | "money" | "select" | "text";
   /** Empty means null (no threshold, no list, no limit); a `days` box is never empty. */
   nullable?: boolean;
+  /** A select with no empty choice (a setting that always has a value, as the commission basis). */
+  required?: boolean;
   options?: readonly CodeOption[];
   value: string;
 }
@@ -36,7 +38,7 @@ function Box({ box, value, disabled, onChange }: { box: SettingsBox; value: stri
       </label>
       {box.kind === "select" ? (
         <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
-          <option value="">—</option>
+          {!box.required && <option value="">—</option>}
           {(box.options ?? []).map((o) => (
             <option key={o.code} value={o.code}>
               {o.name}

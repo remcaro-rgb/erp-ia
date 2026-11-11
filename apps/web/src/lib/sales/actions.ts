@@ -84,7 +84,7 @@ export async function runSalesStepAction(entity: string, step: string, recordId:
 /** The parámetros pages of CRM and Ventas and a customer's condiciones comerciales: each saves through its own process. */
 const SETTINGS: Readonly<Record<string, { process: string; fields: readonly string[] }>> = {
   crm: { process: "crm.settings.update", fields: ["quoteApprovalDiscountPct", "quoteValidityDays"] },
-  sales: { process: "sales.settings.update", fields: ["defaultPriceListId", "orderApprovalDiscountPct"] },
+  sales: { process: "sales.settings.update", fields: ["defaultPriceListId", "orderApprovalDiscountPct", "commissionBasis"] },
   customer_terms: { process: "sales.customer_terms.set", fields: ["partyId", "priceListId", "discountPct", "creditLimit", "notes"] },
 };
 

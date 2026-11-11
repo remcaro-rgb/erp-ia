@@ -31,4 +31,12 @@ Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 1
 - `applyStock` ignores lots and `reservation.create` sums every bucket: both change in 28.2 / 28.3.
 - Payable accounts 2335/2505 need a party but not `invoice_ready`: the commission subcuentas override it in `extraAccounts()`.
 
+## Task 30 built (2026-11-10)
+- **30.1–30.3** (commits c7cc29a, 495c407 and earlier): plans, frozen bases at issue, accrual on invoice or pro rata on collection, CxP posting by payee kind, reversals on annulment, credit notes and receipt or advance voids.
+- **30.4** (screens, report, demo; no migration): the plan form `CommissionPlanForm` in the record frame (item 168 decided: payee lookup, kind, rates, validity, a salespeople switch list, category rates); **Ventas › Documentos › Comisiones** (grid and read-only record with its lines, stage pill, PDF default); **Ventas › Reportes › Comisiones por vendedor** (`sales.report.commissions`, one row per base, «Por causar», totals left out when masked, export); the settings box **Base de comisión**; new `sales.commission.consult`; `windowOf` moved to `@erp/kernel` (rule 3).
+- **Demo** (seed step 10, `scripts/demo/commissions.ts`): Laura's employee plan (5 %, 7 % «Café molido»), the agent plan for Marcela, a CAF-MOL-250 sale to Catering collected 40 % + 60 % → two COM documents, the payable open in CxP aging. `sales.commission.consult_all` granted to admin, gerente comercial and contador (item 167).
+- **Tests**: report and consult cases in `commission-accrual.integration.test.ts` (10); plan form model unit tests; seed assertions; e2e `sales-commissions.spec.ts` (plan on screen, receipt on screen, commission, report, aging, salesperson isolation) with helper `test-support/commission-chain.mts`; two eval cases.
+- **Guide**: `docs/user-guide/es-419/comisiones.md`; `ventas.md`, `cartera-por-edades.md` and the index updated.
+- Choices for the owner: items 191–198 in [[Plan phase-2b-owner-decisions-pending]].
+
 Related: [[Plan phase-2b-sales-stock-chain]], [[Plan phase-2b-owner-decisions-pending]].

@@ -82,6 +82,10 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
   { id: "sales.order", consult: "sales.order.consult", create: "sales.order.create", update: "sales.order.update", titleField: "number", nounKey: "nav.create.sales.order" },
   { id: "sales.delivery", consult: "sales.delivery.consult", create: "sales.delivery.create", update: "", titleField: "number", nounKey: "nav.create.sales.delivery" },
   { id: "sales.return", consult: "sales.return.consult", create: "sales.return.create", update: "", titleField: "number", nounKey: "nav.create.sales.return" },
+  // Comisiones (plan 2B.2 Task 30.4, owner item 168): the plan is a maestro saved by its create and update (its salespeople and category
+  // rates in its own form); a commission is written only by its events (accrual, reversal) and never imported.
+  { id: "sales.commission_plan", consult: "sales.commission_plan.consult", create: "sales.commission_plan.create", update: "sales.commission_plan.update", titleField: "name", nounKey: "nav.create.sales.commission_plan" },
+  { id: "sales.commission", consult: "sales.commission.consult", create: "", update: "", titleField: "number", nounKey: "nav.create.sales.commission", importable: false },
   // Facturación (plan 2B Task 20): an invoice is written by hand (Nueva factura, Duplicar) or from pedidos («Por facturar»), changed by its
   // update while it is a Borrador and issued with «Emitir»; a note is written only from the invoice it corrects («Crear nota crédito /
   // débito» on the invoice), so it has no create form of its own. Neither is imported: a DIAN document is issued, never loaded.

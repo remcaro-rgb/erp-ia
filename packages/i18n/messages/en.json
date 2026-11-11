@@ -1315,7 +1315,9 @@
       "sales": {
         "order": "order",
         "delivery": "delivery",
-        "return": "return"
+        "return": "return",
+        "commission_plan": "commission plan",
+        "commission": "commission"
       },
       "invoicing": {
         "invoice": "invoice",
@@ -1392,7 +1394,9 @@
       "orders": "Orders",
       "deliveries": "Deliveries",
       "returns": "Returns",
-      "commission_plans": "Commission plans"
+      "commission_plans": "Commission plans",
+      "commissions": "Commissions",
+      "commission_report": "Commissions by salesperson"
     },
     "invoicing": {
       "maestros": "Master data",
@@ -3527,7 +3531,11 @@
         "consult_all": "See every salesperson's commissions",
         "accrue": "Accrue the commissions of an invoice or a collection",
         "reverse": "Reverse a commission",
-        "adjust_for_note": "Adjust an invoice's commissions for a credit note"
+        "adjust_for_note": "Adjust an invoice's commissions for a credit note",
+        "consult": "View a commission"
+      },
+      "report": {
+        "commissions": "View the commissions by salesperson"
       }
     }
   },
@@ -4699,7 +4707,19 @@
       "value_1": "Value 1",
       "value_2": "Value 2",
       "value_3": "Value 3",
-      "currency": "Currency"
+      "currency": "Currency",
+      "sales": {
+        "payee": "Payee",
+        "plan": "Plan",
+        "invoice": "Invoice",
+        "product": "Product",
+        "base": "Base",
+        "rate": "Rate (%)",
+        "commission": "Commission",
+        "accrued": "Accrued",
+        "reversed": "Reversed",
+        "open": "To accrue"
+      }
     },
     "aging": {
       "not_due": "Not due",
@@ -4751,7 +4771,9 @@
       },
       "account_ids": "Accounts",
       "buckets": "Day ranges",
-      "currency": "Currency"
+      "currency": "Currency",
+      "payee_party_id": "Payee",
+      "status": "Status"
     },
     "enum": {
       "accounting": {
@@ -4771,6 +4793,15 @@
             "open_auxiliary": "Open auxiliary",
             "item": "Item",
             "business_unit": "Business unit"
+          }
+        }
+      },
+      "sales": {
+        "commissions": {
+          "status": {
+            "all": "All",
+            "open": "Open",
+            "closed": "Closed"
           }
         }
       }
@@ -4799,7 +4830,11 @@
     "period_result": "Result of the period",
     "total_assets": "Total assets",
     "total_equity": "Total equity",
-    "total_liabilities": "Total liabilities"
+    "total_liabilities": "Total liabilities",
+    "sales": {
+      "commissions": "Commissions by salesperson"
+    },
+    "inventory": {}
   },
   "accounting": {
     "entry": {
@@ -6169,7 +6204,13 @@
       "approval_discount_hint": "Empty: no order waits for approval because of its discount",
       "save": "Save",
       "saved": "Saved",
-      "bad_number": "Check: {fields}"
+      "bad_number": "Check: {fields}",
+      "commission_basis": "Commission basis",
+      "commission_basis_hint": "When the salesperson earns the commission; applies to invoices issued afterwards",
+      "commission_basis_options": {
+        "on_collection": "On collection",
+        "on_invoice": "On invoicing"
+      }
     },
     "customer_terms_page": {
       "form_title": "Set a customer's terms",
@@ -6201,13 +6242,48 @@
       "converted": "Price converted from COP at {rate}"
     },
     "commission_plan": {
-      "intro": "Who earns a commission, at what rate and on whose sales orders. Each salesperson sees only the plans that include them."
+      "intro": "Who earns a commission, at what rate and on whose sales orders. Each salesperson sees only the plans that include them.",
+      "form": {
+        "section": "Commission plan",
+        "name": "Name",
+        "payee": "Payee",
+        "payee_hint": "An employee or a supplier (external agent) ready to invoice",
+        "payee_kind": "Payee type",
+        "default_rate": "General rate (%)",
+        "payment_days": "Days to pay",
+        "valid_from": "Valid from",
+        "valid_to": "Valid to",
+        "valid_to_hint": "Empty: no end",
+        "notes": "Notes",
+        "active": "Active",
+        "users": "Salespeople",
+        "users_hint": "The users whose orders earn under this plan; each in a single active plan at a time",
+        "user_line": "Salesperson {name}",
+        "rates": "Rates by category",
+        "rates_hint": "A category that earns other than the general rate; the rest earn the general rate",
+        "category": "Category",
+        "rate": "Rate (%)",
+        "category_line": "Category of line {n}",
+        "rate_line": "Rate of line {n}",
+        "add_rate": "Add category",
+        "remove_rate": "Remove line {n}",
+        "masked_rates": "You cannot see this plan's rates",
+        "missing_field": {
+          "name": "the name",
+          "payee": "the payee",
+          "default_rate": "a general rate between 0 and 100",
+          "users": "at least one salesperson",
+          "lines": "valid category rates, one per category"
+        }
+      }
     },
     "commission": {
       "own_flags": {
         "requires_approval": "Asks no approval: the invoice or its collection accrues the commission.",
         "posts": "Always posts: every accrued commission makes its entry with the payable."
-      }
+      },
+      "intro": "What each payee is owed for what their salespeople sold: one commission (COM-) per invoice or per collection, as the basis says. They are created and reversed by themselves; each salesperson sees only those of their plans.",
+      "report_intro": "Each invoiced line that earns a commission, with its base, rate, commission, what was accrued and reversed and what is left to accrue, in pesos."
     },
     "recommendation": {
       "commission_paid_reversal": {

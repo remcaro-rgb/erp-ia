@@ -441,6 +441,51 @@ describe("commission accrual and posting (Task 30.2, migration 0157)", () => {
     }
   });
 
+  describe("(10) Task 30.4: Comisiones por vendedor and the commission's record", () => {
+    const report = (params: Record<string, unknown>) =>
+      runReport({ sql, registry }, admin, "sales.commissions", params, { filters: [], sort: [], page: 1, pageSize: 1000 }) as Promise<{ rows: Record<string, unknown>[]; total: number; aggregates: Record<string, unknown> }>;
+
+    it("one row per base of the payee in the period: base, rate, commission, accrued, reversed and what is left to accrue, in pesos, totalled", async () => {
+      const s = await sale(sellerEmployee);
+      const receipt = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: s.total * 0.4 }]);
+      expect(amounts(await commissionsOf(receipt.id))).toEqual([20000]);
+      const out = await report({ from: today, to: today, payeePartyId: payeeEmployee });
+      const row = out.rows.find((r) => r.invoice_id === s.invoiceId);
+      expect(row).toMatchObject({ payee_name: "Andrea Gómez", plan_name: "Andrea (empleada)", invoice_number: s.number, base: 1000000, rate_pct: 5, commission: 50000, accrued: 20000, reversed: 0, open: 30000, status: "open" });
+      expect(out.rows.every((r) => r.payee_party_id === payeeEmployee)).toBe(true);
+      // The totals are the payee's bases of the period, as the table holds them (open: what an open base has left to accrue).
+      const [sums] = await sql<{ base: string; commission: string; accrued: string; reversed: string; open: string; n: number }[]>`
+        select sum(base)::text as base, sum(commission)::text as commission, sum(accrued)::text as accrued, sum(reversed)::text as reversed,
+               sum(case when status = 'open' then greatest(commission - (accrued - reversed), 0) else 0 end)::text as open, count(*)::int as n
+        from sales.commission_bases where company_id = ${companyId} and payee_party_id = ${payeeEmployee} and invoice_date = ${today}::date`;
+      expect(out.total).toBe(sums!.n);
+      for (const field of ["base", "commission", "accrued", "reversed", "open"] as const) expect(Number(out.aggregates[field]), field).toBeCloseTo(num(sums![field]), 2);
+      expect(out.aggregates.valuesIn).toBe("COP");
+    });
+
+    it("the status filter keeps the open or the closed bases; a period with no invoice is empty", async () => {
+      const open = await report({ from: today, to: today, status: "open" });
+      expect(open.rows.length).toBeGreaterThan(0);
+      expect(open.rows.every((r) => r.status === "open")).toBe(true);
+      const closed = await report({ from: today, to: today, status: "closed" });
+      expect(closed.rows.every((r) => r.status === "closed")).toBe(true);
+      expect((await report({ from: "2000-01-01", to: "2000-01-31" })).rows).toEqual([]);
+      await expect(report({ from: today, to: plusDays(today, -1) })).rejects.toMatchObject({ code: "invalid_input" });
+    });
+
+    it("sales.commission.consult reads a commission with its lines, each naming its invoice and product, as the caller may see them", async () => {
+      const s = await sale(sellerAgent);
+      const receipt = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: s.total }]);
+      const [c] = await commissionsOf(receipt.id);
+      const out = await run<{ id: string; number: string; amount: string; lines: { base_id: string; amount: string; invoice_number: string; invoice_id: string; product_id: string | null }[] }>(admin, "sales.commission.consult", { id: c!.id });
+      expect(out).toMatchObject({ id: c!.id, number: c!.number });
+      expect(num(out.amount)).toBe(50000);
+      expect(out.lines).toHaveLength(1);
+      expect(out.lines[0]).toMatchObject({ invoice_number: s.number, invoice_id: s.invoiceId, product_id: servicio });
+      expect(num(out.lines[0]!.amount)).toBe(50000);
+    });
+  });
+
   describe("migration 0157", () => {
     it("brings the commission accounts, flags and mappings to a chart seeded before it, once; enabling sales no longer refuses the roles", async () => {
       const ROLLBACK = new Error("rollback");

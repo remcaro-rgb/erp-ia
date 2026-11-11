@@ -1,6 +1,6 @@
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
-import { addRefLabels, gridPageAccess, GridState, refLabelKey, runGridQuery, runnableProcesses, withClaims, type Caller, type FieldMode, type GridStateInput } from "@erp/kernel";
+import { addRefLabels, gridPageAccess, GridState, refLabelKey, runGridQuery, runnableProcesses, runProcess, withClaims, type Caller, type FieldMode, type GridStateInput } from "@erp/kernel";
 import { formatDay, formatDayTime, formatMoney, type CodeOption, type LookupSource, type SalesFormKind } from "@erp/ui";
 import { gridTab, type GridTab } from "@/lib/accounting/record-tabs";
 import { gridDenial, gridEntity } from "@/lib/grid/access";
@@ -30,6 +30,9 @@ export const SALES_FORMS: Readonly<Record<string, SalesFormKind>> = {
   "sales.order": "order",
   "sales.delivery": "delivery",
   "sales.return": "return",
+  // Task 30.4 (owner item 168): the plan edits in place, as the embudo; a commission is posted by the accrual and only read.
+  "sales.commission_plan": "commission_plan",
+  "sales.commission": "commission",
 };
 
 /**
@@ -101,8 +104,13 @@ export interface SalesFormData {
   editable: boolean;
   /** How the caller sees the fields of the lines (rule 14): with the price or discount masked, an open cotización's lines are not edited. */
   lineModes: Record<string, FieldMode>;
-  /** A stored record's facts, lines and steps; null for a new one (and for an embudo, which edits in place). */
+  /** A stored record's facts, lines and steps; null for a new one (and for an embudo or a plan de comisión, which edit in place). */
   view: SalesView | null;
+  /** A plan de comisión (Task 30.4): the members it may cover, the product categories a rate goes on, and its stored salespeople and rates. */
+  members: CodeOption[];
+  categories: CodeOption[];
+  planUserIds: string[];
+  planLines: { categoryId: string; ratePct: number | null }[];
 }
 
 type Row = Record<string, unknown> & { id: string };
@@ -113,6 +121,7 @@ const LINES: Record<string, { entity: string; parent: string }> = {
   "sales.delivery": { entity: "sales.delivery_line", parent: "delivery_id" },
   "sales.return": { entity: "sales.return_line", parent: "return_id" },
   "crm.opportunity": { entity: "crm.opportunity_line", parent: "opportunity_id" },
+  "sales.commission": { entity: "sales.commission_line", parent: "commission_id" },
 };
 
 /** The lot and serial columns of the lines of an entrega and a devolución (Task 28.3), shown only for a document with a tracked line. */
@@ -144,7 +153,7 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
   const kind = SALES_FORMS[entityId]!;
   const t = await getTranslations();
   const locale = await getLocale();
-  const needsParty = kind !== "pipeline";
+  const needsParty = kind !== "pipeline" && kind !== "commission";
   const [lists, party, product, lead, opportunity, source, runnable] = await Promise.all([
     withClaims(deps.sql, caller.claims, async (tx) => {
       const [today] = await tx<{ today: string; currency: string }[]>`select (now() at time zone timezone)::date::text as today, currency_code as currency from kernel.companies where id = ${caller.claims.active_company_id}`;
@@ -164,7 +173,11 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
           ? await tx<{ id: string; code: string | null; name: string | null }[]>`
               select id, code, name from crm.v_pipelines where coalesce(is_active, true) and status in ('saved', 'approved') order by is_default desc, code`
           : [];
-      return { today: today?.today ?? new Date().toISOString().slice(0, 10), companyCurrency: (today?.currency ?? "COP").trim(), currencies, warehouses, pipelines };
+      // A plan de comisión: the company's active members and the product categories (masked views, as the caller).
+      const plan = kind === "commission_plan";
+      const members = plan ? await activeMembers(tx) : [];
+      const categories = plan ? await tx<{ id: string; name: string | null }[]>`select id, name from core.v_product_categories where coalesce(is_active, true) order by name` : [];
+      return { today: today?.today ?? new Date().toISOString().slice(0, 10), companyCurrency: (today?.currency ?? "COP").trim(), currencies, warehouses, pipelines, members, categories };
     }),
     needsParty ? lookupSource(caller, "core.party") : Promise.resolve(null),
     kind === "quote" || kind === "order" || kind === "opportunity" ? lookupSource(caller, "core.product") : Promise.resolve(null),
@@ -173,6 +186,11 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
     kind === "delivery" ? lookupSource(caller, "sales.order") : kind === "return" ? lookupSource(caller, "sales.delivery") : Promise.resolve(null),
     runnableProcesses(deps.sql, deps.registry, caller.claims, entityId === "crm.quote" ? ["crm.quote.update"] : entityId === "sales.order" ? ["sales.order.update"] : []),
   ]);
+  // A stored plan de comisión's salespeople and rates, through its consult process as the caller (the record rule of 0156, the masked rates).
+  const stored =
+    kind === "commission_plan" && record
+      ? ((await runProcess(deps, caller, "sales.commission_plan.consult", { id: record.id })) as { userIds: string[]; lines: { categoryId: string; ratePct: number | null }[] })
+      : { userIds: [], lines: [] };
   const entity = deps.registry.entity(entityId);
   const labels: Record<string, string> = {};
   if (record) {
@@ -205,7 +223,7 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
     const page = await gridRows(caller, "crm.stage", { filters: [{ field: "pipeline_id", op: "eq", value: record.id }], sort: [{ field: "line_no", dir: "asc" }], page: 1, pageSize: 100 });
     lines = page.rows;
   }
-  const view = record && kind !== "pipeline" ? await salesView(caller, entityId, record) : null;
+  const view = record && kind !== "pipeline" && kind !== "commission_plan" ? await salesView(caller, entityId, record) : null;
   return {
     kind: "sales",
     sales: kind,
@@ -225,6 +243,10 @@ export async function loadSalesForm(caller: Caller, entityId: string, record: Ro
     editable,
     lineModes,
     view,
+    members: lists.members.map((m) => ({ code: m.id, name: m.name })),
+    categories: lists.categories.map((c) => ({ code: c.id, name: c.name ?? c.id })),
+    planUserIds: stored.userIds,
+    planLines: stored.lines,
   };
 }
 
@@ -311,7 +333,7 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
   const [linesGrid, runnable, linkable, access] = await Promise.all([
     lines ? gridTab(caller, lines.entity, [{ field: lines.parent, op: "eq", value: record.id }]) : Promise.resolve(null),
     runnableProcesses(deps.sql, deps.registry, caller.claims, Object.values(steps)),
-    linkableEntities(deps, caller.claims, ["core.party", "crm.quote", "crm.opportunity", "crm.lead", "sales.order", "sales.delivery", "sales.return", "crm.pipeline", "inventory.warehouse"]),
+    linkableEntities(deps, caller.claims, ["core.party", "crm.quote", "crm.opportunity", "crm.lead", "sales.order", "sales.delivery", "sales.return", "crm.pipeline", "inventory.warehouse", "sales.commission_plan", "sales.commission"]),
     gridDef ? gridPageAccess(deps.sql, caller.claims, gridDef) : Promise.resolve(null),
   ]);
   // Lots and serials (Task 28.3): the lot columns of an entrega or devolución show only when one of its lines is tracked (an untracked
@@ -451,6 +473,21 @@ async function salesView(caller: Caller, entityId: string, record: Row): Promise
     case "crm.activity":
       facts.push(plain("kind"), plain("subject"), ref("opportunity_id", "crm.opportunity"), ref("lead_id", "crm.lead"), ref("party_id", "core.party"), plain("due_at"), plain("done_at"), plain("notes"));
       shownStage = null;
+      break;
+    case "sales.commission":
+      // A commission (Task 30.4): posted by the accrual (or its reversal) of an invoice's commission bases; read only, its lines name the
+      // invoice lines it accrues. The amount is confidential (rule 14): a role that does not see it reads the masked marker.
+      facts.push(
+        ref("payee_party_id", "core.party"),
+        plain("payee_kind"),
+        ref("plan_id", "sales.commission_plan"),
+        plain("source_kind"),
+        plain("date"),
+        plain("due_date"),
+        { label: label("amount"), value: moneyText(modes.amount, record.amount, currency), mono: true, testId: "commission-amount" },
+        ref("reverses_id", "sales.commission", { mono: true }),
+        plain("notes"),
+      );
       break;
     default:
       break;

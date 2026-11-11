@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import {
   ActivityForm,
   CategoryForm,
+  CommissionPlanForm,
   EntryForm,
   formatMoney,
   FulfilForm,
@@ -194,6 +195,9 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
       const leadForm = <LeadForm key={key} record={record} initial={record ? null : copy} documentTypes={form.documentTypes} {...shared} />;
       if (record && form.view) return <SalesRecordView entity={entity} recordId={record.id} view={form.view} lead={{ form: leadForm, record, documentTypes: form.documentTypes }} />;
       return leadForm;
+    }
+    if (form.sales === "commission_plan") {
+      return <CommissionPlanForm key={key} record={record} today={form.today} userIds={form.planUserIds} lines={form.planLines} labels={form.labels} members={form.members} categories={form.categories} party={form.party} {...shared} />;
     }
     if (form.sales === "pipeline") return <PipelineForm key={key} record={record} stages={form.lines} initial={record ? null : copy} copyOf={record ? null : (clone?.sourceRowId ?? null)} {...shared} />;
     if (record && form.view) return <SalesRecordView entity={entity} recordId={record.id} view={form.view} />;

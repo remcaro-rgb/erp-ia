@@ -104,6 +104,8 @@ describe("sales manifest", () => {
         // Tasks 30.2, 30.3: the accrual, the reversal and the credit-note adjustment.
         "sales.commission.accrue", "sales.commission.reverse", "sales.commission.adjust_for_note",
         "sales.commission.save", "sales.commission.submit", "sales.commission.approve", "sales.commission.reject", "sales.commission.void", "sales.commission.delete",
+        // Task 30.4: the commission's record (Comisiones) and the report Comisiones por vendedor.
+        "sales.commission.consult", "sales.report.commissions",
       ].sort(),
     );
     expect(module.features.flatMap((f) => f.processes).sort()).toEqual(module.processes.map((p) => p.id).sort());
@@ -115,6 +117,9 @@ describe("sales manifest", () => {
       ["sales.orders", "sales.documentos", "/sales/orders"],
       ["sales.deliveries", "sales.documentos", "/sales/deliveries"],
       ["sales.returns", "sales.documentos", "/sales/returns"],
+      // Task 30.4: the commission documents and the report «Comisiones por vendedor».
+      ["sales.commissions", "sales.documentos", "/sales/commissions"],
+      ["sales.commission_report", "sales.reportes", "/sales/reports/commissions"],
       ["sales.customer_terms", "sales.parametros", "/sales/customer-terms"],
       ["sales.settings", "sales.parametros", "/sales/settings"],
       // A module with a documento gets the kernel's Parámetros pages of its documentos (entity types spec §9.2).
@@ -181,6 +186,27 @@ describe("sales masked views, migrations 0082, 0084, 0085 and 0156", () => {
     }
     // The plan lines are no entity of their own: their view masks the rate under the plan's default rate.
     expect(commissions).toMatch(/create or replace view sales\.v_commission_plan_lines[\s\S]*kernel\.field_visible\('sales\.commission_plan', ?'default_rate_pct'\)/);
+  });
+
+  it("Comisiones por vendedor (Task 30.4, PG §5.5): a report over sales.report.commissions by payee, period and status, every money column in pesos", () => {
+    const registry = loaded();
+    const report = registry.report("sales.commissions");
+    expect(report).toMatchObject({ module: "sales", feature: "sales.commissions", consult: "sales.report.commissions", label: "report.sales.commissions" });
+    expect(report.columns.map((c) => c.field)).toEqual(["payee_name", "plan_name", "invoice_number", "invoice_date", "product_name", "base", "rate_pct", "commission", "accrued", "reversed", "open"]);
+    for (const c of report.columns.filter((c) => c.type === "money")) expect(c.currency, c.field).toBe("company");
+    expect(report.totals).toEqual(["base", "commission", "accrued", "reversed", "open"]);
+    expect(Object.keys(report.params.shape)).toEqual(["from", "to", "payeePartyId", "status"]);
+    expect(registry.process("sales.report.commissions")).toMatchObject({ kind: "consult", feature: "sales.commissions" });
+    expect(registry.process("sales.commission.consult")).toMatchObject({ kind: "consult", feature: "sales.commissions" });
+  });
+
+  it("the plan and the commission open in the record frame; the commission prints with its default template (Task 30.4)", () => {
+    for (const id of ["sales.commission_plan", "sales.commission"]) expect(SALES_ENTITIES.find((e) => e.id === id)!.recordPage, id).toBe(true);
+    for (const id of ["sales.commission_base", "sales.commission_line"]) expect(SALES_ENTITIES.find((e) => e.id === id)!.recordPage ?? false, id).toBe(false);
+    const template = sales.printTemplates?.["sales.commission"]?.record?.({ title: "Comisión" } as never);
+    const fields = template!.blocks.filter((b) => b.kind === "field").map((b) => (b as { value: string }).value);
+    expect(fields).toEqual(["number", "date", "due_date", "payee_party_id", "payee_kind", "plan_id", "source_kind", "currency", "amount", "stage", "notes"]);
+    expect(template!.blocks.find((b) => b.kind === "lines")).toMatchObject({ columns: ["line_no", "amount"] });
   });
 
   it("sales.commission.consult_all is the «all commissions» permission: an update, so no new role gets it by default (owner item 167)", () => {

@@ -122,6 +122,30 @@ export const commissionConsultAll = defineProcess({
   handler: async () => ({ allowed: true as const }),
 });
 
+/**
+ * The commission's record (plan 2B.2 Task 30.4, PG §5.5): the documento and its lines as the caller may see them (masked views, the record
+ * rule of 0156), each line naming the base it accrues: the invoice, its number and date, the product. Read only: a commission changes only
+ * through its events (accrual, reversal), never from a screen.
+ */
+export const commissionConsult = defineProcess({
+  id: "sales.commission.consult",
+  module: "sales",
+  kind: "consult",
+  feature: FEATURE_COMMISSIONS,
+  description: "Consulta una comisión con sus líneas: de qué factura y producto viene cada una y su valor (los valores solo si el rol puede verlos)",
+  input: z.object({ id: z.uuid() }).strict(),
+  output: z.looseObject({ id: z.string(), lines: z.array(z.looseObject({ id: z.string() })) }),
+  handler: async (ctx, { id: commissionId }) => {
+    const [row] = await ctx.tx`select * from sales.v_commissions where id = ${commissionId}`;
+    if (!row) throw new ProcessError("not_found", `sales.commission ${commissionId} not found`);
+    const lines = await ctx.tx<{ id: string }[]>`
+      select l.*, b.invoice_id, b.invoice_number, b.invoice_date, b.product_id, b.rate_pct
+      from sales.v_commission_lines l left join sales.v_commission_bases b on b.id = l.base_id
+      where l.commission_id = ${commissionId} order by l.line_no`;
+    return { ...row, id: commissionId, lines };
+  },
+});
+
 // =============================================================================================================================================
 // Accrual (plan 2B.2 Task 30.2, Part G PG §5.2, §5.4; owner items 159–162; RG-11, RG-12, RG-13; migration 0157).
 //
@@ -625,4 +649,4 @@ export const onPaymentVoided: EventConsumer = voidConsumer("receipt");
 /** Consumer of payments.advance.unapplied: the application's commissions are reversed whole. */
 export const onAdvanceUnapplied: EventConsumer = voidConsumer("advance");
 
-export const COMMISSION_PROCESSES = [commissionCompute, commissionConsultAll, commissionAccrue, commissionReverse, commissionAdjustForNote];
+export const COMMISSION_PROCESSES = [commissionCompute, commissionConsultAll, commissionConsult, commissionAccrue, commissionReverse, commissionAdjustForNote];

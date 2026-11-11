@@ -54,7 +54,10 @@ describe("record entities", () => {
     const registry = new Registry();
     loadModules(registry, [kernelModule, core, inventory, costing, sales, crm]);
     const pages = [...recordPageEntities(registry.entities())].filter((id) => id.startsWith("crm.") || id.startsWith("sales.")).sort();
-    expect(pages).toEqual(["crm.activity", "crm.lead", "crm.opportunity", "crm.pipeline", "crm.quote", "sales.delivery", "sales.order", "sales.return"]);
+    // Task 30.4: the commission plan (a maestro saved by its create and update) and the commission (written only by its events).
+    expect(pages).toEqual(["crm.activity", "crm.lead", "crm.opportunity", "crm.pipeline", "crm.quote", "sales.commission", "sales.commission_plan", "sales.delivery", "sales.order", "sales.return"]);
+    expect(recordEntity("sales.commission_plan")).toMatchObject({ consult: "sales.commission_plan.consult", create: "sales.commission_plan.create", update: "sales.commission_plan.update", titleField: "name" });
+    expect(recordEntity("sales.commission")).toMatchObject({ consult: "sales.commission.consult", create: "", update: "", titleField: "number", importable: false });
     for (const id of pages) expect(recordEntity(id)).not.toBeNull();
   });
 

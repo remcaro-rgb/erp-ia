@@ -11,7 +11,7 @@ import { parseMoney } from "../money/format";
 const parseAmount = (text: string): number => parseMoney(text) ?? Number.NaN;
 
 /** The forms of the CRM and sales records. */
-export type SalesFormKind = "lead" | "pipeline" | "opportunity" | "quote" | "order" | "delivery" | "return" | "activity";
+export type SalesFormKind = "lead" | "pipeline" | "opportunity" | "quote" | "order" | "delivery" | "return" | "activity" | "commission_plan" | "commission";
 
 type Row = Readonly<Record<string, unknown>>;
 const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -518,4 +518,99 @@ export function activityInput(draft: ActivityDraft): Record<string, unknown> {
     dueAt: draft.dueDate ? `${draft.dueDate}T12:00:00Z` : undefined,
     done: draft.done,
   });
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Plan de comisión (plan 2B.2 Task 30.4, owner item 168): the payee (an employee or an external agent), the salespeople whose pedidos it
+// covers, the general rate and the rates by product category, the validity and the payment days of the accrual. Edited in place, as the
+// embudo. The process checks the payee's DIAN data, the members, the categories and that a salesperson has one active plan per date.
+
+export const PAYEE_KIND_OPTIONS = ["employee", "agent"] as const;
+
+export interface CommissionRateLine {
+  key: string;
+  categoryId: string;
+  /** As typed (comma or point). */
+  ratePct: string;
+}
+
+export interface CommissionPlanDraft {
+  name: string;
+  payeePartyId: string;
+  payeeLabel: string;
+  payeeKind: string;
+  defaultRatePct: string;
+  paymentDays: string;
+  validFrom: string;
+  validTo: string;
+  notes: string;
+  isActive: boolean;
+  userIds: string[];
+  lines: CommissionRateLine[];
+}
+
+export interface CommissionPlanStored {
+  userIds?: readonly string[];
+  lines?: readonly { categoryId: string; ratePct: number | null }[];
+  labels?: Readonly<Record<string, string>>;
+}
+
+export const emptyCommissionRateLine = (): CommissionRateLine => ({ key: nextKey(), categoryId: "", ratePct: "" });
+
+/** A plan's draft: the stored plan with its salespeople and category rates, or a new one from today, active, at 30 days. */
+export function commissionPlanDraft(today: string, record: Row | null, stored: CommissionPlanStored = {}): CommissionPlanDraft {
+  const labels = stored.labels ?? {};
+  return {
+    name: s(record?.name),
+    payeePartyId: s(record?.payee_party_id),
+    payeeLabel: s(labels.payee_party_id ?? record?.payee_party_id),
+    payeeKind: s(record?.payee_kind) || "employee",
+    defaultRatePct: numText(record?.default_rate_pct),
+    paymentDays: record ? numText(record.payment_days) : "30",
+    validFrom: record ? day(record.valid_from) : today,
+    validTo: record ? day(record.valid_to) : "",
+    notes: s(record?.notes),
+    isActive: record ? record.is_active !== false : true,
+    userIds: [...(stored.userIds ?? [])],
+    lines: (stored.lines ?? []).map((l) => ({ key: nextKey(), categoryId: l.categoryId, ratePct: numText(l.ratePct) })),
+  };
+}
+
+/** A percent typed with a comma or a point; NaN when it is not one between 0 and 100. */
+const percentOf = (text: string): number => {
+  const n = Number(text.trim().replace(",", "."));
+  return text.trim() !== "" && Number.isFinite(n) && n >= 0 && n <= 100 ? n : Number.NaN;
+};
+
+const filledRateLines = (draft: CommissionPlanDraft) => draft.lines.filter((l) => l.categoryId !== "" || l.ratePct.trim() !== "");
+
+/** What a plan still misses: a name, a payee, a general rate (0–100), a salesperson; every category rate valid and each category once. */
+export function commissionPlanMissing(draft: CommissionPlanDraft): string[] {
+  const missing: string[] = [];
+  if (!draft.name.trim()) missing.push("name");
+  if (!draft.payeePartyId) missing.push("payee");
+  if (Number.isNaN(percentOf(draft.defaultRatePct))) missing.push("default_rate");
+  if (draft.userIds.length === 0) missing.push("users");
+  const lines = filledRateLines(draft);
+  const categories = lines.map((l) => l.categoryId);
+  if (lines.some((l) => l.categoryId === "" || Number.isNaN(percentOf(l.ratePct))) || new Set(categories).size !== categories.length) missing.push("lines");
+  return missing;
+}
+
+/** sales.commission_plan.create's input (id null) or sales.commission_plan.update's; the empty rate lines are left out. */
+export function commissionPlanInput(draft: CommissionPlanDraft, id: string | null): Record<string, unknown> {
+  const days = Number(draft.paymentDays.trim());
+  const common = {
+    name: draft.name.trim(),
+    payeePartyId: draft.payeePartyId,
+    payeeKind: draft.payeeKind,
+    defaultRatePct: percentOf(draft.defaultRatePct),
+    paymentDays: Number.isInteger(days) && draft.paymentDays.trim() !== "" ? days : 30,
+    validFrom: draft.validFrom,
+  };
+  const lines = filledRateLines(draft).map((l) => ({ categoryId: l.categoryId, ratePct: percentOf(l.ratePct) }));
+  if (id === null) {
+    return definedOnly({ ...common, validTo: draft.validTo || undefined, notes: trimmed(draft.notes), isActive: draft.isActive, userIds: [...draft.userIds], lines });
+  }
+  return { id, ...common, validTo: draft.validTo || null, notes: draft.notes.trim(), isActive: draft.isActive, userIds: [...draft.userIds], lines };
 }

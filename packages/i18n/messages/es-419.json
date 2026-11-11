@@ -1315,7 +1315,9 @@
       "sales": {
         "order": "pedido",
         "delivery": "entrega",
-        "return": "devolución"
+        "return": "devolución",
+        "commission_plan": "plan de comisión",
+        "commission": "comisión"
       },
       "invoicing": {
         "invoice": "factura",
@@ -1392,7 +1394,9 @@
       "orders": "Pedidos",
       "deliveries": "Entregas",
       "returns": "Devoluciones",
-      "commission_plans": "Planes de comisión"
+      "commission_plans": "Planes de comisión",
+      "commissions": "Comisiones",
+      "commission_report": "Comisiones por vendedor"
     },
     "invoicing": {
       "maestros": "Maestros",
@@ -3527,7 +3531,11 @@
         "consult_all": "Ver las comisiones de todos los vendedores",
         "accrue": "Causar las comisiones de una factura o un recaudo",
         "reverse": "Revertir una comisión",
-        "adjust_for_note": "Ajustar las comisiones de una factura por una nota crédito"
+        "adjust_for_note": "Ajustar las comisiones de una factura por una nota crédito",
+        "consult": "Consultar una comisión"
+      },
+      "report": {
+        "commissions": "Consultar las comisiones por vendedor"
       }
     }
   },
@@ -4699,7 +4707,19 @@
       "value_1": "Valor 1",
       "value_2": "Valor 2",
       "value_3": "Valor 3",
-      "currency": "Moneda"
+      "currency": "Moneda",
+      "sales": {
+        "payee": "Beneficiario",
+        "plan": "Plan",
+        "invoice": "Factura",
+        "product": "Producto",
+        "base": "Base",
+        "rate": "Tasa (%)",
+        "commission": "Comisión",
+        "accrued": "Causado",
+        "reversed": "Reversado",
+        "open": "Por causar"
+      }
     },
     "aging": {
       "not_due": "Por vencer",
@@ -4751,7 +4771,9 @@
       },
       "account_ids": "Cuentas",
       "buckets": "Rangos de días",
-      "currency": "Moneda"
+      "currency": "Moneda",
+      "payee_party_id": "Beneficiario",
+      "status": "Estado"
     },
     "enum": {
       "accounting": {
@@ -4771,6 +4793,15 @@
             "open_auxiliary": "Auxiliar abierto",
             "item": "Ítem",
             "business_unit": "Unidad de negocio"
+          }
+        }
+      },
+      "sales": {
+        "commissions": {
+          "status": {
+            "all": "Todas",
+            "open": "Abiertas",
+            "closed": "Cerradas"
           }
         }
       }
@@ -4799,7 +4830,11 @@
     "period_result": "Resultado del período",
     "total_assets": "Total activos",
     "total_equity": "Total patrimonio",
-    "total_liabilities": "Total pasivos"
+    "total_liabilities": "Total pasivos",
+    "sales": {
+      "commissions": "Comisiones por vendedor"
+    },
+    "inventory": {}
   },
   "accounting": {
     "entry": {
@@ -6169,7 +6204,13 @@
       "approval_discount_hint": "Vacío: ningún pedido espera aprobación por su descuento",
       "save": "Guardar",
       "saved": "Guardado",
-      "bad_number": "Revisa: {fields}"
+      "bad_number": "Revisa: {fields}",
+      "commission_basis": "Base de comisión",
+      "commission_basis_hint": "Cuándo gana el vendedor su comisión; aplica a las facturas que se emitan después",
+      "commission_basis_options": {
+        "on_collection": "Al recaudo",
+        "on_invoice": "Al facturar"
+      }
     },
     "customer_terms_page": {
       "form_title": "Fijar condiciones de un cliente",
@@ -6201,13 +6242,48 @@
       "converted": "Precio convertido de COP a {rate}"
     },
     "commission_plan": {
-      "intro": "Quién gana comisión, a qué tasa y sobre los pedidos de qué vendedores. Cada vendedor ve solo los planes que lo incluyen."
+      "intro": "Quién gana comisión, a qué tasa y sobre los pedidos de qué vendedores. Cada vendedor ve solo los planes que lo incluyen.",
+      "form": {
+        "section": "Plan de comisión",
+        "name": "Nombre",
+        "payee": "Beneficiario",
+        "payee_hint": "Un empleado o un proveedor (agente externo) listo para facturar",
+        "payee_kind": "Tipo de beneficiario",
+        "default_rate": "Tasa general (%)",
+        "payment_days": "Días para pagar",
+        "valid_from": "Vigente desde",
+        "valid_to": "Vigente hasta",
+        "valid_to_hint": "Vacía: sin fin",
+        "notes": "Notas",
+        "active": "Activo",
+        "users": "Vendedores",
+        "users_hint": "Los usuarios cuyos pedidos comisionan bajo este plan; cada uno en un solo plan activo a la vez",
+        "user_line": "Vendedor {name}",
+        "rates": "Tasas por categoría",
+        "rates_hint": "Una categoría que gana distinto de la tasa general; las demás ganan la tasa general",
+        "category": "Categoría",
+        "rate": "Tasa (%)",
+        "category_line": "Categoría de la línea {n}",
+        "rate_line": "Tasa de la línea {n}",
+        "add_rate": "Agregar categoría",
+        "remove_rate": "Quitar la línea {n}",
+        "masked_rates": "No puedes ver las tasas de este plan",
+        "missing_field": {
+          "name": "el nombre",
+          "payee": "el beneficiario",
+          "default_rate": "una tasa general entre 0 y 100",
+          "users": "al menos un vendedor",
+          "lines": "tasas por categoría válidas, una por categoría"
+        }
+      }
     },
     "commission": {
       "own_flags": {
         "requires_approval": "No pide aprobación: la comisión la causa la factura o su recaudo.",
         "posts": "Contabiliza siempre: cada comisión causada genera su asiento con la cuenta por pagar."
-      }
+      },
+      "intro": "Lo que se le debe a cada beneficiario por lo que vendieron sus vendedores: una comisión (COM-) por factura o por recaudo, según cuándo se causa. Se crean y se reversan solas; cada vendedor ve solo las de sus planes.",
+      "report_intro": "Cada línea facturada que comisiona, con su base, la tasa, la comisión, lo causado, lo reversado y lo que falta por causar, en pesos."
     },
     "recommendation": {
       "commission_paid_reversal": {

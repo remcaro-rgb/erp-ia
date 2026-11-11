@@ -3,6 +3,9 @@ import {
   activityInput,
   activityMissing,
   activityDraft,
+  commissionPlanDraft,
+  commissionPlanInput,
+  commissionPlanMissing,
   convertDraft,
   convertInput,
   fulfilDraft,
@@ -169,5 +172,35 @@ describe("oportunidad and actividad", () => {
     const draft = activityDraft();
     expect(activityMissing(draft)).toEqual(["subject", "about"]);
     expect(activityInput({ ...draft, subject: "Llamar", leadId: "l1", dueDate: "2026-11-10" })).toEqual({ kind: "call", subject: "Llamar", leadId: "l1", dueAt: "2026-11-10T12:00:00Z", done: false });
+  });
+});
+
+describe("plan de comisión (Task 30.4, owner item 168)", () => {
+  it("a new one starts today, active, at 30 days, with no salespeople and no category rates; it needs name, payee, rate and a salesperson", () => {
+    const draft = commissionPlanDraft("2026-11-10", null);
+    expect(draft).toMatchObject({ name: "", payeePartyId: "", payeeKind: "employee", defaultRatePct: "", paymentDays: "30", validFrom: "2026-11-10", validTo: "", isActive: true, userIds: [], lines: [] });
+    expect(commissionPlanMissing(draft)).toEqual(["name", "payee", "default_rate", "users"]);
+  });
+
+  it("a rate is a percent between 0 and 100 typed with a comma or a point; a category goes once", () => {
+    const draft = { ...commissionPlanDraft("2026-11-10", null), name: "Andrea", payeePartyId: "p1", defaultRatePct: "5", userIds: ["u1"] };
+    expect(commissionPlanMissing(draft)).toEqual([]);
+    expect(commissionPlanMissing({ ...draft, defaultRatePct: "150" })).toEqual(["default_rate"]);
+    const line = (categoryId: string, ratePct: string) => ({ key: categoryId + ratePct, categoryId, ratePct });
+    expect(commissionPlanMissing({ ...draft, lines: [line("c1", "7"), line("c1", "8")] })).toEqual(["lines"]);
+    expect(commissionPlanMissing({ ...draft, lines: [line("c1", "abc")] })).toEqual(["lines"]);
+    expect(commissionPlanInput({ ...draft, defaultRatePct: "5,5", lines: [line("c1", "7"), line("", "")] }, null)).toEqual({
+      name: "Andrea", payeePartyId: "p1", payeeKind: "employee", defaultRatePct: 5.5, paymentDays: 30, validFrom: "2026-11-10", isActive: true, userIds: ["u1"], lines: [{ categoryId: "c1", ratePct: 7 }],
+    });
+  });
+
+  it("a stored plan reads its users and rates; its update sends the id, a cleared end date as null and the notes", () => {
+    const draft = commissionPlanDraft("2026-11-10", { id: "pl1", name: "Agencia", payee_party_id: "p2", payee_kind: "agent", default_rate_pct: "3.0000", payment_days: 45, valid_from: "2026-01-01", valid_to: "2026-12-31", notes: "Zona norte", is_active: true },
+      { userIds: ["u2"], lines: [{ categoryId: "c1", ratePct: 4 }], labels: { payee_party_id: "Agencia Comercial S.A.S." } });
+    expect(draft).toMatchObject({ name: "Agencia", payeeLabel: "Agencia Comercial S.A.S.", payeeKind: "agent", defaultRatePct: "3", paymentDays: "45", validTo: "2026-12-31", userIds: ["u2"] });
+    expect(draft.lines.map((l) => [l.categoryId, l.ratePct])).toEqual([["c1", "4"]]);
+    expect(commissionPlanInput({ ...draft, validTo: "" }, "pl1")).toEqual({
+      id: "pl1", name: "Agencia", payeePartyId: "p2", payeeKind: "agent", defaultRatePct: 3, paymentDays: 45, validFrom: "2026-01-01", validTo: null, notes: "Zona norte", isActive: true, userIds: ["u2"], lines: [{ categoryId: "c1", ratePct: 4 }],
+    });
   });
 });

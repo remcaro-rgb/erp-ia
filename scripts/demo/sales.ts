@@ -32,6 +32,12 @@
  *     own dollar account, FE-USD (USD 12.500,00, IVA exento por exportación, accepted by the mock DIAN) and a partial USD receipt of
  *     USD 5.000 at a lower rate (realized loss). See NORTHWIND and FOREIGN_SALE.
  *
+ * 10. Commissions (plan 2B.2 Task 30.4, Part G design PG §6): Laura's plan as the company's salesperson (her employee party Laura Méndez, 5 %
+ *     and 7 % on «Café molido»), an external agent's for Marcela's sales (Agencia Comercial del Caribe S.A.S., a supplier party, 4 %), and a
+ *     sale of «Café molido» to Catering Corporativo Andes collected in two receipts (40 % and the rest): on the default basis (al recaudo)
+ *     each receipt accrues its share, two COM documents that leave the payable open in Cartera por edades (CxP). See COMMISSION_PLANS and
+ *     COMMISSION_SALE.
+ *
  * Gap (reported in plan 2B Task 26): no certificate (see 4).
  */
 import { randomUUID } from "node:crypto";
@@ -39,6 +45,7 @@ import type { Sql } from "postgres";
 import { buildConsumerContext, consumers, enableModule, runProcess, type Caller, type Registry, type RunProcessDeps } from "@erp/kernel";
 import type { FileStore } from "@erp/infra";
 import { DEMO_COMPANY_ID, DEMO_ROLE_IDS } from "./accounts";
+import { COMMISSION_PLANS, COMMISSION_SALE } from "./commissions";
 import { attachRequiredFiles } from "./files";
 import type { DemoSession } from "./accounting";
 import { FOREIGN_SALE, NORTHWIND, USD_BANK, USD_METHOD, USD_PRICE_LIST, USD_RATES } from "./foreign-sale";
@@ -124,6 +131,9 @@ export const HALFWAY = [
   { notes: "Demostración: entregado y pendiente de facturar", party: HOTEL_CUMBRE_ANDINA, sku: "CAF-MOL-EXP", qty: 6, ship: true },
   { notes: "Demostración: pedido confirmado por entregar", party: LA_COLINA, sku: "CAF-MOL-500", qty: 24, ship: false },
 ] as const;
+
+// The commissions of the demo (Task 30.4): their figures live in ./commissions, free of imports but the accounts, so the e2e specs can read them.
+export { COMMISSION_PLANS, COMMISSION_SALE } from "./commissions";
 
 /** Module consumers the seed does not run: invoicing's DIAN submission starts the e-invoice workflow (no Workflow World in the CLI). */
 const NOT_RUN = new Set(["invoicing.invoice.issued|invoicing", "invoicing.note.issued|invoicing", "invoicing.invoice.resubmit_requested|invoicing"]);
@@ -232,7 +242,6 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
     await act("inventory.movement.post", { kind: "receipt", date: today, warehouseId, reference: OPENING_REFERENCE, description: "Existencias con que arranca la demostración", lines });
     await drain();
   }
-
   // 3. Pagos: the medios de pago.
   const methodIds: Record<string, string> = {};
   for (const method of METHODS) {
@@ -410,6 +419,68 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
   }
   await drain();
 
+  // 10. Commissions: the payees (with their required files), the two plans, and the sale collected in two receipts.
+  const payee = async (key: "employee" | "agent") => {
+    const p = COMMISSION_PLANS[key].party;
+    let row = await one(sql<{ id: string }[]>`select id from core.parties where company_id = ${DEMO_COMPANY_ID} and document_number = ${p.documentNumber}`);
+    if (!row) {
+      row = await act("core.party.create",
+        key === "employee"
+          ? { kind: ["employee"], personType: "2", documentType: "13", documentNumber: p.documentNumber, firstName: COMMISSION_PLANS.employee.party.firstName, firstSurname: COMMISSION_PLANS.employee.party.firstSurname,
+              taxResponsibilities: ["R-99-PN"], taxScheme: "ZZ", countryCode: "CO", departmentCode: "11", municipalityCode: "11001", addressLine: "Calle 93 # 11-26", phoneCc: "57", phone: p.phone, invoiceEmail: p.email }
+          : { kind: ["supplier"], personType: "1", documentType: "31", documentNumber: p.documentNumber, legalName: p.legalName, taxResponsibilities: ["O-13"], taxScheme: "01",
+              countryCode: "CO", departmentCode: "08", municipalityCode: "08001", addressLine: "Carrera 54 # 72-80", phoneCc: "57", phone: p.phone, supplierEmail: p.email, invoiceEmail: p.email });
+    }
+    actions += await attachRequiredFiles(sql, deps, laura.caller, store, { partyId: row.id, document: p.documentNumber, name: p.legalName, tags: key === "employee" ? ["RUT"] : ["RUT", "Cámara de Comercio"] });
+    return row.id;
+  };
+  const userId = async (email: string) => (await one(sql<{ id: string }[]>`select id from kernel.users where email = ${email}`))!.id;
+  const [ground] = await sql<{ id: string }[]>`select id from core.product_categories where company_id = ${DEMO_COMPANY_ID} and name = ${COMMISSION_PLANS.employee.category.name} and deleted_at is null`;
+  for (const key of ["employee", "agent"] as const) {
+    const plan = COMMISSION_PLANS[key];
+    const payeePartyId = await payee(key);
+    if (await one(sql`select 1 from sales.commission_plans where company_id = ${DEMO_COMPANY_ID} and name = ${plan.name} and deleted_at is null`)) continue;
+    await act("sales.commission_plan.create", {
+      name: plan.name, payeePartyId, payeeKind: plan.payeeKind, defaultRatePct: plan.defaultRatePct, paymentDays: plan.paymentDays, validFrom: `${year}-01-01`,
+      userIds: [await userId(plan.user)], lines: key === "employee" ? [{ categoryId: ground!.id, ratePct: COMMISSION_PLANS.employee.category.ratePct }] : [],
+    });
+  }
+  const catering = await partyId(COMMISSION_SALE.party);
+  let sold = await one(sql<{ id: string; stage: string }[]>`select id, stage from sales.orders where company_id = ${DEMO_COMPANY_ID} and notes = ${COMMISSION_SALE.notes} and status <> 'voided'`);
+  if (!sold) {
+    sold = (await act<{ id: string; stage: string }>("sales.order.create", { partyId: catering, warehouseId, issueDate: today, notes: COMMISSION_SALE.notes, lines: [{ productId: await product(COMMISSION_SALE.sku), qty: COMMISSION_SALE.qty }] }));
+    sold = (await one(sql<{ id: string; stage: string }[]>`select id, stage from sales.orders where id = ${sold.id}`))!;
+  }
+  if (sold.stage === "open") await act("sales.order.confirm", { id: sold.id });
+  await drain();
+  await shipOrder(sql, act, drain, sold.id, today, costCenter);
+  let feCom = await chainInvoice(sql, sold.id);
+  if (!feCom) {
+    await act("invoicing.invoice.from_orders", { orderIds: [sold.id] });
+    feCom = (await chainInvoice(sql, sold.id))!;
+  }
+  if (feCom.stage === "draft") {
+    await act("invoicing.invoice.issue", { id: feCom.id, idempotencyKey: `demo-commission-issue-${feCom.id}`, notes: COMMISSION_SALE.notes });
+    feCom = (await chainInvoice(sql, sold.id))!;
+  }
+  await drain();
+  if (feCom.dian_status !== "accepted") {
+    await mockDianAccepts(sql, deps, store, feCom.id);
+    chains.add((await one(sql<{ chain_id: string }[]>`select chain_id from kernel.outbox where company_id = ${DEMO_COMPANY_ID} and event = 'invoicing.invoice.issued' and payload->>'invoiceId' = ${feCom.id} order by created_at desc limit 1`))!.chain_id);
+    await drain();
+  }
+  const [{ n: received }] = (await sql<{ n: number }[]>`
+    select count(distinct r.id)::int as n from payments.receipts r join payments.receipt_allocations a on a.receipt_id = r.id
+    where r.company_id = ${DEMO_COMPANY_ID} and a.invoice_id = ${feCom.id} and r.status <> 'voided'`) as [{ n: number }];
+  for (const [i, amount] of COMMISSION_SALE.receipts.entries()) {
+    if (i < received) continue;
+    await act("payments.payment.receive", {
+      partyId: catering, methodId: methodIds.TRF, amount, date: today, reference: `${COMMISSION_SALE.reference}-${i + 1}`,
+      allocations: [{ invoiceId: feCom.id, amount }], idempotencyKey: `demo-commission-receipt-${feCom.id}-${i + 1}`,
+    });
+    await drain();
+  }
+
   const [paid] = await sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${invoice.id}`;
   if (paid!.stage !== "paid") throw new Error(`demo sale chain: the invoice ${invoice.number} is ${paid!.stage}, not paid`);
   return {
@@ -477,8 +548,15 @@ export function salesGrants(processIds: string[]): { roleId: string; processId: 
   const collects = processIds.filter((id) => /^payments\.payment\.(receive|open_invoices)$/.test(id));
   // The accountant bills (issues invoices): it sees every pedido (sales.order.reassign, the «all orders» permission of Task 39, R39-7).
   const accountant = processIds.filter((id) => /^invoicing\.(invoice\.(issue|resubmit)|note\.(create|issue))$/.test(id) || /^payments\.payment\.(receive|open_invoices)$/.test(id) || id === "sales.order.reassign");
+  // Commissions (Task 30.4, owner item 167): who sees every salesperson's commissions (sales.commission.consult_all); the plans are the
+  // gerente comercial's to write.
+  const commissions = processIds.filter((id) => id === "sales.commission.consult_all");
+  const plans = processIds.filter((id) => /^sales\.commission_plan\.(create|update)$/.test(id));
   return [
     ...sells.map((processId) => ({ roleId: DEMO_ROLE_IDS.gerente_comercial, processId })),
+    ...[...commissions, ...plans].map((processId) => ({ roleId: DEMO_ROLE_IDS.gerente_comercial, processId })),
+    ...commissions.map((processId) => ({ roleId: DEMO_ROLE_IDS.contador, processId })),
+    ...commissions.map((processId) => ({ roleId: DEMO_ROLE_IDS.admin, processId })),
     ...collects.map((processId) => ({ roleId: DEMO_ROLE_IDS.cajero, processId })),
     ...accountant.map((processId) => ({ roleId: DEMO_ROLE_IDS.contador, processId })),
   ];

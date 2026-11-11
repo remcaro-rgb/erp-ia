@@ -72,6 +72,18 @@
       "prompt": "Calcula la diferencia en cambio de octubre",
       "tier": "extended",
       "expect": { "process": "accounting.fx_revaluation.run", "confirmation": true }
+    },
+    {
+      "id": "sales-commissions-owed",
+      "prompt": "¿Cuánto le debemos en comisiones a Andrea?",
+      "tier": "extended",
+      "expect": { "process": "kernel.data.query", "input": { "entity": "sales.commission" } }
+    },
+    {
+      "id": "sales-commission-plan-create",
+      "prompt": "Crea un plan de comisión del 5 % para Bruno",
+      "tier": "extended",
+      "expect": { "process": "sales.commission_plan.create", "confirmation": true, "input": { "defaultRatePct": 5 } }
     }
   ]
 }

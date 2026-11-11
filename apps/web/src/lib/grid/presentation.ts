@@ -374,6 +374,39 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
     exclude: ["extra", "extra_free", "return_id"],
     fields: {},
   },
+  // Comisiones (plan 2B.2 Task 30.4, PG §5.5): the plan, the bases an issued invoice wrote, the commission documents and their lines. Rates
+  // and amounts are confidential (masked for whoever may not see them, rule 14); each salesperson reads only their plans' rows (0156).
+  "sales.commission_plan": {
+    title: "name",
+    shown: ["seq", "name", "payee_party_id", "payee_kind", "default_rate_pct", "payment_days", "valid_from", "valid_to", "status", "is_active"],
+    exclude: ["extra", "extra_free"],
+    fields: { payee_kind: { valuesKey: "sales.values.payee_kind" }, status: recordStatus, is_active: active },
+  },
+  "sales.commission_base": {
+    title: "invoice_number",
+    shown: ["invoice_number", "invoice_date", "payee_party_id", "plan_id", "product_id", "basis", "base", "rate_pct", "commission", "accrued", "reversed", "status"],
+    exclude: ["extra", "extra_free", "invoice_id", "invoice_line_id", "order_line_id", "cost_center_id", "user_id", "base_doc", "commission_doc", "exchange_rate"],
+    fields: { invoice_number: { display: "mono" }, basis: { valuesKey: "sales.values.commission_basis" }, currency: { display: "mono" }, status: { valuesKey: "sales.values.commission_base_status", pills: { open: "info", closed: "gray" } } },
+  },
+  "sales.commission": {
+    title: "number",
+    shown: ["number", "date", "payee_party_id", "payee_kind", "plan_id", "source_kind", "amount", "due_date", "stage"],
+    exclude: ["extra", "extra_free", "source_id", "requires_approval", "posts", "void_reason"],
+    fields: {
+      number: { display: "mono" },
+      payee_kind: { valuesKey: "sales.values.payee_kind" },
+      source_kind: { valuesKey: "sales.values.commission_source" },
+      currency: { display: "mono" },
+      stage: { valuesKey: "sales.values.commission_stage", pills: { posted: "ok", reversed: "danger", paid: "gray" } },
+      status: documentStatus,
+    },
+  },
+  "sales.commission_line": {
+    title: "line_no",
+    shown: ["line_no", "amount"],
+    exclude: ["extra", "extra_free", "commission_id", "base_id", "cost_center_id"],
+    fields: {},
+  },
   "sales.customer_terms": {
     title: "party_id",
     shown: ["party_id", "price_list_id", "discount_pct", "credit_limit", "notes"],

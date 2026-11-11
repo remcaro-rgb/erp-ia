@@ -5,7 +5,8 @@ import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { DELIVERY_PROCESSES, DELIVERY_SHIPPED, DELIVERY_VOIDED, deliveryHooks, onInvoiceAnnulled, onInvoiceIssued, onMovementPosted, onReReservation, onSaleIssueAllocated, onSaleIssueRefused } from "./processes/delivery";
 import { ORDER_CANCELLED, ORDER_CONFIRMED, ORDER_CREATED, ORDER_PROCESSES, orderHooks } from "./processes/order";
 import { ORDER_OWNER_PROCESSES } from "./processes/order-owner";
-import { deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
+import { commissionRecordTemplate, deliveryRecordTemplate, orderRecordTemplate, returnRecordTemplate } from "./print";
+import { SALES_REPORT_PROCESSES, SALES_REPORTS } from "./reports/commissions";
 import { PRICING_PROCESSES } from "./processes/pricing";
 import { COMMISSION_ACCRUED, COMMISSION_DUE, COMMISSION_PROCESSES, COMMISSION_REVERSED, commissionHooks, onAdvanceApplied, onAdvanceUnapplied, onCommissionDue, onNoteIssued, onPaymentReceived, onPaymentVoided } from "./processes/commission";
 import { SALES_POSTING_RULES } from "./rules";
@@ -45,7 +46,10 @@ export const sales: ModuleDef = defineModule({
   // and sales.commission.consult_all, the «all commissions» permission of the record rule (migration 0156).
   // Task 30.2: sales.commission.accrue, from sales.commission.due (on_invoice) and the payments events (on_collection), posts the provision.
   // Task 30.3: sales.commission.reverse and sales.commission.adjust_for_note, from the credit notes, the annulment and the collection voids.
-  processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES, ...COMMISSION_PLAN_PROCESSES, ...COMMISSION_PROCESSES],
+  // Task 30.4: sales.commission.consult, the commission's record (read only).
+  processes: [...PRICING_PROCESSES, ...ORDER_PROCESSES, ...ORDER_OWNER_PROCESSES, ...DELIVERY_PROCESSES, ...RETURN_PROCESSES, ...COMMISSION_PLAN_PROCESSES, ...COMMISSION_PROCESSES, ...SALES_REPORT_PROCESSES],
+  // Task 30.4: «Comisiones por vendedor» (sales.report.commissions: by payee, period and status; exported like every report, rule 20).
+  reports: SALES_REPORTS,
   // The commission provision (plan 2B.2 Task 30.2, PG §5.4, RG-13): the two roles the country pack maps by payee kind (dimension
   // payee_kind:employee | payee_kind:agent), and the rules of the accrual and its reversal (rules/, twins of accounting's defaults).
   accountRoles: ["commission_expense", "commissions_payable"],
@@ -106,8 +110,8 @@ export const sales: ModuleDef = defineModule({
   },
   // The lifecycle of the pedido (entity types spec §5): Grabar runs the checks; it numbers PED- on save.
   typedHooks: { "sales.order": orderHooks, "sales.delivery": deliveryHooks, "sales.return": returnHooks, "sales.commission_plan": commissionPlanHooks, "sales.commission": commissionHooks },
-  // What a pedido and an entrega print with when the company chose no template of its own (Task 14b).
-  printTemplates: { "sales.order": { record: orderRecordTemplate }, "sales.delivery": { record: deliveryRecordTemplate }, "sales.return": { record: returnRecordTemplate } },
+  // What a pedido, an entrega, a devolución and a comisión (Task 30.4) print with when the company chose no template of its own (Task 14b).
+  printTemplates: { "sales.order": { record: orderRecordTemplate }, "sales.delivery": { record: deliveryRecordTemplate }, "sales.return": { record: returnRecordTemplate }, "sales.commission": { record: commissionRecordTemplate } },
 });
 
 export { COMMISSION_BASES, COMMISSION_STAGES, DELIVERY_STAGES, ORDER_STAGES, PAYEE_KINDS, RETURN_STAGES, SALES_ENTITIES } from "./entities";

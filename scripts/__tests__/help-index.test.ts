@@ -15,7 +15,7 @@ describe("the user guides", () => {
 
   it("exist for every shipped feature", () => {
     expect(guides.map((g) => g.file)).toEqual(
-      expect.arrayContaining(["inicio.md", "ingreso-y-2fa.md", "navegacion.md", "terceros.md", "contactos.md", "productos.md", "categorias.md", "archivos.md", "datos-adicionales.md", "listados.md", "exportar.md", "importar.md", "soporte.md"]),
+      expect.arrayContaining(["inicio.md", "ingreso-y-2fa.md", "navegacion.md", "terceros.md", "contactos.md", "productos.md", "categorias.md", "archivos.md", "datos-adicionales.md", "listados.md", "exportar.md", "importar.md", "soporte.md", "comisiones.md"]),
     );
   });
 

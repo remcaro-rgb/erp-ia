@@ -42,6 +42,7 @@ Depende de si la empresa tiene activo el módulo **Pagos**. Puedes activarlo o d
 - **Abonos sin recibo.** Un comprobante manual que abona la cuenta del cliente sin recibo de caja se aplica a las partidas más antiguas primero, como sin Pagos. Si sobra, sale como saldo a favor. Así, la suma de las partidas de la cuenta del cliente es siempre su saldo contable.
 - **Retenciones que te practicó el cliente.** Quedan en una cuenta de retenciones (por ejemplo 135515) a nombre del cliente, pero no son deuda del cliente: no salen en su fila.
 - **Cuentas por pagar.** Se calculan siempre como sin Pagos.
+- **Comisiones por pagar.** Cada comisión causada de un vendedor (guía **Comisiones**) es una partida por pagar a nombre de su beneficiario, con el vencimiento de la comisión (su fecha más los días para pagar del plan): la de un empleado en la cuenta de salarios por pagar, la de un agente comercial en la de comisiones por pagar. Una comisión revertida sale del informe.
 
 Si cada recibo se aplica a las facturas más antiguas primero, los dos cálculos dan las mismas partidas de las facturas.
 

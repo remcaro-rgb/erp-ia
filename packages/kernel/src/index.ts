@@ -87,8 +87,8 @@ export type { PrintCompany, PrintContext } from "./templates/variables";
 export { consultProcessesOf, entitlementKeyOf, gridDenial, gridEntity, requireGridAccess } from "./query/access";
 export type { GridDenial } from "./query/access";
 export { EXPORT_PROCESSES, exportJobEntity, exportRows, moneyText, planExport, rateText } from "./exports";
-export { defineReport, reportDenial, reportOf, ReportState, runReport, runReportFile } from "./reports";
-export type { ReportColumn, ReportDef, ReportDenial, ReportFile, ReportFileAction, ReportResult } from "./reports";
+export { defineReport, reportDenial, reportOf, ReportState, runReport, runReportFile, windowOf } from "./reports";
+export type { ReportColumn, ReportDef, ReportDenial, ReportFile, ReportFileAction, ReportResult, WindowOptions } from "./reports";
 export {
   buildHelpIndex,
   chunkGuide,

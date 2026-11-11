@@ -330,7 +330,7 @@ export const commissionPlanEntity: EntityDef = entity("sales.commission_plan", "
   ...trailer(f),
   f("status", "enum", { enumValues: MAESTRO_STATES, valuesKey: "grid.values.record_status" }),
   f("requires_approval", "boolean"),
-], { importKey: ["name"], cloneReset: ["seq", "name"], processIds: { create: "sales.commission_plan.create" } });
+], { importKey: ["name"], cloneReset: ["seq", "name"], processIds: { create: "sales.commission_plan.create" }, recordPage: true });
 
 /** Whether a base still earns: open until it is fully accrued or closed by an annulment (Task 30.3). */
 export const COMMISSION_BASE_STATES = ["open", "closed"] as const;
@@ -401,7 +401,8 @@ export const commissionEntity: EntityDef = entity("sales.commission", "documento
   f("void_reason", "text"),
 ], {
   typed: { numbering: "on_save", lines: { entity: "sales.commission_line", parentField: "commission_id" }, ownFlags: deliveryFlags("sales.commission") },
-  // No record page yet: 30.4 opens the plan and the commission in the record frame (apps/web/src/lib/records/entities.ts).
+  // Task 30.4: the plan and the commission open in the record frame (apps/web/src/lib/records/entities.ts); a commission is never created there.
+  recordPage: true,
   cloneReset: ["seq", "number", "stage", "reverses_id"],
   defaultSort: { field: "seq", dir: "desc" },
 });

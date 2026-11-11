@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
 import { DEMO_COMPANY_ID } from "../demo/accounts";
 import { SAMPLE_COMPROBANTES } from "../demo/accounting";
-import { ALMACENES_EXITO, CHAIN, FOREIGN_SALE, NORTHWIND, PRICE_LIST, SALES_CHAIN_MODULES, USD_BANK, USD_RATES, WAREHOUSE, wholesalePrice } from "../demo/sales";
+import { ALMACENES_EXITO, CHAIN, COMMISSION_PLANS, COMMISSION_SALE, FOREIGN_SALE, NORTHWIND, PRICE_LIST, SALES_CHAIN_MODULES, USD_BANK, USD_RATES, WAREHOUSE, wholesalePrice } from "../demo/sales";
 
 // The whole demo seed against the local stack (owner order 2026-11-02): `DEMO_SEED=1 pnpm db:seed` must finish, with a posted
 // and balanced opening and the October sample comprobantes posted; and (plan 2B Task 26) the sale chain's modules entitled to the demo
@@ -119,6 +119,41 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
         where ra.invoice_id = ${fe!.id} order by l.line_no`;
       expect(receiptLines).toContainEqual({ code: USD_BANK.code, debit: FOREIGN_SALE.receipt.amount * FOREIGN_SALE.receipt.rate, credit: 0 });
       expect(receiptLines).toContainEqual({ code: "530525", debit: FOREIGN_SALE.realizedLoss, credit: 0 });
+
+      // Task 30.4 (PG §6): the two commission plans (Laura's, an employee party; the external agent's, a supplier party, for Marcela's sales);
+      // the sale of «Café molido» collected in two receipts accrued two commissions at the category's 7 %, adding up to the cent; the payable
+      // is open for Laura's employee party (Cartera por edades CxP) on 250505, due at +payment_days; the trial balance above stays balanced.
+      const plans = await sql<{ name: string; payee_kind: string; rate: number; document: string; users: string[] }[]>`
+        select p.name, p.payee_kind, p.default_rate_pct::float8 as rate, pa.document_number as document,
+               array(select u.email from sales.commission_plan_users pu join kernel.users u on u.id = pu.user_id where pu.plan_id = p.id order by u.email) as users
+        from sales.commission_plans p join core.parties pa on pa.id = p.payee_party_id
+        where p.company_id = ${DEMO_COMPANY_ID} and p.is_active and p.deleted_at is null order by p.payee_kind desc`;
+      expect(plans).toEqual([
+        { name: COMMISSION_PLANS.employee.name, payee_kind: "employee", rate: COMMISSION_PLANS.employee.defaultRatePct, document: COMMISSION_PLANS.employee.party.documentNumber, users: [COMMISSION_PLANS.employee.user] },
+        { name: COMMISSION_PLANS.agent.name, payee_kind: "agent", rate: COMMISSION_PLANS.agent.defaultRatePct, document: COMMISSION_PLANS.agent.party.documentNumber, users: [COMMISSION_PLANS.agent.user] },
+      ]);
+      const [ground] = await sql<{ rate: number }[]>`
+        select l.rate_pct::float8 as rate from sales.commission_plan_lines l join sales.commission_plans p on p.id = l.plan_id join core.product_categories c on c.id = l.category_id
+        where p.company_id = ${DEMO_COMPANY_ID} and p.name = ${COMMISSION_PLANS.employee.name} and c.name = ${COMMISSION_PLANS.employee.category.name}`;
+      expect(ground!.rate).toBe(COMMISSION_PLANS.employee.category.ratePct);
+      const [sold] = await sql<{ id: string; stage: string; subtotal: number }[]>`
+        select i.id, i.stage, i.subtotal::float8 as subtotal from invoicing.invoices i where i.company_id = ${DEMO_COMPANY_ID} and i.notes = ${COMMISSION_SALE.notes} and i.status <> 'voided'`;
+      expect(sold).toMatchObject({ stage: "paid", subtotal: COMMISSION_SALE.subtotal });
+      const commissions = await sql<{ number: string; source_kind: string; amount: number; due_date: string; party: string }[]>`
+        select distinct c.number, c.source_kind, c.amount::float8 as amount, c.due_date::text, pa.document_number as party, c.seq
+        from sales.commissions c join sales.commission_lines l on l.commission_id = c.id join sales.commission_bases b on b.id = l.base_id
+        join core.parties pa on pa.id = c.payee_party_id where b.invoice_id = ${sold!.id} order by c.seq`;
+      expect(commissions.map((c) => [c.source_kind, c.amount, c.party])).toEqual(COMMISSION_SALE.commissions.map((amount) => ["receipt", amount, COMMISSION_PLANS.employee.party.documentNumber]));
+      expect(commissions.reduce((t, c) => t + c.amount, 0)).toBeCloseTo(COMMISSION_SALE.commission, 2);
+      // The payable on 250505 for Laura's employee party, due at +payment_days (accounting.open_items reads the caller's claims: the
+      // service role sees none, so the ledger balance is read; Cartera por edades itself is checked by e2e sales-commissions.spec.ts).
+      const [payable] = await sql<{ open: number; due: string[] }[]>`
+        select coalesce(sum(l.credit - l.debit), 0)::float8 as open, array_agg(distinct l.due_date::text) as due
+        from accounting.entry_lines l join accounting.entries e on e.id = l.entry_id join accounting.accounts a on a.id = l.account_id
+        join core.parties pa on pa.id = l.party_id
+        where e.company_id = ${DEMO_COMPANY_ID} and e.status = 'posted' and a.code = '250505' and pa.document_number = ${COMMISSION_PLANS.employee.party.documentNumber}`;
+      expect(payable!.open).toBeCloseTo(COMMISSION_SALE.commission, 2);
+      expect(payable!.due).toEqual(commissions.map((c) => c.due_date).filter((d, k, all) => all.indexOf(d) === k));
     } finally {
       await sql.end();
     }

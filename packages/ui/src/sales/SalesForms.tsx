@@ -18,6 +18,11 @@ import {
   activityInput,
   activityMissing,
   ACTIVITY_KIND_OPTIONS,
+  commissionPlanDraft,
+  commissionPlanInput,
+  commissionPlanMissing,
+  emptyCommissionRateLine,
+  PAYEE_KIND_OPTIONS,
   emptyOpportunityLine,
   emptySaleLine,
   emptyStage,
@@ -40,6 +45,8 @@ import {
   saleMissing,
   STAGE_KIND_OPTIONS,
   type ActivityDraft,
+  type CommissionPlanDraft,
+  type CommissionRateLine,
   type FulfilDraft,
   type LeadDraft,
   type OpportunityDraft,
@@ -895,6 +902,143 @@ export function ActivityForm({ party, lead, opportunity, initial: copy, labels =
         <p className="erp-small erp-muted">{t("about_hint")}</p>
       </Section>
       <FormFooter flow={flow} missing={missing} missingText={(m) => t(`missing_field.${m}`)} process={processes.create} isNew dirty={dirty} readOnly={readOnly} onSave={submit} panel={failed.panel} />
+    </RecordForm>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+export interface CommissionPlanFormProps extends CommonProps {
+  record: Row | null;
+  today: string;
+  /** The plan's salespeople and category rates (sales.commission_plan.consult); a masked rate comes null. */
+  userIds?: readonly string[];
+  lines?: readonly { categoryId: string; ratePct: number | null }[];
+  labels?: Readonly<Record<string, string>>;
+  /** The company's members a plan can cover (user id → name). */
+  members: readonly CodeOption[];
+  /** The product categories a rate can be set for. */
+  categories: readonly CodeOption[];
+  party: LookupSource;
+}
+
+/**
+ * Plan de comisión (plan 2B.2 Task 30.4, owner item 168): the payee (an employee or a supplier acting as an external agent, with its DIAN
+ * data complete), the salespeople whose pedidos it covers, the general rate and the rates by category, the validity and the payment
+ * days. Edited in place, as the embudo; the process refuses a salesperson with another active plan on the same dates.
+ */
+export function CommissionPlanForm({ record, today, userIds = [], lines = [], labels = {}, members, categories, party, readOnly = false, save, requestStepUp, onSaved, processes }: CommissionPlanFormProps) {
+  const t = useTranslations("sales.commission_plan.form");
+  const tv = useTranslations("sales.values");
+  const errorText = useErrorText();
+  const isNew = record === null;
+  const key = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
+  const [draft, initial, setDraft, discard] = useDraft<CommissionPlanDraft>(key, () => commissionPlanDraft(today, record, { userIds, lines, labels }));
+  const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, isNew));
+  const failed = failureMessages(flow.failure, ["name", "payeePartyId", "payeeKind", "defaultRatePct", "paymentDays", "validFrom", "validTo", "notes", "userIds", "lines"], errorText);
+  const missing = commissionPlanMissing(draft);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const send = () => flow.submit(commissionPlanInput(draft, record ? record.id : null));
+  const submit = () => void send();
+  const set = <K extends keyof CommissionPlanDraft>(k: K) => (value: CommissionPlanDraft[K]) => setDraft((d) => ({ ...d, [k]: value }));
+  const setLine = (k: string, patch: Partial<CommissionRateLine>) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => (l.key === k ? { ...l, ...patch } : l)) }));
+  const toggleUser = (userId: string, on: boolean) => setDraft((d) => ({ ...d, userIds: on ? [...d.userIds, userId] : d.userIds.filter((u) => u !== userId) }));
+  const maskedRates = lines.some((l) => l.ratePct === null) || (record !== null && record.default_rate_pct === null);
+  return (
+    <RecordForm canSave={!readOnly && missing.length === 0 && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(isNew ? {} : { onDiscard: discard })}>
+      <Section title={t("section")}>
+        <div className="erp-form2">
+          <TextField label={`${t("name")} *`} value={draft.name} maxLength={120} disabled={readOnly} error={failed.field("name")} onChange={set("name")} />
+          <SelectField
+            label={`${t("payee_kind")} *`}
+            value={draft.payeeKind}
+            options={PAYEE_KIND_OPTIONS.map((k) => ({ code: k, name: tv(`payee_kind.${k}`) }))}
+            showCode={false}
+            disabled={readOnly}
+            error={failed.field("payeeKind")}
+            onChange={(value) => setDraft((d) => ({ ...d, payeeKind: value, ...(value !== d.payeeKind ? { payeePartyId: "", payeeLabel: "" } : {}) }))}
+          />
+          <Field label={`${t("payee")} *`} hint={t("payee_hint")} error={failed.field("payeePartyId")} className="erp-span3">
+            {(id) => (
+              <EntityLookup
+                id={id}
+                aria-label={t("payee")}
+                entityLabel={party.entityLabel}
+                fetcher={gridFetcher("core.party")}
+                fields={party.fields}
+                baseFilters={[{ field: "kind", op: "eq", value: draft.payeeKind === "agent" ? "supplier" : "employee" }]}
+                disabled={readOnly}
+                value={draft.payeePartyId ? { id: draft.payeePartyId, label: draft.payeeLabel } : null}
+                href={party.linkable && draft.payeePartyId ? recordHref("core.party", draft.payeePartyId) : null}
+                describe={partyRow}
+                onPick={(row) => setDraft((d) => ({ ...d, payeePartyId: row?.id ?? "", payeeLabel: row ? String(row.legal_name ?? row.id) : "" }))}
+              />
+            )}
+          </Field>
+          <TextField label={`${t("default_rate")} *`} value={draft.defaultRatePct} inputMode="decimal" mono maxLength={10} disabled={readOnly} error={failed.field("defaultRatePct")} onChange={set("defaultRatePct")} />
+          <TextField label={t("payment_days")} value={draft.paymentDays} inputMode="numeric" mono maxLength={4} disabled={readOnly} error={failed.field("paymentDays")} onChange={set("paymentDays")} />
+          <DateField label={`${t("valid_from")} *`} value={draft.validFrom} disabled={readOnly} error={failed.field("validFrom")} onChange={set("validFrom")} />
+          <DateField label={t("valid_to")} value={draft.validTo} disabled={readOnly} error={failed.field("validTo")} onChange={set("validTo")} />
+          <AreaField label={t("notes")} value={draft.notes} maxLength={500} disabled={readOnly} onChange={set("notes")} />
+        </div>
+        <p className="erp-small erp-muted">{t("valid_to_hint")}</p>
+        <div className="erp-flags" role="group" aria-label={t("section")}>
+          <Flag on={draft.isActive} label={t("active")} disabled={readOnly} onChange={set("isActive")} />
+        </div>
+      </Section>
+      <Section title={`${t("users")} *`}>
+        <div className="erp-flags" role="group" aria-label={t("users")}>
+          {members.map((m) => (
+            <Flag key={m.code} on={draft.userIds.includes(m.code)} label={t("user_line", { name: m.name })} disabled={readOnly} onChange={(on) => toggleUser(m.code, on)} />
+          ))}
+        </div>
+        {failed.field("userIds") && <p className="erp-field__error" role="alert">{failed.field("userIds")}</p>}
+        <p className="erp-small erp-muted">{t("users_hint")}</p>
+      </Section>
+      <Section title={t("rates")}>
+        {maskedRates && <p className="erp-small erp-muted">{t("masked_rates")}</p>}
+        <div className="erp-lines__scroll">
+          <table className="erp-lines__table" aria-label={t("rates")}>
+            <thead>
+              <tr>
+                <th scope="col" className="erp-lines__no">#</th>
+                <th scope="col">{t("category")}</th>
+                <th scope="col" className="erp-num">{t("rate")}</th>
+                <th scope="col"><span className="sr-only">{t("remove_rate", { n: "" })}</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {draft.lines.map((l, i) => {
+                const n = i + 1;
+                return (
+                  <tr key={l.key}>
+                    <td className="erp-lines__no erp-muted">{n}</td>
+                    <td>
+                      <select aria-label={t("category_line", { n })} value={l.categoryId} disabled={readOnly} onChange={(e) => setLine(l.key, { categoryId: e.target.value })}>
+                        <option value="">—</option>
+                        {categories.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                      </select>
+                    </td>
+                    <td className="erp-num"><input aria-label={t("rate_line", { n })} className="erp-num erp-mono" inputMode="decimal" value={l.ratePct} maxLength={10} disabled={readOnly} onChange={(e) => setLine(l.key, { ratePct: e.target.value })} /></td>
+                    <td>
+                      {!readOnly && (
+                        <button type="button" className="erp-btn erp-btn--ghost" aria-label={t("remove_rate", { n })} onClick={() => setDraft((d) => ({ ...d, lines: d.lines.filter((x) => x.key !== l.key) }))}>×</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!readOnly && (
+          <button type="button" className="erp-btn" onClick={() => setDraft((d) => ({ ...d, lines: [...d.lines, emptyCommissionRateLine()] }))}>
+            {t("add_rate")}
+          </button>
+        )}
+        <p className="erp-small erp-muted">{t("rates_hint")}</p>
+      </Section>
+      <FormFooter flow={flow} missing={missing} missingText={(m) => t(`missing_field.${m}`)} process={isNew ? processes.create : processes.update} isNew={isNew} dirty={dirty} readOnly={readOnly} onSave={submit} onDiscard={discard} panel={failed.panel} />
     </RecordForm>
   );
 }
