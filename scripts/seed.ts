@@ -44,6 +44,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse as warehouseModule } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { SupabaseAuthAdmin, SupabaseFileStore, type FileStore } from "@erp/infra";
@@ -404,7 +405,7 @@ export async function seed(env: SeedEnv, flags: Record<string, string | undefine
     step("registry sync");
     const registry = new Registry();
     // The app's modules (apps/web/src/lib/server/runtime.ts), the phase 2B sale chain included, and the country pack with its e-invoice part.
-    loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+    loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouseModule]);
     registerCountryPack({ ...co, einvoice: einvoicePack });
     await syncRegistry(sql, registry);
     for (const moduleId of ["core", "support", "accounting"]) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);

@@ -4,7 +4,10 @@ import { defineModule, defineProcess, flattenNav, kernelModule, loadModules, men
 import { core } from "@erp/module-core";
 import { accounting } from "@erp/module-accounting";
 import { crm } from "@erp/module-crm";
+import { costing } from "@erp/module-costing";
+import { inventory } from "@erp/module-inventory";
 import { sales } from "@erp/module-sales";
+import { warehouse } from "@erp/module-warehouse";
 import { buildShellNav, shellAccessKeys } from "./nav";
 
 // What the shell offers a caller (design §19a, rule 4, rule 13): modules the company is entitled to, menu items
@@ -277,5 +280,20 @@ describe("«Cotizaciones» under Ventas, contributed by CRM (plan 2B Task 42, Ru
   it("a company rule hiding Cotizaciones of CRM hides the shortcut too", () => {
     const shell = buildShellNav(reg, { ...full, hidden: new Set(["crm.quotes"]) });
     expect(children(shell, "sales.documentos")?.map((c) => c[0])).not.toContain("crm.quotes_shortcut");
+  });
+});
+
+describe("Bodega before its screens (plan 2B.2 Task 29.1)", () => {
+  const reg = new Registry();
+  loadModules(reg, [kernelModule, core, inventory, costing, warehouse]);
+  const k = shellAccessKeys(reg);
+  const shell = buildShellNav(reg, { entitled: new Set(k.entitlements), runnable: new Set(k.processes) });
+
+  it("asks for the module's entitlement; before its screens (Task 29.4) it shows only the kernel's Parámetros pages, and no create command", () => {
+    expect(k.entitlements).toContain("module:warehouse");
+    expect(shell.modules).toContainEqual({ id: "warehouse", label: "nav.modules.warehouse", icon: "package" });
+    const items = flattenNav(shell.nav.filter((i) => i.id.startsWith("warehouse."))).map((i) => i.href);
+    expect(items).toEqual(["/warehouse/parametros/tipos", "/warehouse/parametros/destinatarios", "/warehouse/parametros/plantillas"]);
+    expect(shell.creates.some((c) => c.processId.startsWith("warehouse."))).toBe(false);
   });
 });

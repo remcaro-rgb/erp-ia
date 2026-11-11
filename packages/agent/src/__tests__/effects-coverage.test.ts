@@ -7,6 +7,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 
@@ -16,7 +17,7 @@ import { support } from "@erp/module-support";
 /** The only way out: an event a module consumes without a line for the card, with the reason. None expected. */
 export const EFFECTS_EXEMPT: Record<string, string> = {};
 
-const modules = [kernelModule, core, accounting, inventory, costing, sales, crm, invoicing, payments, support];
+const modules = [kernelModule, core, accounting, inventory, costing, sales, crm, invoicing, payments, support, warehouse];
 
 describe("every subscribed event has an effect line (plan 2B Task 50.3)", () => {
   it("each consumed event, but '*' and kernel.*, has a non-empty effects entry or a reasoned exemption", () => {

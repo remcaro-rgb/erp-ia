@@ -19,6 +19,7 @@ import { crm } from "@erp/module-crm";
 import { invoicing } from "@erp/module-invoicing";
 import { inventory } from "@erp/module-inventory";
 import { payments } from "@erp/module-payments";
+import { warehouse as warehouseModule } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { kernelModule, loadModules, registerCatalogue, registerCountryPack, Registry, runProcess, type Caller } from "@erp/kernel";
@@ -41,7 +42,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= testEnv().SUPABASE_SERVICE_ROLE_KEY;
 const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
 try {
   const registry = new Registry();
-  loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+  loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouseModule]);
   registerCountryPack({ ...co, einvoice: einvoicePack });
   registerCatalogue(translate);
   const [company] = await sql<{ tenant_id: string }[]>`select tenant_id from kernel.companies where id = ${companyId}`;

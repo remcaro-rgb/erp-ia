@@ -11,6 +11,7 @@ import { costing } from "@erp/module-costing";
 import { crm } from "@erp/module-crm";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse as warehouseModule } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { inventory } from "@erp/module-inventory";
 import { support } from "@erp/module-support";
@@ -23,7 +24,7 @@ if (!id || !moduleId) throw new Error("usage: deliver-event.mts <outbox id> <mod
 const sql = postgres(testEnv().DATABASE_URL, { max: 2, onnotice: () => {} });
 try {
   const registry = new Registry();
-  loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+  loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouseModule]);
   registerCountryPack({ ...co, einvoice: einvoicePack });
   registerCatalogue(translate);
   const [row] = await sql<{ id: string; event: string; payload: Record<string, unknown>; created_at: Date; chain_id: string; company_id: string }[]>`

@@ -1252,7 +1252,8 @@
       "crm": "CRM",
       "sales": "Sales",
       "payments": "Payments",
-      "invoicing": "Invoicing"
+      "invoicing": "Invoicing",
+      "warehouse": "Warehouse"
     },
     "keywords": {
       "core": {
@@ -1535,6 +1536,14 @@
       "receipt_allocation": "Receipt allocation",
       "advance_application": "Advance application",
       "advance_application_line": "Advance application line"
+    },
+    "warehouse": {
+      "settings": "Warehouse settings",
+      "pick": "Pick list",
+      "pick_line": "Pick list line",
+      "pack": "Pack",
+      "pack_package": "Package",
+      "putaway_rule": "Put-away rule"
     }
   },
   "field": {
@@ -3379,6 +3388,105 @@
         "created_at": "Created",
         "updated_at": "Updated"
       }
+    },
+    "warehouse": {
+      "settings": {
+        "seq": "ID",
+        "auto_pick_on_confirm": "Create the pick list when the order is confirmed",
+        "delivery_from_pick": "Create the delivery when the pick list is confirmed",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "pick": {
+        "seq": "ID",
+        "number": "Number",
+        "order_id": "Order",
+        "order_number": "Order number",
+        "warehouse_id": "Warehouse",
+        "party_id": "Customer",
+        "stage": "Stage",
+        "picker_user_id": "Picker",
+        "started_at": "Started",
+        "confirmed_at": "Confirmed",
+        "allocation_status": "Allocation",
+        "allocated_at": "Allocated",
+        "allocation_note": "Allocation note",
+        "notes": "Notes",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "pick_line": {
+        "seq": "ID",
+        "pick_id": "Pick list",
+        "line_no": "Line",
+        "order_line_id": "Order line",
+        "product_id": "Product",
+        "qty_requested": "Quantity to pick",
+        "location_id": "Location",
+        "lot_id": "Lot",
+        "serial_id": "Serial",
+        "qty_picked": "Quantity picked",
+        "short_qty": "Short",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "pack": {
+        "seq": "ID",
+        "number": "Number",
+        "pick_id": "Pick",
+        "pick_number": "Pick number",
+        "order_id": "Order",
+        "order_number": "Order number",
+        "warehouse_id": "Warehouse",
+        "party_id": "Customer",
+        "stage": "Stage",
+        "packages_count": "Packages",
+        "total_weight_kg": "Total weight (kg)",
+        "closed_at": "Closed",
+        "notes": "Notes",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated",
+        "status": "Status",
+        "requires_approval": "Requires approval",
+        "posts": "Posts",
+        "void_reason": "Void reason"
+      },
+      "pack_package": {
+        "seq": "ID",
+        "pack_id": "Pack",
+        "package_no": "Package",
+        "weight_kg": "Weight (kg)",
+        "dimensions": "Dimensions",
+        "items": "Contents (detail)",
+        "contents": "Contents",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      },
+      "putaway_rule": {
+        "seq": "ID",
+        "warehouse_id": "Warehouse",
+        "category_id": "Category",
+        "location_id": "Location",
+        "priority": "Priority",
+        "extra": "Additional data",
+        "extra_free": "Free data",
+        "created_at": "Created",
+        "updated_at": "Updated"
+      }
     }
   },
   "feature": {
@@ -3445,6 +3553,12 @@
     "payments": {
       "methods": "Payment methods and cash boxes",
       "receipts": "Cash receipts"
+    },
+    "warehouse": {
+      "picking": "Pick lists",
+      "settings": "Warehouse settings",
+      "packing": "Packing",
+      "putaway": "Put-away of receipts"
     }
   },
   "process": {
@@ -3540,6 +3654,53 @@
       },
       "report": {
         "commissions": "View the commissions by salesperson"
+      }
+    },
+    "warehouse": {
+      "pick": {
+        "create": "Create pick list",
+        "update": "Record what was picked",
+        "start": "Start pick list",
+        "confirm": "Confirm pick list",
+        "void": "Void pick list",
+        "consult": "View pick list",
+        "record_allocation": "Record the inventory allocation"
+      },
+      "pick_line": {
+        "consult": "View pick list line"
+      },
+      "settings": {
+        "update": "Change warehouse settings",
+        "consult": "View warehouse settings"
+      },
+      "pack": {
+        "create": "Create pack",
+        "update": "Build the packages",
+        "close": "Close pack",
+        "void": "Void pack",
+        "consult": "View pack"
+      },
+      "pack_package": {
+        "consult": "View package"
+      },
+      "putaway_rule": {
+        "create": "Create put-away rule",
+        "update": "Change put-away rule",
+        "delete": "Delete put-away rule",
+        "consult": "View put-away rules"
+      },
+      "putaway": {
+        "suggest": "Suggest put-away of a receipt",
+        "confirm": "Confirm put-away of a receipt",
+        "notify": "Flag receipts pending put-away"
+      }
+    },
+    "inventory": {
+      "reservation": {
+        "allocate": "Allocate the pick list to the reservation"
+      },
+      "relocation": {
+        "post": "Post relocation"
       }
     }
   },
@@ -5541,7 +5702,8 @@
         "sale_return": "Sale return",
         "adjustment": "Adjustment",
         "transfer_out": "Transfer out",
-        "transfer_in": "Transfer in"
+        "transfer_in": "Transfer in",
+        "relocation": "Relocation"
       },
       "location_kind": {
         "storage": "Storage",
@@ -5743,7 +5905,9 @@
       "delivery_reentry": "Inventory: puts the stock of the voided delivery back in the warehouse",
       "delivery_reserve_again": "Inventory: when asked, reserves the voided delivery's stock for the order again, if it suffices",
       "return_reentry": "Inventory: puts the returned stock back in the warehouse",
-      "return_void": "Inventory: takes the stock of the voided return out of the warehouse again"
+      "return_void": "Inventory: takes the stock of the voided return out of the warehouse again",
+      "pick_allocate": "Inventory: assigns the location and lot to the reservation",
+      "putaway_relocate": "Inventory: relocates the received stock to the confirmed locations"
     },
     "lot": {
       "intro": "Each lot belongs to one lot-tracked product; its code is unique per product. A blocked lot is not sold."
@@ -6062,6 +6226,7 @@
       "nothing_to_deliver": "Nothing is left to deliver on the order",
       "warehouse_required": "Choose the warehouse the delivery ships from",
       "delivery_shipped": "The delivery has shipped: it does not change",
+      "pick_event_only": "A delivery is created from a pick only by inventory's answer",
       "delivery_not_saved": "The delivery is not saved",
       "delivery_voided": "The delivery is voided",
       "delivery_invoiced": "The delivery has invoiced units: it is not voided (correct it with a credit note)",
@@ -6318,7 +6483,8 @@
       "commission_accrual": "Sales: accrues the commissions of the invoice or the collection and posts them",
       "commission_reversal": "Sales: reverses the commissions the document accrued and their entry",
       "commission_note": "Sales: the credit note reduces its lines' commission base and gives back what was over-accrued; the annulment reverses the invoice's commissions",
-      "lots_recorded": "Sales: records on each delivery line the lots and serials inventory issued"
+      "lots_recorded": "Sales: records on each delivery line the lots and serials inventory issued",
+      "pick_delivery": "Sales: creates the draft delivery"
     },
     "print": {
       "delivery_title": "Delivery note"
@@ -7151,6 +7317,85 @@
       "trm_import_failed": {
         "title": "The official rate (TRM) could not be imported",
         "body": "The official source did not answer the {currency} rate for {date}. Try again with «Import TRM» in Exchange rates or enter the rate by hand."
+      }
+    }
+  },
+  "warehouse": {
+    "values": {
+      "pick_stage": {
+        "open": "To pick",
+        "in_progress": "In progress",
+        "confirmed": "Confirmed"
+      },
+      "allocation_status": {
+        "allocated": "Allocated",
+        "short": "Short"
+      },
+      "pack_stage": {
+        "open": "Open",
+        "closed": "Closed"
+      }
+    },
+    "pick": {
+      "own_flags": {
+        "requires_approval": "Needs no approval: the pick list is confirmed without approving.",
+        "posts": "Neither posts nor moves stock: the stock leaves with the delivery."
+      }
+    },
+    "effects": {
+      "order_pick": "Warehouse: creates the order's pick list with the proposed location and lot (when on in Warehouse settings)",
+      "order_pick_void": "Warehouse: voids the order's pick lists",
+      "allocation_recorded": "Warehouse: records on the pick list what was allocated or, when short, sends it back to «In progress»",
+      "putaway_notify": "Warehouse: flags what was received and still needs a location, with a suggestion"
+    },
+    "errors": {
+      "pick_voided": "The pick list is void",
+      "pick_confirmed": "The pick list is already confirmed",
+      "order_cancelled": "The order is cancelled",
+      "order_not_confirmed": "The order is not confirmed",
+      "warehouse_required": "The order has no warehouse",
+      "invalid_pick_line": "The line is not on this pick list",
+      "pick_over_requested": "More was picked than the pick list asks",
+      "invalid_location": "The location is not in the pick list's warehouse",
+      "lot_not_found": "The lot does not exist or belongs to another product",
+      "serial_not_found": "The serial does not exist or belongs to another product",
+      "serials_required": "Give one serial per unit",
+      "location_required": "Say which location it was picked from",
+      "lot_required": "Give the lot picked",
+      "product_not_tracked": "The product is not tracked by lot or serial",
+      "nothing_picked": "Nothing was picked on the pick list",
+      "nothing_to_change": "Nothing to change",
+      "pick_not_confirmed": "The pick is not confirmed",
+      "pack_exists": "The pick already has a pack",
+      "pack_voided": "The pack is voided",
+      "pack_closed": "The pack is already closed",
+      "pack_empty": "The pack has no package with contents",
+      "duplicate_package": "The package number is repeated",
+      "pack_exceeds_pick": "More was packed than picked",
+      "not_a_receipt": "The movement is not a receipt",
+      "putaway_not_on_receipt": "The line is not on this receipt",
+      "relocation_cross_warehouse": "The location belongs to another warehouse: use a transfer between warehouses",
+      "putaway_exceeds_stock": "More is put away than what remains of the receipt at that location",
+      "rule_exists": "There is already a rule for that category and location",
+      "invalid_category": "The category does not exist",
+      "invalid_warehouse": "The warehouse does not exist"
+    },
+    "pack": {
+      "own_flags": {
+        "requires_approval": "No approval: the pack closes without approval.",
+        "posts": "Posts nothing and moves no stock: stock leaves with the delivery."
+      }
+    },
+    "print": {
+      "pack_title": "Packing list"
+    },
+    "recommendation": {
+      "putaway_pending": {
+        "title": "Receipt to put away",
+        "body": "Receipt {number} in {warehouse} has {count} lines to put away."
+      },
+      "reason": {
+        "putaway_pending": "Received stock still to put away"
       }
     }
   }

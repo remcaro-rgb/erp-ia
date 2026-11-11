@@ -11,6 +11,8 @@ import { serialHooks } from "./processes/serial";
 import { DELIVERY_RESERVATION_RESTORED, onDeliveryShipped, onDeliveryVoided, onReturnReceived, onReturnVoided, SALE_ISSUE_ALLOCATED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
 import { INVENTORY_POSTING_RULES } from "./rules";
 import { onOrderCancelled, onOrderConfirmed } from "./processes/sales-orders";
+import { RESERVATION_ALLOCATED } from "./processes/reservation";
+import { onPickConfirmed, PICK_CONFIRMED } from "./processes/warehouse-picks";
 import { transferHooks } from "./processes/transfer";
 import { locationHooks, warehouseHooks } from "./processes/warehouse";
 
@@ -43,7 +45,7 @@ export const inventory: ModuleDef = defineModule({
   // Its Inicio cards (plan 2B Task 26).
   homeKpis: HOME_KPIS,
   // The pedidos (Task 13), entregas and devoluciones (Task 14) of sales, by event name (processes/sales-orders.ts, sales-deliveries.ts).
-  events: { emits: [MOVEMENT_POSTED, MOVEMENT_VOIDED, SALE_ISSUE_REFUSED, SALE_ISSUE_ALLOCATED, SALE_RETURN_VOID_REFUSED, DELIVERY_RESERVATION_RESTORED], consumes: {
+  events: { emits: [MOVEMENT_POSTED, MOVEMENT_VOIDED, SALE_ISSUE_REFUSED, SALE_ISSUE_ALLOCATED, SALE_RETURN_VOID_REFUSED, DELIVERY_RESERVATION_RESTORED, RESERVATION_ALLOCATED], consumes: {
       "sales.order.confirmed": onOrderConfirmed,
       "sales.order.cancelled": onOrderCancelled,
       "sales.delivery.shipped": onDeliveryShipped,
@@ -84,6 +86,8 @@ export { INVENTORY_ENTITIES, KIND_PREFIX, KIND_SIGN, MOVEMENT_KINDS, POSTABLE_KI
 export type { MovementKind } from "./entities";
 export { postAdjustment } from "./processes/adjustment";
 export { onOrderCancelled, onOrderConfirmed, ORDER_LINE_SOURCE } from "./processes/sales-orders";
+export { RESERVATION_ALLOCATED } from "./processes/reservation";
+export { onPickConfirmed, PICK_CONFIRMED } from "./processes/warehouse-picks";
 export { DELIVERY_RESERVATION_RESTORED, SALE_ISSUE_ALLOCATED, SALE_ISSUE_REFUSED, SALE_RETURN_VOID_REFUSED } from "./processes/sales-deliveries";
 export { applyStock, lockStockLegs, MOVEMENT_POSTED, MOVEMENT_VOIDED, postMovement } from "./processes/movement";
 export type { MovementEvent, MovementEventLine, MovementInput, PostedMovement } from "./processes/movement";

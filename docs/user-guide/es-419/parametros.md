@@ -25,6 +25,9 @@ routes:
   - /payments/parametros/tipos
   - /payments/parametros/destinatarios
   - /payments/parametros/plantillas
+  - /warehouse/parametros/tipos
+  - /warehouse/parametros/destinatarios
+  - /warehouse/parametros/plantillas
 processes:
   - kernel.entity_type_settings.update
   - kernel.state_recipients.update
@@ -53,7 +56,7 @@ La tabla lista los maestros y documentos del módulo, con su **Tipo** (Maestro o
 
 Los valores **se copian en cada registro al crearlo**: cambiarlos no altera los registros que ya existen. Si activas la aprobación para Terceros, un tercero nuevo muestra **Guardar y enviar a aprobación** y queda **Pendiente de Aprobación** hasta que alguien lo apruebe.
 
-Algunas entidades definen sus valores ellas mismas y muestran una nota en lugar del interruptor. Por ejemplo, el comprobante contable toma la aprobación de su **fuente** («Requiere aprobación en comprobantes manuales») y siempre contabiliza.
+Algunas entidades definen sus valores ellas mismas y muestran una nota en lugar del interruptor. Por ejemplo, el comprobante contable toma la aprobación de su **fuente** («Requiere aprobación en comprobantes manuales») y siempre contabiliza. El **alistamiento** de Bodega tampoco tiene interruptores: nunca requiere aprobación y nunca contabiliza ni mueve existencias (el inventario sale con la entrega).
 
 ## Destinatarios por estado
 

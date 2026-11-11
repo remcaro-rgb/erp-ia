@@ -7,6 +7,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 
@@ -14,7 +15,7 @@ import { support } from "@erp/module-support";
 // may never continue after a failure; a crm or core process that sets off nothing on the ledger or the stock may.
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments]);
+loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments, warehouse]);
 
 describe("ledgerOrStockReason over the loaded modules", () => {
   it("names the posting engine's, the stock's and the stock consumers' processes", () => {

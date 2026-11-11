@@ -187,6 +187,9 @@ async function releaseRow(ctx: ProcessContext, row: Row, qty: number | undefined
            released_at = case when ${left === 0}::boolean then now() end
      where id = ${row.id}
     returning id, qty, released_qty, status`;
+  // A reservation released in full holds no shelf any more (Task 29.1): its allocations (where, from which lot and serial it would be
+  // picked) go with it. A partial release (a shipment) keeps them: the entrega's issue uses them up (Task 29.3).
+  if (left === 0) await ctx.tx`delete from inventory.reservation_allocations where reservation_id = ${row.id}`;
   return answer(updated!);
 }
 
@@ -290,4 +293,123 @@ export const reservationReserveAgain = defineProcess({
   },
 });
 
-export const RESERVATION_PROCESSES = [reservationCreate, reservationRelease, reservationReserveAgain, reservationConsult];
+// -------------------------------------------------------------------------------------------------
+// inventory.reservation.allocate (plan 2B.2 Task 29.1, PG §4.3 step 3; RG-7)
+// -------------------------------------------------------------------------------------------------
+
+/** inventory's answer to a confirmed alistamiento (consumed by warehouse.pick.record_allocation and, Task 29.2, by sales). */
+export const RESERVATION_ALLOCATED = "inventory.reservation.allocated";
+
+const allocateLine = z.object({
+  orderLineId: id,
+  productId: id,
+  locationId: id,
+  lotId: id.nullable().optional(),
+  serialId: id.nullable().optional(),
+  qty: positive,
+}).strict();
+
+const allocateOutput = z.object({
+  status: z.enum(["allocated", "short"]),
+  short: z.array(z.object({ orderLineId: z.string(), productId: z.string(), qty: z.number(), available: z.number(), reason: z.string() })),
+});
+
+/**
+ * The allocation of a confirmed alistamiento (consumer of warehouse.pick.confirmed, origin event): each picked line becomes an allocation of
+ * its pedido line's active reservation (inventory.reservation_allocations: ubicación, lot, serial, quantity). Nothing moves (RG-7): the
+ * stock moves at the entrega's ship. All or nothing per alistamiento: a line is short (`allocation_short`) when its bucket (product,
+ * ubicación, lot, serial in the event's bodega) holds less than it, net of what the allocations of every other active reservation (and the
+ * earlier lines of the alistamiento) already hold of it, or when its reservation has less open (qty − released − already allocated) than it;
+ * then NOTHING is allocated and the answer names each short line with what was available. The stock rows are locked first (lockStock, the
+ * order of every movement and reservation), so two alistamientos of the last units queue. Idempotent on the event (a redelivery answers the
+ * first run and emits nothing new). Answers by inventory.reservation.allocated { pickId, orderId, warehouseId, createDelivery, status,
+ * lines, short }.
+ */
+export const reservationAllocate = defineProcess({
+  id: "inventory.reservation.allocate",
+  module: "inventory",
+  kind: "update",
+  recordAccess: "none",
+  feature: FEATURE,
+  origins: ["event"],
+  emits: [RESERVATION_ALLOCATED],
+  description:
+    "Asigna a la reserva de cada línea del pedido la ubicación, el lote y el serial de un alistamiento confirmado, sin mover existencias: todo o nada; si una ubicación no tiene lo tomado, no asigna nada y responde las líneas que faltan",
+  idempotencyKey: (input) => `allocate:${input.eventId}`,
+  input: z.object({
+    eventId: id,
+    pickId: id,
+    orderId: id,
+    warehouseId: id,
+    createDelivery: z.boolean(),
+    lines: z.array(allocateLine).min(1).max(5000),
+  }).strict(),
+  output: allocateOutput,
+  handler: async (ctx, input) => {
+    const facts = await productFacts(ctx, input.lines.map((l) => l.productId));
+    const lines = input.lines.filter((l) => {
+      const p = facts.get(l.productId);
+      return p && p.kind !== "service" && p.trackStock;
+    });
+    await lockStock(ctx, input.warehouseId, [...new Set(lines.map((l) => l.productId))]);
+    const orderLineIds = [...new Set(lines.map((l) => l.orderLineId))];
+    const reservations = new Map((orderLineIds.length === 0 ? [] : await ctx.tx<{ id: string; source_line_id: string; open: string }[]>`
+      select r.id, r.source_line_id,
+             (r.qty - r.released_qty - coalesce((select sum(a.qty) from inventory.reservation_allocations a where a.reservation_id = r.id), 0))::text as open
+      from inventory.reservations r
+      where r.company_id = ${ctx.companyId} and r.source_entity = ${ORDER_LINE_SOURCE} and r.source_line_id = any(${orderLineIds}::uuid[])
+        and r.warehouse_id = ${input.warehouseId} and r.status = 'active'
+      for update`).map((r) => [r.source_line_id, { id: r.id, open: num(r.open) }]));
+    const bucketKey = (l: { productId: string; locationId: string; lotId?: string | null; serialId?: string | null }) =>
+      `${l.productId}|${l.locationId}|${l.lotId ?? ""}|${l.serialId ?? ""}`;
+    const free = new Map<string, number>();
+    for (const l of lines) {
+      const key = bucketKey(l);
+      if (free.has(key)) continue;
+      const [row] = await ctx.tx<{ free: string }[]>`
+        select (coalesce((select sum(s.on_hand) from inventory.stock_levels s
+                  where s.company_id = ${ctx.companyId} and s.warehouse_id = ${input.warehouseId} and s.product_id = ${l.productId}
+                    and s.location_id = ${l.locationId} and s.lot_id is not distinct from ${l.lotId ?? null}::uuid
+                    and (${l.serialId ?? null}::uuid is null or s.serial_id = ${l.serialId ?? null}::uuid)), 0)
+              - coalesce((select sum(a.qty) from inventory.reservation_allocations a join inventory.reservations r on r.id = a.reservation_id
+                  where a.company_id = ${ctx.companyId} and r.status = 'active' and r.warehouse_id = ${input.warehouseId} and r.product_id = ${l.productId}
+                    and a.location_id = ${l.locationId} and a.lot_id is not distinct from ${l.lotId ?? null}::uuid
+                    and (${l.serialId ?? null}::uuid is null or a.serial_id = ${l.serialId ?? null}::uuid)), 0))::text as free`;
+      free.set(key, num(row!.free));
+    }
+    const short: z.output<typeof allocateOutput>["short"] = [];
+    const plan: { reservationId: string; line: (typeof lines)[number] }[] = [];
+    for (const l of lines) {
+      const key = bucketKey(l);
+      const reservation = reservations.get(l.orderLineId);
+      const inBucket = Math.max(free.get(key) ?? 0, 0);
+      const open = Math.max(reservation?.open ?? 0, 0);
+      if (!reservation || l.qty > inBucket || l.qty > open) {
+        short.push({ orderLineId: l.orderLineId, productId: l.productId, qty: l.qty, available: round4(Math.min(inBucket, open)), reason: "allocation_short" });
+        continue;
+      }
+      free.set(key, round4(inBucket - l.qty));
+      reservation.open = round4(open - l.qty);
+      plan.push({ reservationId: reservation.id, line: l });
+    }
+    const status = short.length > 0 ? ("short" as const) : ("allocated" as const);
+    if (status === "allocated" && plan.length > 0) {
+      await ctx.tx`insert into inventory.reservation_allocations ${ctx.tx(plan.map((x) => ({
+        company_id: ctx.companyId, reservation_id: x.reservationId, location_id: x.line.locationId, lot_id: x.line.lotId ?? null,
+        serial_id: x.line.serialId ?? null, qty: x.line.qty,
+      })))}`;
+    }
+    await ctx.emit(RESERVATION_ALLOCATED, {
+      pickId: input.pickId,
+      orderId: input.orderId,
+      warehouseId: input.warehouseId,
+      createDelivery: input.createDelivery,
+      status,
+      lines: status === "allocated" ? plan.map((x) => ({ ...x.line, lotId: x.line.lotId ?? null, serialId: x.line.serialId ?? null, reservationId: x.reservationId })) : [],
+      short,
+    });
+    return { status, short };
+  },
+});
+
+export const RESERVATION_PROCESSES = [reservationCreate, reservationRelease, reservationReserveAgain, reservationAllocate, reservationConsult];

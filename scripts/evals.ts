@@ -19,6 +19,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse as warehouseModule } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { getServiceDb, kernelModule, loadModules, registerCountryPack, Registry } from "@erp/kernel";
@@ -57,7 +58,7 @@ async function main(): Promise<void> {
   try {
     const registry = new Registry();
     // The app's modules (apps/web/src/lib/server/runtime.ts): Laura's tools are those of the app, the 2B sales chain included.
-    loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+    loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouseModule]);
     registerCountryPack(co);
     const laura = await signIn(sql, env, LAURA);
     // Laura's session only supplies her claims: no process runs.

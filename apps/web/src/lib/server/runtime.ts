@@ -4,6 +4,7 @@ import { costing } from "@erp/module-costing";
 import { crm } from "@erp/module-crm";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { inventory } from "@erp/module-inventory";
 import { support } from "@erp/module-support";
@@ -19,7 +20,7 @@ import { SupabaseFileStore, VaultSecretStore, type FileStore } from "@erp/infra"
 
 /** Dependencies for `runProcess`; loads the modules into the registry and the country packs on first use. */
 export function processDeps(): RunProcessDeps {
-  if (!registry.hasModule(kernelModule.id)) loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+  if (!registry.hasModule(kernelModule.id)) loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouse]);
   // The core processes validate parties and products with the company's pack (rule 5). Registered on every call:
   // the registry lives on globalThis, the pack table in its module, which a bundle may load more than once.
   // With its electronic-invoicing entry (server-only: numbering by the DIAN resolution and the CUFE, plan 2B Task 16).

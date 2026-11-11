@@ -7,6 +7,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { agentCandidates, EXCLUDED_PROCESSES, inputJsonSchema } from "../tools/from-registry";
@@ -17,8 +18,8 @@ import { agentCandidates, EXCLUDED_PROCESSES, inputJsonSchema } from "../tools/f
 // matrix and the company's entitlements narrow the rest per caller (tools.integration.test.ts, sales-tools.integration.test.ts).
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments]);
-const CHAIN = ["crm", "sales", "inventory", "costing", "invoicing", "payments"];
+loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments, warehouse]);
+const CHAIN = ["crm", "sales", "inventory", "costing", "invoicing", "payments", "warehouse"];
 const offered = new Set(agentCandidates(registry).map((p) => p.id));
 
 describe("the assistant's tool candidates", () => {
@@ -38,6 +39,8 @@ describe("the assistant's tool candidates", () => {
       "sales.delivery.record_invoiced", "sales.delivery.record_stock", "sales.delivery.reopen", "sales.return.restore",
       "inventory.sale.issue", "inventory.sale.void_issue", "inventory.sale.return", "inventory.sale.void_return",
       "costing.movement.cost", "costing.movement.void_cost", "crm.opportunity.mark_won",
+      // The alistamiento's allocation (plan 2B.2 Task 29.1): inventory's answer and its record on the alistamiento run only from the events.
+      "inventory.reservation.allocate", "warehouse.pick.record_allocation",
       "accounting.entry.post_from_event", "accounting.posting_failure.record", "accounting.posting_rule.sync", "accounting.posting.reverse_source",
       // Nested only (inside invoicing.invoice.void, whose step-up covers it).
       "invoicing.note.issue_annulment",
@@ -65,6 +68,8 @@ describe("the assistant's tool candidates", () => {
       "invoicing.invoice.void", "payments.payment.void", "inventory.adjustment.post", "invoicing.settings.update",
       // Task 36: applying an advance and undoing it are registry processes like the receipt's; their consult is a tool too (masked, capped).
       "payments.advance.apply", "payments.advance.undo", "payments.advance.open",
+      // Task 29.1: «Crear alistamiento» of a confirmed pedido is a tool (the assistant eval of Task 29.4 calls it); its settings are step-up.
+      "warehouse.pick.create", "warehouse.pick.confirm", "warehouse.settings.update",
     ]) {
       expect(offered.has(id), id).toBe(true);
     }

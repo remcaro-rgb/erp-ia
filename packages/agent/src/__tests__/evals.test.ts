@@ -10,6 +10,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
 import { EXCLUDED_PROCESSES, inputJsonSchema, isAgentTool, toolName } from "../tools/from-registry";
@@ -33,7 +34,7 @@ const cases: EvalCase[] = files.flatMap((f) => (JSON.parse(readFileSync(join(dir
 
 const registry = new Registry();
 // The app's modules (apps/web/src/lib/server/runtime.ts): the 2A ledger and the 2B sales chain.
-loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments]);
+loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments, warehouse]);
 
 type Schema = { type?: string; properties?: Record<string, Schema>; items?: Schema; enum?: unknown[]; additionalProperties?: unknown };
 

@@ -109,7 +109,11 @@ interface Pick {
   serialId: string | null;
   qty: number;
 }
-interface PickLine { productId: string; qty: number; sku: string; lineNo: number; lotId?: string | undefined; serialIds?: string[] | undefined }
+interface PickLine { productId: string; qty: number; sku: string; lineNo: number; orderLineId?: string | undefined; lotId?: string | undefined; serialIds?: string[] | undefined }
+/** An allocation of a pedido line's active reservation (Task 29.1: where the picker took it), with what this run has left of it. */
+interface AllocationRow { id: string; order_line_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string }
+/** What a run took of an allocation: written back (used up) only once the issue posted. */
+interface AllocationUse { allocationId: string; qty: number }
 interface BucketRow {
   product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; on_hand: string;
   lot_code: string | null; expires_on: string | null; produced_on: string | null; lot_status: string | null; lot_deleted: boolean | null; serial_no: string | null;

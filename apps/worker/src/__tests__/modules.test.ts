@@ -18,4 +18,10 @@ describe("worker modules", () => {
   it("include the sales chain: sales, inventory, costing and accounting", () => {
     expect(WORKER_MODULES.map((m) => m.id)).toEqual(expect.arrayContaining(["sales", "inventory", "costing", "accounting"]));
   });
+
+  it("include Bodega (plan 2B.2 Task 29.1) after the modules it depends on (core, inventory)", () => {
+    const ids = WORKER_MODULES.map((m) => m.id);
+    expect(ids).toContain("warehouse");
+    expect(ids.indexOf("warehouse")).toBeGreaterThan(ids.indexOf("inventory"));
+  });
 });

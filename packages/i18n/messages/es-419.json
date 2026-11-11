@@ -1252,7 +1252,8 @@
       "crm": "CRM",
       "sales": "Ventas",
       "payments": "Pagos",
-      "invoicing": "Facturación"
+      "invoicing": "Facturación",
+      "warehouse": "Bodega"
     },
     "keywords": {
       "core": {
@@ -1535,6 +1536,14 @@
       "receipt_allocation": "Aplicación del recibo",
       "advance_application": "Aplicación de anticipo",
       "advance_application_line": "Línea de la aplicación de anticipo"
+    },
+    "warehouse": {
+      "settings": "Parámetros de bodega",
+      "pick": "Alistamiento",
+      "pick_line": "Línea de alistamiento",
+      "pack": "Empaque",
+      "pack_package": "Paquete",
+      "putaway_rule": "Regla de ubicación"
     }
   },
   "field": {
@@ -3379,6 +3388,105 @@
         "created_at": "Creado",
         "updated_at": "Actualizado"
       }
+    },
+    "warehouse": {
+      "settings": {
+        "seq": "ID",
+        "auto_pick_on_confirm": "Crear el alistamiento al confirmar el pedido",
+        "delivery_from_pick": "Crear la entrega al confirmar el alistamiento",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "pick": {
+        "seq": "ID",
+        "number": "Número",
+        "order_id": "Pedido",
+        "order_number": "Número del pedido",
+        "warehouse_id": "Bodega",
+        "party_id": "Cliente",
+        "stage": "Etapa",
+        "picker_user_id": "Alistador",
+        "started_at": "Iniciado",
+        "confirmed_at": "Confirmado",
+        "allocation_status": "Asignación",
+        "allocated_at": "Asignado",
+        "allocation_note": "Nota de la asignación",
+        "notes": "Notas",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación",
+        "posts": "Contabiliza",
+        "void_reason": "Motivo de anulación"
+      },
+      "pick_line": {
+        "seq": "ID",
+        "pick_id": "Alistamiento",
+        "line_no": "Línea",
+        "order_line_id": "Línea del pedido",
+        "product_id": "Producto",
+        "qty_requested": "Cantidad a alistar",
+        "location_id": "Ubicación",
+        "lot_id": "Lote",
+        "serial_id": "Serial",
+        "qty_picked": "Cantidad tomada",
+        "short_qty": "Faltante",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "pack": {
+        "seq": "ID",
+        "number": "Número",
+        "pick_id": "Alistamiento",
+        "pick_number": "Número del alistamiento",
+        "order_id": "Pedido",
+        "order_number": "Número del pedido",
+        "warehouse_id": "Bodega",
+        "party_id": "Cliente",
+        "stage": "Etapa",
+        "packages_count": "Paquetes",
+        "total_weight_kg": "Peso total (kg)",
+        "closed_at": "Cerrado",
+        "notes": "Notas",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado",
+        "status": "Estado",
+        "requires_approval": "Requiere aprobación",
+        "posts": "Contabiliza",
+        "void_reason": "Motivo de anulación"
+      },
+      "pack_package": {
+        "seq": "ID",
+        "pack_id": "Empaque",
+        "package_no": "Paquete",
+        "weight_kg": "Peso (kg)",
+        "dimensions": "Dimensiones",
+        "items": "Contenido (detalle)",
+        "contents": "Contenido",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      },
+      "putaway_rule": {
+        "seq": "ID",
+        "warehouse_id": "Bodega",
+        "category_id": "Categoría",
+        "location_id": "Ubicación",
+        "priority": "Prioridad",
+        "extra": "Datos adicionales",
+        "extra_free": "Datos libres",
+        "created_at": "Creado",
+        "updated_at": "Actualizado"
+      }
     }
   },
   "feature": {
@@ -3445,6 +3553,12 @@
     "payments": {
       "methods": "Medios de pago y cajas",
       "receipts": "Recibos de caja"
+    },
+    "warehouse": {
+      "picking": "Alistamientos",
+      "settings": "Parámetros de bodega",
+      "packing": "Empaques",
+      "putaway": "Ubicación de lo recibido"
     }
   },
   "process": {
@@ -3540,6 +3654,53 @@
       },
       "report": {
         "commissions": "Consultar las comisiones por vendedor"
+      }
+    },
+    "warehouse": {
+      "pick": {
+        "create": "Crear alistamiento",
+        "update": "Anotar lo tomado",
+        "start": "Empezar alistamiento",
+        "confirm": "Confirmar alistamiento",
+        "void": "Anular alistamiento",
+        "consult": "Consultar alistamiento",
+        "record_allocation": "Registrar la asignación del inventario"
+      },
+      "pick_line": {
+        "consult": "Consultar línea de alistamiento"
+      },
+      "settings": {
+        "update": "Cambiar parámetros de bodega",
+        "consult": "Consultar parámetros de bodega"
+      },
+      "pack": {
+        "create": "Crear empaque",
+        "update": "Armar los paquetes",
+        "close": "Cerrar empaque",
+        "void": "Anular empaque",
+        "consult": "Consultar empaque"
+      },
+      "pack_package": {
+        "consult": "Consultar paquete"
+      },
+      "putaway_rule": {
+        "create": "Crear regla de ubicación",
+        "update": "Cambiar regla de ubicación",
+        "delete": "Eliminar regla de ubicación",
+        "consult": "Consultar reglas de ubicación"
+      },
+      "putaway": {
+        "suggest": "Sugerir ubicación de lo recibido",
+        "confirm": "Confirmar ubicación de lo recibido",
+        "notify": "Avisar qué recibido falta ubicar"
+      }
+    },
+    "inventory": {
+      "reservation": {
+        "allocate": "Asignar el alistamiento a la reserva"
+      },
+      "relocation": {
+        "post": "Registrar reubicación"
       }
     }
   },
@@ -5541,7 +5702,8 @@
         "sale_return": "Devolución de venta",
         "adjustment": "Ajuste",
         "transfer_out": "Salida por traslado",
-        "transfer_in": "Entrada por traslado"
+        "transfer_in": "Entrada por traslado",
+        "relocation": "Reubicación"
       },
       "location_kind": {
         "storage": "Almacenamiento",
@@ -5743,7 +5905,9 @@
       "delivery_reentry": "Inventario: devuelve a la bodega el stock de la entrega anulada",
       "delivery_reserve_again": "Inventario: si se pidió, vuelve a reservar para el pedido las existencias de la entrega anulada, cuando alcanzan",
       "return_reentry": "Inventario: reingresa a la bodega el stock devuelto",
-      "return_void": "Inventario: vuelve a sacar de la bodega el stock de la devolución anulada"
+      "return_void": "Inventario: vuelve a sacar de la bodega el stock de la devolución anulada",
+      "pick_allocate": "Inventario: asigna ubicación y lote a la reserva",
+      "putaway_relocate": "Inventario: reubica las existencias recibidas a las ubicaciones confirmadas"
     },
     "lot": {
       "intro": "Cada lote es de un producto que se sigue por lote; su código es único por producto. Un lote bloqueado no se vende."
@@ -6062,6 +6226,7 @@
       "nothing_to_deliver": "No queda nada por entregar del pedido",
       "warehouse_required": "Indica la bodega de la que sale la entrega",
       "delivery_shipped": "La entrega ya se despachó: no cambia",
+      "pick_event_only": "Una entrega se crea desde un alistamiento solo con la respuesta del inventario",
       "delivery_not_saved": "La entrega no está grabada",
       "delivery_voided": "La entrega está anulada",
       "delivery_invoiced": "La entrega ya tiene unidades facturadas: no se anula (se corrige con una nota crédito)",
@@ -6318,7 +6483,8 @@
       "commission_accrual": "Ventas: causa las comisiones de la factura o del recaudo y las contabiliza",
       "commission_reversal": "Ventas: revierte las comisiones causadas por el documento y reversa su asiento",
       "commission_note": "Ventas: la nota crédito reduce la base de comisión de sus líneas y devuelve lo causado de más; la anulación revierte las comisiones de la factura",
-      "lots_recorded": "Ventas: anota en cada línea de la entrega los lotes y seriales que el inventario descargó"
+      "lots_recorded": "Ventas: anota en cada línea de la entrega los lotes y seriales que el inventario descargó",
+      "pick_delivery": "Ventas: crea la entrega en borrador"
     },
     "print": {
       "delivery_title": "Remisión de entrega"
@@ -7151,6 +7317,85 @@
       "trm_import_failed": {
         "title": "No se pudo traer la TRM",
         "body": "La fuente oficial no respondió la tasa de {currency} para el {date}. Vuelve a intentarlo con «Traer TRM» en Tasas de cambio o registra la tasa a mano."
+      }
+    }
+  },
+  "warehouse": {
+    "values": {
+      "pick_stage": {
+        "open": "Por alistar",
+        "in_progress": "En proceso",
+        "confirmed": "Confirmado"
+      },
+      "allocation_status": {
+        "allocated": "Asignado",
+        "short": "Faltante"
+      },
+      "pack_stage": {
+        "open": "Abierto",
+        "closed": "Cerrado"
+      }
+    },
+    "pick": {
+      "own_flags": {
+        "requires_approval": "No requiere aprobación: el alistamiento se confirma sin aprobar.",
+        "posts": "No contabiliza ni mueve existencias: el inventario sale con la entrega."
+      }
+    },
+    "effects": {
+      "order_pick": "Bodega: crea el alistamiento del pedido con la ubicación y el lote propuestos (si está activo en Parámetros de bodega)",
+      "order_pick_void": "Bodega: anula los alistamientos del pedido",
+      "allocation_recorded": "Bodega: registra en el alistamiento lo asignado o, si faltó, lo devuelve a «En proceso»",
+      "putaway_notify": "Bodega: avisa qué recibido falta ubicar y sugiere la ubicación"
+    },
+    "errors": {
+      "pick_voided": "El alistamiento está anulado",
+      "pick_confirmed": "El alistamiento ya está confirmado",
+      "order_cancelled": "El pedido está cancelado",
+      "order_not_confirmed": "El pedido no está confirmado",
+      "warehouse_required": "El pedido no tiene bodega",
+      "invalid_pick_line": "La línea no es de este alistamiento",
+      "pick_over_requested": "Se tomó más de lo que pide el alistamiento",
+      "invalid_location": "La ubicación no es de la bodega del alistamiento",
+      "lot_not_found": "El lote no existe o es de otro producto",
+      "serial_not_found": "El serial no existe o es de otro producto",
+      "serials_required": "Indica un serial por unidad",
+      "location_required": "Indica de qué ubicación se tomó",
+      "lot_required": "Indica el lote tomado",
+      "product_not_tracked": "El producto no se controla por lote ni serial",
+      "nothing_picked": "El alistamiento no tiene nada tomado",
+      "nothing_to_change": "No hay nada que cambiar",
+      "pick_not_confirmed": "El alistamiento no está confirmado",
+      "pack_exists": "El alistamiento ya tiene un empaque",
+      "pack_voided": "El empaque está anulado",
+      "pack_closed": "El empaque ya está cerrado",
+      "pack_empty": "El empaque no tiene paquetes con contenido",
+      "duplicate_package": "El número de paquete está repetido",
+      "pack_exceeds_pick": "Se empacó más de lo alistado",
+      "not_a_receipt": "El movimiento no es una entrada",
+      "putaway_not_on_receipt": "La línea no es de esta entrada",
+      "relocation_cross_warehouse": "La ubicación es de otra bodega: entre bodegas se mueve con un traslado",
+      "putaway_exceeds_stock": "Se ubica más de lo que queda de la entrada en esa ubicación",
+      "rule_exists": "Ya hay una regla para esa categoría y ubicación",
+      "invalid_category": "La categoría no existe",
+      "invalid_warehouse": "La bodega no existe"
+    },
+    "pack": {
+      "own_flags": {
+        "requires_approval": "No requiere aprobación: el empaque se cierra sin aprobar.",
+        "posts": "No contabiliza ni mueve existencias: el inventario sale con la entrega."
+      }
+    },
+    "print": {
+      "pack_title": "Lista de empaque"
+    },
+    "recommendation": {
+      "putaway_pending": {
+        "title": "Recibido por ubicar",
+        "body": "La entrada {number} en {warehouse} tiene {count} líneas por ubicar."
+      },
+      "reason": {
+        "putaway_pending": "Falta ubicar lo recibido"
       }
     }
   }

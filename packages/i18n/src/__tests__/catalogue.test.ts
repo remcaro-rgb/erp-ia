@@ -5,6 +5,7 @@ import { core } from "@erp/module-core";
 import { costing, FIFO_PHASE_3 } from "@erp/module-costing";
 import { invoicing } from "@erp/module-invoicing";
 import { payments, PAYMENTS_REFUSAL_CODES } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { crm } from "@erp/module-crm";
 import { sales } from "@erp/module-sales";
 import { inventory } from "@erp/module-inventory";
@@ -32,7 +33,7 @@ function valueAt(tree: Messages, key: string): string | undefined {
 const argumentsOf = (text: string): string[] => [...new Set([...text.matchAll(/\{\s*([a-z_][a-z0-9_]*)\s*[,}]/g)].map((m) => m[1]!))].sort();
 
 const registry = new Registry();
-loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments]);
+loadModules(registry, [kernelModule, core, support, accounting, inventory, costing, sales, crm, invoicing, payments, warehouse]);
 
 const es = messages("es-419");
 const en = messages("en");
@@ -44,7 +45,7 @@ describe("locales", () => {
   });
 
   it("has the namespaces of the design in every catalogue", () => {
-    const namespaces = ["accounting", "agent", "auth", "common", "core", "costing", "crm", "entity", "errors", "feature", "field", "grid", "home", "inventory", "invoicing", "nav", "payments", "process", "report", "sales"];
+    const namespaces = ["accounting", "agent", "auth", "common", "core", "costing", "crm", "entity", "errors", "feature", "field", "grid", "home", "inventory", "invoicing", "nav", "payments", "process", "report", "sales", "warehouse"];
     expect(Object.keys(es).sort()).toEqual(namespaces);
     expect(Object.keys(en).sort()).toEqual(namespaces);
   });

@@ -9,6 +9,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { sales } from "@erp/module-sales";
 import { support } from "@erp/module-support";
+import { warehouse } from "@erp/module-warehouse";
 import { NEW_RECORD_ID, recordEntity } from "./entities";
 
 describe("record entities", () => {
@@ -90,6 +91,13 @@ describe("record entities", () => {
     const pages = [...recordPageEntities(registry.entities())].filter((id) => id.startsWith("payments.")).sort();
     expect(pages).toEqual(["payments.advance_application", "payments.cash_box", "payments.method", "payments.receipt"]);
     for (const id of pages) expect(recordEntity(id)).not.toBeNull();
+  });
+
+  it("the alistamientos of the warehouse module have no record page before Task 29.4 (plan 2B.2 Task 29.1)", () => {
+    const registry = new Registry();
+    loadModules(registry, [kernelModule, core, inventory, costing, warehouse]);
+    expect([...recordPageEntities(registry.entities())].filter((id) => id.startsWith("warehouse."))).toEqual([]);
+    for (const id of ["warehouse.pick", "warehouse.pick_line", "warehouse.settings"]) expect(recordEntity(id)).toBeNull();
   });
 
   it("refuses anything else, including inherited object keys", () => {

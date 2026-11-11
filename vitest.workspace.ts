@@ -15,6 +15,7 @@ export default defineWorkspace([
   "packages/modules/payments/vitest.config.ts",
   "packages/modules/sales/vitest.config.ts",
   "packages/modules/support/vitest.config.ts",
+  "packages/modules/warehouse/vitest.config.ts",
   "packages/localization/co/vitest.config.ts",
   "apps/web/vitest.config.ts",
   "apps/worker/vitest.config.ts",

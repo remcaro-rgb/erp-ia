@@ -35,6 +35,7 @@
     "@erp/module-payments": "workspace:*",
     "@erp/module-sales": "workspace:*",
     "@erp/module-support": "workspace:*",
+    "@erp/module-warehouse": "workspace:*",
     "@workflow/vitest": "^5.0.6",
     "tsx": "^4.23.15"
   }

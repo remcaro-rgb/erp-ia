@@ -6,6 +6,7 @@ import { crm } from "@erp/module-crm";
 import { inventory } from "@erp/module-inventory";
 import { invoicing } from "@erp/module-invoicing";
 import { payments } from "@erp/module-payments";
+import { warehouse } from "@erp/module-warehouse";
 import { sales } from "@erp/module-sales";
 import { catalogKey, kernelModule, loadModules, Registry } from "@erp/kernel";
 import { support } from "@erp/module-support";
@@ -16,7 +17,7 @@ import { messages, type Messages } from "@erp/i18n";
 
 const registry = new Registry();
 // The app's modules (src/lib/server/runtime.ts), the 2B sale chain included (plan 2B Task 26).
-loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments]);
+loadModules(registry, [kernelModule, core, accounting, support, inventory, costing, sales, crm, invoicing, payments, warehouse]);
 const providers = [...registry.kpiProviders().map((p) => ({ ...p, kind: "kpi" as const })), ...registry.chartProviders().map((p) => ({ ...p, kind: "chart" as const }))];
 
 const lookup = (tree: Messages, key: string): unknown => key.split(".").reduce<unknown>((node, part) => (node && typeof node === "object" ? (node as Record<string, unknown>)[part] : undefined), tree);

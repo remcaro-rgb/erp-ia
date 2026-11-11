@@ -93,7 +93,7 @@ describe("inventory manifest", () => {
         "inventory.location.create", "inventory.location.update", "inventory.location.consult",
         "inventory.movement.post", "inventory.movement.void", "inventory.movement.consult",
         "inventory.movement_line.consult", "inventory.stock_level.consult",
-        "inventory.reservation.create", "inventory.reservation.release", "inventory.reservation.reserve_again", "inventory.reservation.consult",
+        "inventory.reservation.create", "inventory.reservation.release", "inventory.reservation.reserve_again", "inventory.reservation.allocate", "inventory.reservation.consult",
         // What the entregas and devoluciones of sales move (Task 14 review): each event consumer runs a registered process.
         "inventory.sale.issue", "inventory.sale.void_issue", "inventory.sale.return", "inventory.sale.void_return",
         "inventory.transfer.create", "inventory.transfer.ship", "inventory.transfer.receive", "inventory.transfer.void", "inventory.transfer.consult", "inventory.transfer_line.consult",
@@ -112,7 +112,7 @@ describe("inventory manifest", () => {
     );
     // A despacho, or the Anular of a devolución, inventory cannot apply is never dead-lettered silently: it says so to sales by event.
     // What a sale issue took of each lot and serial travels to sales too (Task 28.3).
-    expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored"]);
+    expect(inventory.events.emits).toEqual(["inventory.movement.posted", "inventory.movement.voided", "inventory.sale_issue.refused", "inventory.sale_issue.allocated", "inventory.sale_return_void.refused", "inventory.delivery_reservation.restored", "inventory.reservation.allocated"]);
     // The importer, the clone and Nuevo create a movement through movement.post.
     expect(registry.entity("inventory.movement").processIds?.create).toBe("inventory.movement.post");
   });
@@ -150,11 +150,12 @@ describe("inventory manifest", () => {
     expect(at("inventory.transfers").processIds).toEqual(expect.arrayContaining(["inventory.transfer.ship", "inventory.transfer.receive"]));
   });
 
-  it("consumes the pedidos, entregas and devoluciones of sales by event name (Tasks 13–14); it depends on no sales", () => {
+  it("consumes the pedidos, entregas and devoluciones of sales and the confirmed alistamientos of warehouse by event name (Tasks 13–14, 29.1); it depends on neither", () => {
     expect(Object.keys(inventory.events.consumes).sort()).toEqual([
       "sales.delivery.shipped", "sales.delivery.voided", "sales.order.cancelled", "sales.order.confirmed", "sales.return.received", "sales.return.voided",
     ]);
     expect(inventory.dependsOn).not.toContain("sales");
+    expect(inventory.dependsOn).not.toContain("warehouse");
   });
 
   it("labels are i18n keys of their kind's namespace", () => {
