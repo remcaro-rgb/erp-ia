@@ -487,7 +487,7 @@ Design draft: `docs/superpowers/specs/2026-11-10-foreign-currency-design.md` (se
     **Owner, 2026-11-10 (in chat, «yes»):** recorded as an accepted exception for 2B.2; the move is deferred until a third module needs the resolver.
 
 ## T. Items met while designing 2B.2 Part G (Tasks 28–30: lots and serials, warehouse, commissions), 2026-11-10 · decided 2026-11-10 as recommended, pending the accountant
-**Decided by the owner in chat, 2026-11-10:** items 144–149, 151–158 and 162–164 as recommended. Items 150, 159, 160 and 161 are the accountant's: taken as recommended **pending the accountant's confirmation** (as items 126 and 138–139); the code ships the roles, dimension and pack setting either way. Item 151 asks the owner to record in §22 that main §8's «locations, bins» under `warehouse` is read as bins = inventory locations.
+**Decided by the owner in chat, 2026-11-10:** items 144–149, 151–158 and 162–164 as recommended. Items 150, 159, 160 and 161 are the accountant's: taken as recommended **pending the accountant's confirmation** (as items 126 and 138–139); the code ships the roles, dimension and pack setting either way. Item 151 asks the owner to record in §22 that main §8's «locations, bins» under `warehouse` is read as bins = inventory locations. **Recorded as §22.31 (2026-11-10, owner-authorized in chat).**
 Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cited as PG §n). Numbered from 144: items 141–143 already exist (section S). Items marked **Accountant** go to the accountant with items 126, 138 and 139; do not invent the answers.
 
 144. **Order of Part G** (PG §2). The outline says 28 ∥ 29 → 30. Commissions touch no stock, and a pick must name lots. Proposed: **30 ∥ 28 → 29**, migration blocks 0156–0161 (30), 0162–0169 (28), 0170–0177 (29). **Decide**.
@@ -533,7 +533,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
 164. **`warehouse` events for a company that never bought it** (PG §4.1; items 9, 111). Warehouse's consumers are explicit, so the dispatcher dead-letters every `sales.order.confirmed`, `sales.order.cancelled` and receipt `inventory.movement.posted` as `not_entitled:warehouse` for each company without the module, and replays them on purchase (as for every optional module today). Proposed: keep the kernel as is; on replay a pick is created only for an order confirmed after the module was enabled and not yet fully delivered, and put-away ignores old receipts. Alternatives: a `"*"` consumer filtering inside (no parked rows, but hides the real subscriptions from the effects check, item 3), or a kernel change for optional non-posting modules (reopens item 9). **Decide**.
     Recommended: as proposed. Cost if wrong: Admin › Módulos lists many parked warehouse rows for companies without it (noise, not failure); a kernel change touches every optional module.
 
-## U. Items met while executing 2B.2 Task 28.1 (lot and serial maestros), 2026-11-10 · to decide
+## U. Items met while executing 2B.2 Task 28.1 (lot and serial maestros), 2026-11-10 · decided 2026-11-10
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): 166 confirmed. 165 decided: the forms are built as sub-task **28.5**, in parallel with 29.1.
 
 165. **A record frame for Lotes and Seriales** (rules 21, 37; PG §3.1). 28.1's file list has no record form for the two new maestros, so they are grid only: no «Nuevo» form, no «Duplicar» and no record page to link to from the movement lines and Existencias. Lots are created nested by receipts (28.2) and both can be created through the processes and the assistant. Proposed: add the two forms (and a tracking form on Seguimiento por producto, which asks for the step-up) as a sub-task before 28.4, using the inventory record frame (`apps/web/src/lib/inventory/record.ts`). **Decide**.
     Recommended: as proposed, before the demo of 28.4. Cost if wrong: rule 21 links from movement lines to a lot open nothing; the admin cannot fix a lot's expiry from a screen.
@@ -550,7 +552,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
 169. **Column names in 0156** (PG §5.2; Task 30.1 plan). Two names of the plan collide with the kernel's typed columns: the plan's `active` is the maestro's `is_active` (`kernel.typed_columns`), and the commission's `status posted|reversed|paid` is stored as **`stage`** (the kernel's `status` is the documento lifecycle, as invoicing's `stage`). Extra columns beyond the plan, for the report and the posting of 30.2–30.4: bases `invoice_number`, `invoice_date`, `product_id`, `category_id`, `cost_center_id`, `exchange_rate`; commissions `due_date`, `currency`, `notes`. Plan users and plan lines are child tables of the plan (no entities), read through `sales.v_commission_plan_lines` with the rate masked under the plan's default rate. **Confirm**.
     Recommended: confirm. Cost if wrong: a rename migration and the 30.2–30.4 code that reads them.
 
-## W. Items met while executing 2B.2 Task 28.2 (inbound and internal movements by lot and serial), 2026-11-10 · to decide
+## W. Items met while executing 2B.2 Task 28.2 (inbound and internal movements by lot and serial), 2026-11-10 · decided 2026-11-10
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): 170, 171, 172 and 173 confirmed as recommended; 174 noted (built in 28.3); 175 decided: built in 28.5 with item 165's forms.
 
 170. **A manual salida or traslado of a lot product names its lot** (PG §3.2, §3.3). The design lets an issue or transfer out of a lot product «choose by FEFO»; FEFO is built in 28.3 for `inventory.sale.issue`. 28.2 refuses `lot_required` on a manual salida, ajuste or traslado line without a lot. Proposed: keep manual movements explicit (the user scans or picks the lot), and let FEFO choose only on sale issues (28.3) and picks (29). **Decide**.
     Recommended: as proposed. Cost if wrong: 28.3's FEFO helper is also called from `postMovement` for a lot line without lot (a few lines).
@@ -564,7 +568,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
 175. **Lots and serials found while counting have no screen yet** (rules 35, 37). `inventory.count.record` takes `found` (a lot by id or a new code, a serial scanned) and the count sheet shows the lot or serial of each line, but the sheet has no «Agregar encontrado» row: the counter adds found lots and serials through the assistant (or the process). Proposed: add the row with the forms of item 165. **Decide**.
     Recommended: as proposed, before the demo of 28.4.
 
-## X. Items met while executing 2B.2 Task 30.2 (commission accrual and posting), 2026-11-10 · to decide
+## X. Items met while executing 2B.2 Task 30.2 (commission accrual and posting), 2026-11-10 · decided 2026-11-10
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): items 176–180 confirmed as recommended.
 
 (Numbered after 175: items 170–175 were taken by Task 28.2 while 30.2 ran.)
 
@@ -578,7 +584,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: a new link kind and the related-documents label.
 180. **Where 0157 installs the two rules** (rule 34; precedent 0151). 0157 inserts «Provisión de comisiones» and «Reversión de comisiones» for every company whose tenant holds `module:sales`, that has not switched sales off and whose ledger is seeded (journal NC), as the admin's module state reads «enabled». A company that gets sales later receives them from `accounting.posting_rule.sync` (on enabling the module or re-running Configurar contabilidad). The accounting twins in `rules/defaults/` are not in `ACCOUNTING_DEFAULT_RULES` (they install from the sales manifest, so a company without sales never gets them); `rules-equal.test.ts` keeps them identical. **Note**.
 
-## Y. Items met while executing 2B.2 Task 30.3 (commission reversals), 2026-11-10 · to decide
+## Y. Items met while executing 2B.2 Task 30.3 (commission reversals), 2026-11-10 · decided 2026-11-10
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): items 181–185 confirmed as recommended.
 
 181. **What is left to accrue counts reversals back** (PG §5.2, RG-11; Review Focus 4). 30.2's interface wrote `remaining = commission − accrued − reversed`; with a voided receipt (accrued 20.000, reversed 20.000) that leaves 10.000 of a 50.000 commission instead of 50.000 and the next receipt under-accrues. PG §5.2 defines remaining as «the base's commission not yet accrued», so 30.3 uses `commission − (accrued − reversed)` (it was 0 until 30.3, so nothing posted before changes). Test (3) pins it.
     Recommended: confirm. Cost if wrong: commissions that never close after a receipt void.
@@ -591,7 +599,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
 185. **The annulled-invoice reversal is a second run, not nested** (plan 30.3 «`onInvoiceAnnulled` … also runs the commission reversal nested»; RG-12). Nested inside `sales.delivery.record_invoiced`, a commission failure would roll back the entregas' invoiced quantities. 30.3 runs `sales.commission.adjust_for_note` as its own run after `record_invoiced`, as 30.1 did for compute; the reversal itself nests `sales.commission.reverse` per commission. Both annulment events (`invoicing.note.issued` with annulment, `invoicing.invoice.annulled`) share the key `annul:<invoiceId>`.
     Recommended: confirm. Cost if wrong: none for the totals; the delivery-invoicing coupling RG-12 forbids.
 
-## Z. Items met while executing 2B.2 Task 28.3 (FEFO issue, availability, deliveries and returns), 2026-11-10 · to decide
+## Z. Items met while executing 2B.2 Task 28.3 (FEFO issue, availability, deliveries and returns), 2026-11-10 · decided 2026-11-10
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): 186–189 confirmed as recommended; 190 noted.
 
 (Numbered after 185: items 181–185 were taken by Task 30.3 while 28.3 ran.)
 
@@ -605,7 +615,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: one case in 0164.
 190. **`inventory.sale_issue.allocated` is emitted only when the issue has a tracked line** (interface of 28.3). An entrega of untracked products emits exactly the events it emitted before (RG-2). **Note**.
 
-## AA. Items met while executing 2B.2 Task 30.4 (screens, report, demo), 2026-11-10 · to decide
+## AA. Items met while executing 2B.2 Task 30.4 (screens, report, demo), 2026-11-10 · decided 2026-11-10
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): items 191–198 confirmed as recommended; 196 accepted for now, as its recommendation says.
 
 191. **The demo salesperson is Laura; the external agent's plan covers Marcela** (PG §6). Every demo pedido is Laura's, so Laura's plan names her own employee party «Laura Méndez» (CC 52987614, RUT attached) at 5 % and 7 % on «Café molido»; the agent plan (Agencia Comercial del Caribe S.A.S., NIT 901458236, RUT and Cámara de Comercio) covers Marcela at 4 %, 45 days. Both valid from January 1st of the year. The owner chose Marcela in the session.
     Recommended: confirm. Cost if wrong: two constants in `scripts/demo/commissions.ts`.
@@ -623,7 +635,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: a longer spec.
 198. **The basis select has no empty choice** (plan 30.4 settings). «Base de comisión» is required (`on_collection` default): the settings form's select gained a `required` flag that drops the «—» option. **Note**.
 
-## AB. Items met while executing 2B.2 Task 28.4 (invoice, DIAN option, recall report, demo), 2026-11-10 · to decide
+## AB. Items met while executing 2B.2 Task 28.4 (invoice, DIAN option, recall report, demo), 2026-11-10 · decided 2026-11-10 except item 206 (to decide)
+
+**Decided by the owner in chat, 2026-11-10** (preflight before Task 29): 199–204 confirmed as recommended; 205 decided as option A (`allowedDevOrigins: ["127.0.0.1"]` in `apps/web/next.config.ts`); 207 noted; 208 decided as recommended (lint ignores `.superpowers/**`, payments assertions updated to 34.8b's dimension, the seven module packages added to `vitest.workspace.ts`). **206 was not covered by the owner's approval: still to decide.**
 
 (Numbered after 198: items 191–198 were taken by Task 30.4.)
 

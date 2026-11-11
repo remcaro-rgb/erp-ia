@@ -1,6 +1,6 @@
 # Phase 2B.2 · Part G (Tasks 28, 29, 30) · one prompt per sub-task
 
-Generated 2026-11-10 from «Expanded tasks of Part G» in `docs/superpowers/plans/2026-11-03-phase-2b-sales-stock-chain.md`, after the owner approved the design `docs/superpowers/specs/2026-11-10-part-g-design.md` in chat with items 144–164 as recommended. The owner has not yet ordered execution. Items 150, 159, 160 and 161 are the accountant's, taken as recommended pending confirmation (they change mappings and a setting, not code). Item 151 is still to be recorded by the owner in §22.
+Generated 2026-11-10 from «Expanded tasks of Part G» in `docs/superpowers/plans/2026-11-03-phase-2b-sales-stock-chain.md`, after the owner approved the design `docs/superpowers/specs/2026-11-10-part-g-design.md` in chat with items 144–164 as recommended. The owner has not yet ordered execution. Items 150, 159, 160 and 161 are the accountant's, taken as recommended pending confirmation (they change mappings and a setting, not code). Item 151 is recorded as §22.31 (2026-11-10).
 
 The plan is the authority; each prompt copies its sub-task's text, the rulings and the global constraints verbatim, so an edit to the plan must be mirrored here (or the prompts regenerated).
 
@@ -14,9 +14,11 @@ The plan is the authority; each prompt copies its sub-task's text, the rulings a
 | 28.2 | [`task-28-2-inbound-internal-movements.md`](task-28-2-inbound-internal-movements.md) | Inbound and internal movements by lot and serial | 28.1 is merged. |
 | 28.3 | [`task-28-3-fefo-deliveries-returns.md`](task-28-3-fefo-deliveries-returns.md) | FEFO issue, availability, deliveries and returns | 28.2 is merged. |
 | 28.4 | [`task-28-4-invoice-dian-recall-demo.md`](task-28-4-invoice-dian-recall-demo.md) | Invoice, DIAN option, recall report, demo, guides, e2e | 28.3 is merged. |
+| 28.5 | [`task-28-5-lot-serial-forms.md`](task-28-5-lot-serial-forms.md) | Forms for lots, serials and tracking; found rows on the count (items 165, 175) | The preflight is committed; in parallel with 29.1 in a separate worktree. |
+| Preflight | [`preflight-before-29.md`](preflight-before-29.md) | Pre-commit gates, e2e sign-in on `127.0.0.1:3100`, owner items 165–208 recorded, 28.5 added to the plan | 28.4 is merged; 29.1 starts when it is committed. |
 | 29.1 | [`task-29-1-warehouse-module-picks.md`](task-29-1-warehouse-module-picks.md) | Module, picks and reservation allocation | 28.4 is merged. |
 | 29.2 | [`task-29-2-pick-driven-delivery.md`](task-29-2-pick-driven-delivery.md) | Pick-driven delivery and ship from the allocation | 29.1 is merged. |
 | 29.3 | [`task-29-3-packing-putaway.md`](task-29-3-packing-putaway.md) | Packing and put-away | 29.2 is merged. |
 | 29.4 | [`task-29-4-screens-order-tab-demo.md`](task-29-4-screens-order-tab-demo.md) | Screens, order tab, report, assistant, demo, e2e | 29.3 is merged. |
 
-Lanes (RG-1): **A** 30.1 → 30.2 → 30.3 → 30.4 · **B** 28.1 → 28.2 → 28.3 → 28.4 → 29.1 → 29.2 → 29.3 → 29.4. A and B run in parallel in separate worktrees; the sales manifest, sales entities, `delivery.ts`, invoicing's `invoice.ts` / `common.ts`, the i18n catalogues, the demo seed and the guide index are shared, so their merges go one at a time (the later one rebases).
+Lanes (RG-1): **A** 30.1 → 30.2 → 30.3 → 30.4 · **B** 28.1 → 28.2 → 28.3 → 28.4 → preflight → 29.1 → 29.2 → 29.3 → 29.4, with 28.5 in parallel with 29.1 (separate worktree) after the preflight. A and B run in parallel in separate worktrees; the sales manifest, sales entities, `delivery.ts`, invoicing's `invoice.ts` / `common.ts`, the i18n catalogues, the demo seed and the guide index are shared, so their merges go one at a time (the later one rebases).

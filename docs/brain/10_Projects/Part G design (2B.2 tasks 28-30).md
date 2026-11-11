@@ -51,4 +51,10 @@ Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 1
 - **Lesson**: root `pnpm test` skips the module packages' unit tests; run `vitest run` in each touched module.
 - Choices for the owner: items 199–208 in [[Plan phase-2b-owner-decisions-pending]]. Guides: [[Module inventory]] (inventario.md), [[Module invoicing]] (facturacion.md, facturacion-electronica.md).
 
+## Preflight before Task 29 (2026-11-10)
+- **Fixed** (item 208): lint ignores `.superpowers/**`; the payments receipt tests expect 34.8b's `payment_method_id:<uuid>` dimension (the 2A fixture, without `methodId`, renders `payment_method_id:` and falls back to the kind); `vitest.workspace.ts` lists all nine module packages, so root `pnpm test` (the CI unit job) now runs them: 2465 tests, no new failure. The earlier lesson «root `pnpm test` skips the module packages» no longer holds.
+- **E2E sign-in** (item 205, option A): `allowedDevOrigins: ["127.0.0.1"]` in `apps/web/next.config.ts`; specs sign in on `127.0.0.1:3100`.
+- **Decided by the owner**: sections U to AB of [[Plan phase-2b-owner-decisions-pending]] (items 165–207) as recommended or noted; **206 still to decide**.
+- **28.5 added** to [[Plan phase-2b-sales-stock-chain]] (items 165, 175): record forms for Lote, Serial and Seguimiento por producto, the count's «Agregar encontrado» row, lot and serial links; runs in parallel with 29.1. Prompt `task-28-5-lot-serial-forms.md`.
+
 Related: [[Plan phase-2b-sales-stock-chain]], [[Plan phase-2b-owner-decisions-pending]].
