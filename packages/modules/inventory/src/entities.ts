@@ -304,7 +304,7 @@ export const lotEntity: EntityDef = entity("inventory.lot", "maestro", "lots", "
   f("is_active", "boolean"),
   ...trailer(f),
   ...maestroLifecycle(f),
-], { importKey: ["product_id", "code"], cloneReset: ["seq", "code"], defaultSort: { field: "expires_on", dir: "asc" } });
+], { importKey: ["product_id", "code"], cloneReset: ["seq", "code"], defaultSort: { field: "expires_on", dir: "asc" }, recordPage: true });
 
 // Serial (Task 28.1): one unit of a product, its number unique per product, optionally inside a lot of the same product. Its
 // `serial_status` is kept by the movements (28.2), read only on the form.
@@ -318,7 +318,7 @@ export const serialEntity: EntityDef = entity("inventory.serial", "maestro", "se
   f("is_active", "boolean"),
   ...trailer(f),
   ...maestroLifecycle(f),
-], { importKey: ["product_id", "serial_no"], cloneReset: ["seq", "serial_no", "serial_status"] });
+], { importKey: ["product_id", "serial_no"], cloneReset: ["seq", "serial_no", "serial_status"], recordPage: true });
 
 // Seguimiento por producto (Task 28.1, Parámetros): one row per product; a product without a row is untracked (none, FEFO on, expiry not
 // required, expired lots blocked). Set by inventory.product_tracking.set (step-up), refused while the product has stock (item 146).
@@ -330,7 +330,8 @@ export const productTrackingEntity: EntityDef = entity("inventory.product_tracki
   f("expiry_required", "boolean", { required: true }),
   f("block_expired", "boolean", { required: true }),
   ...trailer(f),
-]);
+  // Task 28.5: the row opens in its record page (/r/inventory.product_tracking/<id>), saved through inventory.product_tracking.set.
+], { recordPage: true });
 
 // Asignación de una reserva (Task 28.1, empty until 29.1): where, from which lot and which serial a reservation will be picked. Written
 // only by inventory.reservation.allocate (29.1); a reservation may be split over several lots.

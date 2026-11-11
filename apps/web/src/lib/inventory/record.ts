@@ -13,6 +13,8 @@ import { processDeps } from "@/lib/server/runtime";
 // ubicaciones the selects offer (masked views, the transit bodega left out: only a traslado's own legs move stock there), the fields of
 // the product, receipt and supplier boxes, and for a stored document its facts, its lines in the universal grid (rule 20) and the steps
 // the caller may run on it (Despachar, Recibir, Registrar conteo, Aplicar conteo). Every read goes through the masked views or the grid.
+// Task 28.5: the lote, serial and seguimiento forms get the tracked products, a serial the lots of its product, and the names of their
+// references; an open conteo gets what «Agregar encontrado» offers (the tracking of the products it may find and their lots).
 
 /** The inventory and costing entities with a full record page, and their form. */
 export const STOCK_FORMS: Readonly<Record<string, StockFormKind>> = {
@@ -22,6 +24,10 @@ export const STOCK_FORMS: Readonly<Record<string, StockFormKind>> = {
   "inventory.transfer": "transfer",
   "inventory.count": "count",
   "costing.landed_cost": "landed_cost",
+  // Task 28.5: the lote and the serial (maestros) and the seguimiento por producto (parametro, keyed by its product).
+  "inventory.lot": "lot",
+  "inventory.serial": "serial",
+  "inventory.product_tracking": "tracking",
 };
 
 /** The steps a stored document's screen runs besides the bar's lifecycle buttons, by entity and step name (the action's allowlist). */
@@ -49,6 +55,8 @@ export interface CountSheetLine {
   location: string;
   /** The lot's code or the serial number the line counts (Task 28.2); empty for an untracked product. */
   lotSerial: string;
+  /** The lot or serial the line counts, when the caller may open it (rule 21, Task 28.5). */
+  lotSerialLink?: { entity: "inventory.lot" | "inventory.serial"; id: string };
   systemQty: number | null;
   countedQty: number | null;
   difference: number | null;
@@ -66,6 +74,11 @@ export interface StockView {
   /** conteo: its sheet; the ajuste it posted once applied. */
   countLines: CountSheetLine[];
   adjustment: { id: string; number: string } | null;
+  /**
+   * An open conteo the caller may record (Task 28.5): what «Agregar encontrado» offers. The tracking of the products the count may find (a
+   * product absent is untracked: the count lists it when created) and the lots of each lot product, as `code · vence`.
+   */
+  found: { warehouseId: string; tracking: Record<string, "lot" | "serial">; lots: Record<string, CodeOption[]> } | null;
 }
 
 export interface StockFormData {
@@ -83,9 +96,18 @@ export interface StockFormData {
   tracking: Record<string, "lot" | "serial">;
   /** A stored movimiento, traslado, conteo or costo en destino; null for a new one and for the maestros. */
   view: StockView | null;
+  /** A lote, serial or seguimiento (Task 28.5): its references as the caller reads them, by field (`product_id`, `lot_id`). */
+  labels: Record<string, string>;
+  /** A new lote: the products tracked by lot; a new serial: those tracked by serial (`SKU · descripción`). Empty for the other forms. */
+  trackedProducts: CodeOption[];
+  /** A new serial: the lots of each of those products, by product id. */
+  lots: Record<string, CodeOption[]>;
 }
 
 type Row = Record<string, unknown> & { id: string };
+
+/** The forms of Task 28.5 whose references the form names (product, lot). */
+const TRACKED_FORMS: ReadonlySet<StockFormKind> = new Set(["lot", "serial", "tracking"]);
 
 const LINES: Record<string, { entity: string; parent: string }> = {
   "inventory.movement": { entity: "inventory.movement_line", parent: "movement_id" },
@@ -120,17 +142,34 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
         order by w.code`;
       const locations = await tx<{ id: string; warehouse_id: string; code: string | null; name: string | null }[]>`
         select id, warehouse_id, code, name from inventory.v_locations where coalesce(is_active, true) and kind = 'storage' order by code`;
-      // The tracked products (Task 28.2), as the caller may read the parametro; a product without a row is untracked.
-      const tracked = await tx<{ product_id: string; tracking: "lot" | "serial" }[]>`
-        select product_id, tracking from inventory.v_product_tracking where tracking in ('lot', 'serial')`;
-      return { today: today?.today ?? new Date().toISOString().slice(0, 10), warehouses, locations, tracked };
+      // The tracked products (Task 28.2), as the caller may read the parametro; a product without a row is untracked. Their names (Task 28.5)
+      // through core's masked view, as the lot-trace report reads them.
+      const tracked = await tx<{ product_id: string; tracking: "lot" | "serial"; sku: string | null; description: string | null }[]>`
+        select t.product_id, t.tracking, p.sku, p.description from inventory.v_product_tracking t left join core.v_products p on p.id = t.product_id
+        where t.tracking in ('lot', 'serial') order by p.sku nulls last`;
+      // The lots a serial form or a conteo's found rows offer (Task 28.5): of the lot-tracked products for a conteo, of the serial ones for a serial.
+      const lotsOf = stock === "serial" ? "serial" : stock === "count" && record ? "lot" : null;
+      const lots = !lotsOf ? [] : await tx<{ id: string; product_id: string; code: string; expires_on: string | null }[]>`
+        select l.id, l.product_id, l.code, l.expires_on::text from inventory.v_lots l join inventory.v_product_tracking t on t.product_id = l.product_id and t.tracking = ${lotsOf}
+        order by l.expires_on nulls last, l.code limit 2000`;
+      const labels: Record<string, string> = {};
+      if (record && TRACKED_FORMS.has(stock)) {
+        const row: Record<string, unknown> = { ...record };
+        await addRefLabels(tx, deps.registry, deps.registry.entity(entityId), [row]);
+        for (const field of ["product_id", "lot_id"]) if (typeof row[refLabelKey(field)] === "string") labels[field] = String(row[refLabelKey(field)]);
+      }
+      return { today: today?.today ?? new Date().toISOString().slice(0, 10), warehouses, locations, tracked, lots, labels };
     }),
     lookupSource(caller, "core.product"),
     stock === "landed_cost" ? lookupSource(caller, "inventory.movement") : Promise.resolve(null),
     stock === "landed_cost" ? lookupSource(caller, "core.party") : Promise.resolve(null),
     stock === "landed_cost" ? lookupSource(caller, "accounting.cost_center") : Promise.resolve(null),
   ]);
-  const view = record && LINES[entityId] ? await stockView(caller, entityId, record) : null;
+  const tracking = Object.fromEntries(lists.tracked.map((r) => [r.product_id, r.tracking]));
+  const lotOptions: Record<string, CodeOption[]> = {};
+  for (const l of lists.lots) (lotOptions[l.product_id] ??= []).push({ code: l.id, name: [l.code, l.expires_on?.replaceAll("-", "/")].filter(Boolean).join(" · ") });
+  const view = record && LINES[entityId] ? await stockView(caller, entityId, record, { tracking, lots: lotOptions }) : null;
+  const productName = (r: { product_id: string; sku: string | null; description: string | null }) => [r.sku, r.description].filter(Boolean).join(" · ") || r.product_id;
   return {
     kind: "stock",
     stock,
@@ -138,16 +177,19 @@ export async function loadStockForm(caller: Caller, entityId: string, record: Ro
     warehouses: lists.warehouses.map((w) => ({ code: w.id, name: [w.code, w.name].filter(Boolean).join(" · ") })),
     locations: lists.locations.map((l) => ({ code: l.id, warehouseId: l.warehouse_id, name: [l.code, l.name].filter(Boolean).join(" · ") })),
     product: product ?? { fields: [], entityLabel: t("entity.core.product") },
-    tracking: Object.fromEntries(lists.tracked.map((r) => [r.product_id, r.tracking])),
+    tracking,
     receipt,
     party,
     costCenter,
     view,
+    labels: lists.labels,
+    trackedProducts: stock === "lot" || stock === "serial" ? lists.tracked.filter((r) => r.tracking === stock).map((r) => ({ code: r.product_id, name: productName(r) })) : [],
+    lots: stock === "serial" ? lotOptions : {},
   };
 }
 
 /** The facts, lines and steps of a stored document. */
-async function stockView(caller: Caller, entityId: string, record: Row): Promise<StockView> {
+async function stockView(caller: Caller, entityId: string, record: Row, findable: { tracking: Record<string, "lot" | "serial">; lots: Record<string, CodeOption[]> }): Promise<StockView> {
   const deps = processDeps();
   const t = await getTranslations();
   const entity = deps.registry.entity(entityId);
@@ -162,7 +204,7 @@ async function stockView(caller: Caller, entityId: string, record: Row): Promise
   const [linesGrid, runnable, linkable, zone] = await Promise.all([
     gridTab(caller, lines.entity, [{ field: lines.parent, op: "eq", value: record.id }]),
     runnableProcesses(deps.sql, deps.registry, caller.claims, [...STOCK_STEPS]),
-    linkableEntities(deps, caller.claims, ["inventory.warehouse", "inventory.movement", "core.party"]),
+    linkableEntities(deps, caller.claims, ["inventory.warehouse", "inventory.movement", "core.party", "inventory.lot", "inventory.serial"]),
     withClaims(deps.sql, caller.claims, (tx) => tx<{ timezone: string }[]>`select timezone from kernel.companies where id = ${caller.claims.active_company_id}`),
   ]);
   const timeZone = zone[0]?.timezone;
@@ -231,11 +273,20 @@ async function stockView(caller: Caller, entityId: string, record: Row): Promise
             product: String(l[refLabelKey("product_id")] ?? l.product_id ?? ""),
             location: l.location_id ? String(l[refLabelKey("location_id")] ?? l.location_id) : "",
             lotSerial: l.serial_id ? String(l[refLabelKey("serial_id")] ?? l.serial_id) : l.lot_id ? String(l[refLabelKey("lot_id")] ?? l.lot_id) : "",
+            ...(lotSerialLink(l, linkable) ? { lotSerialLink: lotSerialLink(l, linkable)! } : {}),
             systemQty: num(l.system_qty),
             countedQty: num(l.counted_qty),
             difference: num(l.difference),
           }))
         : [],
     adjustment: adjustmentId ? { id: adjustmentId, number: String(header[refLabelKey("adjustment_id")] ?? adjustmentId) } : null,
+    found: entityId === "inventory.count" && steps.includes("inventory.count.record") ? { warehouseId: String(record.warehouse_id ?? ""), ...findable } : null,
   };
+}
+
+/** The record a count line's lot or serial links to, when the caller may open it (rule 21). */
+function lotSerialLink(line: Record<string, unknown>, linkable: ReadonlySet<string>): CountSheetLine["lotSerialLink"] | null {
+  if (typeof line.serial_id === "string" && linkable.has("inventory.serial")) return { entity: "inventory.serial", id: line.serial_id };
+  if (typeof line.lot_id === "string" && !line.serial_id && linkable.has("inventory.lot")) return { entity: "inventory.lot", id: line.lot_id };
+  return null;
 }

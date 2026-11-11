@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { createProcess, emptyLine, masterStockDraft, masterStockInput, masterStockMissing, parseQty, serialList, stockDraft, stockInput, stockMissing, type StockDraft } from "../stock-form-model";
+import {
+  createProcess,
+  emptyFoundRow,
+  emptyLine,
+  foundRowInput,
+  foundRowMissing,
+  masterStockCopy,
+  masterStockDraft,
+  masterStockInput,
+  masterStockMissing,
+  parseQty,
+  serialList,
+  splitFoundMessages,
+  stockDraft,
+  stockInput,
+  stockMissing,
+  type StockDraft,
+} from "../stock-form-model";
 
 const line = (over: Partial<ReturnType<typeof emptyLine>> = {}) => ({ ...emptyLine(), productId: "p1", productLabel: "CAF · Café", qty: "10", ...over });
 const draft = (over: Partial<StockDraft> = {}): StockDraft => ({ ...stockDraft("2026-11-05"), warehouseId: "w1", ...over });
@@ -91,5 +108,68 @@ describe("stock form model", () => {
     expect(stockMissing("movement", draft({ lines: [line({ tracking: "serial", qty: "3", serialNos: "a,b" })] }))).toContain("serials");
     expect(stockMissing("movement", draft({ lines: [line({ tracking: "serial", qty: "2", serialNos: "a,b" })] }))).toEqual([]);
     expect(stockMissing("count", draft({ lines: [line({ tracking: "lot" })] }))).toEqual([]);
+  });
+
+  it("a lot (Task 28.5): product and code go on creation only; an update sends only its dates, status and note; a duplicate clears the code", () => {
+    const stored = masterStockDraft({ product_id: "p1", code: "L-1", expires_on: "2027-03-01", produced_on: new Date("2026-11-01T00:00:00Z"), lot_status: "active", note: "Tostión 1" }, { product_id: "CAF · Café" });
+    expect(stored).toMatchObject({ productId: "p1", productLabel: "CAF · Café", code: "L-1", expiresOn: "2027-03-01", producedOn: "2026-11-01", lotStatus: "active", note: "Tostión 1" });
+    expect(masterStockInput("lot", { ...stored, lotStatus: "blocked" }, "lot1")).toEqual({ id: "lot1", expiresOn: "2027-03-01", producedOn: "2026-11-01", status: "blocked", note: "Tostión 1" });
+    // A cleared date or note goes as null (the update clears it); the product and the code never travel on an update.
+    expect(masterStockInput("lot", { ...stored, producedOn: "", note: " " }, "lot1")).toEqual({ id: "lot1", expiresOn: "2027-03-01", producedOn: null, status: "active", note: null });
+    expect(masterStockInput("lot", { ...stored, code: " L-2 " }, null)).toEqual({ productId: "p1", code: "L-2", expiresOn: "2027-03-01", producedOn: "2026-11-01", note: "Tostión 1" });
+    expect(createProcess("lot", null)).toBe("inventory.lot.create");
+    const copy = masterStockCopy({ product_id: "p1", code: "L-1", expires_on: "2027-03-01", lot_status: "blocked", note: "Tostión 1" }, { product_id: "CAF · Café" });
+    expect(copy).toMatchObject({ productId: "p1", productLabel: "CAF · Café", code: "", expiresOn: "2027-03-01", lotStatus: "active", note: "Tostión 1" });
+    expect(masterStockMissing("lot", copy, true)).toEqual(["code"]);
+    expect(masterStockMissing("lot", masterStockDraft(null), true)).toEqual(["product", "code"]);
+    expect(masterStockMissing("lot", stored, false)).toEqual([]);
+  });
+
+  it("a serial (Task 28.5): never sends its status (the movements keep it); an update sends only the note; a duplicate clears the number", () => {
+    const stored = masterStockDraft({ product_id: "p2", serial_no: "MOL-1", lot_id: null, serial_status: "available", note: "" }, { product_id: "ACC · Molino" });
+    expect(stored).toMatchObject({ productId: "p2", serialNo: "MOL-1", serialStatus: "available" });
+    expect(masterStockInput("serial", { ...stored, note: "Revisado" }, "s1")).toEqual({ id: "s1", note: "Revisado" });
+    expect(masterStockInput("serial", { ...stored, serialNo: " MOL-9 ", lotId: "lot1" }, null)).toEqual({ productId: "p2", serialNo: "MOL-9", lotId: "lot1" });
+    expect(JSON.stringify(masterStockInput("serial", stored, null))).not.toContain("tatus");
+    expect(createProcess("serial", null)).toBe("inventory.serial.create");
+    const copy = masterStockCopy({ product_id: "p2", serial_no: "MOL-1", serial_status: "issued", note: "Revisado" }, {});
+    expect(copy).toMatchObject({ productId: "p2", serialNo: "", serialStatus: "", note: "Revisado" });
+    expect(masterStockMissing("serial", copy, true)).toEqual(["serial_no"]);
+  });
+
+  it("a product's tracking (Task 28.5): sends the product and its four settings to product_tracking.set; without a product it is missing", () => {
+    const fresh = masterStockDraft(null);
+    expect(fresh).toMatchObject({ tracking: "none", fefo: true, expiryRequired: false, blockExpired: true });
+    expect(masterStockMissing("tracking", fresh, true)).toEqual(["product"]);
+    const chosen = { ...fresh, productId: "p1", tracking: "lot", expiryRequired: true };
+    expect(masterStockMissing("tracking", chosen, true)).toEqual([]);
+    expect(masterStockInput("tracking", chosen, null)).toEqual({ productId: "p1", tracking: "lot", fefo: true, expiryRequired: true, blockExpired: true });
+    // A stored row is keyed by its product: the process takes no id.
+    const stored = masterStockDraft({ id: "t1", product_id: "p1", tracking: "serial", fefo: false, expiry_required: false, block_expired: false });
+    expect(masterStockInput("tracking", stored, "t1")).toEqual({ productId: "p1", tracking: "serial", fefo: false, expiryRequired: false, blockExpired: false });
+    expect(createProcess("tracking", null)).toBe("inventory.product_tracking.set");
+  });
+
+  it("a found row of a count (Task 28.5): a new lot code with its expiry, an existing lot by id, a serial counted 1; an untracked row names neither", () => {
+    const row = (over: Partial<ReturnType<typeof emptyFoundRow>>) => ({ ...emptyFoundRow(), productId: "p1", countedQty: "5", ...over });
+    expect(foundRowInput(row({ tracking: "lot", lotCode: " L-NEW ", expiresOn: "2027-01-31", locationId: "loc1" }))).toEqual({ productId: "p1", locationId: "loc1", lot: { code: "L-NEW", expiresOn: "2027-01-31" }, countedQty: 5 });
+    expect(foundRowInput(row({ tracking: "lot", lotId: "lot1", lotCode: "ignored" }))).toEqual({ productId: "p1", lotId: "lot1", countedQty: 5 });
+    expect(foundRowInput(row({ productId: "p2", tracking: "serial", serialNo: " MOL-7 ", countedQty: "3" }))).toEqual({ productId: "p2", serialNo: "MOL-7", countedQty: 1 });
+    expect(foundRowInput(row({ productId: "p3", tracking: "none", lotCode: "x", serialNo: "y" }))).toEqual({ productId: "p3", countedQty: 5 });
+    // What a row still misses: the product, its lot or serial, a quantity of zero or more; an untracked product is not found (the count lists it).
+    expect(foundRowMissing(emptyFoundRow())).toEqual(["product"]);
+    expect(foundRowMissing(row({ tracking: "lot" }))).toEqual(["lot"]);
+    expect(foundRowMissing(row({ tracking: "serial", countedQty: "" }))).toEqual(["serial"]);
+    expect(foundRowMissing(row({ tracking: "lot", lotCode: "L", countedQty: "-1" }))).toEqual(["qty"]);
+    expect(foundRowMissing(row({ tracking: "none" }))).toEqual(["tracked"]);
+  });
+
+  it("the refusals of Registrar conteo go to the found row they name (Encontrado N / Línea N); the rest stay on the sheet", () => {
+    const split = splitFoundMessages(["Encontrado 2: la ubicación no es de la bodega del conteo", "Línea 1: ACC-MOL-ELE: el serial MOL-1 ya está en existencia", "El lote L-9 necesita fecha de vencimiento", "Otra cosa"], [
+      { ...emptyFoundRow(), lotCode: "" },
+      { ...emptyFoundRow(), lotCode: "L-9" },
+    ]);
+    expect(split.rows).toEqual({ 0: ["ACC-MOL-ELE: el serial MOL-1 ya está en existencia"], 1: ["la ubicación no es de la bodega del conteo", "El lote L-9 necesita fecha de vencimiento"] });
+    expect(split.rest).toEqual(["Otra cosa"]);
   });
 });

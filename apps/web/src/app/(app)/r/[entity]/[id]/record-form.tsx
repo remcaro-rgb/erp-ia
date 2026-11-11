@@ -132,11 +132,29 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
   if (form.kind === "stock") {
     // Inventory and costing (plan 2B Task 10): the bodega and the ubicación edit in place; a new document saves through the process its
     // form names (an ajuste asks for the step-up code); a stored one shows its facts, its lines and its own steps.
-    if (form.stock === "warehouse" || form.stock === "location") {
+    if (form.stock === "warehouse" || form.stock === "location" || form.stock === "lot" || form.stock === "serial" || form.stock === "tracking") {
+      // Task 28.5: a lote and a serial edit in place like the bodega («Nuevo» and «Duplicar» through the frame); a seguimiento saves
+      // through inventory.product_tracking.set, which asks for the step-up code here (rule 15).
       const processes = recordEntity(entity);
-      return <StockMasterForm key={key} kind={form.stock} {...common} warehouses={form.warehouses} processes={{ create: processes?.create ?? "", update: processes?.update ?? "" }} />;
+      return (
+        <StockMasterForm
+          key={key}
+          kind={form.stock}
+          {...common}
+          warehouses={form.warehouses}
+          processes={{ create: processes?.create ?? "", update: processes?.update ?? "" }}
+          labels={record ? form.labels : (clone?.refLabels ?? {})}
+          products={form.trackedProducts}
+          lots={form.lots}
+          product={form.product}
+        />
+      );
     }
-    if (record && form.view) return <StockRecordView entity={entity} recordId={record.id} view={form.view} />;
+    if (record && form.view) {
+      // A conteo's found rows (Task 28.5) offer the ubicaciones of its bodega and the product box of the form.
+      const found = form.view.found;
+      return <StockRecordView entity={entity} recordId={record.id} view={form.view} product={form.product} locations={found ? form.locations.filter((l) => l.warehouseId === found.warehouseId) : []} />;
+    }
     return (
       <StockDocumentForm
         key={key}

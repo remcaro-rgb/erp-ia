@@ -78,7 +78,39 @@ Un producto puede seguirse **por lote** (por ejemplo café con fecha de tostión
 3. **Inventario › Maestros › Lotes** lista los lotes. Cada lote es de **un solo producto**. Su **Código** es el que traes del proveedor o escaneas, y no se repite dentro del mismo producto (dos productos sí pueden tener el mismo código). Lleva **Vence**, **Producido** y una **Nota**. Un lote **Bloqueado** queda retenido y no se vende.
 4. **Inventario › Maestros › Seriales** lista los seriales. Cada uno es una unidad de un producto por serial, con su número único dentro del producto y, si quieres, el lote al que pertenece. Su **Estado del serial** lo llevan los movimientos: **Disponible** cuando entra, **Despachado** cuando sale, **Dado de baja** en un ajuste. No se cambia a mano.
 
-En las líneas de movimiento y en **Existencias** se ven las columnas **Lote** y **Serial**. Están vacías en los productos sin seguimiento.
+En las líneas de movimiento, de traslado y de conteo y en **Existencias** se ven las columnas **Lote** y **Serial**. Están vacías en los productos sin seguimiento. El código del lote y el número del serial son enlaces: ábrelos para ver su registro.
+
+### Crear, duplicar y bloquear un lote
+
+Una entrada crea sola el lote nuevo que escribas en su línea. También puedes crearlo antes, por ejemplo para dejar listos los datos del proveedor:
+
+1. **Inventario › Maestros › Lotes** › **Nuevo**.
+2. Elige el **Producto**. La lista trae solo los productos que se siguen por lote; si está vacía, primero cambia el seguimiento del producto (más abajo).
+3. Escribe o escanea el **Código del lote**. Agrega **Vence**, **Fecha de producción** y una **Nota** si las tienes. Si el producto exige vencimiento, sin **Vence** no se guarda.
+4. Pulsa **Guardar**. Se abre el registro del lote.
+
+El producto y el código no cambian una vez guardado el lote. Sí cambian **Vence**, **Fecha de producción**, **Estado del lote** y la **Nota**.
+
+- **Duplicar** (en la barra del registro) abre un lote nuevo con el mismo producto, las mismas fechas y la nota. Solo escribe el código nuevo y guarda.
+- **Bloquear un lote**: abre el lote, cambia **Estado del lote** a **Bloqueado** y pulsa **Guardar**. Un lote bloqueado no se vende: FEFO lo salta. Para liberarlo, vuelve a ponerlo **Activo**.
+
+### Registrar un serial
+
+Una entrada registra sola los seriales nuevos de sus líneas. Para registrar uno antes:
+
+1. **Inventario › Maestros › Seriales** › **Nuevo**.
+2. Elige el **Producto** (solo los que se siguen por serial) y escribe o escanea el **Número de serie**. Si el producto tiene lotes, puedes elegir el **Lote**.
+3. Pulsa **Guardar**.
+
+En el registro del serial solo cambia la **Nota**. Su **Estado del serial** lo llevan los movimientos: un serial registrado así queda en existencia solo cuando una entrada, un ajuste o un conteo lo recibe.
+
+### Cambiar el seguimiento de un producto
+
+1. **Inventario › Parámetros › Seguimiento por producto** › **Nuevo** para un producto que aún no está en la lista, o abre su fila para cambiarlo.
+2. Elige el **Producto** y el **Seguimiento**: **Sin seguimiento**, **Por lote** o **Por serial**. Prende o apaga **FEFO**, **Vencimiento obligatorio** y **Bloquear lotes vencidos**.
+3. Pulsa **Guardar**. El sistema pide tu **código de verificación** (el segundo factor) y guarda.
+
+Si el producto tiene existencias, el cambio de seguimiento se rechaza con el mensaje «El producto tiene existencias (…): sácalas antes de cambiar su seguimiento». Saca las existencias con un ajuste, cambia el seguimiento y vuelve a entrarlas con su lote o sus seriales. FEFO, el vencimiento obligatorio y el bloqueo sí cambian con existencias.
 
 ### Lotes y seriales en entradas, salidas, traslados, ajustes y conteos
 
@@ -88,7 +120,7 @@ Las existencias de un producto con seguimiento se llevan **por lote** o **por se
 - **Salida.** Indica el lote o los seriales que salen. Si el lote no tiene esa cantidad en la bodega y ubicación, la salida se rechaza, aunque la bodega permita existencias negativas. Un serial que no está en esa bodega y ubicación tampoco sale. El serial que sale queda **Despachado**; si vuelve con una entrada, queda **Disponible** otra vez.
 - **Traslado.** Cada línea dice el lote o los seriales que viajan. Al despachar y al recibir se mueve el mismo lote o serial, también mientras está en tránsito.
 - **Ajuste.** Sigue pidiendo tu código de verificación. Cada línea dice su lote o sus seriales. Un ajuste negativo de un serial lo deja **Dado de baja**. Un ajuste positivo con un serial nuevo lo registra y lo deja disponible.
-- **Conteo.** Al crear el conteo, un producto con seguimiento sale en la hoja **una línea por lote o serial** con existencias en esa ubicación. Cuenta cada lote; en un serial pon 1 si lo encontraste y 0 si falta. Lo que encuentres y no esté en la hoja (un lote nuevo, un serial escaneado) se agrega al registrar el conteo, por ahora con el asistente. Al aplicar, cada diferencia es una línea del ajuste: un lote con 2 de menos, un lote nuevo con lo encontrado, un serial que falta con −1 (queda dado de baja).
+- **Conteo.** Al crear el conteo, un producto con seguimiento sale en la hoja **una línea por lote o serial** con existencias en esa ubicación. Cuenta cada lote; en un serial pon 1 si lo encontraste y 0 si falta. Lo que encuentres y no esté en la hoja (un lote nuevo, un serial escaneado) se agrega con **Agregar encontrado** (ver **Conteos físicos**). Al aplicar, cada diferencia es una línea del ajuste: un lote con 2 de menos, un lote nuevo con lo encontrado, un serial que falta con −1 (queda dado de baja).
 
 Si la línea no dice el lote o los seriales, o los seriales no coinciden con la cantidad, el formulario lo dice al pie antes de guardar.
 
@@ -125,6 +157,17 @@ Las entradas se numeran `EN-…`, las salidas `SA-…` y los ajustes `AJ-…`. U
 2. Cuando todas las líneas estén contadas, pulsa **Aplicar conteo**. El sistema pide tu **código de verificación** y registra todas las diferencias como **un solo ajuste**.
 3. El conteo queda **Aplicado** y enlaza a su ajuste. Abre el ajuste para ver su comprobante en la pestaña **Contabilidad**.
 
+### Agregar lo encontrado
+
+En un conteo abierto, la hoja lista los lotes y seriales que el sistema tiene. Si encuentras algo que no está en la hoja, pulsa **Agregar encontrado** debajo de ella:
+
+1. Elige el **Producto** (debe seguirse por lote o por serial; un producto sin seguimiento se agrega al crear el conteo) y, si la bodega tiene ubicaciones, la **Ubicación**.
+2. Un producto por lote: elige uno de sus lotes o deja **Lote nuevo…** y escribe el **Código del lote** con su **Vencimiento**. Escribe la **Cantidad contada**.
+3. Un producto por serial: escanea o escribe el **Serial**. La cantidad es 1. El lector termina con Enter, que abre otra fila del mismo producto para el siguiente serial.
+4. Pulsa **Registrar conteo**. Lo encontrado pasa a ser una línea de la hoja, con su lote o serial. Un lote nuevo se crea y un serial nuevo se registra en ese momento.
+
+Si algo no se puede registrar, el motivo aparece debajo de su fila: el producto exige lote o vencimiento, el serial ya está en existencia en otra parte (muévelo con un traslado o cuéntalo donde está), o ese lote ya está en la hoja (escribe lo contado en su línea). Al **Aplicar conteo**, lo encontrado entra como una línea positiva del ajuste en su lote.
+
 ## Trazabilidad de lotes (retiro del mercado)
 
 **Inventario › Reportes › Trazabilidad de lotes** responde «¿a quién le vendimos este lote?». Elige un **Lote** (o un **Serial**, no los dos) y, si quieres, un rango **Desde / Hasta**. El reporte lista, del más antiguo al más reciente, cada movimiento que movió ese lote o serial:
@@ -132,6 +175,8 @@ Las entradas se numeran `EN-…`, las salidas `SA-…` y los ajustes `AJ-…`. U
 - **Fecha**, **Tipo** (Entrada, Salida por venta, Devolución de venta, Traslado, Ajuste…), **Bodega** y **Cantidad** (negativa cuando sale).
 - **Número**: el movimiento de inventario; ábrelo para llegar a la entrega o devolución que lo originó. **Documento** es el número de ese documento de origen (la entrega, la devolución o la referencia de la entrada).
 - **Cliente**: a quién se le entregó o quién lo devolvió. Lo guarda el propio movimiento al despachar la entrega y al recibir la devolución, así que no cambia si después editas el pedido. Si tu rol no puede ver el cliente del movimiento, la columna sale vacía.
+
+Sobre el reporte aparece el lote o el serial elegido; su código es un enlace a su registro.
 
 Al final, una fila **Existencia** por bodega que todavía tiene ese lote o serial (el rango de fechas no la cambia: es la de hoy). Exporta el reporte a PDF, Excel o CSV con los botones de siempre. El asistente también lo consulta: pregúntale, por ejemplo, «¿A qué clientes fue el lote L-2311?».
 

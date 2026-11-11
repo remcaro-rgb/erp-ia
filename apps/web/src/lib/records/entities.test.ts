@@ -38,10 +38,18 @@ describe("record entities", () => {
     expect(recordEntity("inventory.transfer")).toMatchObject({ create: "inventory.transfer.create", update: "" });
     expect(recordEntity("inventory.count")).toMatchObject({ create: "inventory.count.create", update: "" });
     expect(recordEntity("costing.landed_cost")).toMatchObject({ consult: "costing.landed_cost.consult", create: "costing.landed_cost.allocate", update: "" });
+    // Task 28.5: the lote and the serial (maestros, create and update) and the seguimiento por producto, keyed by its product (one process).
+    expect(recordEntity("inventory.lot")).toMatchObject({ consult: "inventory.lot.consult", create: "inventory.lot.create", update: "inventory.lot.update", titleField: "code" });
+    expect(recordEntity("inventory.serial")).toMatchObject({ consult: "inventory.serial.consult", create: "inventory.serial.create", update: "inventory.serial.update", titleField: "serial_no" });
+    expect(recordEntity("inventory.product_tracking")).toMatchObject({
+      consult: "inventory.product_tracking.consult", create: "inventory.product_tracking.set", update: "inventory.product_tracking.set", titleField: "product_id",
+      keyedBy: { view: "inventory.v_product_tracking", column: "product_id", input: "productId" },
+    });
     // Every inventory and costing entity that declares a record page opens here.
     const registry = new Registry();
     loadModules(registry, [kernelModule, core, inventory, costing]);
     for (const id of recordPageEntities(registry.entities())) if (id.startsWith("inventory.") || id.startsWith("costing.")) expect(recordEntity(id)).not.toBeNull();
+    expect([...recordPageEntities(registry.entities())].filter((id) => ["inventory.lot", "inventory.serial", "inventory.product_tracking"].includes(id)).sort()).toEqual(["inventory.lot", "inventory.product_tracking", "inventory.serial"]);
   });
 
   it("the CRM and sales records open here: the maestros and the open documentos save by create and update, the rest only by create (plan 2B Task 14b)", () => {

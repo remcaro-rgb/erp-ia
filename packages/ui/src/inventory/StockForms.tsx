@@ -12,12 +12,14 @@ import { gridFetcher } from "../grid/fetch-grid";
 import type { GridColumn, GridRow } from "../grid/types";
 import { EntityLookup } from "../lookup/EntityLookup";
 import { recordHref } from "../record/record-model";
+import { RecordLink } from "../record/RecordLink";
 import {
   createProcess,
   emptyLine,
   FORM_LANDED_BASES,
   FORM_MOVEMENT_KINDS,
   FORM_OFFSET_ROLES,
+  masterStockCopy,
   masterStockDraft,
   masterStockInput,
   masterStockMissing,
@@ -29,11 +31,14 @@ import {
   type StockDraft,
   type StockFormKind,
   type StockLine,
+  type StockMasterKind,
 } from "./stock-form-model";
 
 // The Datos tab of the inventory and costing records (plan 2B Task 10): a bodega or ubicación (maestros, saved through their create and
 // update processes) and the new movimiento, traslado, conteo and costo en destino. Each saves through the process that creates it (an
 // ajuste through inventory.adjustment.post, which asks for the step-up code here, rule 15); the record frame's Guardar runs the save.
+// Task 28.5: the lote and the serial (maestros) and the seguimiento por producto (parametro, inventory.product_tracking.set, step-up) edit
+// in place through the same master form.
 
 /** A ubicación as a select option, with its bodega (a line offers only the ubicaciones of the line's bodega). */
 export interface LocationOption extends CodeOption {
@@ -49,7 +54,7 @@ export interface LookupSource {
 }
 
 export interface StockMasterFormProps {
-  kind: "warehouse" | "location";
+  kind: StockMasterKind;
   record: (Record<string, unknown> & { id: string }) | null;
   initial?: Readonly<Record<string, unknown>> | null;
   readOnly?: boolean;
@@ -59,9 +64,20 @@ export interface StockMasterFormProps {
   save: SaveRecord;
   requestStepUp?: RequestStepUp;
   onSaved?: (id: string, created: boolean) => void;
+  /** How the record's (or the copy's) references read to the caller, by field (`product_id`, `lot_id`). */
+  labels?: Readonly<Record<string, string>>;
+  /** A lote: the products tracked by lot; a serial: those tracked by serial (Task 28.5). */
+  products?: readonly CodeOption[];
+  /** A serial: the lots of each of those products, by product id. */
+  lots?: Readonly<Record<string, readonly CodeOption[]>>;
+  /** The product box of a seguimiento; its `linkable` also links the product of a stored lote, serial or seguimiento (rule 21). */
+  product?: LookupSource;
 }
 
-export function StockMasterForm({ kind, record, initial: copy, readOnly = false, warehouses = [], processes, save, requestStepUp, onSaved }: StockMasterFormProps) {
+/** The record's fields the process refusals may name, by input key. */
+const MASTER_FIELD_KEYS = ["code", "name", "addressLine", "warehouseId", "kind", "productId", "serialNo", "lotId", "expiresOn", "producedOn", "status", "note", "tracking"];
+
+export function StockMasterForm({ kind, record, initial: copy, readOnly = false, warehouses = [], processes, save, requestStepUp, onSaved, labels = {}, products = [], lots = {}, product }: StockMasterFormProps) {
   const t = useTranslations("inventory.form");
   const tv = useTranslations("inventory.values");
   const tf = useTranslations("common.forms");
@@ -70,23 +86,27 @@ export function StockMasterForm({ kind, record, initial: copy, readOnly = false,
   const bridge = useRecordBridge();
   const isNew = record === null;
   const recordKey = record ? `${record.id}:${String(record.updated_at ?? "")}` : "new";
+  const tracked = kind === "lot" || kind === "serial" || kind === "tracking";
+  // «Duplicar» of a lote or serial starts from the source's product, dates and note, the code or number cleared (rule 37).
+  const fresh = () => (record ? masterStockDraft(record, labels) : copy && (kind === "lot" || kind === "serial") ? masterStockCopy(copy, labels) : masterStockDraft(copy ?? null, labels));
   const [seen, setSeen] = useState(recordKey);
-  const [initial, setInitial] = useState(() => masterStockDraft(record ?? copy ?? null));
+  const [initial, setInitial] = useState(fresh);
   const [draft, setDraft] = useState(initial);
   if (seen !== recordKey) {
-    const next = masterStockDraft(record ?? copy ?? null);
+    const next = fresh();
     setSeen(recordKey);
     setInitial(next);
     setDraft(next);
   }
   const flow = useSaveFlow(save, requestStepUp, (id) => onSaved?.(id, isNew));
-  const failed = failureMessages(flow.failure, ["code", "name", "addressLine", "warehouseId", "kind"], errorText);
-  const missing = masterStockMissing(kind, draft, isNew);
+  const failed = failureMessages(flow.failure, MASTER_FIELD_KEYS, errorText);
+  const missingKeys: string[] = tracked ? masterStockMissing(kind, draft, isNew) : masterStockMissing(kind, draft, isNew) ? ["master"] : [];
+  const missing = missingKeys.length > 0;
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const send = () => flow.submit(masterStockInput(kind, draft, record ? record.id : null));
   const submit = () => void send();
   const set = <K extends keyof typeof draft>(key: K) => (value: (typeof draft)[K]) => setDraft((d) => ({ ...d, [key]: value }));
-  const flag = (key: "allowBackorders" | "isActive", label: string) => {
+  const flag = (key: "allowBackorders" | "isActive" | "fefo" | "expiryRequired" | "blockExpired", label: string) => {
     const on = draft[key];
     return (
       <button key={key} type="button" role="switch" aria-checked={on} disabled={readOnly} className={on ? "erp-flag is-on" : "erp-flag"} onClick={() => !readOnly && set(key)(!on)}>
@@ -95,25 +115,128 @@ export function StockMasterForm({ kind, record, initial: copy, readOnly = false,
       </button>
     );
   };
+  const title = tracked ? t(`${kind}.section`) : t(`section.${kind}`);
+  // A stored record's product never changes: it reads as a link to the product (rule 21) when the caller may open products.
+  const storedProduct = (label: string) => (
+    <div className="erp-field">
+      <span className="erp-field__label">{label}</span>
+      {product?.linkable && draft.productId ? <RecordLink entity="core.product" id={draft.productId} label={draft.productLabel || draft.productId} /> : <span>{draft.productLabel || draft.productId || "—"}</span>}
+    </div>
+  );
+  // The products a new lote or serial can be of (the stored or copied one stays offered even if its tracking changed since).
+  const productOptions = draft.productId && !products.some((p) => p.code === draft.productId) ? [{ code: draft.productId, name: draft.productLabel || draft.productId }, ...products] : products;
+  const productLots = lots[draft.productId] ?? [];
+
+  const body = (() => {
+    if (kind === "lot") {
+      return (
+        <div className="erp-form2">
+          {isNew ? (
+            <SelectField label={`${t("lot.product")} *`} hint={products.length === 0 ? t("lot.no_products") : t("lot.product_hint")} value={draft.productId} options={productOptions} showCode={false} empty="—" disabled={readOnly} error={failed.field("productId")}
+              onChange={(v) => setDraft((d) => ({ ...d, productId: v, productLabel: productOptions.find((p) => p.code === v)?.name ?? "" }))} />
+          ) : (
+            storedProduct(t("lot.product"))
+          )}
+          <TextField label={`${t("lot.code")} *`} hint={t("lot.code_hint")} value={draft.code} mono maxLength={60} disabled={readOnly || !isNew} error={failed.field("code")} onChange={set("code")} />
+          <DateField label={t("lot.expires_on")} value={draft.expiresOn} disabled={readOnly} error={failed.field("expiresOn")} onChange={set("expiresOn")} />
+          <DateField label={t("lot.produced_on")} value={draft.producedOn} disabled={readOnly} error={failed.field("producedOn")} onChange={set("producedOn")} />
+          {!isNew && (
+            <SelectField label={t("lot.status")} hint={t("lot.status_hint")} value={draft.lotStatus} options={(["active", "blocked"] as const).map((code) => ({ code, name: tv(`lot_status.${code}`) }))} showCode={false} disabled={readOnly} error={failed.field("status")} onChange={set("lotStatus")} />
+          )}
+          <TextField label={t("lot.note")} value={draft.note} maxLength={500} disabled={readOnly} error={failed.field("note")} onChange={set("note")} className="erp-span3" />
+        </div>
+      );
+    }
+    if (kind === "serial") {
+      return (
+        <div className="erp-form2">
+          {isNew ? (
+            <SelectField label={`${t("serial.product")} *`} hint={products.length === 0 ? t("serial.no_products") : t("serial.product_hint")} value={draft.productId} options={productOptions} showCode={false} empty="—" disabled={readOnly} error={failed.field("productId")}
+              onChange={(v) => setDraft((d) => ({ ...d, productId: v, productLabel: productOptions.find((p) => p.code === v)?.name ?? "", lotId: "" }))} />
+          ) : (
+            storedProduct(t("serial.product"))
+          )}
+          <TextField label={`${t("serial.serial_no")} *`} hint={t("serial.serial_no_hint")} value={draft.serialNo} mono maxLength={80} disabled={readOnly || !isNew} error={failed.field("serialNo")} onChange={set("serialNo")} />
+          {isNew && productLots.length > 0 && (
+            <SelectField label={t("serial.lot")} value={draft.lotId} options={productLots} showCode={false} empty={t("serial.no_lot")} disabled={readOnly} error={failed.field("lotId")} onChange={set("lotId")} />
+          )}
+          {!isNew && draft.lotId && (
+            <div className="erp-field">
+              <span className="erp-field__label">{t("serial.lot")}</span>
+              <RecordLink entity="inventory.lot" id={draft.lotId} label={labels.lot_id ?? draft.lotId} mono />
+            </div>
+          )}
+          {!isNew && (
+            <div className="erp-field" data-testid="serial-status">
+              <span className="erp-field__label">{t("serial.status")}</span>
+              <span title={t("serial.status_hint")}>{draft.serialStatus ? tv(`serial_status.${draft.serialStatus}`) : "—"}</span>
+            </div>
+          )}
+          <TextField label={t("serial.note")} value={draft.note} maxLength={500} disabled={readOnly} error={failed.field("note")} onChange={set("note")} className="erp-span3" />
+        </div>
+      );
+    }
+    if (kind === "tracking") {
+      return (
+        <div className="erp-form2">
+          {isNew ? (
+            <Field label={`${t("tracking.product")} *`} error={failed.field("productId")} className="erp-span3">
+              {(id) => (
+                <EntityLookup
+                  id={id}
+                  aria-label={t("tracking.product")}
+                  entityLabel={product?.entityLabel ?? ""}
+                  fetcher={gridFetcher("core.product")}
+                  fields={product?.fields ?? []}
+                  baseFilters={[{ field: "kind", op: "eq", value: "good" }, { field: "track_stock", op: "eq", value: true }]}
+                  disabled={readOnly}
+                  value={draft.productId ? { id: draft.productId, label: draft.productLabel } : null}
+                  href={product?.linkable && draft.productId ? recordHref("core.product", draft.productId) : null}
+                  describe={(row: GridRow) => ({ label: `${String(row.sku ?? "")} · ${String(row.description ?? "")}`, sub: String(row.uom_code ?? "") })}
+                  onPick={(row) => setDraft((d) => ({ ...d, productId: row?.id ?? "", productLabel: row ? `${String(row.sku ?? "")} · ${String(row.description ?? "")}` : "" }))}
+                />
+              )}
+            </Field>
+          ) : (
+            storedProduct(t("tracking.product"))
+          )}
+          <SelectField label={`${t("tracking.tracking")} *`} value={draft.tracking} options={(["none", "lot", "serial"] as const).map((code) => ({ code, name: tv(`tracking.${code}`) }))} showCode={false} disabled={readOnly} error={failed.field("tracking")} onChange={set("tracking")} />
+        </div>
+      );
+    }
+    return (
+      <div className="erp-form2">
+        {kind === "location" && (
+          <SelectField label={`${t("warehouse")} *`} value={draft.warehouseId} options={warehouses} showCode={false} empty={isNew ? "—" : undefined} disabled={readOnly || !isNew} error={failed.field("warehouseId")} onChange={set("warehouseId")} />
+        )}
+        <TextField label={`${t("code")} *`} value={draft.code} mono maxLength={20} disabled={readOnly} error={failed.field("code")} onChange={set("code")} />
+        <TextField label={`${t("name")} *`} value={draft.name} maxLength={120} disabled={readOnly} error={failed.field("name")} onChange={set("name")} />
+        {kind === "warehouse" && <TextField label={t("address")} value={draft.addressLine} maxLength={200} disabled={readOnly} error={failed.field("addressLine")} onChange={set("addressLine")} />}
+        {kind === "location" && (
+          <SelectField label={t("location_kind")} value={draft.kind} options={[{ code: "storage", name: tv("location_kind.storage") }]} showCode={false} disabled={readOnly} error={failed.field("kind")} onChange={set("kind")} />
+        )}
+      </div>
+    );
+  })();
+
+  const flags =
+    kind === "warehouse" || kind === "location"
+      ? [...(kind === "warehouse" ? [flag("allowBackorders", t("allow_backorders"))] : []), flag("isActive", t("active"))]
+      : kind === "tracking"
+        ? [flag("fefo", t("tracking.fefo")), flag("expiryRequired", t("tracking.expiry_required")), flag("blockExpired", t("tracking.block_expired"))]
+        : [];
+  const status = flow.saving ? tf("saving") : !missing ? "" : tracked ? `${t("missing")}: ${missingKeys.map((m) => t(`missing_field.${m}`)).join(", ")}` : t("missing_master");
   return (
     <RecordForm canSave={!readOnly && !missing && !flow.saving && !flow.stepUp && (dirty || isNew)} onSave={submit} dirty={dirty} save={async () => (await send())?.ok === true} failure={flow.failure} {...(isNew ? {} : { onDiscard: () => setDraft(initial) })}>
-      <Section title={t(`section.${kind}`)}>
-        <div className="erp-form2">
-          {kind === "location" && (
-            <SelectField label={`${t("warehouse")} *`} value={draft.warehouseId} options={warehouses} showCode={false} empty={isNew ? "—" : undefined} disabled={readOnly || !isNew} error={failed.field("warehouseId")} onChange={set("warehouseId")} />
-          )}
-          <TextField label={`${t("code")} *`} value={draft.code} mono maxLength={20} disabled={readOnly} error={failed.field("code")} onChange={set("code")} />
-          <TextField label={`${t("name")} *`} value={draft.name} maxLength={120} disabled={readOnly} error={failed.field("name")} onChange={set("name")} />
-          {kind === "warehouse" && <TextField label={t("address")} value={draft.addressLine} maxLength={200} disabled={readOnly} error={failed.field("addressLine")} onChange={set("addressLine")} />}
-          {kind === "location" && (
-            <SelectField label={t("location_kind")} value={draft.kind} options={[{ code: "storage", name: tv("location_kind.storage") }]} showCode={false} disabled={readOnly} error={failed.field("kind")} onChange={set("kind")} />
-          )}
-        </div>
-        <div className="erp-flags" role="group" aria-label={t(`section.${kind}`)}>
-          {kind === "warehouse" && flag("allowBackorders", t("allow_backorders"))}
-          {flag("isActive", t("active"))}
-        </div>
+      <Section title={title}>
+        {body}
+        {flags.length > 0 && (
+          <div className="erp-flags" role="group" aria-label={title}>
+            {flags}
+          </div>
+        )}
         {kind === "warehouse" && <p className="erp-small erp-muted">{t("allow_backorders_hint")}</p>}
+        {kind === "tracking" && <p className="erp-small erp-muted">{t("tracking.hint")}</p>}
       </Section>
       {failed.panel.length > 0 && (
         <div className="erp-dian erp-dian--bad" role="alert" tabIndex={-1} data-error-summary="">
@@ -125,7 +248,7 @@ export function StockMasterForm({ kind, record, initial: copy, readOnly = false,
           {flow.stepUp && <StepUpPrompt onConfirm={(code) => void flow.confirmStepUp(code)} onCancel={flow.cancelStepUp} error={flow.stepUpError} busy={flow.saving} />}
           <div className="erp-row">
             <span className="erp-small erp-muted erp-grow" role="status">
-              {flow.saving ? tf("saving") : missing ? t("missing_master") : ""} <kbd className="erp-mono">{tf("save_hint")}</kbd> · <ProcessId id={isNew ? processes.create : processes.update} />
+              {status} <kbd className="erp-mono">{tf("save_hint")}</kbd> · <ProcessId id={isNew ? processes.create : processes.update} />
             </span>
             {/* In a record frame its header carries «Descartar cambios» (owner 2026-11-05). */}
             {dirty && !isNew && !bridge?.registered && (
@@ -153,7 +276,7 @@ export function StockMasterForm({ kind, record, initial: copy, readOnly = false,
 export const STOCK_VARIANT_KEY = "__variant";
 
 export interface StockDocumentFormProps {
-  kind: Exclude<StockFormKind, "warehouse" | "location">;
+  kind: Exclude<StockFormKind, StockMasterKind>;
   /** Today in the company's time zone (the default date). */
   today: string;
   warehouses: readonly CodeOption[];

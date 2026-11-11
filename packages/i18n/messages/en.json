@@ -1300,7 +1300,8 @@
         "transfer": "inventory transfer",
         "count": "physical count",
         "lot": "lot",
-        "serial": "serial"
+        "serial": "serial",
+        "product_tracking": "product tracking"
       },
       "costing": {
         "landed_cost": "landed cost"
@@ -4851,7 +4852,9 @@
         "customer": "Customer"
       },
       "on_hand": "On hand",
-      "intro": "Pick a lot or a serial: every movement that moved it, which customer it was delivered to or who returned it, and how much is left today in each warehouse. Use it for a product recall."
+      "intro": "Pick a lot or a serial: every movement that moved it, which customer it was delivered to or who returned it, and how much is left today in each warehouse. Use it for a product recall.",
+      "subject_lot": "Lot",
+      "subject_serial": "Serial"
     }
   },
   "accounting": {
@@ -5582,6 +5585,32 @@
       "own_flags": {
         "requires_approval": "Needs no approval: applying the count asks for a step-up.",
         "posts": "Does not post: accounting posts the count's adjustment from its event."
+      },
+      "found": {
+        "add": "Add found item",
+        "title": "Found",
+        "hint": "What you counted that the sheet does not list: a lot (existing or new, with its expiry) or a scanned serial. It is recorded with «Record count».",
+        "product": "Product, found {n}",
+        "location": "Location, found {n}",
+        "no_location": "No location",
+        "lot": "Lot, found {n}",
+        "new_lot": "New lot…",
+        "lot_code": "New lot code, found {n}",
+        "lot_code_placeholder": "Lot code",
+        "expires": "Expiry, found {n}",
+        "expires_hint": "Expiry of the new lot (asked when the product requires expiry)",
+        "serial": "Serial, found {n}",
+        "serial_placeholder": "Scan or type the serial",
+        "qty": "Counted quantity, found {n}",
+        "remove": "Remove found {n}",
+        "remove_column": "Remove",
+        "missing": {
+          "product": "Choose the product",
+          "tracked": "The product is tracked neither by lot nor by serial: add it to the count when creating it",
+          "lot": "Choose a lot or type the code of a new one",
+          "serial": "Scan or type the serial",
+          "qty": "Enter a quantity of zero or more"
+        }
       }
     },
     "form": {
@@ -5640,7 +5669,10 @@
         "amount": "the amount",
         "party": "the supplier",
         "lot": "the lot of each lot line",
-        "serials": "one serial per unit on each serial line"
+        "serials": "one serial per unit on each serial line",
+        "product": "the product",
+        "code": "the lot code",
+        "serial_no": "the serial number"
       },
       "lot_serials": "Lot / serials",
       "lot_line": "Lot, line {n}",
@@ -5648,7 +5680,42 @@
       "expires_line": "Lot expiry, line {n}",
       "expires_hint": "Lot expiry (a new lot needs it when the product requires expiry)",
       "serials_line": "Serials, line {n}",
-      "serials_hint": "One serial per unit, separated by commas"
+      "serials_hint": "One serial per unit, separated by commas",
+      "lot": {
+        "section": "Lot",
+        "product": "Product",
+        "product_hint": "Only the products tracked by lot (Settings › Product tracking).",
+        "no_products": "No product is tracked by lot: change it in Settings › Product tracking.",
+        "code": "Lot code",
+        "code_hint": "Unique per product; typed or scanned. It does not change once saved.",
+        "expires_on": "Expires",
+        "produced_on": "Production date",
+        "status": "Lot status",
+        "status_hint": "A blocked lot is not sold: FEFO skips it.",
+        "note": "Note"
+      },
+      "serial": {
+        "section": "Serial",
+        "product": "Product",
+        "product_hint": "Only the products tracked by serial (Settings › Product tracking).",
+        "no_products": "No product is tracked by serial: change it in Settings › Product tracking.",
+        "serial_no": "Serial number",
+        "serial_no_hint": "Unique per product; typed or scanned. It does not change once saved.",
+        "lot": "Lot",
+        "no_lot": "No lot",
+        "status": "Serial status",
+        "status_hint": "Kept by the movements: available when received, issued when sold, scrapped in an adjustment.",
+        "note": "Note"
+      },
+      "tracking": {
+        "section": "Product tracking",
+        "product": "Product",
+        "tracking": "Tracking",
+        "fefo": "FEFO (first expired, first out)",
+        "expiry_required": "Expiry required",
+        "block_expired": "Block expired lots",
+        "hint": "Saving asks for your verification code. The tracking changes only when the product has no stock; FEFO, expiry and blocking can change with stock."
+      }
     },
     "view": {
       "facts": "Document data",

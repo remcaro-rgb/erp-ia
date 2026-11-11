@@ -1300,7 +1300,8 @@
         "transfer": "traslado de inventario",
         "count": "conteo físico",
         "lot": "lote",
-        "serial": "serial"
+        "serial": "serial",
+        "product_tracking": "seguimiento de producto"
       },
       "costing": {
         "landed_cost": "costo en destino"
@@ -4851,7 +4852,9 @@
         "customer": "Cliente"
       },
       "on_hand": "Existencia",
-      "intro": "Elige un lote o un serial: verás cada movimiento que lo movió, a qué cliente se entregó o quién lo devolvió, y cuánto queda hoy en cada bodega. Sirve para un retiro del mercado."
+      "intro": "Elige un lote o un serial: verás cada movimiento que lo movió, a qué cliente se entregó o quién lo devolvió, y cuánto queda hoy en cada bodega. Sirve para un retiro del mercado.",
+      "subject_lot": "Lote",
+      "subject_serial": "Serial"
     }
   },
   "accounting": {
@@ -5582,6 +5585,32 @@
       "own_flags": {
         "requires_approval": "No requiere aprobación: aplicar el conteo pide verificación reforzada.",
         "posts": "No contabiliza: el ajuste que genera el conteo lo registra contabilidad desde su evento."
+      },
+      "found": {
+        "add": "Agregar encontrado",
+        "title": "Encontrados",
+        "hint": "Lo que contaste y la hoja no lista: un lote (existente o nuevo, con su vencimiento) o un serial escaneado. Se registra con «Registrar conteo».",
+        "product": "Producto, encontrado {n}",
+        "location": "Ubicación, encontrado {n}",
+        "no_location": "Sin ubicación",
+        "lot": "Lote, encontrado {n}",
+        "new_lot": "Lote nuevo…",
+        "lot_code": "Código del lote nuevo, encontrado {n}",
+        "lot_code_placeholder": "Código del lote",
+        "expires": "Vencimiento, encontrado {n}",
+        "expires_hint": "Vencimiento del lote nuevo (lo pide si el producto exige vencimiento)",
+        "serial": "Serial, encontrado {n}",
+        "serial_placeholder": "Escanea o escribe el serial",
+        "qty": "Cantidad contada, encontrado {n}",
+        "remove": "Quitar encontrado {n}",
+        "remove_column": "Quitar",
+        "missing": {
+          "product": "Elige el producto",
+          "tracked": "El producto no se sigue por lote ni por serial: agrégalo al conteo al crearlo",
+          "lot": "Elige un lote o escribe el código de uno nuevo",
+          "serial": "Escanea o escribe el serial",
+          "qty": "Indica una cantidad de cero o más"
+        }
       }
     },
     "form": {
@@ -5640,7 +5669,10 @@
         "amount": "el valor",
         "party": "el proveedor",
         "lot": "el lote de cada línea por lote",
-        "serials": "un serial por unidad en cada línea por serial"
+        "serials": "un serial por unidad en cada línea por serial",
+        "product": "el producto",
+        "code": "el código del lote",
+        "serial_no": "el número de serie"
       },
       "lot_serials": "Lote / seriales",
       "lot_line": "Lote, línea {n}",
@@ -5648,7 +5680,42 @@
       "expires_line": "Vencimiento del lote, línea {n}",
       "expires_hint": "Vencimiento del lote (un lote nuevo lo pide si el producto exige vencimiento)",
       "serials_line": "Seriales, línea {n}",
-      "serials_hint": "Un serial por unidad, separados por comas"
+      "serials_hint": "Un serial por unidad, separados por comas",
+      "lot": {
+        "section": "Lote",
+        "product": "Producto",
+        "product_hint": "Solo los productos que se siguen por lote (Parámetros › Seguimiento por producto).",
+        "no_products": "Ningún producto se sigue por lote: cámbialo en Parámetros › Seguimiento por producto.",
+        "code": "Código del lote",
+        "code_hint": "Único por producto; se escribe o se escanea. No cambia una vez guardado.",
+        "expires_on": "Vence",
+        "produced_on": "Fecha de producción",
+        "status": "Estado del lote",
+        "status_hint": "Un lote bloqueado no se vende: FEFO lo salta.",
+        "note": "Nota"
+      },
+      "serial": {
+        "section": "Serial",
+        "product": "Producto",
+        "product_hint": "Solo los productos que se siguen por serial (Parámetros › Seguimiento por producto).",
+        "no_products": "Ningún producto se sigue por serial: cámbialo en Parámetros › Seguimiento por producto.",
+        "serial_no": "Número de serie",
+        "serial_no_hint": "Único por producto; se escribe o se escanea. No cambia una vez guardado.",
+        "lot": "Lote",
+        "no_lot": "Sin lote",
+        "status": "Estado del serial",
+        "status_hint": "Lo llevan los movimientos: disponible al recibirlo, despachado al venderlo, dado de baja en un ajuste.",
+        "note": "Nota"
+      },
+      "tracking": {
+        "section": "Seguimiento por producto",
+        "product": "Producto",
+        "tracking": "Seguimiento",
+        "fefo": "FEFO (vence primero, sale primero)",
+        "expiry_required": "Vencimiento obligatorio",
+        "block_expired": "Bloquear lotes vencidos",
+        "hint": "Guardar pide tu código de verificación. El seguimiento solo cambia si el producto no tiene existencias; FEFO, vencimiento y bloqueo se pueden cambiar con existencias."
+      }
     },
     "view": {
       "facts": "Datos del documento",

@@ -2,8 +2,12 @@
 // traslado, conteo and costo en destino (documentos that reach the stock, or the cost layers, in the action that creates them). Pure, so
 // the rules (what each process takes, the sign of a quantity, what a draft still misses) are unit-tested; the forms only draw them.
 
-/** The forms of the inventory and costing records. */
-export type StockFormKind = "warehouse" | "location" | "movement" | "transfer" | "count" | "landed_cost";
+/** The forms of the inventory and costing records; lot, serial and tracking are the maestros and the parametro of Task 28 (28.5). */
+export type StockFormKind = "warehouse" | "location" | "movement" | "transfer" | "count" | "landed_cost" | "lot" | "serial" | "tracking";
+
+/** The forms that edit a record in place (maestros and the parametro): saved through their create and update processes. */
+export type StockMasterKind = "warehouse" | "location" | "lot" | "serial" | "tracking";
+export const STOCK_MASTER_KINDS: readonly StockMasterKind[] = ["warehouse", "location", "lot", "serial", "tracking"];
 
 /** The kinds of movement a user registers in the Movimientos form; the transfer legs and the sale issues come from their documents. */
 export const FORM_MOVEMENT_KINDS = ["receipt", "issue", "adjustment"] as const;
@@ -114,6 +118,9 @@ export function createProcess(kind: StockFormKind, draft: StockDraft | null): st
       return "inventory.count.create";
     case "landed_cost":
       return "costing.landed_cost.allocate";
+    case "tracking":
+      // Keyed by the product: one process creates the row or changes it (step-up).
+      return "inventory.product_tracking.set";
     default:
       return `inventory.${kind}.create`;
   }
@@ -219,7 +226,10 @@ export function stockInput(kind: StockFormKind, draft: StockDraft, idempotencyKe
   return { ...common, ...description, kind: draft.kind, warehouseId: draft.warehouseId, lines: movementLines };
 }
 
-/** The draft of a bodega or ubicación: the stored record, or the defaults of a new one. */
+/**
+ * The draft of a bodega, ubicación, lote, serial or seguimiento por producto: the stored record, or the defaults of a new one. `labels`
+ * names the references (`product_id`, `lot_id`) as the caller reads them.
+ */
 export interface MasterStockDraft {
   code: string;
   name: string;
@@ -228,9 +238,28 @@ export interface MasterStockDraft {
   isActive: boolean;
   warehouseId: string;
   kind: string;
+  // Lote, serial and seguimiento (Task 28.5).
+  productId: string;
+  productLabel: string;
+  lotId: string;
+  expiresOn: string;
+  producedOn: string;
+  /** A lot's sale status (active · blocked); apart from the maestro lifecycle. */
+  lotStatus: string;
+  /** A serial's status (available · issued · scrapped): kept by the movements, shown read only. */
+  serialStatus: string;
+  serialNo: string;
+  note: string;
+  tracking: string;
+  fefo: boolean;
+  expiryRequired: boolean;
+  blockExpired: boolean;
 }
 
-export function masterStockDraft(record: Readonly<Record<string, unknown>> | null): MasterStockDraft {
+/** A calendar date as the form keeps it (yyyy-mm-dd): the driver may hand it as a Date at UTC midnight. */
+const dayOf = (v: unknown): string => (v instanceof Date ? v.toISOString().slice(0, 10) : v === null || v === undefined ? "" : String(v).slice(0, 10));
+
+export function masterStockDraft(record: Readonly<Record<string, unknown>> | null, labels: Readonly<Record<string, string>> = {}): MasterStockDraft {
   const s = (v: unknown) => (v === null || v === undefined ? "" : String(v));
   return {
     code: s(record?.code),
@@ -240,16 +269,134 @@ export function masterStockDraft(record: Readonly<Record<string, unknown>> | nul
     isActive: record ? record.is_active !== false : true,
     warehouseId: s(record?.warehouse_id),
     kind: s(record?.kind) || "storage",
+    productId: s(record?.product_id),
+    productLabel: labels.product_id ?? "",
+    lotId: s(record?.lot_id),
+    expiresOn: dayOf(record?.expires_on),
+    producedOn: dayOf(record?.produced_on),
+    lotStatus: s(record?.lot_status) || "active",
+    serialStatus: s(record?.serial_status),
+    serialNo: s(record?.serial_no),
+    note: s(record?.note),
+    // PG §3.1 defaults of a product without a row: untracked, FEFO on, expiry not required, expired lots blocked.
+    tracking: s(record?.tracking) || "none",
+    fefo: record?.fefo !== false,
+    expiryRequired: record?.expiry_required === true,
+    blockExpired: record?.block_expired !== false,
   };
 }
 
-/** The input of the bodega's or ubicación's create (no id) or update process. A ubicación's bodega is set on creation only. */
-export function masterStockInput(kind: "warehouse" | "location", draft: MasterStockDraft, id: string | null): Record<string, unknown> {
+/**
+ * The draft of «Duplicar» of a lote or serial (rule 37): the product, the dates and the note of the source; the code or the serial number
+ * cleared (unique per product), and the statuses a new one starts with (an active lot; a serial's status is the movements').
+ */
+export function masterStockCopy(values: Readonly<Record<string, unknown>>, labels: Readonly<Record<string, string>> = {}): MasterStockDraft {
+  return { ...masterStockDraft(values, labels), code: "", serialNo: "", lotStatus: "active", serialStatus: "" };
+}
+
+/**
+ * The input of the create (no id) or update process. A ubicación's bodega is set on creation only; a lote's product and code and a serial's
+ * product, number and lot too (an update of a lot takes its dates, status and note, of a serial its note: its status is the movements').
+ * A seguimiento is keyed by its product: inventory.product_tracking.set creates or changes the row, with no id.
+ */
+export function masterStockInput(kind: StockMasterKind, draft: MasterStockDraft, id: string | null): Record<string, unknown> {
+  const note = draft.note.trim();
+  if (kind === "lot") {
+    if (id) return { id, expiresOn: draft.expiresOn || null, producedOn: draft.producedOn || null, status: draft.lotStatus, note: note || null };
+    return { productId: draft.productId, code: draft.code.trim(), ...(draft.expiresOn ? { expiresOn: draft.expiresOn } : {}), ...(draft.producedOn ? { producedOn: draft.producedOn } : {}), ...(note ? { note } : {}) };
+  }
+  if (kind === "serial") {
+    if (id) return { id, note: note || null };
+    return { productId: draft.productId, serialNo: draft.serialNo.trim(), ...(draft.lotId ? { lotId: draft.lotId } : {}), ...(note ? { note } : {}) };
+  }
+  if (kind === "tracking") return { productId: draft.productId, tracking: draft.tracking, fefo: draft.fefo, expiryRequired: draft.expiryRequired, blockExpired: draft.blockExpired };
   const base = { ...(id ? { id } : {}), code: draft.code.trim(), name: draft.name.trim(), isActive: draft.isActive };
   if (kind === "warehouse") return { ...base, ...(draft.addressLine.trim() ? { addressLine: draft.addressLine.trim() } : {}), allowBackorders: draft.allowBackorders };
   return { ...base, ...(id ? {} : { warehouseId: draft.warehouseId }), kind: draft.kind };
 }
 
-export function masterStockMissing(kind: "warehouse" | "location", draft: MasterStockDraft, isNew: boolean): boolean {
-  return draft.code.trim() === "" || draft.name.trim() === "" || (kind === "location" && isNew && draft.warehouseId === "");
+/**
+ * What the draft still misses. A bodega or ubicación answers whether anything is (its code, name, bodega); a lote, serial or seguimiento
+ * names what: i18n keys under `inventory.form.missing_field` (empty when it is complete).
+ */
+export function masterStockMissing(kind: "warehouse" | "location", draft: MasterStockDraft, isNew: boolean): boolean;
+export function masterStockMissing(kind: "lot" | "serial" | "tracking", draft: MasterStockDraft, isNew: boolean): string[];
+export function masterStockMissing(kind: StockMasterKind, draft: MasterStockDraft, isNew: boolean): boolean | string[];
+export function masterStockMissing(kind: StockMasterKind, draft: MasterStockDraft, isNew: boolean): boolean | string[] {
+  if (kind === "warehouse" || kind === "location") return draft.code.trim() === "" || draft.name.trim() === "" || (kind === "location" && isNew && draft.warehouseId === "");
+  const missing: string[] = [];
+  if (draft.productId === "") missing.push("product");
+  if (kind === "lot" && isNew && draft.code.trim() === "") missing.push("code");
+  if (kind === "serial" && isNew && draft.serialNo.trim() === "") missing.push("serial_no");
+  return missing;
+}
+
+/**
+ * A row «Agregar encontrado» adds to an open conteo (Task 28.5): what the counter found that the sheet does not list. A lot product names an
+ * existing lot (`lotId`) or a new code with its expiry (created nested); a serial product the number scanned (counted 1).
+ */
+export interface FoundRow {
+  key: string;
+  productId: string;
+  productLabel: string;
+  tracking: LineTracking;
+  locationId: string;
+  /** An existing lot of the product; empty: a new code. */
+  lotId: string;
+  lotCode: string;
+  expiresOn: string;
+  serialNo: string;
+  countedQty: string;
+}
+
+let foundSeq = 0;
+export const emptyFoundRow = (): FoundRow => ({ key: `f${++foundSeq}`, productId: "", productLabel: "", tracking: "none", locationId: "", lotId: "", lotCode: "", expiresOn: "", serialNo: "", countedQty: "" });
+
+/** One entry of `found` of inventory.count.record (`foundInput`). */
+export function foundRowInput(row: FoundRow): Record<string, unknown> {
+  const tracked =
+    row.tracking === "lot"
+      ? row.lotId
+        ? { lotId: row.lotId }
+        : row.lotCode.trim()
+          ? { lot: { code: row.lotCode.trim(), ...(row.expiresOn ? { expiresOn: row.expiresOn } : {}) } }
+          : {}
+      : row.tracking === "serial" && row.serialNo.trim()
+        ? { serialNo: row.serialNo.trim() }
+        : {};
+  return { productId: row.productId, ...(row.locationId ? { locationId: row.locationId } : {}), ...tracked, countedQty: row.tracking === "serial" ? 1 : parseQty(row.countedQty) };
+}
+
+/** What a found row still misses: i18n keys under `inventory.count.found.missing` (empty when it can be sent). */
+export function foundRowMissing(row: FoundRow): string[] {
+  if (row.productId === "") return ["product"];
+  // An untracked product is not «found»: the count lists it when it is created.
+  if (row.tracking === "none") return ["tracked"];
+  if (row.tracking === "lot" && row.lotId === "" && row.lotCode.trim() === "") return ["lot"];
+  if (row.tracking === "serial") return row.serialNo.trim() === "" ? ["serial"] : [];
+  const qty = parseQty(row.countedQty);
+  return Number.isFinite(qty) && qty >= 0 ? [] : ["qty"];
+}
+
+/**
+ * The refusal messages of «Registrar conteo» split by the found row they are about (index in `rows`): the process names a found row
+ * «Encontrado N» or, for its lot and serial checks, «Línea N» (N from 1, the order sent); a message without either goes to the row whose
+ * lot code or serial number it names (a nested lot or serial create). Everything else stays on the sheet.
+ */
+export function splitFoundMessages(messages: readonly string[], rows: readonly FoundRow[]): { rows: Record<number, string[]>; rest: string[] } {
+  const byRow: Record<number, string[]> = {};
+  const rest: string[] = [];
+  const add = (i: number, text: string) => (byRow[i] = [...(byRow[i] ?? []), text]);
+  for (const message of messages) {
+    const named = /^(?:Encontrado|Línea) (\d+): ([\s\S]*)$/.exec(message);
+    const n = named ? Number(named[1]) - 1 : -1;
+    if (named && n >= 0 && n < rows.length) {
+      add(n, named[2]!);
+      continue;
+    }
+    const i = rows.findIndex((r) => [r.lotCode.trim(), r.serialNo.trim()].some((code) => code !== "" && message.includes(code)));
+    if (i >= 0) add(i, message);
+    else rest.push(message);
+  }
+  return { rows: byRow, rest };
 }

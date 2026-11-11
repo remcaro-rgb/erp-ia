@@ -25,6 +25,19 @@ const CREATE_PROCESSES: Readonly<Record<string, Readonly<Record<string, string>>
 };
 const VARIANT_KEY = "__variant";
 
+/** The keys a found row of a conteo may send (inventory.count.record `found`, `foundInput`); anything else is left out. */
+const FOUND_KEYS = ["productId", "locationId", "lotId", "lot", "serialNo", "countedQty"] as const;
+const FOUND_LOT_KEYS = ["code", "expiresOn", "producedOn"] as const;
+
+const pick = (value: unknown, keys: readonly string[]): Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value) ? Object.fromEntries(keys.filter((k) => Object.hasOwn(value, k)).map((k) => [k, (value as Record<string, unknown>)[k]])) : {};
+
+function foundEntry(value: unknown): Record<string, unknown> {
+  const entry = pick(value, FOUND_KEYS);
+  if ("lot" in entry) entry.lot = pick(entry.lot, FOUND_LOT_KEYS);
+  return entry;
+}
+
 export type StepOutcome = { ok: true } | { ok: false; code: string; messages: string[] };
 
 /** Saves a new movimiento, ajuste, traslado, conteo or costo en destino through its entity's create process. */
@@ -55,7 +68,11 @@ export async function runStockStepAction(entity: string, verb: string, input: Re
   const step = steps && Object.hasOwn(steps, verb) ? steps[verb]! : null;
   if (!step || typeof input !== "object" || input === null || typeof input.id !== "string") return { ok: false, code: "invalid_input", messages: [] };
   const body: Record<string, unknown> = { id: input.id };
-  if (step === "inventory.count.record") body.lines = input.lines;
+  if (step === "inventory.count.record") {
+    body.lines = input.lines;
+    // What the counter found that the sheet does not list (Task 28.5): each entry with the keys of `foundInput` only.
+    if (Array.isArray(input.found)) body.found = input.found.map(foundEntry);
+  }
   if (step === "inventory.count.apply" && typeof input.reason === "string" && input.reason.trim()) body.reason = input.reason.trim();
   const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
   try {

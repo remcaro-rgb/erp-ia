@@ -14,6 +14,12 @@ export interface RecordEntity {
   nounKey: string;
   /** False: the grid offers no Importar (a DIAN document is never imported: it is issued). Default true. */
   importable?: boolean;
+  /**
+   * A parametro keyed by another of its fields (Task 28.5: a seguimiento por producto is one row per product): its consult takes that key,
+   * read as the caller from `view` by the record's id, and its one save process takes no id. Such a record offers no «Duplicar» (one row
+   * per key) and its Datos adicionales are not written through the save process (it takes no extra data).
+   */
+  keyedBy?: { view: string; column: string; input: string };
 }
 
 const RECORD_ENTITIES: readonly RecordEntity[] = [
@@ -70,6 +76,20 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
   { id: "inventory.movement", consult: "inventory.movement.consult", create: "inventory.movement.post", update: "", titleField: "number", nounKey: "nav.create.inventory.movement" },
   { id: "inventory.transfer", consult: "inventory.transfer.consult", create: "inventory.transfer.create", update: "", titleField: "number", nounKey: "nav.create.inventory.transfer" },
   { id: "inventory.count", consult: "inventory.count.consult", create: "inventory.count.create", update: "", titleField: "number", nounKey: "nav.create.inventory.count" },
+  // Lotes, seriales and seguimiento por producto (plan 2B.2 Task 28.5): the lote and the serial are maestros saved by their create and update
+  // (a serial's status is the movements'); a seguimiento is one row per product, created or changed by inventory.product_tracking.set
+  // (step-up) and read by its consult, which takes the product.
+  { id: "inventory.lot", consult: "inventory.lot.consult", create: "inventory.lot.create", update: "inventory.lot.update", titleField: "code", nounKey: "nav.create.inventory.lot" },
+  { id: "inventory.serial", consult: "inventory.serial.consult", create: "inventory.serial.create", update: "inventory.serial.update", titleField: "serial_no", nounKey: "nav.create.inventory.serial" },
+  {
+    id: "inventory.product_tracking",
+    consult: "inventory.product_tracking.consult",
+    create: "inventory.product_tracking.set",
+    update: "inventory.product_tracking.set",
+    titleField: "product_id",
+    nounKey: "nav.create.inventory.product_tracking",
+    keyedBy: { view: "inventory.v_product_tracking", column: "product_id", input: "productId" },
+  },
   { id: "costing.landed_cost", consult: "costing.landed_cost.consult", create: "costing.landed_cost.allocate", update: "", titleField: "number", nounKey: "nav.create.costing.landed_cost" },
   // CRM and Ventas (plan 2B Task 14b): the prospecto and the embudo are maestros, the cotización and the pedido documentos edited while they
   // are open; an oportunidad, an entrega and a devolución are created and then move only through their steps (no update here), and an

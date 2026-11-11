@@ -298,6 +298,19 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
 }
 
 /**
+ * The input of the entity's consult for the record `id`: `{ id }`, or for a parametro keyed by another field (Task 28.5) that key, read
+ * from the entity's masked view as the caller (RLS and the masks apply; a row the caller cannot see answers not_found like the consult).
+ */
+async function consultInput(caller: Caller, entity: RecordEntity, id: string): Promise<Record<string, unknown>> {
+  const keyed = entity.keyedBy;
+  if (!keyed) return { id };
+  const rows = await withClaims(processDeps().sql, caller.claims, (tx) => tx<Record<string, unknown>[]>`select ${tx(keyed.column)} as key from ${tx(keyed.view)} where id = ${id}`);
+  const key = rows[0]?.key;
+  if (typeof key !== "string") throw new ProcessError("not_found", `${entity.id} ${id} not found`);
+  return { [keyed.input]: key };
+}
+
+/**
  * The record `/r/<entity>/<id>` shows, or null when the entity has no full page, the id is neither a UUID nor `new`,
  * the record does not exist for the caller (a hidden record looks like a missing one), or `new` is asked by a caller
  * who may not create. Throws `Unauthenticated` without a complete session; the page turns that into a redirect.
@@ -313,7 +326,7 @@ export async function loadRecord(entityId: string, id: string, options: { templa
   let record: LoadedRecord["record"] = null;
   if (id !== NEW_RECORD_ID) {
     try {
-      record = (await runProcess(deps, caller, entity.consult, { id })) as LoadedRecord["record"];
+      record = (await runProcess(deps, caller, entity.consult, await consultInput(caller, entity, id))) as LoadedRecord["record"];
     } catch (error) {
       if (error instanceof ProcessError && ["not_found", "forbidden", "not_entitled"].includes(error.code)) return null;
       throw error;
@@ -340,17 +353,21 @@ export async function loadRecord(entityId: string, id: string, options: { templa
     contactDelete: runnable.has("core.contact.delete"),
     verify: runnable.has("kernel.verify.request"),
     // The `extra` column masked for the caller's role: the tab shows what it may and does not write over it.
-    extra: mayUpdate && (access.modes.extra ?? "visible") === "visible",
+    // A parametro keyed by another field (Task 28.5) saves no extra data through its one process.
+    extra: mayUpdate && !entity.keyedBy && (access.modes.extra ?? "visible") === "visible",
     attach: may("kernel.attachment.add"),
     removeFile: may("kernel.attachment.remove"),
     reorder: may("kernel.attachment.reorder"),
     suggest: may("kernel.ai.image_suggest"),
-    duplicate: record !== null && runnable.has(entity.create),
+    duplicate: record !== null && !entity.keyedBy && runnable.has(entity.create),
   };
   const contributed = record ? await loadContributedTabs(caller, entity.id, record.id, gridRows) : [];
   const accounting = record && MASTER_KINDS[entity.id] ? await loadAccountingTabs(caller, entity.id, record) : null;
   const titleValue = record?.[entity.titleField];
-  const title = titleValue === null || titleValue === undefined || titleValue === "" ? null : labelText(titleValue, registered.fields.find((f) => f.name === entity.titleField));
+  const titleDef = registered.fields.find((f) => f.name === entity.titleField);
+  // A record named by a reference (a seguimiento by its product, Task 28.5) reads as that record's name, as the caller may read it.
+  const titleRef = record && titleDef?.type === "ref" && typeof titleValue === "string" ? (await refLabelsOf(caller, registered, { [entity.titleField]: titleValue }))[entity.titleField] : undefined;
+  const title = titleValue === null || titleValue === undefined || titleValue === "" ? null : (titleRef ?? labelText(titleValue, titleDef));
   const t = await getTranslations();
   const translate = (key: string) => (typeof t.has !== "function" || t.has(key) ? t(key) : key);
   const lifecycle = await loadLifecycle(caller, registered, record, access.modes, translate, canSave);
