@@ -79,8 +79,11 @@ describe("evals-model", () => {
     ).rejects.toBe(rollback);
   });
 
-  it("every data.query case's expected input returns rows on the demo ledger once its literal is swapped for a seeded one (FE-1234 → FE-1001)", async () => {
-    const queries = cases.filter((c) => c.expect.process === "kernel.data.query");
+  it("every data.query case over the ledger returns rows on the demo ledger once its literal is swapped for a seeded one (FE-1234 → FE-1001)", async () => {
+    // The harness loads core and accounting and seeds a ledger: a case over another module's entity (sales.commission, Task 30.4) is
+    // checked by that module's own tests, not here.
+    const onLedger = (c: EvalCase) => String((c.expect.input as { entity?: unknown } | undefined)?.entity ?? "").startsWith("accounting.");
+    const queries = cases.filter((c) => c.expect.process === "kernel.data.query" && onLedger(c));
     expect(queries.length).toBeGreaterThanOrEqual(2);
     for (const c of queries) {
       // The seeded ledger has FE-1001, and entries dated in the fixture's year: swap the literals the cases pin.
