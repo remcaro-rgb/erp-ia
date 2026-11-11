@@ -283,17 +283,22 @@ describe("«Cotizaciones» under Ventas, contributed by CRM (plan 2B Task 42, Ru
   });
 });
 
-describe("Bodega before its screens (plan 2B.2 Task 29.1)", () => {
+describe("Bodega's menu (plan 2B.2 Tasks 29.1, 29.4)", () => {
   const reg = new Registry();
   loadModules(reg, [kernelModule, core, inventory, costing, warehouse]);
   const k = shellAccessKeys(reg);
   const shell = buildShellNav(reg, { entitled: new Set(k.entitlements), runnable: new Set(k.processes) });
 
-  it("asks for the module's entitlement; before its screens (Task 29.4) it shows only the kernel's Parámetros pages, and no create command", () => {
+  it("asks for the module's entitlement; shows Documentos, Reportes and Parámetros, and no create command (picks and packs are made from their source)", () => {
     expect(k.entitlements).toContain("module:warehouse");
     expect(shell.modules).toContainEqual({ id: "warehouse", label: "nav.modules.warehouse", icon: "package" });
     const items = flattenNav(shell.nav.filter((i) => i.id.startsWith("warehouse."))).map((i) => i.href);
-    expect(items).toEqual(["/warehouse/parametros/tipos", "/warehouse/parametros/destinatarios", "/warehouse/parametros/plantillas"]);
-    expect(shell.creates.some((c) => c.processId.startsWith("warehouse."))).toBe(false);
+    expect(items).toEqual(expect.arrayContaining([
+      "/warehouse/picks", "/warehouse/packs", "/warehouse/putaway", "/warehouse/pending-picks", "/warehouse/putaway-rules", "/warehouse/settings",
+      "/warehouse/parametros/tipos", "/warehouse/parametros/destinatarios", "/warehouse/parametros/plantillas",
+    ]));
+    expect(items).toHaveLength(9);
+    // Alistamientos and empaques are made from their source; a regla de ubicación on its own page (no ⌘K label).
+    expect(shell.creates.filter((c) => c.processId.startsWith("warehouse.")).map((c) => c.processId)).toEqual(["warehouse.putaway_rule.create"]);
   });
 });

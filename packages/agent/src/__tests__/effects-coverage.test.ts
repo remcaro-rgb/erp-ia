@@ -33,6 +33,17 @@ describe("every subscribed event has an effect line (plan 2B Task 50.3)", () => 
     expect(missing).toEqual([]);
   });
 
+  // Plan 2B.2 Task 29.4: every subscription of Bodega says on the card what it does (none exempt).
+  it("every warehouse subscription has an effect line of the warehouse namespace", () => {
+    const events = Object.keys(warehouse.events.consumes);
+    expect(events.length).toBeGreaterThan(0);
+    for (const event of events) {
+      expect(EFFECTS_EXEMPT[`warehouse:${event}`], event).toBeUndefined();
+      expect(warehouse.effects?.[event]?.length, event).toBeGreaterThan(0);
+      for (const line of warehouse.effects![event]!) expect(line).toMatch(/^warehouse\.effects\./);
+    }
+  });
+
   it("every exemption states its reason", () => {
     for (const [key, reason] of Object.entries(EFFECTS_EXEMPT)) expect(reason.trim(), key).not.toBe("");
   });

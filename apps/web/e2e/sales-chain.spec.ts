@@ -268,7 +268,7 @@ test.describe("the sale chain on the demo company", () => {
     await page.goto("/r/sales.order/new");
     await page.getByRole("combobox", { name: "Cliente" }).fill("Distribuidora Caribe");
     await page.getByRole("option", { name: new RegExp(CUSTOMER) }).first().click();
-    await page.getByLabel(/^Bodega/).first().selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).first().selectOption({ label: "PRIN · Bodega Principal" });
     await page.getByRole("combobox", { name: "Producto, línea 1" }).fill(SKU);
     await page.getByRole("option", { name: new RegExp(SKU) }).first().click();
     await page.getByLabel("Cantidad, línea 1").fill("2");

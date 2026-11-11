@@ -72,7 +72,7 @@ test.describe("inventory lots", () => {
     await page.goto("/r/inventory.movement/new");
     await expect(page.getByRole("heading", { name: "Crear movimiento de inventario" })).toBeVisible();
     await page.getByLabel(/^Tipo/).selectOption({ label: "Entrada" });
-    await page.getByLabel(/^Bodega/).selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).selectOption({ label: "PRIN · Bodega Principal" });
     await page.getByRole("combobox", { name: "Producto, línea 1" }).fill(LOT_PRODUCT.sku);
     await page.getByRole("option", { name: new RegExp(LOT_PRODUCT.sku) }).first().click();
     await page.getByLabel("Cantidad, línea 1").fill(String(QTY));

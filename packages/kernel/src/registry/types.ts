@@ -246,6 +246,17 @@ export interface RecordTabContribution {
   feature: string;
   /** grid: a registered query entity whose view has `source_entity` and `source_record_id` columns; shown only when it has rows for the record. */
   source?: string;
+  /**
+   * grid: the source column that holds the record's id (`order_id`: the pedido's alistamientos, plan 2B.2 Task 29.4, RG-9); the source is
+   * then filtered by it alone instead of by `source_entity` and `source_record_id`.
+   */
+  recordField?: string;
+  /**
+   * grid: a button the tab offers on the record, running one of the module's own processes with `{ [inputField]: <record id> }` as the
+   * caller (rule 1: the process decides; a refusal shows its reasons). A caller who may run it sees the tab even while the source has no
+   * rows for the record (RG-9: «Crear alistamiento» on a pedido with none yet).
+   */
+  action?: { label: string; process: string; inputField: string };
   /** mapping: the dimension template (`category:{id}`, `{id}` is the record id). */
   dimension?: string;
   /** mapping: the roles to map, one lookup each. */

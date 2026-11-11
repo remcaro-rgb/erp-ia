@@ -338,7 +338,7 @@ test.describe("crm and sales pages", () => {
 
     await page.goto("/r/sales.order/new");
     await pickCustomer(page, "Distribuidora La Sabana");
-    await page.getByLabel(/^Bodega/).first().selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).first().selectOption({ label: "PRIN · Bodega Principal" });
     await fillLine(page, 1, "1", "20");
     await bar(page).getByRole("button", { name: /^Guardar/ }).first().click();
     await expect(page).toHaveURL(/\/r\/sales\.order\/[0-9a-f-]{36}$/);
@@ -385,7 +385,7 @@ test.describe("crm and sales pages", () => {
     const before = await onHand();
     await page.goto("/r/sales.order/new");
     await pickCustomer(page, "Distribuidora La Sabana");
-    await page.getByLabel(/^Bodega/).first().selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).first().selectOption({ label: "PRIN · Bodega Principal" });
     await fillLine(page, 1, "2");
     await bar(page).getByRole("button", { name: /^Guardar/ }).first().click();
     await expect(page).toHaveURL(/\/r\/sales\.order\/[0-9a-f-]{36}$/);

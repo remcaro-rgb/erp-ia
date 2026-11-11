@@ -44,11 +44,16 @@
  *     Andinas del Café ships by FEFO in two lots (20 of L-2311, 10 of L-2402) and is invoiced as a Borrador whose line carries both. See
  *     LOT_PRODUCT, SERIAL_PRODUCT and LOT_SALE.
  *
+ * 12. Bodega (plan 2B.2 Task 29.4, PG §4, owner item 218), enabled here, after the earlier chain (whose pedidos are not picked): one
+ *     storage ubicación per stocked category with its put-away rule; the FEFO pedido of 11 is picked (its alistamiento made on confirming,
+ *     confirmed as proposed), delivered from its pick (the Borrador entrega carries the lots) and shipped, then packed and the empaque
+ *     closed; a receipt at Estantería A is put away to its category's bin (inventory relocates it, no cost). See BINS, PACK, PUTAWAY_RECEIPT.
+ *
  * Gap (reported in plan 2B Task 26): no certificate (see 4).
  */
 import { randomUUID } from "node:crypto";
 import type { Sql } from "postgres";
-import { buildConsumerContext, consumers, moduleGate, enableModule, runProcess, type Caller, type Registry, type RunProcessDeps } from "@erp/kernel";
+import { buildConsumerContext, consumers, disableModule, moduleGate, enableModule, runProcess, type Caller, type Registry, type RunProcessDeps } from "@erp/kernel";
 import type { FileStore } from "@erp/infra";
 import { DEMO_COMPANY_ID, DEMO_ROLE_IDS } from "./accounts";
 import { COMMISSION_PLANS, COMMISSION_SALE } from "./commissions";
@@ -56,9 +61,12 @@ import { attachRequiredFiles } from "./files";
 import type { DemoSession } from "./accounting";
 import { FOREIGN_SALE, NORTHWIND, USD_BANK, USD_METHOD, USD_PRICE_LIST, USD_RATES } from "./foreign-sale";
 import { LOT_PRODUCT, LOT_SALE, SERIAL_PRODUCT } from "./lots";
+import { BINS, PACK, PUTAWAY_RECEIPT, RULE_PRIORITY } from "./warehouse";
 
 /** The modules of the sale chain, in dependency order (each one's `dependsOn` is enabled before it). */
-export const SALES_CHAIN_MODULES = ["inventory", "costing", "sales", "crm", "invoicing", "payments"] as const;
+export const SALES_CHAIN_MODULES = ["inventory", "costing", "sales", "crm", "invoicing", "payments", "warehouse"] as const;
+/** Enabled late, in step 12 (plan 2B.2 Task 29.4): the earlier pedidos are not picked. */
+const LATE_MODULES: ReadonlySet<string> = new Set(["warehouse"]);
 
 export const ALMACENES_EXITO = "890900608";
 export const HOTEL_CUMBRE_ANDINA = "860512347";
@@ -162,7 +170,13 @@ const one = async <T>(rows: Promise<T[]>): Promise<T | undefined> => (await rows
 
 /** The modules of the chain enabled for the demo company (the tenant holds their entitlements: supabase/seed.sql). */
 export async function enableSalesChain(sql: Sql, registry: Registry): Promise<void> {
-  for (const moduleId of SALES_CHAIN_MODULES) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
+  for (const moduleId of SALES_CHAIN_MODULES) {
+    if (!LATE_MODULES.has(moduleId)) await enableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
+    // An entitled module consumes events unless switched off (moduleGate): a late one stays off until its step (a rerun leaves it on).
+    else if (!(await one(sql`select 1 from kernel.company_modules where company_id = ${DEMO_COMPANY_ID} and module_id = ${moduleId} and enabled`))) {
+      await disableModule(sql, DEMO_COMPANY_ID, moduleId, registry);
+    }
+  }
 }
 
 export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, store: FileStore | null): Promise<SalesSeedResult> {
@@ -192,7 +206,7 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
       for (const row of rows) {
         for (const consumer of consumers.for(row.event)) {
           if (NOT_RUN.has(`${row.event}|${consumer.moduleId}`)) continue;
-          // As the dispatcher's gate (Task 29.1: Bodega is loaded but not bought here): a module the company does not have consumes nothing.
+          // As the dispatcher's gate: a module the company does not have yet consumes nothing (Bodega until step 12, Task 29.4).
           if ((await moduleGate(sql, DEMO_COMPANY_ID, consumer.moduleId)) !== "enabled") continue;
           const [done] = await sql`select 1 from kernel.outbox_deliveries where outbox_id = ${row.id} and module_id = ${consumer.moduleId}`;
           if (done) continue;
@@ -522,7 +536,20 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
     await drain();
   }
 
-  // 11 (second half). The entrega that leaves by FEFO in two lots, invoiced as a Borrador (its line carries both lots).
+  // 12 (first half). Bodega: enabled now (so the pedidos above have no alistamiento), its bins and put-away rules.
+  await enableModule(sql, DEMO_COMPANY_ID, "warehouse", deps.registry);
+  const categoryId = async (name: string) => (await one(sql<{ id: string }[]>`select id from core.product_categories where company_id = ${DEMO_COMPANY_ID} and name = ${name}`))!.id;
+  const bins: Record<string, string> = {};
+  for (const bin of BINS) {
+    const found = await one(sql<{ id: string }[]>`select id from inventory.locations where company_id = ${DEMO_COMPANY_ID} and warehouse_id = ${warehouseId} and code = ${bin.code}`);
+    bins[bin.code] = found?.id ?? (await act("inventory.location.create", { warehouseId, code: bin.code, name: bin.name })).id;
+    const category = await categoryId(bin.category);
+    if (!(await one(sql`select 1 from warehouse.putaway_rules where company_id = ${DEMO_COMPANY_ID} and warehouse_id = ${warehouseId} and category_id = ${category} and location_id = ${bins[bin.code]!}`))) {
+      await act("warehouse.putaway_rule.create", { warehouseId, categoryId: category, locationId: bins[bin.code]!, priority: RULE_PRIORITY });
+    }
+  }
+
+  // 11 (second half) and 12. The entrega that leaves by FEFO in two lots, picked first (Bodega), invoiced as a Borrador (its line carries both lots).
   let lotOrder = await one(sql<{ id: string; stage: string }[]>`select id, stage from sales.orders where company_id = ${DEMO_COMPANY_ID} and notes = ${LOT_SALE.notes} and status <> 'voided'`);
   if (!lotOrder) {
     const created = await act<{ id: string }>("sales.order.create", { partyId: await partyId(LOT_SALE.party), warehouseId, issueDate: today, notes: LOT_SALE.notes, lines: [{ productId: await product(LOT_PRODUCT.sku), qty: LOT_SALE.qty }] });
@@ -530,9 +557,42 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
   }
   if (lotOrder.stage === "open") await act("sales.order.confirm", { id: lotOrder.id });
   await drain();
+  // The alistamiento Bodega made on the confirmation, confirmed as proposed (FEFO); the allocation answers and sales makes the Borrador entrega.
+  const pick = await one(sql<{ id: string; stage: string }[]>`select id, stage from warehouse.picks where company_id = ${DEMO_COMPANY_ID} and order_id = ${lotOrder.id} and status <> 'voided'`);
+  if (!pick) throw new Error("demo sale chain: the FEFO pedido has no alistamiento");
+  if (pick.stage !== "confirmed") await act("warehouse.pick.confirm", { id: pick.id });
+  await drain();
   await shipOrder(sql, act, drain, lotOrder.id, today, costCenter);
+  // Packed in one box and closed.
+  let pack = await one(sql<{ id: string; stage: string }[]>`select id, stage from warehouse.packs where company_id = ${DEMO_COMPANY_ID} and pick_id = ${pick.id} and status <> 'voided'`);
+  if (!pack) {
+    const created = await act<{ id: string }>("warehouse.pack.create", { pickId: pick.id });
+    pack = (await one(sql<{ id: string; stage: string }[]>`select id, stage from warehouse.packs where id = ${created.id}`))!;
+  }
+  if (pack.stage !== "closed") {
+    const boxes = await sql<{ package_no: number; items: { pickLineId: string; qty: number }[] }[]>`select package_no, items from warehouse.pack_packages where pack_id = ${pack.id} order by package_no`;
+    await act("warehouse.pack.update", { id: pack.id, packages: boxes.map((b) => ({ packageNo: b.package_no, weightKg: PACK.weightKg, dimensions: PACK.dimensions, lines: b.items })) });
+    await act("warehouse.pack.close", { id: pack.id });
+  }
   if (!(await chainInvoice(sql, lotOrder.id))) await act("invoicing.invoice.from_orders", { orderIds: [lotOrder.id] });
   await drain();
+
+  // 12 (second half). A receipt at Estantería A, put away to its category's bin as suggested; inventory relocates it.
+  let putawayReceipt = await one(sql<{ id: string }[]>`select id from inventory.movements where company_id = ${DEMO_COMPANY_ID} and reference = ${PUTAWAY_RECEIPT.reference} and status <> 'voided'`);
+  if (!putawayReceipt) {
+    putawayReceipt = await act<{ id: string }>("inventory.movement.post", {
+      kind: "receipt", date: today, warehouseId, reference: PUTAWAY_RECEIPT.reference, description: "Entrada de café en grano por ubicar",
+      lines: [{ productId: await product(PUTAWAY_RECEIPT.sku), locationId: location!.id, qty: PUTAWAY_RECEIPT.qty, unitCost: await standardCost(PUTAWAY_RECEIPT.sku) }],
+    });
+    await drain();
+  }
+  const suggestion = await act<{ lines: { productId: string; lotId: string | null; serialId: string | null; qty: number; fromLocationId: string | null; toLocationId: string | null }[] }>(
+    "warehouse.putaway.suggest", { movementId: putawayReceipt.id });
+  const toPut = suggestion.lines.filter((l) => l.toLocationId);
+  if (toPut.length > 0) {
+    await act("warehouse.putaway.confirm", { movementId: putawayReceipt.id, lines: toPut.map((l) => ({ productId: l.productId, lotId: l.lotId, serialId: l.serialId, qty: l.qty, fromLocationId: l.fromLocationId, toLocationId: l.toLocationId! })) });
+    await drain();
+  }
 
   const [paid] = await sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${invoice.id}`;
   if (paid!.stage !== "paid") throw new Error(`demo sale chain: the invoice ${invoice.number} is ${paid!.stage}, not paid`);
@@ -605,9 +665,11 @@ export function salesGrants(processIds: string[]): { roleId: string; processId: 
   // gerente comercial's to write.
   const commissions = processIds.filter((id) => id === "sales.commission.consult_all");
   const plans = processIds.filter((id) => /^sales\.commission_plan\.(create|update)$/.test(id));
+  // Bodega (Task 29.4): the gerente comercial picks, packs and puts away.
+  const warehouse = processIds.filter((id) => /^warehouse\.(pick\.(create|start|update|confirm)|pack\.(create|update|close)|putaway\.confirm)$/.test(id));
   return [
     ...sells.map((processId) => ({ roleId: DEMO_ROLE_IDS.gerente_comercial, processId })),
-    ...[...commissions, ...plans].map((processId) => ({ roleId: DEMO_ROLE_IDS.gerente_comercial, processId })),
+    ...[...commissions, ...plans, ...warehouse].map((processId) => ({ roleId: DEMO_ROLE_IDS.gerente_comercial, processId })),
     ...commissions.map((processId) => ({ roleId: DEMO_ROLE_IDS.contador, processId })),
     ...commissions.map((processId) => ({ roleId: DEMO_ROLE_IDS.admin, processId })),
     ...collects.map((processId) => ({ roleId: DEMO_ROLE_IDS.cajero, processId })),

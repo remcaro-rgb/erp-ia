@@ -90,6 +90,11 @@ export function defineModule(def: ModuleDef): ModuleDef {
     if (!featureIds.has(tab.feature)) throw new Error(`record tab ${tab.id} names feature ${tab.feature}, which module ${def.id} does not declare`);
     if (tab.forEntities !== "*" && tab.forEntities.length === 0) throw new Error(`record tab ${tab.id} names no entity`);
     if (tab.kind === "grid" && !tab.source) throw new Error(`grid contribution ${tab.id} needs a source`);
+    if (tab.action) {
+      if (tab.kind !== "grid") throw new Error(`record tab ${tab.id}: only a grid contribution takes an action`);
+      if (!processIds.has(tab.action.process)) throw new Error(`record tab ${tab.id} names action ${tab.action.process}, which is none of module ${def.id}'s processes`);
+      if (!tab.action.inputField || !tab.action.label) throw new Error(`record tab ${tab.id}: its action needs a label and an input field`);
+    }
     if (tab.kind === "mapping" && (!tab.dimension || !tab.roles?.length || !tab.lookupEntity || !tab.saveProcess)) {
       throw new Error(`mapping contribution ${tab.id} needs dimension, roles, lookupEntity and saveProcess`);
     }

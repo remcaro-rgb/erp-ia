@@ -99,6 +99,12 @@ describe("evaluation set", () => {
     expect(byPrompt.get("Calcula la diferencia en cambio de octubre")?.expect).toMatchObject({ process: "accounting.fx_revaluation.run", confirmation: true });
   });
 
+  // Plan 2B.2 Task 29.4 (PG §6, owner item 212): «Crear alistamiento» from the pedido is also the assistant's, behind its confirmation card.
+  it("has the warehouse prompt of Task 29, a write behind a confirmation card", () => {
+    const pick = cases.find((c) => c.prompt === "Crea un alistamiento para el pedido 18");
+    expect(pick?.expect).toMatchObject({ process: "warehouse.pick.create", confirmation: true });
+  });
+
   it("every case has a tier, and the five plan prompts are core", () => {
     for (const c of cases) expect(["core", "extended"], c.id).toContain(c.tier);
     expect(cases.filter((c) => c.id.startsWith("accounting-")).every((c) => c.tier === "core")).toBe(true);

@@ -178,7 +178,7 @@ test.describe("inventory lot, serial and tracking forms", () => {
 
     await page.goto("/r/inventory.count/new");
     await expect(page.getByRole("heading", { name: "Crear conteo físico" })).toBeVisible();
-    await page.getByLabel(/^Bodega/).selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).selectOption({ label: "PRIN · Bodega Principal" });
     await page.getByRole("combobox", { name: "Producto, línea 1" }).fill(LOT_PRODUCT.sku);
     await page.getByRole("option", { name: new RegExp(LOT_PRODUCT.sku) }).first().click();
     await bar(page).getByRole("button", { name: "Guardar", exact: true }).click();

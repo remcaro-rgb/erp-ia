@@ -42,7 +42,7 @@ const probe = (over: Partial<{ rows: Record<string, number | null>; features: st
     entitled: async (feature) => (over.features ?? ["m.f"]).includes(feature),
     rowCount: async (source, filters) => {
       asked.push({ source, filters });
-      return over.rows?.[source] ?? 0;
+      return over.rows && source in over.rows ? over.rows[source]! : 0;
     },
     runnable: new Set(over.runnable ?? ["m.mapping.update", "m.mapping.consult"]),
   };
@@ -91,5 +91,32 @@ describe("contributed tabs", () => {
     const readOnly = await resolveContributedTabs(registry, "core.product_category", RECORD, probe({ runnable: ["m.mapping.consult"] }).p);
     expect(readOnly[0]).toMatchObject({ id: "m.revenue", mapping: { canSave: false } });
     expect(tabs[0]).toMatchObject({ mapping: { canSave: true } });
+  });
+
+  // Plan 2B.2 Task 29.4 (RG-9): the pedido's «Alistamientos» tab, keyed by the source's order_id, with «Crear alistamiento».
+  it("a grid keyed by its record field filters by it, and its action shows the tab without rows to a caller who may run it", async () => {
+    const picks: RecordTabContribution = { id: "w.picks", label: "tab.picks", forEntities: ["sales.order"], kind: "grid", feature: "w.f", source: "w.pick", recordField: "order_id", action: { label: "tab.create_pick", process: "w.pick.create", inputField: "orderId" } };
+    const own = new Registry();
+    loadModules(own, [
+      defineModule({
+        id: "w", version: "1", dependsOn: [], entities: [],
+        processes: [{ id: "w.pick.create", module: "w", kind: "create", description: "x", input: {} as never, output: {} as never, handler: async () => null } as never],
+        features: [{ id: "w.f", label: "feature.w", processes: ["w.pick.create"], entities: [] }],
+        events: { emits: [], consumes: {} }, navigation: [], recordTabs: [picks],
+      }),
+    ]);
+    const filters = [{ field: "order_id", op: "eq", value: RECORD }];
+    const empty = probe({ features: ["w.f"], rows: { "w.pick": 0 }, runnable: ["w.pick.create"] });
+    expect(await resolveContributedTabs(own, "sales.order", RECORD, empty.p)).toEqual([
+      { id: "w.picks", label: "tab.picks", kind: "grid", count: 0, source: "w.pick", filters, action: { label: "tab.create_pick", process: "w.pick.create", inputField: "orderId" } },
+    ]);
+    expect(empty.asked).toEqual([{ source: "w.pick", filters }]);
+    // Without the right to run it, the tab needs rows as any grid, and offers no button.
+    expect(await resolveContributedTabs(own, "sales.order", RECORD, probe({ features: ["w.f"], rows: { "w.pick": 0 }, runnable: [] }).p)).toEqual([]);
+    expect(await resolveContributedTabs(own, "sales.order", RECORD, probe({ features: ["w.f"], rows: { "w.pick": 2 }, runnable: [] }).p)).toEqual([
+      { id: "w.picks", label: "tab.picks", kind: "grid", count: 2, source: "w.pick", filters },
+    ]);
+    // A source the caller may not read shows no tab, button or not.
+    expect(await resolveContributedTabs(own, "sales.order", RECORD, probe({ features: ["w.f"], rows: { "w.pick": null }, runnable: ["w.pick.create"] }).p)).toEqual([]);
   });
 });

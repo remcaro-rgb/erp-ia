@@ -93,11 +93,15 @@ describe("record entities", () => {
     for (const id of pages) expect(recordEntity(id)).not.toBeNull();
   });
 
-  it("the alistamientos of the warehouse module have no record page before Task 29.4 (plan 2B.2 Task 29.1)", () => {
+  it("the alistamiento and the empaque open here, each created from its source and moved only by its steps (plan 2B.2 Task 29.4)", () => {
     const registry = new Registry();
     loadModules(registry, [kernelModule, core, inventory, costing, warehouse]);
-    expect([...recordPageEntities(registry.entities())].filter((id) => id.startsWith("warehouse."))).toEqual([]);
-    for (const id of ["warehouse.pick", "warehouse.pick_line", "warehouse.settings"]) expect(recordEntity(id)).toBeNull();
+    expect([...recordPageEntities(registry.entities())].filter((id) => id.startsWith("warehouse.")).sort()).toEqual(["warehouse.pack", "warehouse.pick"]);
+    // An alistamiento is made from its pedido (the «Alistamientos» tab, the event), an empaque from its alistamiento: no form of their own.
+    expect(recordEntity("warehouse.pick")).toMatchObject({ consult: "warehouse.pick.consult", create: "", update: "", titleField: "number", importable: false });
+    expect(recordEntity("warehouse.pack")).toMatchObject({ consult: "warehouse.pack.consult", create: "", update: "", titleField: "number", importable: false });
+    // The lines, the Parámetros and the reglas de ubicación (a parámetro edited on its own page) have no record page.
+    for (const id of ["warehouse.pick_line", "warehouse.pack_package", "warehouse.settings", "warehouse.putaway_rule"]) expect(recordEntity(id)).toBeNull();
   });
 
   it("refuses anything else, including inherited object keys", () => {

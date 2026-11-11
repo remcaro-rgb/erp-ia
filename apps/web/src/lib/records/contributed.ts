@@ -31,6 +31,8 @@ export interface ContributedTab {
   source?: string;
   /** grid: the filters that narrow the source to the record. */
   filters?: ContributionFilter[];
+  /** grid: the button the tab offers (RG-9), shown only to a caller who may run its process. */
+  action?: { label: string; process: string; inputField: string };
   mapping?: {
     /** The dimension with `{id}` replaced by the record id. */
     dimension: string;
@@ -45,12 +47,12 @@ export interface ContributedTab {
 
 /** Every process a record page's contributions may need asked about in one round trip. */
 export function contributionProcesses(registry: Registry, entityId: string): string[] {
-  return registry.recordTabsFor(entityId).flatMap((c) => [c.saveProcess, c.consultProcess].filter((p): p is string => p !== undefined));
+  return registry.recordTabsFor(entityId).flatMap((c) => [c.saveProcess, c.consultProcess, c.action?.process].filter((p): p is string => p !== undefined));
 }
 
 /**
  * The contributed tabs `entityId`'s record `recordId` shows, in manifest order: the company must hold the contribution's
- * feature; a `grid` needs rows in its source for the record, a `mapping` needs the caller to be allowed its save or consult
+ * feature; a `grid` needs rows in its source for the record (or a runnable action), a `mapping` needs the caller to be allowed its save or consult
  * process (the save is what makes it editable).
  */
 export async function resolveContributedTabs(registry: Registry, entityId: string, recordId: string, probe: ContributionProbe): Promise<ContributedTab[]> {
@@ -58,13 +60,18 @@ export async function resolveContributedTabs(registry: Registry, entityId: strin
   for (const c of registry.recordTabsFor(entityId)) {
     if (!(await probe.entitled(c.feature))) continue;
     if (c.kind === "grid") {
-      const filters: ContributionFilter[] = [
-        { field: "source_entity", op: "eq", value: entityId },
-        { field: "source_record_id", op: "eq", value: recordId },
-      ];
+      // Task 29.4 (RG-9): a source keyed by a column of its own (the alistamientos' order_id), else by the source entity and record.
+      const filters: ContributionFilter[] = c.recordField
+        ? [{ field: c.recordField, op: "eq", value: recordId }]
+        : [
+            { field: "source_entity", op: "eq", value: entityId },
+            { field: "source_record_id", op: "eq", value: recordId },
+          ];
       const count = await probe.rowCount(c.source!, filters);
-      if (count === null || count < 1) continue;
-      tabs.push({ id: c.id, label: c.label, kind: "grid", count, source: c.source!, filters });
+      const action = c.action && probe.runnable.has(c.action.process) ? c.action : undefined;
+      // A caller who may run the tab's action sees it with no rows yet (the button is what it offers then).
+      if (count === null || (count < 1 && !action)) continue;
+      tabs.push({ id: c.id, label: c.label, kind: "grid", count, source: c.source!, filters, ...(action ? { action: { ...action } } : {}) });
       continue;
     }
     const canSave = probe.runnable.has(c.saveProcess!);

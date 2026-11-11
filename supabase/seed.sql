@@ -62,11 +62,11 @@ where not exists (
   where te.tenant_id = '019a2c4e-0000-7000-8000-00000000d001' and te.company_id is null and te.key = 'module:accounting'
 );
 
--- The sale chain of phase 2B (plan 2B Task 26): CRM, Ventas, Inventario, Costos, Facturación and Pagos, manual entitlements of the demo
+-- The sale chain of phase 2B (plan 2B Task 26): CRM, Ventas, Inventario, Costos, Facturación, Pagos and Bodega (Task 29.4), manual entitlements of the demo
 -- tenant only (no plan includes them yet); `pnpm db:seed` enables them for Café del Norte after its accounting history.
 insert into kernel.tenant_entitlements (tenant_id, key, source)
 select '019a2c4e-0000-7000-8000-00000000d001', m.key, 'manual'
-from unnest(array['module:crm', 'module:sales', 'module:inventory', 'module:costing', 'module:invoicing', 'module:payments']) as m (key)
+from unnest(array['module:crm', 'module:sales', 'module:inventory', 'module:costing', 'module:invoicing', 'module:payments', 'module:warehouse']) as m (key)
 where not exists (
   select 1 from kernel.tenant_entitlements te
   where te.tenant_id = '019a2c4e-0000-7000-8000-00000000d001' and te.company_id is null and te.key = m.key

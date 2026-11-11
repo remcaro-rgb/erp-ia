@@ -6,6 +6,7 @@ import { getServiceDb } from "@erp/kernel";
 import { DEMO_COMPANY_ID } from "../demo/accounts";
 import { SAMPLE_COMPROBANTES } from "../demo/accounting";
 import { LOT_PRODUCT, LOT_SALE, SERIAL_PRODUCT } from "../demo/lots";
+import { BINS, PACK, PUTAWAY_RECEIPT } from "../demo/warehouse";
 import { ALMACENES_EXITO, CHAIN, COMMISSION_PLANS, COMMISSION_SALE, FOREIGN_SALE, NORTHWIND, PRICE_LIST, SALES_CHAIN_MODULES, USD_BANK, USD_RATES, WAREHOUSE, wholesalePrice } from "../demo/sales";
 
 // The whole demo seed against the local stack (owner order 2026-11-02): `DEMO_SEED=1 pnpm db:seed` must finish, with a posted
@@ -180,6 +181,36 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
         select distinct m.party_id from inventory.movements m join inventory.movement_lines ml on ml.movement_id = m.id join inventory.lots l on l.id = ml.lot_id
         where m.company_id = ${DEMO_COMPANY_ID} and m.kind = 'sale_issue' and l.code = 'L-2311'`;
       expect(issue!.party_id).toBe(lotOrder!.party_id);
+      // Bodega (plan 2B.2 Task 29.4, owner item 218): enabled after the earlier chain, so only the FEFO pedido has an alistamiento; it was
+      // confirmed as proposed by FEFO, its Borrador entrega came from it (the lots above) and was shipped; one closed empaque; a bin and a
+      // put-away rule per stocked category; the put-away receipt relocated to its category's bin. None of it posts: no comprobante comes
+      // from an alistamiento, an empaque or the relocation, and the trial balance above stays balanced.
+      const picks = await sql<{ id: string; order_id: string; stage: string; allocation_status: string | null }[]>`
+        select id, order_id, stage, allocation_status from warehouse.picks where company_id = ${DEMO_COMPANY_ID} and status <> 'voided'`;
+      expect(picks.map((p) => ({ order: p.order_id, stage: p.stage, allocation: p.allocation_status }))).toEqual([{ order: lotOrder!.id, stage: "confirmed", allocation: "allocated" }]);
+      const picked = await sql<{ lot: string; qty: number }[]>`
+        select l.code as lot, pl.qty_picked::float8 as qty from warehouse.pick_lines pl join inventory.lots l on l.id = pl.lot_id where pl.pick_id = ${picks[0]!.id} order by l.expires_on`;
+      expect(picked.map((x) => ({ code: x.lot, qty: x.qty }))).toEqual(LOT_SALE.split);
+      const [fromPick] = await sql<{ stage: string }[]>`
+        select d.stage from sales.deliveries d join kernel.document_links k on k.to_entity = 'sales.delivery' and k.to_id = d.id
+        where k.from_entity = 'warehouse.pick' and k.from_id = ${picks[0]!.id} and d.status <> 'voided'`;
+      expect(fromPick?.stage).toBe("shipped");
+      const packs = await sql<{ stage: string; packages_count: number; total_weight_kg: number }[]>`
+        select stage, packages_count, total_weight_kg::float8 from warehouse.packs where company_id = ${DEMO_COMPANY_ID} and status <> 'voided'`;
+      expect(packs).toEqual([{ stage: "closed", packages_count: 1, total_weight_kg: PACK.weightKg }]);
+      const rules = await sql<{ code: string; category: string }[]>`
+        select l.code, c.name as category from warehouse.putaway_rules r join inventory.locations l on l.id = r.location_id join core.product_categories c on c.id = r.category_id
+        where r.company_id = ${DEMO_COMPANY_ID} order by l.code`;
+      expect(rules).toEqual(BINS.map((b) => ({ code: b.code, category: b.category })).sort((a, b) => a.code.localeCompare(b.code)));
+      const relocated = await sql<{ id: string; sku: string; to: string; qty: number }[]>`
+        select m.id, p.sku, l.code as to, ml.qty::float8 as qty from inventory.movements m join inventory.movement_lines ml on ml.movement_id = m.id
+        join core.products p on p.id = ml.product_id join inventory.locations l on l.id = ml.location_id
+        where m.company_id = ${DEMO_COMPANY_ID} and m.kind = 'relocation' and ml.qty > 0`;
+      expect(relocated.map((r) => ({ sku: r.sku, to: r.to, qty: r.qty }))).toEqual([{ sku: PUTAWAY_RECEIPT.sku, to: PUTAWAY_RECEIPT.to, qty: PUTAWAY_RECEIPT.qty }]);
+      const [warehouseEntries] = await sql<{ n: number }[]>`
+        select count(*)::int as n from accounting.entries e where e.company_id = ${DEMO_COMPANY_ID}
+          and (e.source_entity in ('warehouse.pick', 'warehouse.pack') or (e.source_entity = 'inventory.movement' and e.source_record_id = ${relocated[0]!.id}))`;
+      expect(warehouseEntries!.n).toBe(0);
     } finally {
       await sql.end();
     }

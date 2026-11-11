@@ -1331,6 +1331,10 @@
         "cash_box": "cash box",
         "receipt": "cash receipt",
         "advance_application": "advance application"
+      },
+      "warehouse": {
+        "pick": "pick",
+        "pack": "pack"
       }
     },
     "support": {
@@ -1417,6 +1421,14 @@
       "cash_boxes": "Cash boxes",
       "receipts": "Cash receipts",
       "advance_applications": "Advance applications"
+    },
+    "warehouse": {
+      "picks": "Picks",
+      "packs": "Packs",
+      "putaway": "Put away receipts",
+      "pending_picks": "Pending picks",
+      "putaway_rules": "Put-away rules",
+      "settings": "Settings"
     }
   },
   "entity": {
@@ -4941,7 +4953,8 @@
       "payee_party_id": "Payee",
       "status": "Status",
       "lot_id": "Lot",
-      "serial_id": "Serial"
+      "serial_id": "Serial",
+      "warehouse_id": "Warehouse"
     },
     "enum": {
       "accounting": {
@@ -5017,6 +5030,22 @@
       "intro": "Pick a lot or a serial: every movement that moved it, which customer it was delivered to or who returned it, and how much is left today in each warehouse. Use it for a product recall.",
       "subject_lot": "Lot",
       "subject_serial": "Serial"
+    },
+    "warehouse": {
+      "pending_picks": "Pending picks"
+    },
+    "pending_picks": {
+      "intro": "Confirmed orders with goods to deliver and no confirmed pick, oldest first.",
+      "col": {
+        "confirmed_at": "Confirmed",
+        "order": "Order",
+        "customer": "Customer",
+        "warehouse": "Warehouse",
+        "lines": "Lines",
+        "qty_pending": "To pick",
+        "pick": "Pick",
+        "pick_stage": "Stage"
+      }
     }
   },
   "accounting": {
@@ -7400,6 +7429,108 @@
       "reason": {
         "putaway_pending": "Received stock still to put away"
       }
+    },
+    "record_tab": {
+      "picks": "Picks",
+      "create_pick": "Create pick",
+      "create_pick_reasons": {
+        "open_pick": "The order already has an open pick",
+        "fully_delivered": "The order is fully delivered: nothing to pick",
+        "before_enabled": "The order was confirmed before Warehouse was enabled",
+        "auto_pick_off": "The pick was not created",
+        "order_cancelled": "The order is cancelled",
+        "no_warehouse": "The order has no warehouse"
+      }
+    },
+    "view": {
+      "facts": "Details",
+      "pick_lines": "Lines to pick",
+      "product": "Product",
+      "taken_from": "Taken from",
+      "taken_from_line": "Taken from, line {n}",
+      "no_source": "Not taken",
+      "qty_requested": "Ordered",
+      "qty_picked": "Picked",
+      "qty_picked_line": "Picked quantity, line {n}",
+      "short_qty": "Short",
+      "pick_hint": "A line you leave unchanged is taken as proposed on confirm.",
+      "packages": "Packages",
+      "contents": "Contents",
+      "weight_kg": "Weight (kg)",
+      "dimensions": "Dimensions",
+      "weight_line": "Weight of package {n}",
+      "dimensions_line": "Dimensions of package {n}",
+      "working": "Working…",
+      "start": "Start",
+      "save_lines": "Save",
+      "confirm_pick": "Confirm pick",
+      "create_pack": "Create pack",
+      "save_packages": "Save packages",
+      "close_pack": "Close pack",
+      "pack_tab": "Pack",
+      "pack": "Pack",
+      "no_location": "No location",
+      "lot": "Lot",
+      "serial": "Serial"
+    },
+    "settings_page": {
+      "title": "Warehouse settings",
+      "hint": "How the warehouse works with sales orders. Saving asks for your verification code.",
+      "auto_pick": "Create the pick when an order is confirmed",
+      "auto_pick_hint": "If off, the pick is created from the order's Picks tab.",
+      "delivery_from_pick": "Create the draft delivery when a pick is confirmed",
+      "delivery_from_pick_hint": "The delivery carries what was picked, with its lots and serials.",
+      "save": "Save",
+      "saved": "Settings saved"
+    },
+    "rules_page": {
+      "title": "Put-away rules",
+      "hint": "Where received goods are stored in each warehouse: by product category or for any goods. The lowest priority wins.",
+      "warehouse": "Warehouse",
+      "category": "Category",
+      "location": "Location",
+      "priority": "Priority",
+      "actions": "Actions",
+      "empty": "No put-away rules yet.",
+      "any_goods": "Any goods",
+      "category_line": "Category, rule {n}",
+      "location_line": "Location, rule {n}",
+      "priority_line": "Priority, rule {n}",
+      "save": "Save",
+      "delete": "Delete",
+      "new_rule": "New rule",
+      "new_warehouse": "Warehouse of the new rule",
+      "new_category": "Category of the new rule",
+      "new_location": "Location of the new rule",
+      "new_priority": "Priority of the new rule",
+      "add": "Add rule"
+    },
+    "putaway_page": {
+      "title": "Put away receipts",
+      "hint": "Pick a receipt: you will see where each line should go, by the lot already in the warehouse or by the put-away rules. You may change the destination before confirming.",
+      "receipt": "Receipt",
+      "pick_receipt": "Pick a receipt",
+      "loading": "Finding where to put it…",
+      "before_enabled": "The receipt predates enabling Warehouse: it is not put away here.",
+      "nothing": "Nothing to put away on this receipt.",
+      "lines": "To put away",
+      "product": "Product",
+      "lot_serial": "Lot or serial",
+      "qty": "Quantity",
+      "from": "Is at",
+      "to": "Put at",
+      "to_line": "Put at, line {n}",
+      "leave": "Leave where it is",
+      "basis": "Why",
+      "no_location": "No location",
+      "basis_values": {
+        "lot_together": "The lot is already there",
+        "rule_category": "Category rule",
+        "rule_any": "General rule",
+        "no_rule": "No rule covers it"
+      },
+      "confirm": "Confirm put-away",
+      "done": "Put-away confirmed: inventory relocates the stock."
     }
   }
 }

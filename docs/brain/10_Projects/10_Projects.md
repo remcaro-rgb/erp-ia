@@ -28,4 +28,5 @@ Current: phase 2B sales chain (branch `phase-2b-sales-chain`), see [[Plan phase-
 - [[Aplicar anticipo a factura (2B.2 task 36)]] — apply a customer advance to invoices, with undo
 - [[Plan phase-2b-order-owner-isolation]] — a salesperson reads only their own pedidos; «Cambiar vendedor» and the all-orders permission (2B.2 task 39)
 - [[Foreign currency design (2B.2 task 34)]] — USD export invoices with TRM, peso or USD collection, exchange differences, aging in both currencies (approved 2026-11-09; 34.1, 34.2 and 34.3 built)
-- [[Part G design (2B.2 tasks 28-30)]] — lots and serials with FEFO and recall, the warehouse module (picks, packing, put-away), commissions with a CxP provision (approved 2026-11-10; expanded into 12 sub-tasks, not built)
+- [[Part G design (2B.2 tasks 28-30)]] — lots and serials with FEFO and recall, the warehouse module (picks, packing, put-away), commissions with a CxP provision (approved 2026-11-10; 12 sub-tasks built by 2026-11-11)
+- [[Warehouse screens and demo (2B.2 task 29.4)]] — Bodega menus, the pick and pack record pages, the pedido's «Alistamientos» tab, «Pendientes por alistar», the demo with Bodega (2026-11-11)

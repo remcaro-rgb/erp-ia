@@ -500,6 +500,42 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
       priority: { valuesKey: "grid.values.ticket_priority", pills: { low: "gray", normal: "info", high: "danger" } },
     },
   },
+  // Bodega (plan 2B.2 Task 29.4): the alistamientos (also the pedido's «Alistamientos» tab), the empaques, and their lines on the record.
+  "warehouse.pick": {
+    title: "number",
+    shown: ["number", "order_id", "party_id", "warehouse_id", "stage", "allocation_status", "confirmed_at", "status"],
+    exclude: ["extra", "extra_free", "order_number", "picker_user_id", "requires_approval", "posts", "void_reason"],
+    fields: {
+      number: { display: "mono" },
+      stage: { valuesKey: "warehouse.values.pick_stage", pills: { open: "info", in_progress: "warn", confirmed: "ok" } },
+      allocation_status: { valuesKey: "warehouse.values.allocation_status", pills: { allocated: "ok", short: "danger" } },
+      status: documentStatus,
+    },
+  },
+  "warehouse.pick_line": {
+    title: "line_no",
+    shown: ["line_no", "product_id", "location_id", "lot_id", "serial_id", "qty_requested", "qty_picked", "short_qty"],
+    exclude: ["extra", "extra_free", "pick_id", "order_line_id"],
+    fields: {},
+  },
+  "warehouse.pack": {
+    title: "number",
+    shown: ["number", "pick_id", "order_id", "party_id", "warehouse_id", "stage", "packages_count", "total_weight_kg", "status"],
+    exclude: ["extra", "extra_free", "pick_number", "order_number", "requires_approval", "posts", "void_reason"],
+    fields: { number: { display: "mono" }, stage: { valuesKey: "warehouse.values.pack_stage", pills: { open: "info", closed: "ok" } }, status: documentStatus },
+  },
+  "warehouse.pack_package": {
+    title: "package_no",
+    shown: ["package_no", "contents", "weight_kg", "dimensions"],
+    exclude: ["extra", "extra_free", "pack_id", "items"],
+    fields: {},
+  },
+  "warehouse.putaway_rule": {
+    title: "priority",
+    shown: ["warehouse_id", "category_id", "location_id", "priority"],
+    exclude: ["extra", "extra_free"],
+    fields: {},
+  },
 };
 
 /** The entity's presentation; an entity without one shows every field but the internal JSON. */

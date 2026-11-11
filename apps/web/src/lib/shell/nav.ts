@@ -1,5 +1,6 @@
 import { flattenNav, type NavItem, type Registry } from "@erp/kernel";
 import type { ShellModule } from "@erp/ui";
+import { recordEntity } from "@/lib/records/entities";
 
 // What the application shell offers the caller, from the registry (design §19a, rules 4 and 13). Pure: the
 // entitlements and the runnable processes are resolved by the caller of `buildShellNav` (lib/shell/load.ts).
@@ -112,6 +113,8 @@ export function buildShellNav(registry: Registry, access: ShellAccess): ShellNav
         const process = registry.process(processId);
         if (process.kind !== "create" || !CREATE_NAME.test(processId) || !access.runnable.has(processId) || creates.some((c) => c.processId === processId)) continue;
         const stem = processId.slice(0, processId.lastIndexOf("."));
+        // A record created only from its source (an alistamiento from its pedido, Task 29.4) has no «Crear …» of its own.
+        if (recordEntity(stem)?.create === "") continue;
         const noun = stem.slice(stem.indexOf(".") + 1);
         const target = visible.find((v) => v.feature === item.feature && v.id.startsWith(`${mod.id}.${noun.slice(0, -1)}`));
         if (target) creates.push({ processId, labelKey: `nav.create.${stem}`, href: `${target.href}?new=1` });

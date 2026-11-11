@@ -35,6 +35,7 @@ import { loadStockForm, STOCK_FORMS, type StockFormData } from "@/lib/inventory/
 import { loadSalesForm, SALES_FORMS, type SalesFormData } from "@/lib/sales/record";
 import { INVOICING_FORMS, loadInvoicingForm, type InvoicingFormData } from "@/lib/invoicing/record";
 import { loadPaymentsForm, PAYMENTS_FORMS, type PaymentsFormData } from "@/lib/payments/record";
+import { loadWarehouseForm, WAREHOUSE_FORMS, type WarehouseFormData } from "@/lib/warehouse/record";
 
 // Server-side loading of one record for the full-page frame. Every read is a consult process (or the grid query) run
 // as the session's user, so company RLS, the party scope, field masking and roles_view apply exactly as in the grid.
@@ -60,7 +61,9 @@ export type FormData =
   // The invoice and the note (plan 2B Task 20).
   | InvoicingFormData
   // The medio de pago, the caja and the recibo de caja (plan 2B Task 24b).
-  | PaymentsFormData;
+  | PaymentsFormData
+  // The alistamiento and the empaque (plan 2B.2 Task 29.4).
+  | WarehouseFormData;
 
 /** What the caller may do on the record's tabs: each flag is the process (and, for files, the owner's update) they may run. */
 export interface RecordAbilities {
@@ -251,6 +254,7 @@ async function formData(caller: Caller, entity: RecordEntity, record: LoadedReco
   if (SALES_FORMS[entity.id]) return loadSalesForm(caller, entity.id, record);
   if (INVOICING_FORMS[entity.id]) return loadInvoicingForm(caller, entity.id, record);
   if (PAYMENTS_FORMS[entity.id]) return loadPaymentsForm(caller, entity.id, record);
+  if (WAREHOUSE_FORMS[entity.id]) return loadWarehouseForm(caller, entity.id, record);
   const locale = await getLocale();
   if (entity.id === "core.party") return { kind: "party", tables: partyTables(locale) };
   if (entity.id === "accounting.entry") {

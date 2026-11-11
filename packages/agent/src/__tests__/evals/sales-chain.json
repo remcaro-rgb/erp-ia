@@ -90,6 +90,12 @@
       "prompt": "¿A qué clientes fue el lote L-2311?",
       "tier": "extended",
       "expect": { "process": "inventory.report.lot_trace" }
+    },
+    {
+      "id": "warehouse-pick-create",
+      "prompt": "Crea un alistamiento para el pedido 18",
+      "tier": "extended",
+      "expect": { "process": "warehouse.pick.create", "confirmation": true }
     }
   ]
 }

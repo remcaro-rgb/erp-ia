@@ -66,7 +66,7 @@ try {
       for (const row of rows) {
         for (const consumer of consumers.for(row.event)) {
           if (NOT_RUN.has(`${row.event}|${consumer.moduleId}`)) continue;
-          // As the dispatcher's gate (Task 29.1: Bodega is loaded but not bought here): a module the company does not have consumes nothing.
+          // As the dispatcher's gate: a module the company does not have (or switched off) consumes nothing.
           if ((await moduleGate(sql, companyId, consumer.moduleId)) !== "enabled") continue;
           const [done] = await sql`select 1 from kernel.outbox_deliveries where outbox_id = ${row.id} and module_id = ${consumer.moduleId}`;
           if (done) continue;

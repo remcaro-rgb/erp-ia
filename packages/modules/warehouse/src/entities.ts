@@ -93,7 +93,8 @@ export const pickEntity: EntityDef = entity("warehouse.pick", "documento", "pick
     ownFlags: { requiresApproval: "warehouse.pick.own_flags.requires_approval", posts: "warehouse.pick.own_flags.posts" },
   },
   processIds: { create: "warehouse.pick.create" },
-  // The record frame, the grid and the «Alistamientos» tab of the pedido are Task 29.4's.
+  // The record frame (Task 29.4); the pedido shows its alistamientos in the «Alistamientos» tab the module adds to it (RG-9).
+  recordPage: true,
   cloneReset: ["seq", "number", "stage", "picker_user_id", "started_at", "confirmed_at", "allocation_status", "allocated_at", "allocation_note"],
   defaultSort: { field: "seq", dir: "desc" },
 });
@@ -150,7 +151,8 @@ export const packEntity: EntityDef = entity("warehouse.pack", "documento", "pack
     ownFlags: { requiresApproval: "warehouse.pack.own_flags.requires_approval", posts: "warehouse.pack.own_flags.posts" },
   },
   processIds: { create: "warehouse.pack.create" },
-  // The record frame and the grid are Task 29.4's.
+  // The record frame (Task 29.4).
+  recordPage: true,
   cloneReset: ["seq", "number", "stage", "closed_at", "packages_count", "total_weight_kg"],
   defaultSort: { field: "seq", dir: "desc" },
 });

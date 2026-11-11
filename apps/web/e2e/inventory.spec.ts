@@ -134,7 +134,7 @@ test.describe("inventory pages", () => {
     await page.goto("/r/inventory.movement/new");
     await expect(page.getByRole("heading", { name: "Crear movimiento de inventario" })).toBeVisible();
     await page.getByLabel(/^Tipo/).selectOption({ label: "Entrada" });
-    await page.getByLabel(/^Bodega/).selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).selectOption({ label: "PRIN · Bodega Principal" });
     await page.getByRole("combobox", { name: "Producto, línea 1" }).fill("INV-CAF");
     await page.getByRole("option", { name: /INV-CAF-500/ }).first().click();
     await page.getByLabel("Cantidad, línea 1").fill("10");
@@ -199,7 +199,7 @@ test.describe("inventory pages", () => {
     await signInWithCode(page, fixture, secret);
     await page.goto("/r/inventory.count/new");
     await expect(page.getByRole("heading", { name: "Crear conteo físico" })).toBeVisible();
-    await page.getByLabel(/^Bodega/).selectOption({ label: "PRIN · Bodega Principal" });
+    await page.getByRole("combobox", { name: /^Bodega/ }).selectOption({ label: "PRIN · Bodega Principal" });
     await page.getByRole("combobox", { name: "Producto, línea 1" }).fill("INV-CAF");
     await page.getByRole("option", { name: /INV-CAF-500/ }).first().click();
     await bar(page).getByRole("button", { name: "Guardar", exact: true }).click();

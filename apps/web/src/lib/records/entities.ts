@@ -90,6 +90,10 @@ const RECORD_ENTITIES: readonly RecordEntity[] = [
     nounKey: "nav.create.inventory.product_tracking",
     keyedBy: { view: "inventory.v_product_tracking", column: "product_id", input: "productId" },
   },
+  // Bodega (plan 2B.2 Task 29.4): an alistamiento is made from its pedido (the «Alistamientos» tab, or the pedido's confirmation) and an
+  // empaque from its alistamiento («Crear empaque»); both move only through their steps and are never imported.
+  { id: "warehouse.pick", consult: "warehouse.pick.consult", create: "", update: "", titleField: "number", nounKey: "nav.create.warehouse.pick", importable: false },
+  { id: "warehouse.pack", consult: "warehouse.pack.consult", create: "", update: "", titleField: "number", nounKey: "nav.create.warehouse.pack", importable: false },
   { id: "costing.landed_cost", consult: "costing.landed_cost.consult", create: "costing.landed_cost.allocate", update: "", titleField: "number", nounKey: "nav.create.costing.landed_cost" },
   // CRM and Ventas (plan 2B Task 14b): the prospecto and the embudo are maestros, the cotización and the pedido documentos edited while they
   // are open; an oportunidad, an entrega and a devolución are created and then move only through their steps (no update here), and an

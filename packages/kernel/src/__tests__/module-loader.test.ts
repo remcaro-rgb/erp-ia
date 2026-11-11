@@ -371,6 +371,20 @@ describe("loadModules", () => {
       expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...grid, feature: "a.nope" }] }))).toThrow(/record tab a\.entries.*feature a\.nope/);
       expect(() => defineModule(manifest("a", [], { recordTabs: [grid, grid] }))).toThrow(/duplicate record tab a\.entries/);
     });
+
+    // Plan 2B.2 Task 29.4 (RG-9): a grid keyed by a column of the source (the pedido's alistamientos by order_id) with a button that runs
+    // one of the module's own processes on the record («Crear alistamiento»).
+    it("takes a grid's record field and an action of the module's own processes, and refuses an action on a mapping or another module's process", () => {
+      const withAction = { ...grid, id: "a.picks", forEntities: ["b.order"], recordField: "order_id", action: { label: "tab.create", process: "a.thing.create", inputField: "orderId" } };
+      const processes = [proc("a", "thing", "list"), proc("a", "thing", "create")];
+      const registry = new Registry();
+      loadModules(registry, [manifest("a", [], { processes, recordTabs: [withAction] })]);
+      expect(registry.recordTabsFor("b.order")[0]).toMatchObject({ recordField: "order_id", action: { process: "a.thing.create", inputField: "orderId" } });
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...withAction, action: { ...withAction.action, process: "b.order.confirm" } }] }))).toThrow(/record tab a\.picks.*action b\.order\.confirm/);
+      expect(() => defineModule(manifest("a", [], { recordTabs: [{ ...withAction, action: { ...withAction.action, process: "a.nope.create" } }] }))).toThrow(/record tab a\.picks.*action a\.nope\.create/);
+      expect(() => defineModule(manifest("a", [], { processes, recordTabs: [{ ...mapping, action: withAction.action }] }))).toThrow(/record tab a\.revenue.*action/);
+      expect(() => defineModule(manifest("a", [], { processes, recordTabs: [{ ...withAction, action: { ...withAction.action, inputField: "" } }] }))).toThrow(/record tab a\.picks.*input field/);
+    });
   });
 });
 

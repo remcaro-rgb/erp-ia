@@ -1,7 +1,7 @@
 ---
 tags: [project, design, inventory, warehouse, sales, accounting, phase-2b]
 date: 2026-11-10
-status: planned
+status: built
 ---
 
 # Part G design (2B.2 tasks 28–30)
@@ -22,7 +22,7 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md`. Plan: [[Plan
 30 ∥ 28 → 29, migration blocks 0156–0161, 0162–0169, 0170–0177 (item 144).
 
 ## Status
-Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 159–161 pending the accountant). Expanded in the plan as twelve sub-tasks (30.1–30.4, 28.1–28.4, 29.1–29.4) with rulings RG-1…RG-14; session prompts in `docs/superpowers/plans/2026-11-10-phase-2b-part-g-prompts/`. Two lanes: A = Task 30, B = Task 28 then 29. Not built; execution not ordered.
+Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 159–161 pending the accountant). Expanded in the plan as twelve sub-tasks (30.1–30.4, 28.1–28.4, 29.1–29.4) with rulings RG-1…RG-14; session prompts in `docs/superpowers/plans/2026-11-10-phase-2b-part-g-prompts/`. Two lanes: A = Task 30, B = Task 28 then 29. Built 2026-11-10 to 2026-11-11 (sections below).
 
 ## Corrections found while expanding
 - Invoice lines copy delivery data when the draft is made (`writeParts`), not at «Emitir»; lots ride `sales.v_invoice_delivery_lines`.
@@ -60,5 +60,12 @@ Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 1
 ## Owner decisions after Task 29.3 (2026-11-11)
 - Item 206 and sections AC–AF of [[Plan phase-2b-owner-decisions-pending]] (items 209–238) confirmed as recommended; 211, 221 and 238 noted.
 - Kept for later: historical refs that show the name (206), split untracked picks (227), a print table per package line (236); the demo gets Bodega with 29.4 (218).
+
+## Task 28 built (2026-11-11)
+- **28.1–28.5** (commits up to 2a3ebe1): lots and serials maestros, lot and serial movements, FEFO deliveries and returns, the invoice's lots with the DIAN option and «Trazabilidad de lotes», and the record forms for lots, serials and product tracking with the count's found rows. Notes: [[Lots and serials maestros (2B.2 task 28.1)]], [[Lot and serial movements (2B.2 task 28.2)]], [[FEFO deliveries and returns (2B.2 task 28.3)]], [[Lot serial and tracking forms (2B.2 task 28.5)]]; 28.4 above.
+
+## Task 29 built (2026-11-11)
+- **29.1–29.3** (commits 3f2ca43, 04cfce7, b13a1b6): [[Warehouse module and picks (2B.2 task 29.1)]], [[Pick-driven delivery (2B.2 task 29.2)]], [[Packing and put-away (2B.2 task 29.3)]].
+- **29.4** (screens, the pedido's tab, demo; no migration): [[Warehouse screens and demo (2B.2 task 29.4)]]. Bodega › Documentos (Alistamientos, Empaques, Ubicar recibidos), Reportes (Pendientes por alistar), Parámetros (Reglas de ubicación, Configuración); record pages for the alistamiento and the empaque; the «Alistamientos» tab on the pedido with «Crear alistamiento» (RG-9) through a kernel extension of record tabs; the demo with Bodega enabled late. Owner items 239–243 (section AG).
 
 Related: [[Plan phase-2b-sales-stock-chain]], [[Plan phase-2b-owner-decisions-pending]].

@@ -1331,6 +1331,10 @@
         "cash_box": "caja",
         "receipt": "recibo de caja",
         "advance_application": "aplicación de anticipo"
+      },
+      "warehouse": {
+        "pick": "alistamiento",
+        "pack": "empaque"
       }
     },
     "support": {
@@ -1417,6 +1421,14 @@
       "cash_boxes": "Cajas",
       "receipts": "Recibos de caja",
       "advance_applications": "Aplicaciones de anticipo"
+    },
+    "warehouse": {
+      "picks": "Alistamientos",
+      "packs": "Empaques",
+      "putaway": "Ubicar recibidos",
+      "pending_picks": "Pendientes por alistar",
+      "putaway_rules": "Reglas de ubicación",
+      "settings": "Configuración"
     }
   },
   "entity": {
@@ -4941,7 +4953,8 @@
       "payee_party_id": "Beneficiario",
       "status": "Estado",
       "lot_id": "Lote",
-      "serial_id": "Serial"
+      "serial_id": "Serial",
+      "warehouse_id": "Bodega"
     },
     "enum": {
       "accounting": {
@@ -5017,6 +5030,22 @@
       "intro": "Elige un lote o un serial: verás cada movimiento que lo movió, a qué cliente se entregó o quién lo devolvió, y cuánto queda hoy en cada bodega. Sirve para un retiro del mercado.",
       "subject_lot": "Lote",
       "subject_serial": "Serial"
+    },
+    "warehouse": {
+      "pending_picks": "Pendientes por alistar"
+    },
+    "pending_picks": {
+      "intro": "Los pedidos confirmados con mercancía por entregar y sin alistamiento confirmado, del más antiguo al más reciente.",
+      "col": {
+        "confirmed_at": "Confirmado",
+        "order": "Pedido",
+        "customer": "Cliente",
+        "warehouse": "Bodega",
+        "lines": "Líneas",
+        "qty_pending": "Por alistar",
+        "pick": "Alistamiento",
+        "pick_stage": "Etapa"
+      }
     }
   },
   "accounting": {
@@ -7400,6 +7429,108 @@
       "reason": {
         "putaway_pending": "Falta ubicar lo recibido"
       }
+    },
+    "record_tab": {
+      "picks": "Alistamientos",
+      "create_pick": "Crear alistamiento",
+      "create_pick_reasons": {
+        "open_pick": "El pedido ya tiene un alistamiento abierto",
+        "fully_delivered": "El pedido ya se entregó completo: no hay nada por alistar",
+        "before_enabled": "El pedido se confirmó antes de activar Bodega",
+        "auto_pick_off": "El alistamiento no se creó",
+        "order_cancelled": "El pedido está cancelado",
+        "no_warehouse": "El pedido no tiene bodega"
+      }
+    },
+    "view": {
+      "facts": "Datos",
+      "pick_lines": "Líneas por alistar",
+      "product": "Producto",
+      "taken_from": "Tomado de",
+      "taken_from_line": "Tomado de, línea {n}",
+      "no_source": "Sin tomar",
+      "qty_requested": "Pedido",
+      "qty_picked": "Tomado",
+      "qty_picked_line": "Cantidad tomada, línea {n}",
+      "short_qty": "Faltante",
+      "pick_hint": "Una línea que no cambies se toma como se propuso al confirmar.",
+      "packages": "Paquetes",
+      "contents": "Contenido",
+      "weight_kg": "Peso (kg)",
+      "dimensions": "Medidas",
+      "weight_line": "Peso del paquete {n}",
+      "dimensions_line": "Medidas del paquete {n}",
+      "working": "Procesando…",
+      "start": "Iniciar",
+      "save_lines": "Guardar",
+      "confirm_pick": "Confirmar alistamiento",
+      "create_pack": "Crear empaque",
+      "save_packages": "Guardar paquetes",
+      "close_pack": "Cerrar empaque",
+      "pack_tab": "Empaque",
+      "pack": "Empaque",
+      "no_location": "Sin ubicación",
+      "lot": "Lote",
+      "serial": "Serial"
+    },
+    "settings_page": {
+      "title": "Configuración de bodega",
+      "hint": "Cómo trabaja la bodega con los pedidos de venta. Guardar pide tu código de verificación.",
+      "auto_pick": "Crear el alistamiento al confirmar un pedido",
+      "auto_pick_hint": "Si lo apagas, el alistamiento se crea desde la pestaña Alistamientos del pedido.",
+      "delivery_from_pick": "Crear la entrega en borrador al confirmar un alistamiento",
+      "delivery_from_pick_hint": "La entrega lleva lo alistado, con sus lotes y seriales.",
+      "save": "Guardar",
+      "saved": "Configuración guardada"
+    },
+    "rules_page": {
+      "title": "Reglas de ubicación",
+      "hint": "Dónde se guarda lo recibido en cada bodega: por categoría de producto o para cualquier mercancía. Gana la prioridad más baja.",
+      "warehouse": "Bodega",
+      "category": "Categoría",
+      "location": "Ubicación",
+      "priority": "Prioridad",
+      "actions": "Acciones",
+      "empty": "Aún no hay reglas de ubicación.",
+      "any_goods": "Cualquier mercancía",
+      "category_line": "Categoría, regla {n}",
+      "location_line": "Ubicación, regla {n}",
+      "priority_line": "Prioridad, regla {n}",
+      "save": "Guardar",
+      "delete": "Eliminar",
+      "new_rule": "Nueva regla",
+      "new_warehouse": "Bodega de la nueva regla",
+      "new_category": "Categoría de la nueva regla",
+      "new_location": "Ubicación de la nueva regla",
+      "new_priority": "Prioridad de la nueva regla",
+      "add": "Agregar regla"
+    },
+    "putaway_page": {
+      "title": "Ubicar recibidos",
+      "hint": "Elige una entrada: verás dónde guardar cada línea según el lote que ya está en bodega o las reglas de ubicación. Puedes cambiar el destino antes de confirmar.",
+      "receipt": "Entrada",
+      "pick_receipt": "Elige una entrada",
+      "loading": "Buscando dónde ubicar…",
+      "before_enabled": "La entrada es anterior a la activación de Bodega: no se ubica desde aquí.",
+      "nothing": "No hay nada por ubicar en esta entrada.",
+      "lines": "Por ubicar",
+      "product": "Producto",
+      "lot_serial": "Lote o serial",
+      "qty": "Cantidad",
+      "from": "Está en",
+      "to": "Ubicar en",
+      "to_line": "Ubicar en, línea {n}",
+      "leave": "Dejar donde está",
+      "basis": "Por qué",
+      "no_location": "Sin ubicación",
+      "basis_values": {
+        "lot_together": "El lote ya está ahí",
+        "rule_category": "Regla de la categoría",
+        "rule_any": "Regla general",
+        "no_rule": "Ninguna regla la cubre"
+      },
+      "confirm": "Confirmar ubicación",
+      "done": "Ubicación confirmada: el inventario reubica las existencias."
     }
   }
 }

@@ -42,6 +42,7 @@ import { AdvanceApplicationNew, ApplicationRecordView } from "./advance-view";
 import { ReceiptRecordView } from "./payments-view";
 import { openInvoicesAction } from "@/lib/payments/actions";
 import { StockRecordView } from "./stock-view";
+import { WarehouseRecordView } from "./warehouse-view";
 
 export interface RecordFormProps {
   entity: string;
@@ -286,6 +287,11 @@ export function RecordForm({ entity, record, modes, readOnly, form }: RecordForm
         onSaved={onSaved}
       />
     );
+  }
+  if (form.kind === "warehouse") {
+    // Bodega (plan 2B.2 Task 29.4): an alistamiento is made from its pedido and an empaque from its alistamiento; a stored one shows its
+    // facts, its lines and its steps. There is no form for a new one.
+    return form.view && record ? <WarehouseRecordView entity={entity} recordId={record.id} view={form.view} /> : null;
   }
   if (form.kind === "party") return <PartyForm key={key} {...common} tables={form.tables} modes={modes} />;
   if (form.kind === "category") return <CategoryForm key={key} {...common} tables={form.tables} productCount={form.productCount} />;

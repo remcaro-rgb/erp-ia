@@ -56,7 +56,9 @@ describe("warehouse manifest", () => {
     const pick = WAREHOUSE_ENTITIES.find((e) => e.id === "warehouse.pick")!;
     expect(pick.typed).toMatchObject({ numbering: "on_save", lines: { entity: "warehouse.pick_line", parentField: "pick_id" } });
     expect(pick.processIds).toEqual({ create: "warehouse.pick.create" });
-    expect(pick.recordPage).toBeUndefined();
+    // Task 29.4: the alistamiento and the empaque open in the record frame.
+    expect(pick.recordPage).toBe(true);
+    expect(pack.recordPage).toBe(true);
   });
 
   it("loads with its processes, each in a feature and guarded; settings are step-up; record_allocation runs only from the event", () => {
