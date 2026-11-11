@@ -179,9 +179,10 @@ test.describe("invoicing pages", () => {
     await expect(lines.locator("section.erp-grid").nth(1).locator("tbody tr")).toHaveCount(2);
     // Contabilidad: the invoice's comprobante, balanced, the receivable debited with the total, revenue and IVA credited by line and rate.
     const ledger = await openTab(page, /^Contabilidad/);
-    await expect(ledger.locator("tbody tr")).toHaveCount(1);
+    // The tab shows the comprobante as its own Datos tab (owner 2026-11-11): its header and its lines.
+    await expect(ledger.locator("[data-entry]")).toHaveCount(1);
     const invoiceEntry = await entryOf("invoicing.invoice", issued.id);
-    await expect(ledger.locator("tbody tr").first()).toContainText(invoiceEntry.number!);
+    await expect(ledger.locator("[data-entry]")).toHaveAttribute("data-entry", invoiceEntry.number!);
     expect(invoiceEntry.debit).toBe(147700);
     expect(invoiceEntry.credit).toBe(147700);
     const receivable = Object.entries(invoiceEntry.net).filter(([, n]) => n > 0);
@@ -216,7 +217,7 @@ test.describe("invoicing pages", () => {
     expect(note!.number).toMatch(/^NC/);
     expect(Number(note!.total)).toBe(29400);
     // Both are posted: the note in its own Contabilidad tab (one bag back: 28.000 + IVA 1.400 off the receivable), the invoice in its own.
-    await expect((await openTab(page, /^Contabilidad/)).locator("tbody tr")).toHaveCount(1);
+    await expect((await openTab(page, /^Contabilidad/)).locator("[data-entry]")).toHaveCount(1);
     const noteEntry = await entryOf("invoicing.note", note!.id);
     expect(noteEntry.debit).toBe(29400);
     expect(Object.entries(noteEntry.net).filter(([c]) => c.startsWith("1305"))).toEqual([[expect.any(String), -29400]]);
@@ -231,7 +232,7 @@ test.describe("invoicing pages", () => {
     await copy.getByRole("button", { name: "Cancelar", exact: true }).click();
     await page.goto(`/r/invoicing.invoice/${issued.id}`);
     await expect(frame(page).getByRole("link", { name: note!.number })).toBeVisible();
-    await expect((await openTab(page, /^Contabilidad/)).locator("tbody tr")).toHaveCount(1);
+    await expect((await openTab(page, /^Contabilidad/)).locator("[data-entry]")).toHaveCount(1);
     // Notas crédito y débito (Documentos): the note in its grid.
     await page.goto("/invoicing/notes");
     await expect(grid(page).getByRole("row", { name: new RegExp(note!.number) })).toContainText("Emitida");

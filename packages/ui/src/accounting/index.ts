@@ -4,7 +4,7 @@ export { LinesEditor, LookupCell } from "./LinesEditor";
 export type { LineLookup, LinesEditorProps, LookupKind } from "./LinesEditor";
 export { OriginTab } from "./OriginTab";
 export type { OriginLink, OriginTabProps, TimelineItem } from "./OriginTab";
-export { allowedActions, blankLine, entryDraftOf, entryInput, isBlank, lineTotals, nextFocus, visibleColumns } from "./entry-model";
+export { allowedActions, blankLine, entryDraftOf, entryInput, isBlank, isEditableStatus, lineTotals, nextFocus, visibleColumns } from "./entry-model";
 export type { ActionState, Chosen, EditorLine, EntryAction, EntryFacts, EntryHeader, EntrySettings, FocusInput, FocusMove, LineColumn } from "./entry-model";
 export { AccountSecurityTab } from "./AccountSecurityTab";
 export type { AccountSecurityTabProps } from "./AccountSecurityTab";

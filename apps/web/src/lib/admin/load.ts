@@ -244,10 +244,20 @@ export interface SensitiveData {
   sensitive: string[];
 }
 
+/**
+ * The processes that ask for the step-up in the company (rule 15, owner 2026-11-11): the ones it marked, and the ones whose definition asks
+ * for it that it did not exempt (mode `exempt`).
+ */
+export function effectiveSensitive(processes: readonly { id: string; stepUp: boolean }[], rows: readonly { process_id: string; mode: string }[]): string[] {
+  const mode = new Map(rows.map((r) => [r.process_id, r.mode]));
+  return processes.filter((p) => (mode.has(p.id) ? mode.get(p.id) !== "exempt" : p.stepUp)).map((p) => p.id);
+}
+
 export const loadSensitive = (): Promise<SensitiveData | null> =>
   asAdmin(async (tx, { registry }) => {
-    const rows = await tx<{ process_id: string }[]>`select process_id from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`;
-    return { processes: matrixProcesses(registry, await usableModules(tx, registry)), sensitive: rows.map((r) => r.process_id) };
+    const rows = await tx<{ process_id: string; mode: string }[]>`select process_id, mode from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`;
+    const processes = matrixProcesses(registry, await usableModules(tx, registry));
+    return { processes, sensitive: effectiveSensitive(processes, rows) };
   });
 
 /** One process the nested-run screen offers as a parent or as a nested process (chosen from the registry, never typed: R32-13). */
@@ -260,7 +270,7 @@ export interface NestedProcessOption {
   onlyFrom: string[] | null;
   /** True when the process posts to the ledger or moves stock (derived from the registry): it may never continue after a failure. */
   ledgerOrStock: boolean;
-  /** The process always asks for the step-up, or the company marked it sensitive. */
+  /** The process asks for the step-up in the company: marked sensitive, or by definition and not exempted. */
   stepUp: boolean;
 }
 
@@ -291,7 +301,7 @@ export const loadNestedRuns = (): Promise<NestedRunsData | null> =>
     const pairs = await tx<{ id: string; parent_process: string; nested_process: string; parent_totp_covers: boolean; on_failure: string }[]>`
       select id, parent_process, nested_process, parent_totp_covers, on_failure from kernel.nested_run_pairs
       where company_id = kernel.current_company_id() order by parent_process, nested_process`;
-    const marked = new Set((await tx<{ process_id: string }[]>`select process_id from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`).map((r) => r.process_id));
+    const modes = new Map((await tx<{ process_id: string; mode: string }[]>`select process_id, mode from kernel.v_sensitive_processes where company_id = kernel.current_company_id()`).map((r) => [r.process_id, r.mode]));
     const [count] = await tx<{ n: number }[]>`select count(*)::int as n from kernel.v_nested_run_failures where status = 'pending'`;
     const usable = await usableModules(tx, registry);
     const processes = registry
@@ -303,7 +313,7 @@ export const loadNestedRuns = (): Promise<NestedRunsData | null> =>
         description: p.description,
         onlyFrom: p.nestedOnlyFrom ? [...p.nestedOnlyFrom] : null,
         ledgerOrStock: ledgerOrStockReason(registry, p.id) !== null,
-        stepUp: p.sensitivity === "step-up" || marked.has(p.id),
+        stepUp: modes.has(p.id) ? modes.get(p.id) !== "exempt" : p.sensitivity === "step-up",
       }))
       .sort((a, b) => a.id.localeCompare(b.id));
     return {

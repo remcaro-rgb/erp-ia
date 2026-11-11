@@ -27,6 +27,7 @@ processes:
   - kernel.admin.field_permission.set
   - kernel.admin.field_permission.set_many
   - kernel.admin.sensitive_process.set
+  - kernel.admin.sensitive_process.set_all
   - kernel.admin.module.enable
   - kernel.admin.module.disable
   - kernel.admin.module.parked_events
@@ -196,7 +197,11 @@ Con varios roles, en la visibilidad de un campo gana el modo más restrictivo (o
 
 ## Procesos sensibles
 
-Activa el interruptor de un proceso para que pida la **verificación en dos pasos** cada vez que alguien lo ejecute en esta empresa (por ejemplo, desactivar un tercero o un producto). Los procesos de administración que cambian algo siempre la piden y no se pueden apagar; las consultas de administración (matriz de permisos, uso de IA) no la piden.
+Activa el interruptor de un proceso para que pida la **verificación en dos pasos** cada vez que alguien lo ejecute en esta empresa (por ejemplo, desactivar un tercero o un producto). Los procesos de administración que cambian algo y otros delicados (aprobar un comprobante, anular un recibo) la piden **por defecto**: su fila dice «requiere 2FA · exige 2FA por defecto». Las consultas de administración (matriz de permisos, uso de IA) no la piden.
+
+Tú decides en **todos** los procesos, también en los que la piden por defecto: apaga su interruptor y dejan de pedir el código en esta empresa. La fila muestra en rojo «Sin 2FA en un proceso que la exige por defecto»: cualquiera con el permiso lo ejecuta sin código. Vuelve a encenderlo cuando quieras.
+
+La primera fila, **Todos los procesos**, enciende o apaga el código en todos los procesos de la lista a la vez, con un solo código tuyo; dice cuántos lo piden («12 de 340 requieren 2FA»). Ojo: si apagas **Exige o deja de exigir la verificación en dos pasos** (este mismo proceso), cambiar esta lista tampoco pedirá código.
 
 ## Módulos
 

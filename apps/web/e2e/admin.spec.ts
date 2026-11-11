@@ -26,6 +26,7 @@ const ADMIN_PROCESSES = [
   "kernel.admin.permission.set_many",
   "kernel.admin.field_permission.set_many",
   "kernel.admin.sensitive_process.set",
+  "kernel.admin.sensitive_process.set_all",
   "kernel.admin.module.enable",
   "kernel.admin.module.disable",
   "kernel.admin.ai_usage.consult",

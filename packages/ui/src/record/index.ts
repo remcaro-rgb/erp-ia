@@ -21,7 +21,7 @@ export { RecordActions } from "./RecordActions";
 export type { RecordActionOutcome, RecordActionsProps } from "./RecordActions";
 export { barButtons, postsAutomatically } from "./record-actions-model";
 export type { BarAction, BarButton, EntityKind, RecordBarAction, RecordRights } from "./record-actions-model";
-export { RecordBridgeProvider, useRecordBridge, useRegisterRecordForm } from "./record-bridge";
+export { RecordBridgeProvider, useRecordBridge, useRegisterRecordForm, WithoutRecordBridge } from "./record-bridge";
 export type { RecordBridge, RecordFormState } from "./record-bridge";
 export { VersionsTab } from "./VersionsTab";
 export type { VersionsTabProps, VersionSnapshot } from "./VersionsTab";

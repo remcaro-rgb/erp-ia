@@ -19,6 +19,8 @@ export interface ReportColumn {
   currency?: "company" | { field: string };
   /** The cell links to a record of another entity (rule 21): `idField` of the row holds its id. */
   link?: { entity: string; idField: string };
+  /** A non-empty figure of the column opens the detail behind it (the aging's drill-down, owner 2026-11-11); the app decides where. */
+  drill?: boolean;
 }
 
 /**

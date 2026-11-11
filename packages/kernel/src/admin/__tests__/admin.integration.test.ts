@@ -151,13 +151,32 @@ describe("kernel admin: policies, seeds and registry sync", () => {
     ).rejects.toThrow(/admin/);
   });
 
-  it("sensitive_process.set adds and removes a normal process but never lowers a step-up one", async () => {
+  it("sensitive_process.set adds and removes a normal process and exempts a step-up one (owner 2026-11-11)", async () => {
     await run("kernel.admin.sensitive_process.set", { processId: "probe.thing.consult", sensitive: true });
-    const has = async () => (await sql`select 1 from kernel.sensitive_processes where company_id = ${companyId} and process_id = 'probe.thing.consult'`).length === 1;
-    expect(await has()).toBe(true);
+    const modeOf = async (id: string) => (await sql<{ mode: string }[]>`select mode from kernel.sensitive_processes where company_id = ${companyId} and process_id = ${id}`)[0]?.mode ?? null;
+    expect(await modeOf("probe.thing.consult")).toBe("self_2fa");
     await run("kernel.admin.sensitive_process.set", { processId: "probe.thing.consult", sensitive: false });
-    expect(await has()).toBe(false);
-    await expect(run("kernel.admin.sensitive_process.set", { processId: "kernel.admin.permission.set", sensitive: false })).rejects.toMatchObject({ code: "invalid_input" });
+    expect(await modeOf("probe.thing.consult")).toBeNull();
+    // A process that asks by definition is switched off with a row `exempt`, and on again by removing it.
+    await run("kernel.admin.sensitive_process.set", { processId: "kernel.admin.permission.set", sensitive: false });
+    expect(await modeOf("kernel.admin.permission.set")).toBe("exempt");
+    await run("kernel.admin.sensitive_process.set", { processId: "kernel.admin.permission.set", sensitive: true });
+    expect(await modeOf("kernel.admin.permission.set")).not.toBe("exempt");
+    await expect(run("kernel.admin.sensitive_process.set", { processId: "nope.thing.create", sensitive: true })).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("sensitive_process.set_all switches every listed process on or off at once", async () => {
+    const ids = ["probe.thing.consult", "kernel.admin.permission.set"];
+    const modes = async () => Object.fromEntries((await sql<{ process_id: string; mode: string }[]>`select process_id, mode from kernel.sensitive_processes where company_id = ${companyId} and process_id = any(${ids})`).map((r) => [r.process_id, r.mode]));
+    await expect(run("kernel.admin.sensitive_process.set_all", { processIds: ids, sensitive: false })).resolves.toEqual({ count: 2, sensitive: false });
+    expect(await modes()).toEqual({ "kernel.admin.permission.set": "exempt" });
+    await run("kernel.admin.sensitive_process.set_all", { processIds: ids, sensitive: true });
+    const on = await modes();
+    expect(on["probe.thing.consult"]).toBe("self_2fa");
+    expect(on["kernel.admin.permission.set"]).not.toBe("exempt");
+    await expect(run("kernel.admin.sensitive_process.set_all", { processIds: ["nope.thing.create"], sensitive: true })).rejects.toMatchObject({ code: "invalid_input" });
+    // Back to what the definitions say, for the tests that follow.
+    await run("kernel.admin.sensitive_process.set", { processId: "probe.thing.consult", sensitive: false });
   });
 
   it("company.update and verifier.set change the settings through their processes", async () => {

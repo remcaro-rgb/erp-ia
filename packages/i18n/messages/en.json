@@ -121,7 +121,8 @@
           "revenue": "Revenue account",
           "fx_gain": "Exchange difference (income)",
           "fx_loss": "Exchange difference (expense)"
-        }
+        },
+        "open_entry": "Open {number} in its tab"
       },
       "dian": {
         "complete": "DIAN: complete",
@@ -763,7 +764,12 @@
         "hint": "A verification is valid for 5 minutes and one action of the person who made it.",
         "on": "requires 2FA",
         "off": "no 2FA",
-        "locked": "always: administration process"
+        "default_on": "requires 2FA by default",
+        "all": "All processes",
+        "all_on": "all require 2FA",
+        "all_off": "none requires 2FA",
+        "all_mixed": "{on} of {total} require 2FA",
+        "default_off_warning": "No 2FA on a process that requires it by default: anyone with the permission runs it without a code."
       },
       "verifiers": {
         "title": "External data verification",
@@ -4838,7 +4844,8 @@
       "aging": "Receivables and payables aging",
       "control_reconciliation": "Control reconciliation",
       "manual_entries_audit": "Manual entries audit",
-      "exogena": "Information returns (exógena)"
+      "exogena": "Information returns (exógena)",
+      "aging_detail": "Aging detail"
     },
     "col": {
       "account_code": "Account",
@@ -4955,7 +4962,9 @@
       "status": "Status",
       "lot_id": "Lot",
       "serial_id": "Serial",
-      "warehouse_id": "Warehouse"
+      "warehouse_id": "Warehouse",
+      "bucket": "Day bucket",
+      "currency_code": "Document currency"
     },
     "enum": {
       "accounting": {
@@ -4975,6 +4984,25 @@
             "open_auxiliary": "Open auxiliary",
             "item": "Item",
             "business_unit": "Business unit"
+          }
+        },
+        "aging_detail": {
+          "kind": {
+            "receivable": "Receivables (customers)",
+            "payable": "Payables (suppliers)"
+          },
+          "currency": {
+            "company": "COP equivalent",
+            "document": "Document currency"
+          },
+          "bucket": {
+            "all": "All",
+            "not_due": "Not due",
+            "b1": "1–30 days",
+            "b2": "31–60 days",
+            "b3": "61–90 days",
+            "over": "Over 90 days",
+            "credits": "Advances and credit balances"
           }
         }
       },
@@ -5047,7 +5075,16 @@
         "pick": "Pick",
         "pick_stage": "Stage"
       }
-    }
+    },
+    "aging_detail": {
+      "due_date": "Due",
+      "days": "Days past due",
+      "bucket": "Bucket",
+      "open": "Open balance",
+      "all": "All buckets",
+      "tab": "Aging"
+    },
+    "drill": "See the documents behind this figure"
   },
   "accounting": {
     "entry": {

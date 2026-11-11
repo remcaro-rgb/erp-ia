@@ -66,3 +66,25 @@ describe("(9) «Equivalente en COP»", () => {
     expect(company.aggregates).toMatchObject({ currency: "company", valuesIn: "COP" });
   });
 });
+
+// Detalle de cartera (owner 2026-11-11): a figure of the aging drills down to the open items that make it.
+const detail = (params: Record<string, unknown> = {}) => runReport({ sql: h.sql, registry }, h.admin, "accounting.aging_detail", { kind: "receivable", asOf: h.today, ...params }, state) as Promise<Out>;
+
+describe("Detalle de cartera", () => {
+  it("lists the documents of a party's bucket, each with its comprobante, and they add up to the aging's figure", async () => {
+    const row = (await aging()).rows.find((r) => r.party_id === usdParty)!;
+    const out = await detail({ partyId: usdParty, bucket: "not_due" });
+    expect(out.rows).toHaveLength(2);
+    expect(out.rows.every((r) => r.party_id === usdParty && r.bucket === "report.aging.not_due" && typeof r.entry_id === "string" && r.number !== "")).toBe(true);
+    expect(out.rows.reduce((s, r) => s + r.open, 0)).toBe(row.not_due);
+    expect(out.aggregates.open).toBe(row.not_due);
+    // «Total» is every bucket; another bucket of the same party has nothing.
+    expect((await detail({ partyId: usdParty, bucket: "all" })).rows).toHaveLength(2);
+    expect((await detail({ partyId: usdParty, bucket: "over" })).rows).toHaveLength(0);
+  });
+
+  it("in «Moneda del documento» lists each item in its own currency, only the clicked currency's", async () => {
+    const out = await detail({ currency: "document", currencyCode: "USD" });
+    expect(out.rows.map((r) => [r.currency, r.open]).sort()).toEqual([["USD", 1000], ["USD", 250]].sort());
+  });
+});

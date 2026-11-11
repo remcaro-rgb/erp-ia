@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drillHref } from "./drill";
+import { agingDrillHref, drillHref } from "./drill";
 
 const dates = { p9: { from: "2026-09-01", to: "2026-09-30" }, p10: { from: "2026-10-01", to: "2026-10-31" } };
 const decode = (href: string) => JSON.parse(new URLSearchParams(href.split("?")[1]).get("p")!);
@@ -45,5 +45,23 @@ describe("linkTitle", () => {
     const month = (ym: string) => `mes ${ym}`;
     expect(rangeLabel({ from: "2026-01-01", to: "2026-11-30" }, month)).toBe("2026/01/01 – 2026/11/30");
     expect(rangeLabel({ from: "2026-11-01", to: "2026-11-30" }, month)).toBe("mes 2026-11");
+  });
+});
+
+
+describe("agingDrillHref", () => {
+  it("a party's bucket opens the Detalle de cartera with the aging's parameters, the party and the bucket", () => {
+    const href = agingDrillHref("accounting.aging", { party_id: "p-1", currency: "COP" }, "b2", { kind: "payable", asOf: "2026-11-11", currency: "company" })!;
+    expect(href.startsWith("/accounting/reports/aging_detail?p=")).toBe(true);
+    expect(decode(href)).toEqual({ kind: "payable", asOf: "2026-11-11", currency: "company", partyId: "p-1", bucket: "b2" });
+  });
+  it("«Total» is every bucket; a currency subtotal has no party and keeps its currency in «Moneda del documento»", () => {
+    expect(decode(agingDrillHref("accounting.aging", { party_id: null, currency: "USD" }, "total", { kind: "receivable", asOf: "2026-11-11", currency: "document" })!)).toEqual({
+      kind: "receivable", asOf: "2026-11-11", currency: "document", currencyCode: "USD", bucket: "all",
+    });
+  });
+  it("is null for another report or a column that is no figure", () => {
+    expect(agingDrillHref("accounting.trial_balance", { party_id: "p" }, "b1", {})).toBeNull();
+    expect(agingDrillHref("accounting.aging", { party_id: "p" }, "party_name", {})).toBeNull();
   });
 });

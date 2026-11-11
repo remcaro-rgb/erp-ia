@@ -192,14 +192,17 @@ async function execute<O extends z.ZodTypeAny>(
 
   const stepUpToken = caller.stepUpToken ?? null;
   const gate = await withClaims(deps.sql, claims, async (tx) => {
-    const [row] = await tx<{ allowed: boolean; member: boolean; inactive: boolean; sensitive: boolean; verified: boolean }[]>`
+    const [row] = await tx<{ allowed: boolean; member: boolean; inactive: boolean; sensitive: boolean; exempt: boolean; verified: boolean }[]>`
       select
         kernel.can_run_process(${def.id}) as allowed,
         coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
         kernel.membership_inactive() as inactive,
         exists (
-          select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id}
+          select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id} and sp.mode <> 'exempt'
         ) as sensitive,
+        exists (
+          select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${def.id} and sp.mode = 'exempt'
+        ) as exempt,
         exists (
           select 1 from kernel.step_up_verifications v
           where v.token = ${stepUpToken} and v.user_id = ${claims.sub} and v.company_id = ${companyId}
@@ -213,7 +216,8 @@ async function execute<O extends z.ZodTypeAny>(
   // A self-service process (`permission: "none"`) needs no row in the role matrix, only membership of the
   // active company; everything else needs a role that allows it.
   if (def.permission === "none" ? !gate.member : !gate.allowed) throw new ProcessError("forbidden", `no role of the caller may run ${def.id}`, GATE);
-  const stepUp = gate.sensitive || def.sensitivity === "step-up";
+  // Rule 15 (owner 2026-11-11): the company's list decides; a process whose definition asks for the step-up asks unless the admin exempted it.
+  const stepUp = gate.sensitive || (def.sensitivity === "step-up" && !gate.exempt);
   if (stepUp && !gate.verified) throw new ProcessError("step_up_required", `${def.id} requires a fresh step-up verification`, GATE);
 
   let cloned: ResolvedEntityDef | null = null;
@@ -578,11 +582,12 @@ function buildContext(
       // Step-up coverage (R32-4): the caller's token covers the nested process only when it is a fresh verification of this user that this
       // very transaction consumed (`consumed_at = now()`: the step-up parent's own run), and only for a pair the admin switched on.
       const stepUpToken = caller.stepUpToken ?? null;
-      const [gate] = await tx<{ allowed: boolean; parent_allowed: boolean; member: boolean; sensitive: boolean; covered: boolean }[]>`
+      const [gate] = await tx<{ allowed: boolean; parent_allowed: boolean; member: boolean; sensitive: boolean; exempt: boolean; covered: boolean }[]>`
         select kernel.can_run_process(${inner.id}) as allowed,
                kernel.can_run_process(${parentId}) as parent_allowed,
                coalesce(kernel.current_company_id() = any (kernel.current_company_ids()), false) as member,
-               exists (select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${inner.id}) as sensitive,
+               exists (select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${inner.id} and sp.mode <> 'exempt') as sensitive,
+               exists (select 1 from kernel.sensitive_processes sp where sp.company_id = ${companyId} and sp.process_id = ${inner.id} and sp.mode = 'exempt') as exempt,
                ${policy.totpCovers} and exists (
                  select 1 from kernel.step_up_verifications v
                  where v.token = ${stepUpToken} and v.user_id = ${claims.sub} and v.company_id = ${companyId}
@@ -595,7 +600,7 @@ function buildContext(
       if (opts.asParent !== undefined && (inner.permission === "none" || inner.nestedOnlyFrom) && !gate!.parent_allowed) {
         throw new ProcessError("forbidden", `no role of the caller may run ${parentId}, the parent ${inner.id} is replayed in`, GATE);
       }
-      if ((gate!.sensitive || inner.sensitivity === "step-up") && !gate!.covered) {
+      if ((gate!.sensitive || (inner.sensitivity === "step-up" && !gate!.exempt)) && !gate!.covered) {
         throw new ProcessError("step_up_required", `${inner.id} requires its own step-up verification and cannot run nested in ${def.id}`, GATE);
       }
       const parsed = inner.input.safeParse(input);

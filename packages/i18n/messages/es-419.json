@@ -121,7 +121,8 @@
           "revenue": "Cuenta de ingresos",
           "fx_gain": "Diferencia en cambio (ingreso)",
           "fx_loss": "Diferencia en cambio (gasto)"
-        }
+        },
+        "open_entry": "Abrir {number} en su pestaña"
       },
       "dian": {
         "complete": "DIAN: completo",
@@ -763,7 +764,12 @@
         "hint": "La verificación vale 5 minutos y una sola acción de quien la hizo.",
         "on": "requiere 2FA",
         "off": "sin 2FA",
-        "locked": "siempre: proceso de administración"
+        "default_on": "exige 2FA por defecto",
+        "all": "Todos los procesos",
+        "all_on": "todos requieren 2FA",
+        "all_off": "ninguno requiere 2FA",
+        "all_mixed": "{on} de {total} requieren 2FA",
+        "default_off_warning": "Sin 2FA en un proceso que la exige por defecto: cualquiera con el permiso lo ejecuta sin código."
       },
       "verifiers": {
         "title": "Verificación externa de datos",
@@ -4838,7 +4844,8 @@
       "aging": "Cartera y cuentas por pagar por edades",
       "control_reconciliation": "Conciliación de control",
       "manual_entries_audit": "Auditoría de comprobantes manuales",
-      "exogena": "Información exógena"
+      "exogena": "Información exógena",
+      "aging_detail": "Detalle de cartera"
     },
     "col": {
       "account_code": "Cuenta",
@@ -4955,7 +4962,9 @@
       "status": "Estado",
       "lot_id": "Lote",
       "serial_id": "Serial",
-      "warehouse_id": "Bodega"
+      "warehouse_id": "Bodega",
+      "bucket": "Rango de días",
+      "currency_code": "Moneda del documento"
     },
     "enum": {
       "accounting": {
@@ -4975,6 +4984,25 @@
             "open_auxiliary": "Auxiliar abierto",
             "item": "Ítem",
             "business_unit": "Unidad de negocio"
+          }
+        },
+        "aging_detail": {
+          "kind": {
+            "receivable": "Cartera (clientes)",
+            "payable": "Por pagar (proveedores)"
+          },
+          "currency": {
+            "company": "Equivalente en COP",
+            "document": "Moneda del documento"
+          },
+          "bucket": {
+            "all": "Todos",
+            "not_due": "Por vencer",
+            "b1": "1–30 días",
+            "b2": "31–60 días",
+            "b3": "61–90 días",
+            "over": "Más de 90 días",
+            "credits": "Anticipos y saldos a favor"
           }
         }
       },
@@ -5047,7 +5075,16 @@
         "pick": "Alistamiento",
         "pick_stage": "Etapa"
       }
-    }
+    },
+    "aging_detail": {
+      "due_date": "Vence",
+      "days": "Días vencido",
+      "bucket": "Rango",
+      "open": "Saldo abierto",
+      "all": "Todos los rangos",
+      "tab": "Cartera"
+    },
+    "drill": "Ver los documentos de esta cifra"
   },
   "accounting": {
     "entry": {

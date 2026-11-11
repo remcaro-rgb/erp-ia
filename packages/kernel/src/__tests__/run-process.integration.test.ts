@@ -225,13 +225,18 @@ describe("run-process", () => {
     await expect(
       runProcess(deps, { ...callerWith(adminClaims), stepUpToken: token }, "test.probe.create", { name: "s2" }),
     ).rejects.toMatchObject({ code: "step_up_required" });
-    // A process declared step-up needs it even without a sensitive_processes row (admins only raise).
+    // A process declared step-up needs it even without a sensitive_processes row.
     const declared = defineProcess({ ...probe, id: "test.probe.declared", sensitivity: "step-up" });
     registry.registerProcess(declared);
     await grant(adminRole, declared.id);
     await expect(runProcess(deps, callerWith(adminClaims), declared.id, { name: "d" })).rejects.toMatchObject({
       code: "step_up_required",
     });
+    // An exempt step-up process (owner 2026-11-11, rule 15): the company switched its step-up off, it runs without a code.
+    await sql`insert into kernel.sensitive_processes values (${companyId}, ${declared.id}, 'exempt')`;
+    await expect(runProcess(deps, callerWith(adminClaims), declared.id, { name: "d" })).resolves.toBeDefined();
+    await sql`delete from kernel.sensitive_processes where company_id = ${companyId} and process_id = ${declared.id}`;
+    await sql`delete from kernel.role_probe where company_id = ${companyId} and secret = 'd'`;
   });
 
   it("step-up: foreign or stale verification rejected", async () => {

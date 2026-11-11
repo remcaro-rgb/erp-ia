@@ -4,6 +4,7 @@ routes:
   - /accounting/reports
 processes:
   - accounting.report.aging
+  - accounting.report.aging_detail
 ---
 
 # Cartera y cuentas por pagar por edades
@@ -26,6 +27,7 @@ Una fila por tercero y las columnas **Por vencer**, **1–30 días**, **31–60 
 - Una partida abierta es una línea con fecha de vencimiento en una cuenta de cartera (clientes) o de proveedores.
 - **Anticipos y saldos a favor** va en negativo y el **Total** ya lo descuenta.
 - Haz clic en un tercero para ver sus **partidas abiertas** documento por documento, y en un documento para abrir su comprobante.
+- Haz clic en **cualquier valor** (un rango de días, los anticipos o el total de un tercero) para ver los documentos que lo forman: se abre el **Detalle de cartera** en una pestaña nueva, con el nombre del tercero y del rango («Almacenes Éxito S.A. · 31–60 días»). Lista cada partida abierta con su comprobante (enlace), su descripción (la factura que la originó), la fecha, el vencimiento, los días vencidos, el rango, la cuenta y el **saldo abierto**; la suma del pie es el valor en el que hiciste clic. El **Total** de un tercero muestra todos sus rangos; el valor de un **Subtotal** en **Moneda del documento** muestra los documentos de esa moneda de todos los terceros. El detalle tiene los mismos parámetros que la cartera (tipo, fecha de corte, moneda), más el tercero y el rango, y se exporta a PDF, Excel o CSV como cualquier informe.
 
 ## Cómo se calcula lo pendiente
 

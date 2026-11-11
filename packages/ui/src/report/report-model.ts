@@ -32,6 +32,8 @@ export interface ReportDefClient {
   totals: string[];
   /** A column that links to a record of another entity (rule 21): `idField` of the row holds its id. */
   links: Record<string, { entity: string; idField: string }>;
+  /** Columns whose non-empty figures open the detail behind them (`onCellDrill`). */
+  drills?: string[];
   /** Files the page offers next to the exports (the exógena's XML): the button label translated. */
   fileActions: { id: string; label: string }[];
   /** The open period, for the quick range "Este período"; the calendar month of today when absent. */

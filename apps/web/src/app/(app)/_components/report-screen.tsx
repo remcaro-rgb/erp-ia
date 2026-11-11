@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useSearchParams } from "next/navigation";
 import { formatLabel, GridFetchError, paramsFromSearch, paramsToSearch, ReportPage, StepUpPrompt, useTabs, type GridRow, type ReportLink, type ReportParams, type SavedGridState } from "@erp/ui";
-import { drillHref, drillRange, linkTitle, rangeLabel } from "@/lib/accounting/drill";
+import { agingDrillHref, drillHref, drillRange, linkTitle, rangeLabel } from "@/lib/accounting/drill";
 import { reportTabToRename } from "@/lib/reports/tab-title";
 import { requestStepUp } from "@/lib/auth/step-up-client";
 import { deleteViewAction, saveViewAction } from "@/lib/grid/actions";
@@ -60,6 +60,16 @@ export function ReportScreen({ data }: { data: ReportPageData }) {
       // The tab of this very drill-down may exist from before (saved with an older title): it takes the current name.
       rename(drill, title);
     } else if (link) open({ title: linkTitle(row, link, data.report, fallback), href: `/r/${link.entity}/${link.id}`, kind: "record" });
+  };
+  // A figure of the Cartera por edades opens the documents that make it (Detalle de cartera, owner 2026-11-11), in a tab of its own.
+  const drillCell = (row: GridRow, field: string) => {
+    const href = agingDrillHref(data.report.id, row, field, current.current);
+    if (!href) return;
+    const bucket = field === "total" ? t("report.aging_detail.all") : t(`report.aging.${field}` as never);
+    const who = typeof row.party_name === "string" && row.party_name ? row.party_name : t("report.aging_detail.tab");
+    const title = `${who} · ${bucket}`;
+    open({ title, href, kind: "report" });
+    rename(href, title);
   };
   const changeViews = async (result: Awaited<ReturnType<typeof saveViewAction>>) => {
     if (!result.ok) throw new Error(result.code);
@@ -136,6 +146,7 @@ export function ReportScreen({ data }: { data: ReportPageData }) {
         initialParams={initial}
         onParamsChange={keepInUrl}
         onRowOpen={openLink}
+        onCellDrill={drillCell}
         savedViews={{
           views,
           onSave: async (name: string, isDefault: boolean, state: SavedGridState) => changeViews(await saveViewAction(entity, name, isDefault, state)),

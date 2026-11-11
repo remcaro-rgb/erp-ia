@@ -210,8 +210,8 @@ describe("accounting catalogue", () => {
     expect(missing(keys)).toEqual([]);
   });
 
-  it("has the title, the columns and the parameters of the thirteen reports", () => {
-    expect(accountingReports).toHaveLength(13);
+  it("has the title, the columns and the parameters of the fourteen reports (the aging's drill-down too)", () => {
+    expect(accountingReports).toHaveLength(14);
     const keys: string[] = ["report.restricted_accounts", "report.omitted_lines", "grid.sort.max_levels", "grid.group.group_by", "grid.group.no_value"];
     for (const report of accountingReports) {
       keys.push(report.label, ...report.columns.map((c) => c.label));

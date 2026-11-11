@@ -226,7 +226,7 @@ test.describe("inventory pages", () => {
     await frame(page).getByRole("link", { name: adjustment!.number }).click();
     await expect(page).toHaveURL(new RegExp(`/r/inventory\\.movement/${adjustment!.id}$`));
     await page.getByRole("tab", { name: /Contabilidad/ }).click();
-    await expect(page.getByRole("tabpanel", { name: /Contabilidad/ }).locator("tbody tr")).toHaveCount(1);
+    await expect(page.getByRole("tabpanel", { name: /Contabilidad/ }).locator("[data-entry]")).toHaveCount(1);
 
     // Existencias: 5 left in Principal.
     const [level] = await fixture.sql<{ on_hand: string }[]>`select on_hand from inventory.stock_levels where company_id = ${companyId} and warehouse_id = ${warehouseId} and product_id = ${productId}`;

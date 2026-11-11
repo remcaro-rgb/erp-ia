@@ -20,7 +20,7 @@ function periodName(startsOn: string, locale: string): string {
 
 const PERIOD_PARAMS = new Set(["from", "to", "period", "asOfPeriod"]);
 /** Parameters that cannot be typed into the bar (a list of accounts). */
-const UNOFFERED = new Set(["accountIds"]);
+const UNOFFERED = new Set(["accountIds", "currencyCode"]);
 const DIMENSION_PARAMS: Record<string, { table: string; setting: "use_open_auxiliaries" | "use_items" | "use_business_units" | null }> = {
   costCenterId: { table: "cost_centers", setting: null },
   openAuxiliaryId: { table: "open_auxiliaries", setting: "use_open_auxiliaries" },

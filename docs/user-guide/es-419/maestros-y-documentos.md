@@ -111,3 +111,7 @@ Un campo enmascarado u oculto para ti se muestra •••••••• en las
 - «Otra persona cambió este registro mientras lo tenías abierto»: pulsa **Recargar** y vuelve a hacer tu cambio.
 - No ves **Aprobar**, **Anular** o **Eliminar**: tu rol no tiene ese permiso, o una regla de **Acceso** del registro no te lo da (guía [Acceso por registro](acceso-por-registro.md)).
 - El asistente también puede guardar, aprobar, no aprobar o anular por ti: siempre te muestra antes una tarjeta para confirmar, y no te ofrece cambiar un registro que no puedes modificar (guía [El asistente](asistente.md)).
+
+## La pestaña Contabilidad de un documento
+
+Un documento que contabiliza (una factura, una nota, un recibo, una entrada o salida de inventario, una entrega) muestra en su pestaña **Contabilidad** el comprobante que generó tal como se ve en la pestaña **Datos** del comprobante, en solo lectura: el **encabezado** (fuente, fecha, descripción, unidad de negocio) y la grilla de **líneas** (cuenta, tercero, centro de costo, débito y crédito, con la suma). Encima de cada comprobante van su número (enlace que lo abre en su propia pestaña) y su estado. Si el documento generó varios comprobantes (por ejemplo, el original y su reversión) se muestran uno debajo del otro; si generó más de cuatro, la pestaña los lista en una grilla.

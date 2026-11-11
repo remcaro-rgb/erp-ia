@@ -27,8 +27,8 @@ export interface ProcessDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.Z
   description: string;
   feature?: string;
   /**
-   * `step-up` always requires a fresh step-up; a company admin can require it for any other process
-   * through `kernel.sensitive_processes` (admins raise sensitivity, never lower it).
+   * `step-up` requires a fresh step-up unless the company exempted it; a company admin can require it for any other process
+   * through `kernel.sensitive_processes` (owner 2026-11-11: the admin decides every process; a row `exempt` switches off a definition's step-up).
    */
   sensitivity?: "normal" | "step-up";
   /**

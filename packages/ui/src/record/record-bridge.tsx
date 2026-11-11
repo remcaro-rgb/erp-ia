@@ -36,6 +36,14 @@ const BridgeContext = createContext<RecordBridge | null>(null);
 /** The bridge of the frame around this form, or null. */
 export const useRecordBridge = () => useContext(BridgeContext);
 
+/**
+ * A form shown inside another record's tab (the comprobante in a document's Contabilidad tab, owner 2026-11-11): it is not that record's
+ * form, so the frame's Guardar, ⌘S and the unsaved-changes guard never see it.
+ */
+export function WithoutRecordBridge({ children }: { children: ReactNode }) {
+  return <BridgeContext.Provider value={null}>{children}</BridgeContext.Provider>;
+}
+
 /** Provides the bridge; `onShortcut` is what ⌘S does in the form (the bar's Guardar). */
 export function RecordBridgeProvider({ children, onShortcut }: { children: (bridge: RecordBridge) => ReactNode; onShortcut?: () => void }) {
   const [state, setState] = useState<RecordFormState>({ dirty: false, ready: false });

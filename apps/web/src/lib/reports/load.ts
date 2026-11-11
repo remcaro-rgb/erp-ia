@@ -122,6 +122,7 @@ export async function loadReportPage(id: string, options: LoadReportOptions = {}
         totals: def.totals ?? [],
         fileActions: (def.fileActions ?? []).map((a) => ({ id: a.id, label: has(a.label) ? translate(a.label) : a.label })),
         links: Object.fromEntries(columns.filter((c) => c.link).map((c) => [c.field, c.link!])),
+        drills: columns.filter((c) => c.drill).map((c) => c.field),
         ...(options.period ? { period: options.period } : {}),
       },
       defaults: { ...defaults, ...(options.defaults ?? {}) },

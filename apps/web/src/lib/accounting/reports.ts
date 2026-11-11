@@ -4,6 +4,9 @@ export const REPORT_ORDER = [
   "party_detail", "dimension_detail", "aging", "control_reconciliation", "manual_entries_audit", "exogena",
 ] as const;
 
-export type ReportName = (typeof REPORT_ORDER)[number];
+/** Reports opened only as the drill-down of another one (the aging's Detalle de cartera, owner 2026-11-11): a page, no card. */
+export const DRILL_REPORTS = ["aging_detail"] as const;
 
-export const isReportName = (name: string): name is ReportName => (REPORT_ORDER as readonly string[]).includes(name);
+export type ReportName = (typeof REPORT_ORDER)[number] | (typeof DRILL_REPORTS)[number];
+
+export const isReportName = (name: string): name is ReportName => (REPORT_ORDER as readonly string[]).includes(name) || (DRILL_REPORTS as readonly string[]).includes(name);

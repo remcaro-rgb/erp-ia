@@ -70,3 +70,25 @@ export function drillRange(href: string): { from: string; to: string } | undefin
 export function rangeLabel(range: { from: string; to: string }, month: (yearMonth: string) => string): string {
   return range.from.slice(0, 7) === range.to.slice(0, 7) ? month(range.to.slice(0, 7)) : `${range.from.replaceAll("-", "/")} – ${range.to.replaceAll("-", "/")}`;
 }
+
+/**
+ * The Detalle de cartera of a figure of the Cartera por edades (owner 2026-11-11): the aging's parameters, the row's party (none on a
+ * currency subtotal) and the clicked bucket («Total» is every bucket); in «Moneda del documento», the row's currency. Null for any other
+ * report or column.
+ */
+export function agingDrillHref(reportId: string, row: Record<string, unknown>, field: string, params: ReportParams): string | null {
+  if (reportId !== "accounting.aging" || !AGING_FIELDS.has(field)) return null;
+  const partyId = typeof row.party_id === "string" && row.party_id ? row.party_id : undefined;
+  const currencyCode = params.currency === "document" && typeof row.currency === "string" ? row.currency : undefined;
+  const next: ReportParams = {
+    kind: params.kind ?? "receivable",
+    ...(params.asOf ? { asOf: params.asOf } : {}),
+    ...(params.currency ? { currency: params.currency } : {}),
+    ...(partyId ? { partyId } : {}),
+    ...(currencyCode ? { currencyCode } : {}),
+    bucket: field === "total" ? "all" : field,
+  };
+  return `/accounting/reports/aging_detail?${paramsToSearch(next)}`;
+}
+
+const AGING_FIELDS = new Set(["not_due", "b1", "b2", "b3", "over", "credits", "total"]);

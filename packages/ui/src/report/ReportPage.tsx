@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { DataGrid } from "../grid/DataGrid";
 import { detailsOf } from "../grid/fetch-grid";
-import { useCellTimeZone } from "../grid/cell-format";
+import { formatCellValue, isEmptyCell, useCellTimeZone } from "../grid/cell-format";
 import type { SavedGridState, SavedViewItem } from "../grid/saved-views";
 import type { GridFetcher, GridRow } from "../grid/types";
 import { ParamBar } from "./ParamBar";
@@ -24,6 +24,8 @@ export interface ReportPageProps {
   initialParams?: ReportParams;
   /** A row opened (Enter / double click), or a cell with `link` clicked: then `link` names the record of the other entity (rule 21). */
   onRowOpen?: (row: GridRow, link?: ReportLink) => void;
+  /** A non-empty figure of a `drills` column was clicked: the app opens the detail behind it (the aging's drill-down). */
+  onCellDrill?: (row: GridRow, field: string) => void;
   /** The parameters changed: the route keeps them in the URL (`?p=`). */
   onParamsChange?: (params: ReportParams) => void;
   /** The caller's saved parameter sets of the report (entity `report:<id>`). */
@@ -49,7 +51,7 @@ export interface ReportPageProps {
  * grid. The parameters travel with every grid state to POST /api/report/<id>, the footer totals only the columns in
  * `totals`, the export buttons export the report with these parameters and Guardar vista keeps them with the view.
  */
-export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChange, savedViews, reportFetcher, today, debounceMs, onFileAction }: ReportPageProps) {
+export function ReportPage({ report, initialParams = {}, onRowOpen, onCellDrill, onParamsChange, savedViews, reportFetcher, today, debounceMs, onFileAction }: ReportPageProps) {
   const timeZone = useCellTimeZone();
   const t = useTranslations();
   const [params, setParams] = useState<ReportParams>(initialParams);
@@ -147,6 +149,13 @@ export function ReportPage({ report, initialParams = {}, onRowOpen, onParamsChan
           // A report names its own rows with catalogue keys (`report.net_result`, a statement section): the page says them in the user's language.
           const phrase = typeof text === "string" && CATALOGUE_KEY.test(text) ? key(text) : null;
           if (phrase && t.has(phrase as never)) return t(phrase as never);
+          if (onCellDrill && report.drills?.includes(column.field) && column.mode !== "masked" && !isEmptyCell(column, text)) {
+            return (
+              <button type="button" className="erp-link" title={t("report.drill")} onClick={(event) => (event.stopPropagation(), onCellDrill(row, column.field))}>
+                {formatCellValue(column, text, { yes: "", no: "" })}
+              </button>
+            );
+          }
           if (!link || column.mode === "masked" || text === null || text === undefined || text === "") return undefined;
           return (
             <button type="button" className="erp-link" onClick={(event) => (event.stopPropagation(), onRowOpen?.(row, link))}>

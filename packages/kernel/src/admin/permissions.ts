@@ -154,6 +154,25 @@ export const fieldPermissionSet = defineProcess({
   },
 });
 
+/**
+ * Stores the step-up choice of one process (rule 15, owner 2026-11-11: the admin decides every process). A process whose definition asks for
+ * the step-up keeps a row `exempt` when switched off and none when on (its definition asks); any other keeps a row `self_2fa` when on and
+ * none when off.
+ */
+async function writeSensitive(ctx: ProcessContext, process: { id: string; sensitivity?: "normal" | "step-up" | undefined }, sensitive: boolean): Promise<void> {
+  const byDefinition = process.sensitivity === "step-up";
+  if (sensitive === byDefinition) {
+    // What the definition says: a step-up process asks without a row (a stale `self_2fa` from the defaults is kept, it asks the same);
+    // a normal process asks for nothing.
+    await ctx.tx`delete from kernel.sensitive_processes where company_id = ${ctx.companyId} and process_id = ${process.id} and (mode = 'exempt' or ${!byDefinition})`;
+    return;
+  }
+  const mode = sensitive ? "self_2fa" : "exempt";
+  await ctx.tx`
+    insert into kernel.sensitive_processes (company_id, process_id, mode) values (${ctx.companyId}, ${process.id}, ${mode})
+    on conflict (company_id, process_id) do update set mode = excluded.mode`;
+}
+
 export const sensitiveProcessSet = defineProcess({
   id: "kernel.admin.sensitive_process.set",
   module: "kernel",
@@ -167,19 +186,29 @@ export const sensitiveProcessSet = defineProcess({
     await requireAdmin(ctx);
     const process = ctx.registry.processes().find((p) => p.id === input.processId);
     if (!process) throw invalid(`unknown process ${input.processId}`, `El proceso ${input.processId} no existe`);
-    if (!input.sensitive && process.sensitivity === "step-up") {
-      // Rule 15: the admin raises sensitivity, never lowers what a process demands by definition.
-      throw invalid(`${input.processId} always requires the step-up`, "Este proceso siempre exige la verificación en dos pasos");
-    }
-    if (input.sensitive) {
-      await ctx.tx`
-        insert into kernel.sensitive_processes (company_id, process_id, mode) values (${ctx.companyId}, ${input.processId}, 'self_2fa')
-        on conflict (company_id, process_id) do nothing`;
-    } else {
-      await ctx.tx`delete from kernel.sensitive_processes where company_id = ${ctx.companyId} and process_id = ${input.processId}`;
-    }
+    await writeSensitive(ctx, process, input.sensitive);
     return input;
   },
 });
 
-export const PERMISSION_PROCESSES = [permissionSet, permissionMatrix, fieldPermissionSet, sensitiveProcessSet];
+export const sensitiveProcessSetAll = defineProcess({
+  id: "kernel.admin.sensitive_process.set_all",
+  module: "kernel",
+  kind: "update",
+  feature: ADMIN_FEATURE,
+  sensitivity: "step-up",
+  description: "Exige o deja de exigir la verificación en dos pasos (2FA) para todos los procesos de la lista en la empresa",
+  input: z.object({ processIds: z.array(PROCESS_ID).min(1).max(5000), sensitive: z.boolean() }),
+  output: z.object({ count: z.number().int(), sensitive: z.boolean() }),
+  handler: async (ctx, input) => {
+    await requireAdmin(ctx);
+    const known = new Map(ctx.registry.processes().map((p) => [p.id, p]));
+    const unknown = input.processIds.filter((id) => !known.has(id));
+    if (unknown.length > 0) throw invalid(`unknown processes ${unknown.join(", ")}`, `El proceso ${unknown[0]} no existe`);
+    const ids = [...new Set(input.processIds)];
+    for (const id of ids) await writeSensitive(ctx, known.get(id)!, input.sensitive);
+    return { count: ids.length, sensitive: input.sensitive };
+  },
+});
+
+export const PERMISSION_PROCESSES = [permissionSet, permissionMatrix, fieldPermissionSet, sensitiveProcessSet, sensitiveProcessSetAll];

@@ -14,6 +14,7 @@ import { loadPendingPostings } from "@/lib/accounting/pending";
 import { PendingPostingBadge } from "../../../_components/pending-posting-badge";
 import { ContactsPanel } from "./contacts-panel";
 import { ContributedTab } from "./contributed-tab";
+import { EntriesTab } from "./entries-tab";
 import { ExtraPanel } from "./extra-panel";
 import { FilesPanel } from "./files-panel";
 import { InvoicingBarActions } from "./invoicing-bar";
@@ -184,8 +185,10 @@ async function RecordView({ params, searchParams }: { params: Params; searchPara
   if (form.kind === "payments" && form.view) content.asignaciones = { label: t("payments.view.tabs.allocations"), content: <ReceiptAllocationsTab view={form.view} /> };
 
   // Tabs other modules' manifests add (rule 4): each carries its own name, and the grid ones their row count.
+  // Accounting's Contabilidad tab shows each comprobante as its own Datos tab: header and lines (owner 2026-11-11).
   for (const tab of contributed) {
-    content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} /> };
+    const body = tab.id === "accounting.entries" ? <EntriesTab caller={loaded.caller} entityId={entity.id} recordId={record.id} tab={tab} /> : <ContributedTab entityId={entity.id} recordId={record.id} tab={tab} />;
+    content[tab.id] = { label: t.has(tab.label) ? t(tab.label) : tab.label, ...(tab.count ? { count: tab.count } : {}), content: body };
   }
 
   // Documentos relacionados (Task 31, design §22.27): the trail of this document, only when it has a related document or a hidden one.

@@ -197,9 +197,11 @@ test.describe("payments pages", () => {
     await expect(applied.getByRole("table", { name: "Retenciones" })).toContainText("$ 3.350,00");
     // Contabilidad: one comprobante, Dr bank 144.350 and withholding suffered 3.350 / Cr receivable 147.700.
     const ledger = await openTab(page, /^Contabilidad/);
-    await expect(ledger.locator("tbody tr")).toHaveCount(1);
+    // The tab shows the comprobante as its own Datos tab (owner 2026-11-11): its header and its lines.
+    await expect(ledger.locator("[data-entry]")).toHaveCount(1);
     const entry = await entryOf("payments.receipt", receiptId);
-    await expect(ledger.locator("tbody tr").first()).toContainText(entry.number!);
+    await expect(ledger.locator("[data-entry]")).toHaveAttribute("data-entry", entry.number!);
+    await expect(ledger.locator("tbody tr")).toHaveCount(3);
     expect(entry.net).toEqual({ "111005": 144350, "135515": 3350, "130505": -147700 });
 
     // Recibos de caja (Documentos): the row reads Contabilizado.

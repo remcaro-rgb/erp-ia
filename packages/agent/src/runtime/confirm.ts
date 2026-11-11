@@ -127,12 +127,14 @@ export function scrubRefusal(error: ProcessError, options: { locale: string; pro
   return refusal(error.code, { message: `${subcode}: ${reason}`, ...(details ? { details } : {}) });
 }
 
-/** Whether a run of the process needs a step-up code: the process says so or the company marked it sensitive. */
+/** Whether a run of the process needs a step-up code: the company marked it sensitive, or the process says so and the company did not exempt it. */
 async function needsStepUp(deps: RunProcessDeps, companyId: string, def: ProcessDef): Promise<boolean> {
-  if (def.sensitivity === "step-up") return true;
-  const [row] = await deps.sql<{ sensitive: boolean }[]>`
-    select exists (select 1 from kernel.sensitive_processes where company_id = ${companyId} and process_id = ${def.id}) as sensitive`;
-  return row!.sensitive;
+  // Rule 15 (owner 2026-11-11): the company may exempt a process whose definition asks for the step-up (mode `exempt`).
+  const [row] = await deps.sql<{ mode: string | null }[]>`
+    select (select mode from kernel.sensitive_processes where company_id = ${companyId} and process_id = ${def.id}) as mode`;
+  const mode = row?.mode ?? null;
+  if (mode === "exempt") return false;
+  return mode !== null || def.sensitivity === "step-up";
 }
 
 /**
