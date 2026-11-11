@@ -22,7 +22,7 @@ const KEY_MATERIAL = {
 };
 
 const settings = (status: string): SettingsView => ({
-  invoiceCreation: "manual", dianEnvironment: "habilitacion", creditDays: 30, checklist: null,
+  invoiceCreation: "manual", dianEnvironment: "habilitacion", dianItemInstance: false, creditDays: 30, checklist: null,
   softwareId: "56f2ae4e-9812-4fad-9255-08fcfcd5ccb0", softwareProviderTaxId: "900373115", testSetId: null,
   issuerTaxResponsibilities: ["O-13"], issuerTaxScheme: "01", issuerDepartmentCode: "11", issuerMunicipalityCode: "11001",
   certificate: { subject: "CAFE DEL NORTE SAS PRUEBA", taxId: "900373115", issuer: "AC Prueba", serial: "0a19", validTo: "2027-12-31T00:00:00.000Z", uploadedAt: "2026-11-07T10:00:00.000Z", status, ...KEY_MATERIAL },

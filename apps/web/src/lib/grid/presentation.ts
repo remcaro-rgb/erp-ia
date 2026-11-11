@@ -448,7 +448,7 @@ const PRESENTATIONS: Record<string, GridPresentation> = {
   },
   "invoicing.invoice_line": {
     title: "line_no",
-    shown: ["line_no", "product_id", "description", "qty", "unit_price", "discount_pct", "base", "iva_rate", "iva", "inc", "total"],
+    shown: ["line_no", "product_id", "description", "lots", "qty", "unit_price", "discount_pct", "base", "iva_rate", "iva", "inc", "total"],
     exclude: ["extra", "extra_free", "invoice_id", "order_line_id", "delivery_line_id", "category_id", "order_id", "delivery_id"],
     fields: {},
   },

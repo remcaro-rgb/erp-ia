@@ -19,7 +19,7 @@ const migrationFile = (name: string) => readFileSync(new URL(`../../../../../sup
 // v_invoices (debited_amount) and v_einvoice_submissions (note_id) (Task 18); 0135 (Task 35) recreates v_settings with
 // dian_checklist_version and creates v_dian_checks; 0148 (Task 34.4) recreates the lines' and taxes' views with their company amounts: the latest
 // definition of each view must match.
-const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql", "0148_invoicing_company_amounts.sql"].map(migrationFile).join("\n");
+const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql", "0148_invoicing_company_amounts.sql", "0167_invoicing_line_lots.sql"].map(migrationFile).join("\n");
 
 const loaded = () => {
   const registry = new Registry();

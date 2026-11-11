@@ -1,6 +1,6 @@
 import { defineProcess, ProcessError, type DianChecklist, type DianChecklistItem, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { FEATURE_SETTINGS, packOf, refuseState, requireCompanyAdmin } from "./common";
+import { FEATURE_SETTINGS, packOf, refuseState, requireCompanyAdmin, settingsOf } from "./common";
 import { ADMIN_ONLY } from "./parametros";
 
 // The DIAN verification checklist (plan 2B Task 35, owner item 20; R35-1..R35-15). The country pack lists the values the documents carry that
@@ -36,7 +36,10 @@ export interface ConfirmationState {
 
 export async function effectiveConfirmation(ctx: ProcessContext): Promise<ConfirmationState> {
   const { einvoice } = await packOf(ctx);
-  const list = einvoice.dianChecklist;
+  // A conditional row applies only while its setting is on (Task 28.4: lotes_en_xml with dian_item_instance).
+  const { dianItemInstance } = await settingsOf(ctx);
+  const on = { dian_item_instance: dianItemInstance };
+  const list = { ...einvoice.dianChecklist, items: einvoice.dianChecklist.items.filter((item) => !item.when || on[item.when]) };
   const [row] = await ctx.tx<{ confirmed: boolean; version: number | null; environment: string }[]>`
     select dian_defaults_confirmed as confirmed, dian_checklist_version as version, dian_environment as environment
     from invoicing.settings where company_id = ${ctx.companyId}`;
@@ -112,7 +115,8 @@ export const dianChecklistTick = defineProcess({
     await requireCompanyAdmin(ctx, ADMIN_ONLY);
     await lockSettings(ctx);
     const state = await effectiveConfirmation(ctx);
-    const known = new Set(state.list.items.map((i) => i.key));
+    // Any row of the pack's list, a conditional one included (Task 28.4: lotes_en_xml may be verified before the setting is turned on).
+    const known = new Set((await packOf(ctx)).einvoice.dianChecklist.items.map((i) => i.key));
     const unknown = input.items.filter((i) => !known.has(i.itemKey)).map((i) => i.itemKey);
     if (unknown.length > 0) throw new ProcessError("invalid_input", `Valores que no están en la lista de verificación DIAN: ${unknown.join(", ")}`, { details: unknown });
     // What the run would change, from the rows as they are (the table: the ticked flag is never hidden from a rule).

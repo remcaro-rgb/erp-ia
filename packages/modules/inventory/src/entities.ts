@@ -137,8 +137,10 @@ export const movementEntity: EntityDef = entity("inventory.movement", "documento
   f("requires_approval", "boolean"),
   f("posts", "boolean"),
   f("void_reason", "text"),
-  // The customer a sale issue or return answers to (Task 28.1, PG §3.6: the recall report names it without reading sales; rule 3).
-  f("party_id", "ref", ref("core.party", "legal_name")),
+  // The customer a sale issue or return answers to (Task 28.1, PG §3.6: the recall report names it without reading sales; rule 3). A uuid,
+  // not a maestro ref (Task 28.4, item 206): it is a fact copied from the shipped event, so the maestro usability gate must not refuse the
+  // issue of an entrega whose customer was deactivated after the pedido was confirmed. The recall report links it to the party.
+  f("party_id", "uuid"),
 ], {
   typed: {
     numbering: "on_save",

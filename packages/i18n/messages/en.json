@@ -1371,7 +1371,8 @@
       "stock": "Stock on hand",
       "lots": "Lots",
       "serials": "Serials",
-      "product_tracking": "Product tracking"
+      "product_tracking": "Product tracking",
+      "lot_trace": "Lot traceability"
     },
     "costing": {
       "landed_costs": "Landed costs",
@@ -3042,7 +3043,8 @@
         "certificate_valid_to": "Certificate expires",
         "certificate_uploaded_at": "Certificate uploaded",
         "software_pin_set_at": "Software PIN saved",
-        "certificate_fingerprint": "Certificate fingerprint"
+        "certificate_fingerprint": "Certificate fingerprint",
+        "dian_item_instance": "Lots and serials in the XML"
       },
       "invoice": {
         "seq": "ID",
@@ -3091,6 +3093,7 @@
         "line_no": "Line",
         "product_id": "Product",
         "description": "Description",
+        "lots": "Lot / Expiry / Serial",
         "qty": "Quantity",
         "unit_price": "Unit price",
         "discount_pct": "Discount %",
@@ -4773,7 +4776,9 @@
       "buckets": "Day ranges",
       "currency": "Currency",
       "payee_party_id": "Payee",
-      "status": "Status"
+      "status": "Status",
+      "lot_id": "Lot",
+      "serial_id": "Serial"
     },
     "enum": {
       "accounting": {
@@ -4834,7 +4839,20 @@
     "sales": {
       "commissions": "Commissions by salesperson"
     },
-    "inventory": {}
+    "inventory": {
+      "lot_trace": "Lot traceability"
+    },
+    "lot_trace": {
+      "col": {
+        "kind": "Kind",
+        "warehouse": "Warehouse",
+        "qty": "Quantity",
+        "reference": "Document",
+        "customer": "Customer"
+      },
+      "on_hand": "On hand",
+      "intro": "Pick a lot or a serial: every movement that moved it, which customer it was delivered to or who returned it, and how much is left today in each warehouse. Use it for a product recall."
+    }
   },
   "accounting": {
     "entry": {
@@ -6519,7 +6537,9 @@
       "dian_defaults_progress": "DIAN defaults: {done} of {total} verified",
       "dian_defaults_confirmed_status": "DIAN defaults: confirmed",
       "dian_defaults_new": "{count, plural, one {# new value to verify} other {# new values to verify}}",
-      "open_checklist": "Open the verification checklist"
+      "open_checklist": "Open the verification checklist",
+      "item_instance": "Send lots and serials in the XML",
+      "item_instance_hint": "Each line carries its lots (number and expiry) and serials as cac:ItemInstance. Turn it on only after testing it in habilitación: the DIAN checklist adds one item while it is on."
     },
     "view": {
       "facts": "Invoice details",

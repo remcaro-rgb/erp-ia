@@ -30,10 +30,10 @@ describe("the demo master data", () => {
     expect(co.validateParty({ ...bank!, countryCode: "CO", kind: [...bank!.kind] }).normalized.checkDigit).toBe("8");
   });
 
-  it("has 25 products in 6 categories, DIAN-complete with their category's taxes and unit, suppliers that are suppliers", () => {
+  it("has 26 products in 6 categories, DIAN-complete with their category's taxes and unit, suppliers that are suppliers", () => {
     expect(CATEGORIES).toHaveLength(6);
-    expect(PRODUCTS).toHaveLength(25);
-    expect(new Set(PRODUCTS.map((p) => p.sku)).size).toBe(25);
+    expect(PRODUCTS).toHaveLength(26);
+    expect(new Set(PRODUCTS.map((p) => p.sku)).size).toBe(26);
     for (const product of PRODUCTS) {
       const category = CATEGORIES.find((c) => c.name === product.category);
       expect(category, product.sku).toBeDefined();

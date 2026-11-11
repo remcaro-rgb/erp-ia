@@ -68,6 +68,8 @@ export type MovementInput = Omit<z.output<typeof movementInput>, "kind"> & {
   allowTransit?: boolean;
   /** Carried in the event (adjustments: on every line, for the ledger rule; other kinds: in the header, for costing's COGS). Accounting's id, passed on. */
   costCenterId?: string;
+  /** The customer a sale issue or a sale return answers to (Task 28.4, PG §3.6): core's party id, for the recall report. Only those two kinds. */
+  partyId?: string;
 };
 
 export const postedOutput = z.object({
@@ -439,6 +441,7 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
       exchange_rate: 1,
       source_entity: input.sourceEntity ?? null,
       source_id: input.sourceId ?? null,
+      party_id: input.kind === "sale_issue" || input.kind === "sale_return" ? (input.partyId ?? null) : null,
       // A movement neither waits for approval nor posts itself (ownFlags): explicit, so the Parámetros switches never apply.
       requires_approval: false,
       posts: false,

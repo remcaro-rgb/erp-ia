@@ -22,8 +22,22 @@ export type EInvoiceParty = Pick<PartyFiscalInput, "personType" | "documentType"
     checkDigit?: string | null;
   };
 
-/** A product as the line needs it (design §5.8b fields). */
-export type EInvoiceItem = Pick<ProductFiscalInput, "sku" | "description" | "idScheme" | "uomCode"> & Partial<Pick<ProductFiscalInput, "standardCode" | "brand" | "model">>;
+/**
+ * What a line sold of a lot-tracked or serial-tracked product (Task 28.4, RG-5): the lot and its expiry, or the serial, as the invoice line
+ * froze them at «Emitir». UBL 2.1 `cac:Item/cac:ItemInstance`; written only when the builder is given `{ itemInstance: true }`.
+ */
+export interface EInvoiceItemInstance { lotNumber?: string; expiryDate?: string; serialId?: string }
+
+/** A product as the line needs it (design §5.8b fields), with the lots or serials of the line (Task 28.4). */
+export type EInvoiceItem = Pick<ProductFiscalInput, "sku" | "description" | "idScheme" | "uomCode"> & Partial<Pick<ProductFiscalInput, "standardCode" | "brand" | "model">> & {
+  instances?: readonly EInvoiceItemInstance[];
+};
+
+/**
+ * How the document is built (Task 28.4): `itemInstance` writes each line's lots and serials as `cac:ItemInstance` (default off: whether the
+ * DIAN's validator of Anexo técnico 1.9 accepts it is not verified, owner item 150; invoicing.settings.dian_item_instance turns it on).
+ */
+export interface EInvoiceBuildOptions { itemInstance?: boolean }
 
 export interface EInvoiceLine {
   item: EInvoiceItem;
@@ -284,7 +298,23 @@ function lineSubs(t: TaxedLine): Sub[] {
   return subs;
 }
 
-function itemXml(item: EInvoiceItem): string {
+/** UBL 2.1 ItemInstance (children in schema order: SerialID, then LotIdentification with LotNumberID and ExpiryDate). */
+function itemInstanceXml(instance: EInvoiceItemInstance): string {
+  const parts: string[] = [];
+  if (instance.serialId) parts.push(`<cbc:SerialID>${esc(instance.serialId)}</cbc:SerialID>`);
+  if (instance.lotNumber) {
+    const expiry = instance.expiryDate ? `
+          <cbc:ExpiryDate>${instance.expiryDate}</cbc:ExpiryDate>` : "";
+    parts.push(`<cac:LotIdentification>
+          <cbc:LotNumberID>${esc(instance.lotNumber)}</cbc:LotNumberID>${expiry}
+        </cac:LotIdentification>`);
+  }
+  return `<cac:ItemInstance>
+        ${parts.join("\n        ")}
+      </cac:ItemInstance>`;
+}
+
+function itemXml(item: EInvoiceItem, options: EInvoiceBuildOptions = {}): string {
   const scheme = ITEM_ID_SCHEMES.find((s) => s.code === item.idScheme);
   if (!scheme) throw new Error(`e-invoice: unknown id scheme ${item.idScheme}`);
   if (scheme.kind !== "own" && !item.standardCode) throw new Error(`e-invoice: item ${item.sku} needs a standardCode for scheme ${scheme.code}`);
@@ -304,7 +334,8 @@ function itemXml(item: EInvoiceItem): string {
       </cac:SellersItemIdentification>
       <cac:StandardItemIdentification>
         ${id}
-      </cac:StandardItemIdentification>
+      </cac:StandardItemIdentification>${options.itemInstance && item.instances?.length ? `
+      ${item.instances.map(itemInstanceXml).join("\n      ")}` : ""}
     </cac:Item>`;
 }
 
@@ -314,7 +345,7 @@ const LINE_TAGS = {
   debit: { el: "DebitNoteLine", qty: "DebitedQuantity" },
 } as const;
 
-function lineXml(kind: keyof typeof LINE_TAGS, n: number, l: EInvoiceLine, t: TaxedLine, m: Money): string {
+function lineXml(kind: keyof typeof LINE_TAGS, n: number, l: EInvoiceLine, t: TaxedLine, m: Money, options: EInvoiceBuildOptions = {}): string {
   const tag = LINE_TAGS[kind];
   const free = t.freeSample;
   const unit = l.item.uomCode;
@@ -357,7 +388,7 @@ function lineXml(kind: keyof typeof LINE_TAGS, n: number, l: EInvoiceLine, t: Ta
     ${pricing}${third}
     ${discount}
     ${taxTotals(subs, t.base, m)}
-    ${itemXml(l.item)}
+    ${itemXml(l.item, options)}
     <cac:Price>
       ${m("PriceAmount", free ? 0 : l.unitPrice)}
       <cbc:BaseQuantity unitCode="${esc(unit)}">1</cbc:BaseQuantity>
@@ -427,7 +458,7 @@ function currencyOf(d: EInvoiceDocument): { cur: string; m: Money; exchange: str
  * The body after the header. The order is UBL 2.1's: an Invoice and a DebitNote put the document charges (AllowanceCharge) before the
  * exchange rate; a CreditNote puts the exchange rate first (PaymentExchangeRate precedes AllowanceCharge in its schema).
  */
-function common(d: EInvoiceDocument, kind: keyof typeof LINE_TAGS, totalTag: "LegalMonetaryTotal" | "RequestedMonetaryTotal"): { tail: string; head: string; cur: string } {
+function common(d: EInvoiceDocument, kind: keyof typeof LINE_TAGS, totalTag: "LegalMonetaryTotal" | "RequestedMonetaryTotal", options: EInvoiceBuildOptions = {}): { tail: string; head: string; cur: string } {
   assertEInvoiceDocument(d);
   const { cur, m, exchange } = currencyOf(d);
   const head = `<cbc:LineCountNumeric>${d.lines.length}</cbc:LineCountNumeric>`;
@@ -441,7 +472,7 @@ function common(d: EInvoiceDocument, kind: keyof typeof LINE_TAGS, totalTag: "Le
   ${kind === "credit" ? `${exchange}\n  ${charges}` : `${charges}\n  ${exchange}`}
   ${taxTotals(documentSubs(d), taxExclusive(d.taxed), m)}
   ${monetaryTotal(d, totalTag, m)}
-  ${d.lines.map((l, i) => lineXml(kind, i + 1, l, d.taxed.lines[i] as TaxedLine, m)).join("\n  ")}`;
+  ${d.lines.map((l, i) => lineXml(kind, i + 1, l, d.taxed.lines[i] as TaxedLine, m, options)).join("\n  ")}`;
   return { head, tail, cur };
 }
 
@@ -471,8 +502,8 @@ export const isExport = (d: Pick<EInvoiceDocument, "customer" | "export">): bool
  * abroad), in the invoice's currency with its TRM. The export keeps CustomizationID 10: UNCONFIRMED (the DIAN's 1.9 example
  * Exportacion.xml carries 04, which table 13.1.5.1 of the same toolbox no longer lists).
  */
-export function buildInvoiceXml(d: EInvoiceDocument): string {
-  const { head, tail, cur } = common(d, "invoice", "LegalMonetaryTotal");
+export function buildInvoiceXml(d: EInvoiceDocument, options: EInvoiceBuildOptions = {}): string {
+  const { head, tail, cur } = common(d, "invoice", "LegalMonetaryTotal", options);
   return `${header("Invoice", d, "10", "DIAN 2.1: Factura Electrónica de Venta", "CUFE-SHA384", computeCufe(d))}
   ${d.dueDate ? `<cbc:DueDate>${d.dueDate}</cbc:DueDate>\n  ` : ""}<cbc:InvoiceTypeCode>${isExport(d) ? EXPORT_INVOICE_TYPE : NATIONAL_INVOICE_TYPE}</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>${cur}</cbc:DocumentCurrencyCode>

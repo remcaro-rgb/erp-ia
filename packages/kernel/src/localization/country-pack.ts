@@ -217,6 +217,11 @@ export interface DianChecklistItem {
   es: string;
   en: string;
   docUrl?: string;
+  /**
+   * The row applies only while this boolean setting of the company's Parámetros de facturación is on (Task 28.4: `dian_item_instance`, the
+   * lots and serials in the XML). A conditional row is listed, counted and required for the confirmation only then; it raises no version.
+   */
+  when?: "dian_item_instance";
 }
 
 /** The checklist of a country pack; adding a row raises `version`, which clears every confirmation made at an earlier one. */
@@ -279,8 +284,12 @@ export interface EInvoicePack {
 
   /** The document currencies the electronic document can carry (Colombia: the ISO 4217 codes of DIAN table 13.3.3, Task 18). */
   documentCurrencies: readonly string[];
-  /** The electronic invoice (Colombia: UBL 2.1, Anexo Técnico 1.9; national or export) and the unique code it carries, computed again from the document. */
-  buildInvoiceXml(doc: EInvoiceDocumentInput): { xml: string; code: string };
+  /**
+   * The electronic invoice (Colombia: UBL 2.1, Anexo Técnico 1.9; national or export) and the unique code it carries, computed again from the
+   * document. `options.itemInstance` (Task 28.4, RG-5; invoicing.settings.dian_item_instance, default off) writes each line's lots and serials
+   * (Colombia: `cac:ItemInstance`); off, the document is the same as without them. The code never depends on it.
+   */
+  buildInvoiceXml(doc: EInvoiceDocumentInput, options?: EInvoiceBuildOptions): { xml: string; code: string };
 
   // Credit and debit notes (plan 2B Task 18): their correction concepts and the electronic note.
 
@@ -368,6 +377,12 @@ export interface EInvoiceIssuer {
   phone?: string;
 }
 
+/** How an electronic invoice is built (Task 28.4): whether each line's lots and serials go into the document. */
+export interface EInvoiceBuildOptions { itemInstance?: boolean }
+
+/** A lot (with its expiry) or a serial a line sold, as the invoice line froze it at «Emitir» (Task 28.4). */
+export interface EInvoiceItemInstanceInput { lotNumber?: string; expiryDate?: string; serialId?: string }
+
 /** An issued invoice as the electronic document carries it: what was issued (frozen), the parties, the resolution and the software. */
 export interface EInvoiceDocumentInput {
   environment: "habilitacion" | "produccion";
@@ -385,7 +400,10 @@ export interface EInvoiceDocumentInput {
   dueDate?: string;
   /** One per line of `taxed.lines`, same order. */
   lines: {
-    item: Pick<ProductFiscalInput, "sku" | "description" | "idScheme" | "uomCode"> & Partial<Pick<ProductFiscalInput, "standardCode" | "brand" | "model">>;
+    item: Pick<ProductFiscalInput, "sku" | "description" | "idScheme" | "uomCode"> & Partial<Pick<ProductFiscalInput, "standardCode" | "brand" | "model">> & {
+      /** The lots or serials of the line (Task 28.4); written only with `EInvoiceBuildOptions.itemInstance`. */
+      instances?: readonly EInvoiceItemInstanceInput[];
+    };
     quantity: number;
     unitPrice: number;
     discount?: number;

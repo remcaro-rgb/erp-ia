@@ -48,6 +48,8 @@ const shippedInput = z.object({
   eventId,
   deliveryId: uuid,
   number: z.string().nullable().optional(),
+  /** The customer (Task 28.4): stored on the issue's movement for the recall report (inventory.report.lot_trace). */
+  partyId: uuid.optional(),
   warehouseId: uuid,
   date: z.iso.date(),
   costCenterId: uuid.optional(),
@@ -415,6 +417,7 @@ export const saleIssue = defineProcess({
             warehouseId: d.warehouseId,
             sourceEntity: DELIVERY_SOURCE,
             sourceId: d.deliveryId,
+            ...(d.partyId ? { partyId: d.partyId } : {}),
             ...(d.number ? { reference: d.number } : {}),
             ...(d.costCenterId ? { costCenterId: d.costCenterId } : {}),
             lines: movementLines,
@@ -517,8 +520,8 @@ export const saleReturn = defineProcess({
     // Each line re-enters where its sale issue left from; an entrega line whose issue is not posted yet is retried. A tracked line (Task
     // 28.3) re-enters the lot or the serials it names, else the buckets its issue took, in the issue's order, each up to what it issued
     // less what saved returns already brought back.
-    const issued = await ctx.tx<{ id: string; source_line_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string; returned: string }[]>`
-      select l.id, l.source_line_id, l.location_id, l.lot_id, l.serial_id, (-l.qty)::text as qty,
+    const issued = await ctx.tx<{ id: string; source_line_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string; returned: string; party_id: string | null }[]>`
+      select l.id, l.source_line_id, l.location_id, l.lot_id, l.serial_id, (-l.qty)::text as qty, m.party_id,
              coalesce((select sum(r.qty) from inventory.movement_lines r join inventory.movements rm on rm.id = r.movement_id
                        where r.return_of_line_id = l.id and rm.kind = 'sale_return' and rm.status <> 'voided'), 0)::text as returned
       from inventory.movement_lines l join inventory.movements m on m.id = l.movement_id
@@ -574,6 +577,8 @@ export const saleReturn = defineProcess({
       warehouseId: r.warehouseId,
       sourceEntity: RETURN_SOURCE,
       sourceId: r.returnId,
+      // The customer of the issue it returns (Task 28.4: the recall report names it; inventory reads no sales table, rule 3).
+      ...(issued.find((i) => i.party_id)?.party_id ? { partyId: issued.find((i) => i.party_id)!.party_id! } : {}),
       ...(r.number ? { reference: r.number } : {}),
       ...(r.costCenterId ? { costCenterId: r.costCenterId } : {}),
       lines,

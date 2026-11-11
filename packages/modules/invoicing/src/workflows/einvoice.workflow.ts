@@ -1,7 +1,7 @@
 import { FatalError, RetryableError, getStepMetadata, getWorkflowMetadata, sleep } from "workflow";
 import type { EInvoiceResult, EInvoiceSubmitMeta } from "@erp/infra";
 import {
-  buildConsumerContext, countryPack, fileStore, getServiceDb, secretStore, type EInvoiceDocumentInput, type EInvoiceNoteInput,
+  buildConsumerContext, countryPack, fileStore, getServiceDb, secretStore, type EInvoiceBuildOptions, type EInvoiceDocumentInput, type EInvoiceNoteInput,
 } from "@erp/kernel";
 import { softwarePinSecret } from "../einvoice-secrets";
 import { transportFor } from "./transport-for";
@@ -144,7 +144,7 @@ async function storedText(path: string): Promise<string | null> {
  */
 async function prepareDocument(args: EInvoiceRunArgs): Promise<Prepared> {
   "use step";
-  type Read = { ok: boolean; code?: string; message?: string; kind: "invoice" | "note"; cufe: string | null; testSetId: string | null; round: number; document: Omit<EInvoiceNoteInput, "software"> & { software: { id: string; providerTaxId: string } } };
+  type Read = { ok: boolean; code?: string; message?: string; kind: "invoice" | "note"; cufe: string | null; testSetId: string | null; round: number; document: Omit<EInvoiceNoteInput, "software"> & { software: { id: string; providerTaxId: string } }; options?: EInvoiceBuildOptions };
   const read = await runAsEvent<Read>(args, "invoicing.einvoice_submission.document", { id: args.submissionId });
   if (!read.ok) throw new FatalError(`${read.code}: ${read.message}`);
   const note = read.kind === "note";
@@ -168,11 +168,13 @@ async function prepareDocument(args: EInvoiceRunArgs): Promise<Prepared> {
   } else {
     // An invoice's document carries no note fields (kind, concept, reference): invoicing.einvoice_submission.document answers them for a note only.
     const document = { ...(read.document as Omit<EInvoiceDocumentInput, "software">), software: { ...read.document.software, pin } };
-    ({ xml, code } = einvoice.buildInvoiceXml(document));
+    // Task 28.4: the build options the company's Parámetros set (the lots and serials in the XML); never part of the CUFE.
+    const options = read.options ?? {};
+    ({ xml, code } = einvoice.buildInvoiceXml(document, options));
     // An invoice issued before Task 18's fix round 1 had its CUFE computed over the customer's id reduced to its digits (a foreign id with
     // letters): its document is built the same way, so the XML carries what its CUFE names.
     if (code !== read.cufe) {
-      const legacy = einvoice.buildInvoiceXml({ ...document, customerIdDigitsOnly: true });
+      const legacy = einvoice.buildInvoiceXml({ ...document, customerIdDigitsOnly: true }, options);
       if (legacy.code === read.cufe) ({ xml, code } = legacy);
     }
     if (code !== read.cufe) throw new FatalError(`cufe_changed: el documento de hoy tendría otro CUFE que la factura emitida (${read.cufe?.slice(0, 12)}…): se corrige con una nota, no se reenvía`);

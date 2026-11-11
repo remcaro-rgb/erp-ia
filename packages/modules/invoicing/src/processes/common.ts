@@ -44,17 +44,18 @@ export async function today(ctx: ProcessContext): Promise<string> {
   return row!.today;
 }
 
-export interface Settings { invoiceCreation: InvoiceCreation; dianEnvironment: "habilitacion" | "produccion"; defaultCostCenterId: string | null; creditDays: number }
+export interface Settings { invoiceCreation: InvoiceCreation; dianEnvironment: "habilitacion" | "produccion"; defaultCostCenterId: string | null; creditDays: number; dianItemInstance: boolean }
 
-/** Parámetros de facturación of the company (a company without a row: manual, habilitación, no cost center, 30 days). */
+/** Parámetros de facturación of the company (a company without a row: manual, habilitación, no cost center, 30 days, no lots in the XML). */
 export async function settingsOf(ctx: ProcessContext): Promise<Settings> {
-  const [row] = await ctx.tx<{ invoice_creation: InvoiceCreation; dian_environment: Settings["dianEnvironment"]; default_cost_center_id: string | null; credit_days: number }[]>`
-    select invoice_creation, dian_environment, default_cost_center_id, credit_days from invoicing.settings where company_id = ${ctx.companyId}`;
+  const [row] = await ctx.tx<{ invoice_creation: InvoiceCreation; dian_environment: Settings["dianEnvironment"]; default_cost_center_id: string | null; credit_days: number; dian_item_instance: boolean }[]>`
+    select invoice_creation, dian_environment, default_cost_center_id, credit_days, dian_item_instance from invoicing.settings where company_id = ${ctx.companyId}`;
   return {
     invoiceCreation: row?.invoice_creation ?? "manual",
     dianEnvironment: row?.dian_environment ?? "habilitacion",
     defaultCostCenterId: row?.default_cost_center_id ?? null,
     creditDays: row?.credit_days ?? 30,
+    dianItemInstance: row?.dian_item_instance ?? false,
   };
 }
 
@@ -260,13 +261,34 @@ export async function markInvoiceLinksVoided(ctx: ProcessContext, invoiceId: str
   await linksOf(ctx).markVoided({ entity: INVOICE, id: invoiceId, reason: reason.slice(0, 500) });
 }
 
-/** Replaces the lines and taxes of the Borrador `invoiceId` and its totals with `priced`. */
+/** A lot or serial a line bills (Task 28.4): what sales published of the entrega line it was written from (sales.v_invoice_delivery_lines.lots). */
+export interface LineLot { lotCode: string | null; expiresOn: string | null; serialNo: string | null; qty: number }
+
+/**
+ * The lots and serials of each entrega line of `lines` (Task 28.4, RG-5), read from sales' published view (rule 3) as the caller: what
+ * inventory issued of the line (null when it issued no lot or serial, an untracked product).
+ */
+async function deliveryLineLots(ctx: ProcessContext, lines: readonly PricedLine[]): Promise<Map<string, LineLot[]>> {
+  const ids = [...new Set(lines.flatMap((l) => (l.delivery_line_id ? [l.delivery_line_id] : [])))];
+  if (ids.length === 0) return new Map();
+  const rows = await ctx.tx<{ id: string; lots: LineLot[] | null }[]>`select id, lots from sales.v_invoice_delivery_lines where id = any(${ids}::uuid[])`;
+  return new Map(rows.flatMap((r) => (r.lots && r.lots.length > 0 ? [[r.id, r.lots] as const] : [])));
+}
+
+/**
+ * Replaces the lines and taxes of the Borrador `invoiceId` and its totals with `priced`. A line written from an entrega line copies that
+ * line's lots (invoice_lines.lots, Task 28.4): «Emitir» rewrites the lines, so they are the entrega's at the issue and frozen from there on.
+ */
 export async function writeParts(ctx: ProcessContext, invoiceId: string, priced: Priced, exchangeRate: number): Promise<void> {
   await ctx.tx`delete from invoicing.invoice_taxes where invoice_id = ${invoiceId}`;
   await ctx.tx`delete from invoicing.invoice_lines where invoice_id = ${invoiceId}`;
   // Each line and tax with its company amount at the invoice's rate (Task 34.4): «Emitir» rewrites them at the frozen rate (validate hook).
   const stored = withCompanyAmounts(priced.lines, priced.taxes, exchangeRate);
-  await ctx.tx`insert into invoicing.invoice_lines ${ctx.tx(stored.lines.map((l) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...l })))}`;
+  const lots = await deliveryLineLots(ctx, priced.lines);
+  await ctx.tx`insert into invoicing.invoice_lines ${ctx.tx(stored.lines.map((l) => {
+    const billed = l.delivery_line_id ? lots.get(l.delivery_line_id) : undefined;
+    return { company_id: ctx.companyId, invoice_id: invoiceId, ...l, lots: billed ? ctx.tx.json(billed as never) : null };
+  }))}`;
   await syncInvoiceLinks(ctx, invoiceId, priced.lines);
   if (stored.taxes.length > 0) {
     await ctx.tx`insert into invoicing.invoice_taxes ${ctx.tx(stored.taxes.map((t) => ({ company_id: ctx.companyId, invoice_id: invoiceId, ...t })))}`;

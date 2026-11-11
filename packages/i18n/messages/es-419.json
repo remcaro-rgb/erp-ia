@@ -1371,7 +1371,8 @@
       "stock": "Existencias",
       "lots": "Lotes",
       "serials": "Seriales",
-      "product_tracking": "Seguimiento por producto"
+      "product_tracking": "Seguimiento por producto",
+      "lot_trace": "Trazabilidad de lotes"
     },
     "costing": {
       "landed_costs": "Costos en destino",
@@ -3042,7 +3043,8 @@
         "certificate_valid_to": "Certificado vence",
         "certificate_uploaded_at": "Certificado subido",
         "software_pin_set_at": "PIN del software guardado",
-        "certificate_fingerprint": "Huella del certificado"
+        "certificate_fingerprint": "Huella del certificado",
+        "dian_item_instance": "Lotes y seriales en el XML"
       },
       "invoice": {
         "seq": "ID",
@@ -3091,6 +3093,7 @@
         "line_no": "Línea",
         "product_id": "Producto",
         "description": "Descripción",
+        "lots": "Lote / Vence / Serie",
         "qty": "Cantidad",
         "unit_price": "Precio unitario",
         "discount_pct": "Descuento %",
@@ -4773,7 +4776,9 @@
       "buckets": "Rangos de días",
       "currency": "Moneda",
       "payee_party_id": "Beneficiario",
-      "status": "Estado"
+      "status": "Estado",
+      "lot_id": "Lote",
+      "serial_id": "Serial"
     },
     "enum": {
       "accounting": {
@@ -4834,7 +4839,20 @@
     "sales": {
       "commissions": "Comisiones por vendedor"
     },
-    "inventory": {}
+    "inventory": {
+      "lot_trace": "Trazabilidad de lotes"
+    },
+    "lot_trace": {
+      "col": {
+        "kind": "Tipo",
+        "warehouse": "Bodega",
+        "qty": "Cantidad",
+        "reference": "Documento",
+        "customer": "Cliente"
+      },
+      "on_hand": "Existencia",
+      "intro": "Elige un lote o un serial: verás cada movimiento que lo movió, a qué cliente se entregó o quién lo devolvió, y cuánto queda hoy en cada bodega. Sirve para un retiro del mercado."
+    }
   },
   "accounting": {
     "entry": {
@@ -6519,7 +6537,9 @@
       "dian_defaults_progress": "Valores por defecto DIAN: {done} de {total} verificados",
       "dian_defaults_confirmed_status": "Valores por defecto DIAN: confirmados",
       "dian_defaults_new": "{count, plural, one {Hay # valor nuevo por verificar} other {Hay # valores nuevos por verificar}}",
-      "open_checklist": "Abrir la lista de verificación"
+      "open_checklist": "Abrir la lista de verificación",
+      "item_instance": "Enviar lotes y seriales en el XML",
+      "item_instance_hint": "Cada línea lleva sus lotes (número y vencimiento) y seriales como cac:ItemInstance. Actívalo solo después de probarlo en habilitación: la lista de verificación DIAN suma un punto mientras esté activo."
     },
     "view": {
       "facts": "Datos de la factura",

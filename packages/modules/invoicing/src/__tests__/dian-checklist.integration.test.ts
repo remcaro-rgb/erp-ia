@@ -76,7 +76,8 @@ describe("the list the screen shows", () => {
 describe("confirm: only with every item ticked", () => {
   it("refuses dian_checklist_incomplete with the unticked texts for each of the 24 items left out in turn; the flag stays false", async () => {
     await tickAll(true);
-    for (const item of ITEMS) {
+    // Every row that applies: lotes_en_xml (Task 28.4) only while dian_item_instance is on, and it is off here.
+    for (const item of ITEMS.filter((i) => !i.when)) {
       await tick([{ itemKey: item.key, ticked: false }]);
       const refused = await h.refusal(confirm(true));
       expect(refused, item.key).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/dian_checklist_incomplete/) });

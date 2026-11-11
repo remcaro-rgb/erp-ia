@@ -52,6 +52,7 @@ async function Settings() {
   const settings: SettingsView = {
     invoiceCreation: text(row.invoice_creation) ?? "manual",
     dianEnvironment: text(row.dian_environment) ?? "habilitacion",
+    dianItemInstance: row.dian_item_instance === true,
     creditDays: Number(row.credit_days ?? 30),
     checklist: checklist
       ? {

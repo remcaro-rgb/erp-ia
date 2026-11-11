@@ -38,6 +38,12 @@
  *     each receipt accrues its share, two COM documents that leave the payable open in Cartera por edades (CxP). See COMMISSION_PLANS and
  *     COMMISSION_SALE.
  *
+ * 11. Lots and serials (plan 2B.2 Task 28.4, PG §3.5, §3.6): «Café molido tradicional 500 g» is followed by lot and the grinder by serial
+ *     (inventory.product_tracking.set, step-up, BEFORE the opening stock, which leaves them out); in step 2 the lot product receives two
+ *     lots of different expiry and the grinder three serials through inventory.movement.post; at the end a pedido of 30 to Distribuciones
+ *     Andinas del Café ships by FEFO in two lots (20 of L-2311, 10 of L-2402) and is invoiced as a Borrador whose line carries both. See
+ *     LOT_PRODUCT, SERIAL_PRODUCT and LOT_SALE.
+ *
  * Gap (reported in plan 2B Task 26): no certificate (see 4).
  */
 import { randomUUID } from "node:crypto";
@@ -49,6 +55,7 @@ import { COMMISSION_PLANS, COMMISSION_SALE } from "./commissions";
 import { attachRequiredFiles } from "./files";
 import type { DemoSession } from "./accounting";
 import { FOREIGN_SALE, NORTHWIND, USD_BANK, USD_METHOD, USD_PRICE_LIST, USD_RATES } from "./foreign-sale";
+import { LOT_PRODUCT, LOT_SALE, SERIAL_PRODUCT } from "./lots";
 
 /** The modules of the sale chain, in dependency order (each one's `dependsOn` is enabled before it). */
 export const SALES_CHAIN_MODULES = ["inventory", "costing", "sales", "crm", "invoicing", "payments"] as const;
@@ -229,10 +236,22 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
   const warehouseId = warehouse.id;
   let location = await one(sql<{ id: string }[]>`select id from inventory.locations where company_id = ${DEMO_COMPANY_ID} and warehouse_id = ${warehouseId} and code = ${LOCATION.code}`);
   if (!location) location = await act("inventory.location.create", { warehouseId, code: LOCATION.code, name: LOCATION.name });
-  if (!(await one(sql`select 1 from inventory.movements where company_id = ${DEMO_COMPANY_ID} and reference = ${OPENING_REFERENCE} and status <> 'voided'`))) {
+  const opened = await one(sql`select 1 from inventory.movements where company_id = ${DEMO_COMPANY_ID} and reference = ${OPENING_REFERENCE} and status <> 'voided'`);
+  // 11 (first half). The tracking of the lot and serial products, set while they hold no stock (a switch with stock is refused).
+  if (!opened) {
+    for (const [sku, tracking] of [[LOT_PRODUCT.sku, "lot"], [SERIAL_PRODUCT.sku, "serial"]] as const) {
+      const productId = await product(sku);
+      if (!(await one(sql`select 1 from inventory.product_tracking where product_id = ${productId} and tracking = ${tracking}`))) {
+        await act("inventory.product_tracking.set", { productId, tracking }, { stepUp: true });
+      }
+    }
+  }
+  if (!opened) {
+    // The tracked products start with their lots and serials below, not here.
     const goods = await sql<{ id: string; sku: string; min_stock: string | null; standard_cost: string | null }[]>`
-      select id, sku, min_stock::text, standard_cost::text from core.products
-      where company_id = ${DEMO_COMPANY_ID} and track_stock and kind = 'good' and is_active order by sku`;
+      select p.id, p.sku, p.min_stock::text, p.standard_cost::text from core.products p
+      where p.company_id = ${DEMO_COMPANY_ID} and p.track_stock and p.kind = 'good' and p.is_active
+        and not exists (select 1 from inventory.product_tracking t where t.product_id = p.id and t.tracking <> 'none') order by p.sku`;
     const lines = goods.map((g) => ({
       productId: g.id,
       locationId: location!.id,
@@ -242,6 +261,26 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
     await act("inventory.movement.post", { kind: "receipt", date: today, warehouseId, reference: OPENING_REFERENCE, description: "Existencias con que arranca la demostración", lines });
     await drain();
   }
+  // The lots (two expiries) and the serials, received through inventory.movement.post at the standard cost.
+  const standardCost = async (sku: string) => Number((await one(sql<{ c: string | null }[]>`select standard_cost::text as c from core.products where company_id = ${DEMO_COMPANY_ID} and sku = ${sku}`))?.c ?? 0);
+  if (!(await one(sql`select 1 from inventory.movements where company_id = ${DEMO_COMPANY_ID} and reference = ${LOT_PRODUCT.reference} and status <> 'voided'`))) {
+    const productId = await product(LOT_PRODUCT.sku);
+    const unitCost = await standardCost(LOT_PRODUCT.sku);
+    await act("inventory.movement.post", {
+      kind: "receipt", date: today, warehouseId, reference: LOT_PRODUCT.reference, description: "Lotes de café molido de demostración",
+      lines: LOT_PRODUCT.lots.map((l) => ({ productId, locationId: location!.id, qty: l.qty, unitCost, lot: { code: l.code, expiresOn: plusDays(today, l.expiresInDays) } })),
+    });
+    await drain();
+  }
+  if (!(await one(sql`select 1 from inventory.movements where company_id = ${DEMO_COMPANY_ID} and reference = ${SERIAL_PRODUCT.reference} and status <> 'voided'`))) {
+    const productId = await product(SERIAL_PRODUCT.sku);
+    await act("inventory.movement.post", {
+      kind: "receipt", date: today, warehouseId, reference: SERIAL_PRODUCT.reference, description: "Molinos de demostración",
+      lines: [{ productId, locationId: location!.id, qty: SERIAL_PRODUCT.serials.length, unitCost: await standardCost(SERIAL_PRODUCT.sku), serials: SERIAL_PRODUCT.serials.map((serialNo) => ({ serialNo })) }],
+    });
+    await drain();
+  }
+
   // 3. Pagos: the medios de pago.
   const methodIds: Record<string, string> = {};
   for (const method of METHODS) {
@@ -480,6 +519,18 @@ export async function seedSalesChain(sql: Sql, deps: RunProcessDeps, who: Who, s
     });
     await drain();
   }
+
+  // 11 (second half). The entrega that leaves by FEFO in two lots, invoiced as a Borrador (its line carries both lots).
+  let lotOrder = await one(sql<{ id: string; stage: string }[]>`select id, stage from sales.orders where company_id = ${DEMO_COMPANY_ID} and notes = ${LOT_SALE.notes} and status <> 'voided'`);
+  if (!lotOrder) {
+    const created = await act<{ id: string }>("sales.order.create", { partyId: await partyId(LOT_SALE.party), warehouseId, issueDate: today, notes: LOT_SALE.notes, lines: [{ productId: await product(LOT_PRODUCT.sku), qty: LOT_SALE.qty }] });
+    lotOrder = (await one(sql<{ id: string; stage: string }[]>`select id, stage from sales.orders where id = ${created.id}`))!;
+  }
+  if (lotOrder.stage === "open") await act("sales.order.confirm", { id: lotOrder.id });
+  await drain();
+  await shipOrder(sql, act, drain, lotOrder.id, today, costCenter);
+  if (!(await chainInvoice(sql, lotOrder.id))) await act("invoicing.invoice.from_orders", { orderIds: [lotOrder.id] });
+  await drain();
 
   const [paid] = await sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${invoice.id}`;
   if (paid!.stage !== "paid") throw new Error(`demo sale chain: the invoice ${invoice.number} is ${paid!.stage}, not paid`);

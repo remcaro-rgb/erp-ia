@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { getServiceDb } from "@erp/kernel";
 import { DEMO_COMPANY_ID } from "../demo/accounts";
 import { SAMPLE_COMPROBANTES } from "../demo/accounting";
+import { LOT_PRODUCT, LOT_SALE, SERIAL_PRODUCT } from "../demo/lots";
 import { ALMACENES_EXITO, CHAIN, COMMISSION_PLANS, COMMISSION_SALE, FOREIGN_SALE, NORTHWIND, PRICE_LIST, SALES_CHAIN_MODULES, USD_BANK, USD_RATES, WAREHOUSE, wholesalePrice } from "../demo/sales";
 
 // The whole demo seed against the local stack (owner order 2026-11-02): `DEMO_SEED=1 pnpm db:seed` must finish, with a posted
@@ -154,6 +155,31 @@ describe.skipIf(!enabled)("DEMO_SEED=1 pnpm db:seed", () => {
         where e.company_id = ${DEMO_COMPANY_ID} and e.status = 'posted' and a.code = '250505' and pa.document_number = ${COMMISSION_PLANS.employee.party.documentNumber}`;
       expect(payable!.open).toBeCloseTo(COMMISSION_SALE.commission, 2);
       expect(payable!.due).toEqual(commissions.map((c) => c.due_date).filter((d, k, all) => all.indexOf(d) === k));
+      // Lots and serials (plan 2B.2 Task 28.4): «Café molido 500 g» by lot with two expiries, the grinder by serial with three serials, and
+      // one entrega that left by FEFO in two lots, its Borrador carrying them on the line; the sale issue names the customer.
+      const tracked = await sql<{ sku: string; tracking: string }[]>`
+        select p.sku, t.tracking from inventory.product_tracking t join core.products p on p.id = t.product_id where t.company_id = ${DEMO_COMPANY_ID} order by p.sku`;
+      expect(tracked).toEqual([{ sku: SERIAL_PRODUCT.sku, tracking: "serial" }, { sku: LOT_PRODUCT.sku, tracking: "lot" }]);
+      const lots = await sql<{ code: string; on_hand: number }[]>`
+        select l.code, coalesce(sum(s.on_hand), 0)::float8 as on_hand from inventory.lots l left join inventory.stock_levels s on s.lot_id = l.id
+        where l.company_id = ${DEMO_COMPANY_ID} group by l.code, l.expires_on order by l.expires_on`;
+      expect(lots).toEqual([{ code: "L-2311", on_hand: 0 }, { code: "L-2402", on_hand: 70 }]);
+      const serials = await sql<{ serial_no: string; serial_status: string }[]>`
+        select serial_no, serial_status from inventory.serials where company_id = ${DEMO_COMPANY_ID} order by serial_no`;
+      expect(serials).toEqual(SERIAL_PRODUCT.serials.map((serial_no) => ({ serial_no, serial_status: "available" })));
+      const [lotOrder] = await sql<{ id: string; party_id: string }[]>`select id, party_id from sales.orders where company_id = ${DEMO_COMPANY_ID} and notes = ${LOT_SALE.notes} and status <> 'voided'`;
+      const left = await sql<{ lot_code: string; qty: number }[]>`
+        select x.lot_code, x.qty::float8 as qty from sales.delivery_line_lots x join sales.delivery_lines l on l.id = x.delivery_line_id
+        join sales.deliveries d on d.id = l.delivery_id where d.order_id = ${lotOrder!.id} order by x.seq`;
+      expect(left.map((x) => ({ code: x.lot_code, qty: x.qty }))).toEqual(LOT_SALE.split);
+      const [billed] = await sql<{ stage: string; lots: { lotCode: string; qty: number }[] }[]>`
+        select i.stage, l.lots from invoicing.invoice_lines l join invoicing.invoices i on i.id = l.invoice_id where l.order_id = ${lotOrder!.id} and i.stage <> 'voided'`;
+      expect(billed!.stage).toBe("draft");
+      expect(billed!.lots.map((x) => ({ code: x.lotCode, qty: x.qty }))).toEqual(LOT_SALE.split);
+      const [issue] = await sql<{ party_id: string }[]>`
+        select distinct m.party_id from inventory.movements m join inventory.movement_lines ml on ml.movement_id = m.id join inventory.lots l on l.id = ml.lot_id
+        where m.company_id = ${DEMO_COMPANY_ID} and m.kind = 'sale_issue' and l.code = 'L-2311'`;
+      expect(issue!.party_id).toBe(lotOrder!.party_id);
     } finally {
       await sql.end();
     }

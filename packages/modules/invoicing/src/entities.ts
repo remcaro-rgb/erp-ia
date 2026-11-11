@@ -112,6 +112,9 @@ export const settingsEntity: EntityDef = entity("invoicing.settings", "parametro
   // certificate (the secret is written first, on its own connection; a run that failed after it leaves the old metadata).
   f("certificate_fingerprint", "text"),
   ...trailer(f),
+  // Task 28.4 (RG-5, owner item 150 pending the accountant): the lots and serials of each line go into the electronic invoice's XML
+  // (cac:ItemInstance) only while this is on; default off. Step-up, like the other DIAN settings (invoicing.settings.update).
+  f("dian_item_instance", "boolean", { required: true }),
 ]);
 
 export const invoiceEntity: EntityDef = entity("invoicing.invoice", "documento", "invoices", "number", (f) => [
@@ -168,6 +171,10 @@ export const invoiceEntity: EntityDef = entity("invoicing.invoice", "documento",
   defaultSort: { field: "seq", dir: "desc" },
 });
 
+/** The text of invoice_lines.lots (jsonb `[{ lotCode, expiresOn, serialNo, qty }]`) the masked view shows, in the order the lots left. */
+const INVOICE_LINE_LOTS_EXPR =
+  "(select string_agg(coalesce(x.e->>'lotCode', x.e->>'serialNo', '') || coalesce(' · ' || (x.e->>'expiresOn'), '') || ' · ' || (x.e->>'qty'), '; ' order by x.n) from jsonb_array_elements(invoice_lines.lots) with ordinality as x(e, n))";
+
 export const invoiceLineEntity: EntityDef = entity("invoicing.invoice_line", "lines", "invoice_lines", "line_no", (f) => [
   f("seq", "number", { required: true }),
   f("invoice_id", "ref", { required: true, ...ref("invoicing.invoice", "number") }),
@@ -193,6 +200,9 @@ export const invoiceLineEntity: EntityDef = entity("invoicing.invoice_line", "li
   f("delivery_id", "uuid"),
   f("delivery_line_id", "uuid"),
   ...trailer(f),
+  // «Lote / Vence / Serie» (Task 28.4, RG-5): the lots and serials the line bills, copied from the entrega line it was written from
+  // (invoice_lines.lots, frozen at «Emitir»), read as `code · expiry · qty` (a serial: `number · qty`). Codes, dates and figures only.
+  f("lots", "text", { sortable: false, filterable: false, viewExpr: INVOICE_LINE_LOTS_EXPR }),
 ]);
 
 export const invoiceTaxEntity: EntityDef = entity("invoicing.invoice_tax", "sistema", "invoice_taxes", "code", (f) => [

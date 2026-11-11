@@ -2,6 +2,7 @@ import { HOME_KPIS } from "./home";
 import { defineModule, type ModuleDef } from "@erp/kernel";
 import { INVENTORY_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
+import { INVENTORY_REPORTS } from "./reports/lot-trace";
 import { INVENTORY_PROCESSES } from "./processes";
 import { MOVEMENT_POSTED, MOVEMENT_VOIDED, movementHooks } from "./processes/movement";
 import { countHooks } from "./processes/count";
@@ -52,6 +53,8 @@ export const inventory: ModuleDef = defineModule({
     },
   },
   navigation: NAVIGATION,
+  // «Trazabilidad de lotes» (Task 28.4, PG §3.6): the recall report over inventory.report.lot_trace.
+  reports: INVENTORY_REPORTS,
   postingRules: INVENTORY_POSTING_RULES,
   menuShared: MENU_SHARED,
   // What the assistant's confirmation card tells about the stock (plan 2B Task 25): what this module's consumers do with each sales event.

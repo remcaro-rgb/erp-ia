@@ -160,6 +160,8 @@ Cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar 
 - El perfil fiscal del emisor: **responsabilidades fiscales** (códigos separados por comas), **tributo**, y los códigos DANE del **departamento** y el **municipio**.
 - **Valores por defecto DIAN: n de 24 verificados** (o **confirmados**) y el enlace **Abrir la lista de verificación**: los valores por defecto ya no se confirman con una casilla, sino en la **Lista de verificación DIAN** (más abajo).
 
+- **Enviar lotes y seriales en el XML** (apagado por defecto): cada línea con lotes o seriales los lleva en el documento electrónico (cac:ItemInstance, con el número del lote, su vencimiento y el serial). Apagado, el XML es el de siempre y los lotes solo se ven en la factura y en su PDF. Actívalo después de probarlo en la habilitación de la DIAN: mientras esté activo, la lista de verificación DIAN suma el valor **Lotes y seriales en el XML**. Cambiarlo pide el código de verificación y no cambia el CUFE.
+
 **Pasar a producción** solo se permite cuando todo está listo; si falta algo, el cambio se rechaza, la empresa sigue en habilitación y el mensaje dice qué falta:
 
 1. la **lista de verificación DIAN** confirmada y vigente (sección siguiente; mientras la empresa esté en producción no se puede retirar). Si falta, el mensaje dice cuántos valores quedan por verificar;
@@ -215,6 +217,8 @@ Se abre desde **Conexión DIAN › Abrir la lista de verificación** (**Facturac
 8. **Tablas de referencia**
    - **Valores de la UVT 2023 y 2024**: se escribieron de memoria y hoy no se usan; confirma que ninguna regla de la empresa los necesite.
    - **Tarifas de otros impuestos** (bolsas, ICL, IBUA, ICUI, carbono): no están cargadas; confirma que la empresa no los facture, o pide cargarlas.
+
+Si activas **Enviar lotes y seriales en el XML** (Conexión DIAN), la lista suma un valor más en **Notas y tipos de documento**: **Lotes y seriales en el XML**, que la DIAN acepte cada lote y serial de la línea como cac:ItemInstance (LotNumberID, ExpiryDate, SerialID). Mientras esté activo la lista tiene **25 valores** y la confirmación necesita ese también; al apagarlo vuelve a 24. Una empresa que ya está en producción sigue enviando con normalidad.
 
 El asistente **no** marca estos valores ni confirma los valores por defecto: es una decisión del administrador, con su código de verificación, en esta página.
 

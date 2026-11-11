@@ -79,7 +79,7 @@ export const settingsUpdate = defineProcess({
   feature: FEATURE_SETTINGS,
   sensitivity: "step-up",
   description:
-    "Cambia los parámetros de facturación: cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar el pedido), el ambiente DIAN, el centro de costo por defecto, los días de crédito, el software registrado ante la DIAN y el perfil fiscal de la empresa como emisor",
+    "Cambia los parámetros de facturación: cuándo se crean las facturas (a mano, al despachar cada entrega o al confirmar el pedido), el ambiente DIAN, el centro de costo por defecto, los días de crédito, el software registrado ante la DIAN, el perfil fiscal de la empresa como emisor y si el XML lleva los lotes y seriales de cada línea",
   input: z.object({
     invoiceCreation: z.enum(INVOICE_CREATION).optional(),
     dianEnvironment: z.enum(DIAN_ENVIRONMENTS).optional(),
@@ -94,6 +94,8 @@ export const settingsUpdate = defineProcess({
     issuerTaxScheme: z.enum(["01", "04", "ZA", "ZZ"]).optional(),
     issuerDepartmentCode: z.string().regex(/^[0-9]{2}$/).nullable().optional(),
     issuerMunicipalityCode: z.string().regex(/^[0-9]{5}$/).nullable().optional(),
+    // Task 28.4 (RG-5, owner item 150): the lots and serials of each line in the XML (cac:ItemInstance); off until verified with the DIAN.
+    dianItemInstance: z.boolean().optional(),
   }).strict(),
   output: z.object({
     id: z.string(),
@@ -108,6 +110,7 @@ export const settingsUpdate = defineProcess({
     issuerTaxScheme: z.string(),
     issuerDepartmentCode: z.string().nullable(),
     issuerMunicipalityCode: z.string().nullable(),
+    dianItemInstance: z.boolean(),
   }),
   handler: async (ctx, input) => {
     await requireCompanyAdmin(ctx, ADMIN_ONLY);
@@ -130,6 +133,7 @@ export const settingsUpdate = defineProcess({
       dian_environment: input.dianEnvironment ?? current.dianEnvironment,
       default_cost_center_id: input.defaultCostCenterId === undefined ? current.defaultCostCenterId : input.defaultCostCenterId,
       credit_days: input.creditDays ?? current.creditDays,
+      dian_item_instance: input.dianItemInstance ?? current.dianItemInstance,
     };
     // The confirmation of the DIAN defaults is no input and no column of this update (Task 35): only the checklist's processes write it.
     if (next.dian_environment === "produccion") await assertProductionReady(ctx, submission.software_id as string | null, current.dianEnvironment === "produccion");
@@ -145,6 +149,7 @@ export const settingsUpdate = defineProcess({
       testSetId: submission.test_set_id as string | null, issuerTaxResponsibilities: submission.issuer_tax_responsibilities as string[],
       issuerTaxScheme: submission.issuer_tax_scheme as string, issuerDepartmentCode: submission.issuer_department_code as string | null,
       issuerMunicipalityCode: submission.issuer_municipality_code as string | null,
+      dianItemInstance: next.dian_item_instance,
     };
   },
 });

@@ -34,6 +34,7 @@ Arriba ves la **etapa** (Borrador, Emitida, Pagada, Anulada), el **Estado ante l
 
 - **Datos**: el cliente, las fechas, la forma y el medio de pago, el número, el CUFE, la resolución DIAN, los pedidos y las entregas de donde salió (cada uno abre su ficha), los totales y las notas crédito y débito de la factura, con los botones **Crear nota crédito** y **Crear nota débito**. Un borrador hecho a mano muestra aquí mismo su formulario para cambiarlo. En una factura emitida también ves el **Recorrido DIAN** (Emitida, Enviada a la DIAN, Aceptada o Rechazada) y, si la DIAN la rechazó, la lista **Errores de la DIAN**.
 - **Líneas e impuestos**: las líneas de la factura y sus impuestos por impuesto y tarifa, en la tabla de siempre.
+  Si la línea factura un producto seguido por lote o serial, la columna **Lote / Vence / Serie** dice qué lotes (código, vencimiento y cantidad) o seriales salieron en la entrega. Se copia de la entrega al crear la factura y queda **fija al emitir**: si después cambias el vencimiento del lote, la factura emitida no cambia. El PDF de la factura imprime la misma columna. Una línea sin lote (un producto sin seguimiento o una línea escrita a mano) la deja vacía.
 - **Contabilidad**: el asiento que la factura generó al emitirse.
 - **DIAN**: el envío a la DIAN (guía **Facturación electrónica**) y sus archivos para descargar.
 

@@ -103,6 +103,8 @@ describe("inventory manifest", () => {
         "inventory.lot.create", "inventory.lot.update", "inventory.lot.consult",
         "inventory.serial.create", "inventory.serial.update", "inventory.serial.consult",
         "inventory.product_tracking.set", "inventory.product_tracking.consult",
+        // Task 28.4: the recall report «Trazabilidad de lotes».
+        "inventory.report.lot_trace",
         ...generic("inventory.lot"), ...generic("inventory.serial"),
         ...generic("inventory.warehouse"), ...generic("inventory.location"), ...generic("inventory.movement", ["void"]),
         ...generic("inventory.transfer", ["void"]), ...generic("inventory.count", ["void"]),
@@ -138,6 +140,7 @@ describe("inventory manifest", () => {
       ["inventory.transfers", "inventory.documentos", "/inventory/transfers"],
       ["inventory.counts", "inventory.documentos", "/inventory/counts"],
       ["inventory.stock", "inventory.reportes", "/inventory/stock"],
+      ["inventory.lot_trace", "inventory.reportes", "/inventory/lot-trace"],
       ["inventory.product_tracking", "inventory.parametros", "/inventory/product-tracking"],
       ...rows.filter((r) => r.href!.startsWith("/inventory/parametros/")).map((r) => [r.navKey, r.parentKey, r.href]),
     ]);

@@ -4,7 +4,9 @@ import invoiceIssuedRule from "../rules/invoice-issued.json" with { type: "json"
 import noteAnnulmentRule from "../rules/note-annulment-issued.json" with { type: "json" };
 import noteCreditRule from "../rules/note-credit-issued.json" with { type: "json" };
 import noteDebitRule from "../rules/note-debit-issued.json" with { type: "json" };
+import { defineEntity, maskedViewSql } from "@erp/kernel";
 import { withClaims } from "@erp/kernel/testing";
+import { INVOICING_ENTITIES } from "../index";
 import { invoicingHarness, type Harness, type InvoiceOut } from "./helpers";
 
 // Company amounts at «Emitir» and rules with both amounts (plan 2B.2 Task 34.4; FX §4, §9 notes, §11 0148, 0149; owner items 120, 123;
@@ -84,7 +86,16 @@ describe("company amounts stored at «Emitir» (0148, item 120)", () => {
       await tx`update invoicing.invoice_lines set subtotal_company = 0 where invoice_id = ${issued.id}`;
       await tx`update invoicing.invoice_taxes set amount_company = 0 where invoice_id = ${issued.id}`;
     });
-    for (let run = 0; run < 2; run++) await h.sql.begin((tx) => tx.unsafe(migration("0148_invoicing_company_amounts.sql")));
+    // 0148 re-creates the masked views as they stood then; a later migration (0167: v_invoice_lines.lots) appended columns. In the same
+    // transaction, the views of today are put back (generated from entities.ts, as the migrations paste them), so no other test file ever
+    // reads the old shape.
+    const today = ["invoicing.invoice_line", "invoicing.invoice_tax", "invoicing.note_line", "invoicing.note_tax"].map((id) => maskedViewSql(defineEntity(INVOICING_ENTITIES.find((e) => e.id === id)!)));
+    for (let run = 0; run < 2; run++) {
+      await h.sql.begin(async (tx) => {
+        await tx.unsafe(migration("0148_invoicing_company_amounts.sql"));
+        for (const view of today) await tx.unsafe(view);
+      });
+    }
     for (const l of await lineAmounts(issued.id)) expect(Number(l.subtotal_company)).toBe(Number(l.base));
     for (const t of await taxAmounts(issued.id)) expect(Number(t.amount_company)).toBe(Number(t.amount));
     // Every peso row of the database, whatever the company: the company amount is the document amount.

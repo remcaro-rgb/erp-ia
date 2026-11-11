@@ -131,16 +131,18 @@ test.describe("Parámetros de facturación electrónica", () => {
     await expect(pin.getByRole("status")).toHaveText("PIN guardado");
     await expect(pin.getByLabel("PIN del software")).toHaveValue("");
 
-    // Task 35: the old checkbox is gone; the card shows the checklist's progress and a link to it.
-    await expect(dian.getByRole("checkbox")).toHaveCount(0);
-    await expect(dian.getByText("Valores por defecto DIAN: 0 de 23 verificados")).toBeVisible();
+    // Task 35: the old checkbox is gone; the card shows the checklist's progress and a link to it. Its only checkbox is Task 28.4's
+    // «Enviar lotes y seriales en el XML», off by default.
+    await expect(dian.getByRole("checkbox")).toHaveCount(1);
+    await expect(dian.getByRole("checkbox", { name: "Enviar lotes y seriales en el XML" })).not.toBeChecked();
+    await expect(dian.getByText("Valores por defecto DIAN: 0 de 24 verificados")).toBeVisible();
     await expect(dian.getByRole("link", { name: "Abrir la lista de verificación" })).toHaveAttribute("href", "/invoicing/settings/checklist");
 
     // Producción while the DIAN defaults are not confirmed: refused (naming the checklist), the company stays in habilitación.
     await dian.getByLabel("Ambiente DIAN").selectOption({ label: "Producción" });
     await dian.getByRole("button", { name: "Guardar conexión" }).click();
     await confirmStepUp(page, secret);
-    await expect(dian.getByRole("alert")).toContainText("Verifica los 23 valores pendientes en la lista de verificación DIAN");
+    await expect(dian.getByRole("alert")).toContainText("Verifica los 24 valores pendientes en la lista de verificación DIAN");
     const [settings] = await admin.sql<{ dian_environment: string; dian_defaults_confirmed: boolean }[]>`
       select dian_environment, dian_defaults_confirmed from invoicing.settings where company_id = ${companyId}`;
     expect(settings).toEqual({ dian_environment: "habilitacion", dian_defaults_confirmed: false });

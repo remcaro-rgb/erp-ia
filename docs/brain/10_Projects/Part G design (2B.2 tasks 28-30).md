@@ -39,4 +39,16 @@ Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 1
 - **Guide**: `docs/user-guide/es-419/comisiones.md`; `ventas.md`, `cartera-por-edades.md` and the index updated.
 - Choices for the owner: items 191–198 in [[Plan phase-2b-owner-decisions-pending]].
 
+## Task 28.4 built (2026-11-10)
+- **Invoice lots** (migrations 0166, 0167): `sales.v_invoice_delivery_lines.lots` publishes each entrega line's lots as JSON; `invoicing.invoice_lines.lots` copies them in `writeParts` and keeps them through «Emitir» (frozen). The masked view reads them as text `code · expiry · qty`; the invoice grid and its print show «Lote / Vence / Serie».
+- **DIAN option**: `invoicing.settings.dian_item_instance` (default off, step-up). On, the co pack writes `cac:ItemInstance` (SerialID, LotIdentification with LotNumberID and ExpiryDate) per lot; off, the XML equals the golden of today. The CUFE does not change. The kernel's `EInvoicePack.buildInvoiceXml(doc, options)` carries `{ itemInstance }`. Checklist row `lotes_en_xml` only while the switch is on (no version bump, item 199).
+- **Recall report** `inventory.report.lot_trace` (**Inventario › Reportes › Trazabilidad de lotes**, `/inventory/lot-trace`): movements of a lot or serial with customer (`inventory.movements.party_id`, now written by sale issues and returns), stock by bodega, exports. Uses the kernel `windowOf` (30.4 moved it there).
+- **Demo** (`scripts/demo/lots.ts`, seed step 11): CAF-MOL-500 by lot (L-2311, L-2402), grinder ACC-MOL-ELE by serial, a FEFO-split delivery to Distribuciones Andinas del Café, its Borrador with both lots. Eval case «¿A qué clientes fue el lote L-2311?».
+- **Tests**: `invoice-lots.integration.test.ts` (3), `lot-trace.integration.test.ts` (5), co pack golden `invoice-item-instance.xml`, checklist tests, seed assertions, e2e `inventory-lots.spec.ts` with helper `test-support/lot-chain.mts`.
+- **Lesson**: e2e against the preview server must use `http://localhost:3100`; on `127.0.0.1` the pages do not hydrate and the two-step sign-in hangs (item 205).
+- **Lesson**: a maestro `ref` on a system-written historical column is gated by the typed runner's usability check; `inventory.movements.party_id` became `uuid` so a deactivated customer's entrega still ships (item 206).
+- **Lesson**: a test that replays an old migration for real must restore today's views in the same transaction (company-amounts replayed 0148 and dropped `v_invoice_lines.lots`).
+- **Lesson**: root `pnpm test` skips the module packages' unit tests; run `vitest run` in each touched module.
+- Choices for the owner: items 199–208 in [[Plan phase-2b-owner-decisions-pending]]. Guides: [[Module inventory]] (inventario.md), [[Module invoicing]] (facturacion.md, facturacion-electronica.md).
+
 Related: [[Plan phase-2b-sales-stock-chain]], [[Plan phase-2b-owner-decisions-pending]].

@@ -5,6 +5,7 @@ import type { DianChecklist, DianChecklistItem } from "@erp/kernel";
 // admin ticks each row once they verified it there; the confirmation of the defaults, which the production guard reads, needs every row
 // ticked. Fiscal content, so it lives in the pack (rule 5); the invoicing module reads it only through `packOf(ctx).einvoice.dianChecklist`.
 //
+// A row with `when` applies only while that setting is on (Task 28.4): it is placed with `since` = the current version (no raise).
 // Adding a row: append it (or place it in its group) with `since = version + 1` and raise `version` to it. That clears the confirmation
 // everywhere at once (the stored version no longer equals the list's), as it must: a new value is unverified. Removing or rewording a row
 // is a copy edit; a removed key leaves an orphan tick that every read ignores. No row has a DIAN documentation link today: item 20 names
@@ -15,7 +16,8 @@ export const DIAN_CHECKLIST_GROUPS = [
   "notes_documents", "signing_software", "dian_response", "taxes_amounts", "payment_buyers", "issuer_profile", "infrastructure", "reference_tables",
 ] as const;
 
-const item = (key: string, group: (typeof DIAN_CHECKLIST_GROUPS)[number], es: string, en: string, since = 1): DianChecklistItem => ({ key, group, since, es, en });
+const item = (key: string, group: (typeof DIAN_CHECKLIST_GROUPS)[number], es: string, en: string, since = 1, when?: DianChecklistItem["when"]): DianChecklistItem =>
+  ({ key, group, since, es, en, ...(when ? { when } : {}) });
 
 export const DIAN_CHECKLIST: DianChecklist = {
   // 2: «Moneda extranjera» (plan 2B.2 Task 34.4, FX §3): the export invoice in USD was never sent to habilitación.
@@ -37,6 +39,12 @@ export const DIAN_CHECKLIST: DianChecklist = {
     item("notes_resolution_row", "notes_documents",
       "Las notas reutilizan una fila de numeración con la forma de una resolución",
       "Notes reuse a numbering row shaped like a resolution"),
+    // Task 28.4 (RG-5, owner item 150): only while the company writes the lots and serials into the XML (dian_item_instance); a conditional
+    // row raises no version, so a company that never turns it on keeps its confirmation.
+    item("lotes_en_xml", "notes_documents",
+      "Los lotes y seriales de cada línea van en el XML (cac:ItemInstance con LotNumberID, ExpiryDate y SerialID) y el validador de la DIAN los acepta",
+      "The lots and serials of each line go in the XML (cac:ItemInstance with LotNumberID, ExpiryDate and SerialID) and the DIAN validator accepts them",
+      2, "dian_item_instance"),
     // 2. Firma y software
     item("software_security_code_doc_number", "signing_software",
       "El tercer elemento del SoftwareSecurityCode es el número del documento (otro sistema usaba el NIT)",

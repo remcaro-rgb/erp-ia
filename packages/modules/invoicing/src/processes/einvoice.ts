@@ -2,7 +2,7 @@ import { infra } from "@erp/infra";
 import { defineProcess, fileStore, ProcessError, renderPrint, translatorFor, type EventConsumer, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { SUBMISSION_STATUSES, type SubmissionStatus } from "../entities";
-import { DOCUMENT_ENVIRONMENT_MISSING, FEATURE_INVOICES, id, markInvoiceLinksVoided, num, packOf, refuseState, requireCompanyAdmin, round2 } from "./common";
+import { DOCUMENT_ENVIRONMENT_MISSING, FEATURE_INVOICES, id, markInvoiceLinksVoided, num, packOf, refuseState, requireCompanyAdmin, round2, settingsOf, type LineLot } from "./common";
 import { label, readInvoice } from "./invoice";
 import { noteLabel, readNote } from "./note";
 import { einvoiceSubmission } from "../workflows/einvoice.workflow";
@@ -198,7 +198,11 @@ const fail = (code: string, message: string): Fail => ({ ok: false, code, messag
 const opt = (v: unknown) => (v === null || v === undefined || v === "" ? {} : undefined);
 const field = <K extends string>(key: K, v: unknown) => (opt(v) ?? { [key]: v }) as Partial<Record<K, string>>;
 
-interface FrozenLine { product_id: string; qty: string; unit_price: string; discount: string; base: string; iva_rate: string | null; iva: string; inc_rate: string | null; inc: string; other_taxes: string; total: string; free_sample: boolean; description: string | null }
+interface FrozenLine { product_id: string; qty: string; unit_price: string; discount: string; base: string; iva_rate: string | null; iva: string; inc_rate: string | null; inc: string; other_taxes: string; total: string; free_sample: boolean; description: string | null; lots?: LineLot[] | null }
+
+/** The lots and serials an invoice line froze (Task 28.4) as the document's item instances: a lot with its expiry, or a serial. */
+const instancesOf = (lots: readonly LineLot[] | null | undefined) =>
+  (lots ?? []).map((x) => (x.serialNo ? { serialId: x.serialNo } : { ...(x.lotCode ? { lotNumber: x.lotCode } : {}), ...(x.expiresOn ? { expiryDate: x.expiresOn } : {}) }));
 interface FrozenTax { family: "IVA" | "INC" | "OTHER"; code: string; rate: string | null; base: string; amount: string }
 
 /**
@@ -245,7 +249,11 @@ async function frozenParts(ctx: ProcessContext, name: string, lines: FrozenLine[
     lines: lines.map((l) => {
       const p = products.get(l.product_id)!;
       return {
-        item: { sku: p.sku, description: l.description ?? p.description, idScheme: p.id_scheme, uomCode: p.uom_code, ...field("standardCode", p.standard_code), ...field("brand", p.brand), ...field("model", p.model) },
+        item: {
+          sku: p.sku, description: l.description ?? p.description, idScheme: p.id_scheme, uomCode: p.uom_code, ...field("standardCode", p.standard_code), ...field("brand", p.brand), ...field("model", p.model),
+          // The lots and serials the line froze at «Emitir» (Task 28.4): the pack writes them only with the build option itemInstance.
+          ...(l.lots && l.lots.length > 0 ? { instances: instancesOf(l.lots) } : {}),
+        },
         quantity: num(l.qty),
         unitPrice: num(l.unit_price),
         ...(num(l.discount) > 0 ? { discount: num(l.discount) } : {}),
@@ -332,7 +340,7 @@ async function invoiceDocument(ctx: ProcessContext, s: SubmissionRow) {
   const name = `la factura ${label(invoice)}`;
   const frame = await documentFrame(ctx, invoice.party_id, { type: "invoice", resolution: issued!.resolution, name, environment: issued!.dian_environment });
   if (!frame.ok) return frame;
-  const lines = await ctx.tx.unsafe(`select ${linesSql} from invoicing.invoice_lines where invoice_id = $1 order by line_no`, [invoice.id]) as FrozenLine[];
+  const lines = await ctx.tx.unsafe(`select ${linesSql}, lots from invoicing.invoice_lines where invoice_id = $1 order by line_no`, [invoice.id]) as FrozenLine[];
   const taxes = await ctx.tx<FrozenTax[]>`select family, code, rate::text, base::text, amount::text from invoicing.invoice_taxes where invoice_id = ${invoice.id} order by family, code, rate`;
   const parts = await frozenParts(ctx, name, lines, taxes, invoice);
   if (!parts.ok) return parts;
@@ -357,6 +365,8 @@ async function invoiceDocument(ctx: ProcessContext, s: SubmissionRow) {
       lines: parts.lines,
       taxed: parts.taxed,
     },
+    // How the pack builds it (Task 28.4, RG-5): the lots and serials in the XML only while invoicing.settings.dian_item_instance is on.
+    options: { itemInstance: (await settingsOf(ctx)).dianItemInstance },
   };
 }
 

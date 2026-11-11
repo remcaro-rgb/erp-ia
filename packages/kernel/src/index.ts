@@ -45,7 +45,7 @@ export { CODE_TABLES, registerCountryPack, countryPack, rateFeed, setRateFeed } 
 export type { ExchangeRatesPack, OfficialRate } from "./localization/country-pack";
 export { DEFAULT_PHONE_CC, validateEmail, validatePhone } from "./validation";
 export type { PartyTaxProfile, TaxLineInput, TaxedDocument, TaxedLine, TaxesPack } from "./localization/country-pack";
-export type { CurrencyLegendInput, DianChecklist, DianChecklistItem, DocumentNumberRefusal, DrawnDocumentNumber, EInvoiceCertificateMeta, EInvoiceDocumentInput, EInvoiceIssuer, EInvoiceNoteInput, EInvoicePack, EInvoicePartyInput, PackTx, ResolutionInfo } from "./localization/country-pack";
+export type { CurrencyLegendInput, DianChecklist, DianChecklistItem, DocumentNumberRefusal, DrawnDocumentNumber, EInvoiceBuildOptions, EInvoiceCertificateMeta, EInvoiceDocumentInput, EInvoiceIssuer, EInvoiceItemInstanceInput, EInvoiceNoteInput, EInvoicePack, EInvoicePartyInput, PackTx, ResolutionInfo } from "./localization/country-pack";
 export type { CodeTable, CountryPack, DocumentType, PartyFiscalInput, PartyValidation, ProductFiscalInput, ProductValidation, TaxIdResult } from "./localization/country-pack";
 export { kernelModule } from "./module/kernel-module";
 export { ATTACHMENT_PROCESSES, attachmentAdd, attachmentList, attachmentRemove, attachmentReorder, MAX_ATTACHMENT_BYTES, missingAttachments, precheckAttachment, requiredTagsFor, requirementApplies } from "./attachments";

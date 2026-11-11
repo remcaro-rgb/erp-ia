@@ -121,9 +121,9 @@ export const einvoicePack: EInvoicePack = {
   // Any currency of DIAN table 13.3.3 (Task 18): the document carries the invoice's currency and TRM; a buyer abroad makes it an export
   // (InvoiceTypeCode 02). The CUFE is computed on the document's amounts, as «Emitir» computed it (parity for issued invoices).
   documentCurrencies: CURRENCIES,
-  buildInvoiceXml(input) {
+  buildInvoiceXml(input, options = {}) {
     const doc = toDocument(input);
-    return { xml: buildInvoiceXml(doc), code: computeCufe(doc) };
+    return { xml: buildInvoiceXml(doc, options), code: computeCufe(doc) };
   },
   noteConcepts: { credit: CREDIT_NOTE_CONCEPTS, debit: DEBIT_NOTE_CONCEPTS },
   annulmentConcept: ANNULMENT_CONCEPT,

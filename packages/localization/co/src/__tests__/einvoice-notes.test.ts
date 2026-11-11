@@ -180,3 +180,49 @@ describe("CUFE parity of an issued foreign-currency invoice (Task 16 computed it
     expect(einvoicePack.documentCurrencies).toContain("COP");
   });
 });
+
+// Task 28.4 (RG-5, owner item 150 pending the accountant): the lot, expiry and serial of each line go into `cac:Item/cac:ItemInstance` only
+// when the builder is given `{ itemInstance: true }` (invoicing.settings.dian_item_instance, default off). Off, a line with instances builds
+// the document of today byte for byte; on, the golden invoice-item-instance.xml pins the elements. The CUFE does not move either way.
+describe("lots and serials in the XML (cac:ItemInstance, Task 28.4)", () => {
+  const LOTS = [{ lotNumber: "L-2311", expiryDate: "2026-12-01" }, { lotNumber: "L-2402", expiryDate: "2027-03-15" }];
+  const withInstances = () => {
+    const inv = exportUsd();
+    return { ...inv, lines: inv.lines.map((l) => ({ ...l, item: { ...l.item, instances: LOTS } })) };
+  };
+
+  it("off (the default): the line's instances change nothing, the XML is export-invoice-usd.xml", () => {
+    expect(buildInvoiceXml(withInstances())).not.toContain("ItemInstance");
+    golden("export-invoice-usd.xml", buildInvoiceXml(withInstances()));
+    golden("export-invoice-usd.xml", buildInvoiceXml(withInstances(), { itemInstance: false }));
+  });
+
+  it("on: one cac:ItemInstance per lot after StandardItemIdentification, with LotNumberID and ExpiryDate; a serial is SerialID (golden invoice-item-instance.xml)", () => {
+    const xml = buildInvoiceXml(withInstances(), { itemInstance: true });
+    expect(xml.match(/<cac:ItemInstance>/g)).toHaveLength(2);
+    expect(xml).toMatch(/<\/cac:StandardItemIdentification>\s*<cac:ItemInstance>\s*<cac:LotIdentification>\s*<cbc:LotNumberID>L-2311<\/cbc:LotNumberID>\s*<cbc:ExpiryDate>2026-12-01<\/cbc:ExpiryDate>\s*<\/cac:LotIdentification>\s*<\/cac:ItemInstance>/);
+    golden("invoice-item-instance.xml", xml);
+    const serial = exportUsd();
+    const one = { ...serial, lines: serial.lines.map((l) => ({ ...l, item: { ...l.item, instances: [{ serialId: "MOL-0001" }] } })) };
+    expect(buildInvoiceXml(one, { itemInstance: true })).toMatch(/<cac:ItemInstance>\s*<cbc:SerialID>MOL-0001<\/cbc:SerialID>\s*<\/cac:ItemInstance>/);
+    // A line without instances writes none, whatever the option.
+    expect(buildInvoiceXml(exportUsd(), { itemInstance: true })).not.toContain("ItemInstance");
+  });
+
+  it("the pack passes the option through; the CUFE is the same with or without it", () => {
+    const doc = withInstances();
+    expect(computeCufe(doc)).toBe(computeCufe(exportUsd()));
+    const input = {
+      environment: doc.environment, number: doc.number, issueDate: doc.issueDate, issueTime: doc.issueTime, resolution: doc.resolution!,
+      software: { id: SOFTWARE.id, pin: SOFTWARE.pin, providerTaxId: "900373115" },
+      issuer: { taxId: "900373115", legalName: SUPPLIER.legalName, taxResponsibilities: SUPPLIER.taxResponsibilities, taxScheme: SUPPLIER.taxScheme, countryCode: "CO", departmentCode: "05", municipalityCode: "05001" },
+      customer: doc.customer, paymentForm: doc.paymentForm, paymentMeansCode: doc.paymentMeansCode, lines: doc.lines, taxed: doc.taxed,
+      currency: "USD", exchangeRate: doc.exchangeRate!,
+    } as Parameters<typeof einvoicePack.buildInvoiceXml>[0];
+    const off = einvoicePack.buildInvoiceXml(input);
+    const on = einvoicePack.buildInvoiceXml(input, { itemInstance: true });
+    expect(off.xml).not.toContain("ItemInstance");
+    expect(on.xml).toContain("<cbc:LotNumberID>L-2402</cbc:LotNumberID>");
+    expect(on.code).toBe(off.code);
+  });
+});

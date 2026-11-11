@@ -9,10 +9,11 @@ import { SERIAL_PROCESSES } from "./processes/serial";
 import { TRACKING_PROCESSES } from "./processes/tracking";
 import { TRANSFER_PROCESSES } from "./processes/transfer";
 import { WAREHOUSE_PROCESSES } from "./processes/warehouse";
+import { REPORT_PROCESSES } from "./reports/lot-trace";
 
 // Features of the inventory module (design §5.12, §8) and its menu. Labels are i18n keys. The level-1 items are the four sections
 // (entity types spec §2.4, §9.2; plan 2B Task 10): Bodegas and Ubicaciones under Maestros; Movimientos, Transferencias and Conteos under
-// Documentos; Existencias (the masked inventory.v_stock_levels) under Reportes; Lotes and Seriales under Maestros and Seguimiento por
+// Documentos; Existencias (the masked inventory.v_stock_levels) and Trazabilidad de lotes (Task 28.4) under Reportes; Lotes and Seriales under Maestros and Seguimiento por
 // producto under Parámetros (Task 28.1). Each item names the entity whose screen it is and `runs`
 // the other processes its screen runs: while an item is hidden for a caller (kernel.menu_access) those are refused to them too.
 // MENU_SHARED lists what no screen owns: the reservations, which sales orders make and release through their events (Task 13), and the
@@ -36,6 +37,8 @@ export const NAVIGATION: NavItem[] = menuSections("inventory", {
   ],
   reportes: [
     { id: "inventory.stock", label: "nav.inventory.stock", href: "/inventory/stock", icon: "boxes", feature: "inventory.stock", entity: "inventory.stock_level" },
+    // The recall report (Task 28.4, PG §3.6): every movement of a lot or serial with its customer, and where it is today.
+    { id: "inventory.lot_trace", label: "nav.inventory.lot_trace", href: "/inventory/lot-trace", icon: "search", feature: "inventory.stock", runs: ["inventory.report.lot_trace"] },
   ],
   parametros: [
     { id: "inventory.product_tracking", label: "nav.inventory.product_tracking", href: "/inventory/product-tracking", icon: "sliders", feature: "inventory.stock", entity: "inventory.product_tracking" },
@@ -58,7 +61,7 @@ export const FEATURES: FeatureDef[] = [
   {
     id: "inventory.stock",
     label: "feature.inventory.stock",
-    processes: [...ids(MOVEMENT_PROCESSES), ...ids(RESERVATION_PROCESSES), ...ids(TRANSFER_PROCESSES), ...ids(ADJUSTMENT_PROCESSES), ...ids(COUNT_PROCESSES), ...ids(SALE_DELIVERY_PROCESSES), ...ids(LOT_PROCESSES), ...ids(SERIAL_PROCESSES), ...ids(TRACKING_PROCESSES)],
+    processes: [...ids(MOVEMENT_PROCESSES), ...ids(RESERVATION_PROCESSES), ...ids(TRANSFER_PROCESSES), ...ids(ADJUSTMENT_PROCESSES), ...ids(COUNT_PROCESSES), ...ids(SALE_DELIVERY_PROCESSES), ...ids(LOT_PROCESSES), ...ids(SERIAL_PROCESSES), ...ids(TRACKING_PROCESSES), ...ids(REPORT_PROCESSES)],
     entities: [
       "inventory.movement", "inventory.movement_line", "inventory.stock_level", "inventory.reservation",
       "inventory.transfer", "inventory.transfer_line", "inventory.count", "inventory.count_line",

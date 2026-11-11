@@ -230,7 +230,7 @@ const good = (sku: string, description: string, category: string, listPrice: num
   ...extra,
 });
 
-/** 25 products: taxes and units come from their category unless the product says otherwise. */
+/** 26 products: taxes and units come from their category unless the product says otherwise. */
 export const PRODUCTS: DemoProduct[] = [
   good("CAF-GRA-KG", "Café en grano Norte Especial · kilo", "Café en grano", 62_000, 38_000, { supplier: "900135791", minStock: 20 }),
   good("CAF-GRA-500", "Café en grano Norte Especial 500 g", "Café en grano", 32_000, 19_500, { uomCode: "94", supplier: "900135791" }),
@@ -254,6 +254,7 @@ export const PRODUCTS: DemoProduct[] = [
   good("REP-GAL-AVE", "Galletas de avena x 6", "Repostería", 9_000, 3_600, { minStock: 12 }),
   good("ACC-PRE-FRA", "Prensa francesa 1 litro", "Accesorios y empaques", 89_000, 52_000, { brand: "Barista Pro", minStock: 4 }),
   good("ACC-FIL-V60", "Filtros de papel V60 x 100", "Accesorios y empaques", 28_000, 16_000, { brand: "Barista Pro", minStock: 6 }),
+  good("ACC-MOL-ELE", "Molino de café eléctrico", "Accesorios y empaques", 320_000, 190_000, { brand: "Barista Pro", minStock: 1 }),
   good("ACC-MUG-NOR", "Mug Café del Norte 12 oz", "Accesorios y empaques", 32_000, 14_000, { supplier: "901357924", minStock: 10 }),
   { sku: "SER-BAR-CUR", description: "Curso de barismo básico (8 horas)", kind: "service", category: "Servicios", listPrice: 450_000, trackStock: false },
   { sku: "SER-MAN-MAQ", description: "Mantenimiento preventivo de máquina espresso", kind: "service", category: "Servicios", listPrice: 280_000, standardCost: 150_000, trackStock: false, supplier: "900864213" },

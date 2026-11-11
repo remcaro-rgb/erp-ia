@@ -10,11 +10,13 @@ routes:
   - /inventory/lots
   - /inventory/serials
   - /inventory/product-tracking
+  - /inventory/lot-trace
   - /costing/layers
   - /costing/missing
   - /costing/landed-costs
   - /costing/settings
 processes:
+  - inventory.report.lot_trace
   - inventory.warehouse.create
   - inventory.warehouse.update
   - inventory.location.create
@@ -122,6 +124,18 @@ Las entradas se numeran `EN-…`, las salidas `SA-…` y los ajustes `AJ-…`. U
 1. En la **Hoja de conteo**, escribe lo **Contado** por línea y pulsa **Registrar conteo**. Puedes hacerlo por partes. La columna **Diferencia** muestra contado menos sistema.
 2. Cuando todas las líneas estén contadas, pulsa **Aplicar conteo**. El sistema pide tu **código de verificación** y registra todas las diferencias como **un solo ajuste**.
 3. El conteo queda **Aplicado** y enlaza a su ajuste. Abre el ajuste para ver su comprobante en la pestaña **Contabilidad**.
+
+## Trazabilidad de lotes (retiro del mercado)
+
+**Inventario › Reportes › Trazabilidad de lotes** responde «¿a quién le vendimos este lote?». Elige un **Lote** (o un **Serial**, no los dos) y, si quieres, un rango **Desde / Hasta**. El reporte lista, del más antiguo al más reciente, cada movimiento que movió ese lote o serial:
+
+- **Fecha**, **Tipo** (Entrada, Salida por venta, Devolución de venta, Traslado, Ajuste…), **Bodega** y **Cantidad** (negativa cuando sale).
+- **Número**: el movimiento de inventario; ábrelo para llegar a la entrega o devolución que lo originó. **Documento** es el número de ese documento de origen (la entrega, la devolución o la referencia de la entrada).
+- **Cliente**: a quién se le entregó o quién lo devolvió. Lo guarda el propio movimiento al despachar la entrega y al recibir la devolución, así que no cambia si después editas el pedido. Si tu rol no puede ver el cliente del movimiento, la columna sale vacía.
+
+Al final, una fila **Existencia** por bodega que todavía tiene ese lote o serial (el rango de fechas no la cambia: es la de hoy). Exporta el reporte a PDF, Excel o CSV con los botones de siempre. El asistente también lo consulta: pregúntale, por ejemplo, «¿A qué clientes fue el lote L-2311?».
+
+En la demostración, **Café molido tradicional 500 g** se sigue por lote (L-2311 vence primero, L-2402 después) y el **Molino de café eléctrico** por serial (MOL-0001 a MOL-0003); la entrega a Distribuciones Andinas del Café salió por FEFO en los dos lotes.
 
 ## Existencias
 

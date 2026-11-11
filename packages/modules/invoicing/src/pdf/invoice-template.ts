@@ -35,7 +35,8 @@ export const EINVOICE_IMAGE_VARIABLES: readonly string[] = [FE.qr];
 
 /** The header fields an invoice prints, in this order (what the customer reads; the CUFE goes in the footer). */
 export const INVOICE_PRINT_FIELDS = ["number", "party_id", "issue_date", "issue_time", "due_date", "payment_form", "currency", "subtotal", "discount_total", "tax_total", "total", "notes"];
-export const INVOICE_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "qty", "unit_price", "discount", "base", "iva", "inc", "total"];
+/** The lines table; «Lote / Vence / Serie» (Task 28.4) prints the lots and serials a line bills, empty for an untracked product. */
+export const INVOICE_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "lots", "qty", "unit_price", "discount", "base", "iva", "inc", "total"];
 /** The header fields a credit or debit note prints. */
 export const NOTE_PRINT_FIELDS = ["number", "kind", "invoice_id", "party_id", "issue_date", "issue_time", "reason", "currency", "subtotal", "tax_total", "total", "notes"];
 export const NOTE_PRINT_LINE_COLUMNS = ["line_no", "product_id", "description", "qty", "unit_price", "base", "iva", "inc", "total"];

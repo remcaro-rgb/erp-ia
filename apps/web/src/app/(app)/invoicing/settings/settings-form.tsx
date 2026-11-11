@@ -12,6 +12,8 @@ import { useAction } from "./use-action";
 export interface SettingsView {
   invoiceCreation: string;
   dianEnvironment: string;
+  /** Task 28.4: lots and serials as cac:ItemInstance in the XML (off by default, step-up). */
+  dianItemInstance: boolean;
   creditDays: number;
   /** The DIAN verification checklist (Task 35): the confirmation as it counts (effective), the ticks and the items added since it was made. */
   checklist: { confirmed: boolean; done: number; total: number; newCount: number } | null;
@@ -82,6 +84,7 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
   const [taxScheme, setTaxScheme] = useState(settings.issuerTaxScheme);
   const [department, setDepartment] = useState(settings.issuerDepartmentCode ?? "");
   const [municipality, setMunicipality] = useState(settings.issuerMunicipalityCode ?? "");
+  const [itemInstance, setItemInstance] = useState(settings.dianItemInstance);
   const connection = useAction("settings", () => t("saved"));
 
   // Resolución y numeración
@@ -121,6 +124,7 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
       issuerTaxScheme: taxScheme,
       issuerDepartmentCode: orNull(department),
       issuerMunicipalityCode: orNull(municipality),
+      dianItemInstance: itemInstance,
     });
   const saveSequence = () => {
     const input: Record<string, unknown> = { documentType: docType, prefix: prefix.trim().toUpperCase() };
@@ -214,6 +218,12 @@ export function InvoicingSettingsForm({ settings, numbering, pending, companyTax
           <Field id={`${f}-muni`} label={t("issuer_municipality")}>
             <input id={`${f}-muni`} value={municipality} inputMode="numeric" maxLength={5} onChange={(e) => setMunicipality(e.target.value)} autoComplete="off" />
           </Field>
+        </div>
+        <div className="erp-field">
+          <label>
+            <input type="checkbox" data-testid="dian-item-instance" checked={itemInstance} onChange={(e) => setItemInstance(e.target.checked)} /> {t("item_instance")}
+          </label>
+          <span className="erp-small erp-muted">{t("item_instance_hint")}</span>
         </div>
         {/* Task 35: the DIAN defaults are confirmed on the checklist's own screen (the settings update no longer carries the flag). */}
         <div className="erp-field" data-testid="dian-defaults">
