@@ -57,4 +57,8 @@ Approved by the owner in chat 2026-11-10 (items 144–164 as recommended; 150, 1
 - **Decided by the owner**: sections U to AB of [[Plan phase-2b-owner-decisions-pending]] (items 165–207) as recommended or noted; **206 still to decide**.
 - **28.5 added** to [[Plan phase-2b-sales-stock-chain]] (items 165, 175): record forms for Lote, Serial and Seguimiento por producto, the count's «Agregar encontrado» row, lot and serial links; runs in parallel with 29.1. Prompt `task-28-5-lot-serial-forms.md`.
 
+## Owner decisions after Task 29.3 (2026-11-11)
+- Item 206 and sections AC–AF of [[Plan phase-2b-owner-decisions-pending]] (items 209–238) confirmed as recommended; 211, 221 and 238 noted.
+- Kept for later: historical refs that show the name (206), split untracked picks (227), a print table per package line (236); the demo gets Bodega with 29.4 (218).
+
 Related: [[Plan phase-2b-sales-stock-chain]], [[Plan phase-2b-owner-decisions-pending]].

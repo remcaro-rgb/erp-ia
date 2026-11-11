@@ -635,9 +635,11 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: a longer spec.
 198. **The basis select has no empty choice** (plan 30.4 settings). «Base de comisión» is required (`on_collection` default): the settings form's select gained a `required` flag that drops the «—» option. **Note**.
 
-## AB. Items met while executing 2B.2 Task 28.4 (invoice, DIAN option, recall report, demo), 2026-11-10 · decided 2026-11-10 except item 206 (to decide)
+## AB. Items met while executing 2B.2 Task 28.4 (invoice, DIAN option, recall report, demo), 2026-11-10 · decided 2026-11-10 (item 206 on 2026-11-11)
 
 **Decided by the owner in chat, 2026-11-10** (preflight before Task 29): 199–204 confirmed as recommended; 205 decided as option A (`allowedDevOrigins: ["127.0.0.1"]` in `apps/web/next.config.ts`); 207 noted; 208 decided as recommended (lint ignores `.superpowers/**`, payments assertions updated to 34.8b's dimension, the seven module packages added to `vitest.workspace.ts`). **206 was not covered by the owner's approval: still to decide.**
+
+**Decided by the owner in chat, 2026-11-11**: item 206 confirmed as recommended (`party_id` stays `uuid`; a kernel option for historical refs is a later option).
 
 (Numbered after 198: items 191–198 were taken by Task 30.4.)
 
@@ -660,7 +662,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
 208. **Not 28.4's, found by its gates.** `pnpm lint` fails on 11 errors in the git-ignored `.superpowers/sdd/…/pdf/*.mjs` scratch files (eslint does not ignore that folder; lint of the repo without it is clean). `packages/modules/payments` unit tests fail 2 of 36 (`entities.test.ts:170`): the receipt rule's dimension is `payment_method_id:<uuid>` since 34.8b (e49d3af) and the test still expects `payment_method:transfer`. The root `pnpm test` does not run the module packages' unit tests (vitest.workspace.ts lists only core and support), so neither showed in it.
     Recommended: add `.superpowers/**` to the eslint ignores; update the payments test to the 34.8b dimension; add the module packages to vitest.workspace.ts. Cost if wrong: CI may fail on the same.
 
-## AC. Items met while executing 2B.2 Task 28.5 (forms for lots, serials and tracking; found rows on the count), 2026-11-11 · to decide
+## AC. Items met while executing 2B.2 Task 28.5 (forms for lots, serials and tracking; found rows on the count), 2026-11-11 · decided 2026-11-11
+
+**Decided by the owner in chat, 2026-11-11**: items 209 and 210 confirmed as recommended; 211 noted.
 
 209. **The seguimiento por producto record has one save process and no «Duplicar»** (plan 28.5, rule 37). `inventory.product_tracking.set` is kind update, keyed by the product (one row per product), and `inventory.product_tracking.consult` takes `productId`. The record page resolves the product from `inventory.v_product_tracking` as the caller (`RecordEntity.keyedBy` in `apps/web/src/lib/records/entities.ts`) and the form sends `{ productId, tracking, fefo, expiryRequired, blockExpired }` both from «Nuevo» and from a stored row. Rule 37 asks «Duplicar» of an entity with a create process; this parametro has none, so the frame offers no «Duplicar», and its «Datos adicionales» tab is read only (the process takes no extra data). The frame names the record by its product.
     Recommended: confirm. Cost if wrong: a `duplicable` flag and a product cleared on the clone (one entity line, one web line).
@@ -668,7 +672,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: one line (a date field could be listed in `cloneReset` where a copy should not keep it).
 211. **Files 28.5 touched outside the plan's list.** `packages/modules/inventory/src/entities.ts` (`recordPage: true` on lot, serial, product_tracking: without it no record page or link exists); `apps/web/src/lib/records/entities.ts` and `load.ts` (the three record entries, `keyedBy`, a reference title); `apps/web/src/app/(app)/r/[entity]/[id]/count-found.tsx` (the found rows, split from `stock-view.tsx` because the i18n test reads one namespace per file); `apps/web/src/app/(app)/inventory/lot-trace/lot-trace-heading.tsx` (the report heading, a client component that follows the bar's `?p=`); `apps/web/src/lib/inventory/lot-trace-report.ts` gained `lotTracePage`. The three grid pages needed no change: «Nuevo» comes from the record entries. `presentation.ts` needed no change: the lot and serial columns link through `linkableEntities` once the entities have record pages. **Note**.
 
-## AD. Items met while executing 2B.2 Task 29.1 (warehouse module, picks, reservation allocation), 2026-11-11 · to decide
+## AD. Items met while executing 2B.2 Task 29.1 (warehouse module, picks, reservation allocation), 2026-11-11 · decided 2026-11-11
+
+**Decided by the owner in chat, 2026-11-11**: items 212–220 confirmed as recommended (218: the demo company is entitled to Bodega with 29.4's demo data; 219: the Bodega guide lands with 29.3/29.4); 221 noted.
 
 212. **`warehouse.pick.create` takes every origin** (plan 29.1 says «origins `event`, `ui`», while 29.4's eval has the assistant call it with a confirmation card). It is left without an `origins` list so the assistant can call «Crear alistamiento» too (the 29.4 eval names it); the inputs `eventId` and `confirmedAt` are read only when the origin is `event` (the consumer of `sales.order.confirmed`), so neither the screen nor the assistant can skip RG-10 or the `auto_pick_on_confirm` switch. Besides RG-10's `before_enabled` and `fully_delivered`, the answer `{created:false}` gives `open_pick` (with the open alistamiento), `auto_pick_off`, `order_cancelled` and `no_warehouse` (the last two only on the event path; from the screen they are refusals).
     Recommended: confirm. Cost if wrong: `origins: ["event", "ui"]` on the process (one line) and the 29.4 eval changes.
@@ -690,7 +696,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
     Recommended: confirm. Cost if wrong: one query in `processes/common.ts`.
 221. **Small choices.** The module's mark in the side menu is `package` (an existing nav icon; no UI change). The card line «Inventario: asigna ubicación y lote a la reserva» is inventory's effect on `warehouse.pick.confirmed` (`inventory.effects.pick_allocate`), as the effects-coverage test asks of a consumed event; warehouse's own lines cover its three consumed events. `warehouse.pick_line.consult` was added (the masked line view's reader, like other modules' line consults). The test-support and script imports name the module `warehouseModule`, because those files already use a local `warehouse` (the bodega). **Note**.
 
-## AE. Items met while executing 2B.2 Task 29.2 (entrega from the alistamiento, ship from the allocation), 2026-11-11 · to decide
+## AE. Items met while executing 2B.2 Task 29.2 (entrega from the alistamiento, ship from the allocation), 2026-11-11 · decided 2026-11-11
+
+**Decided by the owner in chat, 2026-11-11**: items 222–229 confirmed as recommended (227: confirmed for 2B.2; the later choice between refusing a split untracked pick and one entrega line per bucket stays open).
 
 222. **How sales' consumer writes `pick_to_delivery`** (plan 29.2: «written by sales' consumer through `ctx.links.sync`»). An event consumer has no `ctx.links` (the kernel gives links only to a running create or update process, which must own the `to` document), so the link is written inside `sales.delivery.create`: the input gains `pickId?`, sent only by the consumer of `inventory.reservation.allocated`; the handler refuses it from any origin but `event` (`pick_event_only`) and syncs `pick_to_delivery` (from `warehouse.pick`) next to `order_to_delivery`. No manifest field declares link kinds; «warehouse's `links`» is read as the kind name plus its label «Alistamiento → Entrega» in `record.related.kind` (kernel namespace, both catalogues). No wrapper process, no migration (0171 stays free).
     Recommended: confirm. Cost if wrong: a wrapper process `sales.delivery.create_from_pick` (event only) nesting the create.
@@ -709,7 +717,9 @@ Design draft: `docs/superpowers/specs/2026-11-10-part-g-design.md` (sections cit
 229. **The voided entrega's re-reservation comes back without allocations.** Voiding a shipped entrega from an alistamiento gives the stock back to the allocated buckets (the movement's own lines) and Task 43 re-reserves the pedido lines, but the allocations were used up at ship and are not recreated: a new alistamiento (or FEFO at the next ship) decides again. Also, a pedido with an open entrega from its alistamiento cannot be cancelled (`order_has_deliveries`, as any open entrega): the entrega is voided first. 29.1's `pick.integration.test.ts` (5) now voids that entrega before cancelling.
     Recommended: confirm. Cost if wrong: restore the allocations in `reserve_again` from the voided movement's lines.
 
-## AF. Items met while executing 2B.2 Task 29.3 (packing and put-away), 2026-11-11 · to decide
+## AF. Items met while executing 2B.2 Task 29.3 (packing and put-away), 2026-11-11 · decided 2026-11-11
+
+**Decided by the owner in chat, 2026-11-11**: items 230–237 confirmed as recommended (236: confirmed for 2B.2; a print table per package line or cell wrapping stays a later option); 238 noted.
 
 230. **«Consumes `inventory.movement.posted` for receipt suggestions» read as a kernel recommendation** (plan 29.3 Files). Warehouse's consumer of `inventory.movement.posted` acts only on kind `receipt` and runs `warehouse.putaway.notify` (event only, idempotent per event), which raises the kernel recommendation «Recibido por ubicar» (`reason: putaway_pending`, subject the receipt `inventory.movement`, audience `warehouse.putaway.confirm`) with the entrada's number, bodega and line count. The suggestion itself is not stored: `warehouse.putaway.suggest` (consult) computes it on demand, and `warehouse.putaway.confirm` closes the recommendation. No table, no migration for it. RG-10: a receipt applied before the module started (item 220's date) raises nothing and suggests nothing; confirm itself is not filtered by date.
     Recommended: confirm. Cost if wrong: a `warehouse.putaway_suggestions` table (one migration of the block) written by the consumer.
