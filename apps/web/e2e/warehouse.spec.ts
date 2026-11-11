@@ -92,9 +92,11 @@ test.describe("warehouse", () => {
     await frame(page).getByRole("button", { name: "Confirmar alistamiento", exact: true }).click();
     await expect(frame(page).getByTestId("pick-stage")).toHaveText("Confirmado");
     chain(["drain", confirmed]);
-    const [picked] = await sql<{ lot: string; qty: number }[]>`
-      select l.code as lot, pl.qty_picked::float8 as qty from warehouse.pick_lines pl join inventory.lots l on l.id = pl.lot_id where pl.pick_id = ${pick!.id}`;
-    expect(picked?.qty).toBe(QTY);
+    // FEFO may take more than one lot (a found lot another spec adds expires first): the pick is the set of lots taken, QTY in all.
+    const picked = await sql<{ lot: string; qty: number }[]>`
+      select l.code as lot, sum(pl.qty_picked)::float8 as qty from warehouse.pick_lines pl join inventory.lots l on l.id = pl.lot_id
+      where pl.pick_id = ${pick!.id} and pl.qty_picked > 0 group by l.code order by l.code`;
+    expect(picked.reduce((sum, p) => sum + p.qty, 0)).toBe(QTY);
     const [delivery] = await sql<{ id: string }[]>`
       select d.id from sales.deliveries d join kernel.document_links k on k.to_entity = 'sales.delivery' and k.to_id = d.id
       where k.from_entity = 'warehouse.pick' and k.from_id = ${pick!.id} and d.status <> 'voided'`;
@@ -109,11 +111,12 @@ test.describe("warehouse", () => {
     await frame(page).getByRole("button", { name: "Despachar", exact: true }).click();
     await expect(frame(page).getByTestId("delivery-stage")).toHaveText("Despachada");
     chain(["drain", shipped]);
-    const lots = await sql<{ lot_code: string; qty: number }[]>`
-      select x.lot_code, x.qty::float8 as qty from sales.delivery_line_lots x join sales.delivery_lines l on l.id = x.delivery_line_id where l.delivery_id = ${delivery!.id}`;
-    expect(lots).toEqual([{ lot_code: picked!.lot, qty: QTY }]);
+    const lots = await sql<{ lot: string; qty: number }[]>`
+      select x.lot_code as lot, sum(x.qty)::float8 as qty from sales.delivery_line_lots x join sales.delivery_lines l on l.id = x.delivery_line_id
+      where l.delivery_id = ${delivery!.id} group by x.lot_code order by x.lot_code`;
+    expect([...lots]).toEqual([...picked]);
     await page.reload();
-    await expect(frame(page).getByText(picked!.lot).first()).toBeVisible();
+    for (const p of picked) await expect(frame(page).getByText(p.lot).first()).toBeVisible();
 
     // ── Ubicar recibidos: a receipt at Estantería A goes to its category's bin (the rule of «Café en grano»). ──
     const reference = `OC-E2E-${Date.now().toString(36).toUpperCase()}`;

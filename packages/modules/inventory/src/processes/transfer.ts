@@ -3,7 +3,7 @@ import { z } from "zod";
 import { transferEntity } from "../entities";
 import { id, idInput, productFacts, quantity, refuse, savedMovementId, type ProductFacts } from "./common";
 import { companyToday, lockStockLegs, MOVEMENT_POSTED, postMovement, refuseTransitWarehouse, warehouseOf } from "./movement";
-import { resolveTracked } from "./tracked-lines";
+import { lockTracking, resolveTracked } from "./tracked-lines";
 
 // Traslados entre bodegas (plan 2B Task 7, design §8.1, Review Focus 1). A traslado is a documento (numbered TR- on save, lines) that
 // moves stock in two steps through the company's transit ubicación, so the stock on its way is never lost nor counted twice:
@@ -212,6 +212,9 @@ export const transferShip = defineProcess({
     const lines = await linesOf(ctx, transferId);
     const transit = await ensureTransit(ctx);
     const productIds = lines.map((l) => l.product_id);
+    // The tracking locks (shared) before the stock locks, the order postMovement and the sale issue follow: a tracking change waiting on
+    // the product never stalls behind a transfer holding its stock locks.
+    await lockTracking(ctx, productIds);
     // Every leg in one ordered pass, before the first movement.
     await lockStockLegs(ctx, [{ warehouseId: t.from_warehouse_id, productIds }, { warehouseId: transit.warehouseId, productIds }]);
     const when = await companyToday(ctx);
@@ -246,6 +249,9 @@ export const transferReceive = defineProcess({
     const [transit] = await ctx.tx<{ id: string; warehouse_id: string }[]>`select id, warehouse_id from inventory.locations where id = ${t.transit_location_id}`;
     if (!transit) refuse("transit_location_missing", ["No se encuentra la ubicación de tránsito del traslado"]);
     const productIds = lines.map((l) => l.product_id);
+    // The tracking locks (shared) before the stock locks, the order postMovement and the sale issue follow: a tracking change waiting on
+    // the product never stalls behind a transfer holding its stock locks.
+    await lockTracking(ctx, productIds);
     await lockStockLegs(ctx, [{ warehouseId: transit.warehouse_id, productIds }, { warehouseId: t.to_warehouse_id, productIds }]);
     const when = await companyToday(ctx);
     const base = { date: when, sourceEntity: transferEntity.id, sourceId: transferId, reference: t.number ?? undefined };

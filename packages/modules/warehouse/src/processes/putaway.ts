@@ -1,6 +1,6 @@
 import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
-import { enabledSince, id, num, qtyText, quantity, refuse, round4 } from "./common";
+import { enabledSince, id, num, qtyText, quantity, refuse, round4, trackingOf } from "./common";
 
 // Put-away (plan 2B.2 Task 29.3, PG §4.3 step 8; owner item 155; RG-10). The Reglas de ubicación say, per bodega, where the goods of a
 // category (or any goods) go, the lowest priority first. warehouse.putaway.suggest lists, for a receipt (an inventory movement of kind
@@ -165,9 +165,26 @@ async function receiptOf(ctx: ProcessContext, movementId: string): Promise<Recei
   return row as ReceiptRow & { warehouse_id: string };
 }
 
+type BucketOf = { product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null };
+const bucketKey = (r: BucketOf) => `${r.product_id}|${r.location_id ?? ""}|${r.lot_id ?? ""}|${r.serial_id ?? ""}`;
+
+/**
+ * What put-aways of the receipt took, per bucket (product, ubicación of origin, lot, serial; migration 0174): what inventory relocated
+ * (relocation_id set by its answer) and, with `inFlight`, also what was confirmed and not yet relocated.
+ */
+async function putAwayOf(ctx: ProcessContext, movementId: string, inFlight: boolean): Promise<Map<string, number>> {
+  const rows = await ctx.tx<{ product_id: string; from_location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string }[]>`
+    select product_id, from_location_id, lot_id, serial_id, sum(qty)::text as qty from warehouse.putaway_moves
+    where company_id = ${ctx.companyId} and movement_id = ${movementId} and (${inFlight}::boolean or relocation_id is not null)
+    group by product_id, from_location_id, lot_id, serial_id`;
+  return new Map(rows.map((r) => [bucketKey({ ...r, location_id: r.from_location_id }), num(r.qty)]));
+}
+
 /**
  * The put-away of a receipt (see the file header). Per receipt line, what is still in the ubicación it was received in (the bucket's stock,
- * shared by the lines of one bucket in line order), and where it goes: the ubicación of the bodega (other than that one) holding most of the
+ * shared by the lines of one bucket in line order), never more than what earlier put-aways of the receipt left of the line (they are taken
+ * from its lines in line order: the ubicación's other stock is never put away with this receipt), and where it goes: the ubicación of the
+ * bodega (other than that one) holding most of the
  * same lot, else the first rule of the product's category, else the first rule without category, by priority then rule number. A line
  * already where its rule says, or with nothing left to move, is not listed; a line no rule covers is listed without destination.
  */
@@ -194,14 +211,17 @@ export async function suggestFor(ctx: ProcessContext, movementId: string): Promi
     from inventory.v_stock_levels s left join inventory.v_locations l on l.id = s.location_id
     where s.warehouse_id = ${receipt.warehouse_id} and s.product_id = any(${products}::uuid[]) and s.on_hand > 0
       and (s.location_id is null or l.kind = 'storage')`;
-  const key = (r: { product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null }) => `${r.product_id}|${r.location_id ?? ""}|${r.lot_id ?? ""}|${r.serial_id ?? ""}`;
+  const key = bucketKey;
   const left = new Map<string, number>();
   for (const s of stock) left.set(key(s), round4((left.get(key(s)) ?? 0) + num(s.on_hand)));
+  const done = await putAwayOf(ctx, receipt.id, false);
 
   const out: Suggestion["lines"] = [];
   for (const line of lines) {
     const k = key(line);
-    const qty = round4(Math.min(num(line.qty), left.get(k) ?? 0));
+    const already = Math.min(num(line.qty), done.get(k) ?? 0);
+    if (already > 0) done.set(k, round4((done.get(k) ?? 0) - already));
+    const qty = round4(Math.min(num(line.qty) - already, left.get(k) ?? 0));
     if (qty <= 0) continue;
     left.set(k, round4((left.get(k) ?? 0) - qty));
     let toLocationId: string | null = null;
@@ -273,7 +293,9 @@ export const putawayConfirm = defineProcess({
   output: z.object({ movementId: z.string(), lines: z.number().int() }),
   handler: async (ctx, input) => {
     const receipt = await receiptOf(ctx, input.movementId);
-    const received = new Set((await ctx.tx<{ product_id: string }[]>`
+    // One confirmation of a receipt at a time: the second sees what the first took (warehouse.putaway_moves).
+    await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${`warehouse.putaway:${ctx.companyId}:${receipt.id}`}, 0))`;
+    const products = new Set((await ctx.tx<{ product_id: string }[]>`
       select distinct product_id from inventory.v_movement_lines where movement_id = ${receipt.id}`).map((r) => r.product_id));
     const locationIds = [...new Set(input.lines.flatMap((l) => [l.toLocationId, ...(l.fromLocationId ? [l.fromLocationId] : [])]))];
     const locations = new Map((await ctx.tx<{ id: string; warehouse_id: string | null; kind: string | null }[]>`
@@ -282,7 +304,7 @@ export const putawayConfirm = defineProcess({
     const add = (code: string, text: string) => problems.set(code, [...(problems.get(code) ?? []), text]);
     input.lines.forEach((l, i) => {
       const at = `Línea ${i + 1}`;
-      if (!received.has(l.productId)) add("putaway_not_on_receipt", `${at}: el producto no está en la entrada ${receipt.number ?? receipt.id}`);
+      if (!products.has(l.productId)) add("putaway_not_on_receipt", `${at}: el producto no está en la entrada ${receipt.number ?? receipt.id}`);
       for (const locationId of [l.fromLocationId, l.toLocationId]) {
         if (!locationId) continue;
         const loc = locations.get(locationId);
@@ -291,6 +313,17 @@ export const putawayConfirm = defineProcess({
         else if (loc.kind !== "storage") add("invalid_location", `${at}: la ubicación de tránsito solo la usan los traslados`);
       }
       if (l.fromLocationId === l.toLocationId) add("invalid_location", `${at}: la ubicación de origen y la de destino son la misma`);
+    });
+    // What inventory's relocation would refuse for the product's tracking is refused here, before the event (a refused relocation stays in
+    // flight until it is retried).
+    const tracking = await trackingOf(ctx, [...products]);
+    input.lines.forEach((l, i) => {
+      const at = `Línea ${i + 1}`;
+      const t = tracking.get(l.productId)?.tracking ?? "none";
+      if (t === "lot" && !l.lotId) add("lot_required", `${at}: el producto se controla por lote; indica el lote`);
+      if (t === "serial" && (!l.serialId || l.qty !== 1)) add("serials_required", `${at}: el producto se controla por serial; un serial por unidad`);
+      if (t !== "lot" && l.lotId) add("product_not_tracked", `${at}: el producto no se controla por lote`);
+      if (t !== "serial" && l.serialId) add("product_not_tracked", `${at}: el producto no se controla por serial`);
     });
     for (const code of ["relocation_cross_warehouse", ...problems.keys()]) if (problems.has(code)) refuse(code, problems.get(code)!);
 
@@ -304,11 +337,25 @@ export const putawayConfirm = defineProcess({
     const stock = await ctx.tx<{ product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; on_hand: string }[]>`
       select product_id, location_id, lot_id, serial_id, on_hand::text from inventory.v_stock_levels
       where warehouse_id = ${receipt.warehouse_id} and product_id = any(${[...new Set(input.lines.map((l) => l.productId))]}::uuid[])`;
-    const onHand = new Map(stock.map((s) => [`${s.product_id}|${s.location_id ?? ""}|${s.lot_id ?? ""}|${s.serial_id ?? ""}`, num(s.on_hand)]));
-    const short = [...want].filter(([k, w]) => w.qty > (onHand.get(k) ?? 0));
-    if (short.length > 0) {
-      refuse("putaway_exceeds_stock", short.map(([k, w]) => `Línea ${w.index + 1}: en la ubicación de origen hay ${qtyText(onHand.get(k) ?? 0)} y se ubican ${qtyText(w.qty)}`));
+    const onHand = new Map(stock.map((s) => [bucketKey(s), num(s.on_hand)]));
+    // At most what is left of the receipt in that bucket: what its lines brought there minus what earlier put-aways of it relocated or
+    // still have in flight (0174), so the ubicación's other stock (an earlier receipt, a return) is never put away under this receipt and two
+    // quick confirmations never move the same units twice.
+    const received = new Map<string, number>();
+    for (const r of await ctx.tx<(BucketOf & { qty: string })[]>`
+      select product_id, location_id, lot_id, serial_id, qty::text from inventory.v_movement_lines where movement_id = ${receipt.id} and qty > 0`) {
+      received.set(bucketKey(r), round4((received.get(bucketKey(r)) ?? 0) + num(r.qty)));
     }
+    const done = await putAwayOf(ctx, receipt.id, true);
+    const leftOf = (k: string) => Math.max(0, round4(Math.min(onHand.get(k) ?? 0, (received.get(k) ?? 0) - (done.get(k) ?? 0))));
+    const short = [...want].filter(([k, w]) => w.qty > leftOf(k));
+    if (short.length > 0) {
+      refuse("putaway_exceeds_stock", short.map(([k, w]) => `Línea ${w.index + 1}: de la entrada quedan ${qtyText(leftOf(k))} en la ubicación de origen y se ubican ${qtyText(w.qty)}`));
+    }
+    await ctx.tx`insert into warehouse.putaway_moves ${ctx.tx(input.lines.map((l) => ({
+      company_id: ctx.companyId, movement_id: receipt.id, product_id: l.productId, lot_id: l.lotId ?? null, serial_id: l.serialId ?? null,
+      from_location_id: l.fromLocationId, to_location_id: l.toLocationId, qty: l.qty, chain_id: ctx.chainId,
+    })))}`;
 
     await ctx.emit(PUTAWAY_CONFIRMED, {
       movementId: receipt.id,
@@ -340,11 +387,18 @@ export const putawayNotify = defineProcess({
   feature: FEATURE,
   origins: ["event"],
   description:
-    "Avisa que una entrada tiene mercancía por ubicar según las reglas de ubicación (una recomendación para quien confirma ubicaciones); solo lo ejecuta el evento del movimiento",
+    "Avisa que una entrada tiene mercancía por ubicar según las reglas de ubicación (una recomendación para quien confirma ubicaciones) y registra la reubicación hecha de una ubicación confirmada; solo lo ejecuta el evento del movimiento",
   idempotencyKey: (input) => `putaway_notify:${input.eventId}`,
   input: z.object({ movementId: id, eventId: id }).strict(),
-  output: z.object({ raised: z.boolean(), reason: z.enum(["before_enabled", "nothing_to_put_away"]).optional() }),
+  output: z.object({ raised: z.boolean(), reason: z.enum(["before_enabled", "nothing_to_put_away", "relocation_recorded"]).optional() }),
   handler: async (ctx, { movementId }) => {
+    // inventory's answer to a confirmed put-away: the relocation posted on the confirmation's chain (0174) moves its rows out of flight.
+    const [movement] = await ctx.tx<{ kind: string | null }[]>`select kind from inventory.v_movements where id = ${movementId}`;
+    if (movement?.kind === "relocation") {
+      await ctx.tx`update warehouse.putaway_moves set relocation_id = ${movementId}
+        where company_id = ${ctx.companyId} and chain_id = ${ctx.chainId} and relocation_id is null`;
+      return { raised: false, reason: "relocation_recorded" as const };
+    }
     const suggestion = await suggestFor(ctx, movementId);
     if (!suggestion.listed) return { raised: false, reason: "before_enabled" as const };
     const pending = suggestion.lines.filter((l) => l.toLocationId !== null);

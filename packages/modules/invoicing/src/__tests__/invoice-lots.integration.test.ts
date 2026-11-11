@@ -125,10 +125,109 @@ describe("lots on the invoice and in the DIAN document (Task 28.4)", () => {
     expect(await keys()).not.toContain("lotes_en_xml");
   });
 
+  it("«Emitir» before the entrega's lots are recorded is refused lots_pending (retryable); once inventory's answer is in, it issues with them", async () => {
+    const order = await h.run<{ id: string }>(h.admin, "sales.order.create", { partyId: h.partyId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId, qty: 1, unitPrice: 20000 }] });
+    await h.run(h.admin, "sales.order.confirm", { id: order.id });
+    expect(await h.drain()).toEqual([]);
+    const delivery = await h.run<{ id: string; lines: { id: string }[] }>(h.admin, "sales.delivery.create", { orderId: order.id, date: h.today, costCenterId: h.costCenterId });
+    await h.run(h.admin, "sales.delivery.ship", { id: delivery.id });
+    // Not drained: inventory has not issued the entrega yet, so sales has no lots for its line. The view says so.
+    const [published] = await withClaims(h.sql, h.admin.claims, (tx) => tx<{ lots: unknown; lots_pending: boolean }[]>`select lots, lots_pending from sales.v_invoice_delivery_lines where id = ${delivery.lines[0]!.id}`);
+    expect(published).toMatchObject({ lots: null, lots_pending: true });
+    const created = await h.run<{ invoices: { id: string }[] }>(h.admin, "invoicing.invoice.from_orders", { orderIds: [order.id] });
+    const invoiceId = created.invoices[0]!.id;
+    const refused = await h.refusal(h.run(h.admin, "invoicing.invoice.issue", { id: invoiceId }));
+    expect(refused).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^lots_pending: .*lotes/) });
+    expect((await h.sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${invoiceId}`)[0]!.stage).toBe("draft");
+    expect(await h.drain()).toEqual([]);
+    await h.run(h.admin, "invoicing.invoice.issue", { id: invoiceId });
+    expect((await linesOf(invoiceId))[0]!.lots).toEqual([{ lotCode: "L-2402", expiresOn: `${h.year + 1}-03-15`, serialNo: null, qty: 1 }]);
+  });
+
+  it("on_delivery: the automatic invoice of a lot entrega is issued with its lots (it waits for inventory's answer, no dead letter, no recommendation)", async () => {
+    await h.runStepUp("invoicing.settings.update", { invoiceCreation: "on_delivery" });
+    try {
+      const order = await h.run<{ id: string }>(h.admin, "sales.order.create", { partyId: h.partyId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId, qty: 1, unitPrice: 20000 }] });
+      await h.run(h.admin, "sales.order.confirm", { id: order.id });
+      expect(await h.drain()).toEqual([]);
+      const delivery = await h.run<{ id: string }>(h.admin, "sales.delivery.create", { orderId: order.id, date: h.today, costCenterId: h.costCenterId });
+      await h.run(h.admin, "sales.delivery.ship", { id: delivery.id });
+      expect(await h.drain()).toEqual([]);
+      const [invoice] = await h.sql<{ id: string; stage: string }[]>`select id, stage from invoicing.invoices where company_id = ${h.companyId} and auto_source = ${`delivery:${delivery.id}`}`;
+      expect(invoice!.stage).toBe("issued");
+      expect((await linesOf(invoice!.id))[0]!.lots).toEqual([{ lotCode: "L-2402", expiresOn: `${h.year + 1}-03-15`, serialNo: null, qty: 1 }]);
+      expect(await h.sql`select 1 from invoicing.invoice_recommendations where invoice_id = ${invoice!.id}`).toHaveLength(0);
+
+      // The allocated consumer meeting the lots still missing (sales' consumer not run yet) throws lots_pending (invalid_state: the
+      // dispatcher retries it; not one of its deterministic codes); the shipped consumer only leaves the Borrador waiting.
+      const since = new Date();
+      const order2 = await h.run<{ id: string }>(h.admin, "sales.order.create", { partyId: h.partyId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId, qty: 1, unitPrice: 20000 }] });
+      await h.run(h.admin, "sales.order.confirm", { id: order2.id });
+      expect(await h.drain()).toEqual([]);
+      const delivery2 = await h.run<{ id: string }>(h.admin, "sales.delivery.create", { orderId: order2.id, date: h.today, costCenterId: h.costCenterId });
+      await h.run(h.admin, "sales.delivery.ship", { id: delivery2.id });
+      const [shipped] = (await h.outboxSince(since)).filter((r) => r.event === "sales.delivery.shipped" && r.payload.deliveryId === delivery2.id);
+      await h.redeliver(shipped!, "inventory");
+      await h.redeliver(shipped!, "invoicing");
+      const [waiting] = await h.sql<{ id: string; stage: string }[]>`select id, stage from invoicing.invoices where company_id = ${h.companyId} and auto_source = ${`delivery:${delivery2.id}`}`;
+      expect(waiting!.stage).toBe("draft");
+      const [allocated] = (await h.outboxSince(since)).filter((r) => r.event === "inventory.sale_issue.allocated" && r.payload.deliveryId === delivery2.id);
+      expect(await h.refusal(h.redeliver(allocated!, "invoicing"))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^lots_pending/) });
+      // The retry, once sales recorded the lots, issues it.
+      await h.redeliver(allocated!, "sales");
+      await h.redeliver(allocated!, "invoicing");
+      expect((await h.sql<{ stage: string }[]>`select stage from invoicing.invoices where id = ${waiting!.id}`)[0]!.stage).toBe("issued");
+      expect((await linesOf(waiting!.id))[0]!.lots).toEqual([{ lotCode: "L-2402", expiresOn: `${h.year + 1}-03-15`, serialNo: null, qty: 1 }]);
+      // What was handed by hand is recorded as delivered; the drain hands the rest (the other modules' consumers).
+      for (const [row, moduleId] of [[shipped!, "inventory"], [shipped!, "invoicing"], [allocated!, "sales"], [allocated!, "invoicing"]] as const) {
+        await h.sql`insert into kernel.outbox_deliveries (outbox_id, module_id) values (${row.id}, ${moduleId}) on conflict do nothing`;
+      }
+      expect(await h.drain()).toEqual([]);
+    } finally {
+      await h.runStepUp("invoicing.settings.update", { invoiceCreation: "manual" });
+    }
+  });
+
+  it("lots_pending never blocks forever: a tracked product that keeps no stock issues without lots; a dead-lettered issue is refused lots_not_recorded", async () => {
+    // A tracked product that keeps no stock (service SQL: the movement skips it, so no lot ever comes).
+    const nonStock = (await h.run<{ id: string }>(h.admin, "core.product.create", {
+      sku: "CAF-SRV-LOT", description: "Servicio de tostión", kind: "good", idScheme: "999", uomCode: "94", ivaRate: "5", otherTaxes: [], listPrice: 24000, isFreeSample: false, trackStock: true,
+    })).id;
+    await h.runStepUp("inventory.product_tracking.set", { productId: nonStock, tracking: "lot" });
+    await h.sql`update core.products set track_stock = false where id = ${nonStock}`;
+    const order = await h.run<{ id: string }>(h.admin, "sales.order.create", { partyId: h.partyId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId: nonStock, qty: 1, unitPrice: 20000 }] });
+    await h.run(h.admin, "sales.order.confirm", { id: order.id });
+    expect(await h.drain()).toEqual([]);
+    const delivery = await h.run<{ id: string }>(h.admin, "sales.delivery.create", { orderId: order.id, date: h.today, costCenterId: h.costCenterId });
+    await h.run(h.admin, "sales.delivery.ship", { id: delivery.id });
+    expect(await h.drain()).toEqual([]);
+    const created = await h.run<{ invoices: { id: string }[] }>(h.admin, "invoicing.invoice.from_orders", { orderIds: [order.id] });
+    await h.run(h.admin, "invoicing.invoice.issue", { id: created.invoices[0]!.id });
+    expect((await linesOf(created.invoices[0]!.id))[0]!.lots).toBeNull();
+
+    // A lot entrega whose sales.delivery.shipped dead-lettered before inventory ran (no issue will come): a clear refusal, not «inténtalo de nuevo».
+    const order2 = await h.run<{ id: string }>(h.admin, "sales.order.create", { partyId: h.partyId, issueDate: h.today, warehouseId: h.warehouseId, lines: [{ productId, qty: 1, unitPrice: 20000 }] });
+    await h.run(h.admin, "sales.order.confirm", { id: order2.id });
+    expect(await h.drain()).toEqual([]);
+    const delivery2 = await h.run<{ id: string }>(h.admin, "sales.delivery.create", { orderId: order2.id, date: h.today, costCenterId: h.costCenterId });
+    await h.run(h.admin, "sales.delivery.ship", { id: delivery2.id });
+    await h.sql`
+      with moved as (delete from kernel.outbox where company_id = ${h.companyId} and event = 'sales.delivery.shipped' and payload->>'deliveryId' = ${delivery2.id} returning *)
+      insert into kernel.outbox_dead_letter (id, company_id, event, payload, chain_id, created_at, attempts, last_error, failed_at, delivered_modules)
+      select id, company_id, event, payload, chain_id, created_at, 4, 'boom', now(), '{}' from moved`;
+    const invoice2 = (await h.run<{ invoices: { id: string }[] }>(h.admin, "invoicing.invoice.from_orders", { orderIds: [order2.id] })).invoices[0]!.id;
+    expect(await h.refusal(h.run(h.admin, "invoicing.invoice.issue", { id: invoice2 }))).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^lots_not_recorded: .*eventos con error/) });
+    await h.run(h.admin, "invoicing.invoice.delete", { id: invoice2 }).catch(() => undefined);
+  });
+
   it("an invoice line that bills no lot (an untracked product, a line typed by hand) has no lots (RG-2)", async () => {
     const draft = await h.run<{ id: string }>(h.admin, "invoicing.invoice.create", { partyId: h.partyId, lines: [{ productId: h.cafe, qty: 1 }] });
     expect((await linesOf(draft.id))[0]!.lots).toBeNull();
     const [view] = await withClaims(h.sql, h.admin.claims, (tx) => tx<{ lots: string | null }[]>`select lots from invoicing.v_invoice_lines where invoice_id = ${draft.id}`);
     expect(view!.lots).toBeNull();
+    // A serial that sits in a lot reads «lot · serial · expiry · qty» (service SQL: no entrega in this company issues one yet).
+    await h.sql`update invoicing.invoice_lines set lots = ${h.sql.json([{ lotCode: "L-9", expiresOn: "2027-01-31", serialNo: "S-1", qty: 1 }] as never)} where invoice_id = ${draft.id}`;
+    const [both] = await withClaims(h.sql, h.admin.claims, (tx) => tx<{ lots: string | null }[]>`select lots from invoicing.v_invoice_lines where invoice_id = ${draft.id}`);
+    expect(both!.lots).toBe("L-9 · S-1 · 2027-01-31 · 1");
   });
 });

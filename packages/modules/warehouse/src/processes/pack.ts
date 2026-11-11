@@ -62,6 +62,12 @@ function assertOpen(pack: PackRow): void {
   if (pack.stage === "closed") refuseState("pack_closed", [`El empaque ${label(pack)} está cerrado: sus paquetes no cambian`]);
 }
 
+/** Refuses a change of an empaque whose alistamiento was voided (its pedido cancelled): what it packs is no longer to ship. */
+async function assertPickLive(ctx: ProcessContext, pack: PackRow): Promise<void> {
+  const [pick] = await ctx.tx<{ number: string | null; status: string }[]>`select number, status from warehouse.picks where id = ${pack.pick_id}`;
+  if (pick?.status === "voided") refuseState("pick_voided", [`El alistamiento ${pick.number ?? pack.pick_id} del empaque ${label(pack)} está anulado`]);
+}
+
 /** The lines of the alistamiento that were picked (quantity > 0), in its order. */
 const pickedLines = async (ctx: ProcessContext, pickId: string): Promise<PickedLine[]> =>
   (await ctx.tx<PickedLine[]>`
@@ -195,6 +201,7 @@ export const packUpdate = defineProcess({
   handler: async (ctx, input) => {
     const pack = await lockPack(ctx, input.id);
     assertOpen(pack);
+    await assertPickLive(ctx, pack);
     if (input.packages) await writePackages(ctx, pack, input.packages);
     if (input.notes !== undefined) await ctx.tx`update warehouse.packs set notes = ${input.notes} where id = ${pack.id}`;
     return outputOf(ctx, pack.id);
@@ -212,6 +219,7 @@ export const packClose = defineProcess({
   handler: async (ctx, input) => {
     const pack = await lockPack(ctx, input.id);
     assertOpen(pack);
+    await assertPickLive(ctx, pack);
     const [content] = await ctx.tx<{ n: number }[]>`
       select count(*)::int as n from warehouse.pack_packages where pack_id = ${pack.id} and jsonb_array_length(items) > 0`;
     if (!content || content.n === 0) refuseState("pack_empty", [`El empaque ${label(pack)} no tiene nada empacado`]);

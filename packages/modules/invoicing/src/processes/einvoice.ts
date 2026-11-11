@@ -200,9 +200,12 @@ const field = <K extends string>(key: K, v: unknown) => (opt(v) ?? { [key]: v })
 
 interface FrozenLine { product_id: string; qty: string; unit_price: string; discount: string; base: string; iva_rate: string | null; iva: string; inc_rate: string | null; inc: string; other_taxes: string; total: string; free_sample: boolean; description: string | null; lots?: LineLot[] | null }
 
-/** The lots and serials an invoice line froze (Task 28.4) as the document's item instances: a lot with its expiry, or a serial. */
-const instancesOf = (lots: readonly LineLot[] | null | undefined) =>
-  (lots ?? []).map((x) => (x.serialNo ? { serialId: x.serialNo } : { ...(x.lotCode ? { lotNumber: x.lotCode } : {}), ...(x.expiresOn ? { expiryDate: x.expiresOn } : {}) }));
+/**
+ * The lots and serials an invoice line froze (Task 28.4) as the document's item instances: a lot with its expiry, a serial, or a serial that
+ * sits in a lot (SerialID and LotIdentification together, review fix: the serial never drops its lot and expiry).
+ */
+export const instancesOf = (lots: readonly LineLot[] | null | undefined) =>
+  (lots ?? []).map((x) => ({ ...(x.serialNo ? { serialId: x.serialNo } : {}), ...(x.lotCode ? { lotNumber: x.lotCode } : {}), ...(x.expiresOn ? { expiryDate: x.expiresOn } : {}) }));
 interface FrozenTax { family: "IVA" | "INC" | "OTHER"; code: string; rate: string | null; base: string; amount: string }
 
 /**

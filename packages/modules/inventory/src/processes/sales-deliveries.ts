@@ -3,6 +3,7 @@ import { z } from "zod";
 import { num, productFacts, qtyText } from "./common";
 import { lockStock, MOVEMENT_POSTED, MOVEMENT_VOIDED, postMovement, warehouseOf } from "./movement";
 import { ORDER_LINE_SOURCE } from "./sales-orders";
+import { lockTracking } from "./tracked-lines";
 
 // The stock of the entregas and devoluciones of sales (plan 2B Task 14, design §8.1 steps 3–4). Inventory consumes the sales module's
 // events by name (it does not depend on sales; sales never calls inventory, rule 3). Each consumer runs ONE inventory process as the system
@@ -86,8 +87,17 @@ async function goodsOf(ctx: ProcessContext, productIds: readonly string[]): Prom
   return new Map([...facts.values()].filter((p) => p.kind !== "service" && p.trackStock).map((p) => [p.id, { sku: p.sku }]));
 }
 
+/** The maestros a movement's save checks (kernel usability), named for the refusal sales shows. */
+const MAESTRO_LABEL: Record<string, string> = { "inventory.lot": "el lote", "inventory.serial": "el serial", "inventory.location": "la ubicación", "inventory.warehouse": "la bodega", "core.product": "el producto" };
+
 /** A refusal of the movement (deterministic: retrying the same event cannot change it), as opposed to a failure to retry. */
 const refusalOf = (error: unknown): { code: string; reason: string } | null => {
+  // A maestro the movement's save finds not usable (inactive, not saved or approved: review finding 3) stays so until someone changes it:
+  // a refusal sales shows on the entrega, never a dead letter.
+  if (error instanceof ProcessError && error.code === "maestro_not_usable") {
+    const entity = (error.details as { entity?: string } | undefined)?.entity;
+    return { code: "maestro_not_usable", reason: `${entity && MAESTRO_LABEL[entity] ? MAESTRO_LABEL[entity] : "Un maestro"} de la entrega está inactivo o no está grabado: actívalo o corrige la entrega`.replace(/^./, (c) => c.toUpperCase()) };
+  }
   if (!(error instanceof ProcessError) || (error.code !== "invalid_input" && error.code !== "invalid_state" && error.code !== "not_found")) return null;
   const code = /^[a-z_]+/.exec(error.message)?.[0] ?? error.code;
   const details = Array.isArray(error.details) ? error.details.filter((d): d is string => typeof d === "string") : [];
@@ -117,6 +127,8 @@ interface AllocationUse { allocationId: string; qty: number }
 interface BucketRow {
   product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; on_hand: string;
   lot_code: string | null; expires_on: string | null; produced_on: string | null; lot_status: string | null; lot_deleted: boolean | null; serial_no: string | null;
+  /** The lot maestro is usable (active and saved, or approved when it requires approval: kernel.record_usable's rule; review finding 3). */
+  lot_usable: boolean | null;
 }
 
 /** A refusal of the issue (deterministic): the first code met, with every line's detail of that code. */
@@ -158,12 +170,15 @@ const bucketOrder = (left: (r: BucketRow) => number) => (a: BucketRow, b: Bucket
  */
 async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, date: string, lines: PickLine[]) {
   const productIds = [...new Set(lines.map((l) => l.productId))];
+  // The tracking locks (shared) before the stock locks and the tracking read (review finding 2); postMovement takes them again (re-entrant).
+  await lockTracking(ctx, productIds);
   await lockStock(ctx, warehouse.id, productIds);
   const tracking = new Map((await ctx.tx<{ product_id: string; tracking: string; fefo: boolean; block_expired: boolean }[]>`
     select product_id, tracking, fefo, block_expired from inventory.product_tracking where product_id = any(${productIds}::uuid[])`).map((r) => [r.product_id, r]));
   const rows = await ctx.tx<BucketRow[]>`
     select s.product_id, s.location_id, s.lot_id, s.serial_id, s.on_hand::text,
-           lt.code as lot_code, lt.expires_on::text as expires_on, lt.produced_on::text as produced_on, lt.lot_status, lt.deleted_at is not null as lot_deleted, sr.serial_no
+           lt.code as lot_code, lt.expires_on::text as expires_on, lt.produced_on::text as produced_on, lt.lot_status, lt.deleted_at is not null as lot_deleted, sr.serial_no,
+           lt.is_active and lt.status = case when lt.requires_approval then 'approved' else 'saved' end as lot_usable
     from inventory.stock_levels s
     left join inventory.locations l on l.id = s.location_id
     left join inventory.lots lt on lt.id = s.lot_id
@@ -181,6 +196,21 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
       and r.warehouse_id = ${warehouse.id} and r.status = 'active'
     order by a.seq`;
   const allocationLeft = new Map(allocationRows.map((a) => [a.id, num(a.qty)]));
+  // What the confirmed alistamientos of OTHER pedido lines hold of each bucket (review finding 7, Review Focus 3; items 152, 226): out of
+  // what this run may take, so FEFO, a named lot or the untracked bucket choice never takes units another pedido's pick allocated. The
+  // lines' own allocations are used through allocationRows, as before.
+  const held = await ctx.tx<{ product_id: string; location_id: string | null; lot_id: string | null; serial_id: string | null; qty: string }[]>`
+    select r.product_id, a.location_id, a.lot_id, a.serial_id, sum(a.qty)::text as qty
+    from inventory.reservation_allocations a join inventory.reservations r on r.id = a.reservation_id
+    where r.company_id = ${ctx.companyId} and r.warehouse_id = ${warehouse.id} and r.status = 'active' and r.product_id = any(${productIds}::uuid[])
+      and not (r.source_entity = ${ORDER_LINE_SOURCE} and r.source_line_id = any(${orderLineIds}::uuid[]))
+    group by r.product_id, a.location_id, a.lot_id, a.serial_id`;
+  const heldByOthers = new Map<string, number>();
+  for (const x of held) {
+    const key = keyOf(x);
+    heldByOthers.set(key, num(x.qty));
+    if (left.has(key)) left.set(key, round4(left.get(key)! - num(x.qty)));
+  }
   const used: AllocationUse[] = [];
   const useAllocation = (a: AllocationRow, qty: number) => {
     allocationLeft.set(a.id, round4((allocationLeft.get(a.id) ?? 0) - qty));
@@ -250,7 +280,8 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
         const named = lots.filter((r) => r.lot_id === line.lotId);
         const [lot] = named.length > 0 ? named : await ctx.tx<BucketRow[]>`
           select ${line.productId}::uuid as product_id, null as location_id, id as lot_id, null as serial_id, '0' as on_hand, code as lot_code,
-                 expires_on::text as expires_on, produced_on::text as produced_on, lot_status, deleted_at is not null as lot_deleted, null as serial_no
+                 expires_on::text as expires_on, produced_on::text as produced_on, lot_status, deleted_at is not null as lot_deleted, null as serial_no,
+                 is_active and status = case when requires_approval then 'approved' else 'saved' end as lot_usable
           from inventory.lots where id = ${line.lotId} and product_id = ${line.productId}`;
         if (!lot) {
           refusals.add("lot_not_found", `${at}: el lote no existe o es de otro producto`);
@@ -262,6 +293,12 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
           picked.push([]);
           continue;
         }
+        if (!lot.lot_usable) {
+          // The movement's save would refuse the lot (maestro_not_usable): said here, with the lot's code.
+          refusals.add("maestro_not_usable", `${at}: el lote ${lot.lot_code} de ${line.sku} está inactivo o no está grabado`);
+          picked.push([]);
+          continue;
+        }
         if (expired(lot, blockExpired)) {
           refusals.add("lot_expired", `${at}: el lote ${lot.lot_code} de ${line.sku} venció el ${lot.expires_on}`);
           picked.push([]);
@@ -270,7 +307,8 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
         namedCode = lot.lot_code;
         buckets = named.sort(bucketOrder(leftOf));
       } else {
-        buckets = lots.filter((r) => r.lot_status === "active" && !r.lot_deleted && !expired(r, blockExpired))
+        // inventory.lot_sellable's rule (0168): active status, not deleted, the maestro usable, not expired when the product blocks it.
+        buckets = lots.filter((r) => r.lot_status === "active" && !r.lot_deleted && r.lot_usable && !expired(r, blockExpired))
           .sort((a, b) => fefoOrder(a, b) || bucketOrder(leftOf)(a, b));
       }
       // Task 29.2: the allocated buckets first (of the named lot, or of a lot it may sell), then the rest as before.
@@ -309,7 +347,10 @@ async function pickBuckets(ctx: ProcessContext, warehouse: { id: string; allowBa
         const holder = ofProduct.find((r) => r.serial_id === serialId && leftOf(r) >= 1);
         if (!holder) {
           const [known] = await ctx.tx<{ serial_no: string }[]>`select serial_no from inventory.serials where id = ${serialId} and product_id = ${line.productId}`;
-          refusals.add("serial_not_in_stock", `${at}: el serial ${known?.serial_no ?? serialId} de ${line.sku} no está en la bodega`);
+          const allocated = ofProduct.some((r) => r.serial_id === serialId && num(r.on_hand) >= 1 && (heldByOthers.get(keyOf(r)) ?? 0) > 0);
+          refusals.add("serial_not_in_stock", allocated
+            ? `${at}: el serial ${known?.serial_no ?? serialId} de ${line.sku} está asignado al alistamiento de otro pedido`
+            : `${at}: el serial ${known?.serial_no ?? serialId} de ${line.sku} no está en la bodega`);
           continue;
         }
         picks.push(take(holder, 1));

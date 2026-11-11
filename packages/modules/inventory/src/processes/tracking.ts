@@ -2,6 +2,7 @@ import { defineProcess, ProcessError, type ProcessContext } from "@erp/kernel";
 import { z } from "zod";
 import { TRACKING_KINDS, type TrackingKind } from "../entities";
 import { id, productFacts, qtyText, refuse } from "./common";
+import { lockTracking } from "./tracked-lines";
 
 // Seguimiento por producto (plan 2B.2 Task 28.1, PG §3.1, item 146): how inventory tracks a product's stock. One row of
 // inventory.product_tracking per product; a product without one is untracked. Switching the tracking is sensitive (step-up: it changes how
@@ -54,6 +55,18 @@ export const productTrackingSet = defineProcess({
   output: z.object({ id: z.string() }),
   handler: async (ctx, input) => {
     await assertProduct(ctx, input.productId);
+    if (input.tracking !== "none") {
+      // A service or a product that keeps no stock never moves stock: its entregas post no movement, so it could never carry a lot or a serial.
+      const product = (await productFacts(ctx, [input.productId])).get(input.productId)!;
+      if (product.kind === "service" || !product.trackStock) {
+        refuse("product_not_stocked", [
+          `${product.sku} ${product.kind === "service" ? "es un servicio" : "no lleva existencias"}: no se puede seguir por ${input.tracking === "lot" ? "lote" : "serial"}`,
+        ]);
+      }
+    }
+    // The product's tracking lock, exclusive (review finding 2): a movement of the product in flight (it holds the lock shared from before
+    // it read the tracking) commits first and its stock is seen below; one that starts later reads the tracking this run leaves.
+    await lockTracking(ctx, [input.productId], "exclusive");
     const [current] = await ctx.tx<{ id: string; tracking: TrackingKind }[]>`
       select id, tracking from inventory.product_tracking where product_id = ${input.productId} for update`;
     const before: TrackingKind = current?.tracking ?? "none";

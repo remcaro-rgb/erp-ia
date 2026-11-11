@@ -152,6 +152,18 @@ describe("inventory lots, serials and product tracking (Task 28.1)", () => {
     expect(await h.sql`select 1 from inventory.lots where product_id = ${untracked}`).toHaveLength(0);
   });
 
+  it("(R8) lot or serial tracking on a product that keeps no stock (a service, or track_stock off) is refused product_not_stocked; none is allowed", async () => {
+    const unstocked = await product(h, h.admin, "NOSTK-1", { trackStock: false });
+    const service = await product(h, h.admin, "SRV-1", { kind: "service", trackStock: false });
+    for (const productId of [unstocked, service]) {
+      for (const tracking of ["lot", "serial"]) {
+        await expect(setTracking({ productId, tracking })).rejects.toMatchObject({ code: "invalid_input", message: expect.stringMatching(/^product_not_stocked:/) });
+      }
+      await setTracking({ productId, tracking: "none", fefo: false });
+    }
+    expect(await h.sql`select 1 from inventory.product_tracking where product_id = any(${[unstocked, service]}::uuid[]) and tracking <> 'none'`).toEqual([]);
+  });
+
   it("lot.update changes expiry, produced date, status and note; serial.update only the note; consult reads the masked view", async () => {
     const productId = await product(h, h.admin, "LOT-6");
     await setTracking({ productId, tracking: "lot", expiryRequired: true });

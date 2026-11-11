@@ -1,7 +1,7 @@
 import { defineProcess, ProcessError, type ConsumerContext, type EventConsumer, type ProcessContext, type Tx } from "@erp/kernel";
 import { z } from "zod";
 import type { InvoiceCreation } from "../entities";
-import { FEATURE_INVOICES, id, INVOICE_CREATED, num, pendingDeliveryLines, settingsOf, today, type DraftLine } from "./common";
+import { FEATURE_INVOICES, id, INVOICE_CREATED, LOTS_PENDING, num, pendingDeliveryLines, settingsOf, today, type DraftLine } from "./common";
 import { createInvoice, readInvoice } from "./invoice";
 
 // Automatic invoices (OD-2, main design §22.25): the Parámetros' invoice_creation says when an invoice is created by itself.
@@ -174,13 +174,30 @@ async function modeOf(ctx: ConsumerContext): Promise<InvoiceCreation> {
   return row?.invoice_creation ?? "manual";
 }
 
-/** Creates the automatic Borrador and issues it when it is ready; a refusal of the issue becomes a recommendation. */
-async function autoInvoice(ctx: ConsumerContext, input: z.input<typeof trigger>): Promise<void> {
+/**
+ * What an issue refused `lots_pending` does (Task 28.4 review): the entrega's lots are written by sales two events after the ship
+ * (inventory.sale_issue.allocated → sales.delivery.record_lots), so the consumer of sales.delivery.shipped usually meets them missing.
+ *   - "wait" (sales.delivery.shipped): the Borrador stays, with no recommendation; the consumer of inventory.sale_issue.allocated issues it.
+ *     Throwing here would not help: the dispatcher retries a step 3 times within seconds (1 s, 2 s, 4 s), while the allocated row is claimed
+ *     only by a later outbox tick (30–60 s), so the shipped row would dead-letter.
+ *   - "retry" (inventory.sale_issue.allocated): the refusal is thrown and the dispatcher retries the step (invalid_state is not one of its
+ *     deterministic codes); sales' consumer of the same row runs before invoicing's (registration order), so it normally finds them.
+ */
+type LotsPending = "wait" | "retry";
+
+const isLotsPending = (error: unknown) => error instanceof ProcessError && error.code === "invalid_state" && error.message.startsWith(`${LOTS_PENDING}:`);
+
+/** Creates the automatic Borrador and issues it when it is ready; a refusal of the issue becomes a recommendation (lots_pending: see LotsPending). */
+async function autoInvoice(ctx: ConsumerContext, input: z.input<typeof trigger>, lotsPending: LotsPending = "wait"): Promise<void> {
   const created = (await ctx.runProcess("invoicing.invoice.auto_create", input)) as z.output<typeof autoOutput>;
   if (!created.id || created.stage !== "draft" || created.notReady.length > 0) return;
   try {
     await ctx.runProcess("invoicing.invoice.issue", { id: created.id, idempotencyKey: "auto" });
   } catch (error) {
+    if (isLotsPending(error)) {
+      if (lotsPending === "retry") throw error;
+      return;
+    }
     // Only a refusal (the transaction of the issue rolled back whole): the Borrador stays with the reason. Anything else is the dispatcher's.
     if (!(error instanceof ProcessError) || (error.code !== "invalid_input" && error.code !== "invalid_state")) throw error;
     const details = Array.isArray(error.details) ? error.details.map((d) => (typeof d === "string" ? d : JSON.stringify(d))) : [error.message];
@@ -197,6 +214,20 @@ export const onDeliveryShipped: EventConsumer = async (ctx, payload) => {
   if (!parsed.success) throw new ProcessError("invalid_input", `sales.delivery.shipped payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
   if ((await modeOf(ctx)) !== "on_delivery") return;
   await autoInvoice(ctx, { trigger: "delivery", deliveryId: parsed.data.deliveryId });
+};
+
+const allocatedPayload = z.looseObject({ deliveryId: id, lines: z.array(z.looseObject({})).max(5000) });
+
+/**
+ * Consumer of inventory.sale_issue.allocated (OD-2 on_delivery, Task 28.4 review): inventory issued the entrega by lot or serial and sales
+ * (whose consumer of the same event runs first) recorded them; the automatic Borrador the shipped event left waiting is issued now, with
+ * its lots. Idempotent: an entrega already invoiced, or a company in another mode, does nothing.
+ */
+export const onSaleIssueAllocated: EventConsumer = async (ctx, payload) => {
+  const parsed = allocatedPayload.safeParse(payload);
+  if (!parsed.success) throw new ProcessError("invalid_input", `inventory.sale_issue.allocated payload: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  if (parsed.data.lines.length === 0 || (await modeOf(ctx)) !== "on_delivery") return;
+  await autoInvoice(ctx, { trigger: "delivery", deliveryId: parsed.data.deliveryId }, "retry");
 };
 
 /** Consumer of sales.order.confirmed (OD-2 on_order_confirmation). */

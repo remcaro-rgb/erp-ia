@@ -2,7 +2,7 @@ import { defineProcess, ProcessError, runLifecycle, visibleExtra, type EventCons
 import { z } from "zod";
 import { KIND_PREFIX, KIND_SIGN, movementEntity, POSTABLE_KINDS, type MovementKind } from "../entities";
 import { entityId, id, idInput, num, productCosts, productFacts, qtyText, quantity, refuse, type ProductFacts } from "./common";
-import { moveSerials, resolveTracked, serialsAfterVoid, trackingKinds } from "./tracked-lines";
+import { lockTracking, moveSerials, resolveTracked, serialLockKey, serialsAfterVoid, trackingKinds } from "./tracked-lines";
 
 // Inventory movements (plan 2B Task 6, design §8.1, Review Focus 1). inventory.movement.post registers a movement and moves the stock in
 // one transaction: the header and its lines, the stock levels of every product and ubicación it touches (locked through lockStock, the
@@ -176,7 +176,7 @@ export async function lockStock(ctx: ProcessContext, warehouseId: string, produc
  * bodega allows (`lot_short`, `serial_not_in_stock`: a lot or serial is a physical thing, Task 28.2). A second transaction waiting on the lock reads what the first committed
  * (READ COMMITTED: each statement after the lock sees the committed rows).
  */
-export async function applyStock(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, deltas: readonly StockDelta[]): Promise<void> {
+export async function applyStock(ctx: ProcessContext, warehouse: { id: string; allowBackorders: boolean }, deltas: readonly StockDelta[], options: { voiding?: boolean } = {}): Promise<void> {
   const buckets = new Map<string, StockDelta>();
   for (const d of deltas) {
     const key = bucketKey(d);
@@ -184,6 +184,14 @@ export async function applyStock(ctx: ProcessContext, warehouse: { id: string; a
     buckets.set(key, seen ? { ...seen, qty: round4(seen.qty + d.qty) } : { ...d });
   }
   const locked = await lockStock(ctx, warehouse.id, [...buckets.values()].map((d) => d.productId));
+  // A serial coming in (a receipt, a return, a void, a transfer or relocation leg: review finding 1) takes the serial's lock after the stock
+  // locks (RG-3 order), so the check below that it is on hand nowhere else reads what any other writer of the serial committed.
+  const inboundSerials = [...new Set([...buckets.values()].flatMap((d) => (d.serialId && d.qty > 0 ? [d.serialId] : [])))];
+  const serialNos = inboundSerials.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string; serial_no: string }[]>`
+    select id, product_id, serial_no from inventory.serials where id = any(${inboundSerials}::uuid[])`;
+  for (const key of [...new Set(serialNos.map((r) => serialLockKey(ctx.companyId, r.product_id, r.serial_no)))].sort()) {
+    await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+  }
   const rowOf = new Map(locked.map((r) => [bucketKey({ productId: r.product_id, locationId: r.location_id, lotId: r.lot_id, serialId: r.serial_id }), r.id]));
   const missing = [...buckets.entries()].filter(([key]) => !rowOf.has(key));
   if (missing.length > 0) {
@@ -221,6 +229,22 @@ export async function applyStock(ctx: ProcessContext, warehouse: { id: string; a
   if (refusals.length > 0) refuse("negative_stock_refused", refusals);
   if (serialsOut.length > 0) refuse("serial_not_in_stock", serialsOut);
   if (lotShort.length > 0) refuse("lot_short", lotShort);
+  // A serial is on hand in one bucket at most, across every bodega (after this movement's own −1 legs, so a transfer or a relocation passes).
+  if (inboundSerials.length > 0) {
+    const twice = await ctx.tx<{ serial_id: string }[]>`
+      select serial_id from inventory.stock_levels where company_id = ${ctx.companyId} and serial_id = any(${inboundSerials}::uuid[])
+      group by serial_id having sum(on_hand) > 1 order by serial_id`;
+    if (twice.length > 0) {
+      const skuOf = new Map([...buckets.values()].flatMap((d) => (d.serialId ? [[d.serialId, d] as const] : [])));
+      refuse("serial_exists", twice.map((t) => {
+        const d = skuOf.get(t.serial_id);
+        const what = `el serial ${d?.label || serialNos.find((r) => r.id === t.serial_id)?.serial_no || t.serial_id} de ${d?.sku ?? ""}`;
+        return options.voiding
+          ? `No se puede anular: ${what} ya está en existencia en otra bodega o ubicación (volvió a entrar después de este movimiento)`
+          : `${what.charAt(0).toUpperCase()}${what.slice(1)} ya está en existencia en otra bodega o ubicación`;
+      }));
+    }
+  }
 }
 
 /**
@@ -419,11 +443,20 @@ export async function postMovement(ctx: ProcessContext, input: MovementInput): P
   // Lots and serials (Task 28.2): a tracked product's line names the bucket it moves; a serial line becomes one line per serial. The stock
   // locks come first (the one lock order), then the serials and the nested creates of new lots and serials. An untracked movement moves
   // the bucket without lot or serial, as before (RG-2).
+  // The products' tracking locks, shared, before their tracking is read (review finding 2): a tracking change in flight commits first.
+  await lockTracking(ctx, moved.map((m) => m.product.id));
   const kinds = await trackingKinds(ctx, moved.map((m) => m.product.id));
   const tracked = [...kinds.values()].some((k) => k !== "none");
   if (tracked) await lockStock(ctx, warehouse.id, moved.map((m) => m.product.id));
   const resolved = await resolveTracked(ctx, moved.map((m, i) => ({ item: i, fields: m.line, product: m.product, index: m.index })), "invalid_movement", kinds);
   const labels = tracked ? await bucketLabels(ctx, resolved) : new Map<string, string>();
+  // A source line moves each resolved bucket once (review finding 6): a lot named by id on one line and by code on another is the same
+  // bucket, refused here as the request's own duplicate rather than by the database's source key (duplicate_source_line).
+  const resolvedKeys = resolved.flatMap((r) => {
+    const line = moved[r.item]!.line;
+    return line.sourceLineId ? [`${line.sourceLineId}|${line.locationId ?? ""}|${r.lotId ?? ""}|${r.serialId ?? ""}`] : [];
+  });
+  if (new Set(resolvedKeys).size !== resolvedKeys.length) refuse("invalid_movement", ["Una línea de origen aparece dos veces"]);
 
   // An adjustment is valued at the line's cost, else the product's standard cost read unmasked (the caller's field visibility never changes a value).
   const standardCosts = input.kind === "adjustment" ? await productCosts(ctx, moved.map((m) => m.product.id), warehouse.id) : new Map<string, number>();
@@ -609,7 +642,7 @@ export const movementVoid = defineProcess({
     await applyStock(ctx, warehouse, lines.map((l) => ({
       productId: l.product_id, locationId: l.location_id, lotId: l.lot_id, serialId: l.serial_id, qty: -num(l.qty), sku: products.get(l.product_id)?.sku ?? l.product_id,
       ...(l.lot_id || l.serial_id ? { label: labels.get((l.serial_id ?? l.lot_id)!) ?? "" } : {}),
-    })));
+    })), { voiding: true });
     // The serials the void moved back (Task 28.2): their status follows the stock.
     await serialsAfterVoid(ctx, movementId, lines.flatMap((l) => (l.serial_id ? [l.serial_id] : [])));
     const event: MovementEvent = {
@@ -743,6 +776,7 @@ export async function postRelocation(ctx: ProcessContext, input: z.output<typeof
   const locations = new Map((await ctx.tx<{ id: string; warehouse_id: string; kind: string }[]>`
     select id, warehouse_id, kind from inventory.locations where id = any(${locationIds}::uuid[]) and deleted_at is null`).map((l) => [l.id, l]));
   const products = await productFacts(ctx, input.lines.map((l) => l.productId));
+  await lockTracking(ctx, input.lines.map((l) => l.productId));
   const kinds = await trackingKinds(ctx, input.lines.map((l) => l.productId));
   const lotIds = [...new Set(input.lines.flatMap((l) => (l.lotId ? [l.lotId] : [])))];
   const serialIds = [...new Set(input.lines.flatMap((l) => (l.serialId ? [l.serialId] : [])))];

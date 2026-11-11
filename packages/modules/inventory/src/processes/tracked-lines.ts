@@ -31,6 +31,24 @@ export interface ResolvedLine<T> {
   serialNo?: string;
 }
 
+/**
+ * The product-level tracking lock (review finding 2): inventory.product_tracking.set takes it EXCLUSIVE before its stock check; every
+ * writer that reads a product's tracking to decide the buckets it moves (postMovement, the sale issue's pick) takes it SHARED before that
+ * read, products in ascending id order. Shared holders never block one another (whatever stock locks they hold), so a movement and a
+ * tracking change queue, and the second reads what the first committed: an untracked receipt can never leave a lot-less bucket in a
+ * product that just turned lot-tracked. A transaction advisory lock: it covers a product with no tracking row yet.
+ */
+export async function lockTracking(ctx: ProcessContext, productIds: readonly string[], mode: "shared" | "exclusive" = "shared"): Promise<void> {
+  for (const productId of [...new Set(productIds)].sort()) {
+    const key = `inventory.tracking:${ctx.companyId}:${productId}`;
+    if (mode === "exclusive") await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+    else await ctx.tx`select pg_advisory_xact_lock_shared(hashtextextended(${key}, 0))`;
+  }
+}
+
+/** The advisory lock key of a serial, by product and number (any case), shared by every writer of the serial (RG-3). */
+export const serialLockKey = (companyId: string, productId: string, serialNo: string) => `inventory.serial:${companyId}:${productId}:${serialNo.trim().toLowerCase()}`;
+
 /** The tracking kind of each product (none without a row). */
 export async function trackingKinds(ctx: ProcessContext, productIds: readonly string[]): Promise<Map<string, TrackingKind>> {
   const ids = [...new Set(productIds)];
@@ -79,6 +97,10 @@ export async function resolveTracked<T>(
   const serialsAsked = lines.filter((l) => kinds.get(l.product.id) === "serial");
 
   type LotRow = { id: string; product_id: string; code: string; expires_on: string | null };
+  // Each lot named by code (review finding 5), by product and code in ascending order, before the lots are read: two receipts of one new
+  // code in two bodegas (no stock lock in common) queue, and the second finds the lot the first created instead of failing lot_exists.
+  const lotKeys = [...new Set(lotsAsked.flatMap((l) => (l.fields.lot ? [`${l.product.id}:${l.fields.lot.code.trim().toLowerCase()}`] : [])))].sort();
+  for (const key of lotKeys) await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${`inventory.lot:${ctx.companyId}:${key}`}, 0))`;
   const lots: LotRow[] = lotsAsked.length === 0 ? [] : await ctx.tx<LotRow[]>`
     select id, product_id, code, expires_on::text from inventory.lots where product_id = any(${productIds}::uuid[]) and deleted_at is null`;
   // Lock order (RG-3): the caller holds the stock locks of the products (lockStock); then each serial named, by product and number in
@@ -92,7 +114,7 @@ export async function resolveTracked<T>(
       ...numbered.map((s) => `${s.product_id}:${s.serial_no.toLowerCase()}`),
       ...serialsAsked.flatMap((l) => (l.fields.serials ?? []).map((s) => `${l.product.id}:${s.serialNo.trim().toLowerCase()}`)),
     ])].sort();
-    for (const key of keys) await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${`inventory.serial:${ctx.companyId}:${key}`}, 0))`;
+    for (const key of keys) await ctx.tx`select pg_advisory_xact_lock(hashtextextended(${`inventory.serial:${ctx.companyId}:${key}`}, 0))`; // = serialLockKey
   }
   const serials = serialsAsked.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string; serial_no: string; serial_status: string | null }[]>`
     select id, product_id, serial_no, serial_status from inventory.serials where product_id = any(${productIds}::uuid[]) and deleted_at is null`;

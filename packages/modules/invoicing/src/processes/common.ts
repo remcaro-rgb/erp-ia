@@ -275,6 +275,32 @@ async function deliveryLineLots(ctx: ProcessContext, lines: readonly PricedLine[
   return new Map(rows.flatMap((r) => (r.lots && r.lots.length > 0 ? [[r.id, r.lots] as const] : [])));
 }
 
+/** The refusal code of a line whose entrega lots are still being recorded: retryable (`invalid_state`), never final. */
+export const LOTS_PENDING = "lots_pending";
+/** The refusal code of a line whose lots will not come by themselves (their event dead-lettered): a person must act. */
+export const LOTS_NOT_RECORDED = "lots_not_recorded";
+const LOTS_NOT_RECORDED_TEXT = (line: string) =>
+  `Inventario no registró los lotes de ${line}: su evento quedó en los eventos con error (Administración › Módulos). Reintenta ese evento o anula la entrega`;
+
+/**
+ * «Emitir» freezes the lots of every line written from an entrega line (Task 28.4 review): a line whose lot- or serial-tracked product has
+ * no lots recorded yet in sales' published view (lots_pending, migration 0169: inventory's sale_issue.allocated has not reached sales) is
+ * refused `lots_pending` (invalid_state, retryable) instead of being issued and frozen without them.
+ */
+export async function assertLotsRecorded(ctx: ProcessContext, lines: readonly { deliveryLineId?: string | null | undefined }[]): Promise<void> {
+  const ids = [...new Set(lines.flatMap((l) => (l.deliveryLineId ? [l.deliveryLineId] : [])))];
+  if (ids.length === 0) return;
+  const rows = await ctx.tx<{ delivery_number: string | null; delivery_id: string; line_no: number; lots_failed: boolean }[]>`
+    select delivery_number, delivery_id, line_no, lots_failed from sales.v_invoice_delivery_lines
+    where id = any(${ids}::uuid[]) and (lots_pending or lots_failed) order by delivery_id, line_no`;
+  const name = (r: (typeof rows)[number]) => `la línea ${r.line_no} de la entrega ${r.delivery_number ?? r.delivery_id}`;
+  // The event that brings the lots dead-lettered (lots_failed, 0169): it never clears by itself, so the refusal says what to do.
+  const failed = rows.filter((r) => r.lots_failed);
+  if (failed.length > 0) refuseState(LOTS_NOT_RECORDED, failed.map((r) => LOTS_NOT_RECORDED_TEXT(name(r))));
+  if (rows.length === 0) return;
+  refuseState(LOTS_PENDING, rows.map((r) => `Los lotes de ${name(r)} aún se están registrando; inténtalo de nuevo en un momento`));
+}
+
 /**
  * Replaces the lines and taxes of the Borrador `invoiceId` and its totals with `priced`. A line written from an entrega line copies that
  * line's lots (invoice_lines.lots, Task 28.4): «Emitir» rewrites the lines, so they are the entrega's at the issue and frozen from there on.

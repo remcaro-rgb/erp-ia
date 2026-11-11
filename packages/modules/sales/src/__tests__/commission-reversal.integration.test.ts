@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { invoicing } from "../../../invoicing/src/index";
 import { payments } from "../../../payments/src/index";
 import { sales } from "../index";
+import { commissionLockKey } from "../processes/commission";
 
 // Commission reversals (plan 2B.2 Task 30.3, Part G design PG §5.3; ruling RG-11; Review Focus 4 and 5). The whole chain on the real
 // modules and the real posting engine, as the accrual suite: a pedido owned by a salesperson with a plan, invoiced by itself on confirmation
@@ -55,8 +56,12 @@ describe("commission reversals (Task 30.3)", () => {
   let servicio: string;
   let warehouseId: string;
   let transfer: string;
-  const sellers: Record<"annul" | "note" | "collect" | "void" | "advance" | "paid", string> = { annul: "", note: "", collect: "", void: "", advance: "", paid: "" };
-  const payees: Record<keyof typeof sellers, string> = { annul: "", note: "", collect: "", void: "", advance: "", paid: "" };
+  const sellers: Record<"annul" | "note" | "collect" | "void" | "advance" | "paid" | "lateReceipt" | "lateNote" | "lateAnnul" | "refundVoid", string> = {
+    annul: "", note: "", collect: "", void: "", advance: "", paid: "", lateReceipt: "", lateNote: "", lateAnnul: "", refundVoid: "",
+  };
+  const payees: Record<keyof typeof sellers, string> = { ...sellers };
+  /** While set, sales' consumer of invoicing.invoice.issued is held back (its compute runs later, as a retried event does). */
+  let holdIssued = false;
   let customers = 0;
 
   const run = <T = unknown>(caller: Caller, processId: string, input: unknown) => runProcess({ sql, registry }, caller, processId, input) as Promise<T>;
@@ -87,6 +92,7 @@ describe("commission reversals (Task 30.3)", () => {
       let ran = 0;
       for (const row of rows) {
         for (const consumer of consumers.for(row.event).filter((c) => moduleIds.includes(c.moduleId))) {
+          if (holdIssued && row.event === "invoicing.invoice.issued" && consumer.moduleId === "sales") continue;
           const [done] = await sql`select 1 from kernel.outbox_deliveries where outbox_id = ${row.id} and module_id = ${consumer.moduleId}`;
           if (done) continue;
           ran += 1;
@@ -413,6 +419,152 @@ describe("commission reversals (Task 30.3)", () => {
     } finally {
       await setBasis("on_collection");
     }
+  });
+
+  // Review finding 1: nothing orders sales' compute (invoicing.invoice.issued) before the consumers of what follows the invoice. Compute
+  // catches up: after writing the bases it reads, through payments' and invoicing's published views, the collections and the credit notes
+  // already posted on the invoice and runs the same accrual and note adjustment for them, so a late consumer run is a no-op.
+  describe("events processed before the compute (finding 1)", () => {
+    const releaseCompute = async () => {
+      holdIssued = false;
+      expect(await drain()).toEqual([]);
+    };
+    afterAll(() => {
+      holdIssued = false;
+    });
+
+    it("(7) a receipt processed before the compute accrues as if in order: 40 % → $ 20.000 when the bases are written; its late redelivery writes nothing; 60 % → $ 30.000", async () => {
+      holdIssued = true;
+      const s = await sale(sellers.lateReceipt);
+      expect(await basesOf(s.invoiceId)).toEqual([]);
+      const r1 = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: 476_000 }]);
+      expect(await commissionsOf(r1.id)).toEqual([]);
+      await releaseCompute();
+      expect(amountsOf(await commissionsOf(r1.id))).toEqual([20000]);
+      expect((await basesOf(s.invoiceId)).map((b) => [num(b.commission), num(b.accrued), num(b.reversed)])).toEqual([[50000, 20000, 0]]);
+      await redeliver("payments.received", (p) => p.receiptId === r1.id || p.paymentId === r1.id);
+      expect(amountsOf(await commissionsOf(r1.id))).toEqual([20000]);
+      const r2 = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: 714_000 }]);
+      expect(amountsOf(await commissionsOf(r2.id))).toEqual([30000]);
+      expect((await basesOf(s.invoiceId)).map((b) => num(b.accrued))).toEqual([50000]);
+      expect(await openPayable(payees.lateReceipt)).toBe(50000);
+    });
+
+    it("(8) a credit note processed before the compute reduces the base: 700.000 → $ 35.000; its late redelivery reduces nothing twice; the full collection accrues $ 60.000", async () => {
+      holdIssued = true;
+      const s = await sale(sellers.lateNote, [1_000_000, 500_000]);
+      const noteId = await creditNote(s.invoiceId, s.lineIds[0]!, 300_000);
+      expect(await basesOf(s.invoiceId)).toEqual([]);
+      await releaseCompute();
+      expect((await basesOf(s.invoiceId)).map((b) => [num(b.base), num(b.commission), num(b.accrued)])).toEqual([[700000, 35000, 0], [500000, 25000, 0]]);
+      expect(await commissionsOf(noteId)).toEqual([]);
+      await redeliver("invoicing.note.issued", (p) => p.noteId === noteId);
+      expect((await basesOf(s.invoiceId)).map((b) => [num(b.base), num(b.commission)])).toEqual([[700000, 35000], [500000, 25000]]);
+      // Open: 1.785.000 − 357.000 = 1.428.000.
+      const r = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: 1_428_000 }]);
+      expect(amountsOf(await commissionsOf(r.id))).toEqual([60000]);
+      expect((await basesOf(s.invoiceId)).map((b) => num(b.accrued))).toEqual([35000, 25000]);
+    });
+
+    it("(7b) a collection consumer that runs while a compute of the invoice is in flight waits for it (the per-invoice advisory lock), then accrues once", async () => {
+      holdIssued = true;
+      const s = await sale(sellers.lateReceipt);
+      const r = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: 238_000 }]);
+      // Another connection holds the invoice's lock, as compute's transaction does from before it reads until it commits.
+      let release!: () => void;
+      const released = new Promise<void>((resolve) => (release = resolve));
+      let locked!: () => void;
+      const holding = new Promise<void>((resolve) => (locked = resolve));
+      const holder = sql.begin(async (tx) => {
+        await tx`select pg_advisory_xact_lock(hashtextextended(${commissionLockKey(companyId, s.invoiceId)}, 0))`;
+        locked();
+        await released;
+      });
+      await holding;
+      let done = false;
+      const consumerRun = redeliver("payments.received", (p) => p.receiptId === r.id || p.paymentId === r.id).then(() => (done = true));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(done, "the consumer waits for the lock").toBe(false);
+      release();
+      await holder;
+      await consumerRun;
+      expect(done).toBe(true);
+      // No bases yet when it got the lock (compute had not started): the catch-up covers the receipt, once.
+      expect(await commissionsOf(r.id)).toEqual([]);
+      await releaseCompute();
+      expect(amountsOf(await commissionsOf(r.id))).toEqual([10000]);
+    });
+
+    it("(9) on_invoice: an annulment processed before the compute accrues nothing; the bases are written closed", async () => {
+      await setBasis("on_invoice");
+      try {
+        holdIssued = true;
+        const s = await sale(sellers.lateAnnul);
+        await runStepUp("invoicing.invoice.void", { id: s.invoiceId, reason: "Precio equivocado" });
+        expect(await drain()).toEqual([]);
+        await releaseCompute();
+        expect(await commissionsOfInvoice(s.invoiceId)).toEqual([]);
+        expect((await basesOf(s.invoiceId)).map((b) => [b.status, num(b.accrued)])).toEqual([["closed", 0]]);
+        expect(await openPayable(payees.lateAnnul)).toBe(0);
+      } finally {
+        await setBasis("on_collection");
+      }
+    });
+  });
+
+  // Review finding 2: a refund note after a full collection, then the receipt's void, left the net accrual negative (the payee owed
+  // $ 15.000) and the next collection accrued on the whole commission again.
+  it("(10) refund note then receipt void: the net comes back to $ 0 (a correcting COM of $ 15.000); half of the open $ 833.000 accrues $ 17.500", async () => {
+    const s = await sale(sellers.refundVoid);
+    expect(s.total).toBe(1_190_000);
+    const r1 = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: 1_190_000 }]);
+    expect(amountsOf(await commissionsOf(r1.id))).toEqual([50000]);
+    const noteId = await creditNote(s.invoiceId, s.lineIds[0]!, 300_000);
+    expect(amountsOf(await commissionsOf(noteId))).toEqual([-15000]);
+
+    await runStepUp("payments.payment.void", { id: r1.id, reason: "Consignación devuelta" });
+    expect(await drain()).toEqual([]);
+    const [reversed] = await commissionsOf(r1.id);
+    expect(reversed!.stage).toBe("reversed");
+    const correction = await commissionsOf(reversed!.id);
+    expect(correction.map((c) => [c.source_kind, num(c.amount), c.stage])).toEqual([["void", 15000, "posted"]]);
+    const [entry] = await entriesOf(correction[0]!.id);
+    expect(entry!.lines).toEqual([["523595", 15000, 0, null], ["233520", 0, 15000, payees.refundVoid]]);
+    // Never paid again: the net is 0, nothing owed either way.
+    const [base] = await basesOf(s.invoiceId);
+    expect([num(base!.commission), num(base!.accrued) - num(base!.reversed)]).toEqual([35000, 0]);
+    expect(await openPayable(payees.refundVoid)).toBe(0);
+
+    const r2 = await receive(s.partyId, [{ invoiceId: s.invoiceId, amount: 416_500 }]);
+    expect(amountsOf(await commissionsOf(r2.id))).toEqual([17500]);
+    const [after] = await basesOf(s.invoiceId);
+    expect(num(after!.accrued) - num(after!.reversed)).toBe(17500);
+    expect(await openPayable(payees.refundVoid)).toBe(17500);
+  });
+
+  // Review finding 4: the commission eval (kernel.data.query over sales.commission) is checked here, where commissions exist.
+  it("(11) kernel.data.query {entity: sales.commission} returns a seeded commission to a holder of consult_all and not to another seller", async () => {
+    const [commission] = await sql<{ id: string; number: string }[]>`
+      select id, number from sales.commissions where company_id = ${companyId} and plan_id in (select plan_id from sales.commission_plan_users where user_id = ${sellers.collect}) order by seq limit 1`;
+    expect(commission).toBeDefined();
+    const query = { entity: "sales.commission", filters: [{ field: "number", op: "eq", value: commission!.number }] };
+    const all = await run<{ rows: { id: string; amount?: unknown }[] }>({ ...admin, origin: "agent" }, "kernel.data.query", query);
+    expect(all.rows.map((r) => r.id)).toEqual([commission!.id]);
+    expect(all.rows[0]!.amount).not.toBeNull();
+
+    const vendedor = (await sql<{ id: string }[]>`insert into kernel.roles(company_id, name, is_system) values (${companyId}, 'vendedor comisiones', false) returning id`)[0]!.id;
+    for (const id of ["kernel.data.query", "sales.commission.consult"]) {
+      await sql`insert into kernel.process_permissions(company_id, role_id, process_id) values (${companyId}, ${vendedor}, ${id}) on conflict do nothing`;
+    }
+    await sql`insert into kernel.membership_roles (membership_id, role_id)
+      select id, ${vendedor} from kernel.memberships where user_id = ${sellers.note} and company_id = ${companyId} on conflict do nothing`;
+    const other: Caller = { claims: { ...seed.claimsFor(sellers.note, companyId), role_ids: [vendedor] } as JwtClaims, origin: "agent" };
+    expect((await run<{ rows: unknown[] }>(other, "kernel.data.query", query)).rows).toEqual([]);
+    // Their own commissions they do read.
+    const own = await run<{ rows: { id: string }[] }>(other, "kernel.data.query", { entity: "sales.commission", limit: 50 });
+    expect(own.rows.length).toBeGreaterThan(0);
+    const ownIds = (await sql<{ id: string }[]>`select id from sales.commissions where company_id = ${companyId} and plan_id in (select plan_id from sales.commission_plan_users where user_id = ${sellers.note})`).map((c) => c.id);
+    expect(own.rows.every((r) => ownIds.includes(r.id))).toBe(true);
   });
 
   it("the manifest consumes the note, the receipt void and the advance unapply, and declares the reverse and the note adjustment", () => {

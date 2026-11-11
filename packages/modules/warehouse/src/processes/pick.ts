@@ -1,7 +1,7 @@
 import { defineProcess, ProcessError, runLifecycle, writeSnapshot, type ProcessContext, type TypedHooks } from "@erp/kernel";
 import { z } from "zod";
 import { ALLOCATION_STATUSES, pickEntity, type PickStage } from "../entities";
-import { buckets, companyToday, enabledSince, FIRM_ORDER_STAGES, id, num, orderLines, qtyText, quantity, refuse, refuseState, round4, settingsOf, trackingOf, type Tracking } from "./common";
+import { buckets, companyToday, type Credit, enabledSince, FIRM_ORDER_STAGES, id, num, orderLines, qtyText, quantity, refuse, refuseState, round4, settingsOf, trackingOf, type Tracking } from "./common";
 
 // Alistamientos (plan 2B.2 Task 29.1, PG §4.1–§4.3 steps 1–3 and 7; items 151, 153, 164; RG-7, RG-10). An alistamiento (pick list) is a
 // documento numbered ALI- on save that never posts: what to take from which shelf for a confirmed pedido. warehouse.pick.create makes it
@@ -106,13 +106,33 @@ interface Proposed { orderLineId: string; productId: string; qty: number; locati
  */
 async function propose(ctx: ProcessContext, warehouseId: string, lines: { id: string; product_id: string; left: number }[]): Promise<Proposed[]> {
   const products = [...new Set(lines.map((l) => l.product_id))];
+  // A re-pick replaces the stale part of the pedido's earlier allocation (inventory.reservation.allocate): a line left with more to deliver
+  // than its reservation has open does not count that excess of its own allocations (newest first, as inventory drops them) against itself.
+  const own = await ctx.tx<{ id: string; source_line_id: string; product_id: string; open: string }[]>`
+    select r.id, r.source_line_id, r.product_id,
+           (r.qty - r.released_qty - coalesce((select sum(a.qty) from inventory.v_reservation_allocations a where a.reservation_id = r.id), 0))::text as open
+    from inventory.v_reservations r
+    where r.source_line_id = any(${lines.map((l) => l.id)}::uuid[]) and r.warehouse_id = ${warehouseId} and r.status = 'active'`;
+  const credit: Credit[] = [];
+  for (const r of own) {
+    let excess = round4((lines.find((l) => l.id === r.source_line_id)?.left ?? 0) - num(r.open));
+    if (excess <= 0) continue;
+    const held = await ctx.tx<{ location_id: string | null; lot_id: string | null; qty: string }[]>`
+      select location_id, lot_id, qty::text from inventory.v_reservation_allocations where reservation_id = ${r.id} order by seq desc`;
+    for (const a of held) {
+      if (excess <= 0) break;
+      const cut = Math.min(excess, num(a.qty));
+      if (a.location_id) credit.push({ productId: r.product_id, locationId: a.location_id, lotId: a.lot_id, qty: cut });
+      excess = round4(excess - cut);
+    }
+  }
   const facts = new Map((await ctx.tx<{ id: string; kind: string; track_stock: boolean }[]>`
     select id, kind, track_stock from core.v_product_stock where id = any(${products}::uuid[])`).map((p) => [p.id, p]));
   const stocked = lines.filter((l) => {
     const p = facts.get(l.product_id);
     return p && p.kind !== "service" && p.track_stock;
   });
-  const stock = await buckets(ctx, warehouseId, [...new Set(stocked.map((l) => l.product_id))], await companyToday(ctx));
+  const stock = await buckets(ctx, warehouseId, [...new Set(stocked.map((l) => l.product_id))], await companyToday(ctx), credit);
   const free = stock.map((b) => ({ ...b }));
   const out: Proposed[] = [];
   for (const line of stocked) {
@@ -258,7 +278,8 @@ function applyEntries(lines: PickLineRow[], entries: PickedInput[]): FinalLine[]
 /**
  * Refuses what the picker cannot have taken (read in inventory's published views, rule 3): more of a pedido line than the alistamiento asks
  * (pick_over_requested); a ubicación outside the bodega or in transit (invalid_location); a lot or serial of another product
- * (lot_not_found, serial_not_found); and, when `final`, a line taken without ubicación (location_required), a lot product without lot
+ * (lot_not_found, serial_not_found); a quantity taken from a lot FEFO may not issue today (RG-4: lot_blocked, lot_expired, by
+ * inventory.lot_sellable); and, when `final`, a line taken without ubicación (location_required), a lot product without lot
  * (lot_required), a serial product without one serial per unit (serials_required) or an untracked product naming a lot or serial
  * (product_not_tracked). Line numbers in the reasons are the alistamiento's.
  */
@@ -282,8 +303,11 @@ async function assertPicked(ctx: ProcessContext, pick: PickRow, lines: FinalLine
   const serialIds = [...new Set(lines.flatMap((l) => (l.serial_id ? [l.serial_id] : [])))];
   const locations = new Map((locationIds.length === 0 ? [] : await ctx.tx<{ id: string; warehouse_id: string; kind: string }[]>`
     select id, warehouse_id, kind from inventory.v_locations where id = any(${locationIds}::uuid[])`).map((r) => [r.id, r]));
-  const lots = new Map((lotIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string }[]>`
-    select id, product_id from inventory.v_lots where id = any(${lotIds}::uuid[])`).map((r) => [r.id, r.product_id]));
+  // RG-4: whether FEFO may issue the lot today, by inventory's own rule (inventory.lot_sellable, granted), and why not (blocked or expired).
+  const today = await companyToday(ctx);
+  const lots = new Map((lotIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string; lot_status: string | null; expires_on: string | null; sellable: boolean }[]>`
+    select id, product_id, lot_status, expires_on::text, inventory.lot_sellable(id, ${today}::date) as sellable
+    from inventory.v_lots where id = any(${lotIds}::uuid[])`).map((r) => [r.id, r]));
   const serials = new Map((serialIds.length === 0 ? [] : await ctx.tx<{ id: string; product_id: string; lot_id: string | null }[]>`
     select id, product_id, lot_id from inventory.v_serials where id = any(${serialIds}::uuid[])`).map((r) => [r.id, r]));
   const tracking = await trackingOf(ctx, [...new Set(lines.map((l) => l.product_id))]);
@@ -293,7 +317,13 @@ async function assertPicked(ctx: ProcessContext, pick: PickRow, lines: FinalLine
     const no = `Línea ${i + 1}`;
     const loc = l.location_id ? locations.get(l.location_id) : undefined;
     if (l.location_id && (!loc || loc.warehouse_id !== pick.warehouse_id || loc.kind !== "storage")) add("invalid_location", `${no}: la ubicación no es de la bodega del alistamiento o es de tránsito`);
-    if (l.lot_id && lots.get(l.lot_id) !== l.product_id) add("lot_not_found", `${no}: el lote no existe o es de otro producto`);
+    const lot = l.lot_id ? lots.get(l.lot_id) : undefined;
+    if (l.lot_id && lot?.product_id !== l.product_id) add("lot_not_found", `${no}: el lote no existe o es de otro producto`);
+    else if (lot && !lot.sellable && picked(l) > 0) {
+      // Not sellable while active and past its date: expired (the product blocks expired lots); otherwise blocked.
+      if (lot.lot_status === "active" && lot.expires_on !== null && lot.expires_on < today) add("lot_expired", `${no}: el lote venció el ${lot.expires_on} y el producto bloquea los lotes vencidos`);
+      else add("lot_blocked", `${no}: el lote está bloqueado: no se puede despachar`);
+    }
     if (l.serial_id && serials.get(l.serial_id)?.product_id !== l.product_id) add("serial_not_found", `${no}: el serial no existe o es de otro producto`);
     if (l.serial_id && picked(l) > 1) add("serials_required", `${no}: un serial es una unidad; indica un serial por unidad`);
     if (!final || picked(l) <= 0) return;

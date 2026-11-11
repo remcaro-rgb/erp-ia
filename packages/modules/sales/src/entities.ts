@@ -40,10 +40,11 @@ const trailer = (f: F): FieldDef[] => [
 const ref = (entityId: string, display: string): Pick<FieldDef, "ref"> => ({ ref: { entity: entityId, display } });
 /**
  * «Lote / Vence / Serie» of an entrega line (Task 28.3): what inventory issued, one entry per lot or serial in the order it left, as
- * `code · expiry · qty` (a serial: `number · qty`). Codes, dates and figures only: the column's label carries the words (rule 24).
+ * `code · expiry · qty` (a serial: `number · qty`; a serial that sits in a lot: `code · number · expiry · qty`, migration 0169). Codes, dates
+ * and figures only: the column's label carries the words (rule 24).
  */
 const DELIVERY_LINE_LOTS_EXPR =
-  "(select string_agg(coalesce(x.lot_code, x.serial_no, '') || coalesce(' · ' || x.expires_on::text, '') || ' · ' || trim_scale(x.qty)::text, '; ' order by x.seq) from sales.delivery_line_lots x where x.delivery_line_id = delivery_lines.id)";
+  "(select string_agg(concat_ws(' · ', x.lot_code, x.serial_no, x.expires_on::text, trim_scale(x.qty)::text), '; ' order by x.seq) from sales.delivery_line_lots x where x.delivery_line_id = delivery_lines.id)";
 const priceList = ref("core.price_list", "name");
 
 /** When a commission is earned (plan 2B.2 Task 30.1, owner item 162): on the customer's payment (default) or on the invoice's issue. */

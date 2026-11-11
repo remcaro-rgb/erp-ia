@@ -19,7 +19,7 @@ const migrationFile = (name: string) => readFileSync(new URL(`../../../../../sup
 // v_invoices (debited_amount) and v_einvoice_submissions (note_id) (Task 18); 0135 (Task 35) recreates v_settings with
 // dian_checklist_version and creates v_dian_checks; 0148 (Task 34.4) recreates the lines' and taxes' views with their company amounts: the latest
 // definition of each view must match.
-const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql", "0148_invoicing_company_amounts.sql", "0167_invoicing_line_lots.sql"].map(migrationFile).join("\n");
+const migration = ["0092_invoicing_core.sql", "0094_invoicing_fix_round_1.sql", "0095_invoicing_einvoice.sql", "0096_invoicing_notes.sql", "0101_invoicing_parametros.sql", "0103_invoicing_certificate_fingerprint.sql", "0107_invoicing_pending_lines.sql", "0121_invoicing_price_date.sql", "0135_invoicing_dian_checklist.sql", "0148_invoicing_company_amounts.sql", "0167_invoicing_line_lots.sql", "0169_lots_serial_in_lot_views.sql"].map(migrationFile).join("\n");
 
 const loaded = () => {
   const registry = new Registry();
@@ -43,7 +43,9 @@ describe("invoicing manifest", () => {
     ]);
     expect(invoicing.events.emits).not.toContain("invoicing.invoice.voided");
     // Task 17: its own issued event starts the DIAN submission; «Reintentar envío» resumes it. Task 18: an issued note is sent too.
-    expect(Object.keys(invoicing.events.consumes)).toEqual(["sales.delivery.shipped", "sales.order.confirmed", "invoicing.invoice.issued", "invoicing.invoice.resubmit_requested", "invoicing.note.issued",
+    expect(Object.keys(invoicing.events.consumes)).toEqual(["sales.delivery.shipped", "sales.order.confirmed",
+      // Task 28.4 review: an on_delivery invoice waits for the entrega's lots.
+      "inventory.sale_issue.allocated", "invoicing.invoice.issued", "invoicing.invoice.resubmit_requested", "invoicing.note.issued",
       // Task 23: the receipts and their voids recompute paid_amount and the paid stage.
       "payments.received", "payments.payment.voided",
       // Task 36: an advance applied to invoices (and undone) settles them like a receipt.

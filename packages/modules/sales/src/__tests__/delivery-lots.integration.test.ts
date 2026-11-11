@@ -100,7 +100,7 @@ describe("lots on deliveries and returns (Task 28.3)", () => {
     const ids = await sql<{ id: string }[]>`select id from sales.order_lines where order_id = ${order.id} order by line_no`;
     return { id: order.id, lineIds: ids.map((l) => l.id) };
   };
-  const shippedDelivery = async (orderId: string, lines?: { orderLineId: string; qty: number }[]) => {
+  const shippedDelivery = async (orderId: string, lines?: { orderLineId: string; qty: number; serialIds?: string[] }[]) => {
     const delivery = await run<DeliveryOut>(admin, "sales.delivery.create", { orderId, date: day(3, 10), costCenterId, ...(lines ? { lines } : {}) });
     await run(admin, "sales.delivery.ship", { id: delivery.id });
     expect(await drain()).toEqual([]);
@@ -231,5 +231,103 @@ describe("lots on deliveries and returns (Task 28.3)", () => {
     expect(await drain()).toEqual([]);
     const [bucket] = await sql<{ on_hand: string }[]>`select on_hand::text from inventory.stock_levels where lot_id = ${p.lot.A!} and location_id = ${locationId}`;
     expect(Number(bucket!.on_hand)).toBe(3);
+  });
+
+  it("lots_pending is computed, not masked: a role that hides the tracking and the movement lines' lot and serial still sees it (rule 14)", async () => {
+    const p = await lotProduct();
+    const order = await confirmedOrder([{ productId: p.productId, qty: 1 }]);
+    const delivery = await run<DeliveryOut>(admin, "sales.delivery.create", { orderId: order.id, date: day(3, 10), costCenterId });
+    await run(admin, "sales.delivery.ship", { id: delivery.id });
+    const line = delivery.lines[0]!.id;
+    const memberRole = seed.companies[0]!.memberRoleId;
+    for (const [entity, field] of [["inventory.product_tracking", "tracking"], ["inventory.movement_line", "lot_id"], ["inventory.movement_line", "serial_id"]] as const) {
+      await sql`insert into kernel.field_permissions (company_id, role_id, entity, field, mode) values (${companyId}, ${memberRole}, ${entity}, ${field}, 'hidden') on conflict do nothing`;
+    }
+    const member = seed.claimsFor(seed.users.vendedor!, companyId) as JwtClaims;
+    const state = async () => (await withClaims(sql, member, (tx) => tx<{ lots_pending: boolean; lots_failed: boolean }[]>`
+      select lots_pending, lots_failed from sales.v_invoice_delivery_lines where id = ${line}`))[0];
+    try {
+      // Not issued yet: pending for the member too (the masked view would read tracking null).
+      expect(await state()).toEqual({ lots_pending: true, lots_failed: false });
+      expect(await drain()).toEqual([]);
+      expect(await state()).toEqual({ lots_pending: false, lots_failed: false });
+      // Issued by lot but sales' record not in yet (service SQL): pending, though the member cannot see the movement lines' lot.
+      const kept = await sql`select * from sales.delivery_line_lots where delivery_line_id = ${line}`;
+      await sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`delete from sales.delivery_line_lots where delivery_line_id = ${line}`;
+      });
+      expect(await state()).toEqual({ lots_pending: true, lots_failed: false });
+      await sql.begin(async (tx) => {
+        await tx`set local session_replication_role = replica`;
+        await tx`insert into sales.delivery_line_lots ${tx(kept as never)}`;
+      });
+    } finally {
+      await sql`delete from kernel.field_permissions where company_id = ${companyId} and role_id = ${memberRole} and entity like 'inventory.%'`;
+    }
+  });
+
+  it("an entrega whose issue inventory refused (back to open) is not pending: devoluciones and invoices are refused for what it is, not «inténtalo de nuevo»", async () => {
+    const p = await lotProduct();
+    const order = await confirmedOrder([{ productId: p.productId, qty: 1 }]);
+    const delivery = await run<DeliveryOut>(admin, "sales.delivery.create", { orderId: order.id, date: day(3, 10), costCenterId });
+    await run(admin, "sales.delivery.ship", { id: delivery.id });
+    // What sales.delivery.reopen does on inventory.sale_issue.refused (service SQL: the refusal itself is inventory's).
+    await sql.begin(async (tx) => {
+      await tx`set local session_replication_role = replica`;
+      await tx`update sales.deliveries set stage = 'open', shipped_at = null, stock_refusal = 'lot_short: sin lote', stock_refused_at = now() where id = ${delivery.id}`;
+    });
+    const [row] = await withClaims(sql, admin.claims, (tx) => tx<{ lots_pending: boolean }[]>`select lots_pending from sales.v_invoice_delivery_lines where id = ${delivery.lines[0]!.id}`);
+    expect(row!.lots_pending).toBe(false);
+    expect(await refusal(run(admin, "sales.return.create", { deliveryId: delivery.id, reason: "x", date: day(3, 12) }))).toMatchObject({ message: expect.stringMatching(/^delivery_not_shipped/) });
+    await sql`delete from kernel.outbox where company_id = ${companyId} and payload->>'deliveryId' = ${delivery.id}`;
+  });
+
+  /** A serial product with three serials in stock. */
+  const serialProduct = async () => {
+    const productId = (await run<{ id: string }>(admin, "core.product.create", good(`SER-${randomUUID().slice(0, 8)}`))).id;
+    await runStepUp("inventory.product_tracking.set", { productId, tracking: "serial" });
+    await run(admin, "inventory.movement.post", { kind: "receipt", date: day(1, 10), warehouseId, lines: [
+      { productId, locationId, qty: 3, unitCost: 100, serials: [{ serialNo: "S-1" }, { serialNo: "S-2" }, { serialNo: "S-3" }] },
+    ] });
+    expect(await drain()).toEqual([]);
+    return productId;
+  };
+
+  it("a devolución of an entrega whose lots inventory has not recorded yet is refused lots_pending, a named lot too; once recorded it is created", async () => {
+    const p = await lotProduct();
+    const order = await confirmedOrder([{ productId: p.productId, qty: 2 }]);
+    const delivery = await run<DeliveryOut>(admin, "sales.delivery.create", { orderId: order.id, date: day(3, 10), costCenterId, lines: [{ orderLineId: order.lineIds[0]!, qty: 2, lotId: p.lot.A }] });
+    await run(admin, "sales.delivery.ship", { id: delivery.id });
+    const line = delivery.lines[0]!.id;
+    for (const lines of [undefined, [{ deliveryLineId: line, qty: 1 }], [{ deliveryLineId: line, qty: 1, lotId: p.lot.A }]]) {
+      const refused = await refusal(run(admin, "sales.return.create", { deliveryId: delivery.id, reason: "Empaque roto", date: day(3, 12), ...(lines ? { lines } : {}) }));
+      expect(refused).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^lots_pending: .*lotes/) });
+    }
+    expect(await drain()).toEqual([]);
+    const ret = await run<{ id: string }>(admin, "sales.return.create", { deliveryId: delivery.id, reason: "Empaque roto", date: day(3, 12), lines: [{ deliveryLineId: line, qty: 1, lotId: p.lot.A }] });
+    expect((await sql<{ lot_id: string }[]>`select lot_id from sales.return_lines where return_id = ${ret.id}`)[0]!.lot_id).toBe(p.lot.A);
+  });
+
+  it("a serial devolución: the serials are scanned, never chosen (a partial one without them is refused serials_required); all that remain default; a serial twice is refused", async () => {
+    const productId = await serialProduct();
+    const order = await confirmedOrder([{ productId, qty: 2 }]);
+    const stock = (await sql<{ id: string }[]>`select id from inventory.serials where product_id = ${productId} order by serial_no`).map((r) => r.id);
+    const delivery = await shippedDelivery(order.id, [{ orderLineId: order.lineIds[0]!, qty: 2, serialIds: [stock[0]!, stock[1]!] }]);
+    const line = delivery.lines[0]!.id;
+    const issued = (await sql<{ serial_id: string }[]>`select serial_id from sales.delivery_line_lots where delivery_line_id = ${line} order by seq`).map((r) => r.serial_id);
+    expect(issued).toHaveLength(2);
+    const create = (lines: unknown[]) => run<{ id: string }>(admin, "sales.return.create", { deliveryId: delivery.id, reason: "No funciona", date: day(3, 12), lines });
+    expect(await refusal(create([{ deliveryLineId: line, qty: 1 }]))).toMatchObject({ code: "invalid_input", message: expect.stringMatching(/^serials_required/) });
+    expect(await refusal(create([{ deliveryLineId: line, qty: 2, serialIds: [issued[0], issued[0]] }]))).toMatchObject({ code: "invalid_input" });
+    const scanned = await create([{ deliveryLineId: line, qty: 1, serialIds: [issued[1]] }]);
+    expect((await sql<{ serial_ids: string[] }[]>`select serial_ids::text[] as serial_ids from sales.return_lines where return_id = ${scanned.id}`)[0]!.serial_ids).toEqual([issued[1]]);
+    // The one serial left of the line: the return of all that remain defaults it (owner item 188).
+    const rest = await create([{ deliveryLineId: line, qty: 1 }]);
+    expect((await sql<{ serial_ids: string[] }[]>`select serial_ids::text[] as serial_ids from sales.return_lines where return_id = ${rest.id}`)[0]!.serial_ids).toEqual([issued[0]]);
+    // A serial that sits in a lot reads «lot · serial», never one of them only.
+    await sql`update sales.delivery_line_lots set lot_code = 'L-9', expires_on = ${`${year + 1}-01-31`} where delivery_line_id = ${line} and serial_id = ${issued[0]!}`;
+    const [view] = await withClaims(sql, admin.claims, (tx) => tx<{ lots: string | null }[]>`select lots from sales.v_delivery_lines where id = ${line}`);
+    expect(view!.lots).toBe(`L-9 · S-1 · ${year + 1}-01-31 · 1; S-2 · 1`);
   });
 });

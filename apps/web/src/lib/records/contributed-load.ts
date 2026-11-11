@@ -1,12 +1,12 @@
 import "server-only";
 import { getTranslations } from "next-intl/server";
-import { entitled, gridPageAccess, ProcessError, runnableProcesses, runProcess, type Caller, type GridStateInput } from "@erp/kernel";
+import { entitled, gridDenial, gridPageAccess, ProcessError, runnableProcesses, runProcess, type Caller, type GridStateInput } from "@erp/kernel";
 import type { GridColumn } from "@erp/ui";
 import { gridEntity } from "@/lib/grid/access";
 import { buildColumns } from "@/lib/grid/columns";
 import { presentationOf } from "@/lib/grid/presentation";
 import { processDeps } from "@/lib/server/runtime";
-import { contributionProcesses, resolveContributedTabs, type ContributedTab } from "./contributed";
+import { contributionProcesses, resolveContributedTabs, sourceCount, type ContributedTab } from "./contributed";
 
 // The tabs other modules contribute to a record page, loaded as the caller (rule 4, design §5.16): the manifest decides
 // which tabs a record may show, the source views and the mapping process answer for the caller's rights, and what the tab
@@ -76,7 +76,11 @@ export async function loadContributedTabs(
     rowCount: async (source, filters) => {
       const entity = gridEntity(deps.registry, source);
       if (!entity) return null;
-      return (await gridRows(caller, source, { filters, sort: [], page: 1, pageSize: 1 })).total;
+      // gridRows answers 0 rows for a grid it refuses: ask the gate here, so a refused grid is null (no grid drawn), not empty.
+      return sourceCount(
+        async () => (await gridDenial(deps, caller.claims, entity)) !== null,
+        async () => (await gridRows(caller, source, { filters, sort: [], page: 1, pageSize: 1 })).total,
+      );
     },
     runnable,
   });
@@ -93,6 +97,7 @@ export async function loadContributedTabs(
   return Promise.all(
     tabs.map(async (tab): Promise<LoadedContribution> => {
       if (tab.kind === "grid") {
+        if (tab.gridHidden) return tab;
         const source = await columnsOf(tab.source!);
         return { ...tab, ...(source ? { gridColumns: source.columns, gridTitle: source.label } : {}) };
       }

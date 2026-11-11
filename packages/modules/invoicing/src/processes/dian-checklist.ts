@@ -34,10 +34,14 @@ export interface ConfirmationState {
   effective: boolean;
 }
 
-export async function effectiveConfirmation(ctx: ProcessContext): Promise<ConfirmationState> {
+/**
+ * The confirmation as it counts. `overrides` are the settings a save is about to write (Task 28.4 review): a conditional row is judged on
+ * them, not on the stored ones, so a save that turns dian_item_instance on is judged with lotes_en_xml in the list.
+ */
+export async function effectiveConfirmation(ctx: ProcessContext, overrides: { dianItemInstance?: boolean } = {}): Promise<ConfirmationState> {
   const { einvoice } = await packOf(ctx);
   // A conditional row applies only while its setting is on (Task 28.4: lotes_en_xml with dian_item_instance).
-  const { dianItemInstance } = await settingsOf(ctx);
+  const dianItemInstance = overrides.dianItemInstance ?? (await settingsOf(ctx)).dianItemInstance;
   const on = { dian_item_instance: dianItemInstance };
   const list = { ...einvoice.dianChecklist, items: einvoice.dianChecklist.items.filter((item) => !item.when || on[item.when]) };
   const [row] = await ctx.tx<{ confirmed: boolean; version: number | null; environment: string }[]>`

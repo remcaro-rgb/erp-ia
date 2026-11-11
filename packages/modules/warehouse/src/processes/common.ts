@@ -87,11 +87,16 @@ export interface Bucket { productId: string; locationId: string; locationCode: s
 /**
  * The stock of `productIds` in the bodega, per bucket (ubicación, lot), FEFO first (RG-4: expires_on, produced_on, lot code, nulls last;
  * blocked lots and, when the product blocks them, lots expired at `on` left out), then the ubicación with most free stock, then its code.
- * Read through inventory's published views; free = on hand − what the allocations of other active reservations already hold of the bucket.
+ * Read through inventory's published views and inventory.lot_sellable (granted: the one rule of RG-4, never copied here); free = on hand −
+ * what the allocations of other active reservations already hold of the bucket, less `credit` (the stale part of the pedido's own
+ * allocation a re-pick replaces).
  * A serial product's buckets are summed per ubicación and lot: the proposal names where its units are, never which serial (serials are
  * scanned or typed by the picker, never chosen by the system, PG §7 call 5).
  */
-export async function buckets(ctx: ProcessContext, warehouseId: string, productIds: string[], on: string): Promise<Bucket[]> {
+/** What a re-pick does not count as held in a bucket: the stale part of the pedido's own allocation (pick.ts propose). */
+export interface Credit { productId: string; locationId: string; lotId: string | null; qty: number }
+
+export async function buckets(ctx: ProcessContext, warehouseId: string, productIds: string[], on: string, credit: Credit[] = []): Promise<Bucket[]> {
   if (productIds.length === 0) return [];
   const rows = await ctx.tx<{ product_id: string; location_id: string; location_code: string; lot_id: string | null; lot_code: string | null; expires_on: string | null; produced_on: string | null; free: string }[]>`
     with stock as (
@@ -104,16 +109,22 @@ export async function buckets(ctx: ProcessContext, warehouseId: string, productI
       from inventory.v_reservation_allocations a join inventory.v_reservations r on r.id = a.reservation_id
       where r.warehouse_id = ${warehouseId} and r.status = 'active' and r.product_id = any(${productIds}::uuid[])
       group by a.location_id, a.lot_id, r.product_id
+    ), credited as (
+      select c.product_id, c.location_id, c.lot_id, sum(c.qty) as qty
+      from unnest(${credit.map((c) => c.productId)}::uuid[], ${credit.map((c) => c.locationId)}::uuid[], ${credit.map((c) => c.lotId)}::uuid[],
+                  ${credit.map((c) => c.qty)}::numeric[]) as c(product_id, location_id, lot_id, qty)
+      group by c.product_id, c.location_id, c.lot_id
+    ), held_net as (
+      select h.product_id, h.location_id, h.lot_id, greatest(h.qty - coalesce(c.qty, 0), 0) as qty
+      from held h left join credited c on c.product_id = h.product_id and c.location_id is not distinct from h.location_id and c.lot_id is not distinct from h.lot_id
     )
     select st.product_id, st.location_id, loc.code as location_code, st.lot_id, l.code as lot_code, l.expires_on::text, l.produced_on::text,
            (st.on_hand - coalesce(h.qty, 0))::text as free
     from stock st
     join inventory.v_locations loc on loc.id = st.location_id and loc.kind = 'storage'
     left join inventory.v_lots l on l.id = st.lot_id
-    left join inventory.v_product_tracking t on t.product_id = st.product_id
-    left join held h on h.product_id = st.product_id and h.location_id is not distinct from st.location_id and h.lot_id is not distinct from st.lot_id
-    where (st.lot_id is null or (l.id is not null and l.lot_status = 'active'
-             and not (coalesce(t.block_expired, true) and l.expires_on is not null and l.expires_on < ${on}::date)))
+    left join held_net h on h.product_id = st.product_id and h.location_id is not distinct from st.location_id and h.lot_id is not distinct from st.lot_id
+    where (st.lot_id is null or (l.id is not null and inventory.lot_sellable(st.lot_id, ${on}::date)))
       and st.on_hand - coalesce(h.qty, 0) > 0
     order by st.product_id, l.expires_on asc nulls last, l.produced_on asc nulls last, l.code asc nulls last,
              st.on_hand - coalesce(h.qty, 0) desc, loc.code asc`;

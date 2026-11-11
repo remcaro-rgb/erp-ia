@@ -46,12 +46,13 @@ export type ContributedActionOutcome = { ok: true; reason: string | null } | { o
 
 /**
  * Runs the button of grid contribution `tabId` on record `recordId` of `entityId` (plan 2B.2 Task 29.4, RG-9: «Crear alistamiento» on a
- * pedido). The process and its input key come from the manifest; the browser sends only which tab and which record.
+ * pedido). The process and its input key come from the manifest; the browser sends only which tab, which record and the step-up token.
  */
-export async function runContributedAction(entityId: string, tabId: string, recordId: string): Promise<ContributedActionOutcome> {
+export async function runContributedAction(entityId: string, tabId: string, recordId: string, stepUpToken?: string): Promise<ContributedActionOutcome> {
   const tab = processDeps().registry.recordTabsFor(entityId).find((c) => c.id === tabId);
   if (!tab || tab.kind !== "grid" || !tab.action || !UUID.test(recordId)) return { ok: false, code: "invalid_input", messages: [] };
-  const caller = await requireCaller();
+  // A sensitive process (rule 15) answers step_up_required; the screen asks for the code and runs again with the token.
+  const caller = { ...(await requireCaller()), ...(stepUpToken ? { stepUpToken } : {}) };
   try {
     const out = (await runProcess(processDeps(), caller, tab.action.process, { [tab.action.inputField]: recordId })) as { created?: unknown; reason?: unknown } | null;
     // A create that made nothing says why (an open alistamiento already, nothing left to deliver): the tab tells it.

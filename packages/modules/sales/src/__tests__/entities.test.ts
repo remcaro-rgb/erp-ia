@@ -23,10 +23,13 @@ const ownerFixes = readFileSync(new URL("../../../../../supabase/migrations/0140
 const commissions = readFileSync(new URL("../../../../../supabase/migrations/0156_sales_commissions.sql", import.meta.url), "utf8");
 // Lots and serials (Task 28.3): 0165 regenerates the entrega and devolución lines' views and creates sales.v_delivery_line_lots.
 const deliveryLots = readFileSync(new URL("../../../../../supabase/migrations/0165_sales_delivery_lots.sql", import.meta.url), "utf8");
+// Task 28.3/28.4 review: 0169 regenerates the entrega lines' view (a serial that sits in a lot reads «lot · serial»).
+const serialInLot = readFileSync(new URL("../../../../../supabase/migrations/0169_lots_serial_in_lot_views.sql", import.meta.url), "utf8");
 /** The migration holding the latest masked view of each entity. */
 const viewMigration = (entityId: string) =>
   entityId === "sales.settings" || entityId.startsWith("sales.commission") ? commissions
-    : /^sales\.(delivery_line|return_line|delivery_line_lot)$/.test(entityId) ? deliveryLots
+    : entityId === "sales.delivery_line" ? serialInLot
+    : /^sales\.(return_line|delivery_line_lot)$/.test(entityId) ? deliveryLots
     : entityId === "sales.delivery" ? ownerIsolation : entityId === "sales.return" ? deliveries : orders;
 
 const loaded = () => {

@@ -4,7 +4,7 @@ import { INVOICE_PAID, onAdvanceApplied, onAdvanceUnapplied, onPaymentReceived, 
 import { INVOICING_ENTITIES } from "./entities";
 import { FEATURES, MENU_SHARED, NAVIGATION } from "./features";
 import { INVOICING_PROCESSES } from "./processes";
-import { onDeliveryShipped, onOrderConfirmed } from "./processes/auto";
+import { onDeliveryShipped, onOrderConfirmed, onSaleIssueAllocated } from "./processes/auto";
 import { INVOICE_CREATED, INVOICE_ISSUED } from "./processes/common";
 import {
   INVOICE_ACCEPTED, INVOICE_ANNULLED, INVOICE_REJECTED, NOTE_ACCEPTED, NOTE_REJECTED, onInvoiceIssued, onNoteIssued, onResubmitRequested, RESUBMIT_REQUESTED,
@@ -43,6 +43,8 @@ export const invoicing: ModuleDef = defineModule({
     consumes: {
       "sales.delivery.shipped": onDeliveryShipped,
       "sales.order.confirmed": onOrderConfirmed,
+      // Task 28.4 review: an on_delivery invoice of a lot or serial entrega is issued once inventory's answer gave sales its lots.
+      "inventory.sale_issue.allocated": onSaleIssueAllocated,
       // The DIAN submission (Task 17): one per issued invoice, and «Reintentar envío».
       [INVOICE_ISSUED]: onInvoiceIssued,
       [RESUBMIT_REQUESTED]: onResubmitRequested,
@@ -66,6 +68,7 @@ export const invoicing: ModuleDef = defineModule({
   effects: {
     "sales.order.confirmed": ["invoicing.effects.order_auto_invoice"],
     "sales.delivery.shipped": ["invoicing.effects.delivery_auto_invoice"],
+    "inventory.sale_issue.allocated": ["invoicing.effects.delivery_lots_issue"],
     [INVOICE_CREATED]: ["invoicing.effects.draft_created"],
     [INVOICE_ISSUED]: ["invoicing.effects.issue_dian"],
     [RESUBMIT_REQUESTED]: ["invoicing.effects.resubmit_dian"],

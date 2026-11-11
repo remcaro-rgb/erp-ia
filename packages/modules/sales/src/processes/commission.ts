@@ -54,6 +54,20 @@ export const issuedForCommission = z.looseObject({
   commissionLines: z.array(commissionLine).max(5000).default([]),
 });
 
+/**
+ * The key of an invoice's commission lock (review re-check of finding 1): a transaction-scoped advisory lock compute takes before it reads
+ * what the invoice already has, held until it commits; the collection and note consumers take it before they look for bases. A consumer
+ * that runs while compute is in flight waits and then sees the committed bases; one that gets the lock before compute starts finds no
+ * bases, and compute, starting after it, reads that document (committed before its event) in its catch-up.
+ */
+export const commissionLockKey = (companyId: string, invoiceId: string) => `sales.commission:${companyId}:${invoiceId}`;
+const lockInvoice = (tx: ProcessContext["tx"], companyId: string, invoiceId: string) =>
+  tx`select pg_advisory_xact_lock(hashtextextended(${commissionLockKey(companyId, invoiceId)}, 0))`;
+/** A consumer's wait (outside a transaction: the lock is taken and released at once, after compute's transaction ends), in id order. */
+async function awaitCompute(ctx: Parameters<EventConsumer>[0], invoiceIds: string[]): Promise<void> {
+  for (const invoiceId of [...new Set(invoiceIds)].sort()) await lockInvoice(ctx.sql as unknown as ProcessContext["tx"], ctx.companyId, invoiceId);
+}
+
 export const commissionCompute = defineProcess({
   id: "sales.commission.compute",
   module: "sales",
@@ -71,6 +85,7 @@ export const commissionCompute = defineProcess({
   output: z.object({ bases: z.number().int() }),
   handler: async (ctx, invoice) => {
     if (invoice.commissionLines.length === 0) return { bases: 0 };
+    await lockInvoice(ctx.tx, ctx.companyId, invoice.invoiceId);
     const [settings] = await ctx.tx<{ commission_basis: CommissionBasis }[]>`select commission_basis from sales.settings where company_id = ${ctx.companyId}`;
     const basis: CommissionBasis = settings?.commission_basis ?? "on_collection";
     const orderIds = [...new Set(invoice.commissionLines.map((l) => l.orderId))];
@@ -104,10 +119,77 @@ export const commissionCompute = defineProcess({
         "categoryId" uuid, "costCenterId" uuid, "userId" uuid, "planId" uuid, "payeePartyId" uuid, "payeeKind" text, rate text, base text, "baseDoc" text)
       on conflict (company_id, invoice_line_id) do nothing
       returning id`;
-    if (written.length > 0) await ctx.emit(COMMISSION_DUE, { invoiceId: invoice.invoiceId, basis });
+    if (written.length === 0) return { bases: 0 };
+    await catchUp(ctx, invoice.invoiceId, basis);
+    await ctx.emit(COMMISSION_DUE, { invoiceId: invoice.invoiceId, basis });
     return { bases: written.length };
   },
 });
+
+/**
+ * What happened to the invoice before its bases existed (review finding 1): nothing orders sales' consumer of invoicing.invoice.issued
+ * (a retried event lands late) before the consumers of the credit notes and the collections, and each of those finds no base and does
+ * nothing. So compute, right after writing the bases, reads through the published views of invoicing and payments (rule 3) the credit notes
+ * issued on the invoice and the receipts and advance applications posted on it, and runs for them what their consumers would have run, as
+ * nested runs: the annulment closes the bases (nothing accrues, under either basis); each partial note reduces its lines' bases; under
+ * on_collection each collection, in the order it was posted, accrues its share, its open balance after it taken from today's state (the
+ * invoice's total with its notes, less the collections up to it). A consumer that runs later finds the base already moved by that document
+ * (`applied_sources`, 0158) and writes nothing. The notes are applied before the collections: when a collection was posted before a note,
+ * the shares of the partial collections differ from the in-order ones (the full collection still totals the commission; owner item).
+ */
+async function catchUp(ctx: ProcessContext, invoiceId: string, basis: CommissionBasis): Promise<void> {
+  const notes = await ctx.tx<{ id: string; annulment: boolean; issue_date: string | null; exchange_rate: string | null }[]>`
+    select id, annulment, issue_date::text, exchange_rate::text from invoicing.v_notes
+    where company_id = ${ctx.companyId} and invoice_id = ${invoiceId} and kind = 'credit' and stage = 'issued' and status <> 'voided'
+    order by issued_at, seq`;
+  const annulment = notes.find((n) => n.annulment);
+  if (annulment) {
+    await ctx.runProcess!("sales.commission.adjust_for_note", { noteId: annulment.id, invoiceId, annulment: true, lines: [] });
+    return;
+  }
+  for (const note of notes) {
+    // As invoicing.note.issued sends them (note.ts post, companyAmounts): the revenue lines, signed negative, pesos and document currency.
+    const lines = await ctx.tx<{ invoice_line_id: string; subtotal: string; subtotal_doc: string }[]>`
+      select invoice_line_id, (-coalesce(subtotal_company, round(base * ${Number(note.exchange_rate ?? 1)}, 2)))::text as subtotal, (-round(base, 2))::text as subtotal_doc
+      from invoicing.v_note_lines
+      where note_id = ${note.id} and invoice_line_id is not null and not coalesce(free_sample, false) and base > 0
+      order by line_no`;
+    if (lines.length === 0) continue;
+    await ctx.runProcess!("sales.commission.adjust_for_note", {
+      noteId: note.id, invoiceId, annulment: false, ...(note.issue_date ? { date: note.issue_date } : {}),
+      lines: lines.map((l) => ({ invoiceLineId: l.invoice_line_id, subtotal: Number(l.subtotal), subtotalDoc: Number(l.subtotal_doc) })),
+    });
+  }
+  if (basis !== "on_collection") return;
+  const collected = await ctx.tx<{ source: "receipt" | "advance"; id: string; date: string; amount: string }[]>`
+    select s.source, s.id, s.date, s.amount::text from (
+      select 'receipt' as source, r.id, r.date::text as date, a.amount, coalesce(r.applied_at, r.created_at) as at, a.line_no
+      from payments.v_receipt_allocations a join payments.v_receipts r on r.id = a.receipt_id
+      where a.company_id = ${ctx.companyId} and a.invoice_id = ${invoiceId} and r.status = 'posted'
+      union all
+      select 'advance', p.id, p.date::text, l.amount, coalesce(p.applied_at, p.created_at), l.line_no
+      from payments.v_advance_application_lines l join payments.v_advance_applications p on p.id = l.application_id
+      where l.company_id = ${ctx.companyId} and l.invoice_id = ${invoiceId} and p.status = 'posted'
+    ) s order by s.at, s.id, s.line_no`;
+  if (collected.length === 0) return;
+  const [inv] = await ctx.tx<{ open: string }[]>`
+    select (total + coalesce(debited_amount, 0) - coalesce(credited_amount, 0))::text as open from invoicing.v_invoices where id = ${invoiceId}`;
+  if (!inv) return;
+  let open = cents(inv.open);
+  const documents = new Map<string, { source: "receipt" | "advance"; id: string; date: string; allocations: { invoiceId: string; amount: number; openAfterDoc: number }[] }>();
+  for (const c of collected) {
+    open -= cents(c.amount);
+    const key = `${c.source}:${c.id}`;
+    const doc = documents.get(key) ?? { source: c.source, id: c.id, date: c.date, allocations: [] };
+    doc.allocations.push({ invoiceId, amount: fromCents(cents(c.amount)), openAfterDoc: fromCents(open) });
+    documents.set(key, doc);
+  }
+  for (const d of documents.values()) {
+    await ctx.runProcess!("sales.commission.accrue", d.source === "receipt"
+      ? { source: "receipt", paymentId: d.id, date: d.date, allocations: d.allocations }
+      : { source: "advance", applicationId: d.id, date: d.date, allocations: d.allocations });
+  }
+}
 
 export const commissionConsultAll = defineProcess({
   id: "sales.commission.consult_all",
@@ -163,7 +245,8 @@ export const commissionConsult = defineProcess({
 // Each documento lines one row per base (its amount, the base's cost center), raises `accrued` on the base, links the source document to it
 // (invoice_to_commission, receipt_to_commission; an advance application is the payments document that settled the invoice, so it links as a
 // receipt does) and posts through the typed lifecycle: Grabar numbers it COM- and its post hook emits sales.commission.accrued. Idempotent on
-// the source: a redelivery answers the documentos the first run wrote.
+// the source: a redelivery answers the documentos the first run wrote; a collection notes itself on every base it moved (applied_sources,
+// 0158), so a run after compute's catch-up (finding 1) moves nothing twice. Remaining counts a net below zero as nothing accrued (finding 2).
 //
 // Posting (RG-12, the posting mode of Task 33): the entry is written inline in the same run when the ledger accepts it (or queued in the
 // asynchronous mode). When the ledger refuses it (the payee no longer invoice-ready, a closed period, an unmapped role), the commission still
@@ -218,22 +301,43 @@ const sourceOf = (input: AccrueInput): { kind: "invoice" | "receipt" | "advance"
 interface OpenBase { id: string; invoice_id: string; invoice_date: string; plan_id: string; payee_party_id: string; payee_kind: PayeeKind; cost_center_id: string | null; commission: string; accrued: string; reversed: string }
 interface Accrual { base: OpenBase; amount: bigint }
 
-const openBases = (ctx: ProcessContext, invoiceIds: string[], basis: CommissionBasis) => ctx.tx<OpenBase[]>`
-  select id, invoice_id, invoice_date::text, plan_id, payee_party_id, payee_kind, cost_center_id, commission::text, accrued::text, reversed::text
-  from sales.commission_bases
-  where company_id = ${ctx.companyId} and invoice_id = any(${invoiceIds}::uuid[]) and basis = ${basis} and status = 'open'
-  order by invoice_id, seq for update`;
+const BASE_COLUMNS = "id, invoice_id, invoice_date::text, plan_id, payee_party_id, payee_kind, cost_center_id, commission::text, accrued::text, reversed::text";
 
-/** What each open base earns from the source (zero amounts left out). */
-async function accrualsOf(ctx: ProcessContext, input: AccrueInput): Promise<Accrual[]> {
+/**
+ * The open bases of the invoices under `basis`, locked; with `sourceId`, only those that document has not moved yet: not in their
+ * `applied_sources` (0158) and lined by no documento of that source (a base accrued before 0158).
+ */
+const openBases = (ctx: ProcessContext, invoiceIds: string[], basis: CommissionBasis, sourceId?: string) => ctx.tx<OpenBase[]>`
+  select ${ctx.tx.unsafe(BASE_COLUMNS)}
+  from sales.commission_bases b
+  where company_id = ${ctx.companyId} and invoice_id = any(${invoiceIds}::uuid[]) and basis = ${basis} and status = 'open'
+    ${sourceId ? ctx.tx`and not (${sourceId}::uuid = any(b.applied_sources)) and not ${appliedBy(ctx, sourceId)}` : ctx.tx``}
+  order by invoice_id, seq for update`;
+const appliedBy = (ctx: ProcessContext, sourceId: string) => ctx.tx`exists (
+  select 1 from sales.commission_lines l join sales.commissions c on c.id = l.commission_id where l.base_id = b.id and c.source_id = ${sourceId}::uuid)`;
+/** Notes on the bases that `sourceId` moved them (accrued, reduced or neither): a later run for it skips them. */
+const markApplied = async (ctx: ProcessContext, baseIds: string[], sourceId: string) => {
+  if (baseIds.length === 0) return;
+  await ctx.tx`update sales.commission_bases set applied_sources = applied_sources || ${sourceId}::uuid
+    where id = any(${baseIds}::uuid[]) and not (${sourceId}::uuid = any(applied_sources))`;
+};
+/** What a base has not accrued yet net of reversals; a net below zero (the payee owing) counts as nothing accrued (finding 2). */
+const remainingOf = (b: OpenBase): bigint => {
+  const net = cents(b.accrued) - cents(b.reversed);
+  return cents(b.commission) - (net > ZERO ? net : ZERO);
+};
+
+/** What each open base earns from the source (zero amounts left out), and the bases the source moved (zero or not). */
+async function accrualsOf(ctx: ProcessContext, input: AccrueInput): Promise<{ accruals: Accrual[]; moved: string[] }> {
   if (input.source === "invoice") {
-    return (await openBases(ctx, [input.invoiceId], "on_invoice"))
+    const accruals = (await openBases(ctx, [input.invoiceId], "on_invoice"))
       .map((base) => ({ base, amount: cents(base.commission) - cents(base.accrued) }))
       .filter((a) => a.amount !== ZERO);
+    return { accruals, moved: [] };
   }
-  if (input.allocations.length === 0) return [];
-  const bases = await openBases(ctx, [...new Set(input.allocations.map((a) => a.invoiceId))], "on_collection");
-  const remaining = new Map(bases.map((b) => [b.id, cents(b.commission) - cents(b.accrued) + cents(b.reversed)]));
+  if (input.allocations.length === 0) return { accruals: [], moved: [] };
+  const bases = await openBases(ctx, [...new Set(input.allocations.map((a) => a.invoiceId))], "on_collection", sourceOf(input).id);
+  const remaining = new Map(bases.map((b) => [b.id, remainingOf(b)]));
   const earned = new Map<string, bigint>();
   for (const a of input.allocations) {
     const settled = cents(a.amount);
@@ -245,7 +349,7 @@ async function accrualsOf(ctx: ProcessContext, input: AccrueInput): Promise<Accr
       earned.set(base.id, (earned.get(base.id) ?? ZERO) + amount);
     }
   }
-  return bases.map((base) => ({ base, amount: earned.get(base.id) ?? ZERO })).filter((a) => a.amount !== ZERO);
+  return { accruals: bases.map((base) => ({ base, amount: earned.get(base.id) ?? ZERO })).filter((a) => a.amount !== ZERO), moved: bases.map((b) => b.id) };
 }
 
 const commissionOutput = z.object({ commissionIds: z.array(z.string()) });
@@ -269,11 +373,17 @@ export const commissionAccrue = defineProcess({
   output: commissionOutput,
   handler: async (ctx, input) => {
     const source = sourceOf(input);
-    // A redelivery after the first run committed (another key, or the key's row gone): the documentos it wrote.
-    const done = await ctx.tx<{ id: string }[]>`
-      select id from sales.commissions where company_id = ${ctx.companyId} and source_kind = ${source.kind} and source_id = ${source.id} and reverses_id is null order by seq`;
-    if (done.length > 0) return { commissionIds: done.map((c) => c.id) };
-    const accruals = await accrualsOf(ctx, input);
+    const written = async () => (await ctx.tx<{ id: string }[]>`
+      select id from sales.commissions where company_id = ${ctx.companyId} and source_kind = ${source.kind} and source_id = ${source.id} and reverses_id is null order by seq`).map((c) => c.id);
+    // A redelivery after the first run committed (another key, or the key's row gone): the documentos it wrote. For a collection the bases
+    // say it (applied_sources): one receipt may settle an invoice accrued by its consumer and another whose compute caught up on it later.
+    if (source.kind === "invoice") {
+      const done = await written();
+      if (done.length > 0) return { commissionIds: done };
+    }
+    const { accruals, moved } = await accrualsOf(ctx, input);
+    if (source.kind !== "invoice" && moved.length === 0) return { commissionIds: await written() };
+    await markApplied(ctx, moved, source.id);
     if (accruals.length === 0) return { commissionIds: [] };
 
     const date = input.source === "invoice" ? accruals[0]!.base.invoice_date : input.date ?? (await companyToday(ctx));
@@ -299,7 +409,7 @@ const companyToday = async (ctx: ProcessContext) => (await companyFacts(ctx)).to
  */
 async function writeCommissions(
   ctx: ProcessContext,
-  args: { kind: "invoice" | "receipt" | "advance" | "note"; id: string; date: string; link: { kind: string; entity: string }; accruals: Accrual[] },
+  args: { kind: "invoice" | "receipt" | "advance" | "note" | "void"; id: string; date: string; link: { kind: string; entity: string }; accruals: Accrual[] },
 ): Promise<string[]> {
   const { currency } = await companyFacts(ctx);
   const groups = new Map<string, Accrual[]>();
@@ -410,6 +520,9 @@ export const commissionHooks: TypedHooks = {
 //     new commission. Once per note (its key, and the documento of that source). A debit note changes no commission.
 //   - receipt void (payments.payment.voided) and advance unapply (payments.advance.unapplied): every commission of that source reversed
 //     (one reverse run each); what they had accrued is collectable again by the next receipt (remaining counts reversals back).
+//     When a refund note had given back part of what the voided collection accrued, the net of the base goes below zero: the reverse posts
+//     a correcting documento (source void, the reversed commission) bringing it back to 0, so the payee never owes it and the next
+//     collection accrues on the reduced commission (review finding 2).
 
 /** The recommendation reason a paid commission raises (catalogue sales.recommendation.reason.commission_paid_reversal). */
 export const COMMISSION_PAID_REVERSAL = "commission_paid_reversal";
@@ -424,7 +537,8 @@ export const commissionReverse = defineProcess({
   feature: FEATURE_COMMISSIONS,
   // ui: for the paid case of phase 3 (PG §5.5); in 2B.2 the events run it.
   origins: ["event", "ui"],
-  emits: [COMMISSION_REVERSED],
+  // COMMISSION_ACCRUED: the correcting documento of a net gone negative (finding 2).
+  emits: [COMMISSION_REVERSED, COMMISSION_ACCRUED],
   description:
     "Revierte una comisión causada: queda revertida y su asiento se reversa; una comisión ya pagada no se revierte y avisa a quien puede revertirla",
   input: z.object({ commissionId: id, reason: z.string().trim().min(1, "Indica por qué se revierte la comisión").max(500) }).strict(),
@@ -450,7 +564,21 @@ export const commissionReverse = defineProcess({
       update sales.commission_bases b set reversed = b.reversed + l.amount
       from (select base_id, sum(amount) as amount from sales.commission_lines where commission_id = ${commissionId} group by base_id) l
       where b.id = l.base_id`;
-    await postOrPend(ctx, COMMISSION_REVERSED, { commissionId, number: c.number, date: await companyToday(ctx), reason });
+    const today = await companyToday(ctx);
+    await postOrPend(ctx, COMMISSION_REVERSED, { commissionId, number: c.number, date: today, reason });
+    // A net gone negative (a refund note gave back what this collection had accrued, and the collection is now voided: the payee would owe
+    // it): a correcting documento brings each such open base back to 0 (Dr expense / Cr payable), sourced on the reversed commission. An
+    // annulment closes the bases before it reverses them and corrects nothing: every commission of the invoice is reversed anyway.
+    const negative = await ctx.tx<OpenBase[]>`
+      select ${ctx.tx.unsafe(BASE_COLUMNS)} from sales.commission_bases b
+      where b.id in (select base_id from sales.commission_lines where commission_id = ${commissionId}) and b.status = 'open' and b.accrued < b.reversed
+      order by b.seq for update`;
+    if (negative.length > 0) {
+      await writeCommissions(ctx, {
+        kind: "void", id: commissionId, date: today, link: { kind: "commission_to_commission", entity: commissionEntity.id },
+        accruals: negative.map((base) => ({ base, amount: cents(base.reversed) - cents(base.accrued) })),
+      });
+    }
     return { commissionId, reversed: true };
   },
 });
@@ -487,6 +615,8 @@ export const commissionAdjustForNote = defineProcess({
   output: z.object({ reversed: z.number().int(), adjusted: z.number().int(), commissionIds: z.array(z.string()) }),
   handler: async (ctx, input) => {
     if (input.annulment) {
+      // Closed first: the reversals below then correct no net gone negative (every commission of the invoice is reversed).
+      await ctx.tx`update sales.commission_bases set status = 'closed' where company_id = ${ctx.companyId} and invoice_id = ${input.invoiceId} and status = 'open'`;
       const commissions = await ctx.tx<{ id: string }[]>`
         select c.id from sales.commissions c
         where c.company_id = ${ctx.companyId} and c.stage in ('posted', 'paid')
@@ -497,12 +627,12 @@ export const commissionAdjustForNote = defineProcess({
         const out = await ctx.runProcess!<z.output<typeof reverseOutput>>("sales.commission.reverse", { commissionId: c.id, reason: "Anulación de la factura" });
         if (out?.reversed) reversed += 1;
       }
-      await ctx.tx`update sales.commission_bases set status = 'closed' where company_id = ${ctx.companyId} and invoice_id = ${input.invoiceId} and status = 'open'`;
       return { reversed, adjusted: 0, commissionIds: [] };
     }
-    // A redelivery after the first run committed (the key's row gone): the documento it wrote.
-    const done = await ctx.tx<{ id: string }[]>`select id from sales.commissions where company_id = ${ctx.companyId} and source_kind = 'note' and source_id = ${input.noteId} order by seq`;
-    if (done.length > 0) return { reversed: 0, adjusted: 0, commissionIds: done.map((c) => c.id) };
+    // A redelivery after the first run committed (the key's row gone), or compute's catch-up applied it already (finding 1): the bases
+    // it moved say it (applied_sources, 0158), and the documento it wrote is the answer.
+    const written = async () => (await ctx.tx<{ id: string }[]>`
+      select id from sales.commissions where company_id = ${ctx.companyId} and source_kind = 'note' and source_id = ${input.noteId} order by seq`).map((c) => c.id);
     const byLine = new Map<string, { delta: bigint; deltaDoc: bigint }>();
     for (const l of input.lines) {
       const sum = byLine.get(l.invoiceLineId) ?? { delta: ZERO, deltaDoc: ZERO };
@@ -512,10 +642,12 @@ export const commissionAdjustForNote = defineProcess({
     const bases = await ctx.tx<NotedBase[]>`
       select id, invoice_id, invoice_line_id, invoice_date::text, plan_id, payee_party_id, payee_kind, cost_center_id, rate_pct::text, base::text, base_doc::text,
              commission::text, accrued::text, reversed::text
-      from sales.commission_bases
+      from sales.commission_bases b
       where company_id = ${ctx.companyId} and invoice_id = ${input.invoiceId} and invoice_line_id = any(${[...byLine.keys()]}::uuid[]) and status = 'open'
+        and not (${input.noteId}::uuid = any(b.applied_sources)) and not ${appliedBy(ctx, input.noteId)}
       order by seq for update`;
-    if (bases.length === 0) return { reversed: 0, adjusted: 0, commissionIds: [] };
+    if (bases.length === 0) return { reversed: 0, adjusted: 0, commissionIds: await written() };
+    await markApplied(ctx, bases.map((b) => b.id), input.noteId);
     const changed = bases.map((b) => {
       const { delta, deltaDoc } = byLine.get(b.invoice_line_id)!;
       return { id: b.id, base: fromCents(cents(b.base) + delta), base_doc: fromCents(cents(b.base_doc) + deltaDoc) };
@@ -562,6 +694,7 @@ export const onCommissionDue: EventConsumer = async (ctx, payload) => {
 async function withBases(ctx: Parameters<EventConsumer>[0], allocations: { invoiceId: string; amount: number; openAfterDoc?: number }[]) {
   if (allocations.length === 0) return [];
   const ids = [...new Set(allocations.map((a) => a.invoiceId))];
+  await awaitCompute(ctx, ids);
   const rows = await ctx.sql<{ invoice_id: string }[]>`
     select distinct invoice_id from sales.commission_bases
     where company_id = ${ctx.companyId} and invoice_id = any(${ids}::uuid[]) and basis = 'on_collection' and status = 'open'`;
@@ -594,6 +727,7 @@ export const onAdvanceApplied: EventConsumer = collectionConsumer("advance");
 
 /** Whether the invoice has commission bases (a cheap read: most invoices of a company without plans have none). */
 async function hasBases(ctx: Parameters<EventConsumer>[0], invoiceId: string): Promise<boolean> {
+  await awaitCompute(ctx, [invoiceId]);
   const [row] = await ctx.sql`select 1 from sales.commission_bases where company_id = ${ctx.companyId} and invoice_id = ${invoiceId} limit 1`;
   return Boolean(row);
 }

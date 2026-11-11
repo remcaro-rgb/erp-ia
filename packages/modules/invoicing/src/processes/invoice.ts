@@ -5,7 +5,7 @@ import { allocatedTo } from "../consumers/payments";
 import { resolveLinePrice } from "@erp/module-sales";
 import { assertInvoiceReady, readInvoiceFacts } from "../readiness";
 import {
-  assertDianAccepted, checkSources, companyAmounts, date, defaultRate, rateDiffers, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, isExportFor, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
+  assertDianAccepted, assertLotsRecorded, checkSources, companyAmounts, date, defaultRate, rateDiffers, exchangeRateMissing, FEATURE_INVOICES, id, INVOICE_CREATED, isExportFor, INVOICE_ISSUED, money, num, packOf, pendingDeliveryLines, percent, priceLines, qty,
   refuse, refuseState, settingsOf, today, unlinkInvoice, writeParts, type DraftLine,
 } from "./common";
 
@@ -656,6 +656,8 @@ export const invoiceHooks: TypedHooks = {
     const drafts = (await linesOf(ctx, invoice.id)).map(draftOf);
     if (drafts.length === 0) refuse("nothing_to_invoice", ["La factura no tiene líneas"]);
     await checkSources(ctx, { id: invoice.id, partyId: invoice.party_id, currency: invoice.currency }, drafts);
+    // The lots are frozen with the lines below: never before sales has recorded them (Task 28.4 review, lots_pending, retryable).
+    await assertLotsRecorded(ctx, drafts);
     const facts = await assertInvoiceReady(ctx, invoice.party_id, drafts.map((l) => l.productId));
     // Dated today (ruling, fix round 1): the date the Borrador had is its service date; crédito keeps the term it had (due − date).
     // Prices are NOT recalculated here (owner item 17): the lines keep their stored unit price (draftOf); only the taxes are evaluated on the

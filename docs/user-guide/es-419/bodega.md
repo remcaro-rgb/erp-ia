@@ -49,7 +49,9 @@ Un **alistamiento** (`ALI-…`) es la lista de lo que hay que tomar de la bodega
 - **Bodega › Documentos › Alistamientos** lista todos, con su etapa (**Por alistar**, **En proceso**, **Confirmado**) y su asignación. Abre uno para trabajarlo.
 - En el alistamiento, **Iniciar** lo pasa a **En proceso**. Cada línea muestra el producto, lo pedido, **Tomado de** (la ubicación, el lote o el serial, con lo que hay) y la cantidad **Tomada**. **Guardar** conserva lo que cambiaste. **Confirmar alistamiento** lo envía: una línea que no tocaste se toma tal como se propuso (FEFO: primero el lote que vence antes). Confirmar no mueve existencias: Inventario **asigna** a la reserva del pedido lo que se tomó.
 - Si la asignación alcanza y está activo **Crear la entrega en borrador al confirmar un alistamiento**, aparece sola la entrega del pedido, **Por despachar**, con lo alistado, sus lotes y seriales (ver [Entregas](entregas.md)); la encuentras en la pestaña **Relacionados** del alistamiento. Despáchala desde la entrega. Si alguna línea no alcanzó, el alistamiento muestra **Faltante** y vuelve a **En proceso** para corregirlo.
-- Si el pedido se cancela, sus alistamientos se anulan solos.
+- Un lote **bloqueado**, o **vencido** cuando el producto bloquea los lotes vencidos, no se alista: guardar o confirmar el alistamiento con ese lote muestra «El lote está bloqueado: no se puede despachar» o «El lote está vencido y el producto bloquea los lotes vencidos»; elige otro lote. Si el lote se bloquea o vence después de confirmar y antes de que Inventario asigne, esa línea queda **Faltante** y el alistamiento vuelve a **En proceso**.
+- Si anulas la entrega de un alistamiento antes de despacharla (o la entrega automática está desactivada), **Crear alistamiento** hace uno nuevo para lo que el pedido tiene por entregar. Al confirmarlo, su asignación **reemplaza** la del alistamiento anterior: la mercancía que este tenía apartada vuelve a contar para el nuevo.
+- Si el pedido se cancela, sus alistamientos se anulan solos, y también su empaque si estaba abierto.
 
 ## Empaque
 
@@ -72,6 +74,7 @@ Lo que se ve si algo falla:
 - «Se empacó más de lo alistado»: la suma de una línea en todos los paquetes supera lo que se tomó.
 - «El número de paquete está repetido» o «La línea no es de este alistamiento».
 - «El empaque ya está cerrado» o «El empaque está anulado».
+- «El alistamiento está anulado»: su pedido se canceló; el empaque ya no cambia.
 
 ## Ubicación de lo recibido
 
@@ -93,7 +96,7 @@ En **Bodega › Parámetros › Reglas de ubicación** ves las reglas de todas l
    - Sin regla, la línea queda sin propuesta y la eliges tú.
 3. Revisa o cambia las ubicaciones (o elige **Dejar donde está**) y pulsa **Confirmar ubicación**. Inventario crea una **reubicación** (`RU-…`, ver [Inventario](inventario.md)) que saca las existencias de la ubicación de recibo y las pone en la de destino, con su mismo lote o serial. No cambia el costo ni genera comprobante. El aviso de la campana se cierra.
 
-Solo se ubica lo que todavía está en la ubicación de recibo: si ya se movió algo, la sugerencia lo descuenta y confirmar más de lo que queda muestra «Se ubica más de lo que queda de la entrada en esa ubicación». Una ubicación de otra bodega muestra «La ubicación es de otra bodega: entre bodegas se mueve con un traslado».
+Solo se ubica lo que todavía queda de **esa entrada** en la ubicación de recibo: lo que ya se ubicó de ella (o se movió de allí) se descuenta, y lo demás que tenga la ubicación (otras entradas) no se mueve con esta. Una entrada ya reubicada no aparece de nuevo en la sugerencia. Mientras Inventario hace la reubicación de una confirmación, lo confirmado cuenta como ubicado: confirmar otra vez lo mismo, o más de lo que queda, muestra «Se ubica más de lo que queda de la entrada en esa ubicación». Si Inventario no puede hacer la reubicación (por ejemplo, la mercancía salió de la ubicación de recibo antes), las existencias no se mueven y la sugerencia vuelve a mostrar lo que queda; esa confirmación se reintenta sola, así que espera a que se resuelva antes de confirmar de nuevo. Una línea de un producto por lote o por serial necesita su lote o su serial. Una ubicación de otra bodega muestra «La ubicación es de otra bodega: entre bodegas se mueve con un traslado».
 
 Las entradas guardadas antes de activar el módulo Bodega no se marcan ni se sugieren.
 

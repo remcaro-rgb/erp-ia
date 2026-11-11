@@ -311,16 +311,21 @@ const allocateLine = z.object({
 
 const allocateOutput = z.object({
   status: z.enum(["allocated", "short"]),
-  short: z.array(z.object({ orderLineId: z.string(), productId: z.string(), qty: z.number(), available: z.number(), reason: z.string() })),
+  short: z.array(z.object({
+    orderLineId: z.string(), productId: z.string(), locationId: z.string(), lotId: z.string().nullable(), serialId: z.string().nullable(),
+    qty: z.number(), available: z.number(), reason: z.string(),
+  })),
 });
 
 /**
  * The allocation of a confirmed alistamiento (consumer of warehouse.pick.confirmed, origin event): each picked line becomes an allocation of
  * its pedido line's active reservation (inventory.reservation_allocations: ubicación, lot, serial, quantity). Nothing moves (RG-7): the
  * stock moves at the entrega's ship. All or nothing per alistamiento: a line is short (`allocation_short`) when its bucket (product,
- * ubicación, lot, serial in the event's bodega) holds less than it, net of what the allocations of every other active reservation (and the
- * earlier lines of the alistamiento) already hold of it, or when its reservation has less open (qty − released − already allocated) than it;
- * then NOTHING is allocated and the answer names each short line with what was available. The stock rows are locked first (lockStock, the
+ * ubicación, lot, serial in the event's bodega; a lot inventory.lot_sellable refuses today holds nothing, RG-4) holds less than it, net of
+ * what the allocations of every other active reservation (and the earlier lines of the alistamiento) already hold of it, or when its
+ * reservation has less open (qty − released − already allocated) than it; then NOTHING is allocated and the answer names each short line
+ * (with its bucket) and what was available. A line that takes more than its reservation has open first drops that excess of the line's
+ * earlier allocations, newest first (a re-pick replaces the stale part, see the handler). The stock rows are locked first (lockStock, the
  * order of every movement and reservation), so two alistamientos of the last units queue. Idempotent on the event (a redelivery answers the
  * first run and emits nothing new). Answers by inventory.reservation.allocated { pickId, orderId, warehouseId, createDelivery, status,
  * lines, short }.
@@ -360,6 +365,30 @@ export const reservationAllocate = defineProcess({
       where r.company_id = ${ctx.companyId} and r.source_entity = ${ORDER_LINE_SOURCE} and r.source_line_id = any(${orderLineIds}::uuid[])
         and r.warehouse_id = ${input.warehouseId} and r.status = 'active'
       for update`).map((r) => [r.source_line_id, { id: r.id, open: num(r.open) }]));
+    // A re-pick replaces the earlier allocation (0170): a pedido line's allocation left by an earlier alistamiento whose entrega was voided
+    // unshipped (sales says nothing to inventory for it), or that made no entrega (delivery_from_pick off), would keep the reservation full
+    // forever. When this alistamiento takes more of a line than its reservation has open, only that excess (need − open) is dropped, from
+    // the newest allocation back (the row audit keeps it): the alistamiento asks only what the pedido still has to deliver (qty − what the
+    // entregas not voided take), so the excess is never more than the stale part, and what a live entrega still to ship holds (an older
+    // allocation, the one its ship uses first) stays.
+    const need = new Map<string, number>();
+    for (const l of lines) need.set(l.orderLineId, round4((need.get(l.orderLineId) ?? 0) + l.qty));
+    for (const [orderLineId, r] of reservations) {
+      let excess = round4((need.get(orderLineId) ?? 0) - r.open);
+      if (excess <= 0) continue;
+      const held = await ctx.tx<{ id: string; qty: string }[]>`
+        select id, qty::text from inventory.reservation_allocations where company_id = ${ctx.companyId} and reservation_id = ${r.id} order by seq desc for update`;
+      for (const a of held) {
+        if (excess <= 0) break;
+        const cut = Math.min(excess, num(a.qty));
+        if (round4(num(a.qty) - cut) <= 0) await ctx.tx`delete from inventory.reservation_allocations where id = ${a.id}`;
+        else await ctx.tx`update inventory.reservation_allocations set qty = qty - ${cut} where id = ${a.id}`;
+        excess = round4(excess - cut);
+        r.open = round4(r.open + cut);
+      }
+    }
+    // RG-4: only the stock FEFO may issue today is free: a blocked lot, or (block_expired) an expired one, is not (inventory.lot_sellable).
+    const today = await companyToday(ctx);
     const bucketKey = (l: { productId: string; locationId: string; lotId?: string | null; serialId?: string | null }) =>
       `${l.productId}|${l.locationId}|${l.lotId ?? ""}|${l.serialId ?? ""}`;
     const free = new Map<string, number>();
@@ -370,6 +399,7 @@ export const reservationAllocate = defineProcess({
         select (coalesce((select sum(s.on_hand) from inventory.stock_levels s
                   where s.company_id = ${ctx.companyId} and s.warehouse_id = ${input.warehouseId} and s.product_id = ${l.productId}
                     and s.location_id = ${l.locationId} and s.lot_id is not distinct from ${l.lotId ?? null}::uuid
+                    and inventory.lot_sellable(s.lot_id, ${today}::date)
                     and (${l.serialId ?? null}::uuid is null or s.serial_id = ${l.serialId ?? null}::uuid)), 0)
               - coalesce((select sum(a.qty) from inventory.reservation_allocations a join inventory.reservations r on r.id = a.reservation_id
                   where a.company_id = ${ctx.companyId} and r.status = 'active' and r.warehouse_id = ${input.warehouseId} and r.product_id = ${l.productId}
@@ -385,7 +415,11 @@ export const reservationAllocate = defineProcess({
       const inBucket = Math.max(free.get(key) ?? 0, 0);
       const open = Math.max(reservation?.open ?? 0, 0);
       if (!reservation || l.qty > inBucket || l.qty > open) {
-        short.push({ orderLineId: l.orderLineId, productId: l.productId, qty: l.qty, available: round4(Math.min(inBucket, open)), reason: "allocation_short" });
+        // The bucket travels with the answer, so warehouse marks the pick line of that ubicación, lot and serial.
+        short.push({
+          orderLineId: l.orderLineId, productId: l.productId, locationId: l.locationId, lotId: l.lotId ?? null, serialId: l.serialId ?? null,
+          qty: l.qty, available: round4(Math.min(inBucket, open)), reason: "allocation_short",
+        });
         continue;
       }
       free.set(key, round4(inBucket - l.qty));

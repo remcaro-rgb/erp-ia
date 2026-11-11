@@ -171,9 +171,12 @@ export const invoiceEntity: EntityDef = entity("invoicing.invoice", "documento",
   defaultSort: { field: "seq", dir: "desc" },
 });
 
-/** The text of invoice_lines.lots (jsonb `[{ lotCode, expiresOn, serialNo, qty }]`) the masked view shows, in the order the lots left. */
+/**
+ * The text of invoice_lines.lots (jsonb `[{ lotCode, expiresOn, serialNo, qty }]`) the masked view shows, in the order the lots left: a
+ * serial that sits in a lot reads `code · number · expiry · qty` (migration 0169), never one of them only.
+ */
 const INVOICE_LINE_LOTS_EXPR =
-  "(select string_agg(coalesce(x.e->>'lotCode', x.e->>'serialNo', '') || coalesce(' · ' || (x.e->>'expiresOn'), '') || ' · ' || (x.e->>'qty'), '; ' order by x.n) from jsonb_array_elements(invoice_lines.lots) with ordinality as x(e, n))";
+  "(select string_agg(concat_ws(' · ', x.e->>'lotCode', x.e->>'serialNo', x.e->>'expiresOn', x.e->>'qty'), '; ' order by x.n) from jsonb_array_elements(invoice_lines.lots) with ordinality as x(e, n))";
 
 export const invoiceLineEntity: EntityDef = entity("invoicing.invoice_line", "lines", "invoice_lines", "line_no", (f) => [
   f("seq", "number", { required: true }),
@@ -201,7 +204,7 @@ export const invoiceLineEntity: EntityDef = entity("invoicing.invoice_line", "li
   f("delivery_line_id", "uuid"),
   ...trailer(f),
   // «Lote / Vence / Serie» (Task 28.4, RG-5): the lots and serials the line bills, copied from the entrega line it was written from
-  // (invoice_lines.lots, frozen at «Emitir»), read as `code · expiry · qty` (a serial: `number · qty`). Codes, dates and figures only.
+  // (invoice_lines.lots, frozen at «Emitir»), read as `code · expiry · qty` (a serial: `number · qty`; both: `code · number · expiry · qty`).
   f("lots", "text", { sortable: false, filterable: false, viewExpr: INVOICE_LINE_LOTS_EXPR }),
 ]);
 

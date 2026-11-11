@@ -3,7 +3,7 @@ import { buildConsumerContext, withClaims } from "@erp/kernel";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { onDeliveryShipped, onDeliveryVoided, onReturnReceived, onReturnVoided } from "../processes/sales-deliveries";
 import { onOrderConfirmed } from "../processes/sales-orders";
-import { inventoryHarness, newId, product, warehouse, type InventoryHarness } from "./helpers";
+import { inventoryHarness, newId, product, stockOf, warehouse, type InventoryHarness } from "./helpers";
 
 // FEFO issue, availability, deliveries and returns (plan 2B.2 Task 28.3, PG §3.3, §3.7; RG-4, Review Focus 1 and 2). A delivery line of a
 // lot product that names no lot leaves by FEFO (expires_on asc nulls last, produced_on asc nulls last, code asc), split over the lots,
@@ -134,6 +134,8 @@ describe("FEFO sale issue by lot and serial (Task 28.3)", () => {
       return tx<{ on_hand: string; max_bucket: string }[]>`select on_hand::text, max_bucket::text from inventory.sale_stock(${w.id}::uuid, ${[p.productId]}::uuid[])`;
     });
     expect(saleStock.map((r) => [Number(r.on_hand), Number(r.max_bucket)])).toEqual([[5, 5]]);
+    // PG §3.7: inventory.v_stock's available leaves out the blocked and the expired lots too; on hand counts them all.
+    expect(await stockOf(h, p.productId, w.id)).toEqual({ onHand: 10, reserved: 0, available: 5 });
     await expect(h.run(h.admin, "inventory.reservation.create", { sourceEntity: ORDER_LINE, sourceLineId: newId(), productId: p.productId, warehouseId: w.id, qty: 6 }))
       .rejects.toMatchObject({ code: "invalid_input", message: expect.stringMatching(/^reservation_exceeds_available/) });
     // The pedido's confirmation (sales.order.confirmed → inventory): the lot-only line reserves.
@@ -179,6 +181,56 @@ describe("FEFO sale issue by lot and serial (Task 28.3)", () => {
     expect(await bucket(p.productId, p.lot.B!)).toBe(3);
     const [reservation] = await h.sql<{ left: string }[]>`select (qty - released_qty)::text as left from inventory.reservations where source_line_id = ${orderLineId} and status = 'active'`;
     expect(Number(reservation!.left)).toBe(5);
+  });
+
+  it("(R3) an inactive lot is not sellable: FEFO skips it, availability leaves it out, and naming it is refused to sales", async () => {
+    const p = await lotProduct("F9");
+    // B expires first, but its maestro is inactive.
+    await h.sql`update inventory.lots set is_active = false where id = ${p.lot.B!}`;
+    const s = await ship([{ productId: p.productId, qty: 2 }]);
+    expect(s.refused).toBeUndefined();
+    expect((await issueLines(s.deliveryId)).map((l) => [l.lot_id, Number(l.qty)])).toEqual([[p.lot.A, -2]]);
+    const saleStock = await withClaims(h.sql, h.admin.claims, async (tx) => {
+      await tx`select set_config('erp.audit_process_id', 'inventory.test', true)`;
+      return tx<{ on_hand: string }[]>`select on_hand::text from inventory.sale_stock(${w.id}::uuid, ${[p.productId]}::uuid[], '2026-11-15'::date)`;
+    });
+    expect(saleStock.map((r) => Number(r.on_hand))).toEqual([2]);
+    expect(await stockOf(h, p.productId, w.id)).toMatchObject({ onHand: 5, available: 2 });
+    const named = await ship([{ productId: p.productId, qty: 1, lotId: p.lot.B! }]);
+    expect(named.refused).toMatchObject({ code: "maestro_not_usable" });
+    expect(await bucket(p.productId, p.lot.B!)).toBe(3);
+  });
+
+  it("(R3b) a maestro the movement's save finds not usable (an inactive ubicación) is refused to sales, never a silent dead letter", async () => {
+    const other = await warehouse(h, h.admin, `FX${randomUUID().slice(0, 3)}`);
+    const productId = await product(h, h.admin, `F9B-${randomUUID().slice(0, 5)}`);
+    await h.run(h.admin, "inventory.movement.post", { kind: "receipt", date: "2026-11-01", warehouseId: other.id, lines: [{ productId, locationId: other.locationId, qty: 3 }] });
+    await h.sql`update inventory.locations set is_active = false where id = ${other.locationId}`;
+    const deliveryId = newId();
+    await onDeliveryShipped(consumer("sales.delivery.shipped"), { deliveryId, number: "ENT-X", orderId: newId(), warehouseId: other.id, date: "2026-11-15", lines: [{ lineNo: 1, lineId: newId(), productId, qty: 1 }] });
+    const refused = (await eventsOf(deliveryId)).find((e) => e.event === "inventory.sale_issue.refused")?.payload;
+    expect(refused).toMatchObject({ deliveryId, code: "maestro_not_usable", reason: expect.stringContaining("ubicación") });
+  });
+
+  it("(R7) a manual entrega of another pedido does not take the units a confirmed alistamiento allocated (Review Focus 3)", async () => {
+    const p = await lotProduct("F10");
+    const orderX = newId();
+    await h.run(h.admin, "inventory.reservation.create", { sourceEntity: ORDER_LINE, sourceLineId: orderX, productId: p.productId, warehouseId: w.id, qty: 3 });
+    await consumer("warehouse.pick.confirmed").runProcess("inventory.reservation.allocate", {
+      eventId: newId(), pickId: newId(), orderId: newId(), warehouseId: w.id, createDelivery: false,
+      lines: [{ orderLineId: orderX, productId: p.productId, locationId: w.locationId, lotId: p.lot.B!, qty: 3 }],
+    });
+    // Pedido Y, no alistamiento: FEFO would take B (expires first), but X's pick holds all of B.
+    const y = await ship([{ productId: p.productId, qty: 3 }]);
+    expect(y.refused).toBeUndefined();
+    expect((await issueLines(y.deliveryId)).map((l) => [l.lot_id, Number(l.qty)])).toEqual([[p.lot.A, -3]]);
+    // Y again: only 1 of A is free (B is held), so 2 more is short.
+    const short = await ship([{ productId: p.productId, qty: 2 }]);
+    expect(short.refused).toMatchObject({ code: "lot_short" });
+    // X ships its allocation.
+    const x = await ship([{ productId: p.productId, qty: 3, orderLineId: orderX }]);
+    expect(x.refused).toBeUndefined();
+    expect((await issueLines(x.deliveryId)).map((l) => [l.lot_id, Number(l.qty)])).toEqual([[p.lot.B, -3]]);
   });
 
   it("(8) Review Focus 1: every bucket's on_hand equals the sum of its movement lines after (1)–(7); no serial on hand twice", async () => {

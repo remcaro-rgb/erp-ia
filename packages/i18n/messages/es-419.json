@@ -115,6 +115,7 @@
         "saving": "Guardando…",
         "saved": "Guardado",
         "read_only": "Solo lectura para tu rol",
+        "grid_hidden": "Tu rol no puede consultar estos registros.",
         "choose": "Buscar…",
         "roles": {
           "revenue": "Cuenta de ingresos",
@@ -6972,6 +6973,7 @@
     "effects": {
       "order_auto_invoice": "Facturación: crea la factura en Borrador si la empresa factura al confirmar el pedido",
       "delivery_auto_invoice": "Facturación: crea la factura en Borrador si la empresa factura al despachar cada entrega",
+      "delivery_lots_issue": "Facturación: emite la factura automática de la entrega en Borrador cuando ya están registrados sus lotes y seriales",
       "draft_created": "Facturación: deja la factura en Borrador; nada va a la DIAN hasta que se emita",
       "issue_dian": "Facturación DIAN: numera la factura con la resolución vigente, genera el CUFE y la envía a la DIAN",
       "note_dian": "Facturación DIAN: numera la nota, genera el CUDE y la envía a la DIAN",
@@ -7408,6 +7410,8 @@
       "putaway_not_on_receipt": "La línea no es de esta entrada",
       "relocation_cross_warehouse": "La ubicación es de otra bodega: entre bodegas se mueve con un traslado",
       "putaway_exceeds_stock": "Se ubica más de lo que queda de la entrada en esa ubicación",
+      "lot_blocked": "El lote está bloqueado: no se puede alistar",
+      "lot_expired": "El lote está vencido: no se puede alistar",
       "rule_exists": "Ya hay una regla para esa categoría y ubicación",
       "invalid_category": "La categoría no existe",
       "invalid_warehouse": "La bodega no existe"

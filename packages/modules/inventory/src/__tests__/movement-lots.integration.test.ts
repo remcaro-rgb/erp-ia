@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { inventoryHarness, product, stockOf, warehouse, type InventoryHarness } from "./helpers";
+import { inventoryHarness, newId, product, stockOf, warehouse, type InventoryHarness } from "./helpers";
 
 // Inbound and internal movements by lot and serial (plan 2B.2 Task 28.2, PG §3.2; RG-2, RG-3, Review Focus 1). A receipt of a lot-tracked
 // product names its lot (an existing one or a new code, created nested through inventory.lot.create in the same chain); a serial-tracked
@@ -190,6 +190,92 @@ describe("inventory movements by lot and serial (Task 28.2)", () => {
     expect(await bucket({ serialId: c2.id, warehouseId: cw.id, locationId: cw.locationId })).toBe(0);
     expect((await serialRow("C-2"))!.serial_status).toBe("scrapped");
     expect((await serialRow("C-1"))!.serial_status).toBe("available");
+  });
+
+  /** Holds a transaction advisory lock on its own connection until the answer is called (and its transaction ends). */
+  const holdLock = async (key: string, shared = false): Promise<() => Promise<void>> => {
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((resolve) => (locked = resolve));
+    const done = h.sql.begin(async (tx) => {
+      if (shared) await tx`select pg_advisory_xact_lock_shared(hashtextextended(${key}, 0))`;
+      else await tx`select pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+      locked();
+      await released;
+    });
+    await isLocked;
+    return async () => {
+      release();
+      await done;
+    };
+  };
+  /** Whether `p` settles (either way) within `ms`. */
+  const settles = (p: Promise<unknown>, ms = 500) =>
+    Promise.race([p.then(() => true, () => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
+
+  it("(R1) voiding an issue whose serial was received again in another bodega is refused serial_exists: a serial is never on hand twice", async () => {
+    const other = await warehouse(h, h.admin, "LTV");
+    await post("receipt", [{ productId: serialProduct, qty: 1, serials: [{ serialNo: "V-1" }] }]);
+    const v1 = (await serialRow("V-1"))!;
+    const issue = await post("issue", [{ productId: serialProduct, qty: -1, serialIds: [v1.id] }]);
+    // The serial comes back through another bodega (a return received there).
+    await post("receipt", [{ productId: serialProduct, qty: 1, locationId: other.locationId, serialIds: [v1.id] }], other.id);
+    await expect(h.run(h.admin, "inventory.movement.void", { id: issue.id, reason: "Error" })).rejects.toMatchObject(refusal("serial_exists"));
+    expect(await bucket({ serialId: v1.id })).toBe(0);
+    expect(await bucket({ serialId: v1.id, warehouseId: other.id, locationId: other.locationId })).toBe(1);
+    expect((await serialRow("V-1"))!.serial_status).toBe("available");
+  });
+
+  it("(R2) a product's tracking change and its movements queue on one product lock (inventory.tracking)", async () => {
+    const p = await product(h, h.admin, "LT-RACE");
+    const key = `inventory.tracking:${h.companyId}:${p}`;
+    // A movement waits for a tracking change in progress before it reads the tracking.
+    let release = await holdLock(key);
+    const receipt = post("receipt", [{ productId: p, qty: 2 }]);
+    let waited: boolean;
+    try {
+      waited = !(await settles(receipt));
+    } finally {
+      await release();
+    }
+    expect(waited).toBe(true);
+    await receipt;
+    // A tracking change waits for a movement in progress before it checks the stock, then sees it.
+    release = await holdLock(key, true);
+    const set = h.runStepUp(h.admin, "inventory.product_tracking.set", { productId: p, tracking: "lot" });
+    try {
+      waited = !(await settles(set));
+    } finally {
+      await release();
+    }
+    expect(waited).toBe(true);
+    await expect(set).rejects.toMatchObject(refusal("tracking_has_stock"));
+  });
+
+  it("(R5) two receipts of the same new lot code at once, in two bodegas, both post into one lot", async () => {
+    const second = await warehouse(h, h.admin, "LTR");
+    const results = await Promise.allSettled([
+      post("receipt", [{ productId: lotProduct, qty: 2, lot: { code: "L-RACE", expiresOn: "2027-05-01" } }]),
+      post("receipt", [{ productId: lotProduct, qty: 3, locationId: second.locationId, lot: { code: "l-race", expiresOn: "2027-05-01" } }], second.id),
+    ]);
+    expect(results.map((r) => (r.status === "rejected" ? String((r.reason as Error).message) : r.status))).toEqual(["fulfilled", "fulfilled"]);
+    const lots = await h.sql<{ id: string }[]>`select id from inventory.lots where product_id = ${lotProduct} and lower(code) = 'l-race'`;
+    expect(lots).toHaveLength(1);
+    expect(await bucket({ lotId: lots[0]!.id })).toBe(2);
+    expect(await bucket({ lotId: lots[0]!.id, warehouseId: second.id, locationId: second.locationId })).toBe(3);
+  });
+
+  it("(R6) one source line naming the same lot twice (by id and by code) is refused invalid_movement, before the database's key", async () => {
+    const a = (await lotId("L-A"))!;
+    const sourceLineId = newId();
+    await expect(h.run(h.admin, "inventory.movement.post", {
+      kind: "receipt", date: today, warehouseId: w.id, sourceEntity: "purchasing.receipt", sourceId: newId(),
+      lines: [
+        { productId: lotProduct, locationId: w.locationId, qty: 1, sourceLineId, lotId: a },
+        { productId: lotProduct, locationId: w.locationId, qty: 1, sourceLineId, lot: { code: "l-a" } },
+      ],
+    })).rejects.toMatchObject({ ...refusal("invalid_movement"), message: expect.stringContaining("aparece dos veces") });
   });
 
   it("(7) Review Focus 1: every bucket's on_hand equals the sum of its movement lines, and no serial is on hand twice", async () => {

@@ -343,6 +343,39 @@ describe("a company already in producción before the checklist (M2, owner item 
   });
 });
 
+describe("lotes_en_xml is judged on the settings being saved (Task 28.4 review)", () => {
+  const withoutLots = () => ITEMS.filter((i) => i.key !== "lotes_en_xml").map((i) => ({ itemKey: i.key, ticked: true }));
+
+  it("producción and dianItemInstance on in ONE save is refused dian_defaults_unconfirmed while lotes_en_xml is unticked", async () => {
+    await reset();
+    await tick(withoutLots());
+    await confirm(true);
+    const refused = await h.refusal(h.runStepUp("invoicing.settings.update", { dianEnvironment: "produccion", dianItemInstance: true }));
+    expect(refused).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^dian_defaults_unconfirmed/) });
+    expect(JSON.stringify(refused!.details)).toMatch(/cac:ItemInstance/);
+    expect(await settings()).toMatchObject({ dian_environment: "habilitacion", dian_item_instance: false });
+  });
+
+  it("a company already in producción cannot turn dianItemInstance on until lotes_en_xml is ticked; its other saves go on (R35-8)", async () => {
+    await reset();
+    await tick(withoutLots());
+    await confirm(true);
+    await h.sql`update invoicing.settings set dian_environment = 'produccion' where company_id = ${h.companyId}`;
+    process.env.EINVOICE_TRANSPORT = "dian-produccion";
+    try {
+      expect(await h.runStepUp("invoicing.settings.update", { creditDays: 41 })).toMatchObject({ dianEnvironment: "produccion", dianItemInstance: false });
+      const refused = await h.refusal(h.runStepUp("invoicing.settings.update", { dianItemInstance: true }));
+      expect(refused).toMatchObject({ code: "invalid_state", message: expect.stringMatching(/^dian_defaults_unconfirmed/) });
+      expect((await settings()).dian_item_instance).toBe(false);
+      await tick([{ itemKey: "lotes_en_xml", ticked: true }]);
+      expect(await h.runStepUp("invoicing.settings.update", { dianItemInstance: true })).toMatchObject({ dianEnvironment: "produccion", dianItemInstance: true });
+    } finally {
+      delete process.env.EINVOICE_TRANSPORT;
+      await h.sql`update invoicing.settings set dian_item_instance = false, dian_environment = 'habilitacion', credit_days = 30 where company_id = ${h.companyId}`;
+    }
+  });
+});
+
 describe("the database holds the same rules", () => {
   it("a user cannot write dian_checks or the flag by SQL; the service can; another company reads none of it", async () => {
     await reset();

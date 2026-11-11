@@ -115,6 +115,7 @@
         "saving": "Saving…",
         "saved": "Saved",
         "read_only": "Read-only for your role",
+        "grid_hidden": "Your role may not view these records.",
         "choose": "Search…",
         "roles": {
           "revenue": "Revenue account",
@@ -6972,6 +6973,7 @@
     "effects": {
       "order_auto_invoice": "Invoicing: creates the invoice as a Draft if the company invoices when the order is confirmed",
       "delivery_auto_invoice": "Invoicing: creates the invoice as a Draft if the company invoices each delivery when it ships",
+      "delivery_lots_issue": "Invoicing: issues the delivery's automatic Draft invoice once its lots and serials are recorded",
       "draft_created": "Invoicing: leaves the invoice as a Draft; nothing goes to the DIAN until it is issued",
       "issue_dian": "DIAN e-invoicing: numbers the invoice with the current resolution, generates the CUFE and sends it to the DIAN",
       "note_dian": "DIAN e-invoicing: numbers the note, generates the CUDE and sends it to the DIAN",
@@ -7408,6 +7410,8 @@
       "putaway_not_on_receipt": "The line is not on this receipt",
       "relocation_cross_warehouse": "The location belongs to another warehouse: use a transfer between warehouses",
       "putaway_exceeds_stock": "More is put away than what remains of the receipt at that location",
+      "lot_blocked": "The lot is blocked: it cannot be picked",
+      "lot_expired": "The lot has expired: it cannot be picked",
       "rule_exists": "There is already a rule for that category and location",
       "invalid_category": "The category does not exist",
       "invalid_warehouse": "The warehouse does not exist"

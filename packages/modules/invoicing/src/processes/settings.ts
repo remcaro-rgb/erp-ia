@@ -22,13 +22,22 @@ import { ADMIN_ONLY, certificateStatus, PARAMETROS_PROCESSES } from "./parametro
 const CERTIFICATE_UNVERIFIED = "No se pudo verificar el certificado guardado: el almacén de secretos no respondió; inténtalo de nuevo";
 
 /** Producción only with the defaults confirmed, a transport that serves it, the software, the certificate and the PIN. */
-async function assertProductionReady(ctx: ProcessContext, softwareId: string | null, alreadyInProduction: boolean): Promise<void> {
-  // The effective confirmation (R35-7). A company already in producción when the list grows keeps operating (R35-8): the stored flag it
-  // cannot lower (0101) stands for the checks that follow every save, and the screen asks for the new items; reaching producción needs the
-  // effective one.
-  const confirmation = await effectiveConfirmation(ctx);
+async function assertProductionReady(ctx: ProcessContext, softwareId: string | null, alreadyInProduction: boolean, itemInstance: { from: boolean; to: boolean }): Promise<void> {
+  // The effective confirmation (R35-7), judged on the settings being saved (Task 28.4 review): lotes_en_xml counts when this save turns
+  // dian_item_instance on. A company already in producción when the list grows keeps operating (R35-8): the stored flag it cannot lower (0101)
+  // stands for the checks that follow every save, and the screen asks for the new items; reaching producción needs the effective one.
+  const confirmation = await effectiveConfirmation(ctx, { dianItemInstance: itemInstance.to });
   if (!confirmation.effective && !(alreadyInProduction && confirmation.stored)) {
     refuseState("dian_defaults_unconfirmed", [pendingMessage(confirmation), ...confirmation.pending.map((item) => item.es)]);
+  }
+  // R35-8 covers the rows a company in producción already had; a row its own switch brings in is new: turning dian_item_instance on there
+  // needs lotes_en_xml ticked (the conditional rows of the setting).
+  const switchedOn = alreadyInProduction && itemInstance.to && !itemInstance.from ? confirmation.pending.filter((item) => item.when === "dian_item_instance") : [];
+  if (switchedOn.length > 0) {
+    refuseState("dian_defaults_unconfirmed", [
+      "Verifica en la lista de verificación DIAN que el validador acepta los lotes y seriales en el XML antes de incluirlos",
+      ...switchedOn.map((item) => item.es),
+    ]);
   }
   const { einvoice } = await packOf(ctx);
   const secrets = secretStore();
@@ -136,7 +145,9 @@ export const settingsUpdate = defineProcess({
       dian_item_instance: input.dianItemInstance ?? current.dianItemInstance,
     };
     // The confirmation of the DIAN defaults is no input and no column of this update (Task 35): only the checklist's processes write it.
-    if (next.dian_environment === "produccion") await assertProductionReady(ctx, submission.software_id as string | null, current.dianEnvironment === "produccion");
+    if (next.dian_environment === "produccion") {
+      await assertProductionReady(ctx, submission.software_id as string | null, current.dianEnvironment === "produccion", { from: current.dianItemInstance, to: next.dian_item_instance });
+    }
     // An upsert's CHECK runs on the row it proposes to insert (no certificate there), so the row is made first and then updated: the
     // database's producción guard (0105) judges the row as it ends up.
     await ctx.tx`insert into invoicing.settings ${ctx.tx({ company_id: ctx.companyId } as never)} on conflict (company_id) do nothing`;

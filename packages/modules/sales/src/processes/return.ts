@@ -107,7 +107,10 @@ export const returnCreate = defineProcess({
     costCenterId: id.optional(),
     notes: z.string().trim().max(2000).optional(),
     /** Task 28.3: a lot product's line may name the lot coming back, a serial product's the serials; else they default from what the entrega issued. */
-    lines: z.array(z.object({ deliveryLineId: id, qty, lotId: id.optional(), serialIds: z.array(id).min(1).max(500).optional() }).strict()).min(1).max(200).optional(),
+    lines: z.array(z.object({ deliveryLineId: id, qty, lotId: id.optional(), serialIds: z.array(id).min(1).max(500).optional() }).strict()
+      .refine((l) => !(l.lotId && l.serialIds), "Indica el lote o los seriales, no ambos")
+      .refine((l) => !l.serialIds || (l.serialIds.length === l.qty && new Set(l.serialIds).size === l.serialIds.length), "Indica un serial distinto por unidad"))
+      .min(1).max(200).optional(),
   }).strict(),
   output: returnOutput,
   handler: async (ctx, input) => {
@@ -142,6 +145,7 @@ export const returnCreate = defineProcess({
       if (problems.length > 0) refuse("invalid_delivery_line", problems);
       if (over.length > 0) refuse("over_return", over);
     }
+    await assertLotsRecorded(ctx, delivery, lines.map((l) => l.line));
     const tracked = await lotsOfLines(ctx, delivery.id, lines);
     const [header] = await ctx.tx<{ id: string }[]>`
       insert into sales.returns ${ctx.tx({
@@ -169,10 +173,29 @@ export const returnCreate = defineProcess({
 });
 
 /**
+ * A devolución is made against what the entrega issued (Task 28.3 review): while a lot- or serial-tracked line has no lots recorded yet
+ * (sales.delivery_line_lots is written two events after the ship; lots_pending of sales' published view, migration 0169), the devolución
+ * is refused `lots_pending` (invalid_state, retryable), a named lot too, instead of refusing the lot or saving a serial line without serials;
+ * when the event that brings them dead-lettered (lots_failed) it is refused `lots_not_recorded`, which says what to do.
+ */
+async function assertLotsRecorded(ctx: ProcessContext, delivery: DeliveryRow, lines: readonly { id: string; line_no: number }[]): Promise<void> {
+  const ids = lines.map((l) => l.id);
+  const rows = await ctx.tx<{ line_no: number; lots_failed: boolean }[]>`
+    select line_no, lots_failed from sales.v_invoice_delivery_lines where id = any(${ids}::uuid[]) and (lots_pending or lots_failed) order by line_no`;
+  const failed = rows.filter((r) => r.lots_failed);
+  if (failed.length > 0) {
+    refuseState("lots_not_recorded", failed.map((r) => `Inventario no registró los lotes de la línea ${r.line_no} de la entrega ${label(delivery)}: su evento quedó en los eventos con error (Administración › Módulos). Reintenta ese evento o anula la entrega`));
+  }
+  if (rows.length === 0) return;
+  refuseState("lots_pending", rows.map((r) => `Los lotes de la línea ${r.line_no} de la entrega ${label(delivery)} aún se están registrando; inténtalo de nuevo en un momento`));
+}
+
+/**
  * The lot or serials of each devolución line (Task 28.3), checked against what the entrega issued (sales.delivery_line_lots): a named lot
  * or serial must have left on that entrega line (invalid_delivery_line); an unnamed line of an entrega line that left from ONE lot takes
- * that lot, one that left by serial takes the serials not returned yet (serials_required when fewer remain); an entrega line that left from
- * several lots names none and inventory brings the units back to the lots the issue took, in its order. An untracked line names nothing.
+ * that lot; one that left by serial takes the serials not returned yet only when it returns every one of them (owner item 188, narrowed by
+ * PG §3.3: serials are scanned, never chosen), else serials_required; an entrega line that left from several lots names none and inventory
+ * brings the units back to the lots the issue took, in its order. An untracked line names nothing.
  */
 async function lotsOfLines(ctx: ProcessContext, deliveryId: string, lines: { line: { id: string; line_no: number }; qty: number; lotId?: string | undefined; serialIds?: string[] | undefined }[]) {
   const issued = await ctx.tx<{ delivery_line_id: string; lot_id: string | null; serial_id: string | null }[]>`
@@ -198,10 +221,14 @@ async function lotsOfLines(ctx: ProcessContext, deliveryId: string, lines: { lin
       return { lotId: null, serialIds: l.serialIds };
     }
     if (serials.length > 0) {
-      const left = serials.filter((s) => !returnedSerials.has(s)).slice(0, l.qty);
-      if (left.length !== l.qty) missing.push(`Línea ${i + 1}: indica los seriales que vuelven`);
+      // Defaulted only when the line returns every serial it has left: a partial return never picks which ones come back.
+      const left = serials.filter((s) => !returnedSerials.has(s));
+      if (left.length !== l.qty) {
+        missing.push(`Línea ${i + 1}: escanea o indica los seriales que vuelven (vuelven ${l.qty} de ${left.length} sin devolver)`);
+        return { lotId: null, serialIds: null };
+      }
       for (const s of left) returnedSerials.add(s);
-      return { lotId: null, serialIds: left.length > 0 ? left : null };
+      return { lotId: null, serialIds: left };
     }
     return { lotId: lots.length === 1 ? lots[0]! : null, serialIds: null };
   });
